@@ -17,7 +17,7 @@
 <!-- LOADING -->
 <div id="s-loading" class="screen active">
   <div class="spinner"></div>
-  <p>Iniciando Jordi ERP...</p>
+  <p>Iniciando Instalo ERP...</p>
 </div>
 
 <!-- LOGIN -->
@@ -407,21 +407,36 @@
 
       <!-- ARTÍCULOS -->
       <div class="page" id="page-articulos">
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <div class="card kpi"><div class="ki">📦</div><div class="kv" id="art_kpi_total">0</div><div class="kl">Total artículos</div></div>
+          <div class="card kpi"><div class="ki">✅</div><div class="kv" id="art_kpi_activos">0</div><div class="kl">Activos</div></div>
+          <div class="card kpi"><div class="ki">🏷️</div><div class="kv" id="art_kpi_familias">0</div><div class="kl">Familias</div></div>
+          <div class="card kpi"><div class="ki">💰</div><div class="kv" id="art_kpi_valor">0 €</div><div class="kl">Valor catálogo (PVP)</div></div>
+        </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800">Artículos</h2><p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p></div>
+          <div><h2 style="font-size:17px;font-weight:800">Catálogo de artículos</h2><p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p></div>
           <div style="display:flex;gap:8px">
-              <button class="btn btn-secondary" onclick="openModal('mImportarArticulos')">📥 Importar Excel</button>
-              <button class="btn btn-primary" onclick="openModal('mArticulo')">+ Nuevo artículo</button>
-            </div>
+            <button class="btn btn-secondary" onclick="exportarArticulosExcel()">📤 Exportar</button>
+            <button class="btn btn-secondary" onclick="openModal('mImportarArticulos')">📥 Importar</button>
+            <button class="btn btn-primary" onclick="nuevoArticulo()">+ Nuevo artículo</button>
+          </div>
         </div>
         <div class="card">
-          <div class="card-h">
-            <input type="text" placeholder="🔍 Buscar..." oninput="buscarArt(this.value)" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:200px;outline:none">
-            <select onchange="filtrarArtFam(this.value)" id="selFamFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;margin-left:6px;outline:none">
+          <div class="card-h" style="gap:8px;flex-wrap:wrap">
+            <input type="text" placeholder="🔍 Buscar por nombre, código o ref..." id="artBuscar" oninput="filtrarArticulos()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:250px;outline:none">
+            <select onchange="filtrarArticulos()" id="selFamFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
               <option value="">Todas las familias</option>
             </select>
+            <select onchange="filtrarArticulos()" id="selActivoFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+              <option value="">Todos</option>
+              <option value="1" selected>Solo activos</option>
+              <option value="0">Solo inactivos</option>
+            </select>
           </div>
-          <div class="tw"><table class="dt"><thead><tr><th>Código</th><th>Artículo</th><th>Familia</th><th>Precio coste</th><th>Precio venta</th><th>IVA</th><th>Activo</th><th>Acciones</th></tr></thead><tbody id="artTable"></tbody></table></div>
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Código</th><th>Artículo</th><th>Familia</th><th>Proveedor</th><th>Coste</th><th>Venta</th><th>Margen</th><th>IVA</th><th>Activo</th><th style="width:80px"></th>
+          </tr></thead><tbody id="artTable"></tbody></table></div>
         </div>
       </div>
 
@@ -1267,28 +1282,42 @@
 <div class="overlay" id="mArticulo">
   <div class="modal modal-lg">
     <div class="modal-h"><span>📦</span><h2 id="mArtTit">Nuevo Artículo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mArticulo')">✕</button></div>
-    <div class="modal-b">
+    <div class="modal-b" style="max-height:70vh;overflow-y:auto">
       <input type="hidden" id="art_id">
+
+      <div class="auth-sep" style="margin-bottom:10px">Datos básicos</div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Código *</label><input id="art_codigo" placeholder="ART-001"></div>
         <div class="fg"><label>Familia</label><select id="art_familia"></select></div>
       </div>
-      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Descripción del artículo"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre corto del artículo"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Descripción</label><textarea id="art_desc" autocorrect="on" spellcheck="true" rows="2" placeholder="Descripción detallada (opcional)"></textarea></div>
+
+      <div class="auth-sep" style="margin-bottom:10px">Precios</div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Precio coste (€)</label><input id="art_coste" type="number" step="0.01" value="0"></div>
-        <div class="fg"><label>Precio venta (€)</label><input id="art_venta" type="number" step="0.01" value="0"></div>
+        <div class="fg"><label>Precio coste (€)</label><input id="art_coste" type="number" step="0.01" value="0" oninput="calcularMargenArt()"></div>
+        <div class="fg"><label>Precio venta (€)</label><input id="art_venta" type="number" step="0.01" value="0" oninput="calcularMargenArt()"></div>
+        <div class="fg"><label>Margen</label><input id="art_margen" readonly style="background:var(--gris-50);font-weight:700;color:var(--verde)"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Tipo IVA</label><select id="art_iva"></select></div>
         <div class="fg"><label>Unidad de venta</label><select id="art_unidad"></select></div>
       </div>
+
+      <div class="auth-sep" style="margin-bottom:10px">Proveedor y referencias</div>
       <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Proveedor habitual</label><select id="art_proveedor"><option value="">— Sin proveedor —</option></select></div>
         <div class="fg"><label>Ref. fabricante</label><input id="art_ref_fab"></div>
-        <div class="fg"><label>Código de barras</label><input id="art_barras"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Código de barras</label><input id="art_barras"></div>
+        <div class="fg"><label>Stock mínimo</label><input id="art_stock_min" type="number" step="1" value="0" placeholder="0"></div>
+      </div>
+
+      <div class="auth-sep" style="margin-bottom:10px">Opciones</div>
+      <div class="fg-row" style="margin-bottom:11px">
         <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding:10px 0">
-          <label style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gris-700)">Es un activo (maquinaria)</label>
+          <label style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gris-700)">Es un activo (maquinaria/herramienta)</label>
           <label class="toggle"><input type="checkbox" id="art_es_activo"><span class="toggle-sl"></span></label>
         </div>
         <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding:10px 0">
@@ -1296,7 +1325,7 @@
           <label class="toggle"><input type="checkbox" id="art_activo" checked><span class="toggle-sl"></span></label>
         </div>
       </div>
-      <div class="fg"><label>Observaciones</label><textarea id="art_obs" autocorrect="on" spellcheck="true"></textarea></div>
+      <div class="fg"><label>Observaciones</label><textarea id="art_obs" autocorrect="on" spellcheck="true" rows="2"></textarea></div>
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mArticulo')">Cancelar</button>
@@ -1670,36 +1699,24 @@
 
 <!-- ═══ MODAL IMPORTAR ARTÍCULOS ═══ -->
 <div class="overlay" id="mImportarArticulos">
-  <div class="modal modal-lg">
+  <div class="modal modal-md">
     <div class="modal-h"><span>📥</span><h2>Importar Artículos desde Excel</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarArticulos')">✕</button></div>
     <div class="modal-b">
-      <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">1️⃣</span>
-        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">Descarga la plantilla</div><div style="font-size:12px;color:var(--gris-500)">Rellénala con tus datos y vuelve aquí</div></div>
-        <button class="btn btn-primary btn-sm" onclick="descargarPlantilla('articulos')">📄 Descargar plantilla</button>
+      <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">Columnas reconocidas:</div>
+        <div style="font-size:11.5px;color:var(--gris-600);line-height:1.6">Código, Nombre, Descripción, Familia, Proveedor, Ref. fabricante, Código barras, Precio coste, Precio venta, Stock mínimo</div>
       </div>
-      <div style="background:var(--gris-50);border-radius:9px;padding:14px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <span style="font-size:24px">2️⃣</span>
-          <div><div style="font-weight:700;font-size:13.5px">Sube tu archivo Excel o CSV</div></div>
-        </div>
-        <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer" onclick="document.getElementById('importArtFile').click()">
-          <div style="font-size:32px;margin-bottom:8px">📊</div>
-          <div style="font-weight:600;color:var(--gris-700)">Arrastra tu Excel aquí o haz clic</div>
-          <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
-        </div>
-        <input type="file" id="importArtFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarExcel(this,'articulos')">
+      <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer" onclick="document.getElementById('art_import_file').click()">
+        <div style="font-size:32px;margin-bottom:8px">📊</div>
+        <div style="font-weight:600;color:var(--gris-700)">Haz clic para seleccionar tu archivo</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
       </div>
-      <div id="importArtPreview" style="display:none">
-        <div style="font-weight:700;font-size:13px;margin-bottom:8px" id="importArtInfo"></div>
-        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:8px">
-          <table class="dt" id="importArtTable"></table>
-        </div>
-      </div>
+      <input type="file" id="art_import_file" accept=".xlsx,.xls,.csv" style="display:none">
+      <div id="art_import_prog" style="text-align:center;font-size:12px;color:var(--azul);margin-top:10px"></div>
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mImportarArticulos')">Cancelar</button>
-      <button class="btn btn-primary" id="btnImportarArt" style="display:none" onclick="confirmarImport('articulos')">✅ Importar artículos</button>
+      <button class="btn btn-primary" onclick="importarArticulosExcel()">✅ Importar</button>
     </div>
   </div>
 </div>
