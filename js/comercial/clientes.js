@@ -157,7 +157,8 @@ async function abrirFicha(id) {
   const sub = document.getElementById('fichaCliSub');
   if (sub) sub.textContent = [c.tipo||'Particular', c.municipio_fiscal, c.provincia_fiscal].filter(Boolean).join(' · ');
 
-  // Datos principales (compacto)
+  // Datos principales (compacto) — tarifa en vez de descuento
+  const tarifa = c.tarifa || (c.descuento_habitual ? 'Dto. ' + c.descuento_habitual + '%' : 'General');
   document.getElementById('fichaCliDatos').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFicha('Tipo',c.tipo||'Particular')}
@@ -170,39 +171,44 @@ async function abrirFicha(id) {
       ${datoFicha('Provincia',c.provincia_fiscal||'—')}
       ${datoFicha('Dir. fiscal',c.direccion_fiscal||'—')}
       ${datoFicha('Forma pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
-      ${datoFicha('Dto. habitual',c.descuento_habitual?c.descuento_habitual+'%':'0%')}
+      ${datoFicha('Tarifa',tarifa)}
       ${c.observaciones?`<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
     </div>`;
 
-  // Cargar todo en paralelo
-  const [dirs, conts, trabs, presups, facts, docs, notas] = await Promise.all([
+  // Cargar todo en paralelo (incluye albaranes)
+  const [dirs, conts, trabs, presups, albs, facts, docs, notas] = await Promise.all([
     sb.from('direcciones_cliente').select('*').eq('cliente_id',id),
     sb.from('contactos_cliente').select('*').eq('cliente_id',id),
     sb.from('trabajos').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
     sb.from('presupuestos').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
+    sb.from('albaranes').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
     sb.from('facturas').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
     sb.from('documentos_cliente').select('*').eq('cliente_id',id).order('created_at',{ascending:false}),
     sb.from('notas_cliente').select('*').eq('cliente_id',id).order('created_at',{ascending:false}),
   ]);
 
-  // KPIs con info financiera integrada
-  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.total||0),0);
-  const pendiente = (facts.data||[]).filter(f=>f.estado==='pendiente').reduce((s,f)=>s+(f.total||0),0);
-  const vencidas = (facts.data||[]).filter(f=>f.estado==='vencida').length;
-  const nFacts = (facts.data||[]).length;
-
+  // KPIs — solo cantidades
   document.getElementById('fk-trabajos').textContent = trabs.data?.length||0;
   document.getElementById('fk-presup').textContent = presups.data?.length||0;
-  document.getElementById('fk-facturado').textContent = fmtE(totalFact);
+  document.getElementById('fk-albaranes').textContent = (albs.data||[]).length;
+  document.getElementById('fk-facturas').textContent = (facts.data||[]).length;
   document.getElementById('fk-docs').textContent = (docs.data||[]).length;
   document.getElementById('fk-notas').textContent = (notas.data||[]).length;
 
-  // Detalle facturación bajo el KPI
-  const detParts = [];
-  if (nFacts) detParts.push(nFacts + ' fact.');
-  if (pendiente > 0) detParts.push('<span style="color:var(--rojo)">' + fmtE(pendiente) + ' pte.</span>');
-  if (vencidas > 0) detParts.push('<span style="color:var(--rojo);font-weight:700">' + vencidas + ' vencida' + (vencidas>1?'s':'') + '</span>');
-  document.getElementById('fk-fact-detail').innerHTML = detParts.join(' · ') || 'Sin facturas';
+  // Totales para resúmenes dentro de cada panel
+  const totalPresup = (presups.data||[]).reduce((s,p)=>s+(p.total||0),0);
+  const totalAlb = (albs.data||[]).reduce((s,a)=>s+(a.total||0),0);
+  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.total||0),0);
+  const pendienteCobro = (facts.data||[]).filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+(f.total||0),0);
+  const vencidas = (facts.data||[]).filter(f=>f.estado==='vencida').length;
+
+  // Helper: barra resumen de importes
+  function resumenBar(items) {
+    return `<div style="display:flex;gap:12px;padding:8px 10px;margin-bottom:10px;background:var(--gris-50);border-radius:8px;font-size:11.5px;flex-wrap:wrap">${items.join('')}</div>`;
+  }
+  function resumenItem(label, val, color) {
+    return `<div><span style="color:var(--gris-400)">${label}:</span> <strong style="color:${color||'var(--gris-900)'}">${val}</strong></div>`;
+  }
 
   // Documentos
   const TIPO_ICO = {manual:'📖',garantia:'🛡️',certificado:'📜',foto:'📷',contrato:'📋',otro:'📄'};
@@ -258,36 +264,60 @@ async function abrirFicha(id) {
       </div>`).join('') :
     '<div style="padding:10px 14px;color:var(--gris-400);font-size:12px">Sin contactos</div>';
 
-  // Historial trabajos
+  // Historial trabajos (clicables)
   document.getElementById('ficha-hist-trabajos').innerHTML = (trabs.data||[]).length ?
     (trabs.data||[]).map(t=>`
-      <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="navTrabajo(${t.id})">
         <span style="font-size:15px">${catIco(t.categoria)}</span>
         <div style="flex:1"><div style="font-weight:700;font-size:12.5px">${t.titulo}</div><div style="font-size:10.5px;color:var(--gris-400)">${t.numero} · ${t.fecha||'—'}</div></div>
         ${estadoBadge(t.estado)}
       </div>`).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🏗️</div><p>Sin obras</p></div>';
 
-  // Historial presupuestos
-  document.getElementById('ficha-hist-presupuestos').innerHTML = (presups.data||[]).length ?
+  // Historial presupuestos (clicables + barra resumen)
+  const presupHtml = (presups.data||[]).length ?
+    resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)')]) +
     (presups.data||[]).map(p=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('presupuesto',${p.id})">
         <div><div style="font-weight:700;font-size:12.5px">${p.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.categoria||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
       </div>`).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos</p></div>';
+  document.getElementById('ficha-hist-presupuestos').innerHTML = presupHtml;
 
-  // Historial facturas
-  document.getElementById('ficha-hist-facturas').innerHTML = (facts.data||[]).length ?
+  // Historial albaranes (clicables + barra resumen)
+  const albHtml = (albs.data||[]).length ?
+    resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)')]) +
+    (albs.data||[]).map(a=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('albaran',${a.id})">
+        <div><div style="font-weight:700;font-size:12.5px">${a.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div></div>
+        <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
+      </div>`).join('') :
+    '<div class="empty" style="padding:30px 0"><div class="ei">📄</div><p>Sin albaranes</p></div>';
+  document.getElementById('ficha-hist-albaranes').innerHTML = albHtml;
+
+  // Historial facturas (clicables + barra resumen con pendiente/vencida)
+  const factResumen = [resumenItem('Total facturado', fmtE(totalFact), 'var(--verde)')];
+  if (pendienteCobro > 0) factResumen.push(resumenItem('Pendiente cobro', fmtE(pendienteCobro), 'var(--rojo)'));
+  if (vencidas > 0) factResumen.push(resumenItem('Vencidas', vencidas+'', 'var(--rojo)'));
+  const factHtml = (facts.data||[]).length ?
+    resumenBar(factResumen) +
     (facts.data||[]).map(f=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('factura',${f.id})">
         <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas</p></div>';
+  document.getElementById('ficha-hist-facturas').innerHTML = factHtml;
 
   // Activar pestaña Obras por defecto
   fichaTab('trabajos');
+}
+
+// Navegación a trabajo/obra
+function navTrabajo(id) {
+  goPage('trabajos');
+  setTimeout(() => { if (typeof editTrabajo === 'function') editTrabajo(id); }, 100);
 }
 
 function datoFicha(label, val) {
@@ -295,13 +325,14 @@ function datoFicha(label, val) {
   return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;font-weight:600">${val}</span></div>`;
 }
 
-const FICHA_TAB_TITLES = {trabajos:'🏗️ Obras',presupuestos:'📋 Presupuestos',facturas:'🧾 Facturas',documentos:'📎 Documentos',notas:'📝 Notas'};
+const FICHA_TAB_TITLES = {trabajos:'🏗️ Obras',presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',documentos:'📎 Documentos',notas:'📝 Notas'};
 
 function fichaTab(tab) {
-  ['trabajos','presupuestos','facturas','documentos','notas'].forEach(t => {
-    document.getElementById('ficha-hist-'+t).style.display = t===tab?'block':'none';
+  ['trabajos','presupuestos','albaranes','facturas','documentos','notas'].forEach(t => {
+    const el = document.getElementById('ficha-hist-'+t);
+    if (el) el.style.display = t===tab?'block':'none';
     const kpi = document.getElementById('fkpi-'+t);
-    if (kpi) { kpi.classList.toggle('ficha-kpi-active', t===tab); }
+    if (kpi) kpi.classList.toggle('ficha-kpi-active', t===tab);
   });
   const titulo = document.getElementById('fichaHistTitulo');
   if (titulo) titulo.textContent = FICHA_TAB_TITLES[tab] || tab;

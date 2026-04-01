@@ -321,22 +321,24 @@
             </div>
           </div>
           <!-- KPIs clicables: actúan como pestañas -->
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px" id="fichaKpiBar">
-            <div class="sc ficha-kpi ficha-kpi-active" onclick="fichaTab('trabajos')" id="fkpi-trabajos" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:12px 14px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🏗️</span><div><div class="sv" id="fk-trabajos" style="font-size:20px">—</div><div class="sl">Obras</div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px" id="fichaKpiBar">
+            <div class="sc ficha-kpi ficha-kpi-active" onclick="fichaTab('trabajos')" id="fkpi-trabajos" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">🏗️</span><div><div class="sv" id="fk-trabajos" style="font-size:18px">—</div><div class="sl">Obras</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="fichaTab('presupuestos')" id="fkpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:12px 14px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📋</span><div><div class="sv" id="fk-presup" style="font-size:20px">—</div><div class="sl">Presupuestos</div></div></div>
+            <div class="sc ficha-kpi" onclick="fichaTab('presupuestos')" id="fkpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📋</span><div><div class="sv" id="fk-presup" style="font-size:18px">—</div><div class="sl">Presupuestos</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="fichaTab('facturas')" id="fkpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:12px 14px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🧾</span><div><div class="sv" id="fk-facturado" style="font-size:20px">—</div><div class="sl">Facturado</div></div></div>
-              <div style="font-size:10.5px;color:var(--gris-400);margin-top:4px" id="fk-fact-detail"></div>
+            <div class="sc ficha-kpi" onclick="fichaTab('albaranes')" id="fkpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📄</span><div><div class="sv" id="fk-albaranes" style="font-size:18px">—</div><div class="sl">Albaranes</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="fichaTab('documentos')" id="fkpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light,#F3EEFF);cursor:pointer;padding:12px 14px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📎</span><div><div class="sv" id="fk-docs" style="font-size:20px">—</div><div class="sl">Documentos</div></div></div>
+            <div class="sc ficha-kpi" onclick="fichaTab('facturas')" id="fkpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">🧾</span><div><div class="sv" id="fk-facturas" style="font-size:18px">—</div><div class="sl">Facturas</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="fichaTab('notas')" id="fkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:12px 14px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📝</span><div><div class="sv" id="fk-notas" style="font-size:20px">—</div><div class="sl">Notas</div></div></div>
+            <div class="sc ficha-kpi" onclick="fichaTab('documentos')" id="fkpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📎</span><div><div class="sv" id="fk-docs" style="font-size:18px">—</div><div class="sl">Documentos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="fichaTab('notas')" id="fkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📝</span><div><div class="sv" id="fk-notas" style="font-size:18px">—</div><div class="sl">Notas</div></div></div>
             </div>
           </div>
           <!-- Contenido principal: 2 columnas -->
@@ -376,6 +378,7 @@
               <div class="card-b" style="padding:10px 14px">
                 <div id="ficha-hist-trabajos"></div>
                 <div id="ficha-hist-presupuestos" style="display:none"></div>
+                <div id="ficha-hist-albaranes" style="display:none"></div>
                 <div id="ficha-hist-facturas" style="display:none"></div>
                 <div id="ficha-hist-documentos" style="display:none"></div>
                 <div id="ficha-hist-notas" style="display:none"></div>

@@ -465,6 +465,8 @@ function estadoBadgeP(e){const m={borrador:'<span class="badge bg-gray">✏️ B
 
 function estadoBadgeF(e){const m={pendiente:'<span class="badge bg-yellow">⏳ Pendiente</span>',cobrada:'<span class="badge bg-green">✅ Cobrada</span>',vencida:'<span class="badge bg-red">⚠️ Vencida</span>',anulada:'<span class="badge bg-gray">🚫 Anulada</span>'};return m[e]||`<span class="badge bg-gray">${e||'—'}</span>`;}
 
+function estadoBadgeA(e){const m={borrador:'<span class="badge bg-gray">✏️ Borrador</span>',pendiente:'<span class="badge bg-yellow">⏳ Pendiente</span>',entregado:'<span class="badge bg-green">✅ Entregado</span>',facturado:'<span class="badge bg-blue">🧾 Facturado</span>',anulado:'<span class="badge bg-gray">🚫 Anulado</span>'};return m[e]||`<span class="badge bg-gray">${e||'—'}</span>`;}
+
 function prioBadge(p){const m={Urgente:'<span class="badge bg-red">🔴</span>',Alta:'<span class="badge" style="background:#FFF4ED;color:var(--acento)">🟠</span>',Normal:'<span class="badge bg-gray">⚪</span>',Baja:'<span class="badge bg-gray">🔵</span>'};return m[p]||'';}
 
 function toast(msg,type='info'){const c=document.getElementById('toast');const t=document.createElement('div');t.className=`ti ${type}`;t.innerHTML=`<span>${{success:'✅',error:'❌',info:'ℹ️'}[type]}</span> ${msg}`;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3800);}
