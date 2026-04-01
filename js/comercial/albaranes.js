@@ -51,9 +51,17 @@ function renderAlbaranes(list) {
   const tbody = document.getElementById('abTable');
   if (!tbody) return;
 
+  // Botón facturar seleccionados
+  const btnMulti = document.getElementById('abFacturarMulti');
+  if (btnMulti) btnMulti.style.display = 'none';
+
   tbody.innerHTML = list.length ? list.map(a => {
     const est = ESTADOS[a.estado] || { label: a.estado||'—', color:'var(--gris-400)' };
+    const noFacturado = a.estado !== 'facturado' && a.estado !== 'anulado';
     return `<tr style="cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
+      <td onclick="event.stopPropagation()" style="text-align:center;width:30px">
+        ${noFacturado ? `<input type="checkbox" class="ab-check" value="${a.id}" data-cliente="${a.cliente_id||''}" onchange="abCheckChanged()" style="cursor:pointer">` : ''}
+      </td>
       <td style="font-weight:700;font-family:monospace;font-size:12.5px">${a.numero||'—'}</td>
       <td><div style="font-weight:600">${a.cliente_nombre||'—'}</div></td>
       <td style="color:var(--gris-600);font-size:12.5px">${a.referencia||'—'}</td>
@@ -75,7 +83,7 @@ function renderAlbaranes(list) {
       </td>
     </tr>`;
   }).join('') :
-  '<tr><td colspan="7"><div class="empty"><div class="ei">📄</div><h3>Sin albaranes</h3><p>Crea el primero con el botón "+ Nuevo albarán"</p></div></td></tr>';
+  '<tr><td colspan="8"><div class="empty"><div class="ei">📄</div><h3>Sin albaranes</h3><p>Crea el primero con el botón "+ Nuevo albarán"</p></div></td></tr>';
 }
 
 // ═══════════════════════════════════════════════
@@ -221,4 +229,83 @@ function exportarAlbaranes() {
   XLSX.utils.book_append_sheet(wb,ws,'Albaranes');
   XLSX.writeFile(wb,'albaranes_'+new Date().toISOString().split('T')[0]+'.xlsx');
   toast('Exportado ✓','success');
+}
+
+// ═══════════════════════════════════════════════
+//  FACTURACIÓN MÚLTIPLE
+// ═══════════════════════════════════════════════
+
+function abCheckChanged() {
+  const checks = document.querySelectorAll('.ab-check:checked');
+  const btn = document.getElementById('abFacturarMulti');
+  if (!btn) return;
+  if (checks.length < 2) { btn.style.display = 'none'; return; }
+  // Verificar que todos sean del mismo cliente
+  const clientes = new Set();
+  checks.forEach(c => clientes.add(c.dataset.cliente));
+  if (clientes.size > 1) {
+    btn.style.display = 'inline-flex';
+    btn.disabled = true;
+    btn.title = 'Los albaranes seleccionados deben ser del mismo cliente';
+    btn.textContent = '⚠️ Clientes distintos';
+  } else {
+    btn.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.title = '';
+    btn.textContent = `🧾 Facturar ${checks.length} albaranes`;
+  }
+}
+
+async function facturarAlbaranesMulti() {
+  const checks = document.querySelectorAll('.ab-check:checked');
+  if (checks.length < 2) return;
+  const ids = [...checks].map(c => parseInt(c.value));
+  const albs = ids.map(id => albaranesData.find(x => x.id === id)).filter(Boolean);
+  if (!albs.length) return;
+
+  // Verificar mismo cliente
+  const clienteIds = new Set(albs.map(a => a.cliente_id));
+  if (clienteIds.size > 1) { toast('Todos los albaranes deben ser del mismo cliente','error'); return; }
+
+  const nums = albs.map(a => a.numero).join(', ');
+  if (!confirm(`¿Crear una factura agrupando ${albs.length} albaranes?\n\n${nums}`)) return;
+
+  // Combinar líneas con referencia al albarán
+  let lineasTodas = [];
+  let totalGlobal = 0;
+  albs.forEach(a => {
+    // Separador con nombre del albarán
+    lineasTodas.push({ desc: `── ${a.numero} (${a.fecha||''}) ──`, cant: 0, precio: 0, _separator: true });
+    (a.lineas || []).forEach(l => {
+      lineasTodas.push({ ...l });
+      totalGlobal += (l.cant || 0) * (l.precio || 0);
+    });
+  });
+
+  const numero = await generarNumeroDoc('factura');
+  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+
+  const { error } = await sb.from('facturas').insert({
+    empresa_id: EMPRESA.id, numero,
+    cliente_id: albs[0].cliente_id, cliente_nombre: albs[0].cliente_nombre,
+    fecha: hoy.toISOString().split('T')[0],
+    fecha_vencimiento: v.toISOString().split('T')[0],
+    base_imponible: Math.round(totalGlobal * 100) / 100,
+    total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
+    estado: 'pendiente',
+    observaciones: `Factura agrupada: ${nums}`,
+    lineas: lineasTodas,
+    albaran_ids: ids,
+  });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Marcar todos como facturados
+  for (const a of albs) {
+    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
+    const ab = albaranesData.find(x => x.id === a.id);
+    if (ab) ab.estado = 'facturado';
+  }
+  renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
+  toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');
+  loadDashboard();
 }

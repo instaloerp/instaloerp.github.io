@@ -769,6 +769,7 @@
             <input type="date" id="abHasta" onchange="filtrarAlbaranes()"
               style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button>
+            <button id="abFacturarMulti" class="btn btn-sm" onclick="facturarAlbaranesMulti()" style="display:none;background:#7C3AED;color:#fff;border:none;font-weight:700">🧾 Facturar seleccionados</button>
             <button class="btn btn-primary btn-sm" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>
           </div>
         </div>
@@ -786,6 +787,7 @@
             <table class="dt">
               <thead>
                 <tr>
+                  <th style="width:30px"><input type="checkbox" id="abCheckAll" onchange="document.querySelectorAll('.ab-check').forEach(c=>{c.checked=this.checked});abCheckChanged()" title="Seleccionar todos"></th>
                   <th>Número</th>
                   <th>Cliente</th>
                   <th>Referencia</th>
@@ -912,6 +914,7 @@
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nuevo Albarán</button>
+            <button id="rcFacturarMulti" class="btn btn-sm" onclick="facturarRecepcionesMulti()" style="display:none;background:#7C3AED;color:#fff;border:none;font-weight:700">🧾 Facturar seleccionados</button>
             <button class="btn btn-secondary btn-sm" onclick="exportRecepciones()">📊 Excel</button>
           </div>
         </div>
@@ -948,6 +951,7 @@
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
+            <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.rc-check').forEach(c=>{c.checked=this.checked});rcCheckChanged()" title="Seleccionar todos"></th>
             <th>Número / Fecha</th><th>Proveedor</th><th>Usuario</th><th>Estado</th><th style="text-align:right">Importe</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="rcTable"></tbody></table></div>
         </div>

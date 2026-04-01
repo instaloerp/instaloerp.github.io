@@ -371,6 +371,7 @@ async function presToFactura(id) {
     fecha_vencimiento: v.toISOString().split('T')[0],
     base_imponible: p.base_imponible, total_iva: p.total_iva, total: p.total,
     estado: 'pendiente', observaciones: p.observaciones, lineas: p.lineas,
+    presupuesto_id: p.id,
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);

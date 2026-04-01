@@ -40,7 +40,8 @@ function renderPedidosCompra(list) {
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
-        ${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})">📥</button>`:''}
+        ${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>
       </div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">🛒</div><h3>Sin pedidos</h3></div></td></tr>';
@@ -306,4 +307,32 @@ function exportPedidosCompra() {
   a.download = `pedidos_compra_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════
+// CONVERSIONES ADICIONALES
+// ═══════════════════════════════════════════════
+async function pedidoToFacturaProv(id) {
+  const pc = pedidosCompra.find(x => x.id === id);
+  if (!pc) return;
+  if (!confirm(`¿Crear factura de proveedor desde el pedido ${pc.numero}?`)) return;
+  const numero = await generarNumeroDoc('factura_proveedor');
+  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+  const { error } = await sb.from('facturas_proveedor').insert({
+    empresa_id: EMPRESA.id, numero,
+    proveedor_id: pc.proveedor_id, proveedor_nombre: pc.proveedor_nombre,
+    fecha: hoy.toISOString().split('T')[0],
+    fecha_vencimiento: v.toISOString().split('T')[0],
+    base_imponible: pc.base_imponible || pc.total || 0,
+    total_iva: pc.total_iva || 0,
+    total: pc.total || 0,
+    estado: 'pendiente',
+    observaciones: pc.observaciones,
+    lineas: pc.lineas,
+    pedido_compra_id: pc.id,
+  });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await cambiarEstadoPC(id, 'recibido');
+  toast('🧾 Factura proveedor creada', 'success');
+  goPage('facturas-proveedor');
 }
