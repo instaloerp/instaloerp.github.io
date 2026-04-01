@@ -138,55 +138,37 @@ function populateSelects(){
 // ═══════════════════════════════════════════════
 // AUTOCOMPLETE: Familias
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// AUTOCOMPLETE: Familia (solo padres)
+// ═══════════════════════════════════════════════
 function acFamilia(q) {
   const drop = document.getElementById('acFamiliaDropdown');
   const query = (q || '').toLowerCase().trim();
 
-  // Construir lista jerárquica
+  // Solo familias padre (sin parent_id)
   const padres = familias.filter(f => !f.parent_id);
-  const hijos = familias.filter(f => f.parent_id);
-  let items = [];
-  padres.forEach(p => {
-    items.push({ id: p.id, nombre: p.nombre, nivel: 0 });
-    hijos.filter(h => h.parent_id === p.id).forEach(h => {
-      items.push({ id: h.id, nombre: h.nombre, padre: p.nombre, nivel: 1 });
-    });
-  });
-  // Huérfanas
-  const parentIds = padres.map(p => p.id);
-  hijos.filter(h => !parentIds.includes(h.parent_id)).forEach(h => {
-    items.push({ id: h.id, nombre: h.nombre, nivel: 0 });
-  });
+  let filtered = query ? padres.filter(p => p.nombre.toLowerCase().includes(query)) : padres;
 
-  // Filtrar si hay texto
-  let filtered = query ? items.filter(i => i.nombre.toLowerCase().includes(query)) : items;
-
-  // Generar HTML
   let html = '';
   if (!query) {
     html += '<div class="ac-item" onmousedown="event.preventDefault();acFamiliaSelect(\'\',\'\')"><span style="color:var(--gris-400)">— Sin familia —</span></div>';
   }
-  filtered.forEach(i => {
-    const prefix = i.nivel === 1 ? '<span style="color:var(--gris-300);margin-right:4px">└</span>' : '';
-    const sub = i.padre ? `<small style="color:var(--gris-400);margin-left:6px">(${i.padre})</small>` : '';
-    html += `<div class="ac-item" onmousedown="event.preventDefault();acFamiliaSelect('${i.id}','${i.nombre.replace(/'/g,"\\'")}')">
-      ${prefix}<strong>${i.nombre}</strong>${sub}
+  filtered.forEach(f => {
+    const nHijos = familias.filter(h => h.parent_id === f.id).length;
+    const badge = nHijos ? `<small style="color:var(--gris-400);margin-left:6px">(${nHijos} sub)</small>` : '';
+    html += `<div class="ac-item" onmousedown="event.preventDefault();acFamiliaSelect('${f.id}','${f.nombre.replace(/'/g,"\\'")}')">
+      <strong>${f.nombre}</strong>${badge}
     </div>`;
   });
 
-  // Opción de crear nueva
-  const exactMatch = items.some(i => i.nombre.toLowerCase() === query);
+  // Crear nueva familia
+  const exactMatch = padres.some(f => f.nombre.toLowerCase() === query);
   if (query && !exactMatch) {
-    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('${query.replace(/'/g,"\\'")}', false)">
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('${query.replace(/'/g,"\\'")}')">
       + Crear familia "${q.trim()}"
     </div>`;
-    if (padres.length > 0) {
-      html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('${query.replace(/'/g,"\\'")}', true)">
-        + Crear como subfamilia de...
-      </div>`;
-    }
   } else if (!query) {
-    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('', false)">
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('')">
       + Nueva familia...
     </div>`;
   }
@@ -201,35 +183,55 @@ function acFamiliaSelect(id, nombre) {
   document.getElementById('art_familia').value = id;
   document.getElementById('art_familia_input').value = nombre;
   acFamiliaHide();
+  // Limpiar subfamilia al cambiar familia
+  document.getElementById('art_subfamilia').value = '';
+  document.getElementById('art_subfamilia_input').value = '';
+  // Mostrar/ocultar campo subfamilia
+  actualizarSubfamiliaVisibilidad(id);
+}
+
+// Mostrar campo subfamilia solo si la familia seleccionada tiene hijos o si se quiere crear
+function actualizarSubfamiliaVisibilidad(familiaId) {
+  const wrap = document.getElementById('art_subfamilia_wrap');
+  if (!familiaId) { wrap.style.display = 'none'; return; }
+  // Siempre mostrar: permite crear subfamilias aunque no existan aún
+  wrap.style.display = '';
 }
 
 // Setter para cargar familia al editar artículo
 function setArtFamilia(familiaId) {
+  if (!familiaId) {
+    document.getElementById('art_familia').value = '';
+    document.getElementById('art_familia_input').value = '';
+    document.getElementById('art_subfamilia_wrap').style.display = 'none';
+    return;
+  }
   const fam = familias.find(f => f.id == familiaId);
-  document.getElementById('art_familia').value = familiaId || '';
-  document.getElementById('art_familia_input').value = fam?.nombre || '';
+  if (fam && fam.parent_id) {
+    // Es una subfamilia: poner el padre en Familia y esta en Subfamilia
+    const padre = familias.find(f => f.id == fam.parent_id);
+    document.getElementById('art_familia').value = padre ? padre.id : '';
+    document.getElementById('art_familia_input').value = padre ? padre.nombre : '';
+    document.getElementById('art_subfamilia').value = fam.id;
+    document.getElementById('art_subfamilia_input').value = fam.nombre;
+    actualizarSubfamiliaVisibilidad(padre ? padre.id : '');
+  } else {
+    // Es familia padre
+    document.getElementById('art_familia').value = familiaId;
+    document.getElementById('art_familia_input').value = fam?.nombre || '';
+    document.getElementById('art_subfamilia').value = '';
+    document.getElementById('art_subfamilia_input').value = '';
+    actualizarSubfamiliaVisibilidad(familiaId);
+  }
 }
 
-async function crearFamiliaDesdeAC(nombre, esSub) {
+async function crearFamiliaDesdeAC(nombre) {
   acFamiliaHide();
-  let parentId = null;
-
-  if (esSub) {
-    const padres = familias.filter(f => !f.parent_id);
-    const opciones = padres.map((p, i) => `${i + 1}. ${p.nombre}`).join('\n');
-    const resp = prompt('Elige la familia padre:\n\n' + opciones + '\n\nEscribe el número:');
-    if (!resp) return;
-    const idx = parseInt(resp) - 1;
-    if (idx < 0 || idx >= padres.length) { toast('Opción no válida', 'error'); return; }
-    parentId = padres[idx].id;
-  }
-
   if (!nombre) {
-    nombre = prompt(esSub ? 'Nombre de la subfamilia:' : 'Nombre de la nueva familia:');
+    nombre = prompt('Nombre de la nueva familia:');
     if (!nombre || !nombre.trim()) return;
   }
-
-  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), parent_id: parentId };
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), parent_id: null };
   const { data, error } = await sb.from('familias_articulos').insert(obj).select('id').single();
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
@@ -237,6 +239,77 @@ async function crearFamiliaDesdeAC(nombre, esSub) {
   familias = fresh || [];
   acFamiliaSelect(data.id, nombre.trim());
   toast('Familia "' + nombre.trim() + '" creada ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// AUTOCOMPLETE: Subfamilia (hijos de la familia seleccionada)
+// ═══════════════════════════════════════════════
+function acSubfamilia(q) {
+  const drop = document.getElementById('acSubfamiliaDropdown');
+  const query = (q || '').toLowerCase().trim();
+  const padreId = document.getElementById('art_familia').value;
+  if (!padreId) { drop.style.display = 'none'; return; }
+
+  const hijos = familias.filter(f => String(f.parent_id) === String(padreId));
+  let filtered = query ? hijos.filter(h => h.nombre.toLowerCase().includes(query)) : hijos;
+
+  let html = '';
+  if (!query) {
+    html += '<div class="ac-item" onmousedown="event.preventDefault();acSubfamiliaSelect(\'\',\'\')"><span style="color:var(--gris-400)">— Sin subfamilia —</span></div>';
+  }
+  filtered.forEach(h => {
+    html += `<div class="ac-item" onmousedown="event.preventDefault();acSubfamiliaSelect('${h.id}','${h.nombre.replace(/'/g,"\\'")}')">
+      <strong>${h.nombre}</strong>
+    </div>`;
+  });
+
+  // Crear nueva subfamilia
+  const exactMatch = hijos.some(h => h.nombre.toLowerCase() === query);
+  if (query && !exactMatch) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearSubfamiliaDesdeAC('${query.replace(/'/g,"\\'")}')">
+      + Crear subfamilia "${q.trim()}"
+    </div>`;
+  } else if (!query) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearSubfamiliaDesdeAC('')">
+      + Nueva subfamilia...
+    </div>`;
+  }
+
+  drop.innerHTML = html || '<div class="ac-empty">Sin subfamilias</div>';
+  drop.style.display = '';
+}
+
+function acSubfamiliaHide() { document.getElementById('acSubfamiliaDropdown').style.display = 'none'; }
+
+function acSubfamiliaSelect(id, nombre) {
+  document.getElementById('art_subfamilia').value = id;
+  document.getElementById('art_subfamilia_input').value = nombre;
+  acSubfamiliaHide();
+}
+
+function setArtSubfamilia(subId) {
+  const sub = familias.find(f => f.id == subId);
+  document.getElementById('art_subfamilia').value = subId || '';
+  document.getElementById('art_subfamilia_input').value = sub?.nombre || '';
+}
+
+async function crearSubfamiliaDesdeAC(nombre) {
+  acSubfamiliaHide();
+  const padreId = document.getElementById('art_familia').value;
+  if (!padreId) { toast('Selecciona primero una familia', 'error'); return; }
+
+  if (!nombre) {
+    nombre = prompt('Nombre de la nueva subfamilia:');
+    if (!nombre || !nombre.trim()) return;
+  }
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), parent_id: parseInt(padreId) };
+  const { data, error } = await sb.from('familias_articulos').insert(obj).select('id').single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const { data: fresh } = await sb.from('familias_articulos').select('*').eq('empresa_id', EMPRESA.id);
+  familias = fresh || [];
+  acSubfamiliaSelect(data.id, nombre.trim());
+  toast('Subfamilia "' + nombre.trim() + '" creada ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════

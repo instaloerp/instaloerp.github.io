@@ -32,10 +32,11 @@ function renderArticulos(list) {
   tbody.innerHTML = list.length ?
     list.map(a => {
       const fam = familias.find(f => f.id === a.familia_id);
+      const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
+      const famLabel = famPadre ? `${famPadre.nombre} <span style="color:var(--gris-300)">›</span> ${fam.nombre}` : (fam?.nombre || '—');
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
       const margen = a.precio_coste > 0 ? (((a.precio_venta - a.precio_coste) / a.precio_coste) * 100).toFixed(1) : '—';
       const margenColor = margen === '—' ? 'var(--gris-400)' : parseFloat(margen) >= 30 ? 'var(--verde)' : parseFloat(margen) >= 15 ? 'var(--amarillo)' : 'var(--rojo)';
-      // Contar proveedores de este artículo (si tenemos datos cargados)
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
       return `<tr style="cursor:pointer" ondblclick="editArticulo('${a.id}')">
@@ -45,7 +46,7 @@ function renderArticulos(list) {
           ${a.descripcion ? `<div style="font-size:11px;color:var(--gris-400);max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.descripcion}</div>` : ''}
           ${a.es_activo ? '<span class="badge bg-yellow" style="font-size:9.5px">Activo/Maquinaria</span>' : ''}
         </td>
-        <td>${fam?.nombre || '—'}</td>
+        <td>${famLabel}</td>
         <td style="font-weight:600">${fmtE(a.precio_coste)}</td>
         <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}</td>
         <td style="font-weight:700;color:${margenColor}">${margen === '—' ? '—' : margen + '%'}</td>
@@ -93,7 +94,11 @@ function filtrarArticulos() {
       (a.descripcion || '').toLowerCase().includes(texto)
     );
   }
-  if (famId) list = list.filter(a => a.familia_id == famId);
+  if (famId) {
+    // Incluir artículos de la familia y de sus subfamilias
+    const subIds = familias.filter(f => String(f.parent_id) === String(famId)).map(f => f.id);
+    list = list.filter(a => String(a.familia_id) === String(famId) || subIds.includes(a.familia_id));
+  }
   if (activo === '1') list = list.filter(a => a.activo !== false);
   if (activo === '0') list = list.filter(a => a.activo === false);
 
@@ -252,7 +257,7 @@ async function saveArticulo() {
     empresa_id: EMPRESA.id,
     codigo, nombre,
     descripcion: v('art_desc') || null,
-    familia_id: parseInt(document.getElementById('art_familia').value) || null,
+    familia_id: parseInt(document.getElementById('art_subfamilia').value) || parseInt(document.getElementById('art_familia').value) || null,
     tipo_iva_id: parseInt(document.getElementById('art_iva').value) || null,
     unidad_venta_id: parseInt(document.getElementById('art_unidad').value) || null,
     precio_coste: parseFloat(v('art_coste')) || 0,
@@ -694,13 +699,15 @@ function fileToDataUrl(file) {
 function exportarArticulosExcel() {
   const data = (artFiltrados.length ? artFiltrados : articulos).map(a => {
     const fam = familias.find(f => f.id === a.familia_id);
+    const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
+    const famLabel = famPadre ? `${famPadre.nombre} > ${fam.nombre}` : (fam?.nombre || '');
     const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
     const ud = unidades.find(u => u.id === a.unidad_venta_id);
     return {
       'Código': a.codigo,
       'Nombre': a.nombre,
       'Descripción': a.descripcion || '',
-      'Familia': fam?.nombre || '',
+      'Familia': famLabel,
       'Ref. fabricante': a.referencia_fabricante || '',
       'Código barras': a.codigo_barras || '',
       'Precio coste': a.precio_coste || 0,

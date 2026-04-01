@@ -1312,6 +1312,14 @@
               <div id="acFamiliaDropdown" class="ac-dropdown" style="display:none"></div>
             </div>
           </div>
+          <div class="fg" id="art_subfamilia_wrap" style="display:none"><label>Subfamilia</label>
+            <div class="ac-wrap">
+              <input type="hidden" id="art_subfamilia">
+              <input id="art_subfamilia_input" placeholder="Buscar o crear subfamilia..." autocomplete="off"
+                oninput="acSubfamilia(this.value)" onfocus="this.select();acSubfamilia('')" onblur="setTimeout(()=>acSubfamiliaHide(),200)">
+              <div id="acSubfamiliaDropdown" class="ac-dropdown" style="display:none"></div>
+            </div>
+          </div>
         </div>
         <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre corto del artículo"></div>
         <div class="fg" style="margin-bottom:11px"><label>Descripción</label><textarea id="art_desc" autocorrect="on" spellcheck="true" rows="2" placeholder="Descripción detallada (opcional)"></textarea></div>
