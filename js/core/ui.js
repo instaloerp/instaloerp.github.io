@@ -12,7 +12,18 @@ function openModal(id, skipReset){
   if(!skipReset){
     ['c_id','pv_id','art_id','alm_id','ser_id','iva_id','ud_id','fp_id','fam_id'].forEach(hid=>{const el=document.getElementById(hid);if(el)el.value='';});
   }
+  // Guardar valores de selects antes de repopular
+  const savedSelects = {};
+  if(skipReset){
+    ['art_familia','art_iva','art_unidad','art_proveedor','c_fpago','pv_fpago'].forEach(sid=>{
+      const sel=document.getElementById(sid); if(sel) savedSelects[sid]=sel.value;
+    });
+  }
   populateSelects();
+  // Restaurar valores guardados
+  if(skipReset){
+    Object.entries(savedSelects).forEach(([sid,val])=>{const sel=document.getElementById(sid);if(sel)sel.value=val;});
+  }
   if(id==='mPresup'){pPartidas=[];renderPPartidas();document.getElementById('p_fecha').value=new Date().toISOString().split('T')[0];}
   if(id==='mCliente'&&!skipReset){
     document.getElementById('mCliTit').textContent='Nuevo Cliente';
@@ -54,7 +65,7 @@ function goPage(id){
       albaranes: `<button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button><button class="btn btn-primary btn-sm" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>`,
       facturas: `<button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>`,
       proveedores: `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`,
-      articulos: `<button class="btn btn-ghost btn-sm" onclick="exportarArticulos()">📤 Exportar</button><button class="btn btn-secondary btn-sm" onclick="openModal('mImportarArticulos')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mArticulo')">+ Nuevo</button>`,
+      articulos: `<button class="btn btn-ghost btn-sm" onclick="exportarArticulos()">📤 Exportar</button><button class="btn btn-secondary btn-sm" onclick="openModal('mImportarArticulos')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="nuevoArticulo()">+ Nuevo</button>`,
       almacenes: `<button class="btn btn-primary btn-sm" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>`,
       trabajos: `<button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>`,
       usuarios: `<button class="btn btn-primary btn-sm" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>`,

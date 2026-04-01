@@ -143,6 +143,14 @@ body.editor-open #content{margin-top:0}
 .modal-b{padding:19px}
 .modal-f{padding:13px 19px;border-top:1px solid var(--gris-100);display:flex;justify-content:flex-end;gap:8px}
 
+/* Pestañas ficha artículo */
+.art-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.art-tab{padding:10px 16px;font-size:12.5px;font-weight:600;color:var(--gris-400);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
+.art-tab:hover{color:var(--gris-700)}
+.art-tab.active{color:var(--azul);border-bottom-color:var(--azul)}
+.art-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10px;font-weight:700;background:var(--gris-100);color:var(--gris-500);margin-left:4px}
+.art-tab.active .art-tab-badge{background:var(--azul-light);color:var(--azul)}
+
 .tw{overflow-x:auto}
 table.dt{width:100%;border-collapse:collapse}
 table.dt th{padding:8px 12px;background:var(--gris-50);font-size:10.5px;font-weight:700;color:var(--gris-500);text-align:left;border-bottom:1px solid var(--gris-200);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
