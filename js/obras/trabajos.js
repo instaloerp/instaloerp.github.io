@@ -342,13 +342,16 @@ function nuevoPresupObraActual() {
   if (!obraActualId) return;
   const t = trabajos.find(x=>x.id===obraActualId);
   if (!t) return;
-  // Intentar abrir nuevo presupuesto vinculado al cliente de la obra
+  // Abrir nuevo presupuesto vinculado al cliente de la obra
   if (typeof abrirNuevoPresupuesto === 'function') {
     abrirNuevoPresupuesto();
     setTimeout(() => {
-      const sel = document.getElementById('presCli');
-      if (sel && t.cliente_id) sel.value = t.cliente_id;
-    }, 200);
+      const sel = document.getElementById('de_cliente');
+      if (sel && t.cliente_id) {
+        sel.value = t.cliente_id;
+        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      }
+    }, 300);
   }
 }
 
@@ -359,9 +362,12 @@ function nuevoAlbaranObraActual() {
   if (typeof abrirNuevoAlbaran === 'function') {
     abrirNuevoAlbaran();
     setTimeout(() => {
-      const sel = document.getElementById('albCli');
-      if (sel && t.cliente_id) sel.value = t.cliente_id;
-    }, 200);
+      const sel = document.getElementById('de_cliente');
+      if (sel && t.cliente_id) {
+        sel.value = t.cliente_id;
+        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      }
+    }, 300);
   }
 }
 
@@ -371,8 +377,11 @@ function nuevoParteObraActual() {
     nuevoParteModal();
     setTimeout(() => {
       const sel = document.getElementById('pt_trabajo');
-      if (sel) sel.value = obraActualId;
-    }, 200);
+      if (sel) {
+        sel.value = obraActualId;
+        sel.dispatchEvent(new Event('change'));
+      }
+    }, 300);
   }
 }
 
