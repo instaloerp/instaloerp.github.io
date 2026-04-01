@@ -103,6 +103,13 @@ function goPage(id){
   if(id==='pedidos-compra') loadPedidosCompra();
   if(id==='albaranes-proveedor') loadRecepciones();
   if(id==='facturas-proveedor') loadFacturasProv();
+  if(id==='trabajos'){
+    if(typeof cerrarFichaObra==='function') cerrarFichaObra();
+    filtrarTrabajos ? filtrarTrabajos() : renderTrabajos();
+  }
+  if(id==='mantenimientos'){
+    if(typeof cerrarFichaMant==='function') cerrarFichaMant();
+  }
   if(id==='clientes'){
     cliFiltroList=[...clientes];
     renderClientes(clientes);

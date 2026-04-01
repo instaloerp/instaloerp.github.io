@@ -117,17 +117,17 @@ async function abrirFichaObra(id) {
     ${datoFichaObra('Municipio', cli.municipio_fiscal||'—')}
   ` : '<div style="color:var(--gris-400);font-size:12px;padding:8px 0">Sin cliente asignado</div>';
 
-  // ── Cargar datos relacionados en paralelo ──
-  const queries = [
-    sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(t.presupuesto_id ? `id.eq.${t.presupuesto_id}` : `cliente_id.eq.${t.cliente_id||0}`).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20),
-    sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20),
-    sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20),
-    sb.from('partes_trabajo').select('*').eq('trabajo_id',id).order('fecha',{ascending:false}).limit(50),
-    sb.from('documentos_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false}),
-    sb.from('notas_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false}),
-    sb.from('audit_log').select('*').eq('entidad','trabajo').eq('entidad_id',String(id)).order('created_at',{ascending:false}).limit(20),
-  ];
-  const [presups, albs, facts, partes, docs, notas, audit] = await Promise.all(queries);
+  // ── Cargar datos relacionados en paralelo (con protección si tabla no existe) ──
+  const safeQuery = (q) => q.then(r=>r).catch(()=>({data:[]}));
+  const [presups, albs, facts, partes, docs, notas, audit] = await Promise.all([
+    safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(t.presupuesto_id ? `id.eq.${t.presupuesto_id}` : `cliente_id.eq.${t.cliente_id||0}`).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('partes_trabajo').select('*').eq('trabajo_id',id).order('fecha',{ascending:false}).limit(50)),
+    safeQuery(sb.from('documentos_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
+    safeQuery(sb.from('notas_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
+    safeQuery(sb.from('audit_log').select('*').eq('entidad','trabajo').eq('entidad_id',String(id)).order('created_at',{ascending:false}).limit(20)),
+  ]);
 
   // Filtrar presupuestos/albaranes/facturas que realmente pertenecen a esta obra
   const presupData = (presups.data||[]).filter(p =>

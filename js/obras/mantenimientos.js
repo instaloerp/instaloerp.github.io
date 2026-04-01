@@ -16,8 +16,10 @@ let mtChecklistTemp = []; // checklist temporal para el modal
 // ═══════════════════════════════════════════════
 async function loadMantenimientos() {
   if (!EMPRESA || !EMPRESA.id) return;
-  const {data} = await sb.from('mantenimientos').select('*').eq('empresa_id', EMPRESA.id).order('proxima_revision', {ascending:true});
-  mantenimientos = data || [];
+  try {
+    const {data} = await sb.from('mantenimientos').select('*').eq('empresa_id', EMPRESA.id).order('proxima_revision', {ascending:true});
+    mantenimientos = data || [];
+  } catch(e) { mantenimientos = []; console.warn('Tabla mantenimientos no encontrada — créala en Supabase'); }
   filtrarMantenimientos();
   actualizarKpisMant();
 }
@@ -191,12 +193,13 @@ async function abrirFichaMant(id) {
     </div>
   ` : '<div style="color:var(--gris-400);font-size:12px;padding:8px 0">Sin cliente asignado</div>';
 
-  // Cargar datos paralelos
+  // Cargar datos paralelos (con protección si tabla no existe aún)
+  const safeQ = (q) => q.then(r=>r).catch(()=>({data:[]}));
   const [revisiones, partes, docs, notas] = await Promise.all([
-    sb.from('revisiones_mantenimiento').select('*').eq('mantenimiento_id',id).order('fecha',{ascending:false}),
-    sb.from('partes_trabajo').select('*').eq('mantenimiento_id',id).order('fecha',{ascending:false}),
-    sb.from('documentos_mantenimiento').select('*').eq('mantenimiento_id',id).order('created_at',{ascending:false}),
-    sb.from('notas_mantenimiento').select('*').eq('mantenimiento_id',id).order('created_at',{ascending:false}),
+    safeQ(sb.from('revisiones_mantenimiento').select('*').eq('mantenimiento_id',id).order('fecha',{ascending:false})),
+    safeQ(sb.from('partes_trabajo').select('*').eq('mantenimiento_id',id).order('fecha',{ascending:false})),
+    safeQ(sb.from('documentos_mantenimiento').select('*').eq('mantenimiento_id',id).order('created_at',{ascending:false})),
+    safeQ(sb.from('notas_mantenimiento').select('*').eq('mantenimiento_id',id).order('created_at',{ascending:false})),
   ]);
 
   const revData = revisiones.data||[];
