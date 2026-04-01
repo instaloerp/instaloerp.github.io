@@ -139,6 +139,8 @@ function goPage(id, opts){
   if(id==='albaranes') loadAlbaranes();
   if(id==='fichajes') loadFichajes();
   if(id==='partes') loadPartes();
+  if(id==='calendario' && typeof renderCalendario==='function') renderCalendario();
+  if(id==='mistareas' && typeof cargarMisTareas==='function') cargarMisTareas();
   if(id==='stock') loadStock();
   if(id==='traspasos') loadTraspasos();
   if(id==='mantenimientos') loadMantenimientos();

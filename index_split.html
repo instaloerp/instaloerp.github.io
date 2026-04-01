@@ -187,6 +187,8 @@
         <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
         <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">nuevo</span></button>
         <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes</button>
+        <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario</button>
+        <button class="sb-item" onclick="goPage('mistareas')"><span class="ico">✅</span> Mis Tareas</button>
       </div>
 
       <!-- PERSONAL -->
@@ -1083,6 +1085,55 @@
             <th>Número</th><th>Obra</th><th>Usuario</th><th>Fecha</th><th>Horas</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="ptTable"></tbody></table></div>
         </div>
+      </div>
+
+      <!-- CALENDARIO -->
+      <div class="page" id="page-calendario">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">📅 Calendario</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Planificación de obras, tareas y citas</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="cal-filtro-usuario" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none">
+              <option value="">Todos</option>
+            </select>
+            <button class="btn btn-sm" onclick="calMesAnterior()" style="font-size:16px;padding:4px 10px">‹</button>
+            <span id="calMesLabel" style="font-size:14px;font-weight:800;min-width:140px;text-align:center"></span>
+            <button class="btn btn-sm" onclick="calMesSiguiente()" style="font-size:16px;padding:4px 10px">›</button>
+            <button class="btn btn-sm" onclick="calHoy()" style="font-size:11px">Hoy</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px">
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Tareas mes</div><div id="cal-kpi-tareas" style="font-size:22px;font-weight:800;color:var(--azul)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Obras activas</div><div id="cal-kpi-obras" style="font-size:22px;font-weight:800;color:var(--verde)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Pendientes</div><div id="cal-kpi-pend" style="font-size:22px;font-weight:800;color:var(--naranja)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Vencidas</div><div id="cal-kpi-venc" style="font-size:22px;font-weight:800;color:var(--rojo)">0</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden"><div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);font-size:12px"></div></div>
+        <div id="calDayDetail" class="card" style="margin-top:14px;display:none;padding:16px"></div>
+      </div>
+
+      <!-- MIS TAREAS -->
+      <div class="page" id="page-mistareas">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">✅ Mis Tareas</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Todas las tareas asignadas a ti o a tu equipo</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="mt-filtro-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todos</option><option value="pendiente" selected>Pendientes</option><option value="en_curso">En curso</option><option value="completada">Completadas</option><option value="bloqueada">Bloqueadas</option></select>
+            <select id="mt-filtro-usuario" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todos</option></select>
+            <select id="mt-filtro-prioridad" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todas prioridades</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baja">Baja</option></select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px">
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Total</div><div id="mt-kpi-total" style="font-size:22px;font-weight:800;color:var(--azul)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Pendientes</div><div id="mt-kpi-pend" style="font-size:22px;font-weight:800;color:var(--naranja)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Completadas</div><div id="mt-kpi-done" style="font-size:22px;font-weight:800;color:var(--verde)">0</div></div>
+          <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Vencidas</div><div id="mt-kpi-venc" style="font-size:22px;font-weight:800;color:var(--rojo)">0</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden"><div id="mtLista" style="padding:12px"></div></div>
       </div>
 
       <!-- FICHAJES -->
@@ -2614,6 +2665,7 @@
 <script src="js/obras/trabajos.js?v=3"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
+<script src="js/obras/calendario.js?v=3"></script>
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js"></script>

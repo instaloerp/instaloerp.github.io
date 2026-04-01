@@ -400,7 +400,15 @@ function renderObraTareas() {
     <details>
       <summary style="font-size:11px;color:var(--gris-400);cursor:pointer;user-select:none;font-weight:600">💡 Tareas predefinidas (clic para desplegar)</summary>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
-        ${TAREA_PLANTILLAS.map(p => `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:all .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`).join('')}
+        ${TAREA_PLANTILLAS.map(p => {
+          const yaExiste = obraTareasData.some(t => t.texto === p.texto);
+          return yaExiste
+            ? `<button disabled style="background:var(--gris-100);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;color:var(--gris-300);text-decoration:line-through;cursor:default">${p.texto}</button>`
+            : `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:all .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:8px;text-align:right">
+        <button onclick="cargarTodasPlantillas()" class="btn btn-sm" style="font-size:10.5px;background:var(--violeta);color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer">📋 Cargar todas las plantillas</button>
       </div>
     </details>
   </div>`;
@@ -460,15 +468,24 @@ function renderTareaItem(t) {
   </div>`;
 }
 
-function poblarSelectResponsables() {
+async function poblarSelectResponsables() {
   const sel = document.getElementById('obraTareaResp');
   if (!sel) return;
-  // Mantener el valor actual
   const current = sel.value;
   sel.innerHTML = '<option value="">Sin asignar</option>';
-  // Usar CP (perfil actual) como mínimo
-  if (CP) {
-    sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+  // Cargar todos los perfiles de la empresa
+  try {
+    const { data } = await sb.from('perfiles').select('id,nombre,apellidos').eq('empresa_id',EMPRESA.id);
+    if (data && data.length) {
+      data.forEach(u => {
+        const nombre = ((u.nombre||'')+ ' '+(u.apellidos||'')).trim() || 'Sin nombre';
+        sel.innerHTML += `<option value="${u.id}">${nombre}</option>`;
+      });
+    } else if (CP) {
+      sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+    }
+  } catch(e) {
+    if (CP) sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
   }
   sel.value = current;
 }
@@ -482,10 +499,14 @@ async function guardarTareaObra() {
   const responsable_id = document.getElementById('obraTareaResp')?.value || null;
   const fecha_limite = document.getElementById('obraTareaFecha')?.value || null;
 
-  // Buscar nombre del responsable
+  // Buscar nombre del responsable desde el select
   let responsable_nombre = '';
-  if (responsable_id && CP && String(CU?.id) === String(responsable_id)) {
-    responsable_nombre = (CP.nombre||'') + ' ' + (CP.apellidos||'');
+  if (responsable_id) {
+    const selResp = document.getElementById('obraTareaResp');
+    if (selResp) {
+      const opt = selResp.querySelector(`option[value="${responsable_id}"]`);
+      if (opt) responsable_nombre = opt.textContent.trim();
+    }
   }
 
   const payload = {
@@ -494,8 +515,8 @@ async function guardarTareaObra() {
     texto,
     estado: 'pendiente',
     prioridad,
-    responsable_id: responsable_id ? parseInt(responsable_id) : null,
-    responsable_nombre: responsable_nombre.trim() || null,
+    responsable_id: responsable_id || null,
+    responsable_nombre: responsable_nombre || null,
     fecha_limite: fecha_limite || null,
     creado_por: CU?.id || null,
     creado_por_nombre: CP ? (CP.nombre||'')+' '+(CP.apellidos||'') : null,
@@ -528,9 +549,48 @@ function addTareaPlantilla(texto, prioridad) {
   if (obraTareasData.some(t => t.texto === texto)) {
     toast('Esa tarea ya existe','info'); return;
   }
-  document.getElementById('obraTareaTexto').value = texto;
+  // Rellenar formulario sin guardar — el usuario ajusta fecha/responsable/prioridad y pulsa Añadir
+  const inp = document.getElementById('obraTareaTexto');
+  if (inp) { inp.value = texto; inp.focus(); inp.scrollIntoView({behavior:'smooth',block:'center'}); }
   document.getElementById('obraTareaPrio').value = prioridad;
-  guardarTareaObra();
+  toast('Plantilla cargada — ajusta los campos y pulsa Añadir','info');
+}
+
+/* Cargar TODAS las plantillas de golpe (las que no existan aún) */
+async function cargarTodasPlantillas() {
+  if (!obraActualId) return;
+  let count = 0;
+  for (const p of TAREA_PLANTILLAS) {
+    if (obraTareasData.some(t => t.texto === p.texto)) continue;
+    const payload = {
+      empresa_id: EMPRESA.id,
+      trabajo_id: obraActualId,
+      texto: p.texto,
+      estado: 'pendiente',
+      prioridad: p.prioridad,
+      responsable_id: null,
+      responsable_nombre: null,
+      fecha_limite: null,
+      creado_por: CU?.id || null,
+      creado_por_nombre: CP ? (CP.nombre||'')+' '+(CP.apellidos||'') : null,
+    };
+    const { data, error } = await sb.from('tareas_obra').insert(payload).select().single();
+    if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        obraTareasData.push({ id: Date.now()+count, ...payload, created_at: new Date().toISOString() });
+      }
+    } else {
+      obraTareasData.push(data);
+    }
+    count++;
+  }
+  if (count) {
+    toast(`${count} tareas añadidas ✓`,'success');
+    updateTareasKpi();
+    renderObraTareas();
+  } else {
+    toast('Todas las plantillas ya existen','info');
+  }
 }
 
 async function toggleTareaObra(id) {
@@ -576,9 +636,9 @@ async function eliminarTareaObra(id) {
 function updateTareasKpi() {
   const el = document.getElementById('ok-tareas');
   if (el) {
-    const pend = obraTareasData.filter(t => t.estado !== 'completada').length;
+    const completadas = obraTareasData.filter(t => t.estado === 'completada').length;
     const total = obraTareasData.length;
-    el.textContent = total ? `${pend}/${total}` : '0';
+    el.textContent = total ? `${completadas}/${total}` : '0';
   }
 }
 
