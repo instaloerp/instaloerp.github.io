@@ -335,6 +335,7 @@ async function duplicarPres(id) {
 
 function exportarPresupuestos() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
+  if (!confirm('¿Exportar ' + presupuestos.length + ' presupuestos a Excel?')) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Título','Fecha','Válido hasta','Total','Estado'],

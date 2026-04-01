@@ -864,7 +864,9 @@ function fileToDataUrl(file) {
 // ═══════════════════════════════════════════════
 
 function exportarArticulosExcel() {
-  const data = (artFiltrados.length ? artFiltrados : articulos).map(a => {
+  const lista = artFiltrados.length ? artFiltrados : articulos;
+  if (!confirm('¿Exportar ' + lista.length + ' artículos a Excel?')) return;
+  const data = lista.map(a => {
     const fam = familias.find(f => f.id === a.familia_id);
     const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
     const famLabel = famPadre ? `${famPadre.nombre} > ${fam.nombre}` : (fam?.nombre || '');

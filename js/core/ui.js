@@ -60,8 +60,8 @@ function goPage(id){
   if (tb) {
     const btns = {
       clientes: '',
-      presupuestos: `<button class="btn btn-ghost btn-sm" onclick="exportarPresupuestos()">📤 Exportar</button><button class="btn btn-primary btn-sm" onclick="abrirNuevoPresupuesto()">+ Nuevo presupuesto</button>`,
-      albaranes: `<button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button><button class="btn btn-primary btn-sm" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>`,
+      presupuestos: '',
+      albaranes: '',
       facturas: `<button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>`,
       proveedores: `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`,
       articulos: '',

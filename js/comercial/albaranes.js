@@ -203,6 +203,7 @@ async function editarAlbaran(id) {
 // ═══════════════════════════════════════════════
 function exportarAlbaranes() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
+  if (!confirm('¿Exportar ' + albaranesData.length + ' albaranes a Excel?')) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Referencia','Fecha','Total','Estado'],

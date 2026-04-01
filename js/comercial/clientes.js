@@ -127,6 +127,7 @@ function filtrarCliProv(v) {
 }
 
 function exportarClientes() {
+  if (!confirm('¿Exportar ' + clientes.length + ' clientes a Excel?')) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Nombre','Tipo','NIF/CIF','Teléfono','Móvil','Email','Dirección','Municipio','CP','Provincia','Observaciones'],
@@ -323,10 +324,10 @@ async function abrirFicha(id) {
   fichaTab('trabajos');
 }
 
-// Navegación a trabajo/obra
+// Navegación a trabajo/obra (por ahora solo va a la página de obras)
 function navTrabajo(id) {
   goPage('trabajos');
-  setTimeout(() => { if (typeof editTrabajo === 'function') editTrabajo(id); }, 100);
+  // TODO: cuando exista ficha de obra, abrir editTrabajo(id)
 }
 
 function datoFicha(label, val) {
