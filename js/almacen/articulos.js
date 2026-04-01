@@ -4,9 +4,30 @@
 
 let artFiltrados = [];
 let _artKpiFilter = ''; // KPI filter activo
+let _ocultarSensibles = false; // modo ocultar datos sensibles
 let artProveedores = [];  // proveedores del artículo abierto
 let artHistorial = [];    // historial del artículo abierto
 let artFotoFile = null;   // archivo foto pendiente de subir
+
+// ─── Toggle datos sensibles (Coste, Dto, Valor stock) ───
+function toggleDatosSensibles() {
+  _ocultarSensibles = !_ocultarSensibles;
+  document.body.classList.toggle('ocultar-sensibles', _ocultarSensibles);
+  const btn = document.getElementById('btnSensible');
+  if (btn) btn.innerHTML = _ocultarSensibles ? '🔒 Datos ocultos' : '🔓 Datos visibles';
+}
+
+// ─── Clic simple vs doble clic en filas ──────
+let _artClickTimer = null;
+function artRowClick(e, id) {
+  if (e.target.closest('button')) return; // ignorar botones
+  if (_artClickTimer) { clearTimeout(_artClickTimer); _artClickTimer = null; return; }
+  _artClickTimer = setTimeout(() => { _artClickTimer = null; vistaRapidaArticulo(id); }, 280);
+}
+function artRowDblClick(e, id) {
+  if (_artClickTimer) { clearTimeout(_artClickTimer); _artClickTimer = null; }
+  editArticulo(id);
+}
 
 // ─── PESTAÑAS ─────────────────────────────────
 function artTab(tab, el) {
@@ -47,10 +68,10 @@ function renderArticulos(list) {
       const famLabel = famPadre ? `${famPadre.nombre} <span style="color:var(--gris-300)">›</span> ${fam.nombre}` : (fam?.nombre || '—');
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
       const dto = a.descuento || 0;
-      const dtoLabel = dto > 0 ? `<span style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
+      const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
-      return `<tr style="cursor:pointer" ondblclick="editArticulo('${a.id}')">
+      return `<tr style="cursor:pointer" onclick="artRowClick(event,'${a.id}')" ondblclick="artRowDblClick(event,'${a.id}')">
         <td style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul)">${fotoMini} ${a.codigo || '—'}</td>
         <td>
           <div style="font-weight:700">${a.nombre}</div>
@@ -59,8 +80,8 @@ function renderArticulos(list) {
         </td>
         <td>${famLabel}</td>
         <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}${dtoLabel}</td>
-        <td style="font-weight:600">${fmtE(a.precio_coste)}</td>
-        <td>${dto > 0 ? dto + '%' : '—'}</td>
+        <td class="td-sensible" style="font-weight:600">${fmtE(a.precio_coste)}</td>
+        <td class="td-sensible">${dto > 0 ? dto + '%' : '—'}</td>
         <td>${iva ? iva.porcentaje + '%' : '—'}</td>
         <td>${a.activo !== false ? '<span class="badge bg-green">Sí</span>' : '<span class="badge bg-gray">No</span>'}</td>
         <td><div style="display:flex;gap:4px">
@@ -478,13 +499,13 @@ function nuevoArtProveedor() {
   if (!artId) { toast('Guarda el artículo primero', 'error'); return; }
 
   document.getElementById('artprov_id').value = '';
-  // Populate proveedor select
-  const sel = document.getElementById('artprov_proveedor');
-  sel.innerHTML = '<option value="">— Seleccionar proveedor —</option>' + proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
-  sel.value = '';
+  // Limpiar autocomplete proveedor
+  document.getElementById('artprov_proveedor').value = '';
+  document.getElementById('artprov_proveedor_input').value = '';
   setVal({ artprov_ref: '', artprov_precio: '0', artprov_dto: '0', artprov_plazo: '0', artprov_obs: '' });
-  document.getElementById('artprov_principal').checked = artProveedores.length === 0; // principal si es el primero
+  document.getElementById('artprov_principal').checked = artProveedores.length === 0;
   document.getElementById('artProvForm').style.display = '';
+  setTimeout(() => document.getElementById('artprov_proveedor_input').focus(), 100);
 }
 
 function editArtProveedor(id) {
@@ -492,9 +513,10 @@ function editArtProveedor(id) {
   if (!ap) return;
 
   document.getElementById('artprov_id').value = ap.id;
-  const sel = document.getElementById('artprov_proveedor');
-  sel.innerHTML = '<option value="">— Seleccionar proveedor —</option>' + proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
-  sel.value = ap.proveedor_id;
+  // Autocomplete: poner ID oculto y nombre visible
+  document.getElementById('artprov_proveedor').value = ap.proveedor_id;
+  const prov = proveedores.find(p => p.id === ap.proveedor_id);
+  document.getElementById('artprov_proveedor_input').value = prov?.nombre || '';
   setVal({
     artprov_ref: ap.ref_proveedor || '',
     artprov_precio: ap.precio_proveedor || 0,
@@ -504,6 +526,50 @@ function editArtProveedor(id) {
   });
   document.getElementById('artprov_principal').checked = ap.es_principal;
   document.getElementById('artProvForm').style.display = '';
+}
+
+// ─── Autocomplete proveedor en ficha artículo ──
+function acProveedorArt(q) {
+  const dd = document.getElementById('acProveedorArtDropdown');
+  const query = (q || '').toLowerCase().trim();
+
+  // No mostrar nada hasta que escriba al menos 2 caracteres
+  if (query.length < 2) { dd.style.display = 'none'; return; }
+
+  let items = proveedores.filter(p => p.nombre.toLowerCase().includes(query));
+
+  let html = items.slice(0, 10).map(p =>
+    `<div class="ac-item" onmousedown="acProveedorArtSelect(${p.id},'${p.nombre.replace(/'/g,"\\'")}')"><strong>${p.nombre}</strong>${p.cif ? `<small>${p.cif}</small>` : ''}</div>`
+  ).join('');
+
+  // Opción crear nuevo si no hay match exacto
+  if (!proveedores.some(p => p.nombre.toLowerCase() === query)) {
+    html += `<div class="ac-item" onmousedown="crearProveedorDesdeAC('${query.replace(/'/g,"\\'")}')" style="color:var(--azul);font-weight:600">
+      ➕ Crear proveedor "${q.trim()}"</div>`;
+  }
+
+  dd.innerHTML = html;
+  dd.style.display = '';
+}
+
+function acProveedorArtHide() {
+  document.getElementById('acProveedorArtDropdown').style.display = 'none';
+}
+
+function acProveedorArtSelect(id, nombre) {
+  document.getElementById('artprov_proveedor').value = id;
+  document.getElementById('artprov_proveedor_input').value = nombre;
+  acProveedorArtHide();
+}
+
+async function crearProveedorDesdeAC(nombre) {
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1) };
+  const { data, error } = await sb.from('proveedores').insert(obj).select().single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  proveedores.push(data);
+  proveedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  acProveedorArtSelect(data.id, data.nombre);
+  toast('Proveedor "' + data.nombre + '" creado ✓', 'success');
 }
 
 function cancelArtProv() {
@@ -886,3 +952,63 @@ async function importarArticulosExcel() {
 
 // Alias para compatibilidad con topbar
 function exportarArticulos() { exportarArticulosExcel(); }
+
+// ─── Vista rápida de artículo (clic simple) ──────
+async function vistaRapidaArticulo(id) {
+  const a = articulos.find(x => String(x.id) === String(id));
+  if (!a) return;
+
+  // Foto
+  const fotoEl = document.getElementById('vr_foto');
+  fotoEl.innerHTML = a.foto_url
+    ? `<img src="${a.foto_url}" style="width:48px;height:48px;object-fit:cover">`
+    : '📦';
+
+  document.getElementById('vr_nombre').textContent = a.nombre || 'Artículo';
+  document.getElementById('vr_codigo').textContent = a.codigo || '';
+
+  // Familia
+  const fam = familias.find(f => f.id === a.familia_id);
+  const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
+  const famLabel = famPadre ? `${famPadre.nombre} > ${fam.nombre}` : (fam?.nombre || '—');
+
+  // IVA y Unidad
+  const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
+  const ud = unidades.find(u => u.id === a.unidad_venta_id);
+
+  const campo = (label, val) => `<div><span style="color:var(--gris-400);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">${label}</span><div style="font-weight:600;margin-top:2px">${val}</div></div>`;
+
+  let html = '';
+  html += campo('Familia', famLabel);
+  html += campo('PVP', fmtE(a.precio_venta));
+  html += campo('IVA', iva ? iva.porcentaje + '%' : '—');
+  html += campo('Unidad', ud?.nombre || ud?.abreviatura || '—');
+  html += campo('Stock mínimo', a.stock_minimo || 0);
+  html += campo('Estado', a.activo !== false ? '<span style="color:var(--verde)">Activo</span>' : '<span style="color:var(--rojo)">Inactivo</span>');
+  if (a.referencia_fabricante) html += campo('Ref. fabricante', a.referencia_fabricante);
+  if (a.codigo_barras) html += campo('Cód. barras', a.codigo_barras);
+  if (a.descripcion) {
+    html += `<div style="grid-column:1/-1"><span style="color:var(--gris-400);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Descripción</span><div style="font-weight:400;margin-top:2px;font-size:12.5px;color:var(--gris-600)">${a.descripcion}</div></div>`;
+  }
+
+  // Cargar proveedores del artículo
+  const { data: provs } = await sb.from('articulos_proveedores')
+    .select('proveedor_id, es_principal, precio_proveedor, ref_proveedor')
+    .eq('articulo_id', id).eq('empresa_id', EMPRESA.id);
+  if (provs && provs.length > 0) {
+    const provsHtml = provs.map(ap => {
+      const p = proveedores.find(x => x.id === ap.proveedor_id);
+      const nombre = p?.nombre || 'Proveedor';
+      const principal = ap.es_principal ? ' <span style="color:var(--azul);font-size:10px">★ Principal</span>' : '';
+      const ref = ap.ref_proveedor ? ` <span style="color:var(--gris-400);font-size:11px">(${ap.ref_proveedor})</span>` : '';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><span style="font-weight:600">${nombre}</span>${ref}${principal}</div>`;
+    }).join('');
+    html += `<div style="grid-column:1/-1;border-top:1px solid var(--gris-100);padding-top:8px;margin-top:4px"><span style="color:var(--gris-400);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Proveedores</span>${provsHtml}</div>`;
+  } else {
+    html += `<div style="grid-column:1/-1;border-top:1px solid var(--gris-100);padding-top:8px;margin-top:4px"><span style="color:var(--gris-400);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Proveedores</span><div style="color:var(--gris-400);font-size:12px;margin-top:2px">Sin proveedores asignados</div></div>`;
+  }
+
+  document.getElementById('vr_body').innerHTML = html;
+  document.getElementById('vr_btn_editar').onclick = () => { closeModal('mArtVistaRapida'); editArticulo(id); };
+  openModal('mArtVistaRapida');
+}
