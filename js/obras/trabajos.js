@@ -119,10 +119,17 @@ async function abrirFichaObra(id) {
 
   // ── Cargar datos relacionados en paralelo (con protección si tabla no existe) ──
   const safeQuery = (q) => q.then(r=>r).catch(()=>({data:[]}));
+  // Construir OR clauses incluyendo trabajo_id para traer todo lo vinculado a esta obra
+  const presOrClauses = [`trabajo_id.eq.${id}`];
+  if (t.presupuesto_id) presOrClauses.push(`id.eq.${t.presupuesto_id}`);
+  if (t.cliente_id) presOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
+  const docOrClauses = [`trabajo_id.eq.${id}`];
+  if (t.cliente_id) docOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
+
   const [presups, albs, facts, partes, docs, notas, audit, tareas] = await Promise.all([
-    safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(t.presupuesto_id ? `id.eq.${t.presupuesto_id}` : `cliente_id.eq.${t.cliente_id||0}`).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
-    safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
-    safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(presOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('partes_trabajo').select('*').eq('trabajo_id',id).order('fecha',{ascending:false}).limit(50)),
     safeQuery(sb.from('documentos_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
     safeQuery(sb.from('notas_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
@@ -132,11 +139,14 @@ async function abrirFichaObra(id) {
 
   // Filtrar presupuestos/albaranes/facturas que realmente pertenecen a esta obra
   const presupData = (presups.data||[]).filter(p =>
-    (t.presupuesto_id && p.id === t.presupuesto_id) || (p.trabajo_id === id)
+    p.trabajo_id === id || (t.presupuesto_id && p.id === t.presupuesto_id)
   );
-  // Si no hay relación directa, mostrar los del cliente vinculados a esta obra
-  const albData = (albs.data||[]).filter(a => a.trabajo_id === id || a.presupuesto_id === t.presupuesto_id);
-  const factData = (facts.data||[]).filter(f => f.trabajo_id === id || f.presupuesto_id === t.presupuesto_id);
+  const albData = (albs.data||[]).filter(a =>
+    a.trabajo_id === id || (t.presupuesto_id && a.presupuesto_id === t.presupuesto_id)
+  );
+  const factData = (facts.data||[]).filter(f =>
+    f.trabajo_id === id || (t.presupuesto_id && f.presupuesto_id === t.presupuesto_id)
+  );
   const partesData = partes.data||[];
   const docsData = docs.data||[];
   const notasData = notas.data||[];
