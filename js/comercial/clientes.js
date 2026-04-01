@@ -324,10 +324,9 @@ async function abrirFicha(id) {
   fichaTab('trabajos');
 }
 
-// Navegación a trabajo/obra (por ahora solo va a la página de obras)
+// Navegación a trabajo/obra — abre la ficha de la obra
 function navTrabajo(id) {
-  goPage('trabajos');
-  // TODO: cuando exista ficha de obra, abrir editTrabajo(id)
+  abrirFichaObra(id);
 }
 
 function datoFicha(label, val) {

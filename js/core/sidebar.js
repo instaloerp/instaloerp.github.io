@@ -19,6 +19,7 @@ const ALL_PAGES = [
   {id:'traspasos',ico:'🔄',label:'Traspasos'},
   {id:'activos',ico:'🔧',label:'Activos'},
   {id:'trabajos',ico:'🏗️',label:'Obras'},
+  {id:'mantenimientos',ico:'🔧',label:'Mantenimientos'},
   {id:'partes',ico:'📝',label:'Partes'},
   {id:'fichajes',ico:'⏱️',label:'Fichajes'},
   {id:'usuarios',ico:'👷',label:'Usuarios'},

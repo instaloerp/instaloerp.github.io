@@ -73,6 +73,7 @@ a{text-decoration:none;color:inherit}
 .sb-item:hover{background:rgba(255,255,255,.12);color:#fff}
 .sb-item.active{background:var(--azul);color:#fff}
 .sb-item .ico{font-size:18px;width:21px;text-align:center;flex-shrink:0}
+.sb-item .sb-beta{font-size:8px;background:rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:1px 5px;border-radius:4px;margin-left:auto;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .sb-item.indent{padding-left:28px;font-size:12px}
 .sb-claude{margin:7px 8px;background:linear-gradient(135deg,var(--violeta),#4F46E5);border-radius:9px;padding:10px 11px;cursor:pointer;border:none;display:flex;align-items:center;gap:8px;width:calc(100% - 16px);transition:opacity .15s}
 .sb-claude:hover{opacity:.88}

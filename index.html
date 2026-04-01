@@ -158,14 +158,14 @@
         <button class="sb-item" onclick="goPage('clientes')"><span class="ico">👥</span> Clientes</button>
         <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
         <button class="sb-item" onclick="goPage('albaranes')"><span class="ico">📄</span> Albaranes</button>
-        <button class="sb-item" onclick="goPage('facturas')"><span class="ico">🧾</span> Facturas</button>
+        <button class="sb-item" onclick="goPage('facturas')"><span class="ico">🧾</span> Facturas<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- COMPRAS -->
       <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)">Compras</div>
       <div class="sb-section-items" id="sec-compras">
         <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores</button>
-        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos</button>
+        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos<span class="sb-beta">nuevo</span></button>
         <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos</button>
         <button class="sb-item" onclick="goPage('albaranes-proveedor')"><span class="ico">📥</span> Albaranes</button>
         <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.</button>
@@ -178,13 +178,14 @@
         <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes</button>
         <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock</button>
         <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos</button>
-        <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos</button>
+        <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- GESTIÓN DE OBRAS -->
       <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)">Gestión de obras</div>
       <div class="sb-section-items" id="sec-obras">
         <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
+        <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">nuevo</span></button>
         <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes</button>
       </div>
 
@@ -451,27 +452,228 @@
 
       <!-- TRABAJOS -->
       <div class="page" id="page-trabajos">
-        <div class="card" style="margin-bottom:14px">
-          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-            <input type="text" id="trSearch" placeholder="🔍 Buscar por número, título, cliente..."
-              oninput="filtrarTrabajos()"
-              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
-            <select id="trEstado" onchange="filtrarTrabajos()"
-              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-              <option value="">Todos los estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="planificado">Planificado</option>
-              <option value="en_curso">En curso</option>
-              <option value="finalizado">Finalizado</option>
-            </select>
-            <input type="date" id="trDesde" onchange="filtrarTrabajos()"
-              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <input type="date" id="trHasta" onchange="filtrarTrabajos()"
-              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+        <!-- Vista listado -->
+        <div id="trVista-lista">
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input type="text" id="trSearch" placeholder="🔍 Buscar por número, título, cliente..."
+                oninput="filtrarTrabajos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+              <select id="trEstado" onchange="filtrarTrabajos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+                <option value="">Todos los estados</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="planificado">Planificado</option>
+                <option value="en_curso">En curso</option>
+                <option value="finalizado">Finalizado</option>
+              </select>
+              <input type="date" id="trDesde" onchange="filtrarTrabajos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <input type="date" id="trHasta" onchange="filtrarTrabajos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <button class="btn btn-ghost btn-sm" onclick="exportarObras()">📤 Exportar</button>
+              <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+            </div>
+          </div>
+          <div class="card"><div class="tw"><table class="dt"><thead><tr><th>Nº</th><th>Título</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
+        </div>
+
+        <!-- Vista ficha obra -->
+        <div id="trVista-ficha" style="display:none">
+          <!-- Cabecera -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="cerrarFichaObra()" style="padding:4px 10px">← Volver</button>
+            <div id="fichaObraIco" style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--acento);flex-shrink:0">🏗️</div>
+            <div style="flex:1;min-width:0">
+              <h2 style="font-size:17px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="fichaObraTitulo">—</h2>
+              <div style="font-size:11.5px;color:var(--gris-400)" id="fichaObraSub"></div>
+            </div>
+            <div id="fichaObraEstado"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="editarObraActual()">✏️ Editar</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoPresupObraActual()">📋 Presupuesto</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoAlbaranObraActual()">📄 Albarán</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoParteObraActual()">📝 Parte</button>
+            </div>
+          </div>
+          <!-- KPIs clicables como pestañas -->
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px" id="fichaObraKpiBar">
+            <div class="sc ficha-kpi ficha-kpi-active" onclick="obraTab('presupuestos')" id="okpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📋</span><div><div class="sv" id="ok-presup" style="font-size:18px">—</div><div class="sl">Presupuestos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('albaranes')" id="okpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📄</span><div><div class="sv" id="ok-albaranes" style="font-size:18px">—</div><div class="sl">Albaranes</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('facturas')" id="okpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">🧾</span><div><div class="sv" id="ok-facturas" style="font-size:18px">—</div><div class="sl">Facturas</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('partes')" id="okpi-partes" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📝</span><div><div class="sv" id="ok-partes" style="font-size:18px">—</div><div class="sl">Partes</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('documentos')" id="okpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📎</span><div><div class="sv" id="ok-docs" style="font-size:18px">—</div><div class="sl">Documentos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('notas')" id="okpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">💬</span><div><div class="sv" id="ok-notas" style="font-size:18px">—</div><div class="sl">Notas</div></div></div>
+            </div>
+          </div>
+          <!-- 2 columnas: datos izq + contenido dinámico dcha -->
+          <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start">
+            <!-- Panel izquierdo -->
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📋 Datos de la obra</h3></div>
+                <div class="card-b" id="fichaObraDatos" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">👤 Cliente</h3></div>
+                <div class="card-b" id="fichaObraCliente" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📊 Resumen económico</h3></div>
+                <div class="card-b" id="fichaObraResumen" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">🕐 Registro</h3></div>
+                <div class="card-b" id="fichaObraAudit" style="padding:10px 14px"></div>
+              </div>
+            </div>
+            <!-- Panel derecho: contenido dinámico -->
+            <div class="card" style="min-height:300px">
+              <div class="card-h" style="padding:10px 14px">
+                <h3 id="fichaObraHistTitulo" style="font-size:12.5px">📋 Presupuestos</h3>
+                <div class="card-ha" id="fichaObraHistActions"></div>
+              </div>
+              <div class="card-b" style="padding:10px 14px">
+                <div id="obra-hist-presupuestos"></div>
+                <div id="obra-hist-albaranes" style="display:none"></div>
+                <div id="obra-hist-facturas" style="display:none"></div>
+                <div id="obra-hist-partes" style="display:none"></div>
+                <div id="obra-hist-documentos" style="display:none"></div>
+                <div id="obra-hist-notas" style="display:none"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="card"><div class="tw"><table class="dt"><thead><tr><th>Nº</th><th>Título</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
+      </div>
+
+      <!-- MANTENIMIENTOS -->
+      <div class="page" id="page-mantenimientos">
+        <!-- Vista listado -->
+        <div id="mtVista-lista">
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input type="text" id="mtSearch" placeholder="🔍 Buscar por número, cliente, equipo..."
+                oninput="filtrarMantenimientos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+              <select id="mtEstado" onchange="filtrarMantenimientos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+                <option value="">Todos los estados</option>
+                <option value="activo">Activo</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="vencido">Vencido</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+              <select id="mtPeriodo" onchange="filtrarMantenimientos()"
+                style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+                <option value="">Todas las periodicidades</option>
+                <option value="mensual">Mensual</option>
+                <option value="trimestral">Trimestral</option>
+                <option value="semestral">Semestral</option>
+                <option value="anual">Anual</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="exportarMantenimientos()">📤 Exportar</button>
+              <button class="btn btn-primary btn-sm" onclick="nuevoMantenimiento()">+ Nuevo mantenimiento</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+            <div class="card" style="padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Activos</div>
+              <div id="mtKpiActivos" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+            </div>
+            <div class="card" style="padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Próx. revisión</div>
+              <div id="mtKpiProximos" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+            </div>
+            <div class="card" style="padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Vencidos</div>
+              <div id="mtKpiVencidos" style="font-size:24px;font-weight:800;color:var(--rojo)">0</div>
+            </div>
+            <div class="card" style="padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total contratos</div>
+              <div id="mtKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+            </div>
+          </div>
+          <div class="card"><div class="tw"><table class="dt"><thead><tr>
+            <th>Nº</th><th>Cliente</th><th>Equipo / Instalación</th><th>Periodicidad</th><th>Próxima revisión</th><th>Estado</th><th>Acciones</th>
+          </tr></thead><tbody id="mtTable"></tbody></table></div></div>
+        </div>
+
+        <!-- Vista ficha mantenimiento -->
+        <div id="mtVista-ficha" style="display:none">
+          <!-- Cabecera -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="cerrarFichaMant()" style="padding:4px 10px">← Volver</button>
+            <div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--verde);flex-shrink:0">🔧</div>
+            <div style="flex:1;min-width:0">
+              <h2 style="font-size:17px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="fichaMantTitulo">—</h2>
+              <div style="font-size:11.5px;color:var(--gris-400)" id="fichaMantSub"></div>
+            </div>
+            <div id="fichaMantEstado"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="editarMantActual()">✏️ Editar</button>
+              <button class="btn btn-primary btn-sm" onclick="generarParteMant()">📝 Generar parte</button>
+            </div>
+          </div>
+          <!-- KPIs clicables -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px" id="fichaMantKpiBar">
+            <div class="sc ficha-kpi ficha-kpi-active" onclick="mantTab('revisiones')" id="mkpi-revisiones" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📅</span><div><div class="sv" id="mk-revisiones" style="font-size:18px">—</div><div class="sl">Revisiones</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="mantTab('checklist')" id="mkpi-checklist" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">✅</span><div><div class="sv" id="mk-checklist" style="font-size:18px">—</div><div class="sl">Checklist</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="mantTab('partes')" id="mkpi-partes" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📝</span><div><div class="sv" id="mk-partes" style="font-size:18px">—</div><div class="sl">Partes</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="mantTab('documentos')" id="mkpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📎</span><div><div class="sv" id="mk-documentos" style="font-size:18px">—</div><div class="sl">Documentos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="mantTab('notas')" id="mkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">💬</span><div><div class="sv" id="mk-notas" style="font-size:18px">—</div><div class="sl">Notas</div></div></div>
+            </div>
+          </div>
+          <!-- 2 columnas -->
+          <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">🔧 Datos del contrato</h3></div>
+                <div class="card-b" id="fichaMantDatos" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">👤 Cliente</h3></div>
+                <div class="card-b" id="fichaMantCliente" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📊 Resumen</h3></div>
+                <div class="card-b" id="fichaMantResumen" style="padding:10px 14px"></div>
+              </div>
+            </div>
+            <div class="card" style="min-height:300px">
+              <div class="card-h" style="padding:10px 14px">
+                <h3 id="fichaMantHistTitulo" style="font-size:12.5px">📅 Revisiones</h3>
+                <div class="card-ha" id="fichaMantHistActions"></div>
+              </div>
+              <div class="card-b" style="padding:10px 14px">
+                <div id="mant-hist-revisiones"></div>
+                <div id="mant-hist-checklist" style="display:none"></div>
+                <div id="mant-hist-partes" style="display:none"></div>
+                <div id="mant-hist-documentos" style="display:none"></div>
+                <div id="mant-hist-notas" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- PÁGINAS EN CONSTRUCCIÓN -->
@@ -1724,6 +1926,47 @@
   </div>
 </div>
 
+<!-- Modal Nuevo/Editar Mantenimiento -->
+<div class="overlay" id="mMantenimiento">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>🔧</span><h2 id="mMantTit">Nuevo Mantenimiento</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mMantenimiento')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Equipo / Instalación *</label><input id="mt_equipo" placeholder="Ej: Caldera Junkers ZWR 24-3"></div>
+        <div class="fg"><label>Cliente *</label><select id="mt_cli"></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Categoría</label><select id="mt_cat"><option>Caldera</option><option>Aire Acondicionado</option><option>Calefacción</option><option>Fontanería</option><option>Energías Renovables</option><option>Electricidad</option><option>Otro</option></select></div>
+        <div class="fg"><label>Periodicidad *</label><select id="mt_periodo"><option value="mensual">Mensual</option><option value="trimestral">Trimestral</option><option value="semestral">Semestral</option><option value="anual">Anual</option></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Fecha inicio contrato</label><input type="date" id="mt_fecha_inicio"></div>
+        <div class="fg"><label>Fecha fin contrato</label><input type="date" id="mt_fecha_fin"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Próxima revisión</label><input type="date" id="mt_proxima"></div>
+        <div class="fg"><label>Importe contrato (€)</label><input type="number" id="mt_importe" step="0.01" value="0"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección de la instalación</label><input id="mt_direccion" placeholder="Dirección donde está el equipo"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="mt_obs" placeholder="Notas del contrato, condiciones especiales..."></textarea></div>
+      <!-- Checklist plantilla -->
+      <div style="margin-bottom:4px">
+        <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">✅ Checklist de revisión (plantilla para partes)</label>
+        <div id="mt_checklist_items" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="mt_checklist_new" placeholder="Nueva tarea de checklist..." style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addMantCheckItem()}">
+          <button class="btn btn-secondary btn-sm" onclick="addMantCheckItem()" style="font-size:11px">+ Añadir</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mMantenimiento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMantenimiento()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Config modals -->
 <div class="overlay" id="mSerie">
   <div class="modal modal-sm">
@@ -2424,6 +2667,7 @@
 
 <!-- Gestión de Obras -->
 <script src="js/obras/trabajos.js"></script>
+<script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js"></script>
 
 <!-- Personal -->

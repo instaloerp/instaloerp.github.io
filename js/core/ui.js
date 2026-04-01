@@ -52,7 +52,7 @@ function goPage(id){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
+  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',mantenimientos:'Mantenimientos',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = '';
   // Topbar buttons por página
@@ -67,6 +67,7 @@ function goPage(id){
       articulos: '',
       almacenes: `<button class="btn btn-primary btn-sm" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>`,
       trabajos: '',
+      mantenimientos: '',
       usuarios: `<button class="btn btn-primary btn-sm" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>`,
       dashboard: '',
       'audit-log': '',
@@ -97,6 +98,7 @@ function goPage(id){
   if(id==='partes') loadPartes();
   if(id==='stock') loadStock();
   if(id==='traspasos') loadTraspasos();
+  if(id==='mantenimientos') loadMantenimientos();
   if(id==='presupuestos-compra') loadPresupuestosCompra();
   if(id==='pedidos-compra') loadPedidosCompra();
   if(id==='albaranes-proveedor') loadRecepciones();
