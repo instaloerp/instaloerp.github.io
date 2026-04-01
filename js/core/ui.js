@@ -2,6 +2,41 @@
 // UI HELPERS - Screen, modal, page, and form utilities
 // ═══════════════════════════════════════════════
 
+// ── Pila de navegación global ──
+let navStack = [];
+
+function _captureNavState() {
+  const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (!activePage) return null;
+  const state = { page: activePage };
+  if (activePage === 'trabajos' && typeof obraActualId !== 'undefined' && obraActualId) {
+    state.fichaObra = obraActualId;
+  }
+  if (activePage === 'mantenimientos' && typeof mantActualId !== 'undefined' && mantActualId) {
+    state.fichaMant = mantActualId;
+  }
+  if (activePage === 'clientes' && typeof cliActualId !== 'undefined' && cliActualId) {
+    state.fichaCliente = cliActualId;
+  }
+  return state;
+}
+
+function goBack() {
+  if (!navStack.length) return;
+  const state = navStack.pop();
+  goPage(state.page, { _isBack: true });
+  // Restaurar ficha si estábamos en una
+  if (state.fichaObra && typeof abrirFichaObra === 'function') {
+    abrirFichaObra(state.fichaObra);
+  }
+  if (state.fichaMant && typeof abrirFichaMant === 'function') {
+    abrirFichaMant(state.fichaMant);
+  }
+  if (state.fichaCliente && typeof abrirFicha === 'function') {
+    abrirFicha(state.fichaCliente);
+  }
+}
+
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -47,7 +82,15 @@ function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 // Close modal when clicking overlay
 document.addEventListener('click',e=>{if(e.target.classList.contains('overlay'))closeModal(e.target.id);});
 
-function goPage(id){
+function goPage(id, opts){
+  opts = opts || {};
+  // Guardar estado actual en la pila (salvo si es navegación "atrás")
+  if (!opts._isBack) {
+    const prev = _captureNavState();
+    if (prev && prev.page !== id) navStack.push(prev);
+    // Limitar pila a 20 entradas
+    if (navStack.length > 20) navStack.shift();
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
@@ -104,16 +147,17 @@ function goPage(id){
   if(id==='albaranes-proveedor') loadRecepciones();
   if(id==='facturas-proveedor') loadFacturasProv();
   if(id==='trabajos'){
-    if(typeof cerrarFichaObra==='function') cerrarFichaObra();
+    // Solo cerrar ficha si NO es navegación "atrás" (goBack restaurará la ficha)
+    if(!opts._isBack && typeof cerrarFichaObra==='function') cerrarFichaObra();
     filtrarTrabajos ? filtrarTrabajos() : renderTrabajos();
   }
   if(id==='mantenimientos'){
-    if(typeof cerrarFichaMant==='function') cerrarFichaMant();
+    if(!opts._isBack && typeof cerrarFichaMant==='function') cerrarFichaMant();
   }
   if(id==='clientes'){
     cliFiltroList=[...clientes];
     renderClientes(clientes);
-    setCliVista(cliVista==='ficha'?'tarjetas':cliVista);
+    if(!opts._isBack) setCliVista(cliVista==='ficha'?'tarjetas':cliVista);
   }
 }
 

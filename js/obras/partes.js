@@ -130,9 +130,23 @@ function nuevoParteModal() {
   pt_materiales = [];
   pt_fotos = [];
 
-  // Limpiar campos
-  const campos = ['pt_trabajo', 'pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones', 'pt_mat_articulo', 'pt_mat_cantidad', 'pt_mat_precio'];
-  campos.forEach(id => {
+  // Poblar select de obras
+  const selTr = document.getElementById('pt_trabajo');
+  if (selTr) {
+    selTr.innerHTML = '<option value="">— Selecciona obra —</option>' +
+      (typeof trabajos !== 'undefined' ? trabajos : []).map(t => `<option value="${t.id}">${t.numero ? t.numero+' – ' : ''}${t.titulo}</option>`).join('');
+  }
+
+  // Poblar select de usuario (usuario actual)
+  const selUsr = document.getElementById('pt_usuario');
+  if (selUsr && CP) {
+    selUsr.innerHTML = `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+    selUsr.value = CU?.id || '';
+    selUsr.disabled = true;
+  }
+
+  // Limpiar campos de texto
+  ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -142,16 +156,11 @@ function nuevoParteModal() {
   const elFecha = document.getElementById('pt_fecha');
   if (elFecha) elFecha.value = hoy;
 
-  // Usuario actual (solo lectura)
-  const elUser = document.getElementById('pt_usuario');
-  if (elUser) {
-    elUser.value = CU?.id || '';
-    elUser.disabled = true;
-  }
-
+  document.getElementById('mParteTit').textContent = 'Nuevo Parte de Trabajo';
   pt_renderMateriales();
   pt_renderFotos();
   limpiarFirma();
+  initFirmaCanvas();
   openModal('mPartes');
 }
 
@@ -167,6 +176,23 @@ async function editarParte(id) {
   pt_materiales = parte.materiales ? [...parte.materiales] : [];
   pt_fotos = parte.fotos ? [...parte.fotos] : [];
 
+  // Poblar selects
+  const selTr = document.getElementById('pt_trabajo');
+  if (selTr) {
+    selTr.innerHTML = '<option value="">— Selecciona obra —</option>' +
+      (typeof trabajos !== 'undefined' ? trabajos : []).map(t => `<option value="${t.id}">${t.numero ? t.numero+' – ' : ''}${t.titulo}</option>`).join('');
+  }
+  const selUsr = document.getElementById('pt_usuario');
+  if (selUsr) {
+    // Cargar usuarios de la empresa para poder mostrar el autor original
+    try {
+      const { data: usrs } = await sb.from('perfiles').select('id,nombre,apellidos').eq('empresa_id', EMPRESA.id);
+      selUsr.innerHTML = (usrs||[]).map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+    } catch(e) {
+      selUsr.innerHTML = `<option value="${CU?.id||''}">${CP?.nombre||''} ${CP?.apellidos||''}</option>`;
+    }
+  }
+
   // Cargar datos en el formulario
   setVal({
     pt_trabajo: parte.trabajo_id || '',
@@ -178,6 +204,7 @@ async function editarParte(id) {
     pt_usuario: parte.usuario_id || ''
   });
 
+  document.getElementById('mParteTit').textContent = 'Editar Parte de Trabajo';
   document.getElementById('pt_usuario').disabled = true;
   pt_renderMateriales();
   pt_renderFotos();
@@ -187,6 +214,7 @@ async function editarParte(id) {
     document.getElementById('pt_firma_preview').style.display = 'block';
   } else {
     limpiarFirma();
+    initFirmaCanvas();
   }
 
   openModal('mPartes');

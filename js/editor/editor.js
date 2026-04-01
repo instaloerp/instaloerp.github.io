@@ -213,7 +213,11 @@ async function abrirEditor(tipo, editId) {
 
 function cerrarEditor() {
   document.body.classList.remove('editor-open');
-  goPage(deReturnPage);
+  if (typeof goBack === 'function' && navStack.length) {
+    goBack();
+  } else {
+    goPage(deReturnPage);
+  }
 }
 
 function de_showVersion(ver, suffix) {

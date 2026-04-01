@@ -1967,6 +1967,67 @@
   </div>
 </div>
 
+<!-- Modal Nuevo/Editar Parte de Trabajo -->
+<div class="overlay" id="mPartes">
+  <div class="modal modal-lg" style="max-width:700px">
+    <div class="modal-h"><span>📝</span><h2 id="mParteTit">Nuevo Parte de Trabajo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPartes')">✕</button></div>
+    <div class="modal-b" style="max-height:70vh;overflow-y:auto">
+      <!-- Obra y fecha -->
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Obra *</label><select id="pt_trabajo"><option value="">— Selecciona obra —</option></select></div>
+        <div class="fg"><label>Fecha *</label><input type="date" id="pt_fecha"></div>
+      </div>
+      <!-- Horario -->
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Hora inicio *</label><input type="time" id="pt_inicio" value="08:00"></div>
+        <div class="fg"><label>Hora fin *</label><input type="time" id="pt_fin" value="14:00"></div>
+        <div class="fg"><label>Operario</label><select id="pt_usuario" disabled></select></div>
+      </div>
+      <!-- Descripción -->
+      <div class="fg" style="margin-bottom:11px"><label>Descripción del trabajo</label><textarea id="pt_desc" rows="3" placeholder="Detalla el trabajo realizado..." autocorrect="on" spellcheck="true"></textarea></div>
+      <!-- Observaciones -->
+      <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="pt_observaciones" rows="2" placeholder="Notas internas, incidencias..." autocorrect="on" spellcheck="true"></textarea></div>
+      <!-- Materiales -->
+      <div style="margin-bottom:11px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:12px;font-weight:700;color:var(--gris-600)">🧱 Materiales utilizados</label>
+          <button class="btn btn-secondary btn-sm" onclick="pt_addMaterial()" style="font-size:11px">+ Añadir material</button>
+        </div>
+        <div id="pt_mats"></div>
+      </div>
+      <!-- Fotos -->
+      <div style="margin-bottom:11px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:12px;font-weight:700;color:var(--gris-600)">📷 Fotos</label>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('pt_foto_input').click()" style="font-size:11px">+ Añadir foto</button>
+        </div>
+        <input type="file" id="pt_foto_input" multiple accept="image/*" style="display:none" onchange="pt_addFoto(this)">
+        <div id="pt_fotos_list"></div>
+      </div>
+      <!-- Firma -->
+      <div style="margin-bottom:4px">
+        <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">✍️ Firma del cliente</label>
+        <canvas id="pt_canvas" width="300" height="120" style="border:1px solid var(--gris-200);border-radius:6px;cursor:crosshair;touch-action:none"></canvas>
+        <div id="pt_firma_preview" style="display:none"></div>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFirma()" style="font-size:11px;margin-top:4px">🔄 Limpiar firma</button>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mPartes')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="guardarParte('borrador')">💾 Guardar borrador</button>
+      <button class="btn btn-primary" onclick="guardarParte('enviado')">📤 Guardar y enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalle Parte -->
+<div class="overlay" id="dtlPartes">
+  <div class="modal modal-lg" style="max-width:650px">
+    <div class="modal-h"><span>📝</span><h2>Detalle del Parte</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('dtlPartes')">✕</button></div>
+    <div id="dtlPartesContent"></div>
+  </div>
+</div>
+
 <!-- Config modals -->
 <div class="overlay" id="mSerie">
   <div class="modal modal-sm">
