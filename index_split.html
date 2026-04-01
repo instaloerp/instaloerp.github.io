@@ -1308,7 +1308,7 @@
             <div class="ac-wrap">
               <input type="hidden" id="art_familia">
               <input id="art_familia_input" placeholder="Buscar o crear familia..." autocomplete="off"
-                oninput="acFamilia(this.value)" onfocus="acFamilia(this.value)" onblur="setTimeout(()=>acFamiliaHide(),200)">
+                oninput="acFamilia(this.value)" onfocus="this.select();acFamilia('')" onblur="setTimeout(()=>acFamiliaHide(),200)">
               <div id="acFamiliaDropdown" class="ac-dropdown" style="display:none"></div>
             </div>
           </div>
@@ -1327,7 +1327,7 @@
             <div class="ac-wrap">
               <input type="hidden" id="art_iva">
               <input id="art_iva_input" placeholder="Buscar o crear IVA..." autocomplete="off"
-                oninput="acIva(this.value)" onfocus="acIva(this.value)" onblur="setTimeout(()=>acIvaHide(),200)">
+                oninput="acIva(this.value)" onfocus="this.select();acIva('')" onblur="setTimeout(()=>acIvaHide(),200)">
               <div id="acIvaDropdown" class="ac-dropdown" style="display:none"></div>
             </div>
           </div>
@@ -1335,7 +1335,7 @@
             <div class="ac-wrap">
               <input type="hidden" id="art_unidad">
               <input id="art_unidad_input" placeholder="Buscar o crear unidad..." autocomplete="off"
-                oninput="acUnidad(this.value)" onfocus="acUnidad(this.value)" onblur="setTimeout(()=>acUnidadHide(),200)">
+                oninput="acUnidad(this.value)" onfocus="this.select();acUnidad('')" onblur="setTimeout(()=>acUnidadHide(),200)">
               <div id="acUnidadDropdown" class="ac-dropdown" style="display:none"></div>
             </div>
           </div>
