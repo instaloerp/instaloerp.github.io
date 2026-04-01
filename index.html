@@ -305,10 +305,15 @@
         </div>
         <!-- Vista ficha cliente -->
         <div id="cliVista-ficha" style="display:none">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
-            <button class="btn btn-secondary btn-sm" onclick="setCliVista('lista')">← Volver</button>
-            <h2 style="font-size:17px;font-weight:800" id="fichaCliNombre">—</h2>
-            <div style="margin-left:auto;display:flex;gap:8px">
+          <!-- Cabecera compacta -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="setCliVista('lista')" style="padding:4px 10px">← Volver</button>
+            <div id="fichaCliAvatar" style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <h2 style="font-size:17px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="fichaCliNombre">—</h2>
+              <div style="font-size:11.5px;color:var(--gris-400)" id="fichaCliSub"></div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn btn-secondary btn-sm" onclick="editCliActual()">✏️ Editar</button>
               <button class="btn btn-ghost btn-sm" onclick="nuevoObraCliActual()">🏗️ Obra</button>
               <button class="btn btn-ghost btn-sm" onclick="nuevoPresupCliActual()">📋 Presupuesto</button>
@@ -316,77 +321,65 @@
               <button class="btn btn-ghost btn-sm" onclick="nuevaFacturaRapida()">🧾 Factura</button>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:320px 1fr;gap:16px">
-            <!-- Panel izquierdo: datos -->
-            <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- KPIs clicables: actúan como pestañas -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px" id="fichaKpiBar">
+            <div class="sc ficha-kpi ficha-kpi-active" onclick="fichaTab('trabajos')" id="fkpi-trabajos" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:12px 14px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🏗️</span><div><div class="sv" id="fk-trabajos" style="font-size:20px">—</div><div class="sl">Obras</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="fichaTab('presupuestos')" id="fkpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:12px 14px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📋</span><div><div class="sv" id="fk-presup" style="font-size:20px">—</div><div class="sl">Presupuestos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="fichaTab('facturas')" id="fkpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:12px 14px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🧾</span><div><div class="sv" id="fk-facturado" style="font-size:20px">—</div><div class="sl">Facturado</div></div></div>
+              <div style="font-size:10.5px;color:var(--gris-400);margin-top:4px" id="fk-fact-detail"></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="fichaTab('documentos')" id="fkpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light,#F3EEFF);cursor:pointer;padding:12px 14px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📎</span><div><div class="sv" id="fk-docs" style="font-size:20px">—</div><div class="sl">Documentos</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="fichaTab('notas')" id="fkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:12px 14px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📝</span><div><div class="sv" id="fk-notas" style="font-size:20px">—</div><div class="sl">Notas</div></div></div>
+            </div>
+          </div>
+          <!-- Contenido principal: 2 columnas -->
+          <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start">
+            <!-- Panel izquierdo: datos compactos -->
+            <div style="display:flex;flex-direction:column;gap:12px">
               <div class="card">
-                <div class="card-h"><h3>📋 Datos del cliente</h3></div>
-                <div class="card-b" id="fichaCliDatos"></div>
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📋 Datos del cliente</h3></div>
+                <div class="card-b" id="fichaCliDatos" style="padding:10px 14px"></div>
               </div>
               <div class="card">
-                <div class="card-h"><h3>📍 Direcciones</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mDireccion')">+</button></div></div>
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📍 Direcciones</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mDireccion')" style="padding:2px 6px;font-size:11px">+</button></div></div>
                 <div id="fichaDirList"></div>
               </div>
               <div class="card">
-                <div class="card-h"><h3>👤 Contactos</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mContacto')">+</button></div></div>
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">👤 Contactos</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mContacto')" style="padding:2px 6px;font-size:11px">+</button></div></div>
                 <div id="fichaContList"></div>
               </div>
-              <!-- Resumen financiero -->
+              <!-- Nota rápida compacta -->
               <div class="card">
-                <div class="card-h"><h3>💶 Resumen financiero</h3></div>
-                <div class="card-b" id="fichaFinanciero">
-                  <div style="display:flex;flex-direction:column;gap:8px">
-                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Total facturado</span><span style="font-weight:700;color:var(--azul)" id="ff-total">—</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Pendiente cobro</span><span style="font-weight:700;color:var(--rojo)" id="ff-pendiente">—</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Facturas vencidas</span><span style="font-weight:700;color:var(--rojo)" id="ff-vencidas">—</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:7px 0"><span style="font-size:12px;color:var(--gris-500)">Último presupuesto</span><span style="font-weight:600;font-size:12px" id="ff-ultimo-presup">—</span></div>
-                  </div>
-                </div>
-              </div>
-              <!-- Nueva nota rápida -->
-              <div class="card">
-                <div class="card-h"><h3>📝 Nueva nota</h3></div>
-                <div class="card-b">
-                  <div style="display:flex;gap:7px;margin-bottom:9px">
-                    <select id="notaTipo" style="padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
-                      <option value="nota">📝 Nota</option>
-                      <option value="llamada">📞 Llamada</option>
-                      <option value="visita">🚗 Visita</option>
-                      <option value="email">✉️ Email</option>
-                    </select>
-                  </div>
-                  <textarea id="notaTexto" placeholder="Escribe una nota sobre este cliente..." style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;height:70px;outline:none;font-family:var(--font)"></textarea>
-                  <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px" onclick="guardarNota()">💾 Guardar nota</button>
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📝 Nueva nota</h3></div>
+                <div style="padding:10px 14px">
+                  <select id="notaTipo" style="width:100%;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none;margin-bottom:7px">
+                    <option value="nota">📝 Nota</option><option value="llamada">📞 Llamada</option><option value="visita">🚗 Visita</option><option value="email">✉️ Email</option>
+                  </select>
+                  <textarea id="notaTexto" placeholder="Escribe una nota..." style="width:100%;padding:7px 9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;resize:none;height:55px;outline:none;font-family:var(--font)"></textarea>
+                  <button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px;font-size:11.5px" onclick="guardarNota()">💾 Guardar</button>
                 </div>
               </div>
             </div>
-            <!-- Panel derecho: historial -->
-            <div style="display:flex;flex-direction:column;gap:14px">
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-                <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📋</div><div class="sv" id="fk-presup">—</div><div class="sl">Presupuestos</div></div>
-                <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">🧾</div><div class="sv" id="fk-facturado">—</div><div class="sl">Facturado total</div></div>
-                <div class="sc" style="--c:var(--acento);--bg:#FFF4ED"><div class="si">🏗️</div><div class="sv" id="fk-trabajos">—</div><div class="sl">Obras</div></div>
+            <!-- Panel derecho: contenido dinámico del KPI activo -->
+            <div class="card" style="min-height:300px">
+              <div class="card-h" style="padding:10px 14px">
+                <h3 id="fichaHistTitulo" style="font-size:12.5px">🏗️ Obras</h3>
+                <div class="card-ha" id="fichaHistActions"></div>
               </div>
-              <div class="card">
-                <div class="card-h">
-                  <h3>Historial</h3>
-                  <div class="card-ha">
-                    <div class="tabs" style="margin-bottom:0">
-                      <button class="tab active" onclick="fichaTab('trabajos',this)" id="ftab-trabajos">🏗️ Obras</button>
-                      <button class="tab" onclick="fichaTab('presupuestos',this)" id="ftab-presupuestos">📋 Presupuestos</button>
-                      <button class="tab" onclick="fichaTab('facturas',this)" id="ftab-facturas">🧾 Facturas</button>
-                      <button class="tab" onclick="fichaTab('documentos',this)" id="ftab-documentos">📎 Documentos</button>
-                      <button class="tab" onclick="fichaTab('notas',this)" id="ftab-notas">📝 Notas</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="card-b">
-                  <div id="ficha-hist-trabajos"></div>
-                  <div id="ficha-hist-presupuestos" style="display:none"></div>
-                  <div id="ficha-hist-facturas" style="display:none"></div>
-                  <div id="ficha-hist-documentos" style="display:none"></div>
-                  <div id="ficha-hist-notas" style="display:none"></div>
-                </div>
+              <div class="card-b" style="padding:10px 14px">
+                <div id="ficha-hist-trabajos"></div>
+                <div id="ficha-hist-presupuestos" style="display:none"></div>
+                <div id="ficha-hist-facturas" style="display:none"></div>
+                <div id="ficha-hist-documentos" style="display:none"></div>
+                <div id="ficha-hist-notas" style="display:none"></div>
               </div>
             </div>
           </div>

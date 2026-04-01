@@ -151,9 +151,15 @@ async function abrirFicha(id) {
   document.getElementById('pgSub').textContent = c.tipo || 'Cliente';
   setCliVista('ficha');
 
-  // Datos principales
+  // Avatar y subtítulo
+  const av = document.getElementById('fichaCliAvatar');
+  if (av) { av.style.background = avC(c.nombre); av.textContent = ini(c.nombre); }
+  const sub = document.getElementById('fichaCliSub');
+  if (sub) sub.textContent = [c.tipo||'Particular', c.municipio_fiscal, c.provincia_fiscal].filter(Boolean).join(' · ');
+
+  // Datos principales (compacto)
   document.getElementById('fichaCliDatos').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFicha('Tipo',c.tipo||'Particular')}
       ${datoFicha('NIF/CIF',c.nif||'—')}
       ${datoFicha('Teléfono',c.telefono||'—')}
@@ -162,70 +168,63 @@ async function abrirFicha(id) {
       ${datoFicha('Web',c.web||'—')}
       ${datoFicha('Municipio',c.municipio_fiscal||'—')}
       ${datoFicha('Provincia',c.provincia_fiscal||'—')}
-      ${datoFicha('Dirección fiscal',c.direccion_fiscal||'—')}
-      ${datoFicha('Forma de pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
-      ${datoFicha('Descuento habitual',c.descuento_habitual?c.descuento_habitual+'%':'0%')}
-      ${c.observaciones?`<div style="margin-top:8px;padding:10px;background:var(--gris-50);border-radius:8px;font-size:12.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
+      ${datoFicha('Dir. fiscal',c.direccion_fiscal||'—')}
+      ${datoFicha('Forma pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
+      ${datoFicha('Dto. habitual',c.descuento_habitual?c.descuento_habitual+'%':'0%')}
+      ${c.observaciones?`<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
     </div>`;
 
-  // Cargar historial en paralelo
-  const [dirs, conts, trabs, presups, facts] = await Promise.all([
+  // Cargar todo en paralelo
+  const [dirs, conts, trabs, presups, facts, docs, notas] = await Promise.all([
     sb.from('direcciones_cliente').select('*').eq('cliente_id',id),
     sb.from('contactos_cliente').select('*').eq('cliente_id',id),
     sb.from('trabajos').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
     sb.from('presupuestos').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
     sb.from('facturas').select('*').eq('cliente_id',id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10),
-  ]);
-
-  // KPIs
-  document.getElementById('fk-presup').textContent = presups.data?.length||0;
-  document.getElementById('fk-trabajos').textContent = trabs.data?.length||0;
-  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.total||0),0);
-  document.getElementById('fk-facturado').textContent = fmtE(totalFact);
-
-  // Resumen financiero
-  const pendiente = (facts.data||[]).filter(f=>f.estado==='pendiente').reduce((s,f)=>s+(f.total||0),0);
-  const vencidas = (facts.data||[]).filter(f=>f.estado==='vencida').length;
-  const ultimoPresup = presups.data?.[0];
-  document.getElementById('ff-total').textContent = fmtE(totalFact);
-  document.getElementById('ff-pendiente').textContent = fmtE(pendiente);
-  document.getElementById('ff-vencidas').textContent = vencidas + (vencidas===1?' factura':' facturas');
-  document.getElementById('ff-ultimo-presup').textContent = ultimoPresup ? ultimoPresup.numero+' · '+fmtE(ultimoPresup.total) : '—';
-
-  // Cargar documentos y notas
-  const [docs, notas] = await Promise.all([
     sb.from('documentos_cliente').select('*').eq('cliente_id',id).order('created_at',{ascending:false}),
     sb.from('notas_cliente').select('*').eq('cliente_id',id).order('created_at',{ascending:false}),
   ]);
 
+  // KPIs con info financiera integrada
+  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.total||0),0);
+  const pendiente = (facts.data||[]).filter(f=>f.estado==='pendiente').reduce((s,f)=>s+(f.total||0),0);
+  const vencidas = (facts.data||[]).filter(f=>f.estado==='vencida').length;
+  const nFacts = (facts.data||[]).length;
+
+  document.getElementById('fk-trabajos').textContent = trabs.data?.length||0;
+  document.getElementById('fk-presup').textContent = presups.data?.length||0;
+  document.getElementById('fk-facturado').textContent = fmtE(totalFact);
+  document.getElementById('fk-docs').textContent = (docs.data||[]).length;
+  document.getElementById('fk-notas').textContent = (notas.data||[]).length;
+
+  // Detalle facturación bajo el KPI
+  const detParts = [];
+  if (nFacts) detParts.push(nFacts + ' fact.');
+  if (pendiente > 0) detParts.push('<span style="color:var(--rojo)">' + fmtE(pendiente) + ' pte.</span>');
+  if (vencidas > 0) detParts.push('<span style="color:var(--rojo);font-weight:700">' + vencidas + ' vencida' + (vencidas>1?'s':'') + '</span>');
+  document.getElementById('fk-fact-detail').innerHTML = detParts.join(' · ') || 'Sin facturas';
+
   // Documentos
   const TIPO_ICO = {manual:'📖',garantia:'🛡️',certificado:'📜',foto:'📷',contrato:'📋',otro:'📄'};
   document.getElementById('ficha-hist-documentos').innerHTML = `
-    <div style="padding:10px 0">
-      <div style="margin-bottom:12px;display:flex;gap:8px">
-        <select id="docTipo" style="padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
-          <option value="manual">📖 Manual</option>
-          <option value="garantia">🛡️ Garantía</option>
-          <option value="certificado">📜 Certificado</option>
-          <option value="foto">📷 Foto instalación</option>
-          <option value="contrato">📋 Contrato</option>
-          <option value="otro">📄 Otro</option>
+    <div>
+      <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <select id="docTipo" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+          <option value="manual">📖 Manual</option><option value="garantia">🛡️ Garantía</option><option value="certificado">📜 Certificado</option>
+          <option value="foto">📷 Foto</option><option value="contrato">📋 Contrato</option><option value="otro">📄 Otro</option>
         </select>
-        <input id="docNombre" placeholder="Nombre del documento" style="flex:1;padding:6px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
-        <label class="btn btn-primary btn-sm" for="docFile" style="cursor:pointer">📎 Subir</label>
+        <input id="docNombre" placeholder="Nombre..." style="flex:1;min-width:120px;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+        <label class="btn btn-primary btn-sm" for="docFile" style="cursor:pointer;font-size:11px">📎 Subir</label>
         <input type="file" id="docFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocumento(this)">
       </div>
       ${(docs.data||[]).length ? (docs.data||[]).map(d => `
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100)">
-          <span style="font-size:20px">${TIPO_ICO[d.tipo]||'📄'}</span>
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:13px">${d.nombre}</div>
-            <div style="font-size:11px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div>
-          </div>
-          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm">👁️ Ver</a>
-          <button class="btn btn-ghost btn-sm" onclick="eliminarDoc(${d.id})">🗑️</button>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+          <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
+          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
+          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarDoc(${d.id})">🗑️</button>
         </div>`).join('') :
-        '<div style="color:var(--gris-400);font-size:13px;padding:10px 0;text-align:center">Sin documentos adjuntos</div>'
+        '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>'
       }
     </div>`;
 
@@ -233,80 +232,79 @@ async function abrirFicha(id) {
   const NOTA_ICO = {nota:'📝',llamada:'📞',visita:'🚗',email:'✉️'};
   document.getElementById('ficha-hist-notas').innerHTML = (notas.data||[]).length ?
     (notas.data||[]).map(n => `
-      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-100)">
-        <span style="font-size:18px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
-        <div style="flex:1">
-          <div style="font-size:13px;line-height:1.5">${n.texto}</div>
-          <div style="font-size:11px;color:var(--gris-400);margin-top:4px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="eliminarNota(${n.id})">🗑️</button>
+      <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
+        <span style="font-size:16px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
+        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>
+        <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNota(${n.id})">🗑️</button>
       </div>`).join('') :
-    '<div style="color:var(--gris-400);font-size:13px;padding:10px 0;text-align:center">Sin notas todavía</div>';
+    '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
 
   // Direcciones
   document.getElementById('fichaDirList').innerHTML = (dirs.data||[]).length ?
     (dirs.data||[]).map(d=>`
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gris-100);display:flex;gap:10px">
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:13px">${d.nombre} ${d.es_fiscal?'<span class="badge bg-blue" style="font-size:9px">Fiscal</span>':''}</div>
-          <div style="font-size:12px;color:var(--gris-500)">${d.direccion||''} ${d.municipio||''} ${d.cp||''} ${d.provincia||''}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="delDireccion(${d.id})">🗑️</button>
+      <div style="padding:8px 14px;border-bottom:1px solid var(--gris-100);display:flex;gap:8px">
+        <div style="flex:1"><div style="font-weight:700;font-size:12px">${d.nombre} ${d.es_fiscal?'<span class="badge bg-blue" style="font-size:9px">Fiscal</span>':''}</div><div style="font-size:11px;color:var(--gris-500)">${d.direccion||''} ${d.municipio||''} ${d.cp||''} ${d.provincia||''}</div></div>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 5px;font-size:10px" onclick="delDireccion(${d.id})">🗑️</button>
       </div>`).join('') :
-    '<div style="padding:14px 16px;color:var(--gris-400);font-size:13px">Sin direcciones</div>';
+    '<div style="padding:10px 14px;color:var(--gris-400);font-size:12px">Sin direcciones</div>';
 
   // Contactos
   document.getElementById('fichaContList').innerHTML = (conts.data||[]).length ?
     (conts.data||[]).map(ct=>`
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gris-100);display:flex;gap:10px;align-items:center">
-        <div class="av av-sm" style="background:${avC(ct.nombre)}">${ini(ct.nombre)}</div>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:13px">${ct.nombre} ${ct.principal?'<span class="badge bg-green" style="font-size:9px">Principal</span>':''}</div>
-          <div style="font-size:12px;color:var(--gris-500)">${ct.cargo||''} ${ct.telefono||ct.movil||''} ${ct.email||''}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="delContacto(${ct.id})">🗑️</button>
+      <div style="padding:8px 14px;border-bottom:1px solid var(--gris-100);display:flex;gap:8px;align-items:center">
+        <div class="av av-sm" style="background:${avC(ct.nombre)};width:24px;height:24px;font-size:9px">${ini(ct.nombre)}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:12px">${ct.nombre} ${ct.principal?'<span class="badge bg-green" style="font-size:9px">Principal</span>':''}</div><div style="font-size:11px;color:var(--gris-500)">${ct.cargo||''} ${ct.telefono||ct.movil||''} ${ct.email||''}</div></div>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 5px;font-size:10px" onclick="delContacto(${ct.id})">🗑️</button>
       </div>`).join('') :
-    '<div style="padding:14px 16px;color:var(--gris-400);font-size:13px">Sin contactos</div>';
+    '<div style="padding:10px 14px;color:var(--gris-400);font-size:12px">Sin contactos</div>';
 
   // Historial trabajos
   document.getElementById('ficha-hist-trabajos').innerHTML = (trabs.data||[]).length ?
     (trabs.data||[]).map(t=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100)">
-        <span style="font-size:16px">${catIco(t.categoria)}</span>
-        <div style="flex:1"><div style="font-weight:700;font-size:13px">${t.titulo}</div><div style="font-size:11px;color:var(--gris-400)">${t.numero} · ${t.fecha||'—'}</div></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+        <span style="font-size:15px">${catIco(t.categoria)}</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:12.5px">${t.titulo}</div><div style="font-size:10.5px;color:var(--gris-400)">${t.numero} · ${t.fecha||'—'}</div></div>
         ${estadoBadge(t.estado)}
       </div>`).join('') :
-    '<div class="empty"><div class="ei">🏗️</div><p>Sin obras</p></div>';
+    '<div class="empty" style="padding:30px 0"><div class="ei">🏗️</div><p>Sin obras</p></div>';
 
   // Historial presupuestos
   document.getElementById('ficha-hist-presupuestos').innerHTML = (presups.data||[]).length ?
     (presups.data||[]).map(p=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris-100)">
-        <div><div style="font-weight:700;font-size:13px">${p.numero}</div><div style="font-size:11px;color:var(--gris-400)">${p.fecha||'—'} · ${p.categoria||'—'}</div></div>
-        <div style="text-align:right"><div style="font-weight:800">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+        <div><div style="font-weight:700;font-size:12.5px">${p.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.categoria||'—'}</div></div>
+        <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
       </div>`).join('') :
-    '<div class="empty"><div class="ei">📋</div><p>Sin presupuestos</p></div>';
+    '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos</p></div>';
 
   // Historial facturas
   document.getElementById('ficha-hist-facturas').innerHTML = (facts.data||[]).length ?
     (facts.data||[]).map(f=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris-100)">
-        <div><div style="font-weight:700;font-size:13px">${f.numero}</div><div style="font-size:11px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
-        <div style="text-align:right"><div style="font-weight:800">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+        <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
+        <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
-    '<div class="empty"><div class="ei">🧾</div><p>Sin facturas</p></div>';
+    '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas</p></div>';
+
+  // Activar pestaña Obras por defecto
+  fichaTab('trabajos');
 }
 
 function datoFicha(label, val) {
-  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">${label}</span><span style="font-size:12.5px;color:var(--gris-400)">—</span></div>`;
-  return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">${label}</span><span style="font-size:12.5px;font-weight:600">${val}</span></div>`;
+  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;color:var(--gris-400)">—</span></div>`;
+  return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;font-weight:600">${val}</span></div>`;
 }
 
-function fichaTab(tab, el) {
+const FICHA_TAB_TITLES = {trabajos:'🏗️ Obras',presupuestos:'📋 Presupuestos',facturas:'🧾 Facturas',documentos:'📎 Documentos',notas:'📝 Notas'};
+
+function fichaTab(tab) {
   ['trabajos','presupuestos','facturas','documentos','notas'].forEach(t => {
     document.getElementById('ficha-hist-'+t).style.display = t===tab?'block':'none';
-    document.getElementById('ftab-'+t)?.classList.toggle('active', t===tab);
+    const kpi = document.getElementById('fkpi-'+t);
+    if (kpi) { kpi.classList.toggle('ficha-kpi-active', t===tab); }
   });
+  const titulo = document.getElementById('fichaHistTitulo');
+  if (titulo) titulo.textContent = FICHA_TAB_TITLES[tab] || tab;
 }
 
 function editCliActual() { if(cliActualId) editCliente(cliActualId); }
@@ -326,7 +324,7 @@ async function guardarNota() {
   if (error) { toast('Error: '+error.message,'error'); return; }
   document.getElementById('notaTexto').value = '';
   await abrirFicha(cliActualId);
-  fichaTab('notas', document.getElementById('ftab-notas'));
+  fichaTab('notas');
   toast('Nota guardada ✓','success');
 }
 
@@ -349,7 +347,7 @@ async function subirDocumento(input) {
   input.value = '';
   document.getElementById('docNombre').value = '';
   await abrirFicha(cliActualId);
-  fichaTab('documentos', document.getElementById('ftab-documentos'));
+  fichaTab('documentos');
   toast('Documento subido ✓','success');
 }
 
