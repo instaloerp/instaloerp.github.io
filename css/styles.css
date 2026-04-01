@@ -261,10 +261,15 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .ac-item small{color:var(--gris-500);font-size:11px}
 .ac-loading{padding:10px 12px;color:var(--gris-400);font-size:12px;text-align:center}
 
-/* ─── Mayúsculas en datos de entrada ─── */
+/* ─── Mayúsculas en datos de entrada y vistas de datos ─── */
 input[type="text"],input:not([type]),textarea,
-.dt td,.ac-item strong{text-transform:uppercase}
+.dt td,.ac-item strong,
+.card-b,.card-b *,
+.sec .dt td{text-transform:uppercase}
 input::placeholder,textarea::placeholder{text-transform:none}
+/* Tarjetas grid: todo el contenido en mayúsculas */
+[id$="GridTarjetas"] .card,[id$="GridTarjetas"] .card *,
+[id$="Table"] td{text-transform:uppercase}
 
 /* ─── Corrector ortográfico en todos los campos ─── */
 input[type="text"],input:not([type]),textarea{spellcheck:true}

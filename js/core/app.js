@@ -512,6 +512,12 @@ function renderAll() {
   renderTrabajos();
   renderConfigLists();
   populateSelects();
+  // Aplicar estado datos sensibles (ocultos por defecto)
+  if (typeof _ocultarSensibles !== 'undefined' && _ocultarSensibles) {
+    document.body.classList.add('ocultar-sensibles');
+    const btn = document.getElementById('btnSensible');
+    if (btn) btn.innerHTML = '🔒 DATOS OCULTOS';
+  }
 }
 
 // ═══════════════════════════════════════════════

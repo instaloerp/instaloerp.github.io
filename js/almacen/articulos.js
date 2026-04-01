@@ -4,7 +4,7 @@
 
 let artFiltrados = [];
 let _artKpiFilter = ''; // KPI filter activo
-let _ocultarSensibles = false; // modo ocultar datos sensibles
+let _ocultarSensibles = true; // modo ocultar datos sensibles (ocultos por defecto)
 let artProveedores = [];  // proveedores del artículo abierto
 let artHistorial = [];    // historial del artículo abierto
 let artFotoFile = null;   // archivo foto pendiente de subir
@@ -14,7 +14,7 @@ function toggleDatosSensibles() {
   _ocultarSensibles = !_ocultarSensibles;
   document.body.classList.toggle('ocultar-sensibles', _ocultarSensibles);
   const btn = document.getElementById('btnSensible');
-  if (btn) btn.innerHTML = _ocultarSensibles ? '🔒 Datos ocultos' : '🔓 Datos visibles';
+  if (btn) btn.innerHTML = _ocultarSensibles ? '🔒 DATOS OCULTOS' : '🔓 DATOS VISIBLES';
 }
 
 // ─── Clic simple vs doble clic en filas ──────
