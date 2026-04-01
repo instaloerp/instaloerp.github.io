@@ -908,47 +908,86 @@ function nuevoParteObraActual() {
 }
 
 // ═══════════════════════════════════════════════
-// CONVERSIONES DESDE FICHA DE OBRA
+// CONVERSIONES DESDE FICHA DE OBRA (autónomas)
 // ═══════════════════════════════════════════════
 
 async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
-  // Usar la función global pero asegurar trabajo_id en el albarán creado
-  if (typeof presToAlbaran === 'function') {
-    await presToAlbaran(presId);
-    // Vincular el nuevo albarán a la obra (buscar el último creado con presupuesto_id)
-    const { data } = await sb.from('albaranes').select('id').eq('empresa_id', EMPRESA.id).eq('presupuesto_id', presId).order('created_at', { ascending: false }).limit(1);
-    if (data && data[0]) {
-      await sb.from('albaranes').update({ trabajo_id: obraActualId }).eq('id', data[0].id);
-    }
-    abrirFichaObra(obraActualId); // Refrescar ficha
-  }
+  // Traer presupuesto directamente de Supabase
+  const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
+  if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
+
+  const numero = await generarNumeroDoc('albaran');
+  const lineas = (p.lineas || []).filter(l => l.tipo !== 'capitulo').map(l => ({
+    desc: l.desc || '', cant: l.cant || 1, precio: l.precio || 0
+  }));
+  let total = 0; lineas.forEach(l => total += l.cant * l.precio);
+
+  const { error } = await sb.from('albaranes').insert({
+    empresa_id: EMPRESA.id, numero,
+    cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
+    fecha: new Date().toISOString().split('T')[0],
+    referencia: p.titulo || null,
+    total: Math.round(total * 100) / 100,
+    estado: 'pendiente', observaciones: p.observaciones, lineas,
+    presupuesto_id: p.id,
+    trabajo_id: obraActualId,
+  });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  toast('📄 Albarán creado — presupuesto aceptado', 'success');
+  abrirFichaObra(obraActualId);
 }
 
 async function obraPresToFactura(presId) {
   if (!obraActualId) return;
-  if (typeof presToFactura === 'function') {
-    await presToFactura(presId);
-    // Vincular la nueva factura a la obra
-    const { data } = await sb.from('facturas').select('id').eq('empresa_id', EMPRESA.id).eq('presupuesto_id', presId).order('created_at', { ascending: false }).limit(1);
-    if (data && data[0]) {
-      await sb.from('facturas').update({ trabajo_id: obraActualId }).eq('id', data[0].id);
-    }
-    abrirFichaObra(obraActualId);
-  }
+  const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
+  if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  if (!confirm(`¿Crear factura desde ${p.numero}?`)) return;
+
+  const numero = await generarNumeroDoc('factura');
+  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+
+  const { error } = await sb.from('facturas').insert({
+    empresa_id: EMPRESA.id, numero,
+    cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
+    fecha: hoy.toISOString().split('T')[0],
+    fecha_vencimiento: v.toISOString().split('T')[0],
+    base_imponible: p.base_imponible, total_iva: p.total_iva, total: p.total,
+    estado: 'pendiente', observaciones: p.observaciones, lineas: p.lineas,
+    presupuesto_id: p.id,
+    trabajo_id: obraActualId,
+  });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  toast('🧾 Factura creada — presupuesto aceptado', 'success');
+  abrirFichaObra(obraActualId);
 }
 
 async function obraAlbToFactura(albId) {
   if (!obraActualId) return;
-  if (typeof albaranToFactura === 'function') {
-    await albaranToFactura(albId);
-    // Vincular la nueva factura a la obra
-    const { data } = await sb.from('facturas').select('id').eq('empresa_id', EMPRESA.id).eq('albaran_id', albId).order('created_at', { ascending: false }).limit(1);
-    if (data && data[0]) {
-      await sb.from('facturas').update({ trabajo_id: obraActualId }).eq('id', data[0].id);
-    }
-    abrirFichaObra(obraActualId);
-  }
+  const { data: a, error: err } = await sb.from('albaranes').select('*').eq('id', albId).single();
+  if (err || !a) { toast('Error al cargar albarán', 'error'); return; }
+  if (!confirm(`¿Crear factura desde ${a.numero}?`)) return;
+
+  const numero = await generarNumeroDoc('factura');
+  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+
+  const { error } = await sb.from('facturas').insert({
+    empresa_id: EMPRESA.id, numero,
+    cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
+    fecha: hoy.toISOString().split('T')[0],
+    fecha_vencimiento: v.toISOString().split('T')[0],
+    base_imponible: a.total || 0, total_iva: 0, total: a.total || 0,
+    estado: 'pendiente', observaciones: a.observaciones,
+    lineas: a.lineas, albaran_id: a.id,
+    trabajo_id: obraActualId,
+  });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', albId);
+  toast('🧾 Factura creada — albarán facturado', 'success');
+  abrirFichaObra(obraActualId);
 }
 
 async function obraFacturarTodosAlb() {
