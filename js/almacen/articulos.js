@@ -75,7 +75,7 @@ function updateArticulosKPIs() {
   const activos = articulos.filter(a => a.activo !== false);
   const inactivos = articulos.filter(a => a.activo === false);
   const famsUsadas = new Set(articulos.map(a => a.familia_id).filter(Boolean));
-  const valorPVP = activos.reduce((sum, a) => sum + (a.precio_venta || 0), 0);
+  const valorStock = activos.reduce((sum, a) => sum + (a.precio_coste || 0), 0);
   // Bajo stock: artículos con stock_minimo > 0 y sin stock suficiente (necesita datos de stock real, por ahora solo cuenta los que tienen stock_minimo > 0)
   const bajoStock = articulos.filter(a => (a.stock_minimo || 0) > 0 && a.activo !== false);
 
@@ -85,7 +85,7 @@ function updateArticulosKPIs() {
   el('art_kpi_inactivos', inactivos.length);
   el('art_kpi_bajo_stock', bajoStock.length);
   el('art_kpi_familias', famsUsadas.size);
-  el('art_kpi_valor', fmtE(valorPVP));
+  el('art_kpi_valor', fmtE(valorStock));
 
   // Highlight KPI activo
   document.querySelectorAll('.art-kpi-filter').forEach(el => {

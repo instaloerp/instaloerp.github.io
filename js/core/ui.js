@@ -64,7 +64,7 @@ function goPage(id){
       albaranes: `<button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button><button class="btn btn-primary btn-sm" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>`,
       facturas: `<button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>`,
       proveedores: `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`,
-      articulos: `<button class="btn btn-ghost btn-sm" onclick="exportarArticulos()">📤 Exportar</button><button class="btn btn-secondary btn-sm" onclick="openModal('mImportarArticulos')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="nuevoArticulo()">+ Nuevo</button>`,
+      articulos: '',
       almacenes: `<button class="btn btn-primary btn-sm" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>`,
       trabajos: `<button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>`,
       usuarios: `<button class="btn btn-primary btn-sm" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>`,
