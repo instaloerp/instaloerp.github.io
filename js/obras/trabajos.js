@@ -149,6 +149,9 @@ async function abrirFichaObra(id) {
   document.getElementById('ok-docs').textContent = docsData.length;
   document.getElementById('ok-notas').textContent = notasData.length;
 
+  // ── WORKFLOW — Panel de estado del proyecto ──
+  renderObraWorkflow(t, presupData, albData, factData, partesData);
+
   // Totales para resumen económico
   const totalPresup = presupData.reduce((s,p)=>s+(p.total||0),0);
   const totalAlb = albData.reduce((s,a)=>s+(a.total||0),0);
@@ -306,6 +309,165 @@ function obraTab(tab) {
   });
   const titulo = document.getElementById('fichaObraHistTitulo');
   if (titulo) titulo.textContent = OBRA_TAB_TITLES[tab] || tab;
+}
+
+// ═══════════════════════════════════════════════
+// WORKFLOW / PANEL DE ESTADO DE LA OBRA
+// ═══════════════════════════════════════════════
+
+const WORKFLOW_ETAPAS = [
+  { id:'presupuesto', ico:'📋', label:'Presupuesto', desc:'Crear presupuesto' },
+  { id:'aprobado',    ico:'✅', label:'Aprobado',     desc:'Cliente acepta' },
+  { id:'material',    ico:'📦', label:'Material',     desc:'Pedir material' },
+  { id:'programado',  ico:'📅', label:'Programado',   desc:'Asignar fecha' },
+  { id:'ejecucion',   ico:'🔨', label:'En ejecución', desc:'Trabajo en curso' },
+  { id:'albaran',     ico:'📄', label:'Albarán',      desc:'Entregar albarán' },
+  { id:'factura',     ico:'🧾', label:'Facturado',    desc:'Emitir factura' },
+  { id:'cobrado',     ico:'💰', label:'Cobrado',      desc:'Cobro recibido' },
+];
+
+function detectarEtapasObra(t, presupData, albData, factData, partesData) {
+  const etapas = {};
+
+  // 1. Presupuesto
+  const tienePresup = presupData.length > 0;
+  etapas.presupuesto = tienePresup;
+
+  // 2. Aprobado — algún presupuesto aceptado/aprobado
+  const presupAprobado = presupData.some(p =>
+    ['aceptado','aprobado','accepted','en_curso'].includes((p.estado||'').toLowerCase())
+  );
+  etapas.aprobado = presupAprobado;
+
+  // 3. Material — si hay pedidos de compra vinculados o estado incluye material
+  // Simplificación: si el estado de la obra es 'en_curso' o superior y hay presup aprobado
+  etapas.material = presupAprobado && (t.estado === 'en_curso' || t.estado === 'finalizado' || t.estado === 'completado');
+
+  // 4. Programado — tiene fecha asignada
+  etapas.programado = !!t.fecha;
+
+  // 5. En ejecución — tiene partes de trabajo o estado en_curso
+  etapas.ejecucion = partesData.length > 0 || t.estado === 'en_curso';
+
+  // 6. Albarán — tiene al menos un albarán
+  etapas.albaran = albData.length > 0;
+
+  // 7. Factura — tiene al menos una factura
+  etapas.factura = factData.length > 0;
+
+  // 8. Cobrado — todas las facturas cobradas
+  const factCobradas = factData.length > 0 && factData.every(f =>
+    ['cobrada','pagada','paid'].includes((f.estado||'').toLowerCase())
+  );
+  etapas.cobrado = factCobradas;
+
+  return etapas;
+}
+
+function siguientePasoObra(etapas, t) {
+  // Devuelve {texto, accion, botonLabel, icono} del siguiente paso lógico
+  if (!etapas.presupuesto) return {
+    texto: 'Esta obra no tiene presupuesto. Crea uno para empezar el flujo.',
+    accion: 'nuevoPresupObraActual()', boton: '📋 Crear presupuesto', prioridad: 'alta'
+  };
+  if (!etapas.aprobado) return {
+    texto: 'El presupuesto está pendiente de aprobación del cliente.',
+    accion: null, boton: null, prioridad: 'media',
+    tip: 'Cuando el cliente acepte, cambia el estado del presupuesto a "Aceptado"'
+  };
+  if (!etapas.programado) return {
+    texto: 'Presupuesto aprobado. Programa una fecha para ejecutar el trabajo.',
+    accion: 'editarObraActual()', boton: '📅 Programar fecha', prioridad: 'alta'
+  };
+  if (!etapas.ejecucion) return {
+    texto: 'Obra programada. Cuando empiece el trabajo, crea un parte.',
+    accion: 'nuevoParteObraActual()', boton: '📝 Crear parte de trabajo', prioridad: 'media'
+  };
+  if (!etapas.albaran) return {
+    texto: 'Trabajo en curso. Genera el albarán cuando termines.',
+    accion: 'nuevoAlbaranObraActual()', boton: '📄 Crear albarán', prioridad: 'media'
+  };
+  if (!etapas.factura) return {
+    texto: 'Albarán entregado. Emite la factura para cobrar.',
+    accion: null, boton: null, prioridad: 'alta',
+    tip: 'Ve a Facturas y crea una nueva factura desde el albarán'
+  };
+  if (!etapas.cobrado) return {
+    texto: 'Factura emitida. Pendiente de cobro.',
+    accion: null, boton: null, prioridad: 'baja',
+    tip: 'Cuando el cliente pague, marca la factura como "Cobrada"'
+  };
+  return { texto: '¡Obra completada! Todos los pasos finalizados.', accion: null, boton: null, prioridad: 'ok' };
+}
+
+function renderObraWorkflow(t, presupData, albData, factData, partesData) {
+  const etapas = detectarEtapasObra(t, presupData, albData, factData, partesData);
+  const paso = siguientePasoObra(etapas, t);
+
+  // Encontrar la etapa activa actual (la primera no completada)
+  let etapaActiva = WORKFLOW_ETAPAS.length; // todas completas por defecto
+  for (let i = 0; i < WORKFLOW_ETAPAS.length; i++) {
+    if (!etapas[WORKFLOW_ETAPAS[i].id]) { etapaActiva = i; break; }
+  }
+
+  // Renderizar barra de progreso
+  const barEl = document.getElementById('obraWorkflowBar');
+  if (barEl) {
+    barEl.innerHTML = WORKFLOW_ETAPAS.map((e, i) => {
+      const completada = etapas[e.id];
+      const activa = i === etapaActiva;
+      const futura = i > etapaActiva;
+      let bg, color, border, opacity;
+      if (completada) {
+        bg = 'linear-gradient(135deg, #ECFDF5, #D1FAE5)';
+        color = '#059669';
+        border = '2px solid #34D399';
+        opacity = '1';
+      } else if (activa) {
+        bg = 'linear-gradient(135deg, #EFF6FF, #DBEAFE)';
+        color = '#2563EB';
+        border = '2px solid #60A5FA';
+        opacity = '1';
+      } else {
+        bg = 'var(--gris-50)';
+        color = 'var(--gris-400)';
+        border = '1px solid var(--gris-200)';
+        opacity = '0.6';
+      }
+      const checkOrNum = completada ? '<span style="font-size:10px">✔</span>' : (activa ? '►' : '');
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;background:${bg};color:${color};border-bottom:${border};opacity:${opacity};transition:all .3s;position:relative;min-width:0" title="${e.desc}">
+        <div style="font-size:16px;line-height:1">${e.ico}</div>
+        <div style="font-size:9.5px;font-weight:700;margin-top:2px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 2px">${e.label}</div>
+        <div style="position:absolute;top:3px;right:5px;font-size:8px;font-weight:800">${checkOrNum}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Renderizar acción siguiente
+  const actEl = document.getElementById('obraWorkflowAction');
+  if (actEl) {
+    const prioColors = { alta: '#DC2626', media: '#D97706', baja: '#6B7280', ok: '#059669' };
+    const prioLabels = { alta: 'URGENTE', media: 'PENDIENTE', baja: 'SEGUIMIENTO', ok: 'COMPLETADO' };
+    const prioBg = { alta: '#FEF2F2', media: '#FFFBEB', baja: '#F9FAFB', ok: '#ECFDF5' };
+    const pc = prioColors[paso.prioridad] || '#6B7280';
+    const pl = prioLabels[paso.prioridad] || '';
+    const pb = prioBg[paso.prioridad] || '#F9FAFB';
+
+    let html = `<span style="background:${pb};color:${pc};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.5px;white-space:nowrap">${pl}</span>`;
+    html += `<span style="font-size:12.5px;color:var(--gris-700);flex:1">${paso.texto}</span>`;
+    if (paso.tip) {
+      html += `<span style="font-size:11px;color:var(--gris-400);font-style:italic">💡 ${paso.tip}</span>`;
+    }
+    if (paso.accion && paso.boton) {
+      html += `<button class="btn btn-primary btn-sm" onclick="${paso.accion}" style="white-space:nowrap;font-size:11.5px">${paso.boton}</button>`;
+    }
+    actEl.innerHTML = html;
+  }
+
+  // Calcular progreso porcentual
+  const completadas = WORKFLOW_ETAPAS.filter(e => etapas[e.id]).length;
+  const porcent = Math.round((completadas / WORKFLOW_ETAPAS.length) * 100);
+  return { etapas, paso, porcent, completadas };
 }
 
 // ═══════════════════════════════════════════════
