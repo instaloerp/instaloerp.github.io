@@ -18,7 +18,13 @@ async function loadFacturasProv() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('facturas_proveedor').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   facturasProveedor = data || [];
-  renderFacturasProv(facturasProveedor);
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('fpFiltroDesde');
+  const hEl = document.getElementById('fpFiltroHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  filtrarFacturasProv();
   actualizarKpisFacturas();
 }
 

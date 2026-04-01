@@ -66,7 +66,7 @@ function goPage(id){
       proveedores: `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`,
       articulos: '',
       almacenes: `<button class="btn btn-primary btn-sm" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>`,
-      trabajos: `<button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>`,
+      trabajos: '',
       usuarios: `<button class="btn btn-primary btn-sm" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>`,
       dashboard: '',
       'audit-log': '',

@@ -19,7 +19,13 @@ async function loadRecepciones() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   recepciones = data || [];
-  renderRecepciones(recepciones);
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('rcFiltroDesde');
+  const hEl = document.getElementById('rcFiltroHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  filtrarRecepciones();
   actualizarKpisRecepciones();
 }
 

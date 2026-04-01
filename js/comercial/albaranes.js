@@ -18,8 +18,14 @@ async function loadAlbaranes() {
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false });
   albaranesData = data || [];
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('abDesde');
+  const hEl = document.getElementById('abHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
   abFiltrados = [...albaranesData];
-  renderAlbaranes(albaranesData);
+  filtrarAlbaranes();
 }
 
 function renderAlbaranes(list) {
@@ -203,11 +209,12 @@ async function editarAlbaran(id) {
 // ═══════════════════════════════════════════════
 function exportarAlbaranes() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
-  if (!confirm('¿Exportar ' + albaranesData.length + ' albaranes a Excel?')) return;
+  const lista = abFiltrados.length ? abFiltrados : albaranesData;
+  if (!confirm('¿Exportar ' + lista.length + ' albaranes a Excel?')) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Referencia','Fecha','Total','Estado'],
-    ...albaranesData.map(a=>[a.numero||'',a.cliente_nombre||'',a.referencia||'',a.fecha||'',a.total||0,a.estado||''])
+    ...lista.map(a=>[a.numero||'',a.cliente_nombre||'',a.referencia||'',a.fecha||'',a.total||0,a.estado||''])
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
   ws['!cols'] = data[0].map(()=>({wch:20}));

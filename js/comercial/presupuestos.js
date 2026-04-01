@@ -20,6 +20,12 @@ async function loadPresupuestos() {
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false });
   presupuestos = data || [];
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('presDesde');
+  const hEl = document.getElementById('presHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
   filtrarPresupuestos();
 }
 
@@ -335,11 +341,12 @@ async function duplicarPres(id) {
 
 function exportarPresupuestos() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
-  if (!confirm('¿Exportar ' + presupuestos.length + ' presupuestos a Excel?')) return;
+  const lista = presFiltrados.length ? presFiltrados : presupuestos;
+  if (!confirm('¿Exportar ' + lista.length + ' presupuestos a Excel?')) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Título','Fecha','Válido hasta','Total','Estado'],
-    ...presupuestos.map(p=>[p.numero||'',p.cliente_nombre||'',p.titulo||'',p.fecha||'',p.fecha_validez||'',p.total||0,p.estado||''])
+    ...lista.map(p=>[p.numero||'',p.cliente_nombre||'',p.titulo||'',p.fecha||'',p.fecha_validez||'',p.total||0,p.estado||''])
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
   ws['!cols'] = data[0].map(()=>({wch:20}));

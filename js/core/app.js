@@ -509,7 +509,8 @@ function renderAll() {
   renderProveedores(proveedores);
   renderArticulos(articulos);
   renderAlmacenes();
-  renderTrabajos();
+  if (typeof initFiltroTrabajos === 'function') initFiltroTrabajos();
+  filtrarTrabajos ? filtrarTrabajos() : renderTrabajos();
   renderConfigLists();
   populateSelects();
   // Aplicar estado datos sensibles (ocultos por defecto)

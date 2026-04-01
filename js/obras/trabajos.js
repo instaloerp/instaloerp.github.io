@@ -5,9 +5,34 @@
 // Docs attached to work
 let trDocsFiles = [];
 
-function renderTrabajos() {
-  document.getElementById('trabTable').innerHTML = trabajos.length ?
-    trabajos.map(t=>`<tr>
+// Filtro por defecto: año en curso al cargar
+function initFiltroTrabajos() {
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('trDesde');
+  const hEl = document.getElementById('trHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+}
+
+function filtrarTrabajos() {
+  const q = (document.getElementById('trSearch')?.value||'').toLowerCase();
+  const est = document.getElementById('trEstado')?.value||'';
+  const des = document.getElementById('trDesde')?.value||'';
+  const has = document.getElementById('trHasta')?.value||'';
+  const filtered = trabajos.filter(t => {
+    if (est && t.estado !== est) return false;
+    if (q && !(t.numero||'').toLowerCase().includes(q) && !(t.titulo||'').toLowerCase().includes(q) && !(t.cliente_nombre||'').toLowerCase().includes(q)) return false;
+    if (des && t.fecha && t.fecha < des) return false;
+    if (has && t.fecha && t.fecha > has) return false;
+    return true;
+  });
+  renderTrabajos(filtered);
+}
+
+function renderTrabajos(list) {
+  if (!list) list = trabajos;
+  document.getElementById('trabTable').innerHTML = list.length ?
+    list.map(t=>`<tr>
       <td style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${t.numero}</td>
       <td style="font-weight:700">${t.titulo}</td>
       <td>${t.cliente_nombre||'—'}</td>

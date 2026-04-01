@@ -18,7 +18,13 @@ async function loadPedidosCompra() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('pedidos_compra').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   pedidosCompra = data || [];
-  renderPedidosCompra(pedidosCompra);
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('pcFiltroDesde');
+  const hEl = document.getElementById('pcFiltroHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  filtrarPedidosCompra();
   actualizarKpisPedidos();
 }
 

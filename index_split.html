@@ -449,9 +449,25 @@
 
       <!-- TRABAJOS -->
       <div class="page" id="page-trabajos">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800">Obras</h2></div>
-          <button class="btn btn-primary" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="trSearch" placeholder="🔍 Buscar por número, título, cliente..."
+              oninput="filtrarTrabajos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+            <select id="trEstado" onchange="filtrarTrabajos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="planificado">Planificado</option>
+              <option value="en_curso">En curso</option>
+              <option value="finalizado">Finalizado</option>
+            </select>
+            <input type="date" id="trDesde" onchange="filtrarTrabajos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <input type="date" id="trHasta" onchange="filtrarTrabajos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+          </div>
         </div>
         <div class="card"><div class="tw"><table class="dt"><thead><tr><th>Nº</th><th>Título</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
       </div>
