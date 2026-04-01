@@ -527,3 +527,17 @@ function showErr(id, msg) {
   el.textContent = msg;
   el.style.display = 'block';
 }
+
+// ─── Forzar spellcheck en todos los campos de texto ───
+function forzarSpellcheck(root) {
+  root.querySelectorAll('input:not([type="hidden"]):not([type="number"]):not([type="email"]):not([type="password"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]), textarea').forEach(el => {
+    el.setAttribute('spellcheck', 'true');
+    el.setAttribute('autocorrect', 'on');
+  });
+}
+// Aplicar al cargar
+forzarSpellcheck(document);
+// Aplicar a modales dinámicos cuando se abren
+new MutationObserver(mutations => {
+  mutations.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) forzarSpellcheck(n); }));
+}).observe(document.body, { childList: true, subtree: true });

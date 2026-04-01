@@ -261,6 +261,14 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .ac-item small{color:var(--gris-500);font-size:11px}
 .ac-loading{padding:10px 12px;color:var(--gris-400);font-size:12px;text-align:center}
 
+/* ─── Mayúsculas en datos de entrada ─── */
+input[type="text"],input:not([type]),textarea,
+.dt td,.ac-item strong{text-transform:uppercase}
+input::placeholder,textarea::placeholder{text-transform:none}
+
+/* ─── Corrector ortográfico en todos los campos ─── */
+input[type="text"],input:not([type]),textarea{spellcheck:true}
+
 /* ─── Modo datos sensibles ocultos ─── */
 body.ocultar-sensibles .col-sensible,
 body.ocultar-sensibles .td-sensible{visibility:hidden!important;user-select:none}
