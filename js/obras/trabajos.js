@@ -765,10 +765,13 @@ function nuevoPresupObraActual() {
   if (!obraActualId) return;
   const t = trabajos.find(x=>x.id===obraActualId);
   if (!t) return;
-  // Abrir nuevo presupuesto vinculado al cliente de la obra
+  // Abrir nuevo presupuesto vinculado al cliente y obra
   if (typeof abrirNuevoPresupuesto === 'function') {
     abrirNuevoPresupuesto();
     setTimeout(() => {
+      // Vincular a la obra
+      if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
+      // Auto-fill cliente
       const sel = document.getElementById('de_cliente');
       if (sel && t.cliente_id) {
         sel.value = t.cliente_id;
@@ -785,6 +788,9 @@ function nuevoAlbaranObraActual() {
   if (typeof abrirNuevoAlbaran === 'function') {
     abrirNuevoAlbaran();
     setTimeout(() => {
+      // Vincular a la obra
+      if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
+      // Auto-fill cliente
       const sel = document.getElementById('de_cliente');
       if (sel && t.cliente_id) {
         sel.value = t.cliente_id;

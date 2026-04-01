@@ -795,6 +795,8 @@ function de_buildDatos() {
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
   datos.titulo = document.getElementById('de_titulo').value||null;
   if (cfg.tipo==='albaran') datos.referencia = datos.titulo;
+  // Vincular a obra si se creó desde una ficha de obra
+  if (cfg.trabajo_id) datos.trabajo_id = cfg.trabajo_id;
   return datos;
 }
 
