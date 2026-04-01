@@ -234,9 +234,17 @@ async function abrirFicha(id) {
       }
     </div>`;
 
-  // Notas
+  // Notas — formulario integrado + listado
   const NOTA_ICO = {nota:'📝',llamada:'📞',visita:'🚗',email:'✉️'};
-  document.getElementById('ficha-hist-notas').innerHTML = (notas.data||[]).length ?
+  const notaForm = `
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:end">
+      <select id="notaTipo" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+        <option value="nota">📝 Nota</option><option value="llamada">📞 Llamada</option><option value="visita">🚗 Visita</option><option value="email">✉️ Email</option>
+      </select>
+      <input id="notaTexto" placeholder="Escribe una nota..." style="flex:1;min-width:200px;padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none;font-family:var(--font)">
+      <button class="btn btn-primary btn-sm" style="font-size:11.5px;white-space:nowrap" onclick="guardarNota()">💾 Guardar</button>
+    </div>`;
+  const notaList = (notas.data||[]).length ?
     (notas.data||[]).map(n => `
       <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
         <span style="font-size:16px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
@@ -244,6 +252,7 @@ async function abrirFicha(id) {
         <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNota(${n.id})">🗑️</button>
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
+  document.getElementById('ficha-hist-notas').innerHTML = notaForm + notaList;
 
   // Direcciones
   document.getElementById('fichaDirList').innerHTML = (dirs.data||[]).length ?
