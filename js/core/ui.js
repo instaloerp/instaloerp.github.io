@@ -52,7 +52,7 @@ function goPage(id){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','pedidos-compra':'Pedidos de compra',recepciones:'Recepciones','facturas-proveedor':'Facturas proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
+  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = '';
   // Topbar buttons por página
@@ -71,9 +71,10 @@ function goPage(id){
       dashboard: '',
       'audit-log': '',
       papelera: '',
-      'pedidos-compra': '<button class="btn btn-primary btn-sm" onclick="nuevoPedidoCompra()">+ Nuevo pedido</button>',
-      recepciones: '<button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nueva recepción</button>',
-      'facturas-proveedor': '<button class="btn btn-primary btn-sm" onclick="nuevaFacturaProv()">+ Nueva factura</button>',
+      'presupuestos-compra': '',
+      'pedidos-compra': '',
+      'albaranes-proveedor': '',
+      'facturas-proveedor': '',
       stock: '',
       traspasos: '<button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo traspaso</button>',
       partes: '<button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo parte</button>',
@@ -96,8 +97,9 @@ function goPage(id){
   if(id==='partes') loadPartes();
   if(id==='stock') loadStock();
   if(id==='traspasos') loadTraspasos();
+  if(id==='presupuestos-compra') loadPresupuestosCompra();
   if(id==='pedidos-compra') loadPedidosCompra();
-  if(id==='recepciones') loadRecepciones();
+  if(id==='albaranes-proveedor') loadRecepciones();
   if(id==='facturas-proveedor') loadFacturasProv();
   if(id==='clientes'){
     cliFiltroList=[...clientes];

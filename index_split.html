@@ -165,8 +165,9 @@
       <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)">Compras</div>
       <div class="sb-section-items" id="sec-compras">
         <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores</button>
+        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos</button>
         <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos</button>
-        <button class="sb-item" onclick="goPage('recepciones')"><span class="ico">📥</span> Recepciones</button>
+        <button class="sb-item" onclick="goPage('albaranes-proveedor')"><span class="ico">📥</span> Albaranes</button>
         <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.</button>
       </div>
 
@@ -581,6 +582,57 @@
         </div>
       </div>
       <div class="page" id="page-facturas"><div class="empty" style="margin-top:40px"><div class="ei">🧾</div><h3>Facturas</h3><p>Módulo en construcción</p></div></div>
+      <!-- PRESUPUESTOS DE COMPRA -->
+      <div class="page" id="page-presupuestos-compra">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Presupuestos de Compra</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Solicitudes de presupuesto a proveedores</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportPresupuestosCompra()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total</div>
+            <div id="prcKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="prcKpiPend" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Aceptados</div>
+            <div id="prcKpiAcept" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Importe total</div>
+            <div id="prcKpiImporte" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="prcFiltroEstado" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los estados</option>
+            <option value="borrador">Borrador</option>
+            <option value="enviado">Enviado</option>
+            <option value="aceptado">Aceptado</option>
+            <option value="rechazado">Rechazado</option>
+          </select>
+          <select id="prcFiltroProveedor" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los proveedores</option>
+          </select>
+          <input type="date" id="prcFiltroDesde" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="prcFiltroHasta" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número / Fecha</th><th>Proveedor</th><th>Validez</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+          </tr></thead><tbody id="prcTable"></tbody></table></div>
+        </div>
+      </div>
+
       <!-- PEDIDOS DE COMPRA -->
       <div class="page" id="page-pedidos-compra">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -632,15 +684,15 @@
         </div>
       </div>
 
-      <!-- RECEPCIONES -->
-      <div class="page" id="page-recepciones">
+      <!-- ALBARANES DE PROVEEDOR -->
+      <div class="page" id="page-albaranes-proveedor">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
           <div>
-            <h2 style="font-size:17px;font-weight:800">Recepciones</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Recepción y almacenamiento de mercancías</p>
+            <h2 style="font-size:17px;font-weight:800">Albaranes de Proveedor</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Recepción y control de albaranes de proveedores</p>
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nueva Recepción</button>
+            <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nuevo Albarán</button>
             <button class="btn btn-secondary btn-sm" onclick="exportRecepciones()">📊 Excel</button>
           </div>
         </div>
@@ -658,7 +710,7 @@
             <div id="rcKpiMes" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
           </div>
           <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Almacenadas</div>
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Recibidos</div>
             <div id="rcKpiValor" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
           </div>
         </div>
@@ -666,8 +718,8 @@
           <select id="rcFiltroEstado" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
-            <option value="verificada">Verificada</option>
-            <option value="almacenada">Almacenada</option>
+            <option value="verificada">Verificado</option>
+            <option value="almacenada">Almacenado</option>
           </select>
           <select id="rcFiltroProveedor" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los proveedores</option>
@@ -2304,6 +2356,7 @@
 <!-- Compras -->
 <script src="js/compras/proveedores.js"></script>
 <script src="js/compras/importador.js"></script>
+<script src="js/compras/presupuestos_compra.js"></script>
 <script src="js/compras/pedidos.js"></script>
 <script src="js/compras/recepciones.js"></script>
 <script src="js/compras/facturas_prov.js"></script>

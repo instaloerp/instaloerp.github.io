@@ -278,8 +278,8 @@ async function pedidoToRecepcion(id) {
 
   await sb.from('recepciones').insert(obj);
   await cambiarEstadoPC(id, 'enviado');
-  goPage('page-recepciones');
-  toast('Recepción creada desde pedido ✓', 'success');
+  goPage('albaranes-proveedor');
+  toast('Albarán de proveedor creado desde pedido ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
