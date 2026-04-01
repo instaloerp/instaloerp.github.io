@@ -1,0 +1,291 @@
+/**
+ * MÓDULO RECEPCIONES
+ * Gestión de recepciones de compra: verificación y almacenamiento
+ */
+
+// ═══════════════════════════════════════════════
+// VARIABLES GLOBALES
+// ═══════════════════════════════════════════════
+let rcLineas = [];
+let rcProveedorActual = null;
+let rcEditId = null;
+let rcAlmacenDestino = null;
+let recepciones = [];
+
+// ═══════════════════════════════════════════════
+// CARGA Y RENDERIZADO
+// ═══════════════════════════════════════════════
+async function loadRecepciones() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  const {data} = await sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
+  recepciones = data || [];
+  renderRecepciones(recepciones);
+  actualizarKpisRecepciones();
+}
+
+function renderRecepciones(list) {
+  const html = list.length ? list.map(r => {
+    const estado = {pendiente:'⏳', verificada:'✓', almacenada:'📦'}[r.estado]||'?';
+    return `<tr>
+      <td><div style="font-weight:700">${r.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div></td>
+      <td><div style="font-weight:600">${r.proveedor_nombre}</div></td>
+      <td>${r.usuario_nombre||'—'}</td>
+      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${r.estado}</span></td>
+      <td style="text-align:right;font-weight:600">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
+        ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
+        ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin recepciones</h3></div></td></tr>';
+  document.getElementById('rcTable').innerHTML = html;
+}
+
+function actualizarKpisRecepciones() {
+  const total = recepciones.reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0);
+  const pendientes = recepciones.filter(r => r.estado === 'pendiente').length;
+  const esteMes = recepciones.filter(r => {
+    const f = new Date(r.fecha);
+    const hoy = new Date();
+    return f.getMonth() === hoy.getMonth() && f.getFullYear() === hoy.getFullYear();
+  }).length;
+  document.getElementById('rcKpiTotal').textContent = fmtE(total);
+  document.getElementById('rcKpiPend').textContent = pendientes;
+  document.getElementById('rcKpiMes').textContent = esteMes;
+  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='almacenada').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0));
+}
+
+// ═══════════════════════════════════════════════
+// FILTRADO
+// ═══════════════════════════════════════════════
+function filtrarRecepciones() {
+  const estado = v('rcFiltroEstado');
+  const prov = v('rcFiltroProveedor');
+  const desde = v('rcFiltroDesde');
+  const hasta = v('rcFiltroHasta');
+
+  let filtered = recepciones;
+  if (estado) filtered = filtered.filter(r => r.estado === estado);
+  if (prov) filtered = filtered.filter(r => r.proveedor_id == prov);
+  if (desde) filtered = filtered.filter(r => new Date(r.fecha) >= new Date(desde));
+  if (hasta) filtered = filtered.filter(r => new Date(r.fecha) <= new Date(hasta));
+
+  renderRecepciones(filtered);
+}
+
+// ═══════════════════════════════════════════════
+// CREAR NUEVA RECEPCIÓN
+// ═══════════════════════════════════════════════
+async function nuevaRecepcion() {
+  rcLineas = [];
+  rcEditId = null;
+  rcProveedorActual = null;
+  rcAlmacenDestino = (almacenes||[])[0]?.id || null;
+
+  const sel = document.getElementById('rc_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores||[]).map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+
+  const almSel = document.getElementById('rc_almacen');
+  almSel.innerHTML = (almacenes||[]).map(a => `<option value="${a.id}" ${a.id===rcAlmacenDestino?'selected':''}>${a.nombre}</option>`).join('');
+
+  document.getElementById('rc_numero').value = await generarNumeroDoc('recepcion');
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('rc_fecha').value = hoy;
+  document.getElementById('rc_observaciones').value = '';
+  document.getElementById('mRCTit').textContent = 'Nueva Recepción';
+
+  rc_addLinea();
+  openModal('mRecepcion');
+}
+
+// ═══════════════════════════════════════════════
+// EDITAR RECEPCIÓN
+// ═══════════════════════════════════════════════
+async function editarRecepcion(id) {
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+
+  rcEditId = id;
+  rcProveedorActual = r.proveedor_id;
+  rcAlmacenDestino = r.almacen_destino_id;
+  rcLineas = r.lineas || [];
+
+  const sel = document.getElementById('rc_proveedor');
+  sel.innerHTML = (proveedores||[]).map(p => `<option value="${p.id}" ${p.id===r.proveedor_id?'selected':''}>${p.nombre}</option>`).join('');
+
+  const almSel = document.getElementById('rc_almacen');
+  almSel.innerHTML = (almacenes||[]).map(a => `<option value="${a.id}" ${a.id===r.almacen_destino_id?'selected':''}>${a.nombre}</option>`).join('');
+
+  setVal({
+    rc_numero: r.numero,
+    rc_fecha: r.fecha,
+    rc_observaciones: r.observaciones || ''
+  });
+
+  document.getElementById('mRCTit').textContent = 'Editar Recepción';
+  rc_renderLineas();
+  openModal('mRecepcion');
+}
+
+// ═══════════════════════════════════════════════
+// GESTIÓN DE LÍNEAS
+// ═══════════════════════════════════════════════
+function rc_addLinea() {
+  rcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad_pedida:0, cantidad_recibida:0, precio:0});
+  rc_renderLineas();
+}
+
+function rc_removeLinea(idx) {
+  rcLineas.splice(idx, 1);
+  rc_renderLineas();
+}
+
+function rc_updateLinea(idx, field, val) {
+  if (field === 'articulo_id') {
+    const art = (articulos||[]).find(a => a.id == val);
+    if (art) {
+      rcLineas[idx].articulo_id = art.id;
+      rcLineas[idx].codigo = art.codigo;
+      rcLineas[idx].nombre = art.nombre;
+      rcLineas[idx].precio = art.precio_coste || 0;
+    }
+  } else {
+    rcLineas[idx][field] = parseFloat(val) || 0;
+  }
+  rc_renderLineas();
+}
+
+function rc_renderLineas() {
+  let total = 0;
+  const html = rcLineas.map((l, i) => {
+    const subtotal = l.cantidad_recibida * l.precio;
+    total += subtotal;
+    return `<tr style="border-top:1px solid var(--gris-100)">
+      <td style="padding:7px 6px">
+        <select onchange="rc_updateLinea(${i},'articulo_id',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
+          <option value="">${l.nombre||'—'}</option>
+          ${(articulos||[]).map(a => `<option value="${a.id}" ${a.id===l.articulo_id?'selected':''}>${a.codigo} - ${a.nombre}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 6px;text-align:right"><input type="number" value="${l.cantidad_pedida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_pedida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" readonly></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.cantidad_recibida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_recibida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="rc_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal)}</td>
+      <td style="padding:7px 4px"><button onclick="rc_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:16px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rc_lineas').innerHTML = html;
+  document.getElementById('rc_total').textContent = fmtE(total);
+}
+
+// ═══════════════════════════════════════════════
+// GUARDAR RECEPCIÓN
+// ═══════════════════════════════════════════════
+async function guardarRecepcion() {
+  const numero = v('rc_numero').trim();
+  const provId = parseInt(v('rc_proveedor'));
+  const almacenId = parseInt(v('rc_almacen'));
+
+  if (!numero) {toast('Introduce número de recepción','error');return;}
+  if (!provId) {toast('Selecciona proveedor','error');return;}
+  if (!almacenId) {toast('Selecciona almacén','error');return;}
+  if (rcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
+
+  const prov = (proveedores||[]).find(p => p.id === provId);
+  const obj = {
+    empresa_id: EMPRESA.id,
+    numero,
+    pedido_compra_id: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.pedido_compra_id : null,
+    proveedor_id: provId,
+    proveedor_nombre: prov?.nombre || '',
+    almacen_destino_id: almacenId,
+    fecha: v('rc_fecha'),
+    estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : 'pendiente',
+    lineas: rcLineas,
+    observaciones: v('rc_observaciones'),
+    usuario_id: CU.id,
+    usuario_nombre: CP?.nombre || CU.email
+  };
+
+  if (rcEditId) {
+    await sb.from('recepciones').update(obj).eq('id', rcEditId);
+  } else {
+    await sb.from('recepciones').insert(obj);
+  }
+
+  closeModal('mRecepcion');
+  loadRecepciones();
+  toast('Recepción guardada ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// VERIFICAR RECEPCIÓN
+// ═══════════════════════════════════════════════
+async function verificarRecepcion(id) {
+  if (!confirm('¿Verificar recepción?')) return;
+  await sb.from('recepciones').update({estado:'verificada'}).eq('id', id);
+  loadRecepciones();
+  toast('Recepción verificada ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// ALMACENAR RECEPCIÓN (ACTUALIZAR STOCK)
+// ═══════════════════════════════════════════════
+async function almacenarRecepcion(id) {
+  if (!confirm('¿Almacenar y actualizar stock?')) return;
+
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+
+  // Actualizar stock en almacén
+  for (const linea of (r.lineas||[])) {
+    if (linea.articulo_id) {
+      const {data:stock} = await sb.from('stock').select('*').eq('almacen_id', r.almacen_destino_id).eq('articulo_id', linea.articulo_id);
+      if (stock && stock.length > 0) {
+        const nuevoStock = (stock[0].cantidad||0) + linea.cantidad_recibida;
+        await sb.from('stock').update({cantidad:nuevoStock}).eq('id', stock[0].id);
+      } else {
+        await sb.from('stock').insert({
+          empresa_id: EMPRESA.id,
+          almacen_id: r.almacen_destino_id,
+          articulo_id: linea.articulo_id,
+          cantidad: linea.cantidad_recibida
+        });
+      }
+    }
+  }
+
+  await sb.from('recepciones').update({estado:'almacenada'}).eq('id', id);
+  loadRecepciones();
+  toast('Recepción almacenada y stock actualizado ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// ELIMINAR RECEPCIÓN
+// ═══════════════════════════════════════════════
+async function delRecepcion(id) {
+  if (!confirm('¿Eliminar recepción?')) return;
+  await sb.from('recepciones').delete().eq('id', id);
+  recepciones = recepciones.filter(r => r.id !== id);
+  renderRecepciones(recepciones);
+  toast('Recepción eliminada', 'info');
+}
+
+// ═══════════════════════════════════════════════
+// EXPORTAR
+// ═══════════════════════════════════════════════
+function exportRecepciones() {
+  const csv = 'Número,Proveedor,Fecha,Estado,Usuario,Almacén\n' +
+    recepciones.map(r => `"${r.numero}","${r.proveedor_nombre}","${r.fecha}","${r.estado}","${r.usuario_nombre}","${(almacenes||[]).find(a=>a.id===r.almacen_destino_id)?.nombre||'—'}"`).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `recepciones_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

@@ -1,0 +1,2104 @@
+<!DOCTYPE html>
+<html lang="es" spellcheck="true">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Instalo ERP</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="s-loading" class="screen active">
+  <div class="spinner"></div>
+  <p>Iniciando Jordi ERP...</p>
+</div>
+
+<!-- LOGIN -->
+<div id="s-login" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <p>Accede con tu cuenta</p>
+    </div>
+    <div id="loginErr" class="auth-err"></div>
+    <div class="auth-form">
+      <div class="auth-field"><label>Email</label><input id="lEmail" type="email" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="auth-field"><label>Contraseña</label><input id="lPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="auth-btn" onclick="doLogin()">Entrar →</button>
+    </div>
+    <div class="auth-link">
+      <a onclick="showScreen('s-solicitar')" style="cursor:pointer">¿Quieres probar el ERP? Solicita acceso</a>
+    </div>
+  </div>
+</div>
+
+<!-- SOLICITAR ACCESO (envía email a Jordi) -->
+<div id="s-solicitar" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:460px">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Solicitar acceso</h2>
+      <p>Rellena tus datos y nos pondremos en contacto contigo</p>
+    </div>
+    <div class="auth-form">
+      <div class="auth-grid">
+        <div class="auth-field"><label>Tu nombre *</label><input id="solNombre" placeholder="Nombre completo"></div>
+        <div class="auth-field"><label>Teléfono</label><input id="solTel" type="tel" placeholder="600 123 456"></div>
+      </div>
+      <div class="auth-field"><label>Email *</label><input id="solEmail" type="email" placeholder="tu@email.com"></div>
+      <div class="auth-field"><label>Nombre de tu empresa *</label><input id="solEmpresa" placeholder="Ej: Instalaciones López S.L."></div>
+      <div class="auth-field"><label>Mensaje (opcional)</label><textarea id="solMsg" rows="3" placeholder="Cuéntanos qué necesitas..." style="width:100%;resize:vertical;padding:10px;border:1px solid var(--gris-200);border-radius:8px;font-family:inherit;font-size:13px"></textarea></div>
+      <button class="auth-btn" onclick="enviarSolicitud()">Enviar solicitud →</button>
+    </div>
+    <div class="auth-link">¿Ya tienes cuenta? <a onclick="showScreen('s-login')">Iniciar sesión</a></div>
+  </div>
+</div>
+
+<!-- REGISTRO (solo con enlace de invitación) -->
+<div id="s-register" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:500px">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Crear tu cuenta</h2>
+      <p>Has sido invitado — configura tu empresa</p>
+    </div>
+    <div id="regErr" class="auth-err"></div>
+    <div id="regOk" class="auth-ok"></div>
+    <div class="auth-form">
+      <div class="auth-sep">Datos personales</div>
+      <div class="auth-grid">
+        <div class="auth-field"><label>Nombre *</label><input id="rNombre" placeholder="Tu nombre"></div>
+        <div class="auth-field"><label>Apellidos</label><input id="rApellidos" placeholder="Apellidos"></div>
+      </div>
+      <div class="auth-field"><label>Email *</label><input id="rEmail" type="email" placeholder="tu@email.com"></div>
+      <div class="auth-field"><label>Contraseña *</label><input id="rPass" type="password" placeholder="Mínimo 8 caracteres"></div>
+      <div class="auth-sep">Tu empresa</div>
+      <div class="auth-field"><label>Nombre de la empresa *</label><input id="rEmpresa" placeholder="Ej: Mi Empresa S.L."></div>
+      <div class="auth-grid">
+        <div class="auth-field"><label>CIF/NIF</label><input id="rCif" placeholder="B12345678"></div>
+        <div class="auth-field"><label>Teléfono</label><input id="rTel" type="tel"></div>
+      </div>
+      <div class="auth-grid">
+        <div class="auth-field"><label>Municipio</label><input id="rMunicipio"></div>
+        <div class="auth-field"><label>Provincia</label><input id="rProvincia"></div>
+      </div>
+      <button class="auth-btn" onclick="doRegister()">Crear empresa y empezar →</button>
+      <p style="text-align:center;font-size:11px;color:#888;margin-top:10px">Tu cuenta se activará con 14 días de prueba gratuita.</p>
+    </div>
+  </div>
+</div>
+
+<!-- LICENCIA EXPIRADA -->
+<div id="s-expired" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:450px;text-align:center">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Periodo de prueba finalizado</h2>
+      <p style="margin-top:12px;font-size:14px;line-height:1.6">Tu periodo de prueba ha expirado.<br>Contacta con nosotros para activar tu licencia.</p>
+    </div>
+    <div style="margin:20px 0;padding:16px;background:var(--gris-50);border-radius:10px">
+      <p style="font-size:13px;margin-bottom:8px"><strong>Email:</strong> jordi@jordiinstalacions.es</p>
+      <p style="font-size:13px"><strong>Teléfono:</strong> Contactar para activación</p>
+    </div>
+    <button class="auth-btn" style="background:#6B7280" onclick="doLogout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- INVITACIÓN NO VÁLIDA -->
+<div id="s-invite-invalid" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:420px;text-align:center">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Enlace no válido</h2>
+      <p style="margin-top:12px;font-size:14px;line-height:1.6">Este enlace de invitación ha caducado o ya fue utilizado.</p>
+    </div>
+    <button class="auth-btn" onclick="showScreen('s-login')">Ir al login</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="s-app" class="screen">
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sb-logo" onclick="goPage('dashboard')">
+      <div class="mark" style="background:transparent;padding:2px"><img src="icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
+      <div class="brand"><strong>Instalo ERP</strong><span>v1.0</span></div>
+    </div>
+
+    <div class="sb-emp-selector" onclick="openModal('mEmpresas')">
+      <div class="emp-av" id="sbEmpAv">JI</div>
+      <div class="emp-info"><strong id="sbEmpNombre">Cargando...</strong><small id="sbEmpRole">—</small></div>
+      <span class="chev">⌄</span>
+    </div>
+
+    <div class="sb-nav" id="sbNav">
+
+      <!-- FAVORITOS -->
+      <div id="sbFavSection">
+        <div class="sb-fav-titulo">⭐ Favoritos <button onclick="toggleFavEdit()" title="Editar favoritos" id="btnFavEdit">✏️</button></div>
+        <div id="sbFavList" class="sb-favoritos"></div>
+      </div>
+
+      <!-- COMERCIAL -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)">Comercial</div>
+      <div class="sb-section-items" id="sec-comercial">
+        <button class="sb-item" onclick="goPage('clientes')"><span class="ico">👥</span> Clientes</button>
+        <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
+        <button class="sb-item" onclick="goPage('albaranes')"><span class="ico">📄</span> Albaranes</button>
+        <button class="sb-item" onclick="goPage('facturas')"><span class="ico">🧾</span> Facturas</button>
+      </div>
+
+      <!-- COMPRAS -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)">Compras</div>
+      <div class="sb-section-items" id="sec-compras">
+        <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores</button>
+        <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos</button>
+        <button class="sb-item" onclick="goPage('recepciones')"><span class="ico">📥</span> Recepciones</button>
+        <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.</button>
+      </div>
+
+      <!-- ALMACÉN -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)">Almacén</div>
+      <div class="sb-section-items" id="sec-almacen">
+        <button class="sb-item" onclick="goPage('articulos')"><span class="ico">📦</span> Artículos</button>
+        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes</button>
+        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock</button>
+        <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos</button>
+        <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos</button>
+      </div>
+
+      <!-- GESTIÓN DE OBRAS -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)">Gestión de obras</div>
+      <div class="sb-section-items" id="sec-obras">
+        <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
+        <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes</button>
+      </div>
+
+      <!-- PERSONAL -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)">Personal</div>
+      <div class="sb-section-items" id="sec-personal">
+        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes</button>
+      </div>
+
+      <!-- ADMINISTRACIÓN -->
+      <div id="adminSection" style="display:none">
+        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)">Administración</div>
+        <div class="sb-section-items" id="sec-admin">
+          <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios</button>
+          <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad</button>
+          <button class="sb-item" onclick="goPage('papelera')"><span class="ico">🗑️</span> Papelera</button>
+        <button class="sb-item" id="btnConfig" onclick="goPage('configuracion')" style="display:none"><span class="ico">⚙️</span> Configuración</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="sb-claude" onclick="toggleClaude()">
+      <span style="font-size:18px">🤖</span>
+      <div><strong>Hablar con Claude</strong><small>Asistente IA</small></div>
+    </button>
+
+    <div class="sb-user">
+      <div class="av av-sm" id="sbAv" style="background:var(--azul)">J</div>
+      <div><strong id="sbNombre">...</strong><small id="sbRol">...</small></div>
+      <button class="logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <div>
+        <div class="tb-title" id="pgTitle">Panel</div>
+        <div class="tb-sub" id="pgSub"></div>
+      </div>
+      <div class="tb-sp"></div>
+      <div id="topbarBtns" style="display:flex;gap:7px"></div>
+    </div>
+    <div id="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+
+        <!-- FILA 1: KPIs principales -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">💶</div><div class="sv" id="d-fact-mes">—</div><div class="sl">Facturado este mes</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">⏳</div><div class="sv" id="d-pend-cobro">—</div><div class="sl">Pendiente de cobro</div></div>
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">🧾</div><div class="sv" id="d-pend-pago">—</div><div class="sl">Pendiente de pago</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">📋</div><div class="sv" id="d-presup-mes">—</div><div class="sl">Presupuestos pendientes</div></div>
+        </div>
+
+        <!-- FILA 2: KPIs secundarios -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">👥</div><div class="sv" id="d-cli">—</div><div class="sl">Clientes</div></div>
+          <div class="sc" style="--c:var(--acento);--bg:#FFF4ED"><div class="si">🏗️</div><div class="sv" id="d-trab">—</div><div class="sl">Obras activas</div></div>
+          <div class="sc" style="--c:var(--violeta);--bg:var(--violeta-light)"><div class="si">💰</div><div class="sv" id="d-fact-ano">—</div><div class="sl">Facturado este año</div></div>
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="d-vencidas">—</div><div class="sl">Facturas vencidas</div></div>
+        </div>
+
+        <!-- FILA 3: Tablas -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div class="card">
+            <div class="card-h"><h3>🏗️ Obras activas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('trabajos')">Ver todos</button></div></div>
+            <div class="card-b" id="d-trabajos-list"><div class="empty"><div class="ei">🏗️</div><p>Sin obras</p></div></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>🧾 Facturas pendientes cobro</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas')">Ver todas</button></div></div>
+            <div class="card-b" id="d-fact-list"><div class="empty"><div class="ei">🧾</div><p>Sin facturas pendientes</p></div></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>📋 Presupuestos pendientes</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('presupuestos')">Ver todos</button></div></div>
+            <div class="card-b" id="d-presup-list"><div class="empty"><div class="ei">📋</div><p>Sin presupuestos</p></div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CLIENTES -->
+      <div class="page" id="page-clientes">
+        <!-- Vista lista -->
+        <div id="cliVista-lista">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <p style="font-size:12px;color:var(--gris-400)" id="cliCount">—</p>
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" onclick="setCliVista('tarjetas')" id="btnVisTarj">⊞ Tarjetas</button>
+              <button class="btn btn-ghost btn-sm" onclick="setCliVista('tabla')" id="btnVisTabl">☰ Lista</button>
+              <div style="width:1px;height:20px;background:var(--gris-200)"></div>
+              <button class="btn btn-ghost btn-sm" onclick="exportarClientes()">📤 Exportar</button>
+              <button class="btn btn-secondary btn-sm" onclick="openModal('mImportarClientes')">📥 Importar</button>
+              <button class="btn btn-primary btn-sm" onclick="openModal('mCliente')">+ Nuevo</button>
+            </div>
+          </div>
+          <!-- Barra búsqueda y filtros -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input type="text" id="cliSearch" placeholder="🔍 Buscar por nombre, NIF, email, teléfono..." oninput="buscarCli(this.value)" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;width:300px;outline:none;flex:1">
+              <select onchange="filtrarCliTipo(this.value)" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+                <option value="">Todos los tipos</option><option>Particular</option><option>Empresa</option><option>Comunidad</option>
+              </select>
+              <select onchange="filtrarCliProv(this.value)" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+                <option value="">Todas las provincias</option>
+              </select>
+            </div>
+          </div>
+          <!-- Vista tarjetas -->
+          <div id="cliGridTarjetas" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
+          <!-- Vista tabla -->
+          <div id="cliGridTabla" style="display:none">
+            <div class="card">
+              <div class="tw"><table class="dt"><thead><tr><th>Cliente</th><th>Tipo</th><th>Teléfono</th><th>Email</th><th>Municipio</th><th>NIF</th><th>Obras</th><th>Acciones</th></tr></thead><tbody id="cliTable"></tbody></table>
+            </div></div>
+          </div>
+        </div>
+        <!-- Vista ficha cliente -->
+        <div id="cliVista-ficha" style="display:none">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+            <button class="btn btn-secondary btn-sm" onclick="setCliVista('lista')">← Volver</button>
+            <h2 style="font-size:17px;font-weight:800" id="fichaCliNombre">—</h2>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="editCliActual()">✏️ Editar</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoObraCliActual()">🏗️ Obra</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoPresupCliActual()">📋 Presupuesto</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoAlbaranCliActual()">📄 Albarán</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevaFacturaRapida()">🧾 Factura</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:320px 1fr;gap:16px">
+            <!-- Panel izquierdo: datos -->
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="card">
+                <div class="card-h"><h3>📋 Datos del cliente</h3></div>
+                <div class="card-b" id="fichaCliDatos"></div>
+              </div>
+              <div class="card">
+                <div class="card-h"><h3>📍 Direcciones</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mDireccion')">+</button></div></div>
+                <div id="fichaDirList"></div>
+              </div>
+              <div class="card">
+                <div class="card-h"><h3>👤 Contactos</h3><div class="card-ha"><button class="btn btn-ghost btn-sm" onclick="openModal('mContacto')">+</button></div></div>
+                <div id="fichaContList"></div>
+              </div>
+              <!-- Resumen financiero -->
+              <div class="card">
+                <div class="card-h"><h3>💶 Resumen financiero</h3></div>
+                <div class="card-b" id="fichaFinanciero">
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Total facturado</span><span style="font-weight:700;color:var(--azul)" id="ff-total">—</span></div>
+                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Pendiente cobro</span><span style="font-weight:700;color:var(--rojo)" id="ff-pendiente">—</span></div>
+                    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:12px;color:var(--gris-500)">Facturas vencidas</span><span style="font-weight:700;color:var(--rojo)" id="ff-vencidas">—</span></div>
+                    <div style="display:flex;justify-content:space-between;padding:7px 0"><span style="font-size:12px;color:var(--gris-500)">Último presupuesto</span><span style="font-weight:600;font-size:12px" id="ff-ultimo-presup">—</span></div>
+                  </div>
+                </div>
+              </div>
+              <!-- Nueva nota rápida -->
+              <div class="card">
+                <div class="card-h"><h3>📝 Nueva nota</h3></div>
+                <div class="card-b">
+                  <div style="display:flex;gap:7px;margin-bottom:9px">
+                    <select id="notaTipo" style="padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+                      <option value="nota">📝 Nota</option>
+                      <option value="llamada">📞 Llamada</option>
+                      <option value="visita">🚗 Visita</option>
+                      <option value="email">✉️ Email</option>
+                    </select>
+                  </div>
+                  <textarea id="notaTexto" placeholder="Escribe una nota sobre este cliente..." style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;height:70px;outline:none;font-family:var(--font)"></textarea>
+                  <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px" onclick="guardarNota()">💾 Guardar nota</button>
+                </div>
+              </div>
+            </div>
+            <!-- Panel derecho: historial -->
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📋</div><div class="sv" id="fk-presup">—</div><div class="sl">Presupuestos</div></div>
+                <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">🧾</div><div class="sv" id="fk-facturado">—</div><div class="sl">Facturado total</div></div>
+                <div class="sc" style="--c:var(--acento);--bg:#FFF4ED"><div class="si">🏗️</div><div class="sv" id="fk-trabajos">—</div><div class="sl">Obras</div></div>
+              </div>
+              <div class="card">
+                <div class="card-h">
+                  <h3>Historial</h3>
+                  <div class="card-ha">
+                    <div class="tabs" style="margin-bottom:0">
+                      <button class="tab active" onclick="fichaTab('trabajos',this)" id="ftab-trabajos">🏗️ Obras</button>
+                      <button class="tab" onclick="fichaTab('presupuestos',this)" id="ftab-presupuestos">📋 Presupuestos</button>
+                      <button class="tab" onclick="fichaTab('facturas',this)" id="ftab-facturas">🧾 Facturas</button>
+                      <button class="tab" onclick="fichaTab('documentos',this)" id="ftab-documentos">📎 Documentos</button>
+                      <button class="tab" onclick="fichaTab('notas',this)" id="ftab-notas">📝 Notas</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-b">
+                  <div id="ficha-hist-trabajos"></div>
+                  <div id="ficha-hist-presupuestos" style="display:none"></div>
+                  <div id="ficha-hist-facturas" style="display:none"></div>
+                  <div id="ficha-hist-documentos" style="display:none"></div>
+                  <div id="ficha-hist-notas" style="display:none"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROVEEDORES -->
+      <div class="page" id="page-proveedores">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Proveedores</h2><p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p></div>
+          <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" onclick="openModal('mImportarProveedores')">📥 Importar Excel</button>
+              <button class="btn btn-primary" onclick="openModal('mProveedor')">+ Nuevo proveedor</button>
+            </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table class="dt"><thead><tr><th>Proveedor</th><th>CIF</th><th>Teléfono</th><th>Email pedidos</th><th>Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- ARTÍCULOS -->
+      <div class="page" id="page-articulos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Artículos</h2><p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p></div>
+          <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" onclick="openModal('mImportarArticulos')">📥 Importar Excel</button>
+              <button class="btn btn-primary" onclick="openModal('mArticulo')">+ Nuevo artículo</button>
+            </div>
+        </div>
+        <div class="card">
+          <div class="card-h">
+            <input type="text" placeholder="🔍 Buscar..." oninput="buscarArt(this.value)" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:200px;outline:none">
+            <select onchange="filtrarArtFam(this.value)" id="selFamFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;margin-left:6px;outline:none">
+              <option value="">Todas las familias</option>
+            </select>
+          </div>
+          <div class="tw"><table class="dt"><thead><tr><th>Código</th><th>Artículo</th><th>Familia</th><th>Precio coste</th><th>Precio venta</th><th>IVA</th><th>Activo</th><th>Acciones</th></tr></thead><tbody id="artTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- ALMACENES -->
+      <div class="page" id="page-almacenes">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Almacenes</h2><p style="font-size:11.5px;color:var(--gris-400)">Central + furgonetas</p></div>
+          <button class="btn btn-primary" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>
+        </div>
+        <div id="almGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
+      </div>
+
+      <!-- TRABAJOS -->
+      <div class="page" id="page-trabajos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Obras</h2></div>
+          <button class="btn btn-primary" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+        </div>
+        <div class="card"><div class="tw"><table class="dt"><thead><tr><th>Nº</th><th>Título</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
+      </div>
+
+      <!-- PÁGINAS EN CONSTRUCCIÓN -->
+      <!-- PRESUPUESTOS -->
+      <div class="page" id="page-presupuestos">
+        <!-- Filtros y búsqueda -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="presSearch" placeholder="🔍 Buscar por número, cliente, título..." 
+              oninput="filtrarPresupuestos()" 
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+            <select id="presEstado" onchange="_kpiFilterActivo='';document.querySelectorAll('.kpi-filter').forEach(el=>{el.style.outline='none'});filtrarPresupuestos()" 
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Activos</option>
+              <option value="borrador">Borradores</option>
+              <option value="pendiente">Pendientes</option>
+              <option value="aceptado">Aceptados</option>
+              <option value="caducado">Caducados</option>
+              <option value="anulado">Anulados</option>
+              <option value="todos">Todos</option>
+            </select>
+            <input type="date" id="presDesde" onchange="filtrarPresupuestos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <input type="date" id="presHasta" onchange="filtrarPresupuestos()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <button class="btn btn-ghost btn-sm" onclick="exportarPresupuestos()">📤 Exportar</button>
+          </div>
+        </div>
+        <!-- KPIs rápidos -->
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc kpi-filter" data-filtro="" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarPorKpi('')" title="Ver todos (excepto anulados)"><div class="si">📋</div><div class="sv" id="pk-total">—</div><div class="sl">Total</div></div>
+          <div class="sc kpi-filter" data-filtro="pendiente" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="filtrarPorKpi('pendiente')" title="Ver solo pendientes"><div class="si">⏳</div><div class="sv" id="pk-pendientes">—</div><div class="sl">Pendientes</div></div>
+          <div class="sc kpi-filter" data-filtro="aceptado" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="filtrarPorKpi('aceptado')" title="Ver solo aceptados"><div class="si">✅</div><div class="sv" id="pk-aceptados">—</div><div class="sl">Aceptados</div></div>
+          <div class="sc kpi-filter" data-filtro="caducado" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="filtrarPorKpi('caducado')" title="Ver solo caducados"><div class="si">⏰</div><div class="sv" id="pk-caducados">—</div><div class="sl">Caducados</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="pk-imp-pend">—</div><div class="sl">Importe pendiente</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💶</div><div class="sv" id="pk-imp-acep">—</div><div class="sl">Importe aceptado</div></div>
+        </div>
+        <!-- Tabla -->
+        <div class="card">
+          <div class="tw">
+            <table class="dt">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Cliente</th>
+                  <th>Título</th>
+                  <th>Fecha</th>
+                  <th>Válido hasta</th>
+                  <th>Importe</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="presTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="page" id="page-albaranes">
+        <!-- Filtros y búsqueda -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="abSearch" placeholder="🔍 Buscar por número, cliente, referencia..."
+              oninput="filtrarAlbaranes()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+            <select id="abEstado" onchange="filtrarAlbaranes()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="entregado">Entregado</option>
+              <option value="facturado">Facturado</option>
+              <option value="anulado">Anulado</option>
+            </select>
+            <input type="date" id="abDesde" onchange="filtrarAlbaranes()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <input type="date" id="abHasta" onchange="filtrarAlbaranes()"
+              style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button>
+          </div>
+        </div>
+        <!-- KPIs rápidos -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--gris-500);--bg:var(--gris-100)"><div class="si">📄</div><div class="sv" id="ak-total">—</div><div class="sl">Total</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">⏳</div><div class="sv" id="ak-pendientes">—</div><div class="sl">Pendientes</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv" id="ak-entregados">—</div><div class="sl">Entregados</div></div>
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">🧾</div><div class="sv" id="ak-facturados">—</div><div class="sl">Facturados</div></div>
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">💶</div><div class="sv" id="ak-importe">—</div><div class="sl">Importe total</div></div>
+        </div>
+        <!-- Tabla -->
+        <div class="card">
+          <div class="tw">
+            <table class="dt">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Cliente</th>
+                  <th>Referencia</th>
+                  <th>Fecha</th>
+                  <th>Importe</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="abTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="page" id="page-facturas"><div class="empty" style="margin-top:40px"><div class="ei">🧾</div><h3>Facturas</h3><p>Módulo en construcción</p></div></div>
+      <!-- PEDIDOS DE COMPRA -->
+      <div class="page" id="page-pedidos-compra">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Pedidos de Compra</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Gestión de compras y pedidos a proveedores</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevoPedidoCompra()">+ Nuevo Pedido</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportPedidosCompra()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total</div>
+            <div id="pcKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="pcKpiPend" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Recibidos</div>
+            <div id="pcKpiRecib" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Importe recibido</div>
+            <div id="pcKpiImporte" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="pcFiltroEstado" onchange="filtrarPedidosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los estados</option>
+            <option value="borrador">Borrador</option>
+            <option value="enviado">Enviado</option>
+            <option value="recibido_parcial">Recibido parcial</option>
+            <option value="recibido">Recibido</option>
+          </select>
+          <select id="pcFiltroProveedor" onchange="filtrarPedidosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los proveedores</option>
+          </select>
+          <input type="date" id="pcFiltroDesde" onchange="filtrarPedidosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="pcFiltroHasta" onchange="filtrarPedidosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número / Fecha</th><th>Proveedor</th><th>Entrega Prevista</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+          </tr></thead><tbody id="pcTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- RECEPCIONES -->
+      <div class="page" id="page-recepciones">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Recepciones</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Recepción y almacenamiento de mercancías</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nueva Recepción</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportRecepciones()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total Importe</div>
+            <div id="rcKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="rcKpiPend" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Este mes</div>
+            <div id="rcKpiMes" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Almacenadas</div>
+            <div id="rcKpiValor" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="rcFiltroEstado" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="verificada">Verificada</option>
+            <option value="almacenada">Almacenada</option>
+          </select>
+          <select id="rcFiltroProveedor" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los proveedores</option>
+          </select>
+          <input type="date" id="rcFiltroDesde" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="rcFiltroHasta" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número / Fecha</th><th>Proveedor</th><th>Usuario</th><th>Estado</th><th style="text-align:right">Importe</th><th style="text-align:right">Acciones</th>
+          </tr></thead><tbody id="rcTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- FACTURAS PROVEEDOR -->
+      <div class="page" id="page-facturas-proveedor">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Facturas de Proveedor</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Control de facturas de compra y pagos</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevaFacturaProv()">+ Nueva Factura</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportFacturasProv()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total Facturas</div>
+            <div id="fpKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="fpKpiPend" style="font-size:24px;font-weight:800;color:var(--rojo)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pagadas (Mes)</div>
+            <div id="fpKpiMesPagadas" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Saldo Pendiente</div>
+            <div id="fpKpiPendiente" style="font-size:24px;font-weight:800;color:var(--rojo)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="fpFiltroEstado" onchange="filtrarFacturasProv()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="pagada">Pagada</option>
+            <option value="anulada">Anulada</option>
+          </select>
+          <select id="fpFiltroProveedor" onchange="filtrarFacturasProv()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los proveedores</option>
+          </select>
+          <input type="date" id="fpFiltroDesde" onchange="filtrarFacturasProv()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="fpFiltroHasta" onchange="filtrarFacturasProv()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número / Fecha</th><th>Proveedor</th><th>Vencimiento</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+          </tr></thead><tbody id="fpTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- STOCK -->
+      <div class="page" id="page-stock">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Stock</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Gestión de inventario por almacén</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="exportStock()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Referencias</div>
+            <div id="kpi-total-refs" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Bajo Mínimo</div>
+            <div id="kpi-bajo-minimo" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Valor Stock</div>
+            <div id="kpi-valor-stock" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Almacenes</div>
+            <div id="kpi-almacenes" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="filter-almacen" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los almacenes</option>
+          </select>
+          <select id="filter-familia" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todas las familias</option>
+          </select>
+          <input type="text" id="filter-texto" placeholder="Buscar artículo..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
+          <select id="filter-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="all">Todos</option>
+            <option value="ok">OK</option>
+            <option value="bajo">Bajo</option>
+            <option value="agotado">Agotado</option>
+          </select>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Artículo</th><th>Código</th><th>Familia</th><th>Almacén</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Mínimo</th><th>Estado</th><th style="text-align:right">Valor</th><th style="text-align:center">Acciones</th>
+          </tr></thead><tbody id="stock-table"><tr></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- TRASPASOS -->
+      <div class="page" id="page-traspasos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Traspasos</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Transferencias entre almacenes</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo Traspaso</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportTraspasos()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total</div>
+            <div id="kpi-total-traspasos" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="kpi-pendientes" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Completados</div>
+            <div id="kpi-completados-mes" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Valor</div>
+            <div id="kpi-valor-traspasos" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="filter-estado-trasp" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="all">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="en_transito">En tránsito</option>
+            <option value="completado">Completado</option>
+            <option value="anulado">Anulado</option>
+          </select>
+          <select id="filter-almacen-trasp" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los almacenes</option>
+          </select>
+          <input type="date" id="filter-fecha-from" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="filter-fecha-to" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número</th><th>Fecha</th><th>Origen</th><th></th><th>Destino</th><th style="text-align:right">Líneas</th><th>Estado</th><th style="text-align:center">Acciones</th>
+          </tr></thead><tbody id="traspasos-table"><tr></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-activos"><div class="empty" style="margin-top:40px"><div class="ei">🔧</div><h3>Activos</h3><p>Módulo en construcción</p></div></div>
+
+      <!-- PARTES DE TRABAJO -->
+      <div class="page" id="page-partes">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800">Partes de Trabajo</h2>
+            <p style="font-size:11.5px;color:var(--gris-400)">Registro de trabajos realizados en obras</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo Parte</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportPartes()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total Partes</div>
+            <div id="pt-kpi-total" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Horas</div>
+            <div id="pt-kpi-horas" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="pt-kpi-pendientes" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Materiales</div>
+            <div id="pt-kpi-material" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <input type="text" id="pt-filter-texto" placeholder="Buscar..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
+          <select id="pt-filter-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los estados</option>
+            <option value="borrador">Borrador</option>
+            <option value="enviado">Enviado</option>
+            <option value="revisado">Revisado</option>
+            <option value="facturado">Facturado</option>
+          </select>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Número</th><th>Obra</th><th>Usuario</th><th>Fecha</th><th>Horas</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
+          </tr></thead><tbody id="ptTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- FICHAJES -->
+      <div class="page" id="page-fichajes"></div>
+
+      <!-- REGISTRO DE ACTIVIDAD (AUDIT LOG) -->
+      <div class="page" id="page-audit-log">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Registro de actividad</h2><p style="font-size:11.5px;color:var(--gris-400)">Quién, qué y cuándo se modifica</p></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="auditFiltroEntidad" onchange="loadAuditLog()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Todas las entidades</option>
+              <option value="presupuesto">Presupuestos</option>
+              <option value="cliente">Clientes</option>
+              <option value="albaran">Albaranes</option>
+              <option value="factura">Facturas</option>
+              <option value="trabajo">Obras</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadAuditLog()">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Fecha/Hora</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Detalle</th>
+          </tr></thead><tbody id="auditTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- ═══ PAPELERA (DOCS ELIMINADOS) ═══ -->
+      <div class="page" id="page-papelera">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">🗑️ Papelera</h2><p style="font-size:11.5px;color:var(--gris-400)">Documentos eliminados — solo visible para superadmin</p></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="papeleraFiltro" onchange="loadPapelera()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Todo</option>
+              <option value="presupuestos">Presupuestos</option>
+              <option value="albaranes">Albaranes</option>
+              <option value="facturas">Facturas</option>
+              <option value="trabajos">Obras</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadPapelera()">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Tipo</th><th>Número</th><th>Cliente</th><th>Importe</th><th>Eliminado por</th><th>Fecha eliminación</th><th>Acciones</th>
+          </tr></thead><tbody id="papeleraTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- ═══ EDITOR DE DOCUMENTOS FULLSCREEN ═══ -->
+      <div class="page" id="page-doc-editor" style="margin:-20px;padding:0;min-height:calc(100vh - 56px)">
+        <!-- Topbar del editor -->
+        <div style="background:#fff;border-bottom:1.5px solid var(--gris-200);padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40">
+          <button class="btn btn-ghost btn-sm" onclick="cerrarEditor()" style="font-size:18px;padding:4px 8px">←</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="de_ico" style="font-size:20px">📋</span>
+            <div>
+              <div id="de_titulo_bar" style="font-weight:800;font-size:15px">Nuevo Presupuesto</div>
+              <div id="de_numero_bar" style="font-size:11px;color:var(--gris-400);font-family:monospace">PRE-0001</div>
+            </div>
+          </div>
+          <div style="flex:1"></div>
+          <span id="de_autosave_indicator" style="font-size:11px;color:var(--verde);font-weight:600;opacity:0;transition:opacity .3s"></span>
+          <span id="de_version_badge" style="font-size:11px;background:var(--gris-100);color:var(--gris-500);padding:3px 10px;border-radius:20px;font-weight:600;display:none"></span>
+          <div id="de_buttons" style="display:flex;gap:6px"></div>
+        </div>
+
+        <div style="padding:12px 18px;margin:0">
+          <!-- CABECERA: Datos documento -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+            <!-- Col 1: Cliente -->
+            <div class="card" style="padding:10px 12px">
+              <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Cliente</div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Cliente</label>
+                <div style="display:flex;gap:4px">
+                  <select id="de_cliente" onchange="de_actualizarCliente(this.value)" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                    <option value="">— Selecciona cliente —</option>
+                  </select>
+                  <button class="btn btn-ghost btn-sm" onclick="nuevoClienteDesde('doceditor')" title="Nuevo cliente" style="padding:4px 6px">+</button>
+                </div>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">NIF</label>
+                <span id="de_cli_nif" style="font-size:12px;color:var(--gris-600)">—</span>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Dirección</label>
+                <span id="de_cli_dir" style="font-size:12px;color:var(--gris-600)">—</span>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Teléfono</label>
+                <span id="de_cli_tel" style="font-size:12px;color:var(--gris-600)">—</span>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Email</label>
+                <span id="de_cli_email" style="font-size:12px;color:var(--gris-600)">—</span>
+              </div>
+            </div>
+            <!-- Col 2: Datos documento -->
+            <div class="card" style="padding:10px 12px">
+              <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Documento</div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Serie/Nº</label>
+                <div style="display:flex;gap:4px">
+                  <select id="de_serie" style="width:90px;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none"></select>
+                  <input id="de_numero" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;background:var(--gris-50);outline:none;font-family:monospace">
+                </div>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Fecha</label>
+                <input type="date" id="de_fecha" onchange="de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_fecha2_label">Válido hasta</label>
+                <input type="date" id="de_fecha2" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_version_label">Versión</label>
+                <span id="de_version_doc" style="font-size:12px;font-weight:700;color:var(--azul);display:none">v1</span>
+              </div>
+            </div>
+            <!-- Col 3: Datos extra -->
+            <div class="card" style="padding:10px 12px">
+              <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Detalles</div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Título/Ref.</label>
+                <input id="de_titulo" placeholder="Ej: Instalación caldera..." onchange="de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_fpago_label">Forma pago</label>
+                <select id="de_fpago" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none"></select>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600">Notas</label>
+                <input id="de_obs" placeholder="Observaciones..." style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+              </div>
+            </div>
+          </div>
+
+          <!-- LÍNEAS -->
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--gris-50);border-bottom:1px solid var(--gris-200)">
+              <span style="font-weight:700;font-size:14px">Líneas del documento</span>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="de_addCapitulo()">📁 Capítulo</button>
+                <button class="btn btn-ghost btn-sm" onclick="de_addSubcapitulo()">📂 Subcapítulo</button>
+                <button class="btn btn-primary btn-sm" onclick="de_addLinea()">+ Añadir línea</button>
+              </div>
+            </div>
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:var(--gris-50)">
+                  <th style="width:28px"></th>
+                  <th style="padding:9px 12px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                  <th style="padding:9px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:75px;text-align:center">Cant.</th>
+                  <th style="padding:9px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:center">Precio</th>
+                  <th id="de_th_dto" style="padding:9px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:75px;text-align:center">Dto %</th>
+                  <th id="de_th_iva" style="padding:9px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:75px;text-align:center">IVA %</th>
+                  <th style="padding:9px 12px;font-size:11px;font-weight:700;color:var(--gris-500);width:110px;text-align:right">Total</th>
+                  <th style="width:36px"></th>
+                </tr>
+              </thead>
+              <tbody id="de_lineas"></tbody>
+            </table>
+          </div>
+
+          <!-- TOTALES -->
+          <div style="display:flex;justify-content:flex-end;gap:16px;align-items:flex-start">
+            <div id="de_obs_box" style="flex:1;max-width:500px">
+              <textarea id="de_obs_largo" rows="3" placeholder="Observaciones adicionales, condiciones, etc..."
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:vertical;font-family:var(--font);outline:none;background:var(--gris-50)"></textarea>
+            </div>
+            <div style="width:300px;background:white;border:1.5px solid var(--gris-200);border-radius:10px;padding:16px">
+              <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--gris-500)">Base imponible</span><span id="de_base" style="font-weight:600">0,00 €</span></div>
+              <div id="de_iva_row" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--gris-500)">IVA</span><span id="de_iva_tot" style="font-weight:600">0,00 €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:17px;font-weight:800;border-top:2px solid var(--azul);margin-top:6px"><span>TOTAL</span><span id="de_total" style="color:var(--azul)">0,00 €</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- USUARIOS -->
+      <div class="page" id="page-usuarios">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Usuarios</h2><p style="font-size:11.5px;color:var(--gris-400)" id="usrCount">—</p></div>
+          <button class="btn btn-primary" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>
+        </div>
+        <div id="usuariosGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
+
+        <!-- INVITACIONES -->
+        <div style="margin-top:32px;border-top:1px solid var(--gris-200);padding-top:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div><h2 style="font-size:17px;font-weight:800">Invitaciones</h2><p style="font-size:11.5px;color:var(--gris-400)">Genera enlaces para que nuevos clientes prueben el ERP</p></div>
+            <button class="btn btn-primary" onclick="openModal('mNuevaInvitacion')">+ Nueva invitación</button>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <table class="tbl" style="width:100%">
+              <thead><tr><th>Email</th><th>Empresa</th><th>Prueba</th><th>Estado</th><th>Fecha</th><th></th></tr></thead>
+              <tbody id="invitaciones-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SOLICITUDES -->
+        <div style="margin-top:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div><h2 style="font-size:17px;font-weight:800">Solicitudes de acceso</h2><p style="font-size:11.5px;color:var(--gris-400)">Personas que han solicitado probar el ERP</p></div>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <table class="tbl" style="width:100%">
+              <thead><tr><th>Nombre</th><th>Email</th><th>Empresa</th><th>Teléfono</th><th>Fecha</th><th></th></tr></thead>
+              <tbody id="solicitudes-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONFIGURACIÓN -->
+      <div class="page" id="page-configuracion">
+        <div style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:800">Configuración</h2><p style="font-size:11.5px;color:var(--gris-400)">Todo editable desde aquí — nada cerrado</p></div>
+        <div class="cfg-grid">
+          <div class="cfg-menu">
+            <button class="cfg-menu-item active" onclick="cfgTab('empresa',this)"><span class="ico">🏢</span> Empresa</button>
+            <button class="cfg-menu-item" onclick="cfgTab('series',this)"><span class="ico">🔢</span> Series numeración</button>
+            <button class="cfg-menu-item" onclick="cfgTab('iva',this)"><span class="ico">💶</span> Tipos de IVA</button>
+            <button class="cfg-menu-item" onclick="cfgTab('unidades',this)"><span class="ico">📏</span> Unidades medida</button>
+            <button class="cfg-menu-item" onclick="cfgTab('formas-pago',this)"><span class="ico">💳</span> Formas de pago</button>
+            <button class="cfg-menu-item" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
+          </div>
+          <div>
+            <!-- Empresa -->
+            <div class="cfg-panel active card" id="cfg-empresa">
+              <div class="card-h"><h3>🏢 Datos de la empresa</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="saveEmpresa()">💾 Guardar</button></div></div>
+              <div class="card-b">
+                <div class="fg-row" style="margin-bottom:11px">
+                  <div class="fg"><label>Nombre comercial</label><input id="emp_nombre" autocorrect="on" spellcheck="true"></div>
+                  <div class="fg"><label>Razón social</label><input id="emp_razon" autocorrect="on" spellcheck="true"></div>
+                </div>
+                <div class="fg-row" style="margin-bottom:11px">
+                  <div class="fg"><label>CIF/NIF</label><input id="emp_cif"></div>
+                  <div class="fg"><label>Teléfono</label><input id="emp_tel"></div>
+                </div>
+                <div class="fg-row" style="margin-bottom:11px">
+                  <div class="fg"><label>Email</label><input id="emp_email" type="email"></div>
+                  <div class="fg"><label>Web</label><input id="emp_web"></div>
+                </div>
+                <div class="fg" style="margin-bottom:11px"><label>Dirección fiscal</label><input id="emp_dir" autocorrect="on" spellcheck="true"></div>
+                <div class="fg-row g3" style="margin-bottom:11px">
+                  <div class="fg"><label>Municipio</label><input id="emp_muni" autocorrect="on" spellcheck="true"></div>
+                  <div class="fg"><label>CP</label><input id="emp_cp"></div>
+                  <div class="fg"><label>Provincia</label><input id="emp_prov" autocorrect="on" spellcheck="true"></div>
+                </div>
+                <div style="margin-bottom:11px">
+                  <label style="font-size:11.5px;font-weight:600;color:var(--gris-500);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:8px">Logo de la empresa</label>
+                  <div style="display:flex;align-items:center;gap:14px">
+                    <div id="logoPreview" style="width:80px;height:80px;border-radius:10px;border:2px dashed var(--gris-300);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;flex-shrink:0">🏢</div>
+                    <div>
+                      <input type="file" id="emp_logo_file" accept="image/*" style="display:none" onchange="previewLogo(this)">
+                      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('emp_logo_file').click()">📁 Subir logo</button>
+                      <button class="btn btn-ghost btn-sm" onclick="quitarLogo()" style="margin-left:6px">🗑️ Quitar</button>
+                      <p style="font-size:11px;color:var(--gris-400);margin-top:6px">PNG, JPG o SVG · Recomendado 200x200px</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Series -->
+            <div class="cfg-panel card" id="cfg-series">
+              <div class="card-h"><h3>🔢 Series de numeración</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mSerie')">+ Nueva serie</button></div></div>
+              <div class="cfg-list" id="seriesList"></div>
+            </div>
+
+            <!-- IVA -->
+            <div class="cfg-panel card" id="cfg-iva">
+              <div class="card-h"><h3>💶 Tipos de IVA</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mIva')">+ Nuevo tipo</button></div></div>
+              <div class="cfg-list" id="ivaList"></div>
+            </div>
+
+            <!-- Unidades -->
+            <div class="cfg-panel card" id="cfg-unidades">
+              <div class="card-h"><h3>📏 Unidades de medida</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mUnidad')">+ Nueva unidad</button></div></div>
+              <div class="cfg-list" id="unidadesList"></div>
+            </div>
+
+            <!-- Formas pago -->
+            <div class="cfg-panel card" id="cfg-formas-pago">
+              <div class="card-h"><h3>💳 Formas de pago</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mFormaPago')">+ Nueva forma</button></div></div>
+              <div class="cfg-list" id="formasPagoList"></div>
+            </div>
+
+            <!-- Familias -->
+            <div class="cfg-panel card" id="cfg-familias">
+              <div class="card-h"><h3>🗂️ Familias de artículos</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mFamilia')">+ Nueva familia</button></div></div>
+              <div class="cfg-list" id="familiasList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     MODALES
+═══════════════════════════════════ -->
+
+<!-- Selector de empresas -->
+<div class="overlay" id="mEmpresas">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>🏢 Mis empresas</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mEmpresas')">✕</button></div>
+    <div class="modal-b">
+      <div id="empresasList" style="margin-bottom:14px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="closeModal('mEmpresas');openModal('mNuevaEmpresa')">+ Crear nueva empresa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nueva empresa -->
+<div class="overlay" id="mNuevaEmpresa">
+  <div class="modal modal-md">
+    <div class="modal-h"><h2>🏢 Nueva empresa</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mNuevaEmpresa')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Nombre *</label><input id="ne_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre comercial"></div>
+        <div class="fg"><label>CIF/NIF</label><input id="ne_cif"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Municipio</label><input id="ne_muni" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>Teléfono</label><input id="ne_tel"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Email</label><input id="ne_email" type="email"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mNuevaEmpresa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearEmpresa()">🏢 Crear empresa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cliente -->
+<div class="overlay" id="mCliente">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>👥</span><h2 id="mCliTit">Nuevo Cliente</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mCliente')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="c_id">
+      <div class="fg" style="margin-bottom:11px;width:100%">
+        <label>Nombre *</label>
+        <div class="ac-wrap" style="width:100%">
+          <input id="c_nombre" autocorrect="on" spellcheck="true" placeholder="Escribe el nombre o empresa..." autocomplete="off" style="width:100%"
+            oninput="acEmpresa(this.value)" onfocus="acEmpresa(this.value)" onblur="setTimeout(()=>acHide(),400)">
+          <div id="acDropdown" class="ac-dropdown" style="display:none" onmouseenter="acMouseOver=true" onmouseleave="acMouseOver=false"></div>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Tipo</label><select id="c_tipo"><option>Particular</option><option>Empresa</option><option>Comunidad</option></select></div>
+        <div class="fg"><label>Razón social</label><input id="c_razon" autocorrect="on" spellcheck="true" placeholder="Si es diferente al nombre"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>NIF/CIF</label><div style="display:flex;gap:6px"><input id="c_nif" style="flex:1" oninput="checkNIFLive(this)" placeholder="12345678A"><button type="button" class="btn btn-secondary btn-sm" onclick="buscarEmpresaPorCIF()" title="Buscar empresa por CIF">🔍</button></div></div>
+        <div class="fg"><label>Teléfono</label><input id="c_tel" type="tel"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Móvil</label><input id="c_movil" type="tel"></div>
+        <div class="fg"><label>Email</label><input id="c_email" type="email"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección fiscal</label><input id="c_dir" autocorrect="on" spellcheck="true"></div>
+      <div class="fg-row g3" style="margin-bottom:11px">
+        <div class="fg"><label>Municipio</label><input id="c_muni" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>CP</label><input id="c_cp" maxlength="5" oninput="cpToProvincia(this.value,'c_prov')"></div>
+        <div class="fg"><label>Provincia</label><input id="c_prov" autocorrect="on" spellcheck="true"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Forma de pago</label><select id="c_fpago"></select></div>
+        <div class="fg"><label>Descuento habitual (%)</label><input id="c_descuento" type="number" value="0" min="0" max="100"></div>
+      </div>
+      <div class="fg"><label>Observaciones internas</label><textarea id="c_notas" autocorrect="on" spellcheck="true"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Proveedor -->
+<div class="overlay" id="mProveedor">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>🏭</span><h2 id="mProvTit">Nuevo Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mProveedor')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="pv_id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg" style="grid-column:1/-1"><label>Nombre *</label>
+          <div class="ac-wrap" style="width:100%">
+            <input id="pv_nombre" placeholder="Escribe el nombre o empresa..." autocomplete="off" autocorrect="on" spellcheck="true" style="width:100%"
+              oninput="acEmpresaProv(this.value)" onfocus="acEmpresaProv(this.value)" onblur="setTimeout(()=>acHideProv(),400)">
+            <div id="acDropdownProv" class="ac-dropdown" style="display:none" onmouseenter="acMouseOverProv=true" onmouseleave="acMouseOverProv=false"></div>
+          </div>
+        </div>
+        <div class="fg"><label>CIF/NIF</label><input id="pv_cif" oninput="checkNIFLive(this)" placeholder="B12345678"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Teléfono</label><input id="pv_tel"></div>
+        <div class="fg"><label>Email pedidos</label><input id="pv_email_ped" type="email"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Email facturación</label><input id="pv_email" type="email"></div>
+        <div class="fg"><label>Web</label><input id="pv_web"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección</label><input id="pv_dir" autocorrect="on" spellcheck="true"></div>
+      <div class="fg-row g3" style="margin-bottom:11px">
+        <div class="fg"><label>Municipio</label><input id="pv_muni" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>CP</label><input id="pv_cp"></div>
+        <div class="fg"><label>Provincia</label><input id="pv_prov" autocorrect="on" spellcheck="true"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Forma de pago</label><select id="pv_fpago"></select></div>
+        <div class="fg"><label>Días de pago</label><input id="pv_dias" type="number" value="30"></div>
+      </div>
+      <div class="fg"><label>Observaciones</label><textarea id="pv_notas"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mProveedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProveedor()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Artículo -->
+<div class="overlay" id="mArticulo">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📦</span><h2 id="mArtTit">Nuevo Artículo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mArticulo')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="art_id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Código *</label><input id="art_codigo" placeholder="ART-001"></div>
+        <div class="fg"><label>Familia</label><select id="art_familia"></select></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Descripción del artículo"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Precio coste (€)</label><input id="art_coste" type="number" step="0.01" value="0"></div>
+        <div class="fg"><label>Precio venta (€)</label><input id="art_venta" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Tipo IVA</label><select id="art_iva"></select></div>
+        <div class="fg"><label>Unidad de venta</label><select id="art_unidad"></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Ref. fabricante</label><input id="art_ref_fab"></div>
+        <div class="fg"><label>Código de barras</label><input id="art_barras"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding:10px 0">
+          <label style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gris-700)">Es un activo (maquinaria)</label>
+          <label class="toggle"><input type="checkbox" id="art_es_activo"><span class="toggle-sl"></span></label>
+        </div>
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding:10px 0">
+          <label style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gris-700)">Artículo activo</label>
+          <label class="toggle"><input type="checkbox" id="art_activo" checked><span class="toggle-sl"></span></label>
+        </div>
+      </div>
+      <div class="fg"><label>Observaciones</label><textarea id="art_obs" autocorrect="on" spellcheck="true"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mArticulo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveArticulo()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Almacén -->
+<div class="overlay" id="mAlmacen">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>🏪</span><h2 id="mAlmTit">Nuevo Almacén</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mAlmacen')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="alm_id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Nombre *</label><input id="alm_nombre" autocorrect="on" spellcheck="true" placeholder="Ej: Furgoneta Carlos"></div>
+        <div class="fg"><label>Tipo</label><select id="alm_tipo"><option value="central">Central</option><option value="furgoneta">Furgoneta</option><option value="externo">Externo</option></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Matrícula (si es furgoneta)</label><input id="alm_matricula"></div>
+        <div class="fg"><label>Dirección</label><input id="alm_dir" autocorrect="on" spellcheck="true"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mAlmacen')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAlmacen()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Trabajo -->
+<div class="overlay" id="mTrabajo">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>🏗️</span><h2 id="mTrabTit">Nueva Obra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mTrabajo')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Título *</label><input id="tr_titulo" placeholder="Ej: Instalación caldera gas" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>Cliente</label><select id="tr_cli"></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Categoría</label><select id="tr_cat"><option>Fontanería</option><option>Calefacción</option><option>Aire Acondicionado</option><option>Energías Renovables</option><option>Reforma</option><option>Electricidad</option></select></div>
+        <div class="fg"><label>Prioridad</label><select id="tr_prio"><option>Normal</option><option>Alta</option><option>Urgente</option><option>Baja</option></select></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Fecha</label><input type="date" id="tr_fecha"></div>
+        <div class="fg"><label>Hora</label><input type="time" id="tr_hora" value="09:00"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección de la obra</label><input id="tr_dir" autocorrect="on" spellcheck="true"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Descripción / Instrucciones</label><textarea id="tr_desc" autocorrect="on" spellcheck="true"></textarea></div>
+      <!-- Adjuntar documentos -->
+      <div style="margin-bottom:4px">
+        <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">📎 Adjuntar documentos (opcional)</label>
+        <div id="tr_doc_zone" style="border:2px dashed var(--gris-300);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .15s"
+          onclick="document.getElementById('tr_doc_input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--azul)'"
+          ondragleave="this.style.borderColor='var(--gris-300)'"
+          ondrop="tr_dropDocs(event)">
+          <div style="font-size:24px;margin-bottom:4px">📄</div>
+          <div style="font-size:12.5px;color:var(--gris-500)">Arrastra archivos aquí o <span style="color:var(--azul);font-weight:600">haz clic</span></div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:2px">PDF, imágenes, Word, Excel — máx. 10MB por archivo</div>
+        </div>
+        <input type="file" id="tr_doc_input" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" style="display:none" onchange="tr_addDocs(this.files)">
+        <div id="tr_doc_list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mTrabajo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveTrabajo()">💾 Guardar obra</button>
+    </div>
+  </div>
+</div>
+
+<!-- Config modals -->
+<div class="overlay" id="mSerie">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>🔢 Serie de numeración</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mSerie')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="ser_id">
+      <div class="fg" style="margin-bottom:11px"><label>Tipo de documento</label>
+        <select id="ser_tipo"><option value="presupuesto">Presupuesto</option><option value="albaran">Albarán</option><option value="factura">Factura</option><option value="pedido_compra">Pedido compra</option><option value="recepcion">Recepción</option><option value="traspaso">Traspaso</option><option value="parte_trabajo">Parte trabajo</option></select>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Serie *</label><input id="ser_serie" placeholder="Ej: FAC-A"></div>
+        <div class="fg"><label>Descripción</label><input id="ser_desc" placeholder="Ej: Facturas serie A"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Contador actual</label><input id="ser_contador" type="number" value="0" min="0"></div>
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding-top:18px">
+          <label style="text-transform:none;font-size:13px;font-weight:600;color:var(--gris-700)">Por defecto</label>
+          <label class="toggle"><input type="checkbox" id="ser_defecto"><span class="toggle-sl"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mSerie')">Cancelar</button><button class="btn btn-primary" onclick="saveSerie()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="mIva">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>💶 Tipo de IVA</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mIva')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="iva_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="iva_nombre" placeholder="Ej: General"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Porcentaje (%)</label><input id="iva_pct" type="number" step="0.01" value="21"></div>
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding-top:18px">
+          <label style="text-transform:none;font-size:13px;font-weight:600;color:var(--gris-700)">Por defecto</label>
+          <label class="toggle"><input type="checkbox" id="iva_defecto"><span class="toggle-sl"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mIva')">Cancelar</button><button class="btn btn-primary" onclick="saveIva()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="mUnidad">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>📏 Unidad de medida</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mUnidad')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="ud_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="ud_nombre" placeholder="Ej: Metro lineal"></div>
+      <div class="fg"><label>Abreviatura *</label><input id="ud_abrev" placeholder="Ej: ml"></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mUnidad')">Cancelar</button><button class="btn btn-primary" onclick="saveUnidad()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="mFormaPago">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>💳 Forma de pago</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFormaPago')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="fp_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="fp_nombre" placeholder="Ej: Transferencia 30 días"></div>
+      <div class="fg"><label>Días de vencimiento</label><input id="fp_dias" type="number" value="0" min="0"></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mFormaPago')">Cancelar</button><button class="btn btn-primary" onclick="saveFormaPago()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="mFamilia">
+  <div class="modal modal-sm">
+    <div class="modal-h"><h2>🗂️ Familia de artículos</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFamilia')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="fam_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="fam_nombre" placeholder="Ej: Fontanería"></div>
+      <div class="fg"><label>Subfamilia de (opcional)</label><select id="fam_parent"><option value="">— Familia raíz —</option></select></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mFamilia')">Cancelar</button><button class="btn btn-primary" onclick="saveFamilia()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<!-- Claude Panel -->
+<div id="claudePanel" style="position:fixed;right:0;top:0;bottom:0;width:360px;background:#fff;border-left:1px solid var(--gris-200);box-shadow:-4px 0 20px rgba(0,0,0,.09);z-index:150;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s ease">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:9px;background:linear-gradient(135deg,var(--violeta),#4F46E5)">
+    <span style="font-size:19px">🤖</span>
+    <h3 style="color:#fff;font-size:13.5px;font-weight:700;flex:1">Claude · Asistente IA</h3>
+    <button onclick="toggleClaude()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:27px;height:27px;border-radius:6px;cursor:pointer;font-size:14px">✕</button>
+  </div>
+  <div id="cpMsgs" style="flex:1;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:9px">
+    <div style="background:var(--gris-50);color:var(--gris-800);padding:10px 12px;border-radius:12px;font-size:12.5px;line-height:1.5;align-self:flex-start;border-bottom-left-radius:3px;max-width:85%">¡Hola! Soy Claude, tu asistente integrado. ¿En qué te ayudo?</div>
+  </div>
+  <div style="padding:0 11px 8px;display:flex;gap:5px;flex-wrap:wrap">
+    <button onclick="cpSug('Genera un presupuesto de instalación de caldera')" style="background:var(--azul-light);color:var(--azul);border:none;padding:3px 9px;border-radius:13px;font-size:10.5px;font-weight:600;cursor:pointer">📋 Presupuesto</button>
+    <button onclick="cpSug('¿Qué mantenimientos debo recomendar?')" style="background:var(--azul-light);color:var(--azul);border:none;padding:3px 9px;border-radius:13px;font-size:10.5px;font-weight:600;cursor:pointer">🔧 Mantenimientos</button>
+  </div>
+  <div style="padding:11px;border-top:1px solid var(--gris-100);display:flex;gap:7px">
+    <textarea id="cpInput" placeholder="Escribe tu pregunta..." rows="2" style="flex:1;padding:8px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;outline:none;font-family:var(--font)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();cpSend()}"></textarea>
+    <button onclick="cpSend()" style="background:var(--violeta);color:#fff;border:none;width:34px;height:34px;border-radius:7px;cursor:pointer;font-size:15px;align-self:flex-end;display:flex;align-items:center;justify-content:center">➤</button>
+  </div>
+</div>
+
+
+<!-- Modal Nuevo Usuario -->
+<!-- MODAL: NUEVA INVITACIÓN -->
+<div class="overlay" id="mNuevaInvitacion">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>📨</span><h2>Nueva invitación</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mNuevaInvitacion')">✕</button></div>
+    <div class="modal-b">
+      <p style="font-size:12px;color:var(--gris-500);margin-bottom:14px">Genera un enlace para que un nuevo cliente pueda crear su cuenta de prueba.</p>
+      <div class="fg" style="margin-bottom:10px"><label>Email del cliente *</label><input id="inv_email" type="email" placeholder="cliente@email.com"></div>
+      <div class="fg-row" style="margin-bottom:10px">
+        <div class="fg"><label>Nombre</label><input id="inv_nombre" placeholder="Nombre del contacto"></div>
+        <div class="fg"><label>Empresa</label><input id="inv_empresa" placeholder="Nombre de la empresa"></div>
+      </div>
+      <div class="fg" style="margin-bottom:14px"><label>Días de prueba</label><input id="inv_dias" type="number" value="14" min="1" max="90" style="width:100px"></div>
+      <button class="btn btn-primary" onclick="crearInvitacion()">Generar enlace de invitación</button>
+      <div id="inv_resultado"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="mNuevoUsuario">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>👷</span><h2 id="mUsrTit">Nuevo Usuario</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mNuevoUsuario')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="usr_id">
+      <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px">
+        <div id="usrFotoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--azul);display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;margin-bottom:10px;overflow:hidden;font-weight:800">?</div>
+        <input type="file" id="usr_foto_file" accept="image/*" style="display:none" onchange="previewUsrFoto(this)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('usr_foto_file').click()">📷 Subir foto</button>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Nombre *</label><input id="usr_nombre" placeholder="Nombre"></div>
+        <div class="fg"><label>Apellidos</label><input id="usr_apellidos" placeholder="Apellidos"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Email *</label><input id="usr_email" type="email" placeholder="email@empresa.es"></div>
+        <div class="fg"><label>Teléfono</label><input id="usr_tel" type="tel"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Contraseña *</label><input id="usr_pass" type="password" placeholder="Mínimo 8 caracteres"><div class="hint">El usuario podrá cambiarla después</div></div>
+        <div class="fg"><label>Rol</label>
+          <select id="usr_rol" onchange="setPermisosByRol(this.value)">
+            <option value="operario">Operario</option>
+            <option value="administrativo">Administrativo</option>
+            <option value="encargado">Encargado de almacén</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+      </div>
+      <div style="background:var(--gris-50);border-radius:9px;padding:13px;margin-top:4px">
+        <div style="font-size:11.5px;font-weight:700;color:var(--gris-600);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">🔐 Permisos de acceso</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">👥 Clientes</span><label class="toggle"><input type="checkbox" id="up_clientes" checked><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">📋 Presupuestos</span><label class="toggle"><input type="checkbox" id="up_presupuestos" checked><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">🧾 Facturas</span><label class="toggle"><input type="checkbox" id="up_facturas"><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">🏗️ Obras</span><label class="toggle"><input type="checkbox" id="up_trabajos" checked><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">📝 Partes</span><label class="toggle"><input type="checkbox" id="up_partes" checked><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">📦 Stock</span><label class="toggle"><input type="checkbox" id="up_stock"><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px"><span style="font-size:13px">⚙️ Configuración</span><label class="toggle"><input type="checkbox" id="up_config"><span class="toggle-sl"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-left:1px solid var(--gris-200)"><span style="font-size:13px">👷 Usuarios</span><label class="toggle"><input type="checkbox" id="up_usuarios"><span class="toggle-sl"></span></label></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mNuevoUsuario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUsuario()">💾 Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal Dirección -->
+<div class="overlay" id="mDireccion">
+  <div class="modal modal-sm">
+    <div class="modal-h"><span>📍</span><h2>Nueva Dirección</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mDireccion')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="dir_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="dir_nombre" autocorrect="on" spellcheck="true" placeholder="Ej: Obra Calle Real, Casa, Oficina..."></div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección</label><input id="dir_dir" autocorrect="on" spellcheck="true"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Municipio</label><input id="dir_muni" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>CP</label><input id="dir_cp"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Provincia</label><input id="dir_prov" autocorrect="on" spellcheck="true"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+        <label style="font-size:13px;font-weight:600;color:var(--gris-700)">Es dirección fiscal</label>
+        <label class="toggle"><input type="checkbox" id="dir_fiscal"><span class="toggle-sl"></span></label>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mDireccion')">Cancelar</button><button class="btn btn-primary" onclick="saveDireccion()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<!-- Modal Contacto -->
+<div class="overlay" id="mContacto">
+  <div class="modal modal-sm">
+    <div class="modal-h"><span>👤</span><h2>Nuevo Contacto</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mContacto')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="cont_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="cont_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre completo"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Cargo</label><input id="cont_cargo" autocorrect="on" spellcheck="true" placeholder="Ej: Gerente, Responsable..."></div>
+        <div class="fg"><label>Teléfono</label><input id="cont_tel" type="tel"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Móvil</label><input id="cont_movil" type="tel"></div>
+        <div class="fg"><label>Email</label><input id="cont_email" type="email"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+        <label style="font-size:13px;font-weight:600;color:var(--gris-700)">Contacto principal</label>
+        <label class="toggle"><input type="checkbox" id="cont_principal"><span class="toggle-sl"></span></label>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mContacto')">Cancelar</button><button class="btn btn-primary" onclick="saveContacto()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORTAR CLIENTES ═══ -->
+<div class="overlay" id="mImportarClientes">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📥</span><h2>Importar Clientes desde Excel</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarClientes')">✕</button></div>
+    <div class="modal-b">
+      <!-- Paso 1: Plantilla -->
+      <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">1️⃣</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13.5px">Descarga la plantilla</div>
+          <div style="font-size:12px;color:var(--gris-500)">Rellénala con tus datos y vuelve aquí para importar</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="descargarPlantilla('clientes')">📄 Descargar plantilla</button>
+      </div>
+      <!-- Paso 2: Subir -->
+      <div style="background:var(--gris-50);border-radius:9px;padding:14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:24px">2️⃣</span>
+          <div><div style="font-weight:700;font-size:13.5px">Sube tu archivo Excel o CSV</div></div>
+        </div>
+        <div id="importCliDropzone" style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer;transition:all .15s"
+          onclick="document.getElementById('importCliFile').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--azul)'"
+          ondragleave="this.style.borderColor='var(--gris-300)'"
+          ondrop="importDrop(event,'clientes')">
+          <div style="font-size:32px;margin-bottom:8px">📊</div>
+          <div style="font-weight:600;color:var(--gris-700)">Arrastra tu Excel aquí o haz clic</div>
+          <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+        </div>
+        <input type="file" id="importCliFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarExcel(this,'clientes')">
+      </div>
+      <!-- Preview -->
+      <div id="importCliPreview" style="display:none">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px" id="importCliInfo"></div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:8px">
+          <table class="dt" id="importCliTable"></table>
+        </div>
+        <div id="importCliErrores" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mImportarClientes')">Cancelar</button>
+      <button class="btn btn-primary" id="btnImportarCli" style="display:none" onclick="confirmarImport('clientes')">✅ Importar clientes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORTAR PROVEEDORES ═══ -->
+<div class="overlay" id="mImportarProveedores">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📥</span><h2>Importar Proveedores desde Excel</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarProveedores')">✕</button></div>
+    <div class="modal-b">
+      <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">1️⃣</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">Descarga la plantilla</div><div style="font-size:12px;color:var(--gris-500)">Rellénala con tus datos y vuelve aquí</div></div>
+        <button class="btn btn-primary btn-sm" onclick="descargarPlantilla('proveedores')">📄 Descargar plantilla</button>
+      </div>
+      <div style="background:var(--gris-50);border-radius:9px;padding:14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:24px">2️⃣</span>
+          <div><div style="font-weight:700;font-size:13.5px">Sube tu archivo Excel o CSV</div></div>
+        </div>
+        <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer" onclick="document.getElementById('importProvFile').click()">
+          <div style="font-size:32px;margin-bottom:8px">📊</div>
+          <div style="font-weight:600;color:var(--gris-700)">Arrastra tu Excel aquí o haz clic</div>
+          <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+        </div>
+        <input type="file" id="importProvFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarExcel(this,'proveedores')">
+      </div>
+      <div id="importProvPreview" style="display:none">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px" id="importProvInfo"></div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:8px">
+          <table class="dt" id="importProvTable"></table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mImportarProveedores')">Cancelar</button>
+      <button class="btn btn-primary" id="btnImportarProv" style="display:none" onclick="confirmarImport('proveedores')">✅ Importar proveedores</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORTAR ARTÍCULOS ═══ -->
+<div class="overlay" id="mImportarArticulos">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📥</span><h2>Importar Artículos desde Excel</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarArticulos')">✕</button></div>
+    <div class="modal-b">
+      <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">1️⃣</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">Descarga la plantilla</div><div style="font-size:12px;color:var(--gris-500)">Rellénala con tus datos y vuelve aquí</div></div>
+        <button class="btn btn-primary btn-sm" onclick="descargarPlantilla('articulos')">📄 Descargar plantilla</button>
+      </div>
+      <div style="background:var(--gris-50);border-radius:9px;padding:14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:24px">2️⃣</span>
+          <div><div style="font-weight:700;font-size:13.5px">Sube tu archivo Excel o CSV</div></div>
+        </div>
+        <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer" onclick="document.getElementById('importArtFile').click()">
+          <div style="font-size:32px;margin-bottom:8px">📊</div>
+          <div style="font-weight:600;color:var(--gris-700)">Arrastra tu Excel aquí o haz clic</div>
+          <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+        </div>
+        <input type="file" id="importArtFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarExcel(this,'articulos')">
+      </div>
+      <div id="importArtPreview" style="display:none">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px" id="importArtInfo"></div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:8px">
+          <table class="dt" id="importArtTable"></table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mImportarArticulos')">Cancelar</button>
+      <button class="btn btn-primary" id="btnImportarArt" style="display:none" onclick="confirmarImport('articulos')">✅ Importar artículos</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FACTURA RÁPIDA ═══ -->
+<div class="overlay" id="mFacturaRapida">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>🧾</span><h2>Nueva Factura Rápida</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaRapida')">✕</button></div>
+    <div class="modal-b">
+      <!-- Cliente y serie -->
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Cliente *</label>
+          <div style="display:flex;gap:6px">
+            <select id="fr_cliente" onchange="fr_actualizarCliente(this.value)" style="flex:1">
+              <option value="">— Selecciona cliente —</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="nuevoClienteDesde('factura')" title="Nuevo cliente" style="flex-shrink:0;white-space:nowrap">+ Cliente</button>
+          </div>
+        </div>
+        <div class="fg"><label>Serie / Número</label>
+          <div style="display:flex;gap:6px">
+            <select id="fr_serie" style="width:120px;flex-shrink:0"></select>
+            <input id="fr_numero" placeholder="Auto" style="flex:1" readonly>
+          </div>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Fecha *</label><input type="date" id="fr_fecha"></div>
+        <div class="fg"><label>Fecha vencimiento</label><input type="date" id="fr_vence"></div>
+        <div class="fg"><label>Forma de pago</label><select id="fr_fpago"></select></div>
+      </div>
+
+      <!-- Líneas -->
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-weight:700;font-size:13px">Líneas de factura</label>
+          <button class="btn btn-ghost btn-sm" onclick="fr_addLinea()">+ Añadir línea</button>
+        </div>
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:70px">Cant.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px">Precio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px">Dto %</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px">IVA %</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:right">Total</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="fr_lineas"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Totales -->
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="width:280px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--gris-500)">Base imponible</span><span id="fr_base" style="font-weight:600">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--gris-500)">IVA</span><span id="fr_iva_total" style="font-weight:600">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:15px;font-weight:800;border-top:2px solid var(--gris-200);margin-top:5px"><span>TOTAL</span><span id="fr_total" style="color:var(--azul)">0,00 €</span></div>
+        </div>
+      </div>
+
+      <!-- Observaciones -->
+      <div class="fg" style="margin-top:12px"><label>Observaciones / Notas en factura</label>
+        <textarea id="fr_obs" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;font-family:var(--font);outline:none"></textarea>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mFacturaRapida')">Cancelar</button>
+      <button class="btn btn-secondary" onclick="guardarFacturaRapida('borrador')">💾 Guardar borrador</button>
+      <button class="btn btn-primary" onclick="guardarFacturaRapida('pendiente')">🧾 Emitir factura</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL PRESUPUESTO RÁPIDO ═══ -->
+<div class="overlay" id="mPresupRapido">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📋</span><h2>Nuevo Presupuesto</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPresupRapido')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Cliente *</label>
+          <div style="display:flex;gap:6px">
+            <select id="pr_cliente" onchange="pr_actualizarCliente(this.value)" style="flex:1">
+              <option value="">— Selecciona cliente —</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="nuevoClienteDesde('presup')" title="Nuevo cliente" style="flex-shrink:0;white-space:nowrap">+ Cliente</button>
+          </div>
+        </div>
+        <div class="fg"><label>Serie / Número</label>
+          <div style="display:flex;gap:6px">
+            <select id="pr_serie" style="width:110px;flex-shrink:0"></select>
+            <input id="pr_numero" placeholder="Auto" readonly style="flex:1;background:var(--gris-50)">
+          </div>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Fecha</label><input type="date" id="pr_fecha"></div>
+        <div class="fg"><label>Válido hasta</label><input type="date" id="pr_valido"></div>
+        <div class="fg"><label>Forma de pago</label><select id="pr_fpago"></select></div>
+      </div>
+      <div class="fg" style="margin-bottom:12px"><label>Título / Referencia</label>
+        <input id="pr_titulo" placeholder="Ej: Instalación caldera, Reparación fontanería...">
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-weight:700;font-size:13px">Líneas</label>
+          <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="pr_addCapitulo()">📁 Capítulo</button>
+                  <button class="btn btn-ghost btn-sm" onclick="pr_addLinea()">+ Línea</button>
+                </div>
+        </div>
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:70px">Cant.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px">Precio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px">Dto %</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px">IVA %</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:right">Total</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="pr_lineas"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="width:280px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--gris-500)">Base imponible</span><span id="pr_base" style="font-weight:600">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--gris-500)">IVA</span><span id="pr_iva_tot" style="font-weight:600">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:15px;font-weight:800;border-top:2px solid var(--gris-200);margin-top:5px"><span>TOTAL</span><span id="pr_total" style="color:var(--azul)">0,00 €</span></div>
+        </div>
+      </div>
+      <div class="fg" style="margin-top:12px"><label>Observaciones</label>
+        <textarea id="pr_obs" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;font-family:var(--font);outline:none"></textarea>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mPresupRapido')">Cancelar</button>
+      <button class="btn btn-secondary" onclick="guardarPresupRapido('borrador')">💾 Guardar borrador</button>
+      <button class="btn btn-primary" onclick="guardarPresupYPdf()">📋 Guardar y descargar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ALBARÁN ═══ -->
+<div class="overlay" id="mAlbaranRapido">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📄</span><h2>Nuevo Albarán</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mAlbaranRapido')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Cliente *</label>
+          <div style="display:flex;gap:6px">
+            <select id="ab_cliente" style="flex:1">
+              <option value="">— Selecciona cliente —</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="nuevoClienteDesde('albaran')" title="Nuevo cliente" style="flex-shrink:0;white-space:nowrap">+ Cliente</button>
+          </div>
+        </div>
+        <div class="fg"><label>Serie / Número</label>
+          <div style="display:flex;gap:6px">
+            <select id="ab_serie" style="width:110px;flex-shrink:0"></select>
+            <input id="ab_numero" placeholder="Auto" readonly style="flex:1;background:var(--gris-50)">
+          </div>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:12px">
+        <div class="fg"><label>Fecha</label><input type="date" id="ab_fecha"></div>
+        <div class="fg"><label>Referencia / Obra</label><input id="ab_ref" placeholder="Ej: Reparación caldera..."></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-weight:700;font-size:13px">Líneas</label>
+          <button class="btn btn-ghost btn-sm" onclick="ab_addLinea()">+ Añadir línea</button>
+        </div>
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:70px">Cant.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px">Precio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:right">Total</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="ab_lineas"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="width:220px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800">
+            <span>TOTAL</span><span id="ab_total" style="color:var(--azul)">0,00 €</span>
+          </div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:4px;text-align:center">Sin IVA — se facturará aparte</div>
+        </div>
+      </div>
+      <div class="fg" style="margin-top:12px"><label>Observaciones</label>
+        <textarea id="ab_obs" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;font-family:var(--font);outline:none"></textarea>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mAlbaranRapido')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAlbaran()">📄 Guardar albarán</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DETALLE ALBARÁN ═══ -->
+<div class="overlay" id="mAbDetalle">
+  <div class="modal modal-lg">
+    <div class="modal-h">
+      <span>📄</span>
+      <div>
+        <h2 id="abDetNro" style="font-size:16px;font-weight:800">—</h2>
+        <div id="abDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
+        <button class="btn btn-secondary btn-sm" onclick="duplicarAlbaran(parseInt(document.getElementById('abDetId').value))">📋 Duplicar</button>
+        <button class="btn btn-primary btn-sm" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Crear factura</button>
+      </div>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mAbDetalle')">✕</button>
+    </div>
+    <div class="modal-b">
+      <input type="hidden" id="abDetId">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+        <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="abDetFecha" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Referencia / Obra</span><div id="abDetRef" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Estado</span><div id="abDetEstado">—</div></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-weight:700;font-size:13px;display:block;margin-bottom:8px">Líneas del albarán</label>
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:70px;text-align:right">Cant.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:right">Precio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:100px;text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="abDetLineas"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="width:220px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800">
+            <span>TOTAL</span><span id="abDetTotal" style="color:var(--azul)">0,00 €</span>
+          </div>
+        </div>
+      </div>
+      <div id="abDetObsWrap" style="margin-top:12px;display:none">
+        <span style="font-size:11px;color:var(--gris-400)">Observaciones</span>
+        <div id="abDetObs" style="font-size:13px;color:var(--gris-600);margin-top:4px;padding:8px 10px;background:var(--gris-50);border-radius:8px"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mAbDetalle')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DETALLE PRESUPUESTO ═══ -->
+<div class="overlay" id="mPresDetalle">
+  <div class="modal modal-lg">
+    <div class="modal-h">
+      <span>📋</span>
+      <div>
+        <h2 id="presDetNro" style="font-size:16px;font-weight:800">—</h2>
+        <div id="presDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir / PDF">🖨️ Imprimir</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-ghost btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="duplicarPres(parseInt(document.getElementById('presDetId').value))" title="Duplicar">📋 Duplicar</button>
+      </div>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mPresDetalle')">✕</button>
+    </div>
+    <div class="modal-b">
+      <input type="hidden" id="presDetId">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:var(--gris-50);border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Fecha</div>
+          <div id="presDetFecha" style="font-weight:700">—</div>
+        </div>
+        <div style="background:var(--gris-50);border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Válido hasta</div>
+          <div id="presDetValido" style="font-weight:700">—</div>
+        </div>
+        <div style="background:var(--gris-50);border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Título</div>
+          <div id="presDetTitulo" style="font-weight:700;font-size:12.5px">—</div>
+        </div>
+        <div style="background:var(--azul-light);border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--azul);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Total</div>
+          <div id="presDetTotal" style="font-weight:800;font-size:18px;color:var(--azul)">—</div>
+        </div>
+      </div>
+      <!-- Líneas -->
+      <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden;margin-bottom:16px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead style="background:var(--gris-50)">
+            <tr>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:right;width:70px">Cant.</th>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:right;width:100px">Precio</th>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:right;width:70px">Dto.</th>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:right;width:70px">IVA</th>
+              <th style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:right;width:100px">Total</th>
+            </tr>
+          </thead>
+          <tbody id="presDetLineas"></tbody>
+        </table>
+      </div>
+      <!-- Totales -->
+      <div style="display:flex;justify-content:flex-end">
+        <div style="width:260px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--gris-200)"><span style="color:var(--gris-500)">Base imponible</span><span id="presDetBase" style="font-weight:600">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--gris-200)"><span style="color:var(--gris-500)">IVA</span><span id="presDetIva" style="font-weight:600">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:800"><span>TOTAL</span><span id="presDetTotal2" style="color:var(--azul)">—</span></div>
+        </div>
+      </div>
+      <!-- Observaciones -->
+      <div id="presDetObsWrap" style="margin-top:12px;padding:12px;background:var(--gris-50);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;margin-bottom:4px">Observaciones</div>
+        <div id="presDetObs" style="font-size:13px;color:var(--gris-600)">—</div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mPresDetalle')">Cerrar</button>
+      <button class="btn btn-secondary" onclick="presToAlbaran(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">📄 Crear albarán</button>
+      <button class="btn btn-secondary" onclick="presToObra(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🏗️ Crear obra</button>
+      <button class="btn btn-primary" onclick="presToFactura(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🧾 Crear factura</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+
+<!-- Dropdown global autocompletado artículos -->
+<div id="acArticulos"></div>
+
+<!-- Core -->
+<script src="js/core/app.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/core/dashboard.js"></script>
+<script src="js/core/sidebar.js"></script>
+
+<!-- Comercial -->
+<script src="js/comercial/autocomplete.js"></script>
+<script src="js/comercial/clientes.js"></script>
+<script src="js/comercial/presupuestos.js"></script>
+<script src="js/comercial/albaranes.js"></script>
+<script src="js/comercial/facturas.js"></script>
+
+<!-- Compras -->
+<script src="js/compras/proveedores.js"></script>
+<script src="js/compras/importador.js"></script>
+<script src="js/compras/pedidos.js"></script>
+<script src="js/compras/recepciones.js"></script>
+<script src="js/compras/facturas_prov.js"></script>
+
+<!-- Almacén -->
+<script src="js/almacen/articulos.js"></script>
+<script src="js/almacen/almacenes.js"></script>
+<script src="js/almacen/stock.js"></script>
+<script src="js/almacen/traspasos.js"></script>
+
+<!-- Gestión de Obras -->
+<script src="js/obras/trabajos.js"></script>
+<script src="js/obras/partes.js"></script>
+
+<!-- Personal -->
+<script src="js/personal/fichajes.js"></script>
+
+<!-- Editor de Documentos -->
+<script src="js/editor/editor.js"></script>
+
+<!-- Administración -->
+<script src="js/admin/usuarios.js"></script>
+<script src="js/admin/config.js"></script>
+<script src="js/admin/empresa.js"></script>
+<script src="js/admin/papelera.js"></script>
+
+<!-- Claude IA -->
+<script src="js/claude.js"></script>
+
+<!-- Inicialización -->
+<script>init();</script>
+
+</body>
+</html>
