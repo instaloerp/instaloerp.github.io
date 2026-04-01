@@ -496,7 +496,7 @@
             </div>
           </div>
           <!-- KPIs clicables como pestañas -->
-          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px" id="fichaObraKpiBar">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:14px" id="fichaObraKpiBar">
             <div class="sc ficha-kpi ficha-kpi-active" onclick="obraTab('presupuestos')" id="okpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:10px 12px;transition:all .15s">
               <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📋</span><div><div class="sv" id="ok-presup" style="font-size:18px">—</div><div class="sl">Presupuestos</div></div></div>
             </div>
@@ -508,6 +508,9 @@
             </div>
             <div class="sc ficha-kpi" onclick="obraTab('partes')" id="okpi-partes" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:10px 12px;transition:all .15s">
               <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📝</span><div><div class="sv" id="ok-partes" style="font-size:18px">—</div><div class="sl">Partes</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('tareas')" id="okpi-tareas" style="--c:#7C3AED;--bg:#F5F3FF;cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">✅</span><div><div class="sv" id="ok-tareas" style="font-size:18px">—</div><div class="sl">Tareas</div></div></div>
             </div>
             <div class="sc ficha-kpi" onclick="obraTab('documentos')" id="okpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light);cursor:pointer;padding:10px 12px;transition:all .15s">
               <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">📎</span><div><div class="sv" id="ok-docs" style="font-size:18px">—</div><div class="sl">Documentos</div></div></div>
@@ -556,6 +559,7 @@
                 <div id="obra-hist-albaranes" style="display:none"></div>
                 <div id="obra-hist-facturas" style="display:none"></div>
                 <div id="obra-hist-partes" style="display:none"></div>
+                <div id="obra-hist-tareas" style="display:none"></div>
                 <div id="obra-hist-documentos" style="display:none"></div>
                 <div id="obra-hist-notas" style="display:none"></div>
               </div>

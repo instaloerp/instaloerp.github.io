@@ -119,7 +119,7 @@ async function abrirFichaObra(id) {
 
   // ── Cargar datos relacionados en paralelo (con protección si tabla no existe) ──
   const safeQuery = (q) => q.then(r=>r).catch(()=>({data:[]}));
-  const [presups, albs, facts, partes, docs, notas, audit] = await Promise.all([
+  const [presups, albs, facts, partes, docs, notas, audit, tareas] = await Promise.all([
     safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(t.presupuesto_id ? `id.eq.${t.presupuesto_id}` : `cliente_id.eq.${t.cliente_id||0}`).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(t.cliente_id ? `cliente_id.eq.${t.cliente_id}` : 'id.eq.0').neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
@@ -127,6 +127,7 @@ async function abrirFichaObra(id) {
     safeQuery(sb.from('documentos_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
     safeQuery(sb.from('notas_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
     safeQuery(sb.from('audit_log').select('*').eq('entidad','trabajo').eq('entidad_id',String(id)).order('created_at',{ascending:false}).limit(20)),
+    safeQuery(sb.from('tareas_obra').select('*').eq('trabajo_id',id).order('created_at',{ascending:true})),
   ]);
 
   // Filtrar presupuestos/albaranes/facturas que realmente pertenecen a esta obra
@@ -140,6 +141,7 @@ async function abrirFichaObra(id) {
   const docsData = docs.data||[];
   const notasData = notas.data||[];
   const auditData = audit.data||[];
+  obraTareasData = tareas.data||[];
 
   // KPIs — solo cantidades
   document.getElementById('ok-presup').textContent = presupData.length;
@@ -148,6 +150,7 @@ async function abrirFichaObra(id) {
   document.getElementById('ok-partes').textContent = partesData.length;
   document.getElementById('ok-docs').textContent = docsData.length;
   document.getElementById('ok-notas').textContent = notasData.length;
+  updateTareasKpi();
 
   // ── WORKFLOW — Panel de estado del proyecto ──
   renderObraWorkflow(t, presupData, albData, factData, partesData);
@@ -247,6 +250,9 @@ async function abrirFichaObra(id) {
     '<div class="empty" style="padding:30px 0"><div class="ei">📝</div><p>Sin partes de trabajo</p></div>';
   document.getElementById('obra-hist-partes').innerHTML = partesHtml;
 
+  // ── TAREAS ──
+  renderObraTareas();
+
   // ── DOCUMENTOS ──
   const TIPO_ICO = {manual:'📖',garantia:'🛡️',certificado:'📜',foto:'📷',contrato:'📋',plano:'📐',otro:'📄'};
   document.getElementById('obra-hist-documentos').innerHTML = `
@@ -298,10 +304,10 @@ async function abrirFichaObra(id) {
 // ═══════════════════════════════════════════════
 // PESTAÑAS DE LA FICHA
 // ═══════════════════════════════════════════════
-const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',documentos:'📎 Documentos',notas:'💬 Notas'};
+const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',tareas:'✅ Tareas',documentos:'📎 Documentos',notas:'💬 Notas'};
 
 function obraTab(tab) {
-  ['presupuestos','albaranes','facturas','partes','documentos','notas'].forEach(t => {
+  ['presupuestos','albaranes','facturas','partes','tareas','documentos','notas'].forEach(t => {
     const el = document.getElementById('obra-hist-'+t);
     if (el) el.style.display = t===tab?'block':'none';
     const kpi = document.getElementById('okpi-'+t);
@@ -309,6 +315,261 @@ function obraTab(tab) {
   });
   const titulo = document.getElementById('fichaObraHistTitulo');
   if (titulo) titulo.textContent = OBRA_TAB_TITLES[tab] || tab;
+}
+
+// ═══════════════════════════════════════════════
+// GESTOR DE TAREAS DE OBRA
+// ═══════════════════════════════════════════════
+let obraTareasData = [];
+
+const TAREA_ESTADOS = {
+  pendiente:  { label:'Pendiente',  color:'#D97706', bg:'#FFFBEB', ico:'⏳' },
+  en_curso:   { label:'En curso',   color:'#2563EB', bg:'#EFF6FF', ico:'🔄' },
+  completada: { label:'Completada', color:'#059669', bg:'#ECFDF5', ico:'✔️' },
+  bloqueada:  { label:'Bloqueada',  color:'#DC2626', bg:'#FEF2F2', ico:'🚫' },
+};
+
+const TAREA_PRIORIDADES = {
+  baja:    { label:'Baja',    color:'#6B7280', ico:'▽' },
+  normal:  { label:'Normal',  color:'#2563EB', ico:'◆' },
+  alta:    { label:'Alta',    color:'#D97706', ico:'▲' },
+  urgente: { label:'Urgente', color:'#DC2626', ico:'🔺' },
+};
+
+const TAREA_PLANTILLAS = [
+  { texto:'Revisar presupuesto con el cliente', prioridad:'alta' },
+  { texto:'Pedir material necesario', prioridad:'alta' },
+  { texto:'Programar fecha de visita', prioridad:'alta' },
+  { texto:'Fotos antes del trabajo', prioridad:'normal' },
+  { texto:'Ejecutar instalación', prioridad:'normal' },
+  { texto:'Fotos después del trabajo', prioridad:'normal' },
+  { texto:'Recoger firma del cliente', prioridad:'normal' },
+  { texto:'Crear albarán de entrega', prioridad:'alta' },
+  { texto:'Retirar escombros / limpieza', prioridad:'baja' },
+  { texto:'Verificar funcionamiento', prioridad:'alta' },
+];
+
+function renderObraTareas() {
+  const container = document.getElementById('obra-hist-tareas');
+  if (!container) return;
+
+  // Separar por estado
+  const pendientes = obraTareasData.filter(t => t.estado === 'pendiente' || t.estado === 'en_curso' || t.estado === 'bloqueada');
+  const completadas = obraTareasData.filter(t => t.estado === 'completada');
+  const progreso = obraTareasData.length ? Math.round((completadas.length / obraTareasData.length) * 100) : 0;
+
+  // Barra de progreso
+  let html = `<div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:700;color:var(--gris-600)">${completadas.length} de ${obraTareasData.length} completadas</span>
+      <span style="font-size:13px;font-weight:800;color:${progreso===100?'#059669':'var(--azul)'}">${progreso}%</span>
+    </div>
+    <div style="height:8px;background:var(--gris-100);border-radius:4px;overflow:hidden">
+      <div style="height:100%;width:${progreso}%;background:${progreso===100?'linear-gradient(90deg,#34D399,#059669)':'linear-gradient(90deg,#60A5FA,#2563EB)'};border-radius:4px;transition:width .5s"></div>
+    </div>
+  </div>`;
+
+  // Formulario de añadir tarea
+  html += `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:end">
+    <input id="obraTareaTexto" placeholder="Nueva tarea..." style="flex:1;min-width:180px;padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12.5px;outline:none;font-family:var(--font)" onkeydown="if(event.key==='Enter'){event.preventDefault();guardarTareaObra()}">
+    <select id="obraTareaPrio" style="padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+      <option value="normal">◆ Normal</option>
+      <option value="alta">▲ Alta</option>
+      <option value="urgente">🔺 Urgente</option>
+      <option value="baja">▽ Baja</option>
+    </select>
+    <select id="obraTareaResp" style="padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none;max-width:140px">
+      <option value="">Sin asignar</option>
+    </select>
+    <input id="obraTareaFecha" type="date" style="padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+    <button class="btn btn-primary btn-sm" onclick="guardarTareaObra()" style="font-size:11.5px;white-space:nowrap">+ Añadir</button>
+  </div>`;
+
+  // Plantillas rápidas
+  html += `<div style="margin-bottom:14px">
+    <details>
+      <summary style="font-size:11px;color:var(--gris-400);cursor:pointer;user-select:none;font-weight:600">💡 Tareas predefinidas (clic para desplegar)</summary>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+        ${TAREA_PLANTILLAS.map(p => `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:all .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`).join('')}
+      </div>
+    </details>
+  </div>`;
+
+  // Lista de tareas pendientes
+  if (pendientes.length) {
+    html += pendientes.map(t => renderTareaItem(t)).join('');
+  } else if (!completadas.length) {
+    html += `<div style="text-align:center;padding:30px 0;color:var(--gris-400)">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <p style="font-size:13px">Sin tareas. Añade una arriba o usa las plantillas.</p>
+    </div>`;
+  }
+
+  // Tareas completadas (colapsable)
+  if (completadas.length) {
+    html += `<details style="margin-top:12px" ${pendientes.length ? '' : 'open'}>
+      <summary style="font-size:11.5px;color:var(--gris-400);cursor:pointer;user-select:none;font-weight:700;padding:6px 0;border-top:1px solid var(--gris-100)">
+        ✔️ ${completadas.length} tarea${completadas.length>1?'s':''} completada${completadas.length>1?'s':''}
+      </summary>
+      <div style="opacity:0.7">${completadas.map(t => renderTareaItem(t)).join('')}</div>
+    </details>`;
+  }
+
+  container.innerHTML = html;
+
+  // Poblar select de responsables
+  poblarSelectResponsables();
+}
+
+function renderTareaItem(t) {
+  const est = TAREA_ESTADOS[t.estado] || TAREA_ESTADOS.pendiente;
+  const prio = TAREA_PRIORIDADES[t.prioridad] || TAREA_PRIORIDADES.normal;
+  const isCompleta = t.estado === 'completada';
+  const vencida = t.fecha_limite && !isCompleta && new Date(t.fecha_limite) < new Date();
+  const hoy = t.fecha_limite && new Date(t.fecha_limite).toDateString() === new Date().toDateString();
+
+  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCompleta?'text-decoration:line-through;opacity:0.6':''}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+    <!-- Checkbox -->
+    <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${isCompleta?'#059669':'var(--gris-300)'};background:${isCompleta?'#ECFDF5':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .2s" onmouseover="this.style.borderColor='${isCompleta?'#059669':'var(--azul)'}'" onmouseout="this.style.borderColor='${isCompleta?'#059669':'var(--gris-300)'}'">${isCompleta?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':''}</div>
+    <!-- Contenido -->
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12.5px;font-weight:600;line-height:1.4;color:${isCompleta?'var(--gris-400)':'var(--gris-800)'}">${t.texto}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;align-items:center">
+        <span style="font-size:10px;color:${prio.color};font-weight:700">${prio.ico} ${prio.label}</span>
+        ${t.responsable_nombre ? `<span style="font-size:10px;background:var(--gris-100);padding:1px 6px;border-radius:4px;color:var(--gris-600)">👤 ${t.responsable_nombre}</span>` : ''}
+        ${t.fecha_limite ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;${vencida?'background:#FEF2F2;color:#DC2626':hoy?'background:#FFFBEB;color:#D97706':'background:var(--gris-50);color:var(--gris-500)'}">📅 ${new Date(t.fecha_limite).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}${vencida?' ¡Vencida!':hoy?' Hoy':''}</span>` : ''}
+      </div>
+    </div>
+    <!-- Acciones -->
+    <div style="display:flex;gap:2px;flex-shrink:0">
+      ${!isCompleta ? `<select onchange="cambiarEstadoTarea(${t.id},this.value)" style="padding:2px 4px;border:1px solid var(--gris-200);border-radius:4px;font-size:10px;cursor:pointer;background:${est.bg};color:${est.color};font-weight:700;outline:none">
+        ${Object.entries(TAREA_ESTADOS).map(([k,v])=>`<option value="${k}" ${k===t.estado?'selected':''}>${v.ico} ${v.label}</option>`).join('')}
+      </select>` : ''}
+      <button onclick="eliminarTareaObra(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--gris-400);font-size:14px;padding:2px 4px" title="Eliminar">✕</button>
+    </div>
+  </div>`;
+}
+
+function poblarSelectResponsables() {
+  const sel = document.getElementById('obraTareaResp');
+  if (!sel) return;
+  // Mantener el valor actual
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Sin asignar</option>';
+  // Usar CP (perfil actual) como mínimo
+  if (CP) {
+    sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+  }
+  sel.value = current;
+}
+
+async function guardarTareaObra() {
+  if (!obraActualId) return;
+  const texto = document.getElementById('obraTareaTexto')?.value?.trim();
+  if (!texto) { toast('Escribe la tarea','error'); return; }
+
+  const prioridad = document.getElementById('obraTareaPrio')?.value || 'normal';
+  const responsable_id = document.getElementById('obraTareaResp')?.value || null;
+  const fecha_limite = document.getElementById('obraTareaFecha')?.value || null;
+
+  // Buscar nombre del responsable
+  let responsable_nombre = '';
+  if (responsable_id && CP && String(CU?.id) === String(responsable_id)) {
+    responsable_nombre = (CP.nombre||'') + ' ' + (CP.apellidos||'');
+  }
+
+  const payload = {
+    empresa_id: EMPRESA.id,
+    trabajo_id: obraActualId,
+    texto,
+    estado: 'pendiente',
+    prioridad,
+    responsable_id: responsable_id ? parseInt(responsable_id) : null,
+    responsable_nombre: responsable_nombre.trim() || null,
+    fecha_limite: fecha_limite || null,
+    creado_por: CU?.id || null,
+    creado_por_nombre: CP ? (CP.nombre||'')+' '+(CP.apellidos||'') : null,
+  };
+
+  const { data, error } = await sb.from('tareas_obra').insert(payload).select().single();
+  if (error) {
+    // Si la tabla no existe, guardar en local temporalmente
+    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+      const localTarea = { id: Date.now(), ...payload, created_at: new Date().toISOString() };
+      obraTareasData.push(localTarea);
+      toast('Tarea añadida (modo local) ✓','info');
+    } else {
+      toast('Error: '+error.message,'error'); return;
+    }
+  } else {
+    obraTareasData.push(data);
+    toast('Tarea añadida ✓','success');
+  }
+
+  // Limpiar input
+  document.getElementById('obraTareaTexto').value = '';
+  document.getElementById('obraTareaFecha').value = '';
+  updateTareasKpi();
+  renderObraTareas();
+}
+
+function addTareaPlantilla(texto, prioridad) {
+  // Verificar si ya existe
+  if (obraTareasData.some(t => t.texto === texto)) {
+    toast('Esa tarea ya existe','info'); return;
+  }
+  document.getElementById('obraTareaTexto').value = texto;
+  document.getElementById('obraTareaPrio').value = prioridad;
+  guardarTareaObra();
+}
+
+async function toggleTareaObra(id) {
+  const tarea = obraTareasData.find(t => t.id === id);
+  if (!tarea) return;
+  const nuevoEstado = tarea.estado === 'completada' ? 'pendiente' : 'completada';
+
+  const { error } = await sb.from('tareas_obra').update({ estado: nuevoEstado, completada_at: nuevoEstado === 'completada' ? new Date().toISOString() : null }).eq('id', id);
+  if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
+    toast('Error: '+error.message,'error'); return;
+  }
+  tarea.estado = nuevoEstado;
+  tarea.completada_at = nuevoEstado === 'completada' ? new Date().toISOString() : null;
+  updateTareasKpi();
+  renderObraTareas();
+}
+
+async function cambiarEstadoTarea(id, estado) {
+  const tarea = obraTareasData.find(t => t.id === id);
+  if (!tarea) return;
+
+  const { error } = await sb.from('tareas_obra').update({ estado }).eq('id', id);
+  if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
+    toast('Error: '+error.message,'error'); return;
+  }
+  tarea.estado = estado;
+  updateTareasKpi();
+  renderObraTareas();
+}
+
+async function eliminarTareaObra(id) {
+  if (!confirm('¿Eliminar esta tarea?')) return;
+  const { error } = await sb.from('tareas_obra').delete().eq('id', id);
+  if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
+    toast('Error: '+error.message,'error'); return;
+  }
+  obraTareasData = obraTareasData.filter(t => t.id !== id);
+  updateTareasKpi();
+  renderObraTareas();
+  toast('Tarea eliminada','info');
+}
+
+function updateTareasKpi() {
+  const el = document.getElementById('ok-tareas');
+  if (el) {
+    const pend = obraTareasData.filter(t => t.estado !== 'completada').length;
+    const total = obraTareasData.length;
+    el.textContent = total ? `${pend}/${total}` : '0';
+  }
 }
 
 // ═══════════════════════════════════════════════
