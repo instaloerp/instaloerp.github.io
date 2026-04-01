@@ -1304,7 +1304,14 @@
         <div class="auth-sep" style="margin-bottom:10px">Datos básicos</div>
         <div class="fg-row" style="margin-bottom:11px">
           <div class="fg"><label>Código *</label><input id="art_codigo" placeholder="ART-001"></div>
-          <div class="fg"><label>Familia</label><select id="art_familia"></select></div>
+          <div class="fg"><label>Familia</label>
+            <div class="ac-wrap">
+              <input type="hidden" id="art_familia">
+              <input id="art_familia_input" placeholder="Buscar o crear familia..." autocomplete="off"
+                oninput="acFamilia(this.value)" onfocus="acFamilia(this.value)" onblur="setTimeout(()=>acFamiliaHide(),200)">
+              <div id="acFamiliaDropdown" class="ac-dropdown" style="display:none"></div>
+            </div>
+          </div>
         </div>
         <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre corto del artículo"></div>
         <div class="fg" style="margin-bottom:11px"><label>Descripción</label><textarea id="art_desc" autocorrect="on" spellcheck="true" rows="2" placeholder="Descripción detallada (opcional)"></textarea></div>
@@ -1316,8 +1323,22 @@
           <div class="fg"><label>Margen</label><input id="art_margen" readonly style="background:var(--gris-50);font-weight:700;color:var(--verde)"></div>
         </div>
         <div class="fg-row" style="margin-bottom:11px">
-          <div class="fg"><label>Tipo IVA</label><select id="art_iva"></select></div>
-          <div class="fg"><label>Unidad de venta</label><select id="art_unidad"></select></div>
+          <div class="fg"><label>Tipo IVA</label>
+            <div class="ac-wrap">
+              <input type="hidden" id="art_iva">
+              <input id="art_iva_input" placeholder="Buscar o crear IVA..." autocomplete="off"
+                oninput="acIva(this.value)" onfocus="acIva(this.value)" onblur="setTimeout(()=>acIvaHide(),200)">
+              <div id="acIvaDropdown" class="ac-dropdown" style="display:none"></div>
+            </div>
+          </div>
+          <div class="fg"><label>Unidad de venta</label>
+            <div class="ac-wrap">
+              <input type="hidden" id="art_unidad">
+              <input id="art_unidad_input" placeholder="Buscar o crear unidad..." autocomplete="off"
+                oninput="acUnidad(this.value)" onfocus="acUnidad(this.value)" onblur="setTimeout(()=>acUnidadHide(),200)">
+              <div id="acUnidadDropdown" class="ac-dropdown" style="display:none"></div>
+            </div>
+          </div>
         </div>
 
         <div class="auth-sep" style="margin-bottom:10px">Referencias</div>

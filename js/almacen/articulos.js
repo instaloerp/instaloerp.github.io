@@ -113,9 +113,11 @@ function nuevoArticulo() {
   document.getElementById('mArtTit').textContent = 'Nuevo Artículo';
   document.getElementById('mArtSub').textContent = '';
   setVal({ art_codigo: '', art_nombre: '', art_desc: '', art_coste: '0', art_venta: '0', art_ref_fab: '', art_barras: '', art_obs: '', art_stock_min: '0', art_margen: '' });
-  document.getElementById('art_familia').value = '';
-  document.getElementById('art_iva').value = tiposIva.find(i => i.por_defecto)?.id || '';
-  document.getElementById('art_unidad').value = unidades.find(u => u.abreviatura === 'ud')?.id || '';
+  setArtFamilia('');
+  const defIva = tiposIva.find(i => i.por_defecto);
+  setArtIva(defIva?.id || '');
+  const defUd = unidades.find(u => u.abreviatura === 'ud');
+  setArtUnidad(defUd?.id || '');
   document.getElementById('art_es_activo').checked = false;
   document.getElementById('art_activo').checked = true;
 
@@ -187,9 +189,9 @@ async function editArticulo(id) {
     art_ref_fab: a.referencia_fabricante || '', art_barras: a.codigo_barras || '',
     art_obs: a.observaciones || '', art_stock_min: a.stock_minimo || 0
   });
-  document.getElementById('art_familia').value = a.familia_id || '';
-  document.getElementById('art_iva').value = a.tipo_iva_id || '';
-  document.getElementById('art_unidad').value = a.unidad_venta_id || '';
+  setArtFamilia(a.familia_id);
+  setArtIva(a.tipo_iva_id);
+  setArtUnidad(a.unidad_venta_id);
   document.getElementById('art_es_activo').checked = a.es_activo || false;
   document.getElementById('art_activo').checked = a.activo !== false;
   calcularMargenArt();
@@ -231,9 +233,9 @@ function duplicarArticulo(id) {
     art_ref_fab: a.referencia_fabricante || '', art_barras: '',
     art_obs: a.observaciones || '', art_stock_min: a.stock_minimo || 0
   });
-  document.getElementById('art_familia').value = a.familia_id || '';
-  document.getElementById('art_iva').value = a.tipo_iva_id || '';
-  document.getElementById('art_unidad').value = a.unidad_venta_id || '';
+  setArtFamilia(a.familia_id);
+  setArtIva(a.tipo_iva_id);
+  setArtUnidad(a.unidad_venta_id);
   document.getElementById('art_es_activo').checked = a.es_activo || false;
   document.getElementById('mArtTit').textContent = 'Duplicar Artículo';
   calcularMargenArt();

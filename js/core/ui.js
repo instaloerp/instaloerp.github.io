@@ -15,12 +15,11 @@ function openModal(id, skipReset){
   // Guardar valores de selects antes de repopular
   const savedSelects = {};
   if(skipReset){
-    ['art_familia','art_iva','art_unidad','art_proveedor','c_fpago','pv_fpago'].forEach(sid=>{
+    ['c_fpago','pv_fpago'].forEach(sid=>{
       const sel=document.getElementById(sid); if(sel) savedSelects[sid]=sel.value;
     });
   }
   populateSelects();
-  // Restaurar valores guardados
   if(skipReset){
     Object.entries(savedSelects).forEach(([sid,val])=>{const sel=document.getElementById(sid);if(sel)sel.value=val;});
   }
@@ -129,19 +128,242 @@ function populateSelects(){
   // Formas pago
   const fpOpts='<option value="">— Sin forma de pago —</option>'+formasPago.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
   ['c_fpago','pv_fpago'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=fpOpts;});
-  // IVA
-  const ivaOpts='<option value="">— Seleccionar —</option>'+tiposIva.map(i=>`<option value="${i.id}">${i.nombre} (${i.porcentaje}%)</option>`).join('');
-  const artIva=document.getElementById('art_iva');if(artIva)artIva.innerHTML=ivaOpts;
-  // Unidades
-  const udOpts='<option value="">— Seleccionar —</option>'+unidades.map(u=>`<option value="${u.id}">${u.nombre} (${u.abreviatura})</option>`).join('');
-  const artUd=document.getElementById('art_unidad');if(artUd)artUd.innerHTML=udOpts;
-  // Familias
-  const famOpts='<option value="">— Sin familia —</option>'+familias.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
-  ['art_familia','fam_parent'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=(id==='fam_parent'?'<option value="">— Familia raíz —</option>':famOpts.split('<option value="">— Sin familia —</option>')[1])||famOpts;});
-  const artFam=document.getElementById('art_familia');if(artFam)artFam.innerHTML=famOpts;
-  const famParent=document.getElementById('fam_parent');if(famParent)famParent.innerHTML='<option value="">— Familia raíz —</option>'+familias.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
+  // Selector de familia padre (en modal de config) - sigue siendo select normal
+  const famParent=document.getElementById('fam_parent');
+  if(famParent)famParent.innerHTML='<option value="">— Familia raíz —</option>'+familias.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
   // Empresas
   renderEmpresasList();
+}
+
+// ═══════════════════════════════════════════════
+// AUTOCOMPLETE: Familias
+// ═══════════════════════════════════════════════
+function acFamilia(q) {
+  const drop = document.getElementById('acFamiliaDropdown');
+  const query = (q || '').toLowerCase().trim();
+
+  // Construir lista jerárquica
+  const padres = familias.filter(f => !f.parent_id);
+  const hijos = familias.filter(f => f.parent_id);
+  let items = [];
+  padres.forEach(p => {
+    items.push({ id: p.id, nombre: p.nombre, nivel: 0 });
+    hijos.filter(h => h.parent_id === p.id).forEach(h => {
+      items.push({ id: h.id, nombre: h.nombre, padre: p.nombre, nivel: 1 });
+    });
+  });
+  // Huérfanas
+  const parentIds = padres.map(p => p.id);
+  hijos.filter(h => !parentIds.includes(h.parent_id)).forEach(h => {
+    items.push({ id: h.id, nombre: h.nombre, nivel: 0 });
+  });
+
+  // Filtrar si hay texto
+  let filtered = query ? items.filter(i => i.nombre.toLowerCase().includes(query)) : items;
+
+  // Generar HTML
+  let html = '';
+  if (!query) {
+    html += '<div class="ac-item" onmousedown="event.preventDefault();acFamiliaSelect(\'\',\'\')"><span style="color:var(--gris-400)">— Sin familia —</span></div>';
+  }
+  filtered.forEach(i => {
+    const prefix = i.nivel === 1 ? '<span style="color:var(--gris-300);margin-right:4px">└</span>' : '';
+    const sub = i.padre ? `<small style="color:var(--gris-400);margin-left:6px">(${i.padre})</small>` : '';
+    html += `<div class="ac-item" onmousedown="event.preventDefault();acFamiliaSelect('${i.id}','${i.nombre.replace(/'/g,"\\'")}')">
+      ${prefix}<strong>${i.nombre}</strong>${sub}
+    </div>`;
+  });
+
+  // Opción de crear nueva
+  const exactMatch = items.some(i => i.nombre.toLowerCase() === query);
+  if (query && !exactMatch) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('${query.replace(/'/g,"\\'")}', false)">
+      + Crear familia "${q.trim()}"
+    </div>`;
+    if (padres.length > 0) {
+      html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('${query.replace(/'/g,"\\'")}', true)">
+        + Crear como subfamilia de...
+      </div>`;
+    }
+  } else if (!query) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearFamiliaDesdeAC('', false)">
+      + Nueva familia...
+    </div>`;
+  }
+
+  drop.innerHTML = html || '<div class="ac-empty">Sin resultados</div>';
+  drop.style.display = '';
+}
+
+function acFamiliaHide() { document.getElementById('acFamiliaDropdown').style.display = 'none'; }
+
+function acFamiliaSelect(id, nombre) {
+  document.getElementById('art_familia').value = id;
+  document.getElementById('art_familia_input').value = nombre;
+  acFamiliaHide();
+}
+
+// Setter para cargar familia al editar artículo
+function setArtFamilia(familiaId) {
+  const fam = familias.find(f => f.id == familiaId);
+  document.getElementById('art_familia').value = familiaId || '';
+  document.getElementById('art_familia_input').value = fam?.nombre || '';
+}
+
+async function crearFamiliaDesdeAC(nombre, esSub) {
+  acFamiliaHide();
+  let parentId = null;
+
+  if (esSub) {
+    const padres = familias.filter(f => !f.parent_id);
+    const opciones = padres.map((p, i) => `${i + 1}. ${p.nombre}`).join('\n');
+    const resp = prompt('Elige la familia padre:\n\n' + opciones + '\n\nEscribe el número:');
+    if (!resp) return;
+    const idx = parseInt(resp) - 1;
+    if (idx < 0 || idx >= padres.length) { toast('Opción no válida', 'error'); return; }
+    parentId = padres[idx].id;
+  }
+
+  if (!nombre) {
+    nombre = prompt(esSub ? 'Nombre de la subfamilia:' : 'Nombre de la nueva familia:');
+    if (!nombre || !nombre.trim()) return;
+  }
+
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), parent_id: parentId };
+  const { data, error } = await sb.from('familias_articulos').insert(obj).select('id').single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const { data: fresh } = await sb.from('familias_articulos').select('*').eq('empresa_id', EMPRESA.id);
+  familias = fresh || [];
+  acFamiliaSelect(data.id, nombre.trim());
+  toast('Familia "' + nombre.trim() + '" creada ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// AUTOCOMPLETE: Tipo IVA
+// ═══════════════════════════════════════════════
+function acIva(q) {
+  const drop = document.getElementById('acIvaDropdown');
+  const query = (q || '').toLowerCase().trim();
+
+  let filtered = query ? tiposIva.filter(i => i.nombre.toLowerCase().includes(query) || String(i.porcentaje).includes(query)) : tiposIva;
+
+  let html = '';
+  if (!query) html += '<div class="ac-item" onmousedown="event.preventDefault();acIvaSelect(\'\',\'\')"><span style="color:var(--gris-400)">— Sin IVA —</span></div>';
+  filtered.forEach(i => {
+    html += `<div class="ac-item" onmousedown="event.preventDefault();acIvaSelect('${i.id}','${i.nombre} (${i.porcentaje}%)')">
+      <strong>${i.nombre}</strong><span style="margin-left:8px;color:var(--gris-500)">${i.porcentaje}%</span>
+      ${i.por_defecto ? '<span style="margin-left:6px;font-size:10px;color:var(--azul)">por defecto</span>' : ''}
+    </div>`;
+  });
+
+  const exactMatch = tiposIva.some(i => i.nombre.toLowerCase() === query);
+  if (query && !exactMatch) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearIvaDesdeAC('${query.replace(/'/g,"\\'")}')">
+      + Crear tipo IVA "${q.trim()}"
+    </div>`;
+  } else if (!query) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearIvaDesdeAC('')">
+      + Nuevo tipo IVA...
+    </div>`;
+  }
+
+  drop.innerHTML = html || '<div class="ac-empty">Sin resultados</div>';
+  drop.style.display = '';
+}
+
+function acIvaHide() { document.getElementById('acIvaDropdown').style.display = 'none'; }
+
+function acIvaSelect(id, label) {
+  document.getElementById('art_iva').value = id;
+  document.getElementById('art_iva_input').value = label;
+  acIvaHide();
+}
+
+function setArtIva(ivaId) {
+  const iva = tiposIva.find(i => i.id == ivaId);
+  document.getElementById('art_iva').value = ivaId || '';
+  document.getElementById('art_iva_input').value = iva ? `${iva.nombre} (${iva.porcentaje}%)` : '';
+}
+
+async function crearIvaDesdeAC(nombre) {
+  acIvaHide();
+  if (!nombre) { nombre = prompt('Nombre del tipo IVA (ej: Reducido):'); }
+  if (!nombre || !nombre.trim()) return;
+  const pct = prompt('Porcentaje IVA (ej: 10):');
+  if (pct === null) return;
+
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), porcentaje: parseFloat(pct) || 0, por_defecto: false };
+  const { data, error } = await sb.from('tipos_iva').insert(obj).select('id').single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const { data: fresh } = await sb.from('tipos_iva').select('*').eq('empresa_id', EMPRESA.id);
+  tiposIva = fresh || [];
+  acIvaSelect(data.id, nombre.trim() + ' (' + (parseFloat(pct)||0) + '%)');
+  toast('Tipo IVA "' + nombre.trim() + '" creado ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// AUTOCOMPLETE: Unidad de medida
+// ═══════════════════════════════════════════════
+function acUnidad(q) {
+  const drop = document.getElementById('acUnidadDropdown');
+  const query = (q || '').toLowerCase().trim();
+
+  let filtered = query ? unidades.filter(u => u.nombre.toLowerCase().includes(query) || u.abreviatura.toLowerCase().includes(query)) : unidades;
+
+  let html = '';
+  if (!query) html += '<div class="ac-item" onmousedown="event.preventDefault();acUnidadSelect(\'\',\'\')"><span style="color:var(--gris-400)">— Sin unidad —</span></div>';
+  filtered.forEach(u => {
+    html += `<div class="ac-item" onmousedown="event.preventDefault();acUnidadSelect('${u.id}','${u.nombre} (${u.abreviatura})')">
+      <strong>${u.nombre}</strong><span style="margin-left:8px;color:var(--gris-500)">${u.abreviatura}</span>
+    </div>`;
+  });
+
+  const exactMatch = unidades.some(u => u.nombre.toLowerCase() === query);
+  if (query && !exactMatch) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearUnidadDesdeAC('${query.replace(/'/g,"\\'")}')">
+      + Crear unidad "${q.trim()}"
+    </div>`;
+  } else if (!query) {
+    html += `<div class="ac-item" style="color:var(--azul);font-weight:600" onmousedown="event.preventDefault();crearUnidadDesdeAC('')">
+      + Nueva unidad...
+    </div>`;
+  }
+
+  drop.innerHTML = html || '<div class="ac-empty">Sin resultados</div>';
+  drop.style.display = '';
+}
+
+function acUnidadHide() { document.getElementById('acUnidadDropdown').style.display = 'none'; }
+
+function acUnidadSelect(id, label) {
+  document.getElementById('art_unidad').value = id;
+  document.getElementById('art_unidad_input').value = label;
+  acUnidadHide();
+}
+
+function setArtUnidad(unidadId) {
+  const ud = unidades.find(u => u.id == unidadId);
+  document.getElementById('art_unidad').value = unidadId || '';
+  document.getElementById('art_unidad_input').value = ud ? `${ud.nombre} (${ud.abreviatura})` : '';
+}
+
+async function crearUnidadDesdeAC(nombre) {
+  acUnidadHide();
+  if (!nombre) { nombre = prompt('Nombre de la unidad (ej: Metro lineal):'); }
+  if (!nombre || !nombre.trim()) return;
+  const abrev = prompt('Abreviatura (ej: ml):');
+  if (!abrev || !abrev.trim()) return;
+
+  const obj = { empresa_id: EMPRESA.id, nombre: nombre.trim(), abreviatura: abrev.trim() };
+  const { data, error } = await sb.from('unidades_medida').insert(obj).select('id').single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const { data: fresh } = await sb.from('unidades_medida').select('*').eq('empresa_id', EMPRESA.id);
+  unidades = fresh || [];
+  acUnidadSelect(data.id, nombre.trim() + ' (' + abrev.trim() + ')');
+  toast('Unidad "' + nombre.trim() + '" creada ✓', 'success');
 }
 
 function v(id){return document.getElementById(id)?.value||'';}
