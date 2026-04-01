@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════
 
 let artFiltrados = [];
+let _artKpiFilter = ''; // KPI filter activo
 let artProveedores = [];  // proveedores del artículo abierto
 let artHistorial = [];    // historial del artículo abierto
 let artFotoFile = null;   // archivo foto pendiente de subir
@@ -20,12 +21,17 @@ function renderArticulos(list) {
   artFiltrados = list;
   document.getElementById('artCount').textContent = `${list.length} de ${articulos.length} artículos`;
 
-  // Populate filtro familias
+  // Populate filtro familias (solo padres)
   const sf = document.getElementById('selFamFiltro');
   if (sf) {
     const famVal = sf.value;
-    sf.innerHTML = '<option value="">Todas las familias</option>' + familias.map(f => `<option value="${f.id}">${f.nombre}</option>`).join('');
+    const padres = familias.filter(f => !f.parent_id);
+    sf.innerHTML = '<option value="">Todas las familias</option>' + padres.map(f => {
+      const nHijos = familias.filter(h => h.parent_id === f.id).length;
+      return `<option value="${f.id}">${f.nombre}${nHijos ? ' (' + nHijos + ')' : ''}</option>`;
+    }).join('');
     sf.value = famVal;
+    actualizarFiltroSubfamilias();
   }
 
   const tbody = document.getElementById('artTable');
@@ -67,40 +73,120 @@ function renderArticulos(list) {
 // ─── KPIs ──────────────────────────────────────
 function updateArticulosKPIs() {
   const activos = articulos.filter(a => a.activo !== false);
+  const inactivos = articulos.filter(a => a.activo === false);
   const famsUsadas = new Set(articulos.map(a => a.familia_id).filter(Boolean));
   const valorPVP = activos.reduce((sum, a) => sum + (a.precio_venta || 0), 0);
+  // Bajo stock: artículos con stock_minimo > 0 y sin stock suficiente (necesita datos de stock real, por ahora solo cuenta los que tienen stock_minimo > 0)
+  const bajoStock = articulos.filter(a => (a.stock_minimo || 0) > 0 && a.activo !== false);
 
   const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   el('art_kpi_total', articulos.length);
   el('art_kpi_activos', activos.length);
+  el('art_kpi_inactivos', inactivos.length);
+  el('art_kpi_bajo_stock', bajoStock.length);
   el('art_kpi_familias', famsUsadas.size);
   el('art_kpi_valor', fmtE(valorPVP));
+
+  // Highlight KPI activo
+  document.querySelectorAll('.art-kpi-filter').forEach(el => {
+    el.style.outline = el.dataset.filtro === _artKpiFilter ? '3px solid var(--azul)' : 'none';
+    el.style.outlineOffset = '2px';
+  });
+}
+
+// ─── Filtro por KPI clickable ─────────────────
+function filtrarArtKpi(tipo) {
+  _artKpiFilter = _artKpiFilter === tipo ? '' : tipo; // toggle
+  // Sincronizar con select activo
+  const sel = document.getElementById('selActivoFiltro');
+  if (sel) {
+    if (tipo === 'activos') sel.value = '1';
+    else if (tipo === 'inactivos') sel.value = '0';
+    else sel.value = '';
+  }
+  filtrarArticulos();
+}
+
+// ─── Actualizar subfamilias en filtro ─────────
+function actualizarFiltroSubfamilias() {
+  const famId = document.getElementById('selFamFiltro')?.value;
+  const ssf = document.getElementById('selSubFamFiltro');
+  if (!ssf) return;
+  if (!famId) {
+    ssf.style.display = 'none';
+    ssf.value = '';
+    return;
+  }
+  const hijos = familias.filter(f => String(f.parent_id) === String(famId));
+  if (hijos.length === 0) {
+    ssf.style.display = 'none';
+    ssf.value = '';
+    return;
+  }
+  const prev = ssf.value;
+  ssf.innerHTML = '<option value="">Todas las subfamilias</option>' + hijos.map(h => `<option value="${h.id}">${h.nombre}</option>`).join('');
+  ssf.value = prev;
+  ssf.style.display = '';
+}
+
+// ─── Wildcard search helper ───────────────────
+function wildcardMatch(text, pattern) {
+  if (!pattern) return true;
+  // Convertir patrón con * a regex
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  try {
+    return new RegExp('^' + escaped + '$', 'i').test(text);
+  } catch { return text.toLowerCase().includes(pattern.toLowerCase()); }
+}
+
+function textoMatchArticulo(a, pattern) {
+  // Si contiene *, usar wildcard match contra cada campo concatenado
+  if (pattern.includes('*')) {
+    const campos = [a.nombre, a.codigo, a.referencia_fabricante, a.codigo_barras, a.descripcion].filter(Boolean);
+    return campos.some(c => wildcardMatch(c, pattern));
+  }
+  // Búsqueda normal: includes
+  const q = pattern.toLowerCase();
+  return (a.nombre || '').toLowerCase().includes(q) ||
+    (a.codigo || '').toLowerCase().includes(q) ||
+    (a.referencia_fabricante || '').toLowerCase().includes(q) ||
+    (a.codigo_barras || '').toLowerCase().includes(q) ||
+    (a.descripcion || '').toLowerCase().includes(q);
 }
 
 // ─── FILTROS ───────────────────────────────────
 function filtrarArticulos() {
-  const texto = (document.getElementById('artBuscar')?.value || '').toLowerCase();
+  const texto = (document.getElementById('artBuscar')?.value || '').trim();
   const famId = document.getElementById('selFamFiltro')?.value;
+  const subFamId = document.getElementById('selSubFamFiltro')?.value;
   const activo = document.getElementById('selActivoFiltro')?.value;
+
+  // Actualizar subfamilias dropdown al cambiar familia
+  actualizarFiltroSubfamilias();
 
   let list = [...articulos];
 
+  // Texto / wildcard
   if (texto) {
-    list = list.filter(a =>
-      (a.nombre || '').toLowerCase().includes(texto) ||
-      (a.codigo || '').toLowerCase().includes(texto) ||
-      (a.referencia_fabricante || '').toLowerCase().includes(texto) ||
-      (a.codigo_barras || '').toLowerCase().includes(texto) ||
-      (a.descripcion || '').toLowerCase().includes(texto)
-    );
+    list = list.filter(a => textoMatchArticulo(a, texto));
   }
-  if (famId) {
-    // Incluir artículos de la familia y de sus subfamilias
+
+  // Familia + subfamilia
+  if (subFamId) {
+    list = list.filter(a => String(a.familia_id) === String(subFamId));
+  } else if (famId) {
     const subIds = familias.filter(f => String(f.parent_id) === String(famId)).map(f => f.id);
     list = list.filter(a => String(a.familia_id) === String(famId) || subIds.includes(a.familia_id));
   }
+
+  // Activo / inactivo
   if (activo === '1') list = list.filter(a => a.activo !== false);
   if (activo === '0') list = list.filter(a => a.activo === false);
+
+  // KPI filter override
+  if (_artKpiFilter === 'activos') list = list.filter(a => a.activo !== false);
+  if (_artKpiFilter === 'inactivos') list = list.filter(a => a.activo === false);
+  if (_artKpiFilter === 'sin_stock') list = list.filter(a => (a.stock_minimo || 0) > 0);
 
   renderArticulos(list);
 }

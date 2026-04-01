@@ -408,11 +408,19 @@
       <!-- ARTÍCULOS -->
       <div class="page" id="page-articulos">
         <!-- KPIs -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-          <div class="card kpi"><div class="ki">📦</div><div class="kv" id="art_kpi_total">0</div><div class="kl">Total artículos</div></div>
-          <div class="card kpi"><div class="ki">✅</div><div class="kv" id="art_kpi_activos">0</div><div class="kl">Activos</div></div>
-          <div class="card kpi"><div class="ki">🏷️</div><div class="kv" id="art_kpi_familias">0</div><div class="kl">Familias</div></div>
-          <div class="card kpi"><div class="ki">💰</div><div class="kv" id="art_kpi_valor">0 €</div><div class="kl">Valor catálogo (PVP)</div></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc art-kpi-filter" data-filtro="" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarArtKpi('')" title="Ver todos">
+            <div class="si">📦</div><div class="sv" id="art_kpi_total">0</div><div class="sl">Total artículos</div></div>
+          <div class="sc art-kpi-filter" data-filtro="activos" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="filtrarArtKpi('activos')" title="Ver solo activos">
+            <div class="si">✅</div><div class="sv" id="art_kpi_activos">0</div><div class="sl">Activos</div></div>
+          <div class="sc art-kpi-filter" data-filtro="inactivos" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="filtrarArtKpi('inactivos')" title="Ver solo inactivos">
+            <div class="si">🚫</div><div class="sv" id="art_kpi_inactivos">0</div><div class="sl">Inactivos</div></div>
+          <div class="sc art-kpi-filter" data-filtro="sin_stock" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="filtrarArtKpi('sin_stock')" title="Stock bajo mínimo">
+            <div class="si">⚠️</div><div class="sv" id="art_kpi_bajo_stock">0</div><div class="sl">Bajo stock</div></div>
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)">
+            <div class="si">🏷️</div><div class="sv" id="art_kpi_familias">0</div><div class="sl">Familias</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)">
+            <div class="si">💰</div><div class="sv" id="art_kpi_valor">0 €</div><div class="sl">Valor catálogo (PVP)</div></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div><h2 style="font-size:17px;font-weight:800">Catálogo de artículos</h2><p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p></div>
@@ -423,10 +431,13 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-h" style="gap:8px;flex-wrap:wrap">
-            <input type="text" placeholder="🔍 Buscar por nombre, código o ref..." id="artBuscar" oninput="filtrarArticulos()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:250px;outline:none">
+          <div class="card-h" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="text" placeholder="🔍 Buscar... (usa * como comodín)" id="artBuscar" oninput="filtrarArticulos()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:260px;outline:none" title="Busca por nombre, código, ref. fabricante, EAN, descripción. Usa * como comodín: TUB* encuentra Tubería, Tubo...">
             <select onchange="filtrarArticulos()" id="selFamFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
               <option value="">Todas las familias</option>
+            </select>
+            <select onchange="filtrarArticulos()" id="selSubFamFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none;display:none">
+              <option value="">Todas las subfamilias</option>
             </select>
             <select onchange="filtrarArticulos()" id="selActivoFiltro" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
               <option value="">Todos</option>
@@ -1068,7 +1079,6 @@
 
       <!-- CONFIGURACIÓN -->
       <div class="page" id="page-configuracion">
-        <div style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:800">Configuración</h2><p style="font-size:11.5px;color:var(--gris-400)">Todo editable desde aquí — nada cerrado</p></div>
         <div class="cfg-grid">
           <div class="cfg-menu">
             <button class="cfg-menu-item active" onclick="cfgTab('empresa',this)"><span class="ico">🏢</span> Empresa</button>
@@ -1141,9 +1151,21 @@
             </div>
 
             <!-- Familias -->
-            <div class="cfg-panel card" id="cfg-familias">
-              <div class="card-h"><h3>🗂️ Familias de artículos</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mFamilia')">+ Nueva familia</button></div></div>
-              <div class="cfg-list" id="familiasList"></div>
+            <div class="cfg-panel" id="cfg-familias">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <!-- Columna Familias -->
+                <div class="card">
+                  <div class="card-h"><h3>🗂️ Familias</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="nuevaFamiliaRaiz()">+ Nueva familia</button></div></div>
+                  <div class="cfg-list" id="familiasListPadres"></div>
+                </div>
+                <!-- Columna Subfamilias -->
+                <div class="card">
+                  <div class="card-h"><h3 id="subfamTitulo">📁 Subfamilias</h3><div class="card-ha"><button class="btn btn-primary btn-sm" id="btnNuevaSubfam" onclick="nuevaSubfamiliaConfig()">+ Nueva subfamilia</button></div></div>
+                  <div class="cfg-list" id="familiasListHijos">
+                    <div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Selecciona una familia para ver sus subfamilias</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

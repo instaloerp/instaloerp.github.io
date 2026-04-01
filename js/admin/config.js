@@ -43,15 +43,10 @@ function renderConfigLists() {
       </div>
     </div>`).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin formas de pago</div>';
 
-  // Familias
-  document.getElementById('familiasList').innerHTML = familias.length ?
-    familias.map(f=>`<div class="cfg-row">
-      <div class="cr-main"><strong>${f.nombre}</strong><small>${familias.find(x=>x.id===f.parent_id)?.nombre||'Familia raíz'}</small></div>
-      <div class="cr-actions">
-        <button class="btn btn-ghost btn-sm" onclick="editFamilia(${f.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delCfg('familias_articulos',${f.id},'familias')">🗑️</button>
-      </div>
-    </div>`).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin familias</div>';
+  // Familias (dos columnas: padres | hijos)
+  renderFamiliasPadres();
+  // Mantener selección si existe
+  if (_cfgFamSelId) renderFamiliasHijos(_cfgFamSelId);
 
   // Empresa
   if(EMPRESA) {
@@ -127,22 +122,103 @@ async function saveFormaPago() {
   closeModal('mFormaPago'); await reloadCfg('formas-pago'); toast('Forma de pago guardada ✓','success');
 }
 
+// ─── FAMILIAS: Sistema dos columnas ───────────
+let _cfgFamSelId = null; // Familia padre seleccionada
+
+function renderFamiliasPadres() {
+  const padres = familias.filter(f => !f.parent_id);
+  const el = document.getElementById('familiasListPadres');
+  if (!el) return;
+  el.innerHTML = padres.length ? padres.map(f => {
+    const nHijos = familias.filter(h => h.parent_id === f.id).length;
+    const sel = _cfgFamSelId === f.id ? 'background:var(--azul-light);border-left:3px solid var(--azul)' : '';
+    return `<div class="cfg-row" style="cursor:pointer;${sel}" onclick="seleccionarFamiliaCfg(${f.id})">
+      <div class="cr-main"><strong>${f.nombre}</strong><small>${nHijos} subfamilia${nHijos !== 1 ? 's' : ''}</small></div>
+      <div class="cr-actions">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editFamilia(${f.id})" title="Editar">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delFamiliaConfig(${f.id})" title="Eliminar">🗑️</button>
+      </div>
+    </div>`;
+  }).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin familias — crea la primera</div>';
+}
+
+function renderFamiliasHijos(padreId) {
+  const hijos = familias.filter(f => f.parent_id === padreId);
+  const padre = familias.find(f => f.id === padreId);
+  const el = document.getElementById('familiasListHijos');
+  const titulo = document.getElementById('subfamTitulo');
+  const btn = document.getElementById('btnNuevaSubfam');
+  if (!el) return;
+
+  if (titulo) titulo.textContent = padre ? '📁 Subfamilias de ' + padre.nombre : '📁 Subfamilias';
+
+  el.innerHTML = hijos.length ? hijos.map(h => `<div class="cfg-row">
+    <div class="cr-main"><strong>${h.nombre}</strong></div>
+    <div class="cr-actions">
+      <button class="btn btn-ghost btn-sm" onclick="editFamilia(${h.id})" title="Editar">✏️</button>
+      <button class="btn btn-ghost btn-sm" onclick="delFamiliaConfig(${h.id})" title="Eliminar">🗑️</button>
+    </div>
+  </div>`).join('') : '<div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Sin subfamilias<br><small>Haz clic en "+ Nueva subfamilia" para crear una</small></div>';
+}
+
+function seleccionarFamiliaCfg(id) {
+  _cfgFamSelId = id;
+  renderFamiliasPadres();
+  renderFamiliasHijos(id);
+}
+
+function nuevaFamiliaRaiz() {
+  document.getElementById('fam_id').value = '';
+  setVal({ fam_nombre: '' });
+  document.getElementById('fam_parent').value = '';
+  // Ocultar selector de padre ya que es raíz
+  document.getElementById('fam_parent').closest('.fg').style.display = 'none';
+  openModal('mFamilia');
+}
+
+function nuevaSubfamiliaConfig() {
+  if (!_cfgFamSelId) { toast('Selecciona primero una familia', 'error'); return; }
+  document.getElementById('fam_id').value = '';
+  setVal({ fam_nombre: '' });
+  document.getElementById('fam_parent').value = _cfgFamSelId;
+  // Ocultar selector de padre ya que se asigna automáticamente
+  document.getElementById('fam_parent').closest('.fg').style.display = 'none';
+  openModal('mFamilia');
+}
+
 function editFamilia(id) {
-  const f=familias.find(x=>x.id===id); if(!f)return;
-  document.getElementById('fam_id').value=f.id;
-  setVal({fam_nombre:f.nombre});
-  document.getElementById('fam_parent').value=f.parent_id||'';
+  const f = familias.find(x => x.id === id); if (!f) return;
+  document.getElementById('fam_id').value = f.id;
+  setVal({ fam_nombre: f.nombre });
+  document.getElementById('fam_parent').value = f.parent_id || '';
+  // Mostrar selector de padre al editar
+  document.getElementById('fam_parent').closest('.fg').style.display = '';
   openModal('mFamilia');
 }
 
 async function saveFamilia() {
-  const nombre=v('fam_nombre'); if(!nombre){toast('Introduce el nombre','error');return;}
-  const id=document.getElementById('fam_id').value;
-  const pid=parseInt(document.getElementById('fam_parent').value)||null;
-  const obj={empresa_id:EMPRESA.id,nombre,parent_id:pid};
-  if(id){await sb.from('familias_articulos').update(obj).eq('id',id);}
-  else{await sb.from('familias_articulos').insert(obj);}
-  closeModal('mFamilia'); await reloadCfg('familias'); toast('Familia guardada ✓','success');
+  const nombre = v('fam_nombre'); if (!nombre) { toast('Introduce el nombre', 'error'); return; }
+  const id = document.getElementById('fam_id').value;
+  const pid = parseInt(document.getElementById('fam_parent').value) || null;
+  const obj = { empresa_id: EMPRESA.id, nombre, parent_id: pid };
+  if (id) { await sb.from('familias_articulos').update(obj).eq('id', id); }
+  else { await sb.from('familias_articulos').insert(obj); }
+  closeModal('mFamilia'); await reloadCfg('familias'); toast('Familia guardada ✓', 'success');
+}
+
+async function delFamiliaConfig(id) {
+  const f = familias.find(x => x.id === id); if (!f) return;
+  const hijos = familias.filter(h => h.parent_id === id);
+  if (hijos.length > 0) {
+    if (!confirm('Esta familia tiene ' + hijos.length + ' subfamilia(s). ¿Eliminar todo?')) return;
+    // Eliminar hijos primero
+    for (const h of hijos) { await sb.from('familias_articulos').delete().eq('id', h.id); }
+  } else {
+    if (!confirm('¿Eliminar "' + f.nombre + '"?')) return;
+  }
+  await sb.from('familias_articulos').delete().eq('id', id);
+  if (_cfgFamSelId === id) _cfgFamSelId = null;
+  await reloadCfg('familias'); toast('Eliminado', 'info');
 }
 
 async function delCfg(tabla,id,tipo) {

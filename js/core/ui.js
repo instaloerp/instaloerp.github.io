@@ -78,6 +78,8 @@ function goPage(id){
       traspasos: '<button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo traspaso</button>',
       partes: '<button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo parte</button>',
       fichajes: '',
+      configuracion: '',
+      activos: '',
     };
     tb.innerHTML = btns[id] !== undefined ? btns[id] : `<button class="btn btn-primary btn-sm" onclick="nuevoRapido()">+ Nuevo</button>`;
   }
