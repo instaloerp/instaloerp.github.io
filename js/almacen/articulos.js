@@ -14,6 +14,11 @@ function artTab(tab, el) {
   document.querySelectorAll('.art-panel').forEach(p => p.style.display = 'none');
   el.classList.add('active');
   document.getElementById('artPanel_' + tab).style.display = '';
+  // Generar QR al abrir pestaña Foto
+  if (tab === 'foto') {
+    const codigo = document.getElementById('art_codigo')?.value;
+    if (codigo && typeof generarQrArticulo === 'function') generarQrArticulo(codigo);
+  }
 }
 
 // ─── RENDERIZAR LISTADO ───────────────────────

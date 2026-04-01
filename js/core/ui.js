@@ -52,7 +52,7 @@ function goPage(id){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','pedidos-compra':'Pedidos de compra',recepciones:'Recepciones','facturas-proveedor':'Facturas proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración'};
+  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','pedidos-compra':'Pedidos de compra',recepciones:'Recepciones','facturas-proveedor':'Facturas proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = '';
   // Topbar buttons por página
@@ -80,10 +80,12 @@ function goPage(id){
       fichajes: '',
       configuracion: '',
       activos: '',
+      'etiquetas-qr': '',
     };
     tb.innerHTML = btns[id] !== undefined ? btns[id] : `<button class="btn btn-primary btn-sm" onclick="nuevoRapido()">+ Nuevo</button>`;
   }
   if(id==='configuracion') renderConfigLists();
+  if(id==='etiquetas-qr') cargarPaginaEtiquetasQR();
   if(id==='mEmpresas') renderEmpresasList();
   if(id==='usuarios') loadUsuarios();
   if(id==='audit-log') loadAuditLog();
