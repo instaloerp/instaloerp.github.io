@@ -446,7 +446,7 @@
             </select>
           </div>
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Código</th><th>Artículo</th><th>Familia</th><th>Coste</th><th>Venta</th><th>Margen</th><th>IVA</th><th>Activo</th><th style="width:80px"></th>
+            <th>Código</th><th>Artículo</th><th>Familia</th><th>PVP</th><th>Coste</th><th>Dto.</th><th>IVA</th><th>Activo</th><th style="width:80px"></th>
           </tr></thead><tbody id="artTable"></tbody></table></div>
         </div>
       </div>
@@ -1346,10 +1346,11 @@
         <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="art_nombre" autocorrect="on" spellcheck="true" placeholder="Nombre corto del artículo"></div>
         <div class="fg" style="margin-bottom:11px"><label>Descripción</label><textarea id="art_desc" autocorrect="on" spellcheck="true" rows="2" placeholder="Descripción detallada (opcional)"></textarea></div>
 
-        <div class="auth-sep" style="margin-bottom:10px">Precios y margen</div>
+        <div class="auth-sep" style="margin-bottom:10px">Precios</div>
         <div class="fg-row" style="margin-bottom:11px">
-          <div class="fg"><label>Precio coste (€)</label><input id="art_coste" type="number" step="0.01" value="0" oninput="calcularMargenArt()"></div>
-          <div class="fg"><label>Precio venta (€)</label><input id="art_venta" type="number" step="0.01" value="0" oninput="calcularMargenArt()"></div>
+          <div class="fg"><label>PVP (€) *</label><input id="art_pvp" type="number" step="0.01" value="0" oninput="calcularPreciosArt()"></div>
+          <div class="fg"><label>Descuento (%)</label><input id="art_dto" type="number" step="0.01" value="0" min="0" max="100" oninput="calcularPreciosArt()"></div>
+          <div class="fg"><label>Coste (€)</label><input id="art_coste" type="number" step="0.01" value="0" readonly style="background:var(--gris-50);font-weight:600"></div>
           <div class="fg"><label>Margen</label><input id="art_margen" readonly style="background:var(--gris-50);font-weight:700;color:var(--verde)"></div>
         </div>
         <div class="fg-row" style="margin-bottom:11px">

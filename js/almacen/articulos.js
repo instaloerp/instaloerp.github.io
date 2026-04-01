@@ -41,8 +41,8 @@ function renderArticulos(list) {
       const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
       const famLabel = famPadre ? `${famPadre.nombre} <span style="color:var(--gris-300)">›</span> ${fam.nombre}` : (fam?.nombre || '—');
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
-      const margen = a.precio_coste > 0 ? (((a.precio_venta - a.precio_coste) / a.precio_coste) * 100).toFixed(1) : '—';
-      const margenColor = margen === '—' ? 'var(--gris-400)' : parseFloat(margen) >= 30 ? 'var(--verde)' : parseFloat(margen) >= 15 ? 'var(--amarillo)' : 'var(--rojo)';
+      const dto = a.descuento || 0;
+      const dtoLabel = dto > 0 ? `<span style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
       return `<tr style="cursor:pointer" ondblclick="editArticulo('${a.id}')">
@@ -53,9 +53,9 @@ function renderArticulos(list) {
           ${a.es_activo ? '<span class="badge bg-yellow" style="font-size:9.5px">Activo/Maquinaria</span>' : ''}
         </td>
         <td>${famLabel}</td>
+        <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}${dtoLabel}</td>
         <td style="font-weight:600">${fmtE(a.precio_coste)}</td>
-        <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}</td>
-        <td style="font-weight:700;color:${margenColor}">${margen === '—' ? '—' : margen + '%'}</td>
+        <td>${dto > 0 ? dto + '%' : '—'}</td>
         <td>${iva ? iva.porcentaje + '%' : '—'}</td>
         <td>${a.activo !== false ? '<span class="badge bg-green">Sí</span>' : '<span class="badge bg-gray">No</span>'}</td>
         <td><div style="display:flex;gap:4px">
@@ -203,7 +203,7 @@ function nuevoArticulo() {
   document.getElementById('art_id').value = '';
   document.getElementById('mArtTit').textContent = 'Nuevo Artículo';
   document.getElementById('mArtSub').textContent = '';
-  setVal({ art_codigo: '', art_nombre: '', art_desc: '', art_coste: '0', art_venta: '0', art_ref_fab: '', art_barras: '', art_obs: '', art_stock_min: '0', art_margen: '' });
+  setVal({ art_codigo: '', art_nombre: '', art_desc: '', art_pvp: '0', art_dto: '0', art_coste: '0', art_ref_fab: '', art_barras: '', art_obs: '', art_stock_min: '0', art_margen: '' });
   setArtFamilia('');
   const defIva = tiposIva.find(i => i.por_defecto);
   setArtIva(defIva?.id || '');
@@ -246,20 +246,28 @@ function resetArtTabs() {
   document.querySelectorAll('.art-panel').forEach((p, i) => p.style.display = i === 0 ? '' : 'none');
 }
 
-// ─── CALCULAR MARGEN ───────────────────────────
-function calcularMargenArt() {
-  const coste = parseFloat(document.getElementById('art_coste').value) || 0;
-  const venta = parseFloat(document.getElementById('art_venta').value) || 0;
+// ─── CALCULAR PRECIOS: PVP - Dto% = Coste ─────
+function calcularPreciosArt() {
+  const pvp = parseFloat(document.getElementById('art_pvp').value) || 0;
+  const dto = parseFloat(document.getElementById('art_dto').value) || 0;
+  const coste = pvp * (1 - dto / 100);
+  document.getElementById('art_coste').value = coste.toFixed(2);
+
   const margenEl = document.getElementById('art_margen');
-  if (coste > 0) {
-    const pct = ((venta - coste) / coste * 100).toFixed(1);
+  if (coste > 0 && pvp > coste) {
+    const pct = ((pvp - coste) / coste * 100).toFixed(1);
     margenEl.value = pct + '%';
     margenEl.style.color = pct >= 30 ? 'var(--verde)' : pct >= 15 ? 'var(--amarillo)' : 'var(--rojo)';
+  } else if (dto > 0) {
+    margenEl.value = dto + '% dto';
+    margenEl.style.color = 'var(--azul)';
   } else {
     margenEl.value = '—';
     margenEl.style.color = 'var(--gris-400)';
   }
 }
+// Alias para compatibilidad
+function calcularMargenArt() { calcularPreciosArt(); }
 
 // ─── EDITAR (abrir ficha) ─────────────────────
 async function editArticulo(id) {
@@ -276,7 +284,7 @@ async function editArticulo(id) {
 
   setVal({
     art_codigo: a.codigo || '', art_nombre: a.nombre || '', art_desc: a.descripcion || '',
-    art_coste: a.precio_coste || 0, art_venta: a.precio_venta || 0,
+    art_pvp: a.precio_venta || 0, art_dto: a.descuento || 0, art_coste: a.precio_coste || 0,
     art_ref_fab: a.referencia_fabricante || '', art_barras: a.codigo_barras || '',
     art_obs: a.observaciones || '', art_stock_min: a.stock_minimo || 0
   });
@@ -320,10 +328,11 @@ function duplicarArticulo(id) {
   // Sobrescribir con datos del original
   setVal({
     art_nombre: a.nombre + ' (copia)', art_desc: a.descripcion || '',
-    art_coste: a.precio_coste || 0, art_venta: a.precio_venta || 0,
+    art_pvp: a.precio_venta || 0, art_dto: a.descuento || 0, art_coste: a.precio_coste || 0,
     art_ref_fab: a.referencia_fabricante || '', art_barras: '',
     art_obs: a.observaciones || '', art_stock_min: a.stock_minimo || 0
   });
+  calcularPreciosArt();
   setArtFamilia(a.familia_id);
   setArtIva(a.tipo_iva_id);
   setArtUnidad(a.unidad_venta_id);
@@ -346,8 +355,9 @@ async function saveArticulo() {
     familia_id: parseInt(document.getElementById('art_subfamilia').value) || parseInt(document.getElementById('art_familia').value) || null,
     tipo_iva_id: parseInt(document.getElementById('art_iva').value) || null,
     unidad_venta_id: parseInt(document.getElementById('art_unidad').value) || null,
+    precio_venta: parseFloat(v('art_pvp')) || 0,
+    descuento: parseFloat(v('art_dto')) || 0,
     precio_coste: parseFloat(v('art_coste')) || 0,
-    precio_venta: parseFloat(v('art_venta')) || 0,
     referencia_fabricante: v('art_ref_fab') || null,
     codigo_barras: v('art_barras') || null,
     stock_minimo: parseFloat(v('art_stock_min')) || 0,
@@ -796,9 +806,9 @@ function exportarArticulosExcel() {
       'Familia': famLabel,
       'Ref. fabricante': a.referencia_fabricante || '',
       'Código barras': a.codigo_barras || '',
+      'PVP': a.precio_venta || 0,
+      'Descuento %': a.descuento || 0,
       'Precio coste': a.precio_coste || 0,
-      'Precio venta': a.precio_venta || 0,
-      'Margen %': a.precio_coste > 0 ? (((a.precio_venta - a.precio_coste) / a.precio_coste) * 100).toFixed(1) : '',
       'IVA': iva ? iva.porcentaje + '%' : '',
       'Unidad': ud?.abreviatura || '',
       'Stock mínimo': a.stock_minimo || 0,
