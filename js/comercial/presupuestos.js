@@ -848,10 +848,27 @@ function imprimirPresupuesto(id) {
       </div>
     </div>
     ${p.observaciones?'<div class="obs-box"><div class="obs-title">Observaciones</div>'+p.observaciones.replace(/\n/g,'<br>')+'</div>':''}
-    <div class="validez-box">
+    ${p.estado==='aceptado'&&p.firma_fecha?(()=>{
+      const _fFecha = new Date(p.firma_fecha).toLocaleString('es-ES');
+      const _fDisp = p.firma_dispositivo||{};
+      return `<div style="margin:16px 0;page-break-inside:avoid">
+        <div style="display:flex;gap:24px;align-items:flex-start;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;background:#f8fafc">
+          <div style="flex:1">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:6px">✅ Presupuesto aceptado por el cliente</div>
+            <div style="font-size:11px;color:#334155;line-height:1.6">
+              <b>Firmado por:</b> ${p.firma_nombre||'—'}<br>
+              <b>Fecha:</b> ${_fFecha}<br>
+              <b>IP:</b> ${p.firma_ip||'—'}<br>
+              <b>Dispositivo:</b> ${_fDisp.tipo||'—'} — ${_fDisp.browser||'—'}
+            </div>
+          </div>
+          ${p.firma_url?'<div style="text-align:center"><div style="font-size:8px;color:#94a3b8;margin-bottom:4px">Firma del cliente</div><img src="'+p.firma_url+'" style="max-width:180px;max-height:80px;border:1px solid #e2e8f0;border-radius:4px;background:#fff"></div>':''}
+        </div>
+      </div>`;
+    })():`<div class="validez-box">
       Este presupuesto tiene una validez de ${p.fecha_validez?Math.max(0,Math.round((new Date(p.fecha_validez)-new Date(p.fecha))/(1000*60*60*24)))+' días':'—'} desde la fecha de emisión.
       Para aceptarlo, póngase en contacto con nosotros antes de la fecha de validez indicada.
-    </div>
+    </div>`}
     <div class="footer">
       <span>${EMPRESA?.nombre||''} ${EMPRESA?.cif?' · CIF: '+EMPRESA.cif:''}</span>
       <span>${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}${EMPRESA?.email?' · '+EMPRESA.email:''}</span>
@@ -1119,6 +1136,28 @@ function generarPdfPresupuesto(p) {
     const obsLines = doc.splitTextToSize(p.observaciones, W-ML-MR);
     doc.text(obsLines, ML, y);
     y += obsLines.length * 3.5 + 5;
+  }
+
+  // ─── FIRMA DEL CLIENTE ───
+  if (p.estado==='aceptado' && p.firma_fecha) {
+    if (y > H-60) { doc.addPage(); y = ML; }
+    y += 4;
+    doc.setDrawColor(...azul);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(ML, y, W-ML-MR, 28, 2, 2);
+    doc.setFontSize(8);
+    doc.setTextColor(...azul);
+    doc.setFont(undefined, 'bold');
+    doc.text('✅ PRESUPUESTO ACEPTADO POR EL CLIENTE', ML+4, y+5);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...negro);
+    const _fd = p.firma_dispositivo||{};
+    doc.text('Firmado por: '+(p.firma_nombre||'—'), ML+4, y+10);
+    doc.text('Fecha: '+new Date(p.firma_fecha).toLocaleString('es-ES'), ML+4, y+14);
+    doc.text('IP: '+(p.firma_ip||'—'), ML+4, y+18);
+    doc.text('Dispositivo: '+(_fd.tipo||'—')+' — '+(_fd.browser||'—'), ML+4, y+22);
+    y += 32;
   }
 
   // ─── PIE DE PÁGINA ───
