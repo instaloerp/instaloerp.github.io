@@ -341,10 +341,6 @@ async function abrirFichaObra(id) {
       ${totalFact>0 && costePartes>0 ? datoFichaObra('Margen', fmtE(totalFact-costePartes)) : ''}
     </div>`;
 
-  // Registro / Auditoría (panel izquierdo)
-  // KPI de registro
-  document.getElementById('ok-registro').textContent = auditData.length;
-
   // ── REGISTRO DE ACTIVIDAD (pestaña completa) ──
   const _isSuperadmin = CP?.rol === 'superadmin' || CP?.rol === 'admin';
   const _fmtAudit = (d) => new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -405,6 +401,9 @@ async function abrirFichaObra(id) {
   }));
   // Ordenar cronológicamente (más reciente primero)
   _timeline.sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+
+  // KPI de registro — total de eventos en el timeline
+  document.getElementById('ok-registro').textContent = _timeline.length;
 
   const registroHtml = _timeline.length ? _timeline.map(e => `
     <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-100);align-items:flex-start">
