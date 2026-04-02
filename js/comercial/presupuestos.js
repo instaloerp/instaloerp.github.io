@@ -98,6 +98,10 @@ function renderPresupuestos(list) {
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           ${(()=>{
+            // Borrador y caducado: no mostrar botones de conversión
+            if (p.estado === 'borrador') return '<span style="font-size:10px;color:var(--gris-400);font-style:italic">Borrador</span>';
+            if (p.estado === 'caducado') return '<button onclick="event.stopPropagation();reactivarPresupuesto('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #F59E0B;background:#FFFBEB;cursor:pointer;font-size:11px;font-weight:600;color:#92400E" title="Reactivar">🔄 Reactivar</button>';
+            if (p.estado === 'anulado') return '<span style="font-size:10px;color:var(--gris-400)">Anulado</span>';
             const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
             const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
             const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
@@ -107,9 +111,9 @@ function renderPresupuestos(list) {
             // Obra: badge verde si existe (clickable→ficha), botón si no existe y no facturado, oculto si facturado
             if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'">✅ Obra</a> '; }
             else if (!_tF) btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button> ';
-            // Albarán: badge verde si existe (clickable→preview), botón si no
+            // Albarán: badge verde si existe, botón si no existe Y no facturado
             if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
-            else btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
+            else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
             // Factura: badge verde si existe, botón si no
             if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
@@ -283,20 +287,25 @@ async function verDetallePresupuesto(id) {
     refDiv.style.display = refs ? 'flex' : 'none';
   }
 
-  // Mostrar/ocultar cada botón individualmente
+  // Mostrar/ocultar botones según estado y documentos existentes
+  const noConvertible = p.estado === 'borrador' || p.estado === 'caducado' || p.estado === 'anulado';
   const presFooterObra = document.getElementById('presDetFooterObra');
-  if (presFooterObra) presFooterObra.style.display = (tieneObra || tieneFactura) ? 'none' : 'block';
+  if (presFooterObra) presFooterObra.style.display = (noConvertible || tieneObra || tieneFactura) ? 'none' : 'block';
 
   const presFooterBtns = document.getElementById('presDetFooterBtns');
   if (presFooterBtns) {
-    // Buscar botones individuales dentro del div
-    const btnAlb = presFooterBtns.querySelector('[onclick*="presToAlbaran"]');
-    const btnFac = presFooterBtns.querySelector('[onclick*="presToFactura"]');
-    if (btnAlb) btnAlb.style.display = tieneAlbaran ? 'none' : '';
-    if (btnFac) btnFac.style.display = tieneFactura ? 'none' : '';
-    // Ocultar el contenedor si no queda ningún botón visible
-    const algunoVisible = (!tieneAlbaran || !tieneFactura);
-    presFooterBtns.style.display = algunoVisible ? 'flex' : 'none';
+    if (noConvertible) {
+      presFooterBtns.style.display = 'none';
+    } else {
+      const btnAlb = presFooterBtns.querySelector('[onclick*="presToAlbaran"]');
+      const btnFac = presFooterBtns.querySelector('[onclick*="presToFactura"]');
+      if (btnAlb) btnAlb.style.display = (tieneAlbaran || tieneFactura) ? 'none' : '';
+      if (btnFac) btnFac.style.display = tieneFactura ? 'none' : '';
+      // Ocultar contenedor si no queda ningún botón visible
+      const albVisible = !(tieneAlbaran || tieneFactura);
+      const facVisible = !tieneFactura;
+      presFooterBtns.style.display = (albVisible || facVisible) ? 'flex' : 'none';
+    }
   }
 
   openModal('mPresDetalle', true);
@@ -344,6 +353,10 @@ async function restaurarEstadoPres(id, nuevoEstado) {
   await loadPresupuestos();
   loadDashboard();
   cerrarEditor();
+}
+
+function reactivarPresupuesto(id) {
+  restaurarEstadoPres(id, 'pendiente');
 }
 
 async function eliminarDefinitivamente(id) {
@@ -436,6 +449,8 @@ async function presToFactura(id) {
   if (!confirm('¿Convertir el presupuesto '+p.numero+' en factura?')) return;
   const numero = await generarNumeroDoc('factura');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
+  // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
+  const _obraVinc = trabajos.find(t=>t.presupuesto_id===p.id);
   const { error } = await sb.from('facturas').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
@@ -444,6 +459,7 @@ async function presToFactura(id) {
     base_imponible: p.base_imponible, total_iva: p.total_iva, total: p.total,
     estado: 'pendiente', observaciones: p.observaciones, lineas: p.lineas,
     presupuesto_id: p.id,
+    ...(_obraVinc ? {trabajo_id: _obraVinc.id} : {}),
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
@@ -478,6 +494,8 @@ async function presToAlbaran(id) {
     desc:l.desc||'', cant:l.cant||1, precio:l.precio||0
   }));
   let total=0; lineas.forEach(l=>total+=l.cant*l.precio);
+  // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
+  const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id);
   const { error } = await sb.from('albaranes').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
@@ -486,6 +504,7 @@ async function presToAlbaran(id) {
     total: Math.round(total*100)/100,
     estado: 'pendiente', observaciones: p.observaciones, lineas,
     presupuesto_id: p.id,
+    ...(_obraVinc2 ? {trabajo_id: _obraVinc2.id} : {}),
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
@@ -524,7 +543,11 @@ async function presToObra(id) {
   await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
   const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; }
   registrarAudit('crear_obra', 'presupuesto', id, 'Obra creada desde '+p.numero);
-  renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
+  // Refrescar trabajos en memoria para que los badges se actualicen
+  const {data:tRefresh} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  if (typeof trabajos !== 'undefined') { trabajos.length = 0; (tRefresh||[]).forEach(t=>trabajos.push(t)); }
+  filtrarPresupuestos();
+  closeModal('mPresDetalle');
   toast('🏗️ Obra creada — presupuesto aceptado','success');
   loadDashboard();
 }

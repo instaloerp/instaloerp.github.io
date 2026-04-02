@@ -155,7 +155,7 @@ async function abrirFichaObra(id) {
     a.trabajo_id === id || (t.presupuesto_id && a.presupuesto_id === t.presupuesto_id)
   );
   const factData = (facts.data||[]).filter(f =>
-    f.trabajo_id === id || (t.presupuesto_id && f.presupuesto_id === t.presupuesto_id)
+    f.trabajo_id === id || (t.presupuesto_id && f.presupuesto_id === t.presupuesto_id) || albData.some(a => a.id === f.albaran_id)
   );
   const partesData = partes.data||[];
   const docsData = docs.data||[];
@@ -254,7 +254,7 @@ async function abrirFichaObra(id) {
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
     (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="obraFacturarTodosAlb()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px">🧾 Facturar ${albSinFacturar.length} albaranes juntos</button></div>` : '') +
     albData.map(a=>{
-      const tieneFac = factData.some(f=>f.albaran_id===a.id);
+      const tieneFac = factData.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && factData.some(f=>f.presupuesto_id===a.presupuesto_id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700';
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
@@ -959,6 +959,9 @@ async function obraPresToAlbaran(presId) {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  // Refrescar albaranes globales para que presupuestos detecte el nuevo
+  const {data:_albR} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.albaranesData = _albR||[]; if (typeof albaranesData!=='undefined') albaranesData = _albR||[];
   toast('📄 Albarán creado', 'success');
   abrirFichaObra(obraActualId);
 }
@@ -994,6 +997,11 @@ async function obraPresToFactura(presId) {
   for (const alb of _albsDelPres2) {
     await sb.from('albaranes').update({estado:'facturado'}).eq('id',alb.id);
   }
+  // Refrescar facturas y albaranes globales
+  const {data:_fR2} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.facturasData = _fR2||[];
+  const {data:_aR2} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.albaranesData = _aR2||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR2||[];
   toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
@@ -1022,6 +1030,11 @@ async function obraAlbToFactura(albId) {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', albId);
+  // Refrescar facturas y albaranes globales
+  const {data:_fR3} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.facturasData = _fR3||[];
+  const {data:_aR3} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.albaranesData = _aR3||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR3||[];
   toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
