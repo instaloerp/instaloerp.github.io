@@ -1166,11 +1166,12 @@ async function subirDocObra(input) {
   if (upErr) { toast('Error subiendo: '+upErr.message,'error'); return; }
   const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
   const url = urlData?.publicUrl || '';
-  await sb.from('documentos_trabajo').insert({
+  const { error: dbErr } = await sb.from('documentos_trabajo').insert({
     empresa_id: EMPRESA.id, trabajo_id: obraActualId,
-    nombre, tipo, url, path, tamaño: file.size,
+    nombre, tipo, url, path, tamanyo: file.size,
     creado_por: CU.id
   });
+  if (dbErr) { toast('Error guardando registro: '+dbErr.message,'error'); return; }
   input.value = '';
   document.getElementById('obraDocNombre').value = '';
   await abrirFichaObra(obraActualId);
