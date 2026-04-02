@@ -723,10 +723,17 @@ async function aprobarDirecto() {
 
 // Función interna: completar aprobación
 async function _completarAprobacion(presId, firmaUrl, detalle) {
+  const _userName = CP?.nombre || CU?.email || 'Operario';
   const updateData = {
     estado: 'aceptado',
     firma_fecha: new Date().toISOString(),
-    firma_nombre: CP?.nombre || CU?.email || 'Operario',
+    firma_nombre: _userName,
+    firma_dispositivo: {
+      aprobado_por: _userName,
+      email: CU?.email || '',
+      metodo: firmaUrl ? 'documento_subido' : 'aprobacion_directa',
+      fecha_local: new Date().toLocaleString('es-ES'),
+    },
   };
   if (firmaUrl) updateData.firma_url = firmaUrl;
 

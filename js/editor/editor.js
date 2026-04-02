@@ -477,9 +477,11 @@ function de_buscarArticulo(input, lineaIdx) {
   }, 120);
 }
 
+let _artSelecting = false; // Flag para evitar que onchange sobreescriba al seleccionar artículo
 function de_seleccionarArticulo(lineaIdx, artId) {
   const a = articulos.find(x=>x.id===artId);
   if (!a) return;
+  _artSelecting = true;
   deLineas[lineaIdx].desc = a.nombre || '';
   deLineas[lineaIdx].precio = a.precio_venta || 0;
   deLineas[lineaIdx].articulo_id = a.id;
@@ -490,8 +492,13 @@ function de_seleccionarArticulo(lineaIdx, artId) {
   }
   const drop = document.getElementById('acArticulos');
   if (drop) drop.style.display = 'none';
+  // Actualizar el input directamente ANTES de re-render para que onchange no lea el valor viejo
+  const inp = document.querySelector(`input[data-linea="${lineaIdx}"]`);
+  if (inp) inp.value = a.nombre || '';
   de_renderLineas();
+  de_autoguardar();
   toast(`📦 ${a.codigo} — ${a.nombre}`,'info');
+  setTimeout(() => { _artSelecting = false; }, 300);
 }
 
 function de_acKeydown(event, lineaIdx) {
@@ -532,6 +539,8 @@ document.addEventListener('click', (e) => {
 });
 
 function de_updateLinea(i,f,v) {
+  // Si se acaba de seleccionar un artículo, no dejar que onchange sobreescriba desc con el texto parcial
+  if (f === 'desc' && _artSelecting) return;
   deLineas[i][f] = (f==='desc'||f==='titulo') ? v : parseFloat(v)||0;
   de_renderLineas();
   de_autoguardar();
