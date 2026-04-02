@@ -2507,8 +2507,10 @@
         <div id="abDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
-        <button class="btn btn-secondary btn-sm" onclick="duplicarAlbaran(parseInt(document.getElementById('abDetId').value))">📋 Duplicar</button>
-        <button class="btn btn-primary btn-sm" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Crear factura</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirAlbaran(parseInt(document.getElementById('abDetId').value))" title="PDF">🖨️ PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarAlbaranEmail(parseInt(document.getElementById('abDetId').value))" title="Enviar">📧 Enviar</button>
+        <button class="btn btn-ghost btn-sm" onclick="editarAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Editar">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="delAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mAbDetalle')">✕</button>
     </div>
@@ -2549,6 +2551,8 @@
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mAbDetalle')">Cerrar</button>
+      <button class="btn btn-secondary" onclick="albaranToObra(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🏗️ Crear obra</button>
+      <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Crear factura</button>
     </div>
   </div>
 </div>
@@ -2566,7 +2570,7 @@
         <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir / PDF">🖨️ Imprimir</button>
         <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-ghost btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="duplicarPres(parseInt(document.getElementById('presDetId').value))" title="Duplicar">📋 Duplicar</button>
+        <button class="btn btn-ghost btn-sm" onclick="delPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Anular" style="color:var(--rojo)">🚫 Anular</button>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mPresDetalle')">✕</button>
     </div>

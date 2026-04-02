@@ -74,10 +74,9 @@ function renderAlbaranes(list) {
         </select>
       </td>
       <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap" onclick="event.stopPropagation()">
-          <button onclick="editarAlbaran(${a.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-700)" title="Editar">✏️ Editar</button>
-          ${a.exportado_bloqueado ? '<span style="padding:4px 8px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Facturado</span>' : `<button onclick="albaranToFactura(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Crear factura">🧾 Facturar</button>
-          <button onclick="delAlbaran(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#FEE2E2;cursor:pointer;font-size:11px;font-weight:600;color:#DC2626" title="Eliminar">✕</button>`}
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center" onclick="event.stopPropagation()">
+          ${a.exportado_bloqueado ? '<span style="padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Facturado</span>' : `<button onclick="albaranToObra(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button>
+          <button onclick="albaranToFactura(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Crear factura">🧾 Facturar</button>`}
         </div>
       </td>
     </tr>`;
@@ -308,4 +307,104 @@ async function facturarAlbaranesMulti() {
   renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
   toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');
   loadDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  ALBARÁN → OBRA
+// ═══════════════════════════════════════════════
+async function albaranToObra(id) {
+  const a = albaranesData.find(x=>x.id===id);
+  if (!a) return;
+  if (!confirm(`¿Crear obra desde el albarán ${a.numero}?`)) return;
+  const c = clientes.find(x=>x.id===a.cliente_id);
+  const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
+  const numObra = `TRB-${new Date().getFullYear()}-${String((trabajos||[]).length+1).padStart(3,'0')}`;
+  const { error } = await sb.from('trabajos').insert({
+    empresa_id: EMPRESA.id,
+    numero: numObra,
+    titulo: a.referencia || 'Obra desde '+a.numero,
+    cliente_id: a.cliente_id, cliente_nombre: c?.nombre||a.cliente_nombre||'',
+    estado: 'pendiente',
+    descripcion: a.observaciones||null,
+    direccion_obra_texto: dirParts||null,
+    operario_id: CU.id, operario_nombre: CP?.nombre||'',
+  });
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  toast('🏗️ Obra creada desde albarán','success');
+  if (typeof loadDashboard === 'function') loadDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  IMPRIMIR / PDF ALBARÁN
+// ═══════════════════════════════════════════════
+function imprimirAlbaran(id) {
+  const a = albaranesData.find(x=>x.id===id);
+  if (!a) { toast('Albarán no encontrado','error'); return; }
+  const c = clientes.find(x=>x.id===a.cliente_id);
+  const lineas = a.lineas||[];
+  let htmlLineas = '';
+  let total = 0;
+  lineas.forEach(l => {
+    const sub = (l.cant||1)*(l.precio||0);
+    total += sub;
+    htmlLineas += `<tr><td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||'—'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cant||0}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${(l.precio||0).toFixed(2)} €</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${sub.toFixed(2)} €</td></tr>`;
+  });
+  const dirEmpresa = [EMPRESA?.direccion, [EMPRESA?.cp, EMPRESA?.municipio].filter(Boolean).join(' '), EMPRESA?.provincia].filter(Boolean).join(', ');
+  const dirCliente = c ? [c.direccion_fiscal||c.direccion, [c.cp_fiscal||c.cp, c.municipio_fiscal||c.municipio].filter(Boolean).join(' '), c.provincia_fiscal||c.provincia].filter(Boolean).join(', ') : '';
+  const logoHtml = EMPRESA?.logo_url ? `<img src="${EMPRESA.logo_url}" style="width:50px;height:50px;object-fit:contain;border-radius:8px">` : `<div style="width:50px;height:50px;background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff">${(EMPRESA?.nombre||'E').substring(0,2).toUpperCase()}</div>`;
+  const win = window.open('','_blank','width=850,height=1000');
+  win.document.write(`<!DOCTYPE html><html><head><title>Albarán ${a.numero}</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm 14mm 18mm 14mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5;line-height:1.4}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}@media print{body{background:#fff}.page{padding:0;min-height:auto}}</style>
+  </head><body><div class="page">
+    <div style="display:flex;gap:24px;margin-bottom:16px;align-items:stretch">
+      <div style="flex:1"><div style="display:flex;align-items:flex-start;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div><div style="font-size:11px;color:#64748b">${EMPRESA?.razon_social||''}</div><div style="font-size:11px;color:#475569">${dirEmpresa}<br>CIF: ${EMPRESA?.cif||''} · Tel: ${EMPRESA?.telefono||''}</div></div></div></div>
+      <div style="flex:1"><div style="background:#f1f5f9;border-radius:8px;padding:12px 16px;border-left:4px solid #1e40af;height:100%"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1e40af;margin-bottom:4px">CLIENTE</div><div style="font-size:15px;font-weight:700;margin-bottom:3px">${a.cliente_nombre||'—'}</div><div style="font-size:11px;color:#475569">${dirCliente}${c?.nif?'<br>NIF: '+c.nif:''}</div></div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px">
+      <div style="font-size:11px;color:#1e40af;display:flex;align-items:baseline;gap:6px"><span style="font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:1px">ALBARÁN</span><span style="font-size:11px;font-weight:600;color:#475569">${a.numero||''}</span></div>
+      <div style="font-size:11px;color:#64748b">Fecha: <b style="color:#334155">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—'}</b></div>
+    </div>
+    ${a.referencia?`<div style="font-size:10.5px;color:#92400e;background:#fffbeb;border-left:3px solid #f59e0b;padding:6px 14px;border-radius:4px;margin-bottom:10px">Ref: ${a.referencia}</div>`:''}
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10.5px">
+      <thead><tr><th style="background:#1e40af;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#1e40af;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:right;width:70px">Cant.</th><th style="background:#1e40af;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:right;width:100px">Precio</th><th style="background:#1e40af;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:right;width:100px">Total</th></tr></thead>
+      <tbody>${htmlLineas}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end"><div style="width:220px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px"><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800"><span>TOTAL</span><span style="color:#1e40af">${(a.total||total).toFixed(2)} €</span></div></div></div>
+    ${a.observaciones?`<div style="margin-top:14px;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Observaciones</div><div style="font-size:11px;color:#475569">${a.observaciones}</div></div>`:''}
+    <div style="margin-top:30px;text-align:center;font-size:9px;color:#94a3b8">Recibí conforme: ___________________________ &nbsp;&nbsp;&nbsp; Fecha: ___/___/___</div>
+  </div></body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 300);
+}
+
+// ═══════════════════════════════════════════════
+//  ENVIAR ALBARÁN POR EMAIL
+// ═══════════════════════════════════════════════
+function enviarAlbaranEmail(id) {
+  const a = albaranesData.find(x=>x.id===id);
+  if (!a) { toast('Albarán no encontrado','error'); return; }
+  const c = clientes.find(x=>x.id===a.cliente_id);
+  const email = c?.email || '';
+  const asunto = encodeURIComponent(`Albarán ${a.numero||''} — ${EMPRESA?.nombre||''}`);
+  const totalFmt = (a.total||0).toFixed(2).replace('.',',') + ' €';
+  const fechaFmt = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—';
+  const cuerpo = encodeURIComponent(
+`Estimado/a ${a.cliente_nombre||'cliente'},
+
+Le adjuntamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
+
+Importe total: ${totalFmt}
+${a.referencia ? 'Referencia: '+a.referencia : ''}
+
+Quedamos a su disposición para cualquier consulta.
+
+Un saludo,
+${EMPRESA?.nombre||''}
+${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
+${EMPRESA?.email || ''}`);
+  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
+  toast('📧 Abriendo cliente de correo...','info');
 }
