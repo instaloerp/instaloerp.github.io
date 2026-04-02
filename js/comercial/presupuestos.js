@@ -344,25 +344,33 @@ async function verDetallePresupuesto(id) {
     refDiv.style.display = refs ? 'flex' : 'none';
   }
 
-  // Botón Aprobar: solo visible si está pendiente
+  // Botón Aprobar en cabecera: solo visible si está pendiente
   const btnAprobar = document.getElementById('presDetBtnAprobar');
   if (btnAprobar) btnAprobar.style.display = (p.estado === 'pendiente') ? '' : 'none';
 
+  // Botón Aprobar en footer: solo visible si está pendiente
+  const btnFooterAprobar = document.getElementById('presDetFooterAprobar');
+  if (btnFooterAprobar) btnFooterAprobar.style.display = (p.estado === 'pendiente') ? '' : 'none';
+
   // Mostrar/ocultar botones según estado y documentos existentes
+  const esPendiente = p.estado === 'pendiente';
   const noConvertible = p.estado === 'borrador' || p.estado === 'caducado' || p.estado === 'anulado';
+
+  // Crear obra: visible si pendiente o aceptado, y no tiene obra ni factura
   const presFooterObra = document.getElementById('presDetFooterObra');
   if (presFooterObra) presFooterObra.style.display = (noConvertible || tieneObra || tieneFactura) ? 'none' : 'block';
 
+  // Albaranar/Facturar: solo para aceptados (NO pendientes)
   const presFooterBtns = document.getElementById('presDetFooterBtns');
   if (presFooterBtns) {
-    if (noConvertible) {
+    if (noConvertible || esPendiente) {
+      // Pendiente o no convertible: ocultar Albaranar/Facturar
       presFooterBtns.style.display = 'none';
     } else {
       const btnAlb = presFooterBtns.querySelector('[onclick*="presToAlbaran"]');
       const btnFac = presFooterBtns.querySelector('[onclick*="presToFactura"]');
       if (btnAlb) btnAlb.style.display = (tieneAlbaran || tieneFactura) ? 'none' : '';
       if (btnFac) btnFac.style.display = tieneFactura ? 'none' : '';
-      // Ocultar contenedor si no queda ningún botón visible
       const albVisible = !(tieneAlbaran || tieneFactura);
       const facVisible = !tieneFactura;
       presFooterBtns.style.display = (albVisible || facVisible) ? 'flex' : 'none';
