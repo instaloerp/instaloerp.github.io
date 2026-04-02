@@ -1248,15 +1248,40 @@ async function saveTrabajo() {
   }
 
   const num=`TRB-${new Date().getFullYear()}-${String(trabajos.length+1).padStart(3,'0')}`;
-  const {error}=await sb.from('trabajos').insert({
+  const {data:insertData,error}=await sb.from('trabajos').insert({
     empresa_id:EMPRESA.id,numero:num,titulo,
     cliente_id:cliId,cliente_nombre:cli?.nombre||'',
     prioridad:v('tr_prio'),categoria:v('tr_cat'),
     fecha:v('tr_fecha'),hora:v('tr_hora'),
     direccion_obra_texto:v('tr_dir'),descripcion:v('tr_desc'),
     estado:'pendiente',operario_id:CU.id,operario_nombre:CP?.nombre||''
-  });
+  }).select();
   if(error){toast('Error: '+error.message,'error');return;}
+
+  // Subir documentos adjuntos si hay
+  const newTrabajoId = insertData?.[0]?.id;
+  if (newTrabajoId && trDocsFiles.length > 0) {
+    for (const file of trDocsFiles) {
+      const path = `${EMPRESA.id}/obras/${newTrabajoId}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await sb.storage.from('documentos').upload(path, file);
+      if (upErr) { toast('Error subiendo '+file.name+': '+upErr.message,'error'); continue; }
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
+      const url = urlData?.publicUrl || '';
+      const ext = file.name.split('.').pop().toLowerCase();
+      const tipo = ['jpg','jpeg','png','gif','bmp','webp'].includes(ext) ? 'foto'
+        : ['pdf'].includes(ext) ? 'otro'
+        : ['doc','docx'].includes(ext) ? 'contrato'
+        : ['xlsx','xls'].includes(ext) ? 'otro' : 'otro';
+      await sb.from('documentos_trabajo').insert({
+        empresa_id: EMPRESA.id, trabajo_id: newTrabajoId,
+        nombre: file.name, tipo, url, path, tamanyo: file.size,
+        creado_por: CU.id
+      });
+    }
+    trDocsFiles = [];
+    document.getElementById('tr_doc_list').innerHTML = '';
+  }
+
   closeModal('mTrabajo');
   const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   trabajos=data||[]; renderTrabajos(); loadDashboard();
