@@ -661,10 +661,11 @@
         </div>
         <!-- KPIs rápidos -->
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
-          <div class="sc kpi-filter" data-filtro="" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarPorKpi('')" title="Ver todos (excepto anulados)"><div class="si">📋</div><div class="sv" id="pk-total">—</div><div class="sl">Total</div></div>
           <div class="sc kpi-filter" data-filtro="pendiente" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="filtrarPorKpi('pendiente')" title="Ver solo pendientes"><div class="si">⏳</div><div class="sv" id="pk-pendientes">—</div><div class="sl">Pendientes</div></div>
-          <div class="sc kpi-filter" data-filtro="aceptado" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="filtrarPorKpi('aceptado')" title="Ver solo aceptados"><div class="si">✅</div><div class="sv" id="pk-aceptados">—</div><div class="sl">Aceptados</div></div>
           <div class="sc kpi-filter" data-filtro="caducado" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="filtrarPorKpi('caducado')" title="Ver solo caducados"><div class="si">⏰</div><div class="sv" id="pk-caducados">—</div><div class="sl">Caducados</div></div>
+          <div class="sc kpi-filter" data-filtro="borrador" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarPorKpi('borrador')" title="Ver solo borradores"><div class="si">📝</div><div class="sv" id="pk-borradores">—</div><div class="sl">Borradores</div></div>
+          <div class="sc kpi-filter" data-filtro="aceptado" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="filtrarPorKpi('aceptado')" title="Ver solo aceptados"><div class="si">✅</div><div class="sv" id="pk-aceptados">—</div><div class="sl">Aceptados</div></div>
+          <div class="sc kpi-filter" data-filtro="" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarPorKpi('')" title="Ver todos (excepto anulados)"><div class="si">📋</div><div class="sv" id="pk-total">—</div><div class="sl">Total</div></div>
           <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="pk-imp-pend">—</div><div class="sl">Importe pendiente</div></div>
           <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💶</div><div class="sv" id="pk-imp-acep">—</div><div class="sl">Importe aceptado</div></div>
         </div>

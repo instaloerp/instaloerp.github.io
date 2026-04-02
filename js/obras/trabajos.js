@@ -30,8 +30,9 @@ function filtrarTrabajos() {
     if (has && t.fecha && t.fecha > has) return false;
     return true;
   });
-  // Orden predeterminado: número de documento, más reciente primero
-  filtered.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
+  // Orden predeterminado: número de documento, más reciente primero (numérico)
+  const _numSort = (n) => { const m = (n||'').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
+  filtered.sort((a,b) => _numSort(b.numero) - _numSort(a.numero));
   renderTrabajos(filtered);
 }
 

@@ -111,8 +111,9 @@ function filtrarAlbaranes() {
     (!des || (a.fecha && a.fecha >= des)) &&
     (!has || (a.fecha && a.fecha <= has))
   );
-  // Orden predeterminado: número de documento, más reciente primero
-  abFiltrados.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
+  // Orden predeterminado: número de documento, más reciente primero (numérico)
+  const _numSort = (n) => { const m = (n||'').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
+  abFiltrados.sort((a,b) => _numSort(b.numero) - _numSort(a.numero));
   renderAlbaranes(abFiltrados);
 }
 

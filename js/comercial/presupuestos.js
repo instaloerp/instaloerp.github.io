@@ -26,7 +26,9 @@ async function loadPresupuestos() {
   const hEl = document.getElementById('presHasta');
   if (dEl && !dEl.value) dEl.value = y + '-01-01';
   if (hEl && !hEl.value) hEl.value = y + '-12-31';
-  filtrarPresupuestos();
+  // Activar "Pendientes" como filtro por defecto la primera vez
+  if (!_kpiFilterActivo) filtrarPorKpi('pendiente');
+  else filtrarPresupuestos();
 }
 
 function getEstadoPres(p) {
@@ -56,15 +58,18 @@ function renderPresupuestos(list) {
   const kPend     = document.getElementById('pk-pendientes');
   const kAcep     = document.getElementById('pk-aceptados');
   const kCad      = document.getElementById('pk-caducados');
+  const kBorr     = document.getElementById('pk-borradores');
   const kImpPend  = document.getElementById('pk-imp-pend');
   const kImpAcep  = document.getElementById('pk-imp-acep');
-  const activos = presupuestos.filter(p=>p.estado!=='anulado' && p.estado!=='caducado');
+  const noAnulados = presupuestos.filter(p=>p.estado!=='anulado');
   const pends = presupuestos.filter(p=>p.estado==='pendiente');
   const aceps = presupuestos.filter(p=>p.estado==='aceptado');
-  if (kTotal)   kTotal.textContent   = activos.length;
+  const borrs = presupuestos.filter(p=>p.estado==='borrador');
+  if (kTotal)   kTotal.textContent   = noAnulados.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kAcep)    kAcep.textContent    = aceps.length;
   if (kCad)     kCad.textContent     = presupuestos.filter(p=>p.estado==='caducado').length;
+  if (kBorr)    kBorr.textContent    = borrs.length;
   if (kImpPend) kImpPend.textContent = fmtE(pends.reduce((s,p)=>s+(p.total||0),0));
   if (kImpAcep) kImpAcep.textContent = fmtE(aceps.reduce((s,p)=>s+(p.total||0),0));
 
@@ -99,7 +104,7 @@ function renderPresupuestos(list) {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           ${(()=>{
             // Borrador y caducado: no mostrar botones de conversión
-            if (p.estado === 'borrador') return '<span style="font-size:10px;color:var(--gris-400);font-style:italic">Borrador</span>';
+            if (p.estado === 'borrador') return '';
             if (p.estado === 'caducado') return '<button onclick="event.stopPropagation();reactivarPresupuesto('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #F59E0B;background:#FFFBEB;cursor:pointer;font-size:11px;font-weight:600;color:#92400E" title="Reactivar">🔄 Reactivar</button>';
             if (p.estado === 'anulado') return '<span style="font-size:10px;color:var(--gris-400)">Anulado</span>';
             const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
@@ -159,14 +164,15 @@ function filtrarPresupuestos() {
     } else if (est) {
       if (p.estado !== est) return false;
     } else if (!hayBusqueda) {
-      if (p.estado === 'anulado' || p.estado === 'caducado') return false;
+      if (p.estado === 'anulado' || p.estado === 'caducado' || p.estado === 'borrador') return false;
     }
     return (!q || (p.numero||'').toLowerCase().includes(q) || (p.cliente_nombre||'').toLowerCase().includes(q) || (p.titulo||'').toLowerCase().includes(q)) &&
       (!des || (p.fecha && p.fecha >= des)) &&
       (!has || (p.fecha && p.fecha <= has));
   });
-  // Orden predeterminado: número de documento, más reciente primero
-  presFiltrados.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
+  // Orden predeterminado: número de documento, más reciente primero (numérico)
+  const _numSort = (n) => { const m = (n||'').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
+  presFiltrados.sort((a,b) => _numSort(b.numero) - _numSort(a.numero));
   renderPresupuestos(presFiltrados);
 }
 
