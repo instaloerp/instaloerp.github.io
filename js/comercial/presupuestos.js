@@ -20,14 +20,17 @@ async function loadPresupuestos() {
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false });
   presupuestos = data || [];
-  // Filtro por defecto: año en curso
-  const y = new Date().getFullYear();
+  // Filtro por defecto: último año (hoy - 1 año hasta hoy)
+  const _hoy = new Date();
+  const _hace1a = new Date(_hoy);
+  _hace1a.setFullYear(_hace1a.getFullYear() - 1);
+  const _fmtDate = d => d.toISOString().split('T')[0];
   const dEl = document.getElementById('presDesde');
   const hEl = document.getElementById('presHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
-  // Activar "Pendientes" como filtro por defecto la primera vez
-  if (!_kpiFilterActivo) filtrarPorKpi('pendiente');
+  if (dEl && !dEl.value) dEl.value = _fmtDate(_hace1a);
+  if (hEl && !hEl.value) hEl.value = _fmtDate(_hoy);
+  // Activar "Aceptados" como filtro por defecto la primera vez
+  if (!_kpiFilterActivo) filtrarPorKpi('aceptado');
   else filtrarPresupuestos();
 }
 
@@ -175,9 +178,11 @@ function filtrarPresupuestos() {
     } else if (!hayBusqueda) {
       if (p.estado === 'anulado' || p.estado === 'caducado' || p.estado === 'borrador') return false;
     }
+    // Si hay filtro KPI activo, ignorar rango de fechas para no ocultar resultados
+    const ignorarFechas = !!kpi;
     return (!q || (p.numero||'').toLowerCase().includes(q) || (p.cliente_nombre||'').toLowerCase().includes(q) || (p.titulo||'').toLowerCase().includes(q)) &&
-      (!des || (p.fecha && p.fecha >= des)) &&
-      (!has || (p.fecha && p.fecha <= has));
+      (ignorarFechas || !des || (p.fecha && p.fecha >= des)) &&
+      (ignorarFechas || !has || (p.fecha && p.fecha <= has));
   });
   // Orden predeterminado: número de documento, más reciente primero (numérico)
   const _numSort = (n) => { const m = (n||'').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
