@@ -30,11 +30,11 @@
       <p>Accede con tu cuenta</p>
     </div>
     <div id="loginErr" class="auth-err"></div>
-    <div class="auth-form">
-      <div class="auth-field"><label>Email</label><input id="lEmail" type="email" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="auth-field"><label>Contraseña</label><input id="lPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <button class="auth-btn" onclick="doLogin()">Entrar →</button>
-    </div>
+    <form class="auth-form" onsubmit="event.preventDefault();doLogin()" method="post" action="#">
+      <div class="auth-field"><label>Email</label><input id="lEmail" type="email" name="email" placeholder="tu@email.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="auth-field"><label>Contraseña</label><input id="lPass" type="password" name="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button type="submit" class="auth-btn">Entrar →</button>
+    </form>
     <div class="auth-link">
       <a onclick="showScreen('s-solicitar')" style="cursor:pointer">¿Quieres probar el ERP? Solicita acceso</a>
     </div>
@@ -2825,8 +2825,8 @@
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
 <script src="js/comercial/clientes.js"></script>
-<script src="js/comercial/presupuestos.js?v=4"></script>
-<script src="js/comercial/albaranes.js?v=4"></script>
+<script src="js/comercial/presupuestos.js?v=5"></script>
+<script src="js/comercial/albaranes.js?v=5"></script>
 <script src="js/comercial/facturas.js"></script>
 
 <!-- Compras -->

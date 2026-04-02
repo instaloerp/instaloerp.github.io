@@ -74,11 +74,10 @@ function renderAlbaranes(list) {
         </select>
       </td>
       <td>
-        <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="editarAlbaran(${a.id})" title="Editar">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="duplicarAlbaran(${a.id})" title="Duplicar">📋</button>
-          ${a.exportado_bloqueado ? '<span title="Exportado a '+a.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="albaranToFactura(${a.id})" title="Convertir a factura">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="delAlbaran(${a.id})" title="Eliminar">🗑️</button>`}
+        <div style="display:flex;gap:3px;flex-wrap:wrap" onclick="event.stopPropagation()">
+          <button onclick="editarAlbaran(${a.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-700)" title="Editar">✏️ Editar</button>
+          ${a.exportado_bloqueado ? '<span style="padding:4px 8px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Facturado</span>' : `<button onclick="albaranToFactura(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Crear factura">🧾 Facturar</button>
+          <button onclick="delAlbaran(${a.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#FEE2E2;cursor:pointer;font-size:11px;font-weight:600;color:#DC2626" title="Eliminar">✕</button>`}
         </div>
       </td>
     </tr>`;

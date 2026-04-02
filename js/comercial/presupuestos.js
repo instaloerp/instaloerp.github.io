@@ -96,14 +96,13 @@ function renderPresupuestos(list) {
         <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg}">${est.ico} ${est.label}</span>
       </td>
       <td onclick="event.stopPropagation()">
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="editarPresupuesto(${p.id})" title="Abrir">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(${p.id})" title="Imprimir / PDF">🖨️</button>
-          <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoEmail(${p.id})" title="Enviar por email">📧</button>
-          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="presToObra(${p.id})" title="Crear obra">🏗️</button>
-          <button class="btn btn-ghost btn-sm" onclick="presToAlbaran(${p.id})" title="Crear albarán">📄</button>
-          <button class="btn btn-ghost btn-sm" onclick="presToFactura(${p.id})" title="Crear factura">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="delPresupuesto(${p.id})" title="Anular">🚫</button>`}
+        <div style="display:flex;gap:3px;flex-wrap:wrap">
+          <button onclick="editarPresupuesto(${p.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-700)" title="Abrir">✏️ Editar</button>
+          <button onclick="imprimirPresupuesto(${p.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-700)" title="PDF">🖨️ PDF</button>
+          ${p.exportado_bloqueado ? '<span style="padding:4px 8px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 '+p.exportado_a+'</span>' : `<button onclick="presToObra(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button>
+          <button onclick="presToAlbaran(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Crear albarán">📄 Albarán</button>
+          <button onclick="presToFactura(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Crear factura">🧾 Factura</button>
+          <button onclick="delPresupuesto(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#FEE2E2;cursor:pointer;font-size:11px;font-weight:600;color:#DC2626" title="Anular">✕</button>`}
         </div>
       </td>
     </tr>`;
