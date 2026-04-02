@@ -480,7 +480,7 @@
               <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
             </div>
           </div>
-          <div class="card"><div class="tw"><table class="dt"><thead><tr><th data-sort="numero">Nº</th><th data-sort="titulo">Título</th><th data-sort="cliente">Cliente</th><th data-sort="fecha" data-sort-type="date">Fecha</th><th data-sort="estado">Estado</th><th data-sort="prioridad">Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
+          <div class="card"><div class="tw"><table class="dt"><thead><tr><th data-sort="numero">Nº</th><th data-sort="titulo">Título</th><th data-sort="cliente">Cliente</th><th data-sort="fecha" data-sort-type="date">Fecha</th><th data-sort="estado">Estado</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
         </div>
 
         <!-- Vista ficha obra -->
@@ -727,7 +727,7 @@
           </div>
         </div>
         <!-- KPIs rápidos -->
-        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:16px">
           <div class="sc kpi-filter" data-filtro="pendiente" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="filtrarPorKpi('pendiente')" title="Ver solo pendientes"><div class="si">⏳</div><div class="sv" id="pk-pendientes">—</div><div class="sl">Pendientes</div></div>
           <div class="sc kpi-filter" data-filtro="caducado" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="filtrarPorKpi('caducado')" title="Ver solo caducados"><div class="si">⏰</div><div class="sv" id="pk-caducados">—</div><div class="sl">Caducados</div></div>
           <div class="sc kpi-filter" data-filtro="borrador" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="filtrarPorKpi('borrador')" title="Ver solo borradores"><div class="si">📝</div><div class="sv" id="pk-borradores">—</div><div class="sl">Borradores</div></div>
@@ -2857,8 +2857,8 @@
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
 <script src="js/comercial/clientes.js"></script>
-<script src="js/comercial/presupuestos.js?v=11"></script>
-<script src="js/comercial/albaranes.js?v=11"></script>
+<script src="js/comercial/presupuestos.js?v=12"></script>
+<script src="js/comercial/albaranes.js?v=12"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
@@ -2876,7 +2876,7 @@
 <script src="js/almacen/traspasos.js"></script>
 
 <!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=7"></script>
+<script src="js/obras/trabajos.js?v=8"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
 <script src="js/obras/calendario.js?v=3"></script>

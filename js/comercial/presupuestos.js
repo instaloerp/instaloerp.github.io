@@ -135,17 +135,15 @@ function renderPresupuestos(list) {
 //  FILTRADO Y BÚSQUEDA
 // ═══════════════════════════════════════════════
 function filtrarPorKpi(estado) {
-  _kpiFilterActivo = estado;
+  // '' desde el botón Total → usar '_todos' interno para distinguirlo
+  _kpiFilterActivo = estado === '' ? '_todos' : estado;
   document.querySelectorAll('.kpi-filter').forEach(el => {
-    el.style.outline = el.dataset.filtro === estado ? '3px solid var(--azul)' : 'none';
+    const match = el.dataset.filtro === estado;
+    el.style.outline = match ? '3px solid var(--azul)' : 'none';
     el.style.outlineOffset = '2px';
   });
   const sel = document.getElementById('presEstado');
-  if (sel) {
-    if (estado === '') sel.value = '';
-    else if (estado === 'caducado') sel.value = 'caducado';
-    else sel.value = estado;
-  }
+  if (sel) sel.value = 'todos';
   filtrarPresupuestos();
 }
 
@@ -157,10 +155,13 @@ function filtrarPresupuestos() {
   const hayBusqueda = !!q;
   const kpi = _kpiFilterActivo;
   presFiltrados = presupuestos.filter(p => {
-    if (kpi) {
+    if (kpi === '_todos') {
+      // Total: mostrar TODO excepto anulados
+      if (p.estado === 'anulado') return false;
+    } else if (kpi) {
       if (p.estado !== kpi) return false;
     } else if (est === 'todos') {
-      // mostrar todo
+      // dropdown "todos"
     } else if (est) {
       if (p.estado !== est) return false;
     } else if (!hayBusqueda) {
@@ -541,13 +542,16 @@ async function presToObra(id) {
   if (!confirm('¿Crear obra desde el presupuesto '+p.numero+'?')) return;
   const c = clientes.find(x=>x.id===p.cliente_id);
   const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
-  const numObra = `TRB-${new Date().getFullYear()}-${String(trabajos.length+1).padStart(3,'0')}`;
+  const yr = new Date().getFullYear();
+  const maxNum = (trabajos||[]).reduce((mx, t) => { const m = (t.numero||'').match(/TRB-\d+-(\d+)/); return m ? Math.max(mx, parseInt(m[1])) : mx; }, 0);
+  const numObra = `TRB-${yr}-${String(maxNum+1).padStart(3,'0')}`;
   const { error } = await sb.from('trabajos').insert({
     empresa_id: EMPRESA.id,
     numero: numObra,
     titulo: p.titulo || 'Obra desde '+p.numero,
     cliente_id: p.cliente_id, cliente_nombre: c?.nombre||p.cliente_nombre||'',
     estado: 'pendiente',
+    fecha: new Date().toISOString().split('T')[0],
     presupuesto_id: p.id,
     descripcion: p.observaciones||null,
     direccion_obra_texto: dirParts||null,

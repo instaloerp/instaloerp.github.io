@@ -380,21 +380,47 @@ async function facturarAlbaranesMulti() {
 async function albaranToObra(id) {
   const a = albaranesData.find(x=>x.id===id);
   if (!a) return;
+  // Comprobar si ya tiene obra vinculada
+  if (a.trabajo_id && (typeof trabajos !== 'undefined') && trabajos.some(t=>t.id===a.trabajo_id)) {
+    toast('🔒 Este albarán ya tiene obra vinculada','error'); return;
+  }
   if (!confirm(`¿Crear obra desde el albarán ${a.numero}?`)) return;
   const c = clientes.find(x=>x.id===a.cliente_id);
   const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
-  const numObra = `TRB-${new Date().getFullYear()}-${String((trabajos||[]).length+1).padStart(3,'0')}`;
-  const { error } = await sb.from('trabajos').insert({
+  // Calcular número de obra correcto (max existente + 1)
+  const yr = new Date().getFullYear();
+  const maxNum = (trabajos||[]).reduce((mx, t) => {
+    const m = (t.numero||'').match(/TRB-\d+-(\d+)/);
+    return m ? Math.max(mx, parseInt(m[1])) : mx;
+  }, 0);
+  const numObra = `TRB-${yr}-${String(maxNum+1).padStart(3,'0')}`;
+  const { data: obraData, error } = await sb.from('trabajos').insert({
     empresa_id: EMPRESA.id,
     numero: numObra,
     titulo: a.referencia || 'Obra desde '+a.numero,
     cliente_id: a.cliente_id, cliente_nombre: c?.nombre||a.cliente_nombre||'',
     estado: 'pendiente',
+    fecha: new Date().toISOString().split('T')[0],
+    presupuesto_id: a.presupuesto_id || null,
     descripcion: a.observaciones||null,
     direccion_obra_texto: dirParts||null,
     operario_id: CU.id, operario_nombre: CP?.nombre||'',
-  });
+  }).select().single();
   if (error) { toast('Error: '+error.message,'error'); return; }
+  // Vincular albarán a la obra recién creada
+  if (obraData?.id) {
+    await sb.from('albaranes').update({ trabajo_id: obraData.id }).eq('id', id);
+    const ab = albaranesData.find(x=>x.id===id);
+    if (ab) ab.trabajo_id = obraData.id;
+    // Si el albarán tiene presupuesto, vincular también el presupuesto a la obra
+    if (a.presupuesto_id) {
+      await sb.from('presupuestos').update({ trabajo_id: obraData.id }).eq('id', a.presupuesto_id);
+    }
+  }
+  // Refrescar trabajos en memoria
+  const {data:tRefresh} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  if (typeof trabajos !== 'undefined') { trabajos.length = 0; (tRefresh||[]).forEach(t=>trabajos.push(t)); }
+  filtrarAlbaranes();
   toast('🏗️ Obra creada desde albarán','success');
   if (typeof loadDashboard === 'function') loadDashboard();
 }

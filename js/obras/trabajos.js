@@ -39,19 +39,18 @@ function filtrarTrabajos() {
 function renderTrabajos(list) {
   if (!list) list = trabajos;
   document.getElementById('trabTable').innerHTML = list.length ?
-    list.map(t=>`<tr style="cursor:pointer" onclick="abrirFichaObra(${t.id})">
+    list.map(t=>{
+      const _fDate = t.fecha || (t.created_at ? t.created_at.substring(0,10) : null);
+      const _fShow = _fDate ? new Date(_fDate).toLocaleDateString('es-ES') : '—';
+      return `<tr style="cursor:pointer" onclick="abrirFichaObra(${t.id})">
       <td style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${t.numero}</td>
       <td style="font-weight:700">${t.titulo}</td>
       <td>${t.cliente_nombre||'—'}</td>
-      <td style="font-size:11.5px">${t.fecha||'—'}</td>
+      <td style="font-size:11.5px">${_fShow}</td>
       <td>${estadoBadge(t.estado)}</td>
-      <td>${prioBadge(t.prioridad)}</td>
-      <td><div style="display:flex;gap:4px" onclick="event.stopPropagation()">
-        <button class="btn btn-ghost btn-sm" onclick="abrirFichaObra(${t.id})" title="Ver ficha">👁️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delTrabajo(${t.id})" title="Eliminar">🗑️</button>
-      </div></td>
-    </tr>`).join('') :
-    '<tr><td colspan="7"><div class="empty"><div class="ei">🏗️</div><h3>Sin obras</h3></div></td></tr>';
+    </tr>`;
+    }).join('') :
+    '<tr><td colspan="5"><div class="empty"><div class="ei">🏗️</div><h3>Sin obras</h3></div></td></tr>';
 }
 
 // ═══════════════════════════════════════════════
