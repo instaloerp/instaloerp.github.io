@@ -102,13 +102,17 @@ function renderPresupuestos(list) {
             const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
             const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
             const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
+            const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
             let btns = '';
-            if (_tO) btns += '<span style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700">🏗️ Obra</span> ';
-            else btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button> ';
-            if (_tA) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#059669;font-size:11px;font-weight:700">📄 Albarán</span> ';
-            else btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Albaranar">📄 Albaranar</button> ';
-            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:700">🧾 Factura</span>';
-            else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Facturar">🧾 Facturar</button>';
+            // Obra: badge verde si existe (clickable→ficha), botón si no existe y no facturado, oculto si facturado
+            if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'">✅ Obra</a> '; }
+            else if (!_tF) btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button> ';
+            // Albarán: badge verde si existe (clickable→preview), botón si no
+            if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
+            else btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
+            // Factura: badge verde si existe, botón si no
+            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
+            else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
             return btns;
           })()}
         </div>
@@ -247,26 +251,26 @@ function verDetallePresupuesto(id) {
   const _albsFromPres = (window.albaranesData||[]).filter(a => a.presupuesto_id === p.id);
   const tieneFactura = (window.facturasData||[]).some(f => f.presupuesto_id === p.id) || _albsFromPres.some(a => (window.facturasData||[]).some(f => f.albaran_id === a.id));
 
-  // Badges de referencia (mostrar qué documentos ya existen)
+  // Badges de referencia — estilo verde unificado, clickables
   const refDiv = document.getElementById('presDetRefs');
   if (refDiv) {
     let refs = '';
+    const _refStyle = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
     if (tieneObra) {
       const obra = trabajos.find(t => t.presupuesto_id === p.id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('trabajos');abrirFichaObra(${obra.id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🏗️ Obra ${obra.numero||''}</a> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('trabajos');abrirFichaObra(${obra.id})" style="${_refStyle}">✅ Obra ${obra.numero||''}</a> `;
     }
     if (tieneAlbaran) {
       const alb = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">📄 Albarán ${alb.numero||''}</a> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="${_refStyle}">✅ Albarán ${alb.numero||''}</a> `;
     }
     if (tieneFactura) {
-      // Buscar factura directa o indirecta (vía albarán)
       let fac = (window.facturasData||[]).find(f => f.presupuesto_id === p.id);
       if (!fac) {
         const albP = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
         if (albP) fac = (window.facturasData||[]).find(f => f.albaran_id === albP.id);
       }
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🧾 Factura ${fac?.numero||''}</a> `;
+      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
@@ -274,7 +278,7 @@ function verDetallePresupuesto(id) {
 
   // Mostrar/ocultar cada botón individualmente
   const presFooterObra = document.getElementById('presDetFooterObra');
-  if (presFooterObra) presFooterObra.style.display = tieneObra ? 'none' : 'block';
+  if (presFooterObra) presFooterObra.style.display = (tieneObra || tieneFactura) ? 'none' : 'block';
 
   const presFooterBtns = document.getElementById('presDetFooterBtns');
   if (presFooterBtns) {

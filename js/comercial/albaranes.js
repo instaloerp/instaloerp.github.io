@@ -78,12 +78,19 @@ function renderAlbaranes(list) {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center" onclick="event.stopPropagation()">
           ${(()=>{
             const _tO = !!a.trabajo_id;
-            const _tF = (window.facturasData||window.facturas||[]).some(f=>f.albaran_id===a.id);
+            const _tF = (window.facturasData||[]).some(f=>f.albaran_id===a.id);
+            const _tP = !!a.presupuesto_id;
+            const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
+            const _bBtn = 'padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151';
             let btns = '';
-            if (_tO) btns += '<span style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700">🏗️ Obra</span> ';
-            else btns += '<button onclick="albaranToObra('+a.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button> ';
-            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:700">🧾 Facturado</span>';
-            else btns += '<button onclick="albaranToFactura('+a.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Facturar">🧾 Facturar</button>';
+            // Presupuesto origen: badge verde clickable si viene de un presupuesto
+            if (_tP) btns += '<a onclick="event.stopPropagation();verDetallePresupuesto('+a.presupuesto_id+')" style="'+_bOK+'">✅ Presupuesto</a> ';
+            // Obra: badge verde si existe, botón si no y no facturado, oculto si facturado
+            if (_tO) { btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+a.trabajo_id+')" style="'+_bOK+'">✅ Obra</a> '; }
+            else if (!_tF) btns += '<button onclick="albaranToObra('+a.id+')" style="'+_bBtn+'" title="Crear obra">🏗️ Crear obra</button> ';
+            // Factura: badge verde si existe, botón si no
+            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Facturado</span>';
+            else btns += '<button onclick="albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾 Facturar</button>';
             return btns;
           })()}
         </div>
@@ -222,21 +229,22 @@ function verDetalleAlbaran(id) {
   const tieneObra    = !!a.trabajo_id || trabajos.some(t => t.presupuesto_id && (window.albaranesData||[]).some(ab => ab.id === a.id && ab.presupuesto_id === t.presupuesto_id));
   const tieneFactura = (window.facturasData||window.facturas||[]).some(f => f.albaran_id === a.id);
 
-  // Badges de referencia (navegación a documentos vinculados)
+  // Badges de referencia (navegación a documentos vinculados) — estilo verde unificado
   const refDiv = document.getElementById('abDetRefs');
   if (refDiv) {
     let refs = '';
+    const _refStyle = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
     if (a.presupuesto_id) {
       const pres = presupuestos.find(x=>x.id===a.presupuesto_id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');verDetallePresupuesto(${a.presupuesto_id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">📋 Presupuesto ${pres?.numero||''}</a> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');verDetallePresupuesto(${a.presupuesto_id})" style="${_refStyle}">✅ Presupuesto ${pres?.numero||''}</a> `;
     }
     if (a.trabajo_id) {
       const obra = trabajos.find(t=>t.id===a.trabajo_id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('trabajos');abrirFichaObra(${a.trabajo_id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🏗️ Obra ${obra?.numero||''}</a> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('trabajos');abrirFichaObra(${a.trabajo_id})" style="${_refStyle}">✅ Obra ${obra?.numero||''}</a> `;
     }
     if (tieneFactura) {
-      const fac = (window.facturasData||window.facturas||[]).find(f => f.albaran_id === a.id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🧾 Factura ${fac?.numero||''}</a> `;
+      const fac = (window.facturasData||[]).find(f => f.albaran_id === a.id);
+      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
@@ -244,7 +252,7 @@ function verDetalleAlbaran(id) {
 
   // Mostrar/ocultar cada botón según si ya existe el documento
   const abFooterObra = document.getElementById('abDetFooterObra');
-  if (abFooterObra) abFooterObra.style.display = (a.trabajo_id || tieneObra) ? 'none' : 'block';
+  if (abFooterObra) abFooterObra.style.display = (a.trabajo_id || tieneObra || tieneFactura) ? 'none' : 'block';
 
   const abFooterBtns = document.getElementById('abDetFooterBtns');
   if (abFooterBtns) {
