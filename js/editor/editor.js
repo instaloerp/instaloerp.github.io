@@ -1549,50 +1549,8 @@ function cambiarEstadoPresMenu(event, id) {
 }
 
 // ═══ VER DETALLE PRESUPUESTO ═══
-function verDetallePresupuesto(id) {
-  const p = presupuestos.find(x=>x.id===id);
-  if (!p) return;
-  document.getElementById('presDetId').value = id;
-  document.getElementById('presDetNro').textContent = p.numero||'—';
-  document.getElementById('presDetCli').textContent = p.cliente_nombre||'—';
-  document.getElementById('presDetFecha').textContent = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
-  document.getElementById('presDetValido').textContent = p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—';
-  document.getElementById('presDetTitulo').textContent = p.titulo||'—';
-  document.getElementById('presDetTotal').textContent = fmtE(p.total||0);
-
-  // Líneas
-  const lineas = p.lineas || [];
-  let base=0, ivaTotal=0;
-  document.getElementById('presDetLineas').innerHTML = lineas.map(l => {
-    if (l.tipo==='capitulo') {
-      return `<tr style="background:var(--azul-light);border-top:2px solid var(--azul)">
-        <td colspan="6" style="padding:8px 10px;font-weight:700;font-size:13px;color:var(--azul)">📁 ${l.titulo||''}</td>
-      </tr>`;
-    }
-    const sub = (l.cant||0)*(l.precio||0)*(1-((l.dto||0)/100));
-    const iv = sub*((l.iva||0)/100);
-    base+=sub; ivaTotal+=iv;
-    return `<tr style="border-top:1px solid var(--gris-100)">
-      <td style="padding:8px 10px;font-size:13px">${l.desc||'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.cant||0}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${fmtE(l.precio||0)}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.dto?l.dto+'%':'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.iva!=null?l.iva+'%':'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(sub+iv)}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('presDetBase').textContent = fmtE(p.base_imponible||base);
-  document.getElementById('presDetIva').textContent = fmtE(p.total_iva||ivaTotal);
-  document.getElementById('presDetTotal2').textContent = fmtE(p.total||0);
-
-  // Observaciones
-  const obs = document.getElementById('presDetObs');
-  const obsWrap = document.getElementById('presDetObsWrap');
-  if (p.observaciones) { obs.textContent = p.observaciones; obsWrap.style.display='block'; }
-  else { obsWrap.style.display='none'; }
-
-  openModal('mPresDetalle', true);
-}
+// NOTA: Esta función está definida en presupuestos.js con lógica async de badges y botones inteligentes.
+// No duplicar aquí para evitar sobreescritura.
 
 // ═══ EDITAR PRESUPUESTO ═══
 async function editarPresupuesto(id) {
