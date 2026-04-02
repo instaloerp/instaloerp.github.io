@@ -703,6 +703,33 @@ async function _completarAprobacion(presId, firmaUrl, detalle) {
 // ═══════════════════════════════════════════════
 //  IMPRESIÓN Y EMAIL
 // ═══════════════════════════════════════════════
+function _buildFirmaHtml(p) {
+  if (p.estado === 'aceptado' && p.firma_fecha) {
+    var _fFecha = new Date(p.firma_fecha).toLocaleString('es-ES');
+    var _fDisp = p.firma_dispositivo || {};
+    var html = '<div style="margin:16px 0;page-break-inside:avoid">';
+    html += '<div style="display:flex;gap:24px;align-items:flex-start;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;background:#f8fafc">';
+    html += '<div style="flex:1">';
+    html += '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:6px">✅ Presupuesto aceptado por el cliente</div>';
+    html += '<div style="font-size:11px;color:#334155;line-height:1.6">';
+    html += '<b>Firmado por:</b> ' + (p.firma_nombre || '—') + '<br>';
+    if (_fDisp.dni) html += '<b>DNI/NIF:</b> ' + _fDisp.dni + '<br>';
+    html += '<b>Fecha:</b> ' + _fFecha + '<br>';
+    html += '<b>IP:</b> ' + (p.firma_ip || '—') + '<br>';
+    if (_fDisp.ubicacion && _fDisp.ubicacion !== 'No disponible') html += '<b>Ubicación:</b> ' + _fDisp.ubicacion + '<br>';
+    html += '<b>Dispositivo:</b> ' + (_fDisp.tipo || '—') + ' — ' + (_fDisp.browser || '—');
+    html += '</div></div>';
+    if (p.firma_url) {
+      html += '<div style="text-align:center"><div style="font-size:8px;color:#94a3b8;margin-bottom:4px">Firma del cliente</div>';
+      html += '<img src="' + p.firma_url + '" style="max-width:180px;max-height:80px;border:1px solid #e2e8f0;border-radius:4px;background:#fff"></div>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+  var dias = p.fecha_validez ? Math.max(0, Math.round((new Date(p.fecha_validez) - new Date(p.fecha)) / (1000*60*60*24))) + ' días' : '—';
+  return '<div class="validez-box">Este presupuesto tiene una validez de ' + dias + ' desde la fecha de emisión. Para aceptarlo, póngase en contacto con nosotros antes de la fecha de validez indicada.</div>';
+}
+
 function imprimirPresupuesto(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) { toast('Presupuesto no encontrado','error'); return; }
@@ -849,29 +876,7 @@ function imprimirPresupuesto(id) {
       </div>
     </div>
     ${p.observaciones?'<div class="obs-box"><div class="obs-title">Observaciones</div>'+p.observaciones.replace(/\n/g,'<br>')+'</div>':''}
-    ${p.estado==='aceptado'&&p.firma_fecha?(()=>{
-      const _fFecha = new Date(p.firma_fecha).toLocaleString('es-ES');
-      const _fDisp = p.firma_dispositivo||{};
-      return `<div style="margin:16px 0;page-break-inside:avoid">
-        <div style="display:flex;gap:24px;align-items:flex-start;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;background:#f8fafc">
-          <div style="flex:1">
-            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:6px">✅ Presupuesto aceptado por el cliente</div>
-            <div style="font-size:11px;color:#334155;line-height:1.6">
-              <b>Firmado por:</b> ${p.firma_nombre||'—'}<br>
-              ${_fDisp.dni?'<b>DNI/NIF:</b> '+_fDisp.dni+'<br>':''}
-              <b>Fecha:</b> ${_fFecha}<br>
-              <b>IP:</b> ${p.firma_ip||'—'}<br>
-              ${_fDisp.ubicacion&&_fDisp.ubicacion!=='No disponible'?'<b>Ubicación:</b> '+_fDisp.ubicacion+'<br>':''}
-              <b>Dispositivo:</b> ${_fDisp.tipo||'—'} — ${_fDisp.browser||'—'}
-            </div>
-          </div>
-          ${p.firma_url?'<div style="text-align:center"><div style="font-size:8px;color:#94a3b8;margin-bottom:4px">Firma del cliente</div><img src="'+p.firma_url+'" style="max-width:180px;max-height:80px;border:1px solid #e2e8f0;border-radius:4px;background:#fff"></div>':''}
-        </div>
-      </div>`;
-    })():`<div class="validez-box">
-      Este presupuesto tiene una validez de ${p.fecha_validez?Math.max(0,Math.round((new Date(p.fecha_validez)-new Date(p.fecha))/(1000*60*60*24)))+' días':'—'} desde la fecha de emisión.
-      Para aceptarlo, póngase en contacto con nosotros antes de la fecha de validez indicada.
-    </div>`}
+    `+_buildFirmaHtml(p)+`
     <div class="footer">
       <span>${EMPRESA?.nombre||''} ${EMPRESA?.cif?' · CIF: '+EMPRESA.cif:''}</span>
       <span>${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}${EMPRESA?.email?' · '+EMPRESA.email:''}</span>
