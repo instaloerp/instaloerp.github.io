@@ -229,6 +229,23 @@ function verDetallePresupuesto(id) {
   if (p.observaciones) { obs.textContent = p.observaciones; obsWrap.style.display='block'; }
   else { obsWrap.style.display='none'; }
 
+  // Referencias cruzadas
+  const refDiv = document.getElementById('presDetRefs');
+  if (refDiv) {
+    let refs = '';
+    if (p.exportado_bloqueado && p.exportado_a) {
+      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Exportado a ${p.exportado_a}</span> `;
+    }
+    refDiv.innerHTML = refs;
+    refDiv.style.display = refs ? 'flex' : 'none';
+  }
+
+  // Ocultar/mostrar botones de conversión según bloqueo
+  const presFooterBtns = document.getElementById('presDetFooterBtns');
+  if (presFooterBtns) {
+    presFooterBtns.style.display = p.exportado_bloqueado ? 'none' : 'flex';
+  }
+
   openModal('mPresDetalle', true);
 }
 

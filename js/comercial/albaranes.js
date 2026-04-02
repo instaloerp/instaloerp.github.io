@@ -204,6 +204,30 @@ function verDetalleAlbaran(id) {
   } else {
     obsWrap.style.display = 'none';
   }
+  // Referencias cruzadas
+  const refDiv = document.getElementById('abDetRefs');
+  if (refDiv) {
+    let refs = '';
+    if (a.presupuesto_id) {
+      const pres = presupuestos.find(x=>x.id===a.presupuesto_id);
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');verDetallePresupuesto(${a.presupuesto_id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">📋 Presupuesto ${pres?.numero||'#'+a.presupuesto_id}</a> `;
+    }
+    if (a.trabajo_id) {
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');abrirFichaObra(${a.trabajo_id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🏗️ Obra #${a.trabajo_id}</a> `;
+    }
+    if (a.exportado_bloqueado && a.exportado_a) {
+      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Exportado a ${a.exportado_a}</span>`;
+    }
+    refDiv.innerHTML = refs;
+    refDiv.style.display = refs ? 'flex' : 'none';
+  }
+
+  // Ocultar/mostrar botones de conversión según bloqueo
+  const abFooterBtns = document.getElementById('abDetFooterBtns');
+  if (abFooterBtns) {
+    abFooterBtns.style.display = a.exportado_bloqueado ? 'none' : 'flex';
+  }
+
   openModal('mAbDetalle', true);
 }
 
@@ -407,4 +431,82 @@ ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
 ${EMPRESA?.email || ''}`);
   window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
   toast('📧 Abriendo cliente de correo...','info');
+}
+
+// ═══════════════════════════════════════════════
+//  GENERAR PDF ALBARÁN (jsPDF)
+// ═══════════════════════════════════════════════
+function generarPdfAlbaran(idOrObj) {
+  const a = typeof idOrObj==='object' ? idOrObj : albaranesData.find(x=>x.id===idOrObj);
+  if (!a) { toast('Albarán no encontrado','error'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p','mm','a4');
+  const W=210, ML=15, MR=15, H=297;
+  const azul=[27,79,216], gris=[100,116,139], negro=[30,41,59];
+  let y=15;
+  // Cabecera empresa
+  doc.setFontSize(18); doc.setTextColor(...azul); doc.setFont(undefined,'bold');
+  doc.text(EMPRESA?.nombre||'Mi Empresa', ML, y+6);
+  doc.setFontSize(8.5); doc.setTextColor(...gris); doc.setFont(undefined,'normal');
+  const empInfo=[];
+  if(EMPRESA?.cif) empInfo.push('CIF: '+EMPRESA.cif);
+  if(EMPRESA?.direccion) empInfo.push(EMPRESA.direccion);
+  const empLoc=[EMPRESA?.cp,EMPRESA?.municipio,EMPRESA?.provincia].filter(Boolean).join(', ');
+  if(empLoc) empInfo.push(empLoc);
+  if(EMPRESA?.telefono) empInfo.push('Tel: '+EMPRESA.telefono);
+  if(EMPRESA?.email) empInfo.push(EMPRESA.email);
+  empInfo.forEach((t,i)=>doc.text(t,ML,y+12+i*3.5));
+  // Título documento
+  doc.setFontSize(22); doc.setTextColor(...azul); doc.setFont(undefined,'bold');
+  doc.text('ALBARÁN', W-MR, y+6, {align:'right'});
+  doc.setFontSize(11); doc.setTextColor(...negro);
+  doc.text(a.numero||'—', W-MR, y+13, {align:'right'});
+  y+=12+empInfo.length*3.5+8;
+  // Línea separadora
+  doc.setDrawColor(...azul); doc.setLineWidth(0.8); doc.line(ML,y,W-MR,y); y+=8;
+  // Datos cliente
+  const cli = clientes.find(x=>x.id===a.cliente_id);
+  doc.setFontSize(8); doc.setTextColor(...gris); doc.text('CLIENTE',ML,y);
+  doc.setFontSize(12); doc.setTextColor(...negro); doc.setFont(undefined,'bold');
+  doc.text(a.cliente_nombre||'—',ML,y+5.5);
+  doc.setFont(undefined,'normal'); doc.setFontSize(9); doc.setTextColor(...gris);
+  let cy=y+10;
+  if(cli?.nif){doc.text('NIF: '+cli.nif,ML,cy);cy+=3.8;}
+  if(cli?.direccion){doc.text(cli.direccion,ML,cy);cy+=3.8;}
+  const cliLoc=[cli?.cp,cli?.municipio,cli?.provincia].filter(Boolean).join(', ');
+  if(cliLoc){doc.text(cliLoc,ML,cy);cy+=3.8;}
+  // Datos albarán (derecha)
+  const rx=130;
+  const datosA=[['Fecha',a.fecha?new Date(a.fecha).toLocaleDateString('es-ES'):'—']];
+  if(a.referencia) datosA.push(['Referencia',a.referencia]);
+  datosA.forEach(([k,v],i)=>{
+    doc.setFontSize(8);doc.setTextColor(...gris);doc.text(k,rx,y+i*8);
+    doc.setFontSize(10);doc.setTextColor(...negro);doc.setFont(undefined,'bold');
+    doc.text(v,rx,y+4+i*8);doc.setFont(undefined,'normal');
+  });
+  y=Math.max(cy,y+datosA.length*8)+8;
+  // Tabla líneas
+  const lineas=a.lineas||[];
+  const tableBody=lineas.map(l=>{
+    const sub=(l.cant||0)*(l.precio||0);
+    return [l.desc||'',{content:String(l.cant||0),styles:{halign:'right'}},{content:fmtE(l.precio||0),styles:{halign:'right'}},{content:fmtE(sub),styles:{halign:'right',fontStyle:'bold'}}];
+  });
+  doc.autoTable({startY:y,margin:{left:ML,right:MR},head:[['Descripción','Cant.','Precio','Total']],body:tableBody,headStyles:{fillColor:azul,textColor:[255,255,255],fontSize:8.5,fontStyle:'bold',cellPadding:3},bodyStyles:{fontSize:8.5,textColor:negro,cellPadding:2.5},alternateRowStyles:{fillColor:[248,250,252]},columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:20,halign:'right'},2:{cellWidth:28,halign:'right'},3:{cellWidth:30,halign:'right'}},theme:'grid',styles:{lineColor:[226,232,240],lineWidth:0.3}});
+  y=doc.lastAutoTable.finalY+8;
+  // Total
+  const totX=130;
+  doc.setDrawColor(...azul);doc.setLineWidth(0.5);doc.line(totX,y,W-MR,y);y+=5;
+  doc.setFontSize(13);doc.setTextColor(...azul);doc.setFont(undefined,'bold');
+  doc.text('TOTAL',totX,y); doc.text(fmtE(a.total||0),W-MR,y,{align:'right'});
+  doc.setFont(undefined,'normal');y+=10;
+  // Observaciones
+  if(a.observaciones){doc.setFontSize(8);doc.setTextColor(...gris);doc.text('OBSERVACIONES',ML,y);y+=4;doc.setFontSize(8.5);doc.setTextColor(...negro);const ol=doc.splitTextToSize(a.observaciones,W-ML-MR);doc.text(ol,ML,y);y+=ol.length*3.5+5;}
+  // Firma
+  doc.setFontSize(8);doc.setTextColor(...gris);
+  doc.text('Recibí conforme: ____________________________     Fecha: ___/___/___',ML,y+10);
+  // Pie
+  const footY=H-12;doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);doc.line(ML,footY-4,W-MR,footY-4);
+  doc.text(EMPRESA?.nombre||'',ML,footY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,footY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,footY);
+  doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
+  toast('📄 PDF albarán descargado ✓','success');
 }

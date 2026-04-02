@@ -2507,8 +2507,9 @@
         <div id="abDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirAlbaran(parseInt(document.getElementById('abDetId').value))" title="PDF">🖨️ PDF</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarAlbaranEmail(parseInt(document.getElementById('abDetId').value))" title="Enviar">📧 Enviar</button>
+        <button class="btn btn-ghost btn-sm" onclick="generarPdfAlbaran(parseInt(document.getElementById('abDetId').value))" title="Descargar PDF">📥 PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirAlbaran(parseInt(document.getElementById('abDetId').value))" title="Imprimir">🖨️ Imprimir</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarAlbaranEmail(parseInt(document.getElementById('abDetId').value))" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-ghost btn-sm" onclick="editarAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Editar">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="delAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
       </div>
@@ -2548,11 +2549,14 @@
         <span style="font-size:11px;color:var(--gris-400)">Observaciones</span>
         <div id="abDetObs" style="font-size:13px;color:var(--gris-600);margin-top:4px;padding:8px 10px;background:var(--gris-50);border-radius:8px"></div>
       </div>
+      <div id="abDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mAbDetalle')">Cerrar</button>
-      <button class="btn btn-secondary" onclick="albaranToObra(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🏗️ Crear obra</button>
-      <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Crear factura</button>
+      <div id="abDetFooterBtns" style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="albaranToObra(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🏗️ Crear obra</button>
+        <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Crear factura</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2567,7 +2571,8 @@
         <div id="presDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir / PDF">🖨️ Imprimir</button>
+        <button class="btn btn-ghost btn-sm" onclick="generarPdfPresupuesto(presupuestos.find(x=>x.id===parseInt(document.getElementById('presDetId').value)))" title="Descargar PDF">📥 PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-ghost btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="delPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Anular" style="color:var(--rojo)">🚫 Anular</button>
@@ -2623,12 +2628,15 @@
         <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;margin-bottom:4px">Observaciones</div>
         <div id="presDetObs" style="font-size:13px;color:var(--gris-600)">—</div>
       </div>
+      <div id="presDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mPresDetalle')">Cerrar</button>
-      <button class="btn btn-secondary" onclick="presToAlbaran(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">📄 Crear albarán</button>
-      <button class="btn btn-secondary" onclick="presToObra(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🏗️ Crear obra</button>
-      <button class="btn btn-primary" onclick="presToFactura(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🧾 Crear factura</button>
+      <div id="presDetFooterBtns" style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="presToAlbaran(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">📄 Crear albarán</button>
+        <button class="btn btn-secondary" onclick="presToObra(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🏗️ Crear obra</button>
+        <button class="btn btn-primary" onclick="presToFactura(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🧾 Crear factura</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2647,17 +2655,17 @@
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
 <script src="js/comercial/clientes.js"></script>
-<script src="js/comercial/presupuestos.js?v=5"></script>
-<script src="js/comercial/albaranes.js?v=5"></script>
-<script src="js/comercial/facturas.js"></script>
+<script src="js/comercial/presupuestos.js?v=6"></script>
+<script src="js/comercial/albaranes.js?v=6"></script>
+<script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
 <script src="js/compras/proveedores.js"></script>
 <script src="js/compras/importador.js"></script>
-<script src="js/compras/presupuestos_compra.js?v=4"></script>
-<script src="js/compras/pedidos.js?v=4"></script>
-<script src="js/compras/recepciones.js?v=4"></script>
-<script src="js/compras/facturas_prov.js"></script>
+<script src="js/compras/presupuestos_compra.js?v=5"></script>
+<script src="js/compras/pedidos.js?v=5"></script>
+<script src="js/compras/recepciones.js?v=5"></script>
+<script src="js/compras/facturas_prov.js?v=5"></script>
 
 <!-- Almacén -->
 <script src="js/almacen/articulos.js"></script>
