@@ -111,6 +111,8 @@ function filtrarAlbaranes() {
     (!des || (a.fecha && a.fecha >= des)) &&
     (!has || (a.fecha && a.fecha <= has))
   );
+  // Orden predeterminado: número de documento, más reciente primero
+  abFiltrados.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
   renderAlbaranes(abFiltrados);
 }
 

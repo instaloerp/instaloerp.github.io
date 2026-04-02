@@ -165,6 +165,8 @@ function filtrarPresupuestos() {
       (!des || (p.fecha && p.fecha >= des)) &&
       (!has || (p.fecha && p.fecha <= has));
   });
+  // Orden predeterminado: número de documento, más reciente primero
+  presFiltrados.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
   renderPresupuestos(presFiltrados);
 }
 
@@ -487,9 +489,11 @@ async function presToFactura(id) {
 async function presToAlbaran(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) return;
-  // Comprobar si ya tiene albarán
+  // Comprobar si ya tiene albarán o factura directa
   const _aD2 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
+  const _fD6 = window.facturasData || [];
   if (_aD2.some(a=>a.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
+  if (_fD6.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
   if (!confirm('¿Crear albarán desde el presupuesto '+p.numero+'?')) return;
   const numero = await generarNumeroDoc('albaran');
   const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({

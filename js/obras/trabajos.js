@@ -30,6 +30,8 @@ function filtrarTrabajos() {
     if (has && t.fecha && t.fecha > has) return false;
     return true;
   });
+  // Orden predeterminado: número de documento, más reciente primero
+  filtered.sort((a,b) => (b.numero||'').localeCompare(a.numero||''));
   renderTrabajos(filtered);
 }
 
@@ -229,7 +231,7 @@ async function abrirFichaObra(id) {
       let acciones = '';
       if (noAnulado) {
         if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
-        else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
+        else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
         if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
         else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
       }
@@ -936,9 +938,11 @@ async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
-  // Comprobar si ya tiene albarán
+  // Comprobar si ya tiene albarán o factura
   const _aD3 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
+  const _fD5 = window.facturasData || [];
   if (_aD3.some(a=>a.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
+  if (_fD5.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
   if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('albaran');
