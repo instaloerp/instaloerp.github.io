@@ -100,7 +100,8 @@ function renderPresupuestos(list) {
           ${(()=>{
             const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
             const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
-            const _tF = (window.facturasData||window.facturas||[]).some(f=>f.presupuesto_id===p.id);
+            const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
+            const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
             let btns = '';
             if (_tO) btns += '<span style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700">🏗️ Obra</span> ';
             else btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button> ';
@@ -242,7 +243,9 @@ function verDetallePresupuesto(id) {
   // ── Lógica inteligente de botones y referencias cruzadas ──
   const tieneObra    = trabajos.some(t => t.presupuesto_id === p.id);
   const tieneAlbaran = (window.albaranesData||[]).some(a => a.presupuesto_id === p.id);
-  const tieneFactura = (window.facturasData||window.facturas||[]).some(f => f.presupuesto_id === p.id);
+  // Factura: directa (presupuesto→factura) o indirecta (presupuesto→albarán→factura)
+  const _albsFromPres = (window.albaranesData||[]).filter(a => a.presupuesto_id === p.id);
+  const tieneFactura = (window.facturasData||[]).some(f => f.presupuesto_id === p.id) || _albsFromPres.some(a => (window.facturasData||[]).some(f => f.albaran_id === a.id));
 
   // Badges de referencia (mostrar qué documentos ya existen)
   const refDiv = document.getElementById('presDetRefs');
@@ -257,8 +260,13 @@ function verDetallePresupuesto(id) {
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">📄 Albarán ${alb.numero||''}</a> `;
     }
     if (tieneFactura) {
-      const fac = (window.facturasData||window.facturas||[]).find(f => f.presupuesto_id === p.id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🧾 Factura ${fac.numero||''}</a> `;
+      // Buscar factura directa o indirecta (vía albarán)
+      let fac = (window.facturasData||[]).find(f => f.presupuesto_id === p.id);
+      if (!fac) {
+        const albP = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
+        if (albP) fac = (window.facturasData||[]).find(f => f.albaran_id === albP.id);
+      }
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🧾 Factura ${fac?.numero||''}</a> `;
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
@@ -424,7 +432,11 @@ async function presToFactura(id) {
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado', exportado_a:'factura', exportado_bloqueado:true}).eq('id',id);
   const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; pp.exportado_a='factura'; pp.exportado_bloqueado=true; }
-  renderPresupuestos(presupuestos);
+  // Refrescar facturas en memoria para que la lógica inteligente detecte el nuevo registro
+  const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.facturasData = facRefresh||[];
+  filtrarPresupuestos();
+  closeModal('mPresDetalle');
   toast('✅ Factura creada — presupuesto bloqueado','success');
   loadDashboard();
 }
@@ -451,7 +463,12 @@ async function presToAlbaran(id) {
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado', exportado_a:'albaran', exportado_bloqueado:true}).eq('id',id);
   const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; pp.exportado_a='albaran'; pp.exportado_bloqueado=true; }
-  renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
+  // Refrescar albaranes en memoria para que la lógica inteligente detecte el nuevo registro
+  const {data:albRefresh} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  albaranesData = albRefresh||[];
+  window.albaranesData = albaranesData;
+  filtrarPresupuestos();
+  closeModal('mPresDetalle');
   toast('📄 Albarán creado — presupuesto bloqueado','success');
   loadDashboard();
 }

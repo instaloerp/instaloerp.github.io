@@ -18,6 +18,7 @@ async function loadAlbaranes() {
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false });
   albaranesData = data || [];
+  window.albaranesData = albaranesData; // Sincronizar para acceso cruzado desde otros módulos
   // Filtro por defecto: año en curso
   const y = new Date().getFullYear();
   const dEl = document.getElementById('abDesde');
@@ -170,7 +171,12 @@ async function albaranToFactura(id) {
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('albaranes').update({estado:'facturado', exportado_a:'factura', exportado_bloqueado:true}).eq('id',id);
   const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; ab.exportado_a='factura'; ab.exportado_bloqueado=true; }
-  renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
+  window.albaranesData = albaranesData;
+  // Refrescar facturas en memoria
+  const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  window.facturasData = facRefresh||[];
+  filtrarAlbaranes();
+  closeModal('mAbDetalle');
   toast('✅ Factura creada — albarán marcado como facturado','success');
   loadDashboard();
 }
