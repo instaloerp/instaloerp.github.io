@@ -718,7 +718,7 @@ const WORKFLOW_ETAPAS = [
 function detectarEtapasObra(t, presupData, albData, factData, partesData) {
   const etapas = {};
 
-  // 1. Presupuesto
+  // 1. Presupuesto — tiene al menos un presupuesto vinculado
   const tienePresup = presupData.length > 0;
   etapas.presupuesto = tienePresup;
 
@@ -728,14 +728,17 @@ function detectarEtapasObra(t, presupData, albData, factData, partesData) {
   );
   etapas.aprobado = presupAprobado;
 
-  // 3. Material — si hay pedidos de compra vinculados o estado incluye material
-  // Simplificación: si el estado de la obra es 'en_curso' o superior y hay presup aprobado
+  // 3. Material — pendiente de desarrollar módulo de compras/pedidos
+  //    Por ahora: se marca si la obra está en_curso o superior (implica material gestionado)
   etapas.material = presupAprobado && (t.estado === 'en_curso' || t.estado === 'finalizado' || t.estado === 'completado');
 
-  // 4. Programado — tiene fecha asignada
-  etapas.programado = !!t.fecha;
+  // 4. Programado — tiene al menos un parte de trabajo o tarea con fecha programada
+  //    La fecha de la obra NO cuenta (es la fecha de alta), necesitamos una cita real
+  const tienePartesProgramados = partesData.length > 0;
+  const tieneTareasProgramadas = (typeof obraTareasData !== 'undefined' && obraTareasData.length > 0);
+  etapas.programado = tienePartesProgramados || tieneTareasProgramadas;
 
-  // 5. En ejecución — tiene partes de trabajo o estado en_curso
+  // 5. En ejecución — tiene partes de trabajo reales o estado en_curso
   etapas.ejecucion = partesData.length > 0 || t.estado === 'en_curso';
 
   // 6. Albarán — tiene al menos un albarán
@@ -744,7 +747,7 @@ function detectarEtapasObra(t, presupData, albData, factData, partesData) {
   // 7. Factura — tiene al menos una factura
   etapas.factura = factData.length > 0;
 
-  // 8. Cobrado — todas las facturas cobradas
+  // 8. Cobrado — tiene facturas y TODAS están cobradas
   const factCobradas = factData.length > 0 && factData.every(f =>
     ['cobrada','pagada','paid'].includes((f.estado||'').toLowerCase())
   );
@@ -765,11 +768,11 @@ function siguientePasoObra(etapas, t) {
     tip: 'Cuando el cliente acepte, cambia el estado del presupuesto a "Aceptado"'
   };
   if (!etapas.programado) return {
-    texto: 'Presupuesto aprobado. Programa una fecha para ejecutar el trabajo.',
-    accion: 'editarObraActual()', boton: '📅 Programar fecha', prioridad: 'alta'
+    texto: 'Presupuesto aprobado. Crea un parte de trabajo para programar la ejecución.',
+    accion: 'nuevoParteObraActual()', boton: '📝 Crear parte de trabajo', prioridad: 'alta'
   };
   if (!etapas.ejecucion) return {
-    texto: 'Obra programada. Cuando empiece el trabajo, crea un parte.',
+    texto: 'Obra programada. Cuando empiece el trabajo, registra el avance en los partes.',
     accion: 'nuevoParteObraActual()', boton: '📝 Crear parte de trabajo', prioridad: 'media'
   };
   if (!etapas.albaran) return {
