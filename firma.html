@@ -58,7 +58,7 @@ async function init() {
   if (!token) { showError('Enlace no válido'); return; }
 
   // Buscar presupuesto por token
-  const { data: pres, error } = await sb.from('presupuestos').select('*').eq('firma_token', token).single();
+  const { data: pres, error } = await sb.from('presupuestos').select('id,numero,titulo,fecha,valido_hasta,estado,total,base_imponible,total_iva,iva_porcentaje,descuento_porcentaje,descuento_total,forma_pago_id,lineas,empresa_id,cliente_id,firma_token,firma_fecha,firma_nombre,notas').eq('firma_token', token).single();
   if (error || !pres) { showError('Presupuesto no encontrado o enlace caducado'); return; }
 
   if (pres.estado === 'aceptado' && pres.firma_fecha) {
@@ -69,11 +69,11 @@ async function init() {
   presData = pres;
 
   // Cargar empresa
-  const { data: emp } = await sb.from('empresas').select('*').eq('id', pres.empresa_id).single();
+  const { data: emp } = await sb.from('empresas').select('id,nombre,cif,direccion,ciudad,cp,provincia,telefono,email,logo_url').eq('id', pres.empresa_id).single();
   empresaData = emp;
 
   // Cargar cliente
-  const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
+  const { data: cli } = await sb.from('clientes').select('id,nombre,cif,direccion,ciudad,cp,provincia,telefono,email').eq('id', pres.cliente_id).single();
 
   renderPresupuesto(pres, emp, cli);
 }
