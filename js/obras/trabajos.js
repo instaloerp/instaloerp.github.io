@@ -207,11 +207,23 @@ async function abrirFichaObra(id) {
     return `<div><span style="color:var(--gris-400)">${label}:</span> <strong style="color:${color||'var(--gris-900)'}">${val}</strong></div>`;
   }
 
-  // ── PRESUPUESTOS ── (con botones de conversión)
+  // ── PRESUPUESTOS ── (con botones inteligentes de conversión)
   const presupHtml = presupData.length ?
     resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)'), resumenItem('Docs', presupData.length+'')]) +
     presupData.map(p=>{
-      const puedeConvertir = p.estado !== 'eliminado' && p.estado !== 'anulado' && !p.exportado_bloqueado;
+      const noAnulado = p.estado !== 'eliminado' && p.estado !== 'anulado';
+      // Comprobar documentos existentes para este presupuesto
+      const tieneAlb = albData.some(a=>a.presupuesto_id===p.id);
+      const tieneFac = factData.some(f=>f.presupuesto_id===p.id) || albData.filter(a=>a.presupuesto_id===p.id).some(a=>factData.some(f=>f.albaran_id===a.id));
+      const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none';
+      const _bBtn = 'font-size:11px;padding:3px 6px';
+      let acciones = '';
+      if (noAnulado) {
+        if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
+        else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
+        if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
+        else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
+      }
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
         <div style="cursor:pointer;flex:1" onclick="verDetallePresupuesto(${p.id})">
@@ -220,23 +232,21 @@ async function abrirFichaObra(id) {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
-          ${puedeConvertir ? `<div style="display:flex;gap:3px;margin-left:8px">
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="font-size:11px;padding:3px 6px">📄 Albaranar</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="font-size:11px;padding:3px 6px">🧾 Facturar</button>
-          </div>` : (p.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px" title="Exportado a ${p.exportado_a}">🔒 ${p.exportado_a}</span>` : '')}
+          <div style="display:flex;gap:3px;margin-left:8px;align-items:center">${acciones}</div>
         </div>
       </div>`;
     }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos vinculados</p></div>';
   document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
 
-  // ── ALBARANES ── (con botones de conversión)
-  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado);
+  // ── ALBARANES ── (con botones inteligentes de conversión)
+  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
   const albHtml = albData.length ?
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
     (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="obraFacturarTodosAlb()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px">🧾 Facturar ${albSinFacturar.length} albaranes juntos</button></div>` : '') +
     albData.map(a=>{
-      const puedeFacturar = a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado;
+      const tieneFac = factData.some(f=>f.albaran_id===a.id);
+      const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700';
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
         <div style="cursor:pointer;flex:1" onclick="verDetalleAlbaran(${a.id})">
@@ -245,7 +255,7 @@ async function abrirFichaObra(id) {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
-          ${puedeFacturar ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : (a.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px">🔒 factura</span>` : '')}
+          ${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (a.estado!=='anulado' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : '')}
         </div>
       </div>`;
     }).join('') :
@@ -1005,7 +1015,7 @@ async function obraAlbToFactura(albId) {
 async function obraFacturarTodosAlb() {
   if (!obraActualId) return;
   // Obtener todos los albaranes no facturados de esta obra
-  const { data: albs } = await sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado').or('exportado_bloqueado.is.null,exportado_bloqueado.eq.false');
+  const { data: albs } = await sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado');
   if (!albs || albs.length < 1) { toast('No hay albaranes pendientes de facturar', 'info'); return; }
 
   // Verificar mismo cliente
@@ -1043,9 +1053,9 @@ async function obraFacturarTodosAlb() {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  // Marcar todos como facturados y bloqueados
+  // Marcar todos como facturados
   for (const a of albs) {
-    await sb.from('albaranes').update({ estado: 'facturado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', a.id);
+    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
   }
   toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
   abrirFichaObra(obraActualId); // Refrescar
