@@ -480,6 +480,8 @@ async function presToFactura(id) {
   closeModal('mPresDetalle');
   toast('✅ Factura creada','success');
   loadDashboard();
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 async function presToAlbaran(id) {
@@ -517,6 +519,8 @@ async function presToAlbaran(id) {
   closeModal('mPresDetalle');
   toast('📄 Albarán creado — presupuesto bloqueado','success');
   loadDashboard();
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 async function presToObra(id) {
@@ -550,6 +554,8 @@ async function presToObra(id) {
   closeModal('mPresDetalle');
   toast('🏗️ Obra creada — presupuesto aceptado','success');
   loadDashboard();
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 async function presupuestoTieneVinculados(presId) {

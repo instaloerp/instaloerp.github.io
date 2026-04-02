@@ -22,8 +22,8 @@ let prIvaDefault = null;
 // ═══════════════════════════════════════════════
 //  SESSION TIMEOUT (inactividad) con aviso previo
 // ═══════════════════════════════════════════════
-const SESSION_TIMEOUT_MS = 1 * 60 * 1000; // ⚠️ TEST: 1 minuto (cambiar a 30*60*1000 en producción)
-const SESSION_WARNING_MS = 30 * 1000;     // ⚠️ TEST: aviso 30s antes (cambiar a 2*60*1000 en producción)
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos de inactividad
+const SESSION_WARNING_MS = 2 * 60 * 1000;  // Avisar 2 minutos antes
 let sessionTimer = null;
 let sessionWarningTimer = null;
 let _sessionWarningVisible = false;

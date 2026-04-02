@@ -165,6 +165,8 @@ async function albaranToFactura(id) {
   if (!confirm('¿Convertir el albarán '+a.numero+' en factura?')) return;
   const numero = await generarNumeroDoc('factura');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
+  // Asignar trabajo_id si el albarán pertenece a una obra
+  const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
   const { error } = await sb.from('facturas').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
@@ -173,6 +175,8 @@ async function albaranToFactura(id) {
     base_imponible: a.total||0, total_iva: 0, total: a.total||0,
     estado: 'pendiente', observaciones: a.observaciones,
     lineas: a.lineas, albaran_id: a.id,
+    presupuesto_id: a.presupuesto_id || null,
+    ...(_trabVinc ? {trabajo_id: _trabVinc} : {}),
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('albaranes').update({estado:'facturado'}).eq('id',id);
@@ -185,6 +189,8 @@ async function albaranToFactura(id) {
   closeModal('mAbDetalle');
   toast('✅ Factura creada — albarán marcado como facturado','success');
   loadDashboard();
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 // ═══════════════════════════════════════════════
