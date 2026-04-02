@@ -477,7 +477,7 @@
               <input type="date" id="trHasta" onchange="filtrarTrabajos()"
                 style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
               <button class="btn btn-ghost btn-sm" onclick="exportarObras()">📤 Exportar</button>
-              <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
+              <button class="btn btn-primary btn-sm" onclick="abrirNuevaObra()">+ Nueva obra</button>
             </div>
           </div>
           <div class="card"><div class="tw"><table class="dt"><thead><tr><th data-sort="numero">Nº</th><th data-sort="titulo">Título</th><th data-sort="cliente">Cliente</th><th data-sort="fecha" data-sort-type="date">Fecha</th><th data-sort="estado">Estado</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
@@ -2017,18 +2017,23 @@
     <div class="modal-b">
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Título *</label><input id="tr_titulo" placeholder="Ej: Instalación caldera gas" autocorrect="on" spellcheck="true"></div>
-        <div class="fg"><label>Cliente</label><select id="tr_cli"></select></div>
+        <div class="fg" style="position:relative">
+          <label>Cliente *</label>
+          <input id="tr_cli_search" placeholder="Buscar cliente..." autocomplete="off" style="width:100%">
+          <input type="hidden" id="tr_cli">
+          <div id="tr_cli_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--gris-200);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 6px 20px rgba(0,0,0,.12)"></div>
+          <div id="tr_cli_selected" style="display:none;margin-top:4px;font-size:11.5px;color:var(--azul);font-weight:600"></div>
+        </div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Categoría</label><select id="tr_cat"><option>Fontanería</option><option>Calefacción</option><option>Aire Acondicionado</option><option>Energías Renovables</option><option>Reforma</option><option>Electricidad</option></select></div>
-        <div class="fg"><label>Prioridad</label><select id="tr_prio"><option>Normal</option><option>Alta</option><option>Urgente</option><option>Baja</option></select></div>
+        <div class="fg"><label>Categoría</label><select id="tr_cat"><option value="">— Seleccionar —</option><option>Fontanería</option><option>Calefacción</option><option>Aire Acondicionado</option><option>Energías Renovables</option><option>Reforma</option><option>Electricidad</option></select></div>
+        <div class="fg"><label>Prioridad</label><select id="tr_prio"><option value="">— Seleccionar —</option><option>Normal</option><option>Alta</option><option>Urgente</option><option>Baja</option></select></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Fecha</label><input type="date" id="tr_fecha"></div>
-        <div class="fg"><label>Hora</label><input type="time" id="tr_hora" value="09:00"></div>
+        <div class="fg"><label>Hora</label><input type="time" id="tr_hora"></div>
       </div>
-      <div class="fg" style="margin-bottom:11px"><label>Dirección de la obra</label><input id="tr_dir" autocorrect="on" spellcheck="true"></div>
-      <div class="fg" style="margin-bottom:11px"><label>Descripción / Instrucciones</label><textarea id="tr_desc" autocorrect="on" spellcheck="true"></textarea></div>
+      <div class="fg" style="margin-bottom:11px"><label>Descripción / Instrucciones *</label><textarea id="tr_desc" placeholder="Describe el trabajo a realizar (mín. 10 caracteres)" autocorrect="on" spellcheck="true"></textarea></div>
       <!-- Adjuntar documentos -->
       <div style="margin-bottom:4px">
         <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">📎 Adjuntar documentos (opcional)</label>

@@ -247,8 +247,13 @@ function importarRapido(){
 
 function populateSelects(){
   // Clientes
-  const cOpts='<option value="">— Sin cliente —</option>'+clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-  ['tr_cli'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=cOpts;});
+  // tr_cli ya no es select, es buscador con autocomplete — no necesita populateSelects
+  // Se mantiene compatibilidad: si existe como select (versión antigua), se puebla
+  const trCliEl = document.getElementById('tr_cli');
+  if (trCliEl && trCliEl.tagName === 'SELECT') {
+    const cOpts='<option value="">— Sin cliente —</option>'+clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    trCliEl.innerHTML = cOpts;
+  }
   // Formas pago
   const fpOpts='<option value="">— Sin forma de pago —</option>'+formasPago.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
   ['c_fpago','pv_fpago'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=fpOpts;});

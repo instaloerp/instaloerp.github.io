@@ -8,6 +8,127 @@ let obraActualId = null;
 let obraTabActual = 'presupuestos'; // recordar pestaña activa
 
 // ═══════════════════════════════════════════════
+// HELPER: sanitizar nombre de archivo para Supabase Storage
+// ═══════════════════════════════════════════════
+function _sanitizeFileName(name) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_');
+}
+
+// ═══════════════════════════════════════════════
+// BUSCADOR DE CLIENTES (modal Nueva Obra)
+// ═══════════════════════════════════════════════
+function initTrCliBuscador() {
+  const inp = document.getElementById('tr_cli_search');
+  const drop = document.getElementById('tr_cli_dropdown');
+  const hidden = document.getElementById('tr_cli');
+  const selDiv = document.getElementById('tr_cli_selected');
+  if (!inp || !drop) return;
+
+  inp.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    hidden.value = '';
+    if (selDiv) { selDiv.style.display = 'none'; selDiv.textContent = ''; }
+    if (q.length < 1) { drop.style.display = 'none'; return; }
+    const matches = clientes.filter(c => (c.nombre||'').toLowerCase().includes(q) || (c.telefono||'').includes(q) || (c.email||'').toLowerCase().includes(q)).slice(0, 8);
+    let html = matches.map(c => {
+      const dir = c.direccion_fiscal || c.direccion || c.municipio_fiscal || c.municipio || '';
+      return `<div onmousedown="trSeleccionarCliente(${c.id})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100);transition:background .1s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background='#fff'">
+        <div style="font-weight:600;font-size:12.5px">${c.nombre}</div>
+        ${dir ? `<div style="font-size:10.5px;color:var(--gris-400)">${dir}</div>` : ''}
+      </div>`;
+    }).join('');
+    if (matches.length === 0) {
+      html = `<div style="padding:10px 12px;text-align:center">
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:6px">No se encontró "${this.value}"</div>
+        <button onmousedown="trCrearClienteRapido()" class="btn btn-sm" style="background:var(--azul);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer">+ Crear cliente nuevo</button>
+      </div>`;
+    }
+    drop.innerHTML = html;
+    drop.style.display = 'block';
+  });
+
+  inp.addEventListener('blur', function() {
+    setTimeout(() => { drop.style.display = 'none'; }, 200);
+  });
+
+  inp.addEventListener('focus', function() {
+    if (this.value.trim().length >= 1) this.dispatchEvent(new Event('input'));
+  });
+}
+
+function trSeleccionarCliente(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+  const inp = document.getElementById('tr_cli_search');
+  const hidden = document.getElementById('tr_cli');
+  const drop = document.getElementById('tr_cli_dropdown');
+  const selDiv = document.getElementById('tr_cli_selected');
+  if (inp) inp.value = c.nombre;
+  if (hidden) hidden.value = c.id;
+  if (drop) drop.style.display = 'none';
+  if (selDiv) {
+    const dir = c.direccion_fiscal || c.direccion || '';
+    const muni = c.municipio_fiscal || c.municipio || '';
+    const tel = c.telefono || '';
+    const info = [dir, muni, tel].filter(Boolean).join(' · ');
+    selDiv.innerHTML = `${c.nombre} ${info ? `<span style="color:var(--gris-400);font-weight:400">— ${info}</span>` : ''} <span onclick="trLimpiarCliente()" style="cursor:pointer;color:var(--rojo);margin-left:4px" title="Quitar cliente">✕</span>`;
+    selDiv.style.display = 'block';
+  }
+}
+
+function trLimpiarCliente() {
+  const inp = document.getElementById('tr_cli_search');
+  const hidden = document.getElementById('tr_cli');
+  const selDiv = document.getElementById('tr_cli_selected');
+  if (inp) { inp.value = ''; inp.focus(); }
+  if (hidden) hidden.value = '';
+  if (selDiv) { selDiv.style.display = 'none'; selDiv.textContent = ''; }
+}
+
+function trCrearClienteRapido() {
+  // Cerrar dropdown y abrir modal de nuevo cliente
+  const drop = document.getElementById('tr_cli_dropdown');
+  if (drop) drop.style.display = 'none';
+  // Guardar texto buscado para pre-rellenar
+  const searchText = document.getElementById('tr_cli_search')?.value || '';
+  if (typeof openModal === 'function') openModal('mCliente');
+  // Pre-rellenar nombre del cliente
+  setTimeout(() => {
+    const nameInput = document.getElementById('c_nombre');
+    if (nameInput && searchText) nameInput.value = searchText;
+  }, 200);
+}
+
+// ═══════════════════════════════════════════════
+// ABRIR MODAL NUEVA OBRA (con defaults)
+// ═══════════════════════════════════════════════
+function abrirNuevaObra() {
+  // Reset campos
+  document.getElementById('tr_titulo').value = '';
+  document.getElementById('tr_cli_search').value = '';
+  document.getElementById('tr_cli').value = '';
+  const selDiv = document.getElementById('tr_cli_selected');
+  if (selDiv) { selDiv.style.display = 'none'; selDiv.textContent = ''; }
+  document.getElementById('tr_cat').value = '';
+  document.getElementById('tr_prio').value = '';
+  // Fecha = hoy
+  document.getElementById('tr_fecha').value = new Date().toISOString().split('T')[0];
+  // Hora = ahora
+  const now = new Date();
+  document.getElementById('tr_hora').value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('tr_desc').value = '';
+  // Reset docs
+  trDocsFiles = [];
+  const docList = document.getElementById('tr_doc_list');
+  if (docList) docList.innerHTML = '';
+  // Título modal
+  document.getElementById('mTrabTit').textContent = 'Nueva Obra';
+  // Init buscador
+  initTrCliBuscador();
+  openModal('mTrabajo');
+}
+
+// ═══════════════════════════════════════════════
 // FILTROS Y LISTADO
 // ═══════════════════════════════════════════════
 function initFiltroTrabajos() {
@@ -875,18 +996,24 @@ function datoFichaObra(label, val) {
 // ═══════════════════════════════════════════════
 function editarObraActual() {
   if (!obraActualId) return;
-  // Rellenar modal con datos actuales y abrir
   const t = trabajos.find(x=>x.id===obraActualId);
   if (!t) return;
   document.getElementById('tr_titulo').value = t.titulo||'';
-  // Buscar el índice del cliente en el select
-  const sel = document.getElementById('tr_cli');
-  if (sel) { for(let i=0;i<sel.options.length;i++) { if(parseInt(sel.options[i].value)===t.cliente_id) { sel.selectedIndex=i; break; } } }
-  document.getElementById('tr_cat').value = t.categoria||'Fontanería';
-  document.getElementById('tr_prio').value = t.prioridad||'Normal';
+  // Buscador de cliente
+  initTrCliBuscador();
+  const cli = clientes.find(c=>c.id===t.cliente_id);
+  document.getElementById('tr_cli_search').value = cli?.nombre || t.cliente_nombre || '';
+  document.getElementById('tr_cli').value = t.cliente_id || '';
+  const selDiv = document.getElementById('tr_cli_selected');
+  if (selDiv && cli) {
+    const info = [cli.direccion_fiscal||cli.direccion||'', cli.municipio_fiscal||cli.municipio||'', cli.telefono||''].filter(Boolean).join(' · ');
+    selDiv.innerHTML = `${cli.nombre} ${info ? `<span style="color:var(--gris-400);font-weight:400">— ${info}</span>` : ''} <span onclick="trLimpiarCliente()" style="cursor:pointer;color:var(--rojo);margin-left:4px" title="Quitar cliente">✕</span>`;
+    selDiv.style.display = 'block';
+  }
+  document.getElementById('tr_cat').value = t.categoria||'';
+  document.getElementById('tr_prio').value = t.prioridad||'';
   document.getElementById('tr_fecha').value = t.fecha||'';
-  document.getElementById('tr_hora').value = t.hora||'09:00';
-  document.getElementById('tr_dir').value = t.direccion_obra_texto||'';
+  document.getElementById('tr_hora').value = t.hora||'';
   document.getElementById('tr_desc').value = t.descripcion||'';
   document.getElementById('mTrabTit').textContent = 'Editar Obra';
   openModal('mTrabajo');
@@ -1161,7 +1288,8 @@ async function subirDocObra(input) {
   if (file.size > 10*1024*1024) { toast('Archivo demasiado grande (máx 10MB)','error'); return; }
   const nombre = document.getElementById('obraDocNombre')?.value.trim() || file.name;
   const tipo = document.getElementById('obraDocTipo')?.value || 'otro';
-  const path = `${EMPRESA.id}/obras/${obraActualId}/${Date.now()}_${file.name}`;
+  const safeName = _sanitizeFileName(file.name);
+  const path = `${EMPRESA.id}/obras/${obraActualId}/${Date.now()}_${safeName}`;
   const { error: upErr } = await sb.storage.from('documentos').upload(path, file);
   if (upErr) { toast('Error subiendo: '+upErr.message,'error'); return; }
   const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
@@ -1226,7 +1354,12 @@ async function saveTrabajo() {
   const titulo=document.getElementById('tr_titulo').value.trim();
   if(!titulo){toast('Introduce el título','error');return;}
   const cliId=parseInt(document.getElementById('tr_cli').value)||null;
+  if(!cliId){toast('Selecciona un cliente','error');return;}
   const cli=clientes.find(c=>c.id===cliId);
+  const desc = document.getElementById('tr_desc').value.trim();
+  if(desc.length < 10){toast('La descripción debe tener al menos 10 caracteres','error');return;}
+  // Dirección se obtiene del cliente
+  const dirCliente = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : '';
 
   // Si estamos editando
   if (obraActualId && document.getElementById('mTrabTit').textContent === 'Editar Obra') {
@@ -1235,7 +1368,7 @@ async function saveTrabajo() {
       cliente_id: cliId, cliente_nombre: cli?.nombre||'',
       prioridad: v('tr_prio'), categoria: v('tr_cat'),
       fecha: v('tr_fecha'), hora: v('tr_hora'),
-      direccion_obra_texto: v('tr_dir'), descripcion: v('tr_desc'),
+      direccion_obra_texto: dirCliente, descripcion: desc,
     }).eq('id', obraActualId);
     if (error) { toast('Error: '+error.message,'error'); return; }
     closeModal('mTrabajo');
@@ -1253,7 +1386,7 @@ async function saveTrabajo() {
     cliente_id:cliId,cliente_nombre:cli?.nombre||'',
     prioridad:v('tr_prio'),categoria:v('tr_cat'),
     fecha:v('tr_fecha'),hora:v('tr_hora'),
-    direccion_obra_texto:v('tr_dir'),descripcion:v('tr_desc'),
+    direccion_obra_texto:dirCliente,descripcion:desc,
     estado:'pendiente',operario_id:CU.id,operario_nombre:CP?.nombre||''
   }).select();
   if(error){toast('Error: '+error.message,'error');return;}
@@ -1262,7 +1395,8 @@ async function saveTrabajo() {
   const newTrabajoId = insertData?.[0]?.id;
   if (newTrabajoId && trDocsFiles.length > 0) {
     for (const file of trDocsFiles) {
-      const path = `${EMPRESA.id}/obras/${newTrabajoId}/${Date.now()}_${file.name}`;
+      const safeName = _sanitizeFileName(file.name);
+      const path = `${EMPRESA.id}/obras/${newTrabajoId}/${Date.now()}_${safeName}`;
       const { error: upErr } = await sb.storage.from('documentos').upload(path, file);
       if (upErr) { toast('Error subiendo '+file.name+': '+upErr.message,'error'); continue; }
       const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);

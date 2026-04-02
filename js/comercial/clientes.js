@@ -786,11 +786,10 @@ async function guardarAlbaran() {
 function nuevoObraCliActual() { nuevoTrabCliActual(); }
 
 function nuevoTrabCliActual() {
+  abrirNuevaObra();
+  // Pre-seleccionar cliente actual
   const c = clientes.find(x=>x.id===cliActualId);
-  if(c) { document.getElementById('tr_cli').value=c.id; }
-  trDocsFiles=[];
-  tr_renderDocs();
-  openModal('mTrabajo');
+  if(c) trSeleccionarCliente(c.id);
 }
 
 // ═══════════════════════════════════════════════
