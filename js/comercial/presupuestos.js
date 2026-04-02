@@ -857,8 +857,10 @@ function imprimirPresupuesto(id) {
             <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:6px">✅ Presupuesto aceptado por el cliente</div>
             <div style="font-size:11px;color:#334155;line-height:1.6">
               <b>Firmado por:</b> ${p.firma_nombre||'—'}<br>
+              ${_fDisp.dni?'<b>DNI/NIF:</b> '+_fDisp.dni+'<br>':''}
               <b>Fecha:</b> ${_fFecha}<br>
               <b>IP:</b> ${p.firma_ip||'—'}<br>
+              ${_fDisp.ubicacion&&_fDisp.ubicacion!=='No disponible'?'<b>Ubicación:</b> '+_fDisp.ubicacion+'<br>':''}
               <b>Dispositivo:</b> ${_fDisp.tipo||'—'} — ${_fDisp.browser||'—'}
             </div>
           </div>
@@ -1153,11 +1155,24 @@ function generarPdfPresupuesto(p) {
     doc.setFontSize(8);
     doc.setTextColor(...negro);
     const _fd = p.firma_dispositivo||{};
-    doc.text('Firmado por: '+(p.firma_nombre||'—'), ML+4, y+10);
-    doc.text('Fecha: '+new Date(p.firma_fecha).toLocaleString('es-ES'), ML+4, y+14);
-    doc.text('IP: '+(p.firma_ip||'—'), ML+4, y+18);
-    doc.text('Dispositivo: '+(_fd.tipo||'—')+' — '+(_fd.browser||'—'), ML+4, y+22);
-    y += 32;
+    let _fy = y+10;
+    doc.text('Firmado por: '+(p.firma_nombre||'—'), ML+4, _fy); _fy+=4;
+    if (_fd.dni) { doc.text('DNI/NIF: '+_fd.dni, ML+4, _fy); _fy+=4; }
+    doc.text('Fecha: '+new Date(p.firma_fecha).toLocaleString('es-ES'), ML+4, _fy); _fy+=4;
+    doc.text('IP: '+(p.firma_ip||'—'), ML+4, _fy); _fy+=4;
+    if (_fd.ubicacion && _fd.ubicacion !== 'No disponible') { doc.text('Ubicación: '+_fd.ubicacion, ML+4, _fy); _fy+=4; }
+    doc.text('Dispositivo: '+(_fd.tipo||'—')+' — '+(_fd.browser||'—'), ML+4, _fy); _fy+=4;
+    // Insertar imagen de firma si existe
+    if (p.firma_url) {
+      try {
+        const _fImg = new Image(); _fImg.crossOrigin = 'anonymous';
+        await new Promise((res,rej)=>{_fImg.onload=res;_fImg.onerror=rej;_fImg.src=p.firma_url;});
+        const _fc = document.createElement('canvas'); _fc.width=_fImg.width; _fc.height=_fImg.height;
+        _fc.getContext('2d').drawImage(_fImg,0,0);
+        doc.addImage(_fc.toDataURL('image/png'), 'PNG', W-MR-55, y+6, 50, 18);
+      } catch(e) { /* firma no disponible */ }
+    }
+    y = _fy + 6;
   }
 
   // ─── PIE DE PÁGINA ───

@@ -2584,8 +2584,7 @@
         <div id="presDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
-        <button class="btn btn-secondary btn-sm" onclick="generarPdfPresupuesto(presupuestos.find(x=>x.id===parseInt(document.getElementById('presDetId').value)))" title="Descargar PDF">📥 PDF</button>
-        <button class="btn btn-secondary btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir">🖨️ Imprimir</button>
+        <button class="btn btn-secondary btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir / Guardar PDF">🖨️ Imprimir / PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-secondary btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
         <button id="presDetBtnAprobar" class="btn btn-sm" onclick="abrirModalAprobar(parseInt(document.getElementById('presDetId').value))" title="Aprobar presupuesto" style="background:var(--verde);color:#fff;border:none;font-weight:700">✅ Aprobar</button>

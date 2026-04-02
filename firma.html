@@ -24,7 +24,7 @@ td{padding:8px 10px;border-top:1px solid #e2e8f0;font-size:13px}
 .cap-row{background:#eff6ff;font-weight:700;color:#1e40af;font-size:13px}
 .firma-area{text-align:center;padding:20px}
 .firma-area h2{font-size:16px;margin-bottom:12px}
-canvas{border:2px dashed #cbd5e1;border-radius:10px;background:#fff;cursor:crosshair;touch-action:none;max-width:100%}
+canvas{border:2px dashed #cbd5e1;border-radius:10px;background:transparent;cursor:crosshair;touch-action:none;max-width:100%;background-image:linear-gradient(45deg,#f0f0f0 25%,transparent 25%,transparent 75%,#f0f0f0 75%),linear-gradient(45deg,#f0f0f0 25%,transparent 25%,transparent 75%,#f0f0f0 75%);background-size:16px 16px;background-position:0 0,8px 8px}
 .btn{padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .2s}
 .btn-green{background:#22c55e;color:#fff}.btn-green:hover{background:#16a34a}
 .btn-gray{background:#e2e8f0;color:#475569}.btn-gray:hover{background:#cbd5e1}
@@ -127,8 +127,9 @@ function renderPresupuesto(pres, emp, cli) {
       <h2>Firma del cliente</h2>
       <p style="font-size:13px;color:#64748b;margin-bottom:12px">Dibuja tu firma en el recuadro</p>
       <canvas id="firmaCanvas" width="500" height="180"></canvas>
-      <div style="margin-top:8px">
-        <input type="text" id="firmaNombre" placeholder="Nombre completo del firmante" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;margin-bottom:12px;text-align:center">
+      <div style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px">
+        <input type="text" id="firmaNombre" placeholder="Nombre completo del firmante" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
+        <input type="text" id="firmaDni" placeholder="DNI / NIF del firmante" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
       </div>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
         <button class="btn btn-gray" onclick="limpiarFirma()">Limpiar</button>
@@ -216,6 +217,16 @@ async function recogerDatosDispositivo() {
     const data = await resp.json();
     info.ip = data.ip || '—';
   } catch(e) { info.ip = '—'; }
+  // Intentar obtener geolocalización
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, enableHighAccuracy: false });
+    });
+    info.lat = pos.coords.latitude;
+    info.lng = pos.coords.longitude;
+    info.precision_m = Math.round(pos.coords.accuracy);
+    info.ubicacion = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+  } catch(e) { info.ubicacion = 'No disponible'; }
   return info;
 }
 
@@ -223,13 +234,15 @@ async function enviarFirma() {
   if (isCanvasEmpty()) { alert('Por favor, dibuja tu firma en el recuadro'); return; }
   const nombre = document.getElementById('firmaNombre').value.trim();
   if (!nombre) { alert('Por favor, introduce tu nombre completo'); return; }
+  const dni = document.getElementById('firmaDni').value.trim();
+  if (!dni) { alert('Por favor, introduce tu DNI o NIF'); return; }
 
   // Deshabilitar botón mientras procesa
   const btn = event.target;
   btn.disabled = true;
   btn.textContent = 'Procesando...';
 
-  // Recoger datos del dispositivo en paralelo con la subida
+  // Generar PNG con fondo transparente (el canvas ya es transparente por defecto)
   const [dispositivo, blob] = await Promise.all([
     recogerDatosDispositivo(),
     new Promise(r => document.getElementById('firmaCanvas').toBlob(r, 'image/png'))
@@ -244,6 +257,9 @@ async function enviarFirma() {
     const { data } = sb.storage.from('documentos').getPublicUrl(path);
     firmaUrl = data?.publicUrl || null;
   }
+
+  // Añadir DNI a los datos del dispositivo
+  dispositivo.dni = dni;
 
   // Actualizar presupuesto con todos los datos
   const updateData = {
@@ -274,9 +290,11 @@ async function enviarFirma() {
         <div style="font-weight:700;font-size:13px;margin-bottom:8px">Datos de la firma</div>
         <div style="font-size:12px;color:#64748b;line-height:1.8">
           <div><b>Fecha:</b> ${fechaStr}</div>
+          <div><b>DNI/NIF:</b> ${dni}</div>
           <div><b>Dispositivo:</b> ${dispositivo.tipo} — ${dispositivo.browser}</div>
           <div><b>Pantalla:</b> ${dispositivo.pantalla}</div>
           <div><b>IP:</b> ${dispositivo.ip}</div>
+          <div><b>Ubicación:</b> ${dispositivo.ubicacion||'No disponible'}</div>
           <div><b>Zona horaria:</b> ${dispositivo.zona_horaria}</div>
         </div>
       </div>
