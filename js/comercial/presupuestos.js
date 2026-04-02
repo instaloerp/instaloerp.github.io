@@ -86,7 +86,8 @@ function renderPresupuestos(list) {
     const fechaCreado = fmtDT(p.created_at);
     const fechaModif = p.updated_at ? fmtDT(p.updated_at) : '';
     const fechaInfo = fechaModif && fechaModif !== fechaCreado ? `<div style="font-size:10px;color:var(--gris-400)" title="Modificado: ${fechaModif}">mod. ${fechaModif}</div>` : '';
-    return `<tr style="cursor:pointer" onclick="verDetallePresupuesto(${p.id})">
+    const _esBorr = p.estado==='borrador' || (p.numero||'').startsWith('BORR-');
+    return `<tr style="cursor:pointer" onclick="${_esBorr ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
       <td style="font-weight:700;font-family:monospace;font-size:12.5px">
         <div style="display:flex;align-items:center;gap:2px">${(p.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">(borrador)</span>' : (p.numero||'—')}${verBadge}</div>
         <div style="font-size:10px;color:var(--gris-400);font-weight:400;font-family:var(--font)">${fechaCreado}</div>

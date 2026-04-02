@@ -231,7 +231,7 @@ async function abrirFichaObra(id) {
       const _bBtn = 'font-size:11px;padding:3px 6px';
       let acciones = '';
       if (esBorrador) {
-        acciones += `<span style="padding:3px 8px;border-radius:6px;background:var(--gris-100);color:var(--gris-400);font-size:10px;font-weight:700;font-style:italic">✏️ Borrador</span>`;
+        acciones += `<button onclick="event.stopPropagation();abrirEditor('presupuesto',${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--amarillo-light);color:var(--amarillo);font-size:10px;font-weight:700;border:1px solid var(--amarillo);cursor:pointer">✏️ Editar borrador</button>`;
       } else if (noAnulado) {
         if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
         else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
@@ -240,8 +240,8 @@ async function abrirFichaObra(id) {
       }
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div style="cursor:pointer;flex:1" onclick="verDetallePresupuesto(${p.id})">
-          <div style="font-weight:700;font-size:12.5px">${(p.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : p.numero}</div>
+        <div style="cursor:pointer;flex:1" onclick="${esBorrador ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
+          <div style="font-weight:700;font-size:12.5px">${esBorrador ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : p.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.titulo||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
