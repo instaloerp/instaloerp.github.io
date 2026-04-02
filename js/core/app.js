@@ -27,10 +27,12 @@ const SESSION_WARNING_MS = 30 * 1000;     // ⚠️ TEST: aviso 30s antes (cambi
 let sessionTimer = null;
 let sessionWarningTimer = null;
 let _sessionWarningVisible = false;
+let _countdownInterval = null;
 
 function resetSessionTimer() {
   if (sessionTimer) clearTimeout(sessionTimer);
   if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
   // Si el aviso estaba visible, cerrarlo (el usuario interactuó)
   if (_sessionWarningVisible) {
     _closeSessionWarning();
@@ -52,27 +54,41 @@ function resetSessionTimer() {
 
 function _showSessionWarning() {
   _sessionWarningVisible = true;
+  let _countdownSecs = Math.round(SESSION_WARNING_MS / 1000);
   // Crear modal de aviso si no existe
   let overlay = document.getElementById('sessionWarningOverlay');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'sessionWarningOverlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:99999;';
     overlay.innerHTML = `
       <div style="background:white;border-radius:16px;padding:32px;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
         <div style="font-size:48px;margin-bottom:12px;">⏰</div>
         <h3 style="margin:0 0 8px;font-size:20px;color:#1a1a2e;">¿Sigues ahí?</h3>
-        <p style="margin:0 0 20px;color:#666;font-size:14px;">Tu sesión se cerrará en <strong>2 minutos</strong> por inactividad.<br>Pulsa cualquier tecla o haz clic para continuar trabajando.</p>
+        <p style="margin:0 0 6px;color:#666;font-size:14px;">Tu sesión se cerrará por inactividad en</p>
+        <div id="sessionCountdown" style="font-size:36px;font-weight:700;color:#EF4444;margin:8px 0 16px;">${_countdownSecs}s</div>
+        <p style="margin:0 0 20px;color:#999;font-size:12px;">Pulsa cualquier tecla o haz clic para continuar</p>
         <button onclick="_userDismissSessionWarning()" style="padding:10px 32px;border-radius:10px;border:none;background:var(--azul-500,#3B82F6);color:white;font-weight:600;font-size:15px;cursor:pointer;">Continuar trabajando</button>
       </div>`;
     document.body.appendChild(overlay);
   } else {
     overlay.style.display = 'flex';
+    const cd = document.getElementById('sessionCountdown');
+    if (cd) cd.textContent = _countdownSecs + 's';
   }
+  // Iniciar cuenta atrás visual
+  if (_countdownInterval) clearInterval(_countdownInterval);
+  _countdownInterval = setInterval(() => {
+    _countdownSecs--;
+    const cd = document.getElementById('sessionCountdown');
+    if (cd) cd.textContent = (_countdownSecs > 0 ? _countdownSecs : 0) + 's';
+    if (_countdownSecs <= 0) { clearInterval(_countdownInterval); _countdownInterval = null; }
+  }, 1000);
 }
 
 function _closeSessionWarning() {
   _sessionWarningVisible = false;
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
   const overlay = document.getElementById('sessionWarningOverlay');
   if (overlay) overlay.style.display = 'none';
 }
@@ -481,10 +497,16 @@ async function crearDatosIniciales(empId) {
 async function doLogout() {
   if (sessionTimer) clearTimeout(sessionTimer);
   if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
   _closeSessionWarning();
   sessionStorage.removeItem('erp_session_active');
   CU = null; CP = null; EMPRESA = null;
   await sb.auth.signOut();
+  // Limpiar campos de login
+  const lEmail = document.getElementById('lEmail');
+  const lPass = document.getElementById('lPass');
+  if (lEmail) lEmail.value = '';
+  if (lPass) lPass.value = '';
   showScreen('s-login');
 }
 
