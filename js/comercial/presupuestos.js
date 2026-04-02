@@ -956,7 +956,7 @@ async function guardarPresupYPdf() {
 // ═══════════════════════════════════════════════
 //  GENERACIÓN DE PDF PRESUPUESTO
 // ═══════════════════════════════════════════════
-function generarPdfPresupuesto(p) {
+async function generarPdfPresupuesto(p) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p','mm','a4');
   const W = 210, H = 297;
