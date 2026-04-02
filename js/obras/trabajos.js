@@ -86,17 +86,36 @@ function trLimpiarCliente() {
 }
 
 function trCrearClienteRapido() {
-  // Cerrar dropdown y abrir modal de nuevo cliente
+  // Cerrar dropdown
   const drop = document.getElementById('tr_cli_dropdown');
   if (drop) drop.style.display = 'none';
-  // Guardar texto buscado para pre-rellenar
   const searchText = document.getElementById('tr_cli_search')?.value || '';
-  if (typeof openModal === 'function') openModal('mCliente');
-  // Pre-rellenar nombre del cliente
+  // Subir z-index del modal cliente para que aparezca encima
+  const mTrabajo = document.getElementById('mTrabajo');
+  const mCliente = document.getElementById('mCliente');
+  if (mTrabajo) mTrabajo.style.zIndex = '199';
+  if (mCliente) mCliente.style.zIndex = '210';
+  openModal('mCliente');
+  // Pre-rellenar nombre
   setTimeout(() => {
     const nameInput = document.getElementById('c_nombre');
     if (nameInput && searchText) nameInput.value = searchText;
   }, 200);
+  // Esperar a que se cierre el modal de cliente para restaurar z-index y auto-seleccionar
+  const _prevClientesCount = clientes.length;
+  const _check = setInterval(() => {
+    const isOpen = mCliente && mCliente.classList.contains('open');
+    if (!isOpen) {
+      clearInterval(_check);
+      if (mTrabajo) mTrabajo.style.zIndex = '';
+      if (mCliente) mCliente.style.zIndex = '';
+      // Si se añadió un cliente nuevo, seleccionarlo automáticamente
+      if (clientes.length > _prevClientesCount) {
+        const nuevo = clientes[clientes.length - 1];
+        trSeleccionarCliente(nuevo.id);
+      }
+    }
+  }, 300);
 }
 
 // ═══════════════════════════════════════════════
