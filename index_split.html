@@ -527,6 +527,9 @@
             <div class="sc ficha-kpi" onclick="obraTab('notas')" id="okpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:10px 12px;transition:all .15s">
               <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">💬</span><div><div class="sv" id="ok-notas" style="font-size:18px">—</div><div class="sl">Notas</div></div></div>
             </div>
+            <div class="sc ficha-kpi" onclick="obraTab('registro')" id="okpi-registro" style="--c:#6B7280;--bg:#F3F4F6;cursor:pointer;padding:10px 12px;transition:all .15s">
+              <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">🕐</span><div><div class="sv" id="ok-registro" style="font-size:18px">—</div><div class="sl">Registro</div></div></div>
+            </div>
           </div>
           <!-- Panel de Workflow / Estado del proyecto -->
           <div class="card" style="margin-bottom:14px;overflow:hidden" id="obraWorkflowCard">
@@ -552,10 +555,7 @@
                 <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📊 Resumen económico</h3></div>
                 <div class="card-b" id="fichaObraResumen" style="padding:10px 14px"></div>
               </div>
-              <div class="card">
-                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">🕐 Registro</h3></div>
-                <div class="card-b" id="fichaObraAudit" style="padding:10px 14px"></div>
-              </div>
+              <!-- Registro se ha movido a pestaña completa en panel derecho -->
             </div>
             <!-- Panel derecho: contenido dinámico -->
             <div class="card" style="min-height:300px">
@@ -571,6 +571,7 @@
                 <div id="obra-hist-tareas" style="display:none"></div>
                 <div id="obra-hist-documentos" style="display:none"></div>
                 <div id="obra-hist-notas" style="display:none"></div>
+                <div id="obra-hist-registro" style="display:none"></div>
               </div>
             </div>
           </div>

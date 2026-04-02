@@ -342,16 +342,96 @@ async function abrirFichaObra(id) {
     </div>`;
 
   // Registro / Auditoría (panel izquierdo)
-  document.getElementById('fichaObraAudit').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:2px">
-      ${datoFichaObra('Creado', t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—')}
-      ${datoFichaObra('Creado por', t.operario_nombre||'—')}
-      ${t.updated_at ? datoFichaObra('Modificado', new Date(t.updated_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})) : ''}
-      ${t.presupuesto_id ? datoFichaObra('Origen', 'Desde presupuesto') : datoFichaObra('Origen', 'Creación directa')}
-      ${auditData.length ? '<div style="margin-top:8px;border-top:1px solid var(--gris-100);padding-top:6px"><div style="font-size:10.5px;color:var(--gris-400);margin-bottom:4px;font-weight:700">Últimos movimientos</div>' +
-        auditData.slice(0,5).map(a => `<div style="font-size:10.5px;padding:3px 0;border-bottom:1px solid var(--gris-50)"><span style="color:var(--gris-400)">${new Date(a.created_at).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span> ${a.usuario_nombre||'—'}: ${a.detalle||a.accion}</div>`).join('') +
-        '</div>' : ''}
-    </div>`;
+  // KPI de registro
+  document.getElementById('ok-registro').textContent = auditData.length;
+
+  // ── REGISTRO DE ACTIVIDAD (pestaña completa) ──
+  const _isSuperadmin = CP?.rol === 'superadmin' || CP?.rol === 'admin';
+  const _fmtAudit = (d) => new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const _accionIco = (a) => {
+    if (!a) return '📝';
+    const al = a.toLowerCase();
+    if (al.includes('crear') || al.includes('creado') || al.includes('nueva')) return '🆕';
+    if (al.includes('editar') || al.includes('modific') || al.includes('actualiz')) return '✏️';
+    if (al.includes('estado') || al.includes('cambio')) return '🔄';
+    if (al.includes('documento') || al.includes('archivo') || al.includes('subir')) return '📎';
+    if (al.includes('nota') || al.includes('comentario')) return '💬';
+    if (al.includes('presupuesto')) return '📋';
+    if (al.includes('albar')) return '📄';
+    if (al.includes('factura')) return '🧾';
+    if (al.includes('tarea')) return '✅';
+    if (al.includes('eliminar') || al.includes('borrar')) return '🗑️';
+    if (al.includes('aprobar') || al.includes('aceptar')) return '✅';
+    return '📝';
+  };
+
+  // Construir timeline combinando audit_log + eventos implícitos
+  const _timeline = [];
+  // Evento de creación de la obra
+  _timeline.push({
+    fecha: t.created_at, usuario: t.operario_nombre || '—',
+    accion: 'Obra creada', detalle: `${t.numero} — ${t.titulo}`, tipo: 'crear'
+  });
+  // Documentos subidos
+  docsData.forEach(d => _timeline.push({
+    fecha: d.created_at, usuario: '—',
+    accion: 'Documento subido', detalle: `📎 ${d.nombre} (${d.tipo})`, tipo: 'documento'
+  }));
+  // Notas añadidas
+  notasData.forEach(n => _timeline.push({
+    fecha: n.created_at, usuario: n.creado_por_nombre || '—',
+    accion: 'Nota añadida', detalle: `💬 ${(n.texto||'').substring(0,80)}`, tipo: 'nota'
+  }));
+  // Presupuestos vinculados
+  presupData.forEach(p => _timeline.push({
+    fecha: p.created_at, usuario: '—',
+    accion: 'Presupuesto vinculado', detalle: `📋 ${p.numero} — ${p.titulo||''} (${p.estado})`, tipo: 'presupuesto'
+  }));
+  // Albaranes
+  albData.forEach(a => _timeline.push({
+    fecha: a.created_at, usuario: '—',
+    accion: 'Albarán creado', detalle: `📄 ${a.numero} — ${fmtE(a.total)}`, tipo: 'albaran'
+  }));
+  // Facturas
+  factData.forEach(f => _timeline.push({
+    fecha: f.created_at, usuario: '—',
+    accion: 'Factura emitida', detalle: `🧾 ${f.numero} — ${fmtE(f.total)}`, tipo: 'factura'
+  }));
+  // Audit log entries
+  auditData.forEach(a => _timeline.push({
+    fecha: a.created_at, usuario: a.usuario_nombre || '—',
+    accion: a.accion || 'Acción', detalle: a.detalle || '', tipo: 'audit',
+    id: a.id
+  }));
+  // Ordenar cronológicamente (más reciente primero)
+  _timeline.sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+
+  const registroHtml = _timeline.length ? _timeline.map(e => `
+    <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-100);align-items:flex-start">
+      <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:${
+        e.tipo==='crear'?'#DBEAFE': e.tipo==='documento'?'#F3E8FF':
+        e.tipo==='nota'?'#FEF3C7': e.tipo==='presupuesto'?'#DBEAFE':
+        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': '#F3F4F6'
+      };display:flex;align-items:center;justify-content:center;font-size:14px">${_accionIco(e.accion)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:12px">${e.accion}</span>
+          <span style="font-size:10px;color:var(--gris-400);white-space:nowrap">${_fmtAudit(e.fecha)}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--gris-600);margin-top:2px;overflow-wrap:break-word">${e.detalle}</div>
+        <div style="font-size:10px;color:var(--gris-400);margin-top:1px">por ${e.usuario}</div>
+      </div>
+      ${_isSuperadmin && e.id ? `<button onclick="eliminarAuditEntry(${e.id})" style="background:none;border:none;cursor:pointer;color:var(--gris-300);font-size:12px;padding:2px" title="Eliminar (solo superadmin)">🗑️</button>` : ''}
+    </div>
+  `).join('') : '<div style="color:var(--gris-400);font-size:12.5px;padding:30px 0;text-align:center">Sin actividad registrada</div>';
+
+  document.getElementById('obra-hist-registro').innerHTML = `
+    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--gris-400)">${_timeline.length} eventos registrados</span>
+      ${_isSuperadmin ? '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Modo superadmin</span>' : '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Solo lectura</span>'}
+    </div>
+    ${registroHtml}
+  `;
 
   // ── Helpers para barras resumen ──
   function resumenBar(items) {
@@ -511,11 +591,11 @@ async function abrirFichaObra(id) {
 // ═══════════════════════════════════════════════
 // PESTAÑAS DE LA FICHA
 // ═══════════════════════════════════════════════
-const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',tareas:'✅ Tareas',documentos:'📎 Documentos',notas:'💬 Notas'};
+const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',tareas:'✅ Tareas',documentos:'📎 Documentos',notas:'💬 Notas',registro:'🕐 Registro de actividad'};
 
 function obraTab(tab) {
   obraTabActual = tab; // recordar pestaña activa
-  ['presupuestos','albaranes','facturas','partes','tareas','documentos','notas'].forEach(t => {
+  ['presupuestos','albaranes','facturas','partes','tareas','documentos','notas','registro'].forEach(t => {
     const el = document.getElementById('obra-hist-'+t);
     if (el) el.style.display = t===tab?'block':'none';
     const kpi = document.getElementById('okpi-'+t);
@@ -734,6 +814,7 @@ async function guardarTareaObra() {
     obraTareasData.push(data);
     toast('Tarea añadida ✓','success');
   }
+  await registrarActividadObra(obraActualId, 'Tarea añadida', `✅ ${texto} | Prioridad: ${prioridad}${responsable_nombre ? ' | Resp: '+responsable_nombre : ''}${fecha_limite ? ' | Límite: '+fecha_limite : ''}`);
 
   // Limpiar input
   document.getElementById('obraTareaTexto').value = '';
@@ -783,6 +864,7 @@ async function cargarTodasPlantillas() {
     count++;
   }
   if (count) {
+    await registrarActividadObra(obraActualId, 'Plantillas de tareas cargadas', `📋 ${count} tarea(s) añadida(s) desde plantilla`);
     toast(`${count} tareas añadidas ✓`,'success');
     updateTareasKpi();
     renderObraTareas();
@@ -802,6 +884,7 @@ async function toggleTareaObra(id) {
   }
   tarea.estado = nuevoEstado;
   tarea.completada_at = nuevoEstado === 'completada' ? new Date().toISOString() : null;
+  await registrarActividadObra(obraActualId, nuevoEstado === 'completada' ? 'Tarea completada' : 'Tarea reabierta', `${nuevoEstado === 'completada' ? '✅' : '🔄'} ${tarea.texto}`);
   updateTareasKpi();
   renderObraTareas();
 }
@@ -815,17 +898,20 @@ async function cambiarEstadoTarea(id, estado) {
     toast('Error: '+error.message,'error'); return;
   }
   tarea.estado = estado;
+  await registrarActividadObra(obraActualId, 'Estado tarea cambiado', `🔀 "${tarea.texto}" → ${estado}`);
   updateTareasKpi();
   renderObraTareas();
 }
 
 async function eliminarTareaObra(id) {
   if (!confirm('¿Eliminar esta tarea?')) return;
+  const tareaElim = obraTareasData.find(t => t.id === id);
   const { error } = await sb.from('tareas_obra').delete().eq('id', id);
   if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
     toast('Error: '+error.message,'error'); return;
   }
   obraTareasData = obraTareasData.filter(t => t.id !== id);
+  await registrarActividadObra(obraActualId, 'Tarea eliminada', `🗑️ ${tareaElim?.texto || 'Tarea #'+id}`);
   updateTareasKpi();
   renderObraTareas();
   toast('Tarea eliminada','info');
@@ -1006,8 +1092,13 @@ function renderObraWorkflow(t, presupData, albData, factData, partesData) {
 // HELPER: dato ficha
 // ═══════════════════════════════════════════════
 function datoFichaObra(label, val) {
-  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500);white-space:nowrap;flex-shrink:0">${label}</span><span style="font-size:11.5px;color:var(--gris-400);text-align:right">—</span></div>`;
-  return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500);white-space:nowrap;flex-shrink:0">${label}</span><span style="font-size:11.5px;font-weight:600;text-align:right;word-break:break-all;min-width:0">${val}</span></div>`;
+  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;color:var(--gris-400)">—</span></div>`;
+  // Si el valor es largo (>25 chars), mostrar en 2 líneas (label arriba, valor abajo)
+  const valText = val.replace(/<[^>]*>/g, '');
+  if (valText.length > 25) {
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--gris-100)"><div style="font-size:10px;color:var(--gris-400);text-transform:uppercase;letter-spacing:.3px">${label}</div><div style="font-size:11.5px;font-weight:600;margin-top:1px;overflow-wrap:break-word">${val}</div></div>`;
+  }
+  return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;font-weight:600">${val}</span></div>`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1142,6 +1233,7 @@ async function obraPresToAlbaran(presId) {
   // Refrescar albaranes globales para que presupuestos detecte el nuevo
   const {data:_albR} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.albaranesData = _albR||[]; if (typeof albaranesData!=='undefined') albaranesData = _albR||[];
+  await registrarActividadObra(obraActualId, 'Albarán creado', `📄 ${numero} desde presupuesto ${p.numero}`);
   toast('📄 Albarán creado', 'success');
   abrirFichaObra(obraActualId);
 }
@@ -1184,6 +1276,7 @@ async function obraPresToFactura(presId) {
   window.facturasData = _fR2||[];
   const {data:_aR2} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.albaranesData = _aR2||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR2||[];
+  await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde presupuesto ${p.numero}`);
   toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
@@ -1217,6 +1310,7 @@ async function obraAlbToFactura(albId) {
   window.facturasData = _fR3||[];
   const {data:_aR3} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.albaranesData = _aR3||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR3||[];
+  await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde albarán ${a.numero}`);
   toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
@@ -1266,6 +1360,7 @@ async function obraFacturarTodosAlb() {
   for (const a of albs) {
     await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
   }
+  await registrarActividadObra(obraActualId, 'Factura agrupada creada', `🧾 ${numero} agrupando ${albs.length} albarán(es): ${nums}`);
   toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
   abrirFichaObra(obraActualId); // Refrescar
 }
@@ -1283,6 +1378,7 @@ async function guardarNotaObra() {
     texto, tipo, creado_por: CU.id, creado_por_nombre: CP?.nombre||CU?.email||''
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
+  await registrarActividadObra(obraActualId, 'Nota añadida', `📝 ${tipo}: ${texto.substring(0,80)}${texto.length>80?'…':''}`);
   document.getElementById('obraNotaTexto').value = '';
   await abrirFichaObra(obraActualId);
   obraTab('notas');
@@ -1292,6 +1388,7 @@ async function guardarNotaObra() {
 async function eliminarNotaObra(id) {
   if (!confirm('¿Eliminar nota?')) return;
   await sb.from('notas_trabajo').delete().eq('id', id);
+  await registrarActividadObra(obraActualId, 'Nota eliminada', `🗑️ Nota #${id} eliminada`);
   await abrirFichaObra(obraActualId);
   obraTab('notas');
   toast('Nota eliminada','info');
@@ -1319,6 +1416,7 @@ async function subirDocObra(input) {
     creado_por: CU.id
   });
   if (dbErr) { toast('Error guardando registro: '+dbErr.message,'error'); return; }
+  await registrarActividadObra(obraActualId, 'Documento subido', `📎 ${nombre} (${tipo})`);
   input.value = '';
   document.getElementById('obraDocNombre').value = '';
   await abrirFichaObra(obraActualId);
@@ -1329,9 +1427,34 @@ async function subirDocObra(input) {
 async function eliminarDocObra(id) {
   if (!confirm('¿Eliminar documento?')) return;
   await sb.from('documentos_trabajo').delete().eq('id', id);
+  await registrarActividadObra(obraActualId, 'Documento eliminado', `🗑️ Documento #${id} eliminado`);
   await abrirFichaObra(obraActualId);
   obraTab('documentos');
   toast('Documento eliminado','info');
+}
+
+async function eliminarAuditEntry(id) {
+  if (!(CP?.rol === 'superadmin' || CP?.rol === 'admin')) { toast('Solo el superadmin puede eliminar registros','error'); return; }
+  if (!confirm('¿Eliminar esta entrada del registro?')) return;
+  await sb.from('audit_log').delete().eq('id', id);
+  await abrirFichaObra(obraActualId);
+  obraTab('registro');
+  toast('Entrada eliminada del registro','info');
+}
+
+// Función helper para registrar actividad en una obra
+async function registrarActividadObra(trabajoId, accion, detalle) {
+  try {
+    await sb.from('audit_log').insert({
+      empresa_id: EMPRESA.id,
+      entidad: 'trabajo',
+      entidad_id: String(trabajoId),
+      accion: accion,
+      detalle: detalle || '',
+      usuario_id: CU?.id || null,
+      usuario_nombre: CP?.nombre || CU?.email || 'Sistema',
+    });
+  } catch(e) { /* silent */ }
 }
 
 // ═══════════════════════════════════════════════
@@ -1390,6 +1513,7 @@ async function saveTrabajo() {
       direccion_obra_texto: dirCliente, descripcion: desc,
     }).eq('id', obraActualId);
     if (error) { toast('Error: '+error.message,'error'); return; }
+    await registrarActividadObra(obraActualId, 'Obra editada', `Título: ${titulo} | Cliente: ${cli?.nombre||'—'} | Categoría: ${v('tr_cat')||'—'} | Prioridad: ${v('tr_prio')||'—'}`);
     closeModal('mTrabajo');
     document.getElementById('mTrabTit').textContent = 'Nueva Obra';
     const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
@@ -1435,6 +1559,13 @@ async function saveTrabajo() {
     document.getElementById('tr_doc_list').innerHTML = '';
   }
 
+  // Registrar actividad
+  if (newTrabajoId) {
+    await registrarActividadObra(newTrabajoId, 'Obra creada', `${num} — ${titulo} | Cliente: ${cli?.nombre||'Sin cliente'}`);
+    if (trDocsFiles.length > 0) {
+      await registrarActividadObra(newTrabajoId, 'Documentos adjuntados', `${trDocsFiles.length} documento(s) al crear la obra`);
+    }
+  }
   closeModal('mTrabajo');
   const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   trabajos=data||[]; renderTrabajos(); loadDashboard();
@@ -1443,6 +1574,8 @@ async function saveTrabajo() {
 
 async function delTrabajo(id) {
   if(!confirm('¿Eliminar obra?'))return;
+  const obraElim = trabajos.find(t=>t.id===id);
+  await registrarActividadObra(id, 'Obra eliminada', `🗑️ ${obraElim?.numero||''} — ${obraElim?.titulo||'Sin título'}`);
   await sb.from('trabajos').delete().eq('id',id);
   trabajos=trabajos.filter(t=>t.id!==id); renderTrabajos(); loadDashboard();
   toast('Eliminado','info');
