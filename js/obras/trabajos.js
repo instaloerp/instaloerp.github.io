@@ -82,11 +82,17 @@ async function abrirFichaObra(id) {
   }
   setObraVista('ficha');
 
-  // Cabecera
-  document.getElementById('fichaObraTitulo').textContent = t.titulo;
+  // Cabecera — cliente en grande, obra en subtítulo
+  const _cli = t.cliente_id ? clientes.find(c=>c.id===t.cliente_id) : null;
+  const _cliNombre = _cli?.nombre || t.cliente_nombre || 'Sin cliente';
+  document.getElementById('fichaObraClienteNombre').textContent = _cliNombre;
+  document.getElementById('fichaObraTitulo').textContent = t.titulo || '';
   document.getElementById('pgTitle').textContent = t.numero;
   document.getElementById('pgSub').textContent = t.titulo;
-  document.getElementById('fichaObraSub').textContent = [t.numero, t.categoria||'', t.cliente_nombre||''].filter(Boolean).join(' · ');
+  document.getElementById('fichaObraSub').textContent = t.numero;
+  // Avatar con iniciales del cliente
+  const _avEl = document.getElementById('fichaObraAvatar');
+  if (_avEl) { _avEl.style.background = avC(_cliNombre); _avEl.textContent = ini(_cliNombre); }
   document.getElementById('fichaObraEstado').innerHTML = estadoBadge(t.estado);
 
   // Datos de la obra (panel izquierdo)
