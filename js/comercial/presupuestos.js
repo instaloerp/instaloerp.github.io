@@ -519,7 +519,8 @@ async function presToFactura(id) {
   const numero = await generarNumeroDoc('factura');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
   // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
-  const _obraVinc = trabajos.find(t=>t.presupuesto_id===p.id);
+  // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
+  const _obraVinc = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);
   const { error } = await sb.from('facturas').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
@@ -567,7 +568,8 @@ async function presToAlbaran(id) {
   }));
   let total=0; lineas.forEach(l=>total+=l.cant*l.precio);
   // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
-  const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id);
+  // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
+  const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);
   const { error } = await sb.from('albaranes').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,

@@ -136,6 +136,7 @@ async function abrirFichaObra(id) {
   if (t.presupuesto_id) presOrClauses.push(`id.eq.${t.presupuesto_id}`);
   if (t.cliente_id) presOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
   const docOrClauses = [`trabajo_id.eq.${id}`];
+  if (t.presupuesto_id) docOrClauses.push(`presupuesto_id.eq.${t.presupuesto_id}`);
   if (t.cliente_id) docOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
 
   const [presups, albs, facts, partes, docs, notas, audit, tareas] = await Promise.all([
@@ -153,11 +154,13 @@ async function abrirFichaObra(id) {
   const presupData = (presups.data||[]).filter(p =>
     p.trabajo_id === id || (t.presupuesto_id && p.id === t.presupuesto_id)
   );
+  // Crear set con TODOS los presupuesto_id vinculados a esta obra para buscar alb/fact
+  const _presIdsObra = new Set(presupData.map(p=>p.id));
   const albData = (albs.data||[]).filter(a =>
-    a.trabajo_id === id || (t.presupuesto_id && a.presupuesto_id === t.presupuesto_id)
+    a.trabajo_id === id || _presIdsObra.has(a.presupuesto_id)
   );
   const factData = (facts.data||[]).filter(f =>
-    f.trabajo_id === id || (t.presupuesto_id && f.presupuesto_id === t.presupuesto_id) || albData.some(a => a.id === f.albaran_id)
+    f.trabajo_id === id || _presIdsObra.has(f.presupuesto_id) || albData.some(a => a.id === f.albaran_id)
   );
   const partesData = partes.data||[];
   const docsData = docs.data||[];
