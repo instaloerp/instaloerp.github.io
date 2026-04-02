@@ -99,7 +99,7 @@ function renderPresupuestos(list) {
       <td style="font-size:12px">${p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-weight:700">${fmtE(p.total||0)}</td>
       <td onclick="event.stopPropagation()">
-        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg}">${est.ico} ${est.label}</span>
+        <span onclick="cambiarEstadoPresMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
       </td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
@@ -297,6 +297,10 @@ async function verDetallePresupuesto(id) {
     refDiv.style.display = refs ? 'flex' : 'none';
   }
 
+  // Botón Aprobar: solo visible si está pendiente
+  const btnAprobar = document.getElementById('presDetBtnAprobar');
+  if (btnAprobar) btnAprobar.style.display = (p.estado === 'pendiente') ? '' : 'none';
+
   // Mostrar/ocultar botones según estado y documentos existentes
   const noConvertible = p.estado === 'borrador' || p.estado === 'caducado' || p.estado === 'anulado';
   const presFooterObra = document.getElementById('presDetFooterObra');
@@ -472,8 +476,7 @@ async function presToFactura(id) {
     ...(_obraVinc ? {trabajo_id: _obraVinc.id} : {}),
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; }
+  // El presupuesto se queda en su estado actual
   // Si hay albaranes del mismo presupuesto, marcarlos como facturados
   const _albsDelPres = _aD.filter(a=>a.presupuesto_id===p.id);
   for (const alb of _albsDelPres) {
@@ -521,15 +524,14 @@ async function presToAlbaran(id) {
     ...(_obraVinc2 ? {trabajo_id: _obraVinc2.id} : {}),
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; }
+  // El presupuesto se queda en su estado actual
   // Refrescar albaranes en memoria para que la lógica inteligente detecte el nuevo registro
   const {data:albRefresh} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   albaranesData = albRefresh||[];
   window.albaranesData = albaranesData;
   filtrarPresupuestos();
   closeModal('mPresDetalle');
-  toast('📄 Albarán creado — presupuesto bloqueado','success');
+  toast('📄 Albarán creado','success');
   loadDashboard();
   // Refrescar ficha de obra si está abierta
   { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
@@ -559,15 +561,14 @@ async function presToObra(id) {
     operario_id: CU.id, operario_nombre: CP?.nombre||'',
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; }
+  // El presupuesto se queda en su estado actual — no cambia a aceptado automáticamente
   registrarAudit('crear_obra', 'presupuesto', id, 'Obra creada desde '+p.numero);
   // Refrescar trabajos en memoria para que los badges se actualicen
   const {data:tRefresh} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   if (typeof trabajos !== 'undefined') { trabajos.length = 0; (tRefresh||[]).forEach(t=>trabajos.push(t)); }
   filtrarPresupuestos();
   closeModal('mPresDetalle');
-  toast('🏗️ Obra creada — presupuesto aceptado','success');
+  toast('🏗️ Obra creada — aprueba el presupuesto cuando el cliente firme','success');
   loadDashboard();
   // Refrescar ficha de obra si está abierta
   { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
@@ -582,6 +583,114 @@ async function presupuestoTieneVinculados(presId) {
     ]);
     return (r1.count||0) + (r2.count||0) + (r3.count||0) > 0;
   } catch(e) { console.warn('Error checking vinculados:', e); return false; }
+}
+
+// ═══════════════════════════════════════════════
+//  APROBACIÓN Y FIRMA DE PRESUPUESTOS
+// ═══════════════════════════════════════════════
+
+// Abre el modal de aprobación (llamado desde botones ✅ Aprobar)
+function abrirModalAprobar(presId) {
+  document.getElementById('aprobarPresId').value = presId;
+  document.getElementById('aprobarPresFile').value = '';
+  const linkDiv = document.getElementById('aprobarPresLink');
+  if (linkDiv) { linkDiv.style.display = 'none'; linkDiv.innerHTML = ''; }
+  openModal('mAprobarPres');
+}
+
+// Opción A: Subir documento firmado
+async function aprobarConDocumento() {
+  const presId = parseInt(document.getElementById('aprobarPresId').value);
+  const file = document.getElementById('aprobarPresFile').files[0];
+  if (!file) { toast('Selecciona un archivo','error'); return; }
+  if (file.size > 10*1024*1024) { toast('El archivo no puede superar 10MB','error'); return; }
+
+  toast('Subiendo documento...','info');
+  const ext = file.name.split('.').pop().toLowerCase();
+  const path = `firmas/pres_${presId}_firma_${Date.now()}.${ext}`;
+  const { error: upErr } = await sb.storage.from('documentos').upload(path, file, { upsert: true });
+  if (upErr) {
+    // Si el bucket no existe, intentar con fotos-partes
+    const { error: upErr2 } = await sb.storage.from('fotos-partes').upload(path, file, { upsert: true });
+    if (upErr2) { toast('Error subiendo: '+upErr.message+'. Verifica que el bucket "documentos" existe en Supabase Storage','error'); return; }
+    const { data: urlData } = sb.storage.from('fotos-partes').getPublicUrl(path);
+    await _completarAprobacion(presId, urlData?.publicUrl || null, 'Documento firmado subido');
+    return;
+  }
+  const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
+  await _completarAprobacion(presId, urlData?.publicUrl || null, 'Documento firmado subido');
+}
+
+// Opción B: Generar enlace para firma del cliente
+async function enviarParaFirma() {
+  const presId = parseInt(document.getElementById('aprobarPresId').value);
+  if (!presId) return;
+  // Generar token único
+  const token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2));
+  const { error } = await sb.from('presupuestos').update({ firma_token: token }).eq('id', presId);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  // El enlace de firma apunta a firma.html en el mismo dominio
+  const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
+  const firmaUrl = `${baseUrl}/firma.html?token=${token}`;
+  const linkDiv = document.getElementById('aprobarPresLink');
+  if (linkDiv) {
+    linkDiv.style.display = 'block';
+    linkDiv.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px">Enlace de firma generado:</div>
+      <a href="${firmaUrl}" target="_blank" style="color:var(--azul);word-break:break-all">${firmaUrl}</a>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText('${firmaUrl}');toast('Enlace copiado','success')" style="font-size:11px">📋 Copiar enlace</button>
+        <button class="btn btn-sm" onclick="enviarEnlaceFirmaEmail(${presId},'${firmaUrl}')" style="font-size:11px">📧 Enviar por email</button>
+      </div>`;
+  }
+  toast('Enlace de firma generado — envíalo al cliente','success');
+}
+
+// Enviar enlace de firma por email al cliente
+async function enviarEnlaceFirmaEmail(presId, firmaUrl) {
+  const p = presupuestos.find(x=>x.id===presId);
+  if (!p) return;
+  const c = clientes.find(x=>x.id===p.cliente_id);
+  if (!c?.email) { toast('El cliente no tiene email configurado','error'); return; }
+  const asunto = `Presupuesto ${p.numero} — Firma requerida`;
+  const cuerpo = `Hola ${c.nombre},\n\nTe enviamos el presupuesto ${p.numero} por importe de ${(p.total||0).toFixed(2)} € para tu aprobación.\n\nPuedes ver y firmar el presupuesto en el siguiente enlace:\n${firmaUrl}\n\nGracias,\n${EMPRESA?.nombre||''}`;
+  window.open(`mailto:${c.email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`);
+  toast('Abriendo email...','info');
+}
+
+// Opción C: Aprobar directamente sin documento
+async function aprobarDirecto() {
+  const presId = parseInt(document.getElementById('aprobarPresId').value);
+  if (!presId) return;
+  if (!confirm('¿Aprobar sin documento firmado?')) return;
+  await _completarAprobacion(presId, null, 'Aprobado sin documento');
+}
+
+// Función interna: completar aprobación
+async function _completarAprobacion(presId, firmaUrl, detalle) {
+  const updateData = {
+    estado: 'aceptado',
+    firma_fecha: new Date().toISOString(),
+    firma_nombre: CP?.nombre || CU?.email || 'Operario',
+  };
+  if (firmaUrl) updateData.firma_url = firmaUrl;
+
+  const { error } = await sb.from('presupuestos').update(updateData).eq('id', presId);
+  if (error) {
+    // Si las columnas de firma no existen, aprobar solo con estado
+    const { error: e2 } = await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+    if (e2) { toast('Error: '+e2.message,'error'); return; }
+  }
+  const p = presupuestos.find(x=>x.id===presId); if(p) p.estado = 'aceptado';
+  registrarAudit('aprobar', 'presupuesto', presId, detalle + (p?' — '+p.numero:''));
+  closeModal('mAprobarPres');
+  closeModal('mPresDetalle');
+  filtrarPresupuestos();
+  toast('✅ Presupuesto aprobado','success');
+  loadDashboard();
+  // Refrescar ficha de obra si está abierta
+  const _pg = document.querySelector('.page.active')?.id;
+  if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 // ═══════════════════════════════════════════════

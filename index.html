@@ -2772,6 +2772,8 @@
         <button class="btn btn-secondary btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-secondary btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
+        <button id="presDetBtnAprobar" class="btn btn-sm" onclick="abrirModalAprobar(parseInt(document.getElementById('presDetId').value))" title="Aprobar presupuesto" style="background:var(--verde);color:#fff;border:none;font-weight:700">✅ Aprobar</button>
+        <button class="btn btn-secondary btn-sm" onclick="cambiarEstadoPresMenu(event,parseInt(document.getElementById('presDetId').value))" title="Cambiar estado">🔄 Estado</button>
         <button class="btn btn-secondary btn-sm" onclick="delPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Anular" style="color:var(--rojo)">🚫 Anular</button>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mPresDetalle')">✕</button>
@@ -2843,6 +2845,43 @@
     </div>
   </div>
 </div>
+<!-- Modal Aprobar Presupuesto -->
+<div class="overlay" id="mAprobarPres">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-h">
+      <h3 style="font-size:16px">✅ Aprobar presupuesto</h3>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mAprobarPres')">✕</button>
+    </div>
+    <div class="modal-b" style="padding:20px">
+      <input type="hidden" id="aprobarPresId">
+      <p style="font-size:13px;color:var(--gris-500);margin-bottom:16px">Elige cómo aprobar el presupuesto:</p>
+
+      <!-- Opción 1: Subir firmado -->
+      <div style="border:1.5px solid var(--gris-200);border-radius:10px;padding:16px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px">📎 Subir documento firmado</div>
+        <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Sube el presupuesto firmado por el cliente (PDF o imagen)</p>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="file" id="aprobarPresFile" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:12px;flex:1">
+          <button class="btn btn-sm" onclick="aprobarConDocumento()" style="background:var(--verde);color:#fff;border:none;font-weight:700;white-space:nowrap">✅ Aprobar</button>
+        </div>
+      </div>
+
+      <!-- Opción 2: Enviar para firma -->
+      <div style="border:1.5px solid var(--gris-200);border-radius:10px;padding:16px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px">✍️ Enviar al cliente para firma</div>
+        <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Se genera un enlace único donde el cliente puede ver y firmar el presupuesto</p>
+        <button class="btn btn-sm" onclick="enviarParaFirma()" style="background:var(--azul);color:#fff;border:none;font-weight:700">📧 Generar enlace de firma</button>
+        <div id="aprobarPresLink" style="display:none;margin-top:10px;padding:10px;background:var(--gris-50);border-radius:8px;font-size:12px;word-break:break-all"></div>
+      </div>
+
+      <!-- Opción 3: Aprobar directamente sin documento -->
+      <div style="text-align:center;padding-top:8px;border-top:1px solid var(--gris-100)">
+        <button class="btn btn-ghost btn-sm" onclick="aprobarDirecto()" style="color:var(--gris-400);font-size:12px">Aprobar sin documento firmado</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 

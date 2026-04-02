@@ -233,6 +233,8 @@ async function abrirFichaObra(id) {
       if (esBorrador) {
         acciones += `<button onclick="event.stopPropagation();abrirEditor('presupuesto',${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--amarillo-light);color:var(--amarillo);font-size:10px;font-weight:700;border:1px solid var(--amarillo);cursor:pointer">✏️ Editar borrador</button>`;
       } else if (noAnulado) {
+        // Botón Aprobar si está pendiente
+        if (p.estado === 'pendiente') acciones += `<button onclick="event.stopPropagation();abrirModalAprobar(${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--verde);color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">✅ Aprobar</button> `;
         if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
         else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
         if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
@@ -936,6 +938,19 @@ function nuevoParteObraActual() {
 // ═══════════════════════════════════════════════
 // CONVERSIONES DESDE FICHA DE OBRA (autónomas)
 // ═══════════════════════════════════════════════
+
+async function obraAprobarPres(presId) {
+  if (!obraActualId) return;
+  if (!confirm('¿Aprobar este presupuesto?')) return;
+  const { error } = await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  const p = (typeof presupuestos !== 'undefined') ? presupuestos.find(x=>x.id===presId) : null;
+  if (p) p.estado = 'aceptado';
+  registrarAudit('cambiar_estado', 'presupuesto', presId, 'Aprobado desde ficha de obra'+(p?' — '+p.numero:''));
+  toast('✅ Presupuesto aprobado','success');
+  abrirFichaObra(obraActualId);
+  if (typeof loadDashboard === 'function') loadDashboard();
+}
 
 async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
