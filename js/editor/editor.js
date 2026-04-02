@@ -1599,60 +1599,8 @@ async function editarPresupuesto(id) {
   abrirEditor('presupuesto', id);
 }
 
-// ═══ PRESUPUESTO → ALBARÁN ═══
-async function presToAlbaran(id) {
-  const p = presupuestos.find(x=>x.id===id);
-  if (!p) return;
-  if (!confirm('¿Crear albarán desde el presupuesto '+p.numero+'?')) return;
-  const numero = await generarNumeroDoc('albaran');
-  // Simplificar líneas para albarán (sin IVA/dto)
-  const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
-    desc:l.desc||'', cant:l.cant||1, precio:l.precio||0
-  }));
-  let total=0; lineas.forEach(l=>total+=l.cant*l.precio);
-  const { error } = await sb.from('albaranes').insert({
-    empresa_id: EMPRESA.id, numero,
-    cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
-    fecha: new Date().toISOString().split('T')[0],
-    referencia: p.titulo||null,
-    total: Math.round(total*100)/100,
-    estado: 'pendiente', observaciones: p.observaciones, lineas,
-    presupuesto_id: p.id,
-  });
-  if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) pp.estado='aceptado';
-  renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
-  toast('📄 Albarán creado — presupuesto aceptado','success');
-  loadDashboard();
-}
-
-// ═══ PRESUPUESTO → OBRA ═══
-async function presToObra(id) {
-  const p = presupuestos.find(x=>x.id===id);
-  if (!p) return;
-  if (!confirm('¿Crear obra desde el presupuesto '+p.numero+'?')) return;
-  const c = clientes.find(x=>x.id===p.cliente_id);
-  const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
-  const numObra = `TRB-${new Date().getFullYear()}-${String(trabajos.length+1).padStart(3,'0')}`;
-  const { error } = await sb.from('trabajos').insert({
-    empresa_id: EMPRESA.id,
-    numero: numObra,
-    titulo: p.titulo || 'Obra desde '+p.numero,
-    cliente_id: p.cliente_id, cliente_nombre: c?.nombre||p.cliente_nombre||'',
-    estado: 'pendiente',
-    presupuesto_id: p.id,
-    descripcion: p.observaciones||null,
-    direccion_obra_texto: dirParts||null,
-    operario_id: CU.id, operario_nombre: CP?.nombre||'',
-  });
-  if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) pp.estado='aceptado';
-  registrarAudit('crear_obra', 'presupuesto', id, 'Obra creada desde '+p.numero);
-  renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
-  toast('🏗️ Obra creada — presupuesto aceptado','success');
-  loadDashboard();
-}
+// ═══ PRESUPUESTO → ALBARÁN / OBRA ═══
+// NOTA: Estas funciones están definidas en presupuestos.js con lógica de bloqueo.
+// No duplicar aquí para evitar sobreescritura.
 
 // ═══════════════════════════════════════════════
