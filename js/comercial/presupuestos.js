@@ -103,7 +103,26 @@ function renderPresupuestos(list) {
       <td style="font-weight:700">${fmtE(p.total||0)}</td>
       <td onclick="event.stopPropagation()">
         <span onclick="cambiarEstadoPresMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
-        ${p.estado==='aceptado'&&p.firma_fecha?'<div style="font-size:9px;color:var(--gris-400);margin-top:2px;text-align:center">'+new Date(p.firma_fecha).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>':''}
+        ${(()=>{
+          if (p.estado!=='aceptado') return '';
+          let _h = '';
+          if (p.firma_fecha) _h += '<div style="font-size:9px;color:var(--gris-400);margin-top:2px;text-align:center">'+new Date(p.firma_fecha).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>';
+          // Tipo de aprobación
+          if (p.firma_ip && p.firma_dispositivo) {
+            // Firma digital del cliente (tiene IP + dispositivo)
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado digitalmente por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+' — DNI: '+((p.firma_dispositivo||{}).dni||'N/A')+'">🖊️ Firma digital</span></div>';
+          } else if (p.firma_url) {
+            // Documento subido
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--azul);text-decoration:none" title="Ver documento firmado adjunto">📎 Doc. firmado</a></div>';
+          } else if (p.firma_fecha) {
+            // Aprobado directo (tiene fecha pero no doc ni firma)
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#D97706" title="Aprobado por '+(p.firma_nombre||'operario')+' sin documento">⚠️ Sin documento</span></div>';
+          } else {
+            // Aprobado antes del sistema de firmas
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:var(--gris-400)" title="Sin datos de aprobación">— sin datos —</span></div>';
+          }
+          return _h;
+        })()}
       </td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
@@ -304,6 +323,22 @@ async function verDetallePresupuesto(id) {
         fac = _facsAll.find(f => f.albaran_id === _albsP[0].id);
       }
       refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
+    }
+    // Información de aprobación según método
+    if (p.estado === 'aceptado') {
+      if (p.firma_ip && p.firma_dispositivo) {
+        const _fd = p.firma_dispositivo || {};
+        refs += `<span style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}">🖊️ Firma digital — ${p.firma_nombre||'—'}</span> `;
+        if (p.firma_url) {
+          refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE">📎 Ver firma</a> `;
+        }
+      } else if (p.firma_url) {
+        refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE">📎 Doc. firmado</a> `;
+      } else if (p.firma_fecha) {
+        refs += `<span style="${_refStyle};background:#FFFBEB;color:#D97706;border:1px solid #FDE68A">⚠️ Sin documento — ${p.firma_nombre||'operario'}</span> `;
+      } else {
+        refs += `<span style="${_refStyle};background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB">— Sin datos de aprobación —</span> `;
+      }
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
