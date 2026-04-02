@@ -104,23 +104,29 @@ function renderPresupuestos(list) {
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           ${(()=>{
-            // Borrador y caducado: no mostrar botones de conversión
+            // Borrador: no mostrar botones
             if (p.estado === 'borrador') return '';
             if (p.estado === 'caducado') return '<button onclick="event.stopPropagation();reactivarPresupuesto('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #F59E0B;background:#FFFBEB;cursor:pointer;font-size:11px;font-weight:600;color:#92400E" title="Reactivar">🔄 Reactivar</button>';
             if (p.estado === 'anulado') return '<span style="font-size:10px;color:var(--gris-400)">Anulado</span>';
+            // Pendiente: Aprobar + Crear obra
+            if (p.estado === 'pendiente') {
+              const _tO2 = trabajos.some(t=>t.presupuesto_id===p.id);
+              let _pBtns = '<button onclick="event.stopPropagation();abrirModalAprobar('+p.id+')" style="padding:4px 10px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Aprobar presupuesto">✅ Aprobar</button> ';
+              if (_tO2) { const _ob2=trabajos.find(t=>t.presupuesto_id===p.id); _pBtns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob2.id+')" style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none">✅ Obra</a>'; }
+              else _pBtns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button>';
+              return _pBtns;
+            }
+            // Aceptado: botones de conversión
             const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
             const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
             const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
             const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
             const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
             let btns = '';
-            // Obra: badge verde si existe (clickable→ficha), botón si no existe y no facturado, oculto si facturado
             if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'">✅ Obra</a> '; }
             else if (!_tF) btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button> ';
-            // Albarán: badge verde si existe, botón si no existe Y no facturado
             if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
-            // Factura: badge verde si existe, botón si no
             if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
             return btns;

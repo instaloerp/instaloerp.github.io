@@ -233,12 +233,16 @@ async function abrirFichaObra(id) {
       if (esBorrador) {
         acciones += `<button onclick="event.stopPropagation();abrirEditor('presupuesto',${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--amarillo-light);color:var(--amarillo);font-size:10px;font-weight:700;border:1px solid var(--amarillo);cursor:pointer">✏️ Editar borrador</button>`;
       } else if (noAnulado) {
-        // Botón Aprobar si está pendiente
-        if (p.estado === 'pendiente') acciones += `<button onclick="event.stopPropagation();abrirModalAprobar(${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--verde);color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">✅ Aprobar</button> `;
-        if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
-        else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
-        if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
-        else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
+        // Pendiente: Aprobar (sin Albaranar/Facturar)
+        if (p.estado === 'pendiente') {
+          acciones += `<button onclick="event.stopPropagation();abrirModalAprobar(${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--verde);color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">✅ Aprobar</button>`;
+        } else if (p.estado === 'aceptado') {
+          // Aceptado: botones de conversión
+          if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
+          else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
+          if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
+          else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
+        }
       }
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
