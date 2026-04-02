@@ -264,9 +264,9 @@ async function abrirFichaObra(id) {
         <div style="font-size:10.5px;color:var(--gris-400)">${cli.nif||''} · ${cli.telefono||cli.movil||''}</div>
       </div>
     </div>
-    ${datoFichaObra('Email', cli.email||'—')}
-    ${datoFichaObra('Teléfono', cli.telefono||'—')}
-    ${datoFichaObra('Municipio', cli.municipio_fiscal||'—')}
+    ${datoFichaObra('Email', cli.email ? `<a href="mailto:${cli.email}" style="color:var(--azul);text-decoration:none;font-size:11px">${cli.email}</a>` : '—')}
+    ${datoFichaObra('Teléfono', cli.telefono ? `<a href="tel:${cli.telefono}" style="color:inherit;text-decoration:none">${cli.telefono}</a>` : '—')}
+    ${datoFichaObra('Municipio', cli.municipio_fiscal||cli.municipio||'—')}
   ` : '<div style="color:var(--gris-400);font-size:12px;padding:8px 0">Sin cliente asignado</div>';
 
   // ── Cargar datos relacionados en paralelo (con protección si tabla no existe) ──
@@ -1006,8 +1006,8 @@ function renderObraWorkflow(t, presupData, albData, factData, partesData) {
 // HELPER: dato ficha
 // ═══════════════════════════════════════════════
 function datoFichaObra(label, val) {
-  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;color:var(--gris-400)">—</span></div>`;
-  return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500)">${label}</span><span style="font-size:11.5px;font-weight:600">${val}</span></div>`;
+  if(!val||val==='—') return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500);white-space:nowrap;flex-shrink:0">${label}</span><span style="font-size:11.5px;color:var(--gris-400);text-align:right">—</span></div>`;
+  return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--gris-100)"><span style="font-size:11.5px;color:var(--gris-500);white-space:nowrap;flex-shrink:0">${label}</span><span style="font-size:11.5px;font-weight:600;text-align:right;word-break:break-all;min-width:0">${val}</span></div>`;
 }
 
 // ═══════════════════════════════════════════════
