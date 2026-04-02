@@ -59,6 +59,9 @@ function setObraVista(vista) {
   const vf = document.getElementById('trVista-ficha');
   if (vl) vl.style.display = vista === 'lista' ? 'block' : 'none';
   if (vf) vf.style.display = vista === 'ficha' ? 'block' : 'none';
+  // Ocultar topbar en ficha de obra (la cabecera ya tiene toda la info)
+  const tb = document.getElementById('topbar');
+  if (tb) tb.style.display = vista === 'ficha' ? 'none' : '';
 }
 
 function cerrarFichaObra() {
