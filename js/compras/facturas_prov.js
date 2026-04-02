@@ -39,6 +39,8 @@ function renderFacturasProv(list) {
       <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${fp.estado}</span></td>
       <td style="text-align:right;font-weight:600">${fmtE(fp.total)}</td>
       <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirFacturaProv(${fp.id})" title="Imprimir">🖨️</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarFacturaProvEmail(${fp.id})" title="Enviar por email">📧</button>
         <button class="btn btn-ghost btn-sm" onclick="editarFacturaProv(${fp.id})">✏️</button>
         ${fp.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="pagarFacturaProv(${fp.id})">💰</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="delFacturaProv(${fp.id})">🗑️</button>
@@ -327,4 +329,22 @@ function imprimirFacturaProv(id) {
   const win=window.open('','_blank','width=850,height=800');
   win.document.write(`<!DOCTYPE html><html><head><title>Factura Prov. ${f.numero}</title><style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}.btn-bar{text-align:center;padding:16px;background:#f5f5f5}.btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px}@media print{body{background:#fff}.page{padding:0;min-height:auto}.no-print{display:none!important}}</style></head><body><div class="no-print btn-bar"><button style="background:#1e40af;color:#fff" onclick="window.print()">🖨️ Imprimir</button><button style="background:#e2e8f0;color:#475569" onclick="window.close()">✕ Cerrar</button></div><div class="page"><div style="display:flex;gap:24px;margin-bottom:16px"><div style="flex:1"><div style="display:flex;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div></div></div></div><div style="flex:1"><div style="background:#fef3c7;border-radius:8px;padding:12px 16px;border-left:4px solid #f59e0b"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;color:#92400e;margin-bottom:4px">PROVEEDOR</div><div style="font-size:15px;font-weight:700">${f.proveedor_nombre||'—'}</div><div style="font-size:11px;color:#475569">${prov?.cif?'CIF: '+prov.cif:''}</div></div></div></div><div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px"><div style="color:#7c3aed"><span style="font-size:14px;font-weight:800">FACTURA PROVEEDOR</span> <span style="font-size:11px;color:#475569">${f.numero||''}</span></div><div style="display:flex;gap:16px;font-size:11px;color:#64748b"><span>Fecha: <b>${f.fecha?new Date(f.fecha).toLocaleDateString('es-ES'):'—'}</b></span><span>Vence: <b>${f.fecha_vencimiento?new Date(f.fecha_vencimiento).toLocaleDateString('es-ES'):'—'}</b></span></div></div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr><th style="background:#7c3aed;color:#fff;padding:7px 10px;font-size:9px;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#7c3aed;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:70px">Cant.</th><th style="background:#7c3aed;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Precio</th><th style="background:#7c3aed;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Total</th></tr></thead><tbody>${htmlLineas}</tbody></table><div style="display:flex;justify-content:flex-end"><div style="width:260px"><div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px"><span>Base</span><b>${(f.base_imponible||base).toFixed(2)} €</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px"><span>IVA</span><b>${(f.total_iva||0).toFixed(2)} €</b></div><div style="display:flex;justify-content:space-between;padding:10px 14px;background:#7c3aed;color:#fff;border-radius:6px;font-size:15px;font-weight:800;margin-top:4px"><span>TOTAL</span><b>${(f.total||0).toFixed(2)} €</b></div></div></div></div></body></html>`);
   win.document.close();
+}
+
+function enviarFacturaProvEmail(id) {
+  const f = facturasProveedor.find(x => x.id === id);
+  if (!f) return toast('Factura no encontrada', 'error');
+  const prov = proveedores.find(x => x.id === f.proveedor_id);
+  const email = prov?.email || '';
+  const total = parseFloat(f.total||0).toFixed(2);
+  const subject = encodeURIComponent(`Factura proveedor ${f.numero_factura||f.numero||''} — ${EMPRESA.nombre}`);
+  const body = encodeURIComponent(
+    `Estimado proveedor,\n\nEn relación a la factura:\n\n` +
+    `Nº Factura: ${f.numero_factura||f.numero||'—'}\n` +
+    `Fecha: ${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}\n` +
+    `Total: ${total} €\n\n` +
+    `Atentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`
+  );
+  window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+  toast('Abriendo correo…', 'info');
 }

@@ -59,6 +59,8 @@ function renderRecepciones(list) {
       <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${r.estado}</span></td>
       <td style="text-align:right;font-weight:600">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</td>
       <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirRecepcion(${r.id})" title="Imprimir">🖨️</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarRecepcionEmail(${r.id})" title="Enviar por email">📧</button>
         <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
         ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
         ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
@@ -412,4 +414,21 @@ function imprimirRecepcion(id) {
   const win=window.open('','_blank','width=850,height=800');
   win.document.write(`<!DOCTYPE html><html><head><title>Recepción ${r.numero}</title><style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}.btn-bar{text-align:center;padding:16px;background:#f5f5f5}.btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px}@media print{body{background:#fff}.page{padding:0;min-height:auto}.no-print{display:none!important}}</style></head><body><div class="no-print btn-bar"><button style="background:#1e40af;color:#fff" onclick="window.print()">🖨️ Imprimir</button><button style="background:#e2e8f0;color:#475569" onclick="window.close()">✕ Cerrar</button></div><div class="page"><div style="display:flex;gap:24px;margin-bottom:16px"><div style="flex:1"><div style="display:flex;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div></div></div></div><div style="flex:1"><div style="background:#d1fae5;border-radius:8px;padding:12px 16px;border-left:4px solid #059669"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;color:#059669;margin-bottom:4px">PROVEEDOR</div><div style="font-size:15px;font-weight:700">${r.proveedor_nombre||'—'}</div></div></div></div><div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px"><div style="color:#059669"><span style="font-size:14px;font-weight:800">ALBARÁN PROVEEDOR</span> <span style="font-size:11px;color:#475569">${r.numero||''}</span></div><div style="font-size:11px;color:#64748b">Fecha: <b>${r.fecha?new Date(r.fecha).toLocaleDateString('es-ES'):'—'}</b></div></div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr><th style="background:#059669;color:#fff;padding:7px 10px;font-size:9px;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#059669;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:80px">Pedido</th><th style="background:#059669;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:80px">Recibido</th><th style="background:#059669;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Precio</th></tr></thead><tbody>${htmlLineas}</tbody></table></div></body></html>`);
   win.document.close();
+}
+
+function enviarRecepcionEmail(id) {
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return toast('Recepción no encontrada', 'error');
+  const prov = proveedores.find(x => x.id === r.proveedor_id);
+  const email = prov?.email || '';
+  const subject = encodeURIComponent(`Recepción ${r.numero||''} — ${EMPRESA.nombre}`);
+  const body = encodeURIComponent(
+    `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\n` +
+    `Nº Recepción: ${r.numero||'—'}\n` +
+    `Fecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\n` +
+    `Pedido origen: ${r.pedido_numero||'—'}\n\n` +
+    `Atentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`
+  );
+  window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+  toast('Abriendo correo…', 'info');
 }

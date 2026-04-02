@@ -38,6 +38,8 @@ function renderPedidosCompra(list) {
       <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${pc.estado}</span></td>
       <td style="text-align:right;font-weight:600">${fmtE(pc.total)}</td>
       <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirPedidoCompra(${pc.id})" title="Imprimir">🖨️</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarPedidoCompraEmail(${pc.id})" title="Enviar por email">📧</button>
         <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
         ${pc.exportado_bloqueado ? '<span title="Exportado a '+pc.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
