@@ -58,7 +58,7 @@ function renderAlbaranes(list) {
 
   tbody.innerHTML = list.length ? list.map(a => {
     const est = ESTADOS[a.estado] || { label: a.estado||'—', color:'var(--gris-400)' };
-    const noFacturado = a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado;
+    const noFacturado = a.estado !== 'facturado' && a.estado !== 'anulado';
     return `<tr style="cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
       <td onclick="event.stopPropagation()" style="text-align:center;width:30px">
         ${noFacturado ? `<input type="checkbox" class="ab-check" value="${a.id}" data-cliente="${a.cliente_id||''}" onchange="abCheckChanged()" style="cursor:pointer">` : ''}
@@ -159,7 +159,9 @@ async function duplicarAlbaran(id) {
 async function albaranToFactura(id) {
   const a = albaranesData.find(x=>x.id===id);
   if (!a) return;
-  if (a.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
+  // Comprobar si ya tiene factura
+  const _fD4 = window.facturasData || [];
+  if (_fD4.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
   if (!confirm('¿Convertir el albarán '+a.numero+' en factura?')) return;
   const numero = await generarNumeroDoc('factura');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
@@ -173,8 +175,8 @@ async function albaranToFactura(id) {
     lineas: a.lineas, albaran_id: a.id,
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('albaranes').update({estado:'facturado', exportado_a:'factura', exportado_bloqueado:true}).eq('id',id);
-  const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; ab.exportado_a='factura'; ab.exportado_bloqueado=true; }
+  await sb.from('albaranes').update({estado:'facturado'}).eq('id',id);
+  const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; }
   window.albaranesData = albaranesData;
   // Refrescar facturas en memoria
   const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
@@ -352,11 +354,11 @@ async function facturarAlbaranesMulti() {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  // Marcar todos como facturados y bloqueados
+  // Marcar todos como facturados
   for (const a of albs) {
-    await sb.from('albaranes').update({ estado: 'facturado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', a.id);
+    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
     const ab = albaranesData.find(x => x.id === a.id);
-    if (ab) { ab.estado = 'facturado'; ab.exportado_a='factura'; ab.exportado_bloqueado=true; }
+    if (ab) { ab.estado = 'facturado'; }
   }
   renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
   toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');

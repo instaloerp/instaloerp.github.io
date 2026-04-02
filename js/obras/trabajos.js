@@ -917,7 +917,9 @@ async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
-  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
+  // Comprobar si ya tiene albarán
+  const _aD3 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
+  if (_aD3.some(a=>a.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
   if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('albaran');
@@ -937,8 +939,8 @@ async function obraPresToAlbaran(presId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos').update({ estado: 'aceptado', exportado_a:'albaran', exportado_bloqueado:true }).eq('id', presId);
-  toast('📄 Albarán creado — presupuesto bloqueado', 'success');
+  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  toast('📄 Albarán creado', 'success');
   abrirFichaObra(obraActualId);
 }
 
@@ -946,7 +948,11 @@ async function obraPresToFactura(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
-  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
+  // Comprobar si ya tiene factura
+  const _fD2 = window.facturasData || [];
+  const _aD4 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
+  const _albsP2 = _aD4.filter(a=>a.presupuesto_id===p.id);
+  if (_fD2.some(f=>f.presupuesto_id===p.id) || _albsP2.some(a=>_fD2.some(f=>f.albaran_id===a.id))) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
   if (!confirm(`¿Crear factura desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('factura');
@@ -963,8 +969,8 @@ async function obraPresToFactura(presId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos').update({ estado: 'aceptado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', presId);
-  toast('🧾 Factura creada — presupuesto bloqueado', 'success');
+  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
 
@@ -972,7 +978,9 @@ async function obraAlbToFactura(albId) {
   if (!obraActualId) return;
   const { data: a, error: err } = await sb.from('albaranes').select('*').eq('id', albId).single();
   if (err || !a) { toast('Error al cargar albarán', 'error'); return; }
-  if (a.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
+  // Comprobar si ya tiene factura
+  const _fD3 = window.facturasData || [];
+  if (_fD3.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
   if (!confirm(`¿Crear factura desde ${a.numero}?`)) return;
 
   const numero = await generarNumeroDoc('factura');
@@ -989,8 +997,8 @@ async function obraAlbToFactura(albId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('albaranes').update({ estado: 'facturado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', albId);
-  toast('🧾 Factura creada — albarán bloqueado', 'success');
+  await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', albId);
+  toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
 
