@@ -17,14 +17,17 @@ const DE_TIPOS = {
   presupuesto: {
     ico:'📋', titulo:'Presupuesto', tipoSerie:'presupuesto', tabla:'presupuestos',
     conIva:true, conDto:true, conFecha2:true, fecha2Label:'Válido hasta', conFpago:true,
+    conVersiones:true, conBorrador:true, versionesTabla:'presupuesto_versiones', versionesFk:'presupuesto_id',
   },
   albaran: {
     ico:'📄', titulo:'Albarán', tipoSerie:'albaran', tabla:'albaranes',
-    conIva:false, conDto:false, conFecha2:false, fecha2Label:'', conFpago:false,
+    conIva:true, conDto:true, conFecha2:false, fecha2Label:'', conFpago:true,
+    conVersiones:true, conBorrador:true, versionesTabla:'albaran_versiones', versionesFk:'albaran_id',
   },
   factura: {
     ico:'🧾', titulo:'Factura', tipoSerie:'factura', tabla:'facturas',
     conIva:true, conDto:true, conFecha2:true, fecha2Label:'Vencimiento', conFpago:true,
+    conVersiones:false, conBorrador:false,
   },
 };
 
@@ -136,7 +139,11 @@ async function abrirEditor(tipo, editId) {
   // Botones dinámicos según modo y estado
   const btnBox = document.getElementById('de_buttons');
   const vBadge = document.getElementById('de_version_badge');
-  if (editId && isBorrador && tipo==='presupuesto') {
+  const _cV = cfg.conVersiones;
+  const _cB = cfg.conBorrador;
+  const _vBtn = _cV ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
+
+  if (editId && isBorrador && _cB) {
     // ── BORRADOR: edición directa, sin versiones ──
     deConfig._mode = 'editing';
     de_showVersion(0);
@@ -144,7 +151,7 @@ async function abrirEditor(tipo, editId) {
     btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
       <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
       <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
-  } else if (editId && isAnulado && tipo==='presupuesto') {
+  } else if (editId && isAnulado && _cB) {
     // ── ANULADO: solo lectura, restaurar o eliminar (superadmin) ──
     deConfig._mode = 'view';
     de_showVersion(0);
@@ -153,26 +160,26 @@ async function abrirEditor(tipo, editId) {
       ${CP?.es_superadmin?'<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="eliminarDefinitivamente('+editId+')">🗑️ Eliminar</button>':''}
       <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>`;
   } else if (editId && isCaducado && tipo==='presupuesto') {
-    // ── CADUCADO: solo lectura, reactivar ──
+    // ── CADUCADO (solo presupuestos): solo lectura, reactivar ──
     deConfig._mode = 'view';
     de_showVersion(deConfig._version || 1);
     de_setReadonly(true);
     btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="restaurarEstadoPres(${editId},'pendiente')">♻️ Reactivar</button>
       <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>`;
   } else if (editId && docEstado==='aceptado' && tipo==='presupuesto') {
-    // ── ACEPTADO: siempre bloqueado (solo superadmin puede editar) ──
+    // ── ACEPTADO (solo presupuestos): siempre bloqueado (solo superadmin puede editar) ──
     deConfig._mode = 'view';
     deConfig._bloqueado = true;
     const ver = deConfig._version || 1;
     de_showVersion(ver);
     de_setReadonly(true);
     if (CP?.es_superadmin) {
-      btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+      btnBox.innerHTML = `${_vBtn}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Aceptado</span>`;
     } else {
-      btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+      btnBox.innerHTML = `${_vBtn}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado — solo superadmin puede editar</span>`;
     }
@@ -185,12 +192,12 @@ async function abrirEditor(tipo, editId) {
     de_setReadonly(true);
     const destino = deConfig._exportado_a || 'otro documento';
     if (CP?.es_superadmin) {
-      btnBox.innerHTML = `${tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+      btnBox.innerHTML = `${_vBtn}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="de_desbloquearExportado()">🔓 Desbloquear</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino}</span>`;
     } else {
-      btnBox.innerHTML = `${tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+      btnBox.innerHTML = `${_vBtn}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino} — solo superadmin puede desbloquear</span>`;
     }
@@ -200,7 +207,7 @@ async function abrirEditor(tipo, editId) {
     const ver = deConfig._version || 1;
     de_showVersion(ver);
     de_setReadonly(true);
-    btnBox.innerHTML = `${tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+    btnBox.innerHTML = `${_vBtn}
       <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
       <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
   } else {
@@ -208,7 +215,7 @@ async function abrirEditor(tipo, editId) {
     deConfig._mode = 'new';
     de_showVersion(0);
     de_setReadonly(false);
-    if (tipo==='presupuesto') {
+    if (_cB) {
       btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
         <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
@@ -292,28 +299,27 @@ async function de_entrarEdicion() {
 
   // Aceptado = bloqueado, solo superadmin puede editar
   if (cfg._estado === 'aceptado' && cfg._bloqueado && !CP?.es_superadmin) {
-    toast('🔒 Presupuesto bloqueado — solo superadmin puede editar','error');
+    toast('🔒 Documento bloqueado — solo superadmin puede editar','error');
     return;
   }
 
-  if (cfg.tipo==='presupuesto') {
+  if (cfg.conVersiones) {
     // Snapshot current version before editing (solo si no existe ya)
-    const tableOk = await de_ensureVersionTable();
+    const vTabla = cfg.versionesTabla;
+    const vFk = cfg.versionesFk;
+    const tableOk = await de_ensureVersionTable(vTabla);
     if (tableOk) {
-      const { data: current } = await sb.from('presupuestos').select('*').eq('id', cfg.editId).single();
+      const { data: current } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
       if (current) {
         const ver = current.version || cfg._version || 1;
-        // Comprobar si ya existe snapshot de esta versión (evitar duplicados)
-        const { count } = await sb.from('presupuesto_versiones')
+        const { count } = await sb.from(vTabla)
           .select('id', {count:'exact', head:true})
-          .eq('presupuesto_id', cfg.editId)
+          .eq(vFk, cfg.editId)
           .eq('version', ver);
         if (!count || count === 0) {
-          const { error: insErr } = await sb.from('presupuesto_versiones').insert({
-            presupuesto_id: cfg.editId,
-            version: ver,
-            datos: current,
-          });
+          const insertData = { version: ver, datos: current };
+          insertData[vFk] = cfg.editId;
+          const { error: insErr } = await sb.from(vTabla).insert(insertData);
           if (insErr) {
             console.warn('Error guardando versión:', insErr.message);
             toast('⚠️ No se pudo guardar snapshot de la versión anterior','error');
@@ -321,9 +327,8 @@ async function de_entrarEdicion() {
         }
       }
     } else {
-      toast('⚠️ Tabla de versiones no encontrada. Ejecuta SQL_versiones.sql en Supabase','error');
+      toast('⚠️ Tabla de versiones no encontrada. Ejecuta el SQL correspondiente en Supabase','error');
     }
-    // Increment version
     cfg._version = (cfg._version||1) + 1;
     de_showVersion(cfg._version);
   }
@@ -344,7 +349,7 @@ async function de_guardarVersion() {
   const datos = de_buildDatos();
   if (!datos) return;
   // Keep current estado (don't reset to borrador when editing)
-  if (cfg.tipo==='presupuesto') datos.version = cfg._version || 1;
+  if (cfg.conVersiones) datos.version = cfg._version || 1;
 
   let error;
   ({error} = await sb.from(cfg.tabla).update(datos).eq('id', cfg.editId));
@@ -362,21 +367,22 @@ async function de_guardarVersion() {
   cfg._mode = 'view';
   de_setReadonly(true);
   const btnBox = document.getElementById('de_buttons');
+  const _vBtn2 = cfg.conVersiones ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
   // Aceptado = siempre re-bloquear después de guardar (superadmin)
   if (cfg._estado === 'aceptado' && cfg.tipo === 'presupuesto') {
     cfg._bloqueado = true;
     if (CP?.es_superadmin) {
-      btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+      btnBox.innerHTML = `${_vBtn2}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Aceptado</span>`;
     } else {
-      btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+      btnBox.innerHTML = `${_vBtn2}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado</span>`;
     }
   } else {
-    btnBox.innerHTML = `${cfg.tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+    btnBox.innerHTML = `${_vBtn2}
       <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
       <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
   }
@@ -771,23 +777,18 @@ function de_renderLineas() {
 }
 
 // ═══ VERSIONING ═══
-let _versionTableReady = false;
-let _versionTableExists = false;
-async function de_ensureVersionTable() {
-  if (_versionTableReady) return _versionTableExists;
+const _versionTableCache = {};
+async function de_ensureVersionTable(tableName) {
+  const tbl = tableName || 'presupuesto_versiones';
+  if (_versionTableCache[tbl] !== undefined) return _versionTableCache[tbl];
   try {
-    const { error } = await sb.from('presupuesto_versiones').select('id').limit(1);
-    if (error) {
-      _versionTableExists = false;
-      console.warn('⚠️ Tabla presupuesto_versiones no existe. Ejecuta SQL_versiones.sql en Supabase SQL Editor.');
-    } else {
-      _versionTableExists = true;
-    }
+    const { error } = await sb.from(tbl).select('id').limit(1);
+    _versionTableCache[tbl] = !error;
+    if (error) console.warn('⚠️ Tabla '+tbl+' no existe.');
   } catch(e) {
-    _versionTableExists = false;
+    _versionTableCache[tbl] = false;
   }
-  _versionTableReady = true;
-  return _versionTableExists;
+  return _versionTableCache[tbl];
 }
 
 function de_buildDatos() {
@@ -826,8 +827,9 @@ function de_buildDatos() {
     else datos.fecha_vencimiento = f2||null;
   }
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
-  datos.titulo = document.getElementById('de_titulo').value||null;
-  if (cfg.tipo==='albaran') datos.referencia = datos.titulo;
+  const _tituloVal = document.getElementById('de_titulo').value||null;
+  datos.titulo = _tituloVal;
+  if (cfg.tipo==='albaran' || cfg.tipo==='factura') datos.referencia = _tituloVal;
   // Vincular a obra si se creó desde una ficha de obra
   if (cfg.trabajo_id) datos.trabajo_id = cfg.trabajo_id;
   return datos;
@@ -854,14 +856,14 @@ async function de_guardar(estado) {
   const datos = de_buildDatos(estado === 'borrador');
   if (!datos) return;
 
-  // REGLA: un presupuesto con número asignado NUNCA puede volver a borrador
+  // REGLA: un documento con número asignado NUNCA puede volver a borrador
   const tieneNumero = datos.numero && datos.numero !== '(sin asignar)' && !(datos.numero||'').startsWith('BORR-');
-  if (estado === 'borrador' && tieneNumero && cfg.tipo === 'presupuesto') {
+  if (estado === 'borrador' && tieneNumero && cfg.conBorrador) {
     estado = 'pendiente'; // forzar a pendiente si ya tiene número
   }
 
   datos.estado = estado||'borrador';
-  if (cfg.tipo==='presupuesto' && estado !== 'borrador') datos.version = cfg._version || 1;
+  if (cfg.conVersiones && estado !== 'borrador') datos.version = cfg._version || 1;
 
   // Number assignment logic for presupuestos:
   // - Borrador: NO number (stays as "(sin asignar)")
@@ -904,8 +906,8 @@ async function de_guardar(estado) {
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
   toast(cfg.ico+' '+(isNew?'Borrador creado':'Guardado')+' ✓','success');
 
-  // After save of presupuesto — handle mode transitions
-  if (cfg.tipo==='presupuesto') {
+  // After save — handle mode transitions (presupuestos y albaranes con conBorrador)
+  if (cfg.conBorrador) {
     if (datos.estado === 'borrador') {
       // Borrador: stays editable
     } else {
@@ -913,8 +915,9 @@ async function de_guardar(estado) {
       cfg._mode = 'view';
       de_setReadonly(true);
       de_showVersion(cfg._version || 1);
+      const _vBtn3 = cfg.conVersiones ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
       const btnBox2 = document.getElementById('de_buttons');
-      btnBox2.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+      btnBox2.innerHTML = `${_vBtn3}
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
     }
@@ -982,14 +985,16 @@ async function de_verVersiones(ev) {
   const old = document.getElementById('de_ver_dropdown');
   if (old) { old.remove(); return; }
 
-  if (!deConfig.editId) return;
-  const tableOk = await de_ensureVersionTable();
+  if (!deConfig.editId || !deConfig.conVersiones) return;
+  const vTabla = deConfig.versionesTabla;
+  const vFk = deConfig.versionesFk;
+  const tableOk = await de_ensureVersionTable(vTabla);
   if (!tableOk) {
-    toast('⚠️ Tabla de versiones no existe. Ejecuta SQL_versiones.sql en Supabase SQL Editor','error');
+    toast('⚠️ Tabla de versiones no existe. Ejecuta el SQL correspondiente en Supabase','error');
     return;
   }
-  const { data: vers, error: verErr } = await sb.from('presupuesto_versiones')
-    .select('*').eq('presupuesto_id', deConfig.editId).order('version', {ascending:false});
+  const { data: vers, error: verErr } = await sb.from(vTabla)
+    .select('*').eq(vFk, deConfig.editId).order('version', {ascending:false});
   if (verErr) { toast('Error: '+verErr.message,'error'); return; }
   if (!vers || !vers.length) { toast('No hay versiones anteriores','info'); return; }
 
@@ -1027,7 +1032,8 @@ async function de_verVersiones(ev) {
 }
 
 async function de_restaurarVersion(versionId) {
-  const { data: v } = await sb.from('presupuesto_versiones').select('datos').eq('id', versionId).single();
+  const vTabla = deConfig.versionesTabla || 'presupuesto_versiones';
+  const { data: v } = await sb.from(vTabla).select('datos').eq('id', versionId).single();
   if (!v) { toast('Error cargando versión','error'); return; }
   const d = v.datos;
   // Load version data into editor

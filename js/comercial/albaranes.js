@@ -31,6 +31,7 @@ async function loadAlbaranes() {
 
 function renderAlbaranes(list) {
   const ESTADOS = {
+    borrador:   { label:'Borrador',   ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
     pendiente:  { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
     entregado:  { label:'Entregado',  ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
     facturado:  { label:'Facturado',  ico:'🧾', color:'var(--azul)',       bg:'var(--azul-light)' },
@@ -63,7 +64,7 @@ function renderAlbaranes(list) {
       <td onclick="event.stopPropagation()" style="text-align:center;width:30px">
         ${noFacturado ? `<input type="checkbox" class="ab-check" value="${a.id}" data-cliente="${a.cliente_id||''}" onchange="abCheckChanged()" style="cursor:pointer">` : ''}
       </td>
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${a.numero||'—'}</td>
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(a.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (a.numero||'—')}</td>
       <td><div style="font-weight:600">${a.cliente_nombre||'—'}</div></td>
       <td style="color:var(--gris-600);font-size:12.5px">${a.referencia||'—'}</td>
       <td style="font-size:12px">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—'}</td>
@@ -192,8 +193,9 @@ async function albaranToFactura(id) {
   closeModal('mAbDetalle');
   toast('✅ Factura creada — albarán marcado como facturado','success');
   loadDashboard();
-  // Refrescar ficha de obra si está abierta
-  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  // Refrescar ficha de obra si está abierta y estamos en la página de obras
+  const _pg1 = document.querySelector('.page.active')?.id;
+  if (_pg1 === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
 }
 
 // ═══════════════════════════════════════════════
@@ -208,7 +210,7 @@ function verDetalleAlbaran(id) {
   document.getElementById('abDetFecha').textContent = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—';
   document.getElementById('abDetRef').textContent = a.referencia||'—';
 
-  const ESTADOS = {pendiente:'Pendiente',entregado:'Entregado',facturado:'Facturado',anulado:'Anulado'};
+  const ESTADOS = {borrador:'Borrador',pendiente:'Pendiente',entregado:'Entregado',facturado:'Facturado',anulado:'Anulado'};
   const COLORES = {pendiente:'var(--amarillo)',entregado:'var(--verde)',facturado:'var(--azul)',anulado:'var(--gris-400)'};
   document.getElementById('abDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[a.estado]||'var(--gris-400)'}">${ESTADOS[a.estado]||a.estado||'—'}</span>`;
 

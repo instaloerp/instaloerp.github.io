@@ -490,7 +490,7 @@ async function presToFactura(id) {
   toast('✅ Factura creada','success');
   loadDashboard();
   // Refrescar ficha de obra si está abierta
-  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
 }
 
 async function presToAlbaran(id) {
@@ -531,7 +531,7 @@ async function presToAlbaran(id) {
   toast('📄 Albarán creado — presupuesto bloqueado','success');
   loadDashboard();
   // Refrescar ficha de obra si está abierta
-  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
 }
 
 async function presToObra(id) {
@@ -569,7 +569,7 @@ async function presToObra(id) {
   toast('🏗️ Obra creada — presupuesto aceptado','success');
   loadDashboard();
   // Refrescar ficha de obra si está abierta
-  if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
 }
 
 async function presupuestoTieneVinculados(presId) {
