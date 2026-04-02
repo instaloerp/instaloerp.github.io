@@ -98,8 +98,8 @@ function renderPresupuestos(list) {
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           ${p.exportado_bloqueado ? '<span style="padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 '+p.exportado_a+'</span>' : `<button onclick="presToObra(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button>
-          <button onclick="presToAlbaran(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Crear albarán">📄 Albarán</button>
-          <button onclick="presToFactura(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Crear factura">🧾 Factura</button>`}
+          <button onclick="presToAlbaran(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Albaranar">📄 Albaranar</button>
+          <button onclick="presToFactura(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Facturar">🧾 Facturar</button>`}
         </div>
       </td>
     </tr>`;

@@ -69,9 +69,9 @@ function renderPresupuestosCompra(list) {
           <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuestoCompra(${p.id})" title="Imprimir">🖨️</button>
           <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoCompraEmail(${p.id})" title="Enviar por email">📧</button>
           <button class="btn btn-ghost btn-sm" onclick="editarPresupuestoCompra(${p.id})" title="Editar">✏️</button>
-          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="prcToPedido(${p.id})" title="Crear pedido">📦</button>
-          <button class="btn btn-ghost btn-sm" onclick="prcToRecepcion(${p.id})" title="Crear albarán proveedor">📥</button>
-          <button class="btn btn-ghost btn-sm" onclick="prcToFacturaProv(${p.id})" title="Crear factura proveedor">🧾</button>
+          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="prcToPedido(${p.id})" title="Generar pedido">📦</button>
+          <button class="btn btn-ghost btn-sm" onclick="prcToRecepcion(${p.id})" title="Recepcionar">📥</button>
+          <button class="btn btn-ghost btn-sm" onclick="prcToFacturaProv(${p.id})" title="Facturar">🧾</button>
           <button class="btn btn-ghost btn-sm" onclick="eliminarPresupuestoCompra(${p.id})" title="Eliminar">🗑️</button>`}
         </div>
       </td>

@@ -5,6 +5,7 @@
 // Docs attached to work
 let trDocsFiles = [];
 let obraActualId = null;
+let obraTabActual = 'presupuestos'; // recordar pestaña activa
 
 // ═══════════════════════════════════════════════
 // FILTROS Y LISTADO
@@ -213,15 +214,15 @@ async function abrirFichaObra(id) {
       const puedeConvertir = p.estado !== 'eliminado' && p.estado !== 'anulado' && !p.exportado_bloqueado;
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div style="cursor:pointer;flex:1" onclick="abrirEditor('presupuesto',${p.id})">
+        <div style="cursor:pointer;flex:1" onclick="verDetallePresupuesto(${p.id})">
           <div style="font-weight:700;font-size:12.5px">${p.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.titulo||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
           ${puedeConvertir ? `<div style="display:flex;gap:3px;margin-left:8px">
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Crear albarán" style="font-size:11px;padding:3px 6px">📄 Alb.</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Crear factura" style="font-size:11px;padding:3px 6px">🧾 Fact.</button>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="font-size:11px;padding:3px 6px">📄 Albaranar</button>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="font-size:11px;padding:3px 6px">🧾 Facturar</button>
           </div>` : (p.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px" title="Exportado a ${p.exportado_a}">🔒 ${p.exportado_a}</span>` : '')}
         </div>
       </div>`;
@@ -238,13 +239,13 @@ async function abrirFichaObra(id) {
       const puedeFacturar = a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado;
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div style="cursor:pointer;flex:1" onclick="abrirEditor('albaran',${a.id})">
+        <div style="cursor:pointer;flex:1" onclick="verDetalleAlbaran(${a.id})">
           <div style="font-weight:700;font-size:12.5px">${a.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
-          ${puedeFacturar ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Crear factura" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : (a.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px">🔒 factura</span>` : '')}
+          ${puedeFacturar ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : (a.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px">🔒 factura</span>` : '')}
         </div>
       </div>`;
     }).join('') :
@@ -330,8 +331,8 @@ async function abrirFichaObra(id) {
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
   document.getElementById('obra-hist-notas').innerHTML = notaForm + notaList;
 
-  // Activar pestaña Presupuestos por defecto
-  obraTab('presupuestos');
+  // Activar pestaña recordada (o presupuestos si es la primera vez)
+  obraTab(obraTabActual || 'presupuestos');
 }
 
 // ═══════════════════════════════════════════════
@@ -340,6 +341,7 @@ async function abrirFichaObra(id) {
 const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',tareas:'✅ Tareas',documentos:'📎 Documentos',notas:'💬 Notas'};
 
 function obraTab(tab) {
+  obraTabActual = tab; // recordar pestaña activa
   ['presupuestos','albaranes','facturas','partes','tareas','documentos','notas'].forEach(t => {
     const el = document.getElementById('obra-hist-'+t);
     if (el) el.style.display = t===tab?'block':'none';
