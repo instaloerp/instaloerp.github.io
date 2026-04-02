@@ -483,7 +483,7 @@ async function mostrarApp() {
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
-  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp] = await Promise.all([
+  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac] = await Promise.all([
     sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo'),
@@ -495,11 +495,13 @@ async function cargarTodos() {
     sb.from('familias_articulos').select('*').eq('empresa_id',eid).order('orden'),
     sb.from('series_numeracion').select('*').eq('empresa_id',eid).order('tipo'),
     sb.from('empresas').select('id,nombre').eq('id',eid),
+    sb.from('facturas').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
   ]);
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
   almacenes=alm.data||[]; trabajos=tr.data||[];
   tiposIva=iva.data||[]; unidades=ud.data||[]; formasPago=fp.data||[];
   familias=fam.data||[]; series=ser.data||[]; empresas=emp.data||[];
+  window.facturasData=fac.data||[];
   renderAll();
 }
 

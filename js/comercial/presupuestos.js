@@ -97,9 +97,19 @@ function renderPresupuestos(list) {
       </td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
-          ${p.exportado_bloqueado ? '<span style="padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 '+p.exportado_a+'</span>' : `<button onclick="presToObra(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button>
-          <button onclick="presToAlbaran(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Albaranar">📄 Albaranar</button>
-          <button onclick="presToFactura(${p.id})" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Facturar">🧾 Facturar</button>`}
+          ${(()=>{
+            const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
+            const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
+            const _tF = (window.facturasData||window.facturas||[]).some(f=>f.presupuesto_id===p.id);
+            let btns = '';
+            if (_tO) btns += '<span style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700">🏗️ Obra</span> ';
+            else btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#DBEAFE;cursor:pointer;font-size:11px;font-weight:600;color:#1D4ED8" title="Crear obra">🏗️ Obra</button> ';
+            if (_tA) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#059669;font-size:11px;font-weight:700">📄 Albarán</span> ';
+            else btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:600;color:#059669" title="Albaranar">📄 Albaranar</button> ';
+            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:700">🧾 Factura</span>';
+            else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:none;background:#EDE9FE;cursor:pointer;font-size:11px;font-weight:600;color:#7C3AED" title="Facturar">🧾 Facturar</button>';
+            return btns;
+          })()}
         </div>
       </td>
     </tr>`;
@@ -229,21 +239,45 @@ function verDetallePresupuesto(id) {
   if (p.observaciones) { obs.textContent = p.observaciones; obsWrap.style.display='block'; }
   else { obsWrap.style.display='none'; }
 
-  // Referencias cruzadas
+  // ── Lógica inteligente de botones y referencias cruzadas ──
+  const tieneObra    = trabajos.some(t => t.presupuesto_id === p.id);
+  const tieneAlbaran = (window.albaranesData||[]).some(a => a.presupuesto_id === p.id);
+  const tieneFactura = (window.facturasData||window.facturas||[]).some(f => f.presupuesto_id === p.id);
+
+  // Badges de referencia (mostrar qué documentos ya existen)
   const refDiv = document.getElementById('presDetRefs');
   if (refDiv) {
     let refs = '';
-    if (p.exportado_bloqueado && p.exportado_a) {
-      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#DC2626;font-size:11px;font-weight:700">🔒 Exportado a ${p.exportado_a}</span> `;
+    if (tieneObra) {
+      const obra = trabajos.find(t => t.presupuesto_id === p.id);
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('trabajos');abrirFichaObra(${obra.id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🏗️ Obra ${obra.numero||''}</a> `;
+    }
+    if (tieneAlbaran) {
+      const alb = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">📄 Albarán ${alb.numero||''}</a> `;
+    }
+    if (tieneFactura) {
+      const fac = (window.facturasData||window.facturas||[]).find(f => f.presupuesto_id === p.id);
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#EDE9FE;color:#7C3AED;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">🧾 Factura ${fac.numero||''}</a> `;
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
   }
 
-  // Ocultar/mostrar botones de conversión según bloqueo
+  // Mostrar/ocultar cada botón individualmente
+  const presFooterObra = document.getElementById('presDetFooterObra');
+  if (presFooterObra) presFooterObra.style.display = tieneObra ? 'none' : 'block';
+
   const presFooterBtns = document.getElementById('presDetFooterBtns');
   if (presFooterBtns) {
-    presFooterBtns.style.display = p.exportado_bloqueado ? 'none' : 'flex';
+    // Buscar botones individuales dentro del div
+    const btnAlb = presFooterBtns.querySelector('[onclick*="presToAlbaran"]');
+    const btnFac = presFooterBtns.querySelector('[onclick*="presToFactura"]');
+    if (btnAlb) btnAlb.style.display = tieneAlbaran ? 'none' : '';
+    if (btnFac) btnFac.style.display = tieneFactura ? 'none' : '';
+    // Ocultar el contenedor si no queda ningún botón visible
+    const algunoVisible = (!tieneAlbaran || !tieneFactura);
+    presFooterBtns.style.display = algunoVisible ? 'flex' : 'none';
   }
 
   openModal('mPresDetalle', true);
