@@ -223,13 +223,16 @@ async function abrirFichaObra(id) {
     resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)'), resumenItem('Docs', presupData.length+'')]) +
     presupData.map(p=>{
       const noAnulado = p.estado !== 'eliminado' && p.estado !== 'anulado';
+      const esBorrador = p.estado === 'borrador' || (p.numero||'').startsWith('BORR-');
       // Comprobar documentos existentes para este presupuesto
       const tieneAlb = albData.some(a=>a.presupuesto_id===p.id);
       const tieneFac = factData.some(f=>f.presupuesto_id===p.id) || albData.filter(a=>a.presupuesto_id===p.id).some(a=>factData.some(f=>f.albaran_id===a.id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none';
       const _bBtn = 'font-size:11px;padding:3px 6px';
       let acciones = '';
-      if (noAnulado) {
+      if (esBorrador) {
+        acciones += `<span style="padding:3px 8px;border-radius:6px;background:var(--gris-100);color:var(--gris-400);font-size:10px;font-weight:700;font-style:italic">✏️ Borrador</span>`;
+      } else if (noAnulado) {
         if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
         else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
         if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
@@ -238,7 +241,7 @@ async function abrirFichaObra(id) {
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
         <div style="cursor:pointer;flex:1" onclick="verDetallePresupuesto(${p.id})">
-          <div style="font-weight:700;font-size:12.5px">${p.numero}</div>
+          <div style="font-weight:700;font-size:12.5px">${(p.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : p.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.titulo||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -938,6 +941,8 @@ async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  // No permitir si es borrador
+  if (p.estado === 'borrador' || (p.numero||'').startsWith('BORR-')) { toast('🔒 No se puede albaranar un borrador — guárdalo primero','error'); return; }
   // Comprobar si ya tiene albarán o factura
   const _aD3 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
   const _fD5 = window.facturasData || [];
@@ -974,6 +979,8 @@ async function obraPresToFactura(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  // No permitir si es borrador
+  if (p.estado === 'borrador' || (p.numero||'').startsWith('BORR-')) { toast('🔒 No se puede facturar un borrador — guárdalo primero','error'); return; }
   // Comprobar si ya tiene factura
   const _fD2 = window.facturasData || [];
   const _aD4 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
