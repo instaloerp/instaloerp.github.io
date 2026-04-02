@@ -448,12 +448,21 @@ async function presToFactura(id) {
   if (error) { toast('Error: '+error.message,'error'); return; }
   await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
   const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; }
-  // Refrescar facturas en memoria para que la lógica inteligente detecte el nuevo registro
+  // Si hay albaranes del mismo presupuesto, marcarlos como facturados
+  const _albsDelPres = _aD.filter(a=>a.presupuesto_id===p.id);
+  for (const alb of _albsDelPres) {
+    await sb.from('albaranes').update({estado:'facturado'}).eq('id',alb.id);
+    alb.estado = 'facturado';
+  }
+  // Refrescar facturas y albaranes en memoria
   const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.facturasData = facRefresh||[];
+  const {data:albRefresh2} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+  if (typeof albaranesData!=='undefined') albaranesData = albRefresh2||[];
+  window.albaranesData = albRefresh2||[];
   filtrarPresupuestos();
   closeModal('mPresDetalle');
-  toast('✅ Factura creada — presupuesto bloqueado','success');
+  toast('✅ Factura creada','success');
   loadDashboard();
 }
 

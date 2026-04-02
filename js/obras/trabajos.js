@@ -989,6 +989,11 @@ async function obraPresToFactura(presId) {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
+  // Marcar albaranes del mismo presupuesto como facturados
+  const _albsDelPres2 = _aD4.filter(a=>a.presupuesto_id===p.id);
+  for (const alb of _albsDelPres2) {
+    await sb.from('albaranes').update({estado:'facturado'}).eq('id',alb.id);
+  }
   toast('🧾 Factura creada', 'success');
   abrirFichaObra(obraActualId);
 }
