@@ -2551,11 +2551,15 @@
       </div>
       <div id="abDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
     </div>
-    <div class="modal-f">
-      <button class="btn btn-secondary" onclick="closeModal('mAbDetalle')">Cerrar</button>
-      <div id="abDetFooterBtns" style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="albaranToObra(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🏗️ Crear obra</button>
-        <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Facturar</button>
+    <div class="modal-f" style="display:flex;justify-content:space-between;align-items:center">
+      <div id="abDetFooterObra">
+        <button class="btn" onclick="albaranToObra(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" style="background:#F59E0B;color:#fff;border:none;font-weight:700">🏗️ Crear obra</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-secondary" onclick="closeModal('mAbDetalle')">Cerrar</button>
+        <div id="abDetFooterBtns" style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Facturar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2630,12 +2634,16 @@
       </div>
       <div id="presDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
     </div>
-    <div class="modal-f">
-      <button class="btn btn-secondary" onclick="closeModal('mPresDetalle')">Cerrar</button>
-      <div id="presDetFooterBtns" style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="presToAlbaran(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">📄 Albaranar</button>
-        <button class="btn btn-secondary" onclick="presToObra(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🏗️ Crear obra</button>
-        <button class="btn btn-primary" onclick="presToFactura(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🧾 Facturar</button>
+    <div class="modal-f" style="display:flex;justify-content:space-between;align-items:center">
+      <div id="presDetFooterObra">
+        <button class="btn" onclick="presToObra(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" style="background:#F59E0B;color:#fff;border:none;font-weight:700">🏗️ Crear obra</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-secondary" onclick="closeModal('mPresDetalle')">Cerrar</button>
+        <div id="presDetFooterBtns" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="presToAlbaran(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">📄 Albaranar</button>
+          <button class="btn btn-primary" onclick="presToFactura(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')">🧾 Facturar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2656,7 +2664,7 @@
 <script src="js/comercial/autocomplete.js"></script>
 <script src="js/comercial/clientes.js"></script>
 <script src="js/comercial/presupuestos.js?v=7"></script>
-<script src="js/comercial/albaranes.js?v=6"></script>
+<script src="js/comercial/albaranes.js?v=7"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
