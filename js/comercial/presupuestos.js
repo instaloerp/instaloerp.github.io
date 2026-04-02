@@ -245,11 +245,14 @@ function verDetallePresupuesto(id) {
   else { obsWrap.style.display='none'; }
 
   // ── Lógica inteligente de botones y referencias cruzadas ──
+  // Fallback: usar variable global albaranesData (let) o window.albaranesData
+  const _albArr = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
+  const _facArr = window.facturasData || [];
   const tieneObra    = trabajos.some(t => t.presupuesto_id === p.id);
-  const tieneAlbaran = (window.albaranesData||[]).some(a => a.presupuesto_id === p.id);
+  const tieneAlbaran = _albArr.some(a => a.presupuesto_id === p.id);
   // Factura: directa (presupuesto→factura) o indirecta (presupuesto→albarán→factura)
-  const _albsFromPres = (window.albaranesData||[]).filter(a => a.presupuesto_id === p.id);
-  const tieneFactura = (window.facturasData||[]).some(f => f.presupuesto_id === p.id) || _albsFromPres.some(a => (window.facturasData||[]).some(f => f.albaran_id === a.id));
+  const _albsFromPres = _albArr.filter(a => a.presupuesto_id === p.id);
+  const tieneFactura = _facArr.some(f => f.presupuesto_id === p.id) || _albsFromPres.some(a => _facArr.some(f => f.albaran_id === a.id));
 
   // Badges de referencia — estilo verde unificado, clickables
   const refDiv = document.getElementById('presDetRefs');
@@ -261,14 +264,14 @@ function verDetallePresupuesto(id) {
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('trabajos');abrirFichaObra(${obra.id})" style="${_refStyle}">✅ Obra ${obra.numero||''}</a> `;
     }
     if (tieneAlbaran) {
-      const alb = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
+      const alb = _albArr.find(a => a.presupuesto_id === p.id);
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="${_refStyle}">✅ Albarán ${alb.numero||''}</a> `;
     }
     if (tieneFactura) {
-      let fac = (window.facturasData||[]).find(f => f.presupuesto_id === p.id);
+      let fac = _facArr.find(f => f.presupuesto_id === p.id);
       if (!fac) {
-        const albP = (window.albaranesData||[]).find(a => a.presupuesto_id === p.id);
-        if (albP) fac = (window.facturasData||[]).find(f => f.albaran_id === albP.id);
+        const albP = _albArr.find(a => a.presupuesto_id === p.id);
+        if (albP) fac = _facArr.find(f => f.albaran_id === albP.id);
       }
       refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
     }

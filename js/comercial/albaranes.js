@@ -31,10 +31,10 @@ async function loadAlbaranes() {
 
 function renderAlbaranes(list) {
   const ESTADOS = {
-    pendiente:  { label:'Pendiente',  color:'var(--amarillo)' },
-    entregado:  { label:'Entregado',  color:'var(--verde)' },
-    facturado:  { label:'Facturado',  color:'var(--azul)' },
-    anulado:    { label:'Anulado',    color:'var(--gris-400)' },
+    pendiente:  { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
+    entregado:  { label:'Entregado',  ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+    facturado:  { label:'Facturado',  ico:'🧾', color:'var(--azul)',       bg:'var(--azul-light)' },
+    anulado:    { label:'Anulado',    ico:'🚫', color:'var(--gris-400)',   bg:'var(--gris-100)' },
   };
 
   // KPIs
@@ -69,10 +69,7 @@ function renderAlbaranes(list) {
       <td style="font-size:12px">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-weight:700">${fmtE(a.total||0)}</td>
       <td>
-        <select onclick="event.stopPropagation()" onchange="cambiarEstadoAlb(${a.id},this.value)"
-          style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--gris-200);font-size:12px;outline:none;cursor:pointer">
-          ${Object.entries(ESTADOS).map(([k,v])=>`<option value="${k}" ${a.estado===k?'selected':''}>${v.label}</option>`).join('')}
-        </select>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg}">${est.ico} ${est.label}</span>
       </td>
       <td>
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center" onclick="event.stopPropagation()">
