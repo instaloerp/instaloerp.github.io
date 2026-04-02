@@ -204,7 +204,7 @@ function cambiarEstadoPresMenu(event, id) {
 // ═══════════════════════════════════════════════
 //  VER Y EDITAR
 // ═══════════════════════════════════════════════
-function verDetallePresupuesto(id) {
+async function verDetallePresupuesto(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) return;
   document.getElementById('presDetId').value = id;
@@ -245,14 +245,19 @@ function verDetallePresupuesto(id) {
   else { obsWrap.style.display='none'; }
 
   // ── Lógica inteligente de botones y referencias cruzadas ──
-  // Fallback: usar variable global albaranesData (let) o window.albaranesData
-  const _albArr = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
-  const _facArr = window.facturasData || [];
-  const tieneObra    = trabajos.some(t => t.presupuesto_id === p.id);
-  const tieneAlbaran = _albArr.some(a => a.presupuesto_id === p.id);
+  // Consultar directamente a Supabase para garantizar datos frescos
+  const [_rAlb, _rFac, _rObr] = await Promise.all([
+    sb.from('albaranes').select('id,numero,presupuesto_id').eq('empresa_id',EMPRESA.id).eq('presupuesto_id',p.id).neq('estado','eliminado'),
+    sb.from('facturas').select('id,numero,presupuesto_id,albaran_id').eq('empresa_id',EMPRESA.id).neq('estado','eliminado'),
+    sb.from('trabajos').select('id,numero,presupuesto_id').eq('empresa_id',EMPRESA.id).eq('presupuesto_id',p.id).neq('estado','eliminado'),
+  ]);
+  const _albsP = _rAlb.data||[];
+  const _facsAll = _rFac.data||[];
+  const _obrasP = _rObr.data||[];
+  const tieneObra = _obrasP.length > 0;
+  const tieneAlbaran = _albsP.length > 0;
   // Factura: directa (presupuesto→factura) o indirecta (presupuesto→albarán→factura)
-  const _albsFromPres = _albArr.filter(a => a.presupuesto_id === p.id);
-  const tieneFactura = _facArr.some(f => f.presupuesto_id === p.id) || _albsFromPres.some(a => _facArr.some(f => f.albaran_id === a.id));
+  const tieneFactura = _facsAll.some(f => f.presupuesto_id === p.id) || _albsP.some(a => _facsAll.some(f => f.albaran_id === a.id));
 
   // Badges de referencia — estilo verde unificado, clickables
   const refDiv = document.getElementById('presDetRefs');
@@ -260,18 +265,17 @@ function verDetallePresupuesto(id) {
     let refs = '';
     const _refStyle = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
     if (tieneObra) {
-      const obra = trabajos.find(t => t.presupuesto_id === p.id);
+      const obra = _obrasP[0];
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('trabajos');abrirFichaObra(${obra.id})" style="${_refStyle}">✅ Obra ${obra.numero||''}</a> `;
     }
     if (tieneAlbaran) {
-      const alb = _albArr.find(a => a.presupuesto_id === p.id);
+      const alb = _albsP[0];
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="${_refStyle}">✅ Albarán ${alb.numero||''}</a> `;
     }
     if (tieneFactura) {
-      let fac = _facArr.find(f => f.presupuesto_id === p.id);
-      if (!fac) {
-        const albP = _albArr.find(a => a.presupuesto_id === p.id);
-        if (albP) fac = _facArr.find(f => f.albaran_id === albP.id);
+      let fac = _facsAll.find(f => f.presupuesto_id === p.id);
+      if (!fac && _albsP.length) {
+        fac = _facsAll.find(f => f.albaran_id === _albsP[0].id);
       }
       refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
     }
