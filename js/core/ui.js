@@ -9,6 +9,8 @@ const _sortState = {}; // { tbodyId: { col: index, asc: true } }
 
 function initSortableHeaders() {
   document.querySelectorAll('th[data-sort]').forEach(th => {
+    if (th._sortInit) return; // Evitar listeners duplicados
+    th._sortInit = true;
     th.style.cursor = 'pointer';
     th.style.userSelect = 'none';
     th.style.whiteSpace = 'nowrap';

@@ -20,20 +20,67 @@ let empresas=[];
 let prIvaDefault = null;
 
 // ═══════════════════════════════════════════════
-//  SESSION TIMEOUT (inactividad)
+//  SESSION TIMEOUT (inactividad) con aviso previo
 // ═══════════════════════════════════════════════
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos de inactividad
+const SESSION_TIMEOUT_MS = 1 * 60 * 1000; // ⚠️ TEST: 1 minuto (cambiar a 30*60*1000 en producción)
+const SESSION_WARNING_MS = 30 * 1000;     // ⚠️ TEST: aviso 30s antes (cambiar a 2*60*1000 en producción)
 let sessionTimer = null;
+let sessionWarningTimer = null;
+let _sessionWarningVisible = false;
 
 function resetSessionTimer() {
   if (sessionTimer) clearTimeout(sessionTimer);
+  if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
+  // Si el aviso estaba visible, cerrarlo (el usuario interactuó)
+  if (_sessionWarningVisible) {
+    _closeSessionWarning();
+  }
   // Solo activar timer si hay sesión activa
   if (CU) {
+    // Timer de aviso: salta a los 28 min (30 - 2)
+    sessionWarningTimer = setTimeout(() => {
+      _showSessionWarning();
+    }, SESSION_TIMEOUT_MS - SESSION_WARNING_MS);
+    // Timer de cierre: salta a los 30 min
     sessionTimer = setTimeout(() => {
+      _closeSessionWarning();
       toast('Sesión cerrada por inactividad', 'warning');
       setTimeout(() => doLogout(), 1500);
     }, SESSION_TIMEOUT_MS);
   }
+}
+
+function _showSessionWarning() {
+  _sessionWarningVisible = true;
+  // Crear modal de aviso si no existe
+  let overlay = document.getElementById('sessionWarningOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'sessionWarningOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:16px;padding:32px;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="font-size:48px;margin-bottom:12px;">⏰</div>
+        <h3 style="margin:0 0 8px;font-size:20px;color:#1a1a2e;">¿Sigues ahí?</h3>
+        <p style="margin:0 0 20px;color:#666;font-size:14px;">Tu sesión se cerrará en <strong>2 minutos</strong> por inactividad.<br>Pulsa cualquier tecla o haz clic para continuar trabajando.</p>
+        <button onclick="_userDismissSessionWarning()" style="padding:10px 32px;border-radius:10px;border:none;background:var(--azul-500,#3B82F6);color:white;font-weight:600;font-size:15px;cursor:pointer;">Continuar trabajando</button>
+      </div>`;
+    document.body.appendChild(overlay);
+  } else {
+    overlay.style.display = 'flex';
+  }
+}
+
+function _closeSessionWarning() {
+  _sessionWarningVisible = false;
+  const overlay = document.getElementById('sessionWarningOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _userDismissSessionWarning() {
+  // El usuario hizo clic en "Continuar trabajando" → resetear timers
+  _closeSessionWarning();
+  resetSessionTimer();
 }
 
 // Detectar actividad del usuario
@@ -433,10 +480,12 @@ async function crearDatosIniciales(empId) {
 
 async function doLogout() {
   if (sessionTimer) clearTimeout(sessionTimer);
+  if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
+  _closeSessionWarning();
   sessionStorage.removeItem('erp_session_active');
   CU = null; CP = null; EMPRESA = null;
   await sb.auth.signOut();
-  location.reload();
+  showScreen('s-login');
 }
 
 // ═══════════════════════════════════════════════
