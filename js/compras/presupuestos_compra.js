@@ -67,10 +67,10 @@ function renderPresupuestosCompra(list) {
       <td style="text-align:right">
         <div style="display:flex;gap:4px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="editarPresupuestoCompra(${p.id})" title="Editar">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="prcToPedido(${p.id})" title="Crear pedido">📦</button>
+          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="prcToPedido(${p.id})" title="Crear pedido">📦</button>
           <button class="btn btn-ghost btn-sm" onclick="prcToRecepcion(${p.id})" title="Crear albarán proveedor">📥</button>
           <button class="btn btn-ghost btn-sm" onclick="prcToFacturaProv(${p.id})" title="Crear factura proveedor">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="eliminarPresupuestoCompra(${p.id})" title="Eliminar">🗑️</button>
+          <button class="btn btn-ghost btn-sm" onclick="eliminarPresupuestoCompra(${p.id})" title="Eliminar">🗑️</button>`}
         </div>
       </td>
     </tr>`;
@@ -151,6 +151,7 @@ function exportPresupuestosCompra() {
 async function prcToPedido(id) {
   const p = presupuestosCompra.find(x => x.id === id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm(`¿Crear pedido de compra desde ${p.numero}?`)) return;
   const numero = await generarNumeroDoc('pedido_compra');
   const { error } = await sb.from('pedidos_compra').insert({
@@ -164,15 +165,16 @@ async function prcToPedido(id) {
     presupuesto_compra_id: p.id,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos_compra').update({ estado: 'aceptado' }).eq('id', id);
-  const pp = presupuestosCompra.find(x => x.id === id); if (pp) pp.estado = 'aceptado';
+  await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'pedido', exportado_bloqueado:true }).eq('id', id);
+  const pp = presupuestosCompra.find(x => x.id === id); if (pp) { pp.estado = 'aceptado'; pp.exportado_a='pedido'; pp.exportado_bloqueado=true; }
   filtrarPresupuestosCompra(); actualizarKpisPrc();
-  toast('📦 Pedido creado — presupuesto aceptado', 'success');
+  toast('📦 Pedido creado — presupuesto bloqueado', 'success');
 }
 
 async function prcToRecepcion(id) {
   const p = presupuestosCompra.find(x => x.id === id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm(`¿Crear albarán de proveedor desde ${p.numero}?`)) return;
   const numero = await generarNumeroDoc('recepcion');
   const lineas = (p.lineas || []).map(l => ({
@@ -189,16 +191,17 @@ async function prcToRecepcion(id) {
     presupuesto_compra_id: p.id,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos_compra').update({ estado: 'aceptado' }).eq('id', id);
-  const pp = presupuestosCompra.find(x => x.id === id); if (pp) pp.estado = 'aceptado';
+  await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'recepcion', exportado_bloqueado:true }).eq('id', id);
+  const pp = presupuestosCompra.find(x => x.id === id); if (pp) { pp.estado = 'aceptado'; pp.exportado_a='recepcion'; pp.exportado_bloqueado=true; }
   filtrarPresupuestosCompra(); actualizarKpisPrc();
-  toast('📥 Albarán proveedor creado', 'success');
+  toast('📥 Albarán proveedor creado — presupuesto bloqueado', 'success');
   goPage('albaranes-proveedor');
 }
 
 async function prcToFacturaProv(id) {
   const p = presupuestosCompra.find(x => x.id === id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm(`¿Crear factura de proveedor desde ${p.numero}?`)) return;
   const numero = await generarNumeroDoc('factura_proveedor');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -214,9 +217,9 @@ async function prcToFacturaProv(id) {
     presupuesto_compra_id: p.id,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos_compra').update({ estado: 'aceptado' }).eq('id', id);
-  const pp = presupuestosCompra.find(x => x.id === id); if (pp) pp.estado = 'aceptado';
+  await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
+  const pp = presupuestosCompra.find(x => x.id === id); if (pp) { pp.estado = 'aceptado'; pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }
   filtrarPresupuestosCompra(); actualizarKpisPrc();
-  toast('🧾 Factura proveedor creada', 'success');
+  toast('🧾 Factura proveedor creada — presupuesto bloqueado', 'success');
   goPage('facturas-proveedor');
 }

@@ -210,7 +210,7 @@ async function abrirFichaObra(id) {
   const presupHtml = presupData.length ?
     resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)'), resumenItem('Docs', presupData.length+'')]) +
     presupData.map(p=>{
-      const puedeConvertir = p.estado !== 'eliminado' && p.estado !== 'anulado';
+      const puedeConvertir = p.estado !== 'eliminado' && p.estado !== 'anulado' && !p.exportado_bloqueado;
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
         <div style="cursor:pointer;flex:1" onclick="abrirEditor('presupuesto',${p.id})">
@@ -222,7 +222,7 @@ async function abrirFichaObra(id) {
           ${puedeConvertir ? `<div style="display:flex;gap:3px;margin-left:8px">
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Crear albarán" style="font-size:11px;padding:3px 6px">📄 Alb.</button>
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Crear factura" style="font-size:11px;padding:3px 6px">🧾 Fact.</button>
-          </div>` : ''}
+          </div>` : (p.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px" title="Exportado a ${p.exportado_a}">🔒 ${p.exportado_a}</span>` : '')}
         </div>
       </div>`;
     }).join('') :
@@ -230,12 +230,12 @@ async function abrirFichaObra(id) {
   document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
 
   // ── ALBARANES ── (con botones de conversión)
-  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado');
+  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado);
   const albHtml = albData.length ?
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
     (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="obraFacturarTodosAlb()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px">🧾 Facturar ${albSinFacturar.length} albaranes juntos</button></div>` : '') +
     albData.map(a=>{
-      const puedeFacturar = a.estado !== 'facturado' && a.estado !== 'anulado';
+      const puedeFacturar = a.estado !== 'facturado' && a.estado !== 'anulado' && !a.exportado_bloqueado;
       return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
         <div style="cursor:pointer;flex:1" onclick="abrirEditor('albaran',${a.id})">
@@ -244,7 +244,7 @@ async function abrirFichaObra(id) {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
-          ${puedeFacturar ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Crear factura" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : ''}
+          ${puedeFacturar ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Crear factura" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : (a.exportado_bloqueado ? `<span style="font-size:10px;color:var(--rojo);margin-left:8px">🔒 factura</span>` : '')}
         </div>
       </div>`;
     }).join('') :
@@ -913,9 +913,9 @@ function nuevoParteObraActual() {
 
 async function obraPresToAlbaran(presId) {
   if (!obraActualId) return;
-  // Traer presupuesto directamente de Supabase
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('albaran');
@@ -935,8 +935,8 @@ async function obraPresToAlbaran(presId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
-  toast('📄 Albarán creado — presupuesto aceptado', 'success');
+  await sb.from('presupuestos').update({ estado: 'aceptado', exportado_a:'albaran', exportado_bloqueado:true }).eq('id', presId);
+  toast('📄 Albarán creado — presupuesto bloqueado', 'success');
   abrirFichaObra(obraActualId);
 }
 
@@ -944,6 +944,7 @@ async function obraPresToFactura(presId) {
   if (!obraActualId) return;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm(`¿Crear factura desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('factura');
@@ -960,8 +961,8 @@ async function obraPresToFactura(presId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
-  toast('🧾 Factura creada — presupuesto aceptado', 'success');
+  await sb.from('presupuestos').update({ estado: 'aceptado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', presId);
+  toast('🧾 Factura creada — presupuesto bloqueado', 'success');
   abrirFichaObra(obraActualId);
 }
 
@@ -969,6 +970,7 @@ async function obraAlbToFactura(albId) {
   if (!obraActualId) return;
   const { data: a, error: err } = await sb.from('albaranes').select('*').eq('id', albId).single();
   if (err || !a) { toast('Error al cargar albarán', 'error'); return; }
+  if (a.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
   if (!confirm(`¿Crear factura desde ${a.numero}?`)) return;
 
   const numero = await generarNumeroDoc('factura');
@@ -985,15 +987,15 @@ async function obraAlbToFactura(albId) {
     trabajo_id: obraActualId,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', albId);
-  toast('🧾 Factura creada — albarán facturado', 'success');
+  await sb.from('albaranes').update({ estado: 'facturado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', albId);
+  toast('🧾 Factura creada — albarán bloqueado', 'success');
   abrirFichaObra(obraActualId);
 }
 
 async function obraFacturarTodosAlb() {
   if (!obraActualId) return;
   // Obtener todos los albaranes no facturados de esta obra
-  const { data: albs } = await sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado');
+  const { data: albs } = await sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado').or('exportado_bloqueado.is.null,exportado_bloqueado.eq.false');
   if (!albs || albs.length < 1) { toast('No hay albaranes pendientes de facturar', 'info'); return; }
 
   // Verificar mismo cliente
@@ -1031,9 +1033,9 @@ async function obraFacturarTodosAlb() {
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  // Marcar todos como facturados
+  // Marcar todos como facturados y bloqueados
   for (const a of albs) {
-    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
+    await sb.from('albaranes').update({ estado: 'facturado', exportado_a:'factura', exportado_bloqueado:true }).eq('id', a.id);
   }
   toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
   abrirFichaObra(obraActualId); // Refrescar

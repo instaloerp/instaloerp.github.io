@@ -52,7 +52,7 @@ function renderRecepciones(list) {
   const html = list.length ? list.map(r => {
     const estado = {pendiente:'⏳', verificada:'✓', almacenada:'📦'}[r.estado]||'?';
     return `<tr>
-      <td style="text-align:center;width:30px"><input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer"></td>
+      <td style="text-align:center;width:30px">${r.exportado_bloqueado ? '' : `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">`}</td>
       <td><div style="font-weight:700">${r.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div></td>
       <td><div style="font-weight:600">${r.proveedor_nombre}</div></td>
       <td>${r.usuario_nombre||'—'}</td>
@@ -62,8 +62,8 @@ function renderRecepciones(list) {
         <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
         ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
         ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
-        <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>
+        ${r.exportado_bloqueado ? '<span title="Exportado a factura" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
+        <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
       </div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin recepciones</h3></div></td></tr>';
@@ -323,6 +323,7 @@ function exportRecepciones() {
 async function recepcionToFacturaProv(id) {
   const r = recepciones.find(x => x.id === id);
   if (!r) return;
+  if (r.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
   if (!confirm(`¿Crear factura de proveedor desde el albarán ${r.numero}?`)) return;
   const numero = await generarNumeroDoc('factura_proveedor');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -342,7 +343,9 @@ async function recepcionToFacturaProv(id) {
     pedido_compra_id: r.pedido_compra_id || null,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  toast('🧾 Factura proveedor creada desde albarán', 'success');
+  await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
+  const rr = recepciones.find(x=>x.id===id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+  toast('🧾 Factura proveedor creada — albarán bloqueado', 'success');
   goPage('facturas-proveedor');
 }
 
@@ -386,6 +389,11 @@ async function facturarRecepcionesMulti() {
     recepcion_ids: ids,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  toast(`🧾 Factura ${numero} creada con ${recs.length} albaranes`, 'success');
+  // Marcar todos como bloqueados
+  for (const r of recs) {
+    await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);
+    const rr = recepciones.find(x=>x.id===r.id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+  }
+  toast(`🧾 Factura ${numero} creada con ${recs.length} albaranes — bloqueados`, 'success');
   goPage('facturas-proveedor');
 }

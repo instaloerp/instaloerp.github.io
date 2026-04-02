@@ -40,8 +40,8 @@ function renderPedidosCompra(list) {
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
-        ${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>
+        ${pc.exportado_bloqueado ? '<span title="Exportado a '+pc.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>`}
       </div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">🛒</div><h3>Sin pedidos</h3></div></td></tr>';
@@ -253,6 +253,7 @@ async function cambiarEstadoPC(id, nuevoEstado) {
 async function pedidoToRecepcion(id) {
   const pc = pedidosCompra.find(x => x.id === id);
   if (!pc) return;
+  if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
 
   // Crear recepción con líneas del pedido
   const lineas = (pc.lineas||[]).map(l => ({
@@ -278,9 +279,11 @@ async function pedidoToRecepcion(id) {
   };
 
   await sb.from('recepciones').insert(obj);
+  await sb.from('pedidos_compra').update({ exportado_a:'recepcion', exportado_bloqueado:true }).eq('id', id);
   await cambiarEstadoPC(id, 'enviado');
+  const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='recepcion'; pp.exportado_bloqueado=true; }
   goPage('albaranes-proveedor');
-  toast('Albarán de proveedor creado desde pedido ✓', 'success');
+  toast('Albarán de proveedor creado — pedido bloqueado', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -315,6 +318,7 @@ function exportPedidosCompra() {
 async function pedidoToFacturaProv(id) {
   const pc = pedidosCompra.find(x => x.id === id);
   if (!pc) return;
+  if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
   if (!confirm(`¿Crear factura de proveedor desde el pedido ${pc.numero}?`)) return;
   const numero = await generarNumeroDoc('factura_proveedor');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -332,7 +336,9 @@ async function pedidoToFacturaProv(id) {
     pedido_compra_id: pc.id,
   });
   if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await sb.from('pedidos_compra').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
   await cambiarEstadoPC(id, 'recibido');
-  toast('🧾 Factura proveedor creada', 'success');
+  const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }
+  toast('🧾 Factura proveedor creada — pedido bloqueado', 'success');
   goPage('facturas-proveedor');
 }

@@ -108,6 +108,8 @@ async function abrirEditor(tipo, editId) {
       // Versión actual (solo para no-borradores)
       deConfig._version = docEstado === 'borrador' ? 0 : (doc.version || 1);
       deConfig._estado = docEstado;
+      deConfig._exportado_bloqueado = doc.exportado_bloqueado || false;
+      deConfig._exportado_a = doc.exportado_a || null;
     }
   } else {
     document.getElementById('de_numero').value = '(sin asignar)';
@@ -173,6 +175,24 @@ async function abrirEditor(tipo, editId) {
       btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
         <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
         <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado — solo superadmin puede editar</span>`;
+    }
+  } else if (editId && deConfig._exportado_bloqueado) {
+    // ── EXPORTADO/BLOQUEADO: solo lectura, superadmin puede desbloquear ──
+    deConfig._mode = 'view';
+    deConfig._bloqueado = true;
+    const ver = deConfig._version || 1;
+    de_showVersion(ver);
+    de_setReadonly(true);
+    const destino = deConfig._exportado_a || 'otro documento';
+    if (CP?.es_superadmin) {
+      btnBox.innerHTML = `${tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="de_desbloquearExportado()">🔓 Desbloquear</button>
+        <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino}</span>`;
+    } else {
+      btnBox.innerHTML = `${tipo==='presupuesto'?'<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>':''}
+        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
+        <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino} — solo superadmin puede desbloquear</span>`;
     }
   } else if (editId) {
     // ── EXISTENTE (pendiente u otro): lectura + editar + versiones ──
@@ -251,6 +271,19 @@ function de_setReadonly(ro) {
   // Disable drag
   const rows = ed.querySelectorAll('#de_lineas tr[draggable]');
   rows.forEach(r => { r.draggable = !ro; if(ro) r.style.cursor='default'; });
+}
+
+async function de_desbloquearExportado() {
+  if (!CP?.es_superadmin) { toast('Solo superadmin puede desbloquear','error'); return; }
+  const cfg = deConfig;
+  if (!cfg.editId) return;
+  const destino = cfg._exportado_a || 'otro documento';
+  if (!confirm(`⚠️ SUPERADMIN: ¿Desbloquear este ${cfg.tipo}?\n\nFue exportado a "${destino}". Al desbloquearlo podrás editarlo y volver a exportarlo.\n\n¿Continuar?`)) return;
+  const { error } = await sb.from(cfg.tabla).update({ exportado_bloqueado: false, exportado_a: null }).eq('id', cfg.editId);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  toast('🔓 Documento desbloqueado por superadmin','success');
+  // Reabrir el editor para refrescar estado
+  abrirEditor(cfg.tipo, cfg.editId);
 }
 
 async function de_entrarEdicion() {

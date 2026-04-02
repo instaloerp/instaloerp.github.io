@@ -100,10 +100,10 @@ function renderPresupuestos(list) {
           <button class="btn btn-ghost btn-sm" onclick="editarPresupuesto(${p.id})" title="Abrir">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuesto(${p.id})" title="Imprimir / PDF">🖨️</button>
           <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoEmail(${p.id})" title="Enviar por email">📧</button>
-          <button class="btn btn-ghost btn-sm" onclick="presToObra(${p.id})" title="Crear obra">🏗️</button>
+          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="presToObra(${p.id})" title="Crear obra">🏗️</button>
           <button class="btn btn-ghost btn-sm" onclick="presToAlbaran(${p.id})" title="Crear albarán">📄</button>
           <button class="btn btn-ghost btn-sm" onclick="presToFactura(${p.id})" title="Crear factura">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="delPresupuesto(${p.id})" title="Anular">🚫</button>
+          <button class="btn btn-ghost btn-sm" onclick="delPresupuesto(${p.id})" title="Anular">🚫</button>`}
         </div>
       </td>
     </tr>`;
@@ -361,6 +361,7 @@ function exportarPresupuestos() {
 async function presToFactura(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm('¿Convertir el presupuesto '+p.numero+' en factura?')) return;
   const numero = await generarNumeroDoc('factura');
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
@@ -374,16 +375,17 @@ async function presToFactura(id) {
     presupuesto_id: p.id,
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) pp.estado='aceptado';
+  await sb.from('presupuestos').update({estado:'aceptado', exportado_a:'factura', exportado_bloqueado:true}).eq('id',id);
+  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; pp.exportado_a='factura'; pp.exportado_bloqueado=true; }
   renderPresupuestos(presupuestos);
-  toast('✅ Factura creada — presupuesto aceptado','success');
+  toast('✅ Factura creada — presupuesto bloqueado','success');
   loadDashboard();
 }
 
 async function presToAlbaran(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm('¿Crear albarán desde el presupuesto '+p.numero+'?')) return;
   const numero = await generarNumeroDoc('albaran');
   const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
@@ -400,16 +402,17 @@ async function presToAlbaran(id) {
     presupuesto_id: p.id,
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) pp.estado='aceptado';
+  await sb.from('presupuestos').update({estado:'aceptado', exportado_a:'albaran', exportado_bloqueado:true}).eq('id',id);
+  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; pp.exportado_a='albaran'; pp.exportado_bloqueado=true; }
   renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
-  toast('📄 Albarán creado — presupuesto aceptado','success');
+  toast('📄 Albarán creado — presupuesto bloqueado','success');
   loadDashboard();
 }
 
 async function presToObra(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) return;
+  if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
   if (!confirm('¿Crear obra desde el presupuesto '+p.numero+'?')) return;
   const c = clientes.find(x=>x.id===p.cliente_id);
   const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
@@ -426,8 +429,8 @@ async function presToObra(id) {
     operario_id: CU.id, operario_nombre: CP?.nombre||'',
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('presupuestos').update({estado:'aceptado'}).eq('id',id);
-  const pp = presupuestos.find(x=>x.id===id); if(pp) pp.estado='aceptado';
+  await sb.from('presupuestos').update({estado:'aceptado', exportado_a:'obra', exportado_bloqueado:true}).eq('id',id);
+  const pp = presupuestos.find(x=>x.id===id); if(pp) { pp.estado='aceptado'; pp.exportado_a='obra'; pp.exportado_bloqueado=true; }
   registrarAudit('crear_obra', 'presupuesto', id, 'Obra creada desde '+p.numero);
   renderPresupuestos(presFiltrados.length ? presFiltrados : presupuestos);
   toast('🏗️ Obra creada — presupuesto aceptado','success');
