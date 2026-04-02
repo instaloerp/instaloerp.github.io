@@ -330,7 +330,7 @@ async function delPresupuesto(id) {
   loadDashboard();
 }
 
-async function restaurarEstadoPres(id, nuevoEstado) {
+async function restaurarEstadoPres(id, nuevoEstado, fromEditor) {
   const p = presupuestos.find(x=>x.id===id);
   const esCaducado = p?.estado === 'caducado';
   const msg = esCaducado
@@ -352,11 +352,11 @@ async function restaurarEstadoPres(id, nuevoEstado) {
   toast('♻️ Presupuesto restaurado a '+nuevoEstado+(esCaducado?' — validez extendida 15 días':''),'success');
   await loadPresupuestos();
   loadDashboard();
-  cerrarEditor();
+  if (fromEditor) cerrarEditor();
 }
 
 function reactivarPresupuesto(id) {
-  restaurarEstadoPres(id, 'pendiente');
+  restaurarEstadoPres(id, 'pendiente', false);
 }
 
 async function eliminarDefinitivamente(id) {

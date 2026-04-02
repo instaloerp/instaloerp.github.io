@@ -2,6 +2,65 @@
 // UI HELPERS - Screen, modal, page, and form utilities
 // ═══════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════
+//  ORDENACIÓN GENÉRICA DE TABLAS
+// ═══════════════════════════════════════════════
+const _sortState = {}; // { tbodyId: { col: index, asc: true } }
+
+function initSortableHeaders() {
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.style.whiteSpace = 'nowrap';
+    // Añadir indicador de ordenación
+    if (!th.querySelector('.sort-ico')) {
+      th.innerHTML += ' <span class="sort-ico" style="font-size:10px;opacity:0.3">⇅</span>';
+    }
+    th.addEventListener('click', () => {
+      const table = th.closest('table');
+      const tbody = table?.querySelector('tbody');
+      if (!tbody || !tbody.id) return;
+      const col = th.dataset.sort;
+      const tipo = th.dataset.sortType || 'text'; // text, num, date
+      const state = _sortState[tbody.id] || {};
+      const asc = state.col === col ? !state.asc : true;
+      _sortState[tbody.id] = { col, asc };
+      // Actualizar iconos en todos los th de esta tabla
+      table.querySelectorAll('th[data-sort] .sort-ico').forEach(ico => {
+        ico.textContent = '⇅'; ico.style.opacity = '0.3';
+      });
+      th.querySelector('.sort-ico').textContent = asc ? '↑' : '↓';
+      th.querySelector('.sort-ico').style.opacity = '1';
+      // Ordenar filas del tbody
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const colIdx = Array.from(th.parentElement.children).indexOf(th);
+      rows.sort((a, b) => {
+        const cellA = a.cells[colIdx];
+        const cellB = b.cells[colIdx];
+        if (!cellA || !cellB) return 0;
+        let vA = (cellA.dataset.sortVal || cellA.textContent).trim();
+        let vB = (cellB.dataset.sortVal || cellB.textContent).trim();
+        if (tipo === 'num') {
+          vA = parseFloat(vA.replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+          vB = parseFloat(vB.replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+          return asc ? vA - vB : vB - vA;
+        }
+        if (tipo === 'date') {
+          // Soporta dd/mm/yyyy y yyyy-mm-dd
+          const pD = (s) => { if (!s || s==='—') return 0; const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return new Date(m[3],m[2]-1,m[1]).getTime(); return new Date(s).getTime()||0; };
+          return asc ? pD(vA) - pD(vB) : pD(vB) - pD(vA);
+        }
+        // text
+        return asc ? vA.localeCompare(vB,'es',{sensitivity:'base'}) : vB.localeCompare(vA,'es',{sensitivity:'base'});
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => setTimeout(initSortableHeaders, 500));
+
 // ── Pila de navegación global ──
 let navStack = [];
 
@@ -161,6 +220,8 @@ function goPage(id, opts){
     renderClientes(clientes);
     if(!opts._isBack) setCliVista(cliVista==='ficha'?'tarjetas':cliVista);
   }
+  // Reinicializar headers ordenables después de cargar datos
+  setTimeout(initSortableHeaders, 300);
 }
 
 function cfgTab(id,el){

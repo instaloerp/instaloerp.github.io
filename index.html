@@ -303,7 +303,7 @@
           <!-- Vista tabla -->
           <div id="cliGridTabla" style="display:none">
             <div class="card">
-              <div class="tw"><table class="dt"><thead><tr><th>Cliente</th><th>Tipo</th><th>Teléfono</th><th>Email</th><th>Municipio</th><th>NIF</th><th>Obras</th><th>Acciones</th></tr></thead><tbody id="cliTable"></tbody></table>
+              <div class="tw"><table class="dt"><thead><tr><th data-sort="cliente">Cliente</th><th data-sort="tipo">Tipo</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email</th><th data-sort="municipio">Municipio</th><th data-sort="nif">NIF</th><th data-sort="obras" data-sort-type="num">Obras</th><th>Acciones</th></tr></thead><tbody id="cliTable"></tbody></table>
             </div></div>
           </div>
         </div>
@@ -392,7 +392,7 @@
             </div>
         </div>
         <div class="card">
-          <div class="tw"><table class="dt"><thead><tr><th>Proveedor</th><th>CIF</th><th>Teléfono</th><th>Email pedidos</th><th>Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
+          <div class="tw"><table class="dt"><thead><tr><th data-sort="proveedor">Proveedor</th><th data-sort="cif">CIF</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email pedidos</th><th data-sort="municipio">Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
         </div>
       </div>
 
@@ -438,7 +438,7 @@
             <button id="btnSensible" onclick="toggleDatosSensibles()" class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:13px;padding:4px 10px;border:1px solid var(--gris-200);border-radius:7px" title="Ocultar/mostrar datos sensibles (Coste, Dto, Valor stock)">🔒 DATOS OCULTOS</button>
           </div>
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Código</th><th>Artículo</th><th>Familia</th><th>PVP</th><th class="col-sensible">Coste</th><th class="col-sensible">Dto.</th><th>IVA</th><th>Activo</th><th style="width:80px"></th>
+            <th data-sort="codigo">Código</th><th data-sort="articulo">Artículo</th><th data-sort="familia">Familia</th><th data-sort="pvp" data-sort-type="num">PVP</th><th class="col-sensible" data-sort="coste" data-sort-type="num">Coste</th><th class="col-sensible" data-sort="dto" data-sort-type="num">Dto.</th><th data-sort="iva">IVA</th><th data-sort="activo">Activo</th><th style="width:80px"></th>
           </tr></thead><tbody id="artTable"></tbody></table></div>
         </div>
       </div>
@@ -477,7 +477,7 @@
               <button class="btn btn-primary btn-sm" onclick="openModal('mTrabajo')">+ Nueva obra</button>
             </div>
           </div>
-          <div class="card"><div class="tw"><table class="dt"><thead><tr><th>Nº</th><th>Título</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
+          <div class="card"><div class="tw"><table class="dt"><thead><tr><th data-sort="numero">Nº</th><th data-sort="titulo">Título</th><th data-sort="cliente">Cliente</th><th data-sort="fecha" data-sort-type="date">Fecha</th><th data-sort="estado">Estado</th><th data-sort="prioridad">Prioridad</th><th>Acciones</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
         </div>
 
         <!-- Vista ficha obra -->
@@ -738,13 +738,13 @@
             <table class="dt">
               <thead>
                 <tr>
-                  <th>Número</th>
-                  <th>Cliente</th>
-                  <th>Título</th>
-                  <th>Fecha</th>
-                  <th>Válido hasta</th>
-                  <th>Importe</th>
-                  <th>Estado</th>
+                  <th data-sort="numero">Número</th>
+                  <th data-sort="cliente">Cliente</th>
+                  <th data-sort="titulo">Título</th>
+                  <th data-sort="fecha" data-sort-type="date">Fecha</th>
+                  <th data-sort="validez" data-sort-type="date">Válido hasta</th>
+                  <th data-sort="importe" data-sort-type="num">Importe</th>
+                  <th data-sort="estado">Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -792,12 +792,12 @@
               <thead>
                 <tr>
                   <th style="width:30px"><input type="checkbox" id="abCheckAll" onchange="document.querySelectorAll('.ab-check').forEach(c=>{c.checked=this.checked});abCheckChanged()" title="Seleccionar todos"></th>
-                  <th>Número</th>
-                  <th>Cliente</th>
-                  <th>Referencia</th>
-                  <th>Fecha</th>
-                  <th>Importe</th>
-                  <th>Estado</th>
+                  <th data-sort="numero">Número</th>
+                  <th data-sort="cliente">Cliente</th>
+                  <th data-sort="referencia">Referencia</th>
+                  <th data-sort="fecha" data-sort-type="date">Fecha</th>
+                  <th data-sort="importe" data-sort-type="num">Importe</th>
+                  <th data-sort="estado">Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -853,7 +853,7 @@
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Número / Fecha</th><th>Proveedor</th><th>Validez</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+            <th data-sort="numero">Número / Fecha</th><th data-sort="proveedor">Proveedor</th><th data-sort="validez" data-sort-type="date">Validez</th><th data-sort="estado">Estado</th><th data-sort="total" data-sort-type="num" style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="prcTable"></tbody></table></div>
         </div>
       </div>
@@ -904,7 +904,7 @@
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Número / Fecha</th><th>Proveedor</th><th>Entrega Prevista</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+            <th data-sort="numero">Número / Fecha</th><th data-sort="proveedor">Proveedor</th><th data-sort="entrega" data-sort-type="date">Entrega Prevista</th><th data-sort="estado">Estado</th><th data-sort="total" data-sort-type="num" style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="pcTable"></tbody></table></div>
         </div>
       </div>
@@ -956,7 +956,7 @@
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
             <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.rc-check').forEach(c=>{c.checked=this.checked});rcCheckChanged()" title="Seleccionar todos"></th>
-            <th>Número / Fecha</th><th>Proveedor</th><th>Usuario</th><th>Estado</th><th style="text-align:right">Importe</th><th style="text-align:right">Acciones</th>
+            <th data-sort="numero">Número / Fecha</th><th data-sort="proveedor">Proveedor</th><th data-sort="usuario">Usuario</th><th data-sort="estado">Estado</th><th data-sort="importe" data-sort-type="num" style="text-align:right">Importe</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="rcTable"></tbody></table></div>
         </div>
       </div>
@@ -1006,7 +1006,7 @@
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Número / Fecha</th><th>Proveedor</th><th>Vencimiento</th><th>Estado</th><th style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
+            <th data-sort="numero">Número / Fecha</th><th data-sort="proveedor">Proveedor</th><th data-sort="vencimiento" data-sort-type="date">Vencimiento</th><th data-sort="estado">Estado</th><th data-sort="total" data-sort-type="num" style="text-align:right">Total</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="fpTable"></tbody></table></div>
         </div>
       </div>
@@ -2846,7 +2846,7 @@
 
 <!-- Core -->
 <script src="js/core/app.js?v=3"></script>
-<script src="js/core/ui.js?v=3"></script>
+<script src="js/core/ui.js?v=4"></script>
 <script src="js/core/dashboard.js"></script>
 <script src="js/core/sidebar.js"></script>
 
