@@ -179,8 +179,14 @@ async function saveUsuario() {
 }
 
 async function editUsuario(uid) {
-  const { data: u } = await sb.from('perfiles').select('*').eq('id', uid).single();
-  if (!u) return;
+  // Usar datos ya cargados (evita problemas de RLS)
+  let u = todosUsuarios.find(x => x.id === uid);
+  if (!u) {
+    // Fallback: intentar cargar de BD
+    const { data } = await sb.from('perfiles').select('*').eq('id', uid).single();
+    u = data;
+  }
+  if (!u) { toast('No se pudo cargar el usuario','error'); return; }
   document.getElementById('usr_id').value = u.id;
   document.getElementById('mUsrTit').textContent = 'Editar Usuario';
   setVal({ usr_nombre: u.nombre||'', usr_apellidos: u.apellidos||'', usr_email: u.email||'', usr_tel: u.telefono||'' });
