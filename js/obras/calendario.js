@@ -319,9 +319,9 @@ function renderMisTareas() {
 
   const PRIO_ICO = { baja:'▽', normal:'◆', alta:'▲', urgente:'🔺' };
   const PRIO_COLOR = { baja:'#6B7280', normal:'#2563EB', alta:'#D97706', urgente:'#DC2626' };
-  const EST_ICO = { pendiente:'⏳', en_curso:'🔄', completada:'✔️', bloqueada:'🚫' };
-  const EST_COLOR = { pendiente:'#D97706', en_curso:'#2563EB', completada:'#059669', bloqueada:'#DC2626' };
-  const EST_BG = { pendiente:'#FFFBEB', en_curso:'#EFF6FF', completada:'#ECFDF5', bloqueada:'#FEF2F2' };
+  const EST_ICO = { pendiente:'⏳', en_curso:'🔄', completada:'✔️', bloqueada:'🚫', rechazada:'✖️' };
+  const EST_COLOR = { pendiente:'#D97706', en_curso:'#2563EB', completada:'#059669', bloqueada:'#DC2626', rechazada:'#9333EA' };
+  const EST_BG = { pendiente:'#FFFBEB', en_curso:'#EFF6FF', completada:'#ECFDF5', bloqueada:'#FEF2F2', rechazada:'#FAF5FF' };
 
   let html = '';
 
@@ -340,24 +340,27 @@ function renderMisTareas() {
       </div>`;
 
     tareasObra.forEach(t => {
-      const isVencida = t.estado !== 'completada' && t.fecha_limite && new Date(t.fecha_limite) < hoy;
+      const isVencida = t.estado !== 'completada' && t.estado !== 'rechazada' && t.fecha_limite && new Date(t.fecha_limite) < hoy;
       const isDone = t.estado === 'completada';
+      const isRech = t.estado === 'rechazada';
+      const isCerrada = isDone || isRech;
       const prioColor = PRIO_COLOR[t.prioridad] || PRIO_COLOR.normal;
       const prioIco = PRIO_ICO[t.prioridad] || '◆';
       const estColor = EST_COLOR[t.estado] || EST_COLOR.pendiente;
       const estBg = EST_BG[t.estado] || EST_BG.pendiente;
       const estIco = EST_ICO[t.estado] || '⏳';
+      const clickObra = trabajo ? `goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('tareas'),300)` : '';
 
-      html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--gris-100);transition:background .15s;${isDone?'opacity:.6':''}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
-        <div onclick="mtToggleTarea('${t.id}')" style="width:20px;height:20px;border-radius:50%;border:2px solid ${isDone?'#059669':'var(--gris-300)'};display:flex;align-items:center;justify-content:center;cursor:pointer;background:${isDone?'#059669':'transparent'};flex-shrink:0;transition:all .15s">
-          ${isDone?'<span style="color:#fff;font-size:11px">✓</span>':''}
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCerrada?'opacity:.6':''};cursor:${clickObra?'pointer':'default'}" onclick="${clickObra}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+        <div onclick="event.stopPropagation();mtToggleTarea('${t.id}')" style="width:20px;height:20px;border-radius:50%;border:2px solid ${isDone?'#059669':isRech?'#9333EA':'var(--gris-300)'};display:flex;align-items:center;justify-content:center;cursor:pointer;background:${isDone?'#059669':isRech?'#9333EA':'transparent'};flex-shrink:0;transition:all .15s">
+          ${isDone?'<span style="color:#fff;font-size:11px">✓</span>':isRech?'<span style="color:#fff;font-size:11px">✕</span>':''}
         </div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:12.5px;${isDone?'text-decoration:line-through':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.texto||'Tarea'}</div>
+          <div style="font-weight:700;font-size:12.5px;${isCerrada?'text-decoration:line-through':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.texto||'Tarea'}</div>
           <div style="font-size:10.5px;color:var(--gris-500);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">
             <span style="color:${prioColor};font-weight:700">${prioIco} ${t.prioridad||'normal'}</span>
             ${t.responsable_nombre ? `<span>👤 ${t.responsable_nombre}</span>` : ''}
-            ${t.fecha_limite ? `<span ${isVencida?'style="color:#DC2626;font-weight:700"':''}'>📅 ${new Date(t.fecha_limite).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}${isVencida?' ¡Vencida!':''}</span>` : ''}
+            ${t.fecha_limite ? `<span ${isVencida?'style="color:#DC2626;font-weight:700"':''}>📅 ${new Date(t.fecha_limite).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}${isVencida?' ¡Vencida!':''}</span>` : ''}
           </div>
         </div>
         <div style="font-size:10px;padding:3px 10px;border-radius:6px;font-weight:700;background:${estBg};color:${estColor};white-space:nowrap">${estIco} ${t.estado||'pendiente'}</div>

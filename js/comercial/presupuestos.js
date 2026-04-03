@@ -134,7 +134,9 @@ function renderPresupuestos(list) {
             // Pendiente: Aprobar + Crear obra
             if (p.estado === 'pendiente') {
               const _tO2 = trabajos.some(t=>t.presupuesto_id===p.id);
-              let _pBtns = '<button onclick="event.stopPropagation();abrirModalAprobar('+p.id+')" style="padding:4px 10px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Aprobar presupuesto">✅ Aprobar</button> ';
+              const _obraEnviar = _tO2 ? trabajos.find(t=>t.presupuesto_id===p.id) : null;
+              let _pBtns = '<button onclick="event.stopPropagation();enviarPresupuestoCliente('+p.id+','+(_obraEnviar?_obraEnviar.id:'null')+')" style="padding:4px 10px;border-radius:6px;border:none;background:#3b82f6;cursor:pointer;font-size:11px;font-weight:700;color:#fff" title="Enviar enlace de firma al cliente">📩 Enviar</button> ';
+              _pBtns += '<button onclick="event.stopPropagation();abrirModalAprobar('+p.id+')" style="padding:4px 10px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Aprobar presupuesto">✅ Aprobar</button> ';
               if (_tO2) { const _ob2=trabajos.find(t=>t.presupuesto_id===p.id); _pBtns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob2.id+')" style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none">✅ Obra</a>'; }
               else _pBtns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button>';
               return _pBtns;

@@ -940,21 +940,132 @@ async function cambiarEstadoTarea(id, nuevoEstado) {
   toast(`${estInfo.ico||''} Tarea ${estInfo.label?.toLowerCase()||nuevoEstado}`, 'success');
 }
 
-async function editarTareaObra(id) {
+function editarTareaObra(id) {
   const tarea = obraTareasData.find(t => t.id === id);
   if (!tarea) return;
 
-  const nuevoTexto = prompt('Editar tarea:', tarea.texto);
-  if (nuevoTexto === null || nuevoTexto.trim() === '') return;
-  if (nuevoTexto.trim() === tarea.texto) return;
+  // Eliminar modal anterior si existe
+  document.getElementById('modal-editar-tarea')?.remove();
 
-  const textoAnterior = tarea.texto;
-  const { error } = await sb.from('tareas_obra').update({ texto: nuevoTexto.trim() }).eq('id', id);
+  const fechaVal = tarea.fecha_limite || '';
+  const modal = document.createElement('div');
+  modal.id = 'modal-editar-tarea';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:480px;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <h3 style="margin:0;font-size:15px;font-weight:800">✏️ Editar tarea</h3>
+        <button onclick="document.getElementById('modal-editar-tarea').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--gris-400);padding:4px">✕</button>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Descripción</label>
+          <textarea id="et-texto" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);resize:vertical;outline:none">${tarea.texto}</textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Prioridad</label>
+            <select id="et-prioridad" style="width:100%;padding:9px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;cursor:pointer">
+              ${Object.entries(TAREA_PRIORIDADES).map(([k,v]) => `<option value="${k}" ${k===tarea.prioridad?'selected':''}>${v.ico} ${v.label}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Fecha límite</label>
+            <input id="et-fecha" type="date" value="${fechaVal}" style="width:100%;padding:9px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Responsable</label>
+          <select id="et-responsable" style="width:100%;padding:9px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;cursor:pointer">
+            <option value="">Sin asignar</option>
+          </select>
+        </div>
+        <div style="font-size:10.5px;color:var(--gris-400);display:flex;gap:12px;flex-wrap:wrap">
+          <span>Creada: ${tarea.created_at ? new Date(tarea.created_at).toLocaleString('es-ES') : '—'}</span>
+          ${tarea.creado_por_nombre ? `<span>Por: ${tarea.creado_por_nombre}</span>` : ''}
+          ${tarea.completada_at ? `<span>Completada: ${new Date(tarea.completada_at).toLocaleString('es-ES')}</span>` : ''}
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--gris-100);display:flex;justify-content:flex-end;gap:8px;background:var(--gris-50)">
+        <button onclick="document.getElementById('modal-editar-tarea').remove()" style="padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid var(--gris-200);background:#fff;color:var(--gris-600)">Cancelar</button>
+        <button onclick="guardarEdicionTarea(${id})" style="padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--azul);color:#fff">💾 Guardar cambios</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  // Poblar select de responsables en el modal
+  (async () => {
+    const sel = document.getElementById('et-responsable');
+    try {
+      const { data } = await sb.from('perfiles').select('id,nombre,apellidos').eq('empresa_id', EMPRESA.id);
+      if (data && data.length) {
+        data.forEach(u => {
+          const nombre = ((u.nombre||'')+' '+(u.apellidos||'')).trim() || 'Sin nombre';
+          sel.innerHTML += `<option value="${u.id}">${nombre}</option>`;
+        });
+      } else if (CP) {
+        sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+      }
+    } catch(e) {
+      if (CP) sel.innerHTML += `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
+    }
+    sel.value = tarea.responsable_id || '';
+  })();
+
+  // Focus en el textarea
+  setTimeout(() => document.getElementById('et-texto')?.focus(), 100);
+}
+
+async function guardarEdicionTarea(id) {
+  const tarea = obraTareasData.find(t => t.id === id);
+  if (!tarea) return;
+
+  const nuevoTexto = document.getElementById('et-texto')?.value?.trim();
+  const nuevaPrioridad = document.getElementById('et-prioridad')?.value;
+  const nuevaFecha = document.getElementById('et-fecha')?.value || null;
+  const nuevoRespId = document.getElementById('et-responsable')?.value || null;
+  const nuevoRespNombre = nuevoRespId ? document.getElementById('et-responsable')?.selectedOptions[0]?.textContent?.trim() : null;
+
+  if (!nuevoTexto) { toast('El texto no puede estar vacío','error'); return; }
+
+  // Detectar qué ha cambiado para el registro
+  const cambios = [];
+  if (nuevoTexto !== tarea.texto) cambios.push(`texto: "${tarea.texto}" → "${nuevoTexto}"`);
+  if (nuevaPrioridad !== tarea.prioridad) cambios.push(`prioridad: ${tarea.prioridad} → ${nuevaPrioridad}`);
+  if ((nuevaFecha||null) !== (tarea.fecha_limite||null)) cambios.push(`fecha límite: ${tarea.fecha_limite||'sin fecha'} → ${nuevaFecha||'sin fecha'}`);
+  if ((nuevoRespId||null) !== (tarea.responsable_id||null)) cambios.push(`responsable: ${tarea.responsable_nombre||'sin asignar'} → ${nuevoRespNombre||'sin asignar'}`);
+
+  if (!cambios.length) {
+    document.getElementById('modal-editar-tarea')?.remove();
+    return;
+  }
+
+  const updateData = {
+    texto: nuevoTexto,
+    prioridad: nuevaPrioridad,
+    fecha_limite: nuevaFecha,
+    responsable_id: nuevoRespId,
+    responsable_nombre: nuevoRespNombre,
+  };
+
+  const { error } = await sb.from('tareas_obra').update(updateData).eq('id', id);
   if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
     toast('Error: '+error.message,'error'); return;
   }
-  tarea.texto = nuevoTexto.trim();
-  await registrarActividadObra(obraActualId, 'Tarea editada', `✏️ "${textoAnterior}" → "${nuevoTexto.trim()}"`);
+
+  // Actualizar datos locales
+  tarea.texto = nuevoTexto;
+  tarea.prioridad = nuevaPrioridad;
+  tarea.fecha_limite = nuevaFecha;
+  tarea.responsable_id = nuevoRespId;
+  tarea.responsable_nombre = nuevoRespNombre;
+
+  await registrarActividadObra(obraActualId, 'Tarea editada', `✏️ ${cambios.join(' | ')}`);
+
+  document.getElementById('modal-editar-tarea')?.remove();
   renderObraTareas();
   toast('Tarea editada ✓', 'success');
 }
@@ -1411,8 +1522,18 @@ async function obraFacturarTodosAlb() {
 // ═══════════════════════════════════════════════
 // FIRMA REMOTA — ENVIAR PRESUPUESTO AL CLIENTE
 // ═══════════════════════════════════════════════
-async function enviarPresupuestoCliente(presId) {
-  if (!obraActualId) return;
+// Generar token corto (12 caracteres alfanuméricos)
+function generarTokenCorto() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  const arr = new Uint8Array(12);
+  crypto.getRandomValues(arr);
+  arr.forEach(v => token += chars[v % chars.length]);
+  return token;
+}
+
+async function enviarPresupuestoCliente(presId, obraIdOverride) {
+  const obraId = obraIdOverride || obraActualId;
   const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
   if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
 
@@ -1420,21 +1541,19 @@ async function enviarPresupuestoCliente(presId) {
   const cli = p.cliente_id ? clientes.find(c => c.id === p.cliente_id) : null;
   const emailCliente = cli?.email || '';
 
-  // Generar token único si no existe
+  // Generar token corto si no existe
   let firmaToken = p.firma_token;
   if (!firmaToken) {
-    firmaToken = crypto.randomUUID();
+    firmaToken = generarTokenCorto();
     const { error: tokErr } = await sb.from('presupuestos').update({
       firma_token: firmaToken,
       firma_enviado_por: CU?.id || null,
       firma_enviado_por_nombre: CP ? (CP.nombre || '') + ' ' + (CP.apellidos || '') : CU?.email || '',
     }).eq('id', presId);
     if (tokErr) {
-      // Fallback si las columnas nuevas no existen aún
       await sb.from('presupuestos').update({ firma_token: firmaToken }).eq('id', presId);
     }
   } else {
-    // Actualizar quién lo envía (puede reenviarse por otra persona)
     await sb.from('presupuestos').update({
       firma_enviado_por: CU?.id || null,
       firma_enviado_por_nombre: CP ? (CP.nombre || '') + ' ' + (CP.apellidos || '') : CU?.email || '',
@@ -1444,28 +1563,35 @@ async function enviarPresupuestoCliente(presId) {
   // Construir URL de firma
   const firmaUrl = `https://instaloerp.github.io/firma.html?token=${firmaToken}`;
   const empresaNombre = EMPRESA.nombre || 'Nuestra empresa';
+  const importeStr = (p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
 
-  // Construir mailto
+  // Construir mailto con formato limpio
   const asunto = encodeURIComponent(`Presupuesto ${p.numero} — ${empresaNombre}`);
   const cuerpo = encodeURIComponent(
     `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
-    `Le adjuntamos el presupuesto ${p.numero}${p.titulo ? ' — ' + p.titulo : ''} por un importe de ${(p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €.\n\n` +
-    `Para revisar y firmar el presupuesto, acceda al siguiente enlace:\n` +
+    `Le enviamos el presupuesto ${p.numero}${p.titulo ? ' (' + p.titulo + ')' : ''} por importe de ${importeStr} €.\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `  REVISAR Y FIRMAR PRESUPUESTO\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `${firmaUrl}\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `Al acceder al enlace podrá revisar el detalle del presupuesto y firmarlo digitalmente.\n\n` +
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
-    `Un saludo,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}`
+    `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`
   );
   const mailto = `mailto:${emailCliente}?subject=${asunto}&body=${cuerpo}`;
 
-  // Registrar en actividad de la obra
-  await registrarActividadObra(obraActualId, 'Presupuesto enviado al cliente', `📩 ${p.numero} enviado a ${cli?.nombre || 'cliente'}${emailCliente ? ' (' + emailCliente + ')' : ''}`);
+  // Registrar en actividad de la obra (si hay obra)
+  if (obraId) {
+    await registrarActividadObra(obraId, 'Presupuesto enviado al cliente', `📩 ${p.numero} enviado a ${cli?.nombre || 'cliente'}${emailCliente ? ' (' + emailCliente + ')' : ''}`);
+  }
 
   // Abrir mailto
   window.open(mailto, '_blank');
   toast('📩 Enlace de firma generado — se abre tu correo', 'success');
 
-  // Refrescar ficha
-  abrirFichaObra(obraActualId, false);
+  // Refrescar ficha si estamos en una obra
+  if (obraId && obraActualId) abrirFichaObra(obraActualId, false);
 }
 
 // ═══════════════════════════════════════════════

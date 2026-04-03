@@ -309,12 +309,22 @@ async function enviarFirma() {
 async function postFirmaAcciones(nombre, dni, dispositivo) {
   if (!presData) return;
   try {
-    // Buscar la obra vinculada a este presupuesto
-    const { data: obras } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
-      .eq('empresa_id', presData.empresa_id)
-      .eq('presupuesto_id', presData.id)
-      .limit(1);
-    const obra = obras?.[0] || null;
+    // Buscar la obra vinculada a este presupuesto (doble vía)
+    let obra = null;
+    // 1. Si el presupuesto tiene trabajo_id directo
+    if (presData.trabajo_id) {
+      const { data: ob1 } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
+        .eq('id', presData.trabajo_id).single();
+      if (ob1) obra = ob1;
+    }
+    // 2. Si no, buscar obra que tenga presupuesto_id apuntando a este presupuesto
+    if (!obra) {
+      const { data: obs } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
+        .eq('empresa_id', presData.empresa_id)
+        .eq('presupuesto_id', presData.id)
+        .limit(1);
+      if (obs?.[0]) obra = obs[0];
+    }
 
     const fechaHoy = new Date().toISOString();
     const fechaCorta = new Date().toLocaleDateString('es-ES');
