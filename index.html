@@ -2968,54 +2968,48 @@
 <!-- Dropdown global autocompletado artículos -->
 <div id="acArticulos"></div>
 
-<!-- Core -->
-<script src="js/core/app.js?v=20260403s"></script>
-<script src="js/core/ui.js?v=20260403p"></script>
-<script src="js/core/dashboard.js?v=20260403p"></script>
-<script src="js/core/sidebar.js"></script>
-
-<!-- Comercial -->
-<script src="js/comercial/autocomplete.js"></script>
-<script src="js/comercial/clientes.js?v=20260403p"></script>
-<script src="js/comercial/presupuestos.js?v=20260403p"></script>
-<script src="js/comercial/albaranes.js?v=20260403p"></script>
-<script src="js/comercial/facturas.js?v=6"></script>
-
-<!-- Compras -->
-<script src="js/compras/proveedores.js"></script>
-<script src="js/compras/importador.js"></script>
-<script src="js/compras/presupuestos_compra.js?v=6"></script>
-<script src="js/compras/pedidos.js?v=6"></script>
-<script src="js/compras/recepciones.js?v=6"></script>
-<script src="js/compras/facturas_prov.js?v=6"></script>
-
-<!-- Almacén -->
-<script src="js/almacen/articulos.js"></script>
-<script src="js/almacen/almacenes.js"></script>
-<script src="js/almacen/stock.js"></script>
-<script src="js/almacen/traspasos.js"></script>
-
-<!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=20260403q"></script>
-<script src="js/obras/mantenimientos.js"></script>
-<script src="js/obras/partes.js?v=20260403s"></script>
-<script src="js/obras/calendario.js?v=20260403p"></script>
-
-<!-- Personal -->
-<script src="js/personal/fichajes.js"></script>
-
-<!-- Editor de Documentos -->
-<script src="js/editor/editor.js?v=20260403p"></script>
-
-<!-- Administración -->
-<script src="js/admin/usuarios.js?v=20260403p"></script>
-<script src="js/admin/config.js"></script>
-<script src="js/admin/etiquetas_qr.js"></script>
-<script src="js/admin/empresa.js"></script>
-<script src="js/admin/papelera.js"></script>
-
-<!-- Claude IA -->
-<script src="js/claude.js"></script>
+<!-- Carga dinámica con cache-bust automático -->
+<script>
+(function(){
+  var v = Date.now();
+  var scripts = [
+    'js/core/app.js',
+    'js/core/ui.js',
+    'js/core/dashboard.js',
+    'js/core/sidebar.js',
+    'js/comercial/autocomplete.js',
+    'js/comercial/clientes.js',
+    'js/comercial/presupuestos.js',
+    'js/comercial/albaranes.js',
+    'js/comercial/facturas.js',
+    'js/compras/proveedores.js',
+    'js/compras/importador.js',
+    'js/compras/presupuestos_compra.js',
+    'js/compras/pedidos.js',
+    'js/compras/recepciones.js',
+    'js/compras/facturas_prov.js',
+    'js/almacen/articulos.js',
+    'js/almacen/almacenes.js',
+    'js/almacen/stock.js',
+    'js/almacen/traspasos.js',
+    'js/obras/trabajos.js',
+    'js/obras/mantenimientos.js',
+    'js/obras/partes.js',
+    'js/obras/calendario.js',
+    'js/personal/fichajes.js',
+    'js/editor/editor.js',
+    'js/admin/usuarios.js',
+    'js/admin/config.js',
+    'js/admin/etiquetas_qr.js',
+    'js/admin/empresa.js',
+    'js/admin/papelera.js',
+    'js/claude.js'
+  ];
+  scripts.forEach(function(src){
+    document.write('<script src="'+src+'?v='+v+'"><\/script>');
+  });
+})();
+</script>
 
 <!-- Inicialización -->
 <script>init();</script>
