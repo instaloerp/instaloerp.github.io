@@ -190,6 +190,10 @@ a{color:var(--azul);text-decoration:none}
 .firma-container canvas{width:100%;height:200px;display:block}
 .firma-clear{position:absolute;top:8px;right:8px;background:var(--gris-100);border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer}
 .firma-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gris-300);font-size:14px;font-weight:600;pointer-events:none}
+/* Ocultar flechas spinner en inputs numéricos */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 </style>
 </head>
 <body>
@@ -1151,6 +1155,13 @@ function renderWizStep() {
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
       </div>
       <div class="field">
+        <label>🪪 DNI / NIF del cliente *</label>
+        <input id="wz_cli_dni" type="text" placeholder="12345678A" value="${_wiz.clienteDni||''}"
+          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);text-transform:uppercase"
+          maxlength="10" oninput="this.value=this.value.toUpperCase()">
+        <div id="wz_dni_error" style="display:none;color:var(--rojo);font-size:11px;font-weight:600;margin-top:4px"></div>
+      </div>
+      <div class="field">
         <label>📧 Email (para enviar copia del parte)</label>
         <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail}"
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
@@ -1222,6 +1233,7 @@ function wizSaveCurrentStep() {
   }
   if (_wiz.step === 3) {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
+    _wiz.clienteDni = document.getElementById('wz_cli_dni')?.value?.toUpperCase()?.trim() || '';
     _wiz.clienteEmail = document.getElementById('wz_cli_email')?.value || '';
     // Capturar firma si hay algo dibujado
     const canvas = document.getElementById('firmaCanvas');
@@ -1377,6 +1389,26 @@ function wizRemoveMat(idx) {
 
 // ── MANO DE OBRA ──
 function renderWizMORow(mo, idx) {
+  const isDesplazamiento = mo.es_desplazamiento;
+  if (isDesplazamiento) {
+    return `<div class="mat-row" style="background:var(--amarillo-light);border-radius:8px;padding:8px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:var(--amarillo);margin-bottom:4px">🚗 Desplazamiento</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">Km:</label>
+          <input type="number" value="${mo.km||0}" min="0" step="1"
+            style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
+            onchange="wizUpdateMO(${idx},'km',this.value)">
+          <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/km:</label>
+          <input type="number" value="${mo.precio_hora||0.26}" min="0" step="0.01"
+            style="width:55px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:12px;font-family:var(--font)"
+            onchange="wizUpdateMO(${idx},'precio_hora',this.value)">
+          <span style="font-size:12px;font-weight:700;color:var(--amarillo);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+          <button class="mat-del" onclick="wizRemoveMO(${idx})">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }
   return `<div class="mat-row" style="background:var(--violeta-light);border-radius:8px;padding:8px;margin-bottom:6px">
     <div style="flex:1;min-width:0">
       <input type="text" value="${mo.descripcion||''}" placeholder="Descripción trabajo"
@@ -1414,12 +1446,19 @@ function wizUpdateMO(idx, field, val) {
   if (!mo) return;
   if (field === 'descripcion') {
     mo.descripcion = val;
+  } else if (field === 'km') {
+    mo.km = parseFloat(val) || 0;
+    mo.total = mo.km * (mo.precio_hora || 0.26);
   } else if (field === 'horas') {
     mo.horas = parseFloat(val) || 0;
     mo.total = mo.horas * (mo.precio_hora || 0);
   } else if (field === 'precio_hora') {
     mo.precio_hora = parseFloat(val) || 0;
-    mo.total = (mo.horas || 0) * mo.precio_hora;
+    if (mo.es_desplazamiento) {
+      mo.total = (mo.km || 0) * mo.precio_hora;
+    } else {
+      mo.total = (mo.horas || 0) * mo.precio_hora;
+    }
   }
   renderWizStep();
 }
@@ -1509,6 +1548,39 @@ function wizClearFirma() {
   }
 }
 
+// ── VALIDAR DNI/NIF/NIE/CIF ──
+function validarDNI(valor) {
+  if (!valor) return { valid: false, msg: 'El DNI es obligatorio' };
+  valor = valor.toUpperCase().replace(/[\s\-\.]/g, '');
+
+  // NIF: 8 dígitos + letra
+  const nifRegex = /^(\d{8})([A-Z])$/;
+  if (nifRegex.test(valor)) {
+    const [, num, letra] = valor.match(nifRegex);
+    const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
+    const letraCorrecta = letras[parseInt(num) % 23];
+    if (letra === letraCorrecta) return { valid: true, valor };
+    return { valid: false, msg: `Letra incorrecta. Debería ser: ${letraCorrecta}` };
+  }
+
+  // NIE: X/Y/Z + 7 dígitos + letra
+  const nieRegex = /^([XYZ])(\d{7})([A-Z])$/;
+  if (nieRegex.test(valor)) {
+    const [, prefix, num, letra] = valor.match(nieRegex);
+    const prefixNum = { X: '0', Y: '1', Z: '2' }[prefix];
+    const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
+    const letraCorrecta = letras[parseInt(prefixNum + num) % 23];
+    if (letra === letraCorrecta) return { valid: true, valor };
+    return { valid: false, msg: `Letra incorrecta. Debería ser: ${letraCorrecta}` };
+  }
+
+  // CIF: Letra + 7 dígitos + dígito/letra
+  const cifRegex = /^[ABCDEFGHJKLMNPQRSUVW]\d{7}[\dA-J]$/;
+  if (cifRegex.test(valor)) return { valid: true, valor };
+
+  return { valid: false, msg: 'Formato no válido. Usa NIF (12345678A), NIE (X1234567A) o CIF' };
+}
+
 // ── FINALIZAR WIZARD ──
 async function wizFinish() {
   try {
@@ -1537,10 +1609,36 @@ async function wizFinish() {
       toast('Describe el trabajo realizado', 'error'); return;
     }
 
-    toast('Enviando informe...', '');
+    // Validar DNI obligatorio
+    if (_wiz.clienteDni) {
+      const dniCheck = validarDNI(_wiz.clienteDni);
+      if (!dniCheck.valid) {
+        toast('DNI no válido: ' + dniCheck.msg, 'error'); return;
+      }
+    } else {
+      toast('Introduce el DNI del cliente', 'error'); return;
+    }
+
+    toast('📍 Obteniendo ubicación final...', '');
 
     const id = _wiz.parteId;
     const eid = EMPRESA?.id || 'default';
+
+    // 0. Capturar ubicación final (GPS)
+    let ubicacionFin = null;
+    if (navigator.geolocation) {
+      try {
+        ubicacionFin = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+            (err) => { console.warn('GPS fin error:', err.message); resolve(null); },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        });
+      } catch(e) { console.warn('GPS error:', e); }
+    }
+
+    toast('Enviando informe...', '');
 
     // 1. Subir fotos nuevas a Supabase Storage
     let fotosUrls = [..._wiz.fotos]; // URLs existentes
@@ -1585,7 +1683,9 @@ async function wizFinish() {
       firma_url: firmaUrl && !firmaUrl.startsWith('data:') ? firmaUrl : null,
       cliente_nombre_firma: _wiz.clienteNombre || null,
       cliente_email: _wiz.clienteEmail || null,
+      cliente_dni: _wiz.clienteDni || null,
     };
+    if (ubicacionFin) updateObj.ubicacion_fin = ubicacionFin;
 
     console.log('[wizFinish] Saving:', JSON.stringify(Object.keys(updateObj)));
     const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
@@ -1780,7 +1880,11 @@ function openOperarioDetail(uid) {
 
 // ── INICIAR PARTE CON GPS ──
 async function iniciarParteConGPS(id) {
-  toast('Obteniendo ubicación...', '');
+  // Mostrar confirmación con aviso de GPS
+  const confirmed = confirm('📍 Al iniciar el parte se registrará tu ubicación GPS actual.\n\n¿Iniciar el trabajo?');
+  if (!confirmed) return;
+
+  toast('📍 Obteniendo ubicación...', '');
 
   const doStart = async (ubicacion) => {
     const updateObj = {
@@ -1823,6 +1927,34 @@ async function iniciarParteConGPS(id) {
 function openInformarWizard(id) {
   const p = misPartes.find(x => x.id === id);
   if (!p) return;
+
+  // Auto-calcular horas trabajadas desde inicio_at
+  let autoManoObra = p.mano_obra ? [...p.mano_obra] : [];
+  if (autoManoObra.length === 0 && p.inicio_at) {
+    const inicio = new Date(p.inicio_at);
+    const ahora = new Date();
+    const diffMs = ahora - inicio;
+    const diffHoras = Math.round((diffMs / (1000 * 60 * 60)) * 4) / 4; // Redondear a cuartos de hora
+    autoManoObra.push({
+      descripcion: 'Trabajo realizado',
+      horas: Math.max(0.25, diffHoras),
+      precio_hora: 35,
+      total: Math.max(0.25, diffHoras) * 35,
+    });
+  }
+
+  // Auto-añadir línea de desplazamiento
+  if (autoManoObra.length <= 1 && !autoManoObra.find(mo => mo.descripcion && mo.descripcion.toLowerCase().includes('desplazamiento'))) {
+    autoManoObra.push({
+      descripcion: 'Desplazamiento',
+      horas: 0,
+      precio_hora: 0,
+      total: 0,
+      km: 0,
+      es_desplazamiento: true,
+    });
+  }
+
   _wiz = {
     parteId: id,
     step: 0,
@@ -1833,10 +1965,11 @@ function openInformarWizard(id) {
     fotos: p.fotos ? [...p.fotos] : [],
     fotosNuevas: [],
     materiales: p.materiales ? [...p.materiales] : [],
-    manoObra: p.mano_obra ? [...p.mano_obra] : [],
+    manoObra: autoManoObra,
     firmaData: p.firma_url || null,
     clienteEmail: p.cliente_email || '',
     clienteNombre: p.cliente_nombre_firma || '',
+    clienteDni: p.cliente_dni || '',
   };
   renderWizStep();
 }
