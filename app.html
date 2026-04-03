@@ -117,10 +117,12 @@ a{color:var(--azul);text-decoration:none}
 .firma-container canvas{max-height:140px}
 
 /* ── STAT CARDS ── */
-.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
-.stat-card{background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--gris-100)}
-.stat-num{font-size:24px;font-weight:800}
-.stat-label{font-size:11px;font-weight:600;color:var(--gris-400);margin-top:2px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:10px 6px;text-align:center;border:1px solid var(--gris-100)}
+.stat-num{font-size:20px;font-weight:800}
+.stat-label{font-size:10px;font-weight:600;color:var(--gris-400);margin-top:1px}
+.search-filter{background:var(--gris-100);border:none;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--gris-500);cursor:pointer;font-family:var(--font)}
+.search-filter.active{background:var(--azul);color:#fff}
 
 /* ── PROGRESS ── */
 .progress-bar{height:8px;background:var(--gris-100);border-radius:4px;overflow:hidden;margin:8px 0}
@@ -552,14 +554,21 @@ function renderOperarioInicio(el) {
     .filter(([, partes]) => partes.length > 0)
     .forEach(([fecha, partes]) => {
       if (fecha < hoy) {
-        // Partes pasados no completados → caducados
         const noCompletados = partes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
         if (noCompletados.length) caducados.push({ fecha, partes: noCompletados });
-        // Los completados de días pasados no se muestran aquí
       } else {
-        sortedDias.push([fecha, partes]);
+        // Hoy: mostrar todos (incluidos completados del día). Futuro: solo no-completados.
+        const visibles = partes.filter(p => {
+          if (p.estado === 'eliminado') return false;
+          if (fecha > hoy && ['completado','revisado','facturado'].includes(p.estado)) return false;
+          return true;
+        });
+        if (visibles.length) sortedDias.push([fecha, visibles]);
       }
     });
+
+  const numCaducados = caducados.reduce((s,d) => s+d.partes.length, 0);
+  const enCurso = misPartes.filter(p => p.estado === 'en_curso');
 
   el.innerHTML = `
     <div style="margin-bottom:16px">
@@ -568,29 +577,64 @@ function renderOperarioInicio(el) {
     </div>
 
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-num" style="color:var(--azul)">${misPartes.filter(p => p.fecha === hoy).length}</div>
-        <div class="stat-label">Partes hoy</div>
-      </div>
-      <div class="stat-card">
+      <div class="stat-card" onclick="scrollToSection('pendientes')" style="cursor:pointer">
         <div class="stat-num" style="color:var(--acento)">${partesPend.length}</div>
         <div class="stat-label">Pendientes</div>
+      </div>
+      <div class="stat-card" onclick="scrollToSection('caducados')" style="cursor:pointer;${numCaducados > 0 ? 'border-color:var(--rojo);background:#FFF5F5' : ''}">
+        <div class="stat-num" style="color:var(--rojo)">${numCaducados}</div>
+        <div class="stat-label">Caducados</div>
       </div>
       <div class="stat-card">
         <div class="stat-num" style="color:var(--verde)">${misTareas.filter(t=>t.estado==='completada').length}/${misTareas.length}</div>
         <div class="stat-label">Tareas</div>
       </div>
       <div class="stat-card">
-        <div class="stat-num" style="color:var(--violeta)">${misPartes.filter(p=>p.estado==='completado').length}</div>
-        <div class="stat-label">Completados</div>
+        <div class="stat-num" style="color:var(--azul)">${enCurso.length}</div>
+        <div class="stat-label">En curso</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--azul)">0</div>
+        <div class="stat-label">Mensajes</div>
+      </div>
+      <div class="stat-card" onclick="toggleBuscadorPartes()" style="cursor:pointer">
+        <div class="stat-num" style="color:var(--gris-500)">🔍</div>
+        <div class="stat-label">Buscar</div>
+      </div>
+    </div>
+
+    <!-- Buscador de partes realizados -->
+    <div id="buscadorPartes" style="display:none;margin-bottom:16px;background:#fff;border:1px solid var(--gris-200);border-radius:12px;padding:12px">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="searchPartesInput" type="text" placeholder="Buscar por número, dirección, cliente..."
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)"
+          oninput="filtrarPartesHistorico()">
+        <button onclick="toggleBuscadorPartes()" style="background:var(--gris-200);border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="search-filter active" data-filter="todos" onclick="setSearchFilter('todos')">Todos</button>
+        <button class="search-filter" data-filter="completado" onclick="setSearchFilter('completado')">Completados</button>
+        <button class="search-filter" data-filter="programado" onclick="setSearchFilter('programado')">Programados</button>
+        <button class="search-filter" data-filter="en_curso" onclick="setSearchFilter('en_curso')">En curso</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:700;color:var(--gris-500)">DESDE</label>
+          <input id="searchFechaDesde" type="date" style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)" onchange="filtrarPartesHistorico()">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:700;color:var(--gris-500)">HASTA</label>
+          <input id="searchFechaHasta" type="date" style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)" onchange="filtrarPartesHistorico()">
+        </div>
+      </div>
+      <div id="searchPartesResults" style="max-height:400px;overflow-y:auto"></div>
     </div>
 
     ${caducados.length ? `
       <div style="margin-bottom:16px;border:2px solid var(--rojo);border-radius:12px;overflow:hidden;background:#FFF5F5">
         <div class="day-header" data-date="caducados" style="display:flex;align-items:center;gap:8px;padding:12px;background:#FEE2E2;cursor:pointer;user-select:none">
           <span style="font-weight:800;color:var(--rojo);flex:1">⚠️ Caducados</span>
-          <span style="color:var(--rojo);font-size:12px;font-weight:700;background:#FECACA;padding:2px 8px;border-radius:12px">${caducados.reduce((s,d) => s+d.partes.length, 0)}</span>
+          <span style="color:var(--rojo);font-size:12px;font-weight:700;background:#FECACA;padding:2px 8px;border-radius:12px">${numCaducados}</span>
           <span style="color:var(--rojo);font-size:16px" class="day-toggle" data-date="caducados">▶</span>
         </div>
         <div id="day-caducados" style="display:none;padding:8px">
@@ -667,6 +711,82 @@ function renderOperarioInicio(el) {
   }, 50);
 }
 
+
+function scrollToSection(id) {
+  const el = document.getElementById('day-' + id);
+  if (el) {
+    // Abrir la sección si está cerrada
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      const toggle = document.querySelector(`.day-toggle[data-date="${id}"]`);
+      if (toggle) toggle.textContent = '▼';
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+let _searchFilter = 'todos';
+
+function toggleBuscadorPartes() {
+  const buscador = document.getElementById('buscadorPartes');
+  if (!buscador) return;
+  const visible = buscador.style.display !== 'none';
+  buscador.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    _searchFilter = 'todos';
+    const input = document.getElementById('searchPartesInput');
+    if (input) { input.value = ''; input.focus(); }
+    const desde = document.getElementById('searchFechaDesde');
+    const hasta = document.getElementById('searchFechaHasta');
+    if (desde) desde.value = '';
+    if (hasta) hasta.value = '';
+    document.querySelectorAll('.search-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === 'todos'));
+    document.getElementById('searchPartesResults').innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Usa los filtros o escribe para buscar</div>';
+  }
+}
+
+function setSearchFilter(f) {
+  _searchFilter = f;
+  document.querySelectorAll('.search-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  filtrarPartesHistorico();
+}
+
+function filtrarPartesHistorico() {
+  const results = document.getElementById('searchPartesResults');
+  if (!results) return;
+  const q = (document.getElementById('searchPartesInput')?.value || '').trim().toLowerCase();
+  const desde = document.getElementById('searchFechaDesde')?.value || '';
+  const hasta = document.getElementById('searchFechaHasta')?.value || '';
+
+  const hayFiltro = q.length >= 2 || desde || hasta || _searchFilter !== 'todos';
+  if (!hayFiltro) {
+    results.innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Usa los filtros o escribe para buscar</div>';
+    return;
+  }
+
+  const found = misPartes.filter(p => {
+    if (p.estado === 'eliminado') return false;
+    // Filtro por estado
+    if (_searchFilter === 'completado' && !['completado','revisado','facturado'].includes(p.estado)) return false;
+    if (_searchFilter === 'programado' && p.estado !== 'programado') return false;
+    if (_searchFilter === 'en_curso' && p.estado !== 'en_curso') return false;
+    // Filtro por fecha
+    if (desde && p.fecha < desde) return false;
+    if (hasta && p.fecha > hasta) return false;
+    // Filtro por texto
+    if (q.length >= 2) {
+      const fields = [p.numero, p.trabajo_titulo, p.direccion, p.descripcion, p.cliente_nombre_firma, p.usuario_nombre, p.instrucciones].filter(Boolean).join(' ').toLowerCase();
+      if (!fields.includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b) => (b.fecha||'').localeCompare(a.fecha||'')).slice(0, 30);
+
+  if (!found.length) {
+    results.innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Sin resultados</div>';
+    return;
+  }
+  results.innerHTML = `<div style="font-size:11px;color:var(--gris-400);margin-bottom:8px;text-align:right">${found.length} resultado${found.length!==1?'s':''}</div>` + found.map(p => renderParteCard(p)).join('');
+}
 
 function renderOperarioPartes(el) {
   const activos = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
@@ -1069,10 +1189,6 @@ function openParteDetail(id) {
   if (!p) return;
 
   const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
-  const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'long'}) : '—';
-  const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
-  const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
-  const horas = (parseFloat(p.horas)||0).toFixed(1);
 
   const nextActions = {
     borrador:   {label:'📅 Programar cita', estado:'programado', bg:'#3B82F6'},
@@ -1122,12 +1238,6 @@ function openParteDetail(id) {
       return '';
     })()}
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:var(--gris-50);border-radius:10px">
-      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Fecha</div><div style="font-size:14px;font-weight:700">${fecha}</div></div>
-      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Horario</div><div style="font-size:14px;font-weight:700">${hi} - ${hf}</div></div>
-      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Horas</div><div style="font-size:14px;font-weight:700">${horas}h</div></div>
-      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Operario</div><div style="font-size:14px;font-weight:700">${p.usuario_nombre||'—'}</div></div>
-    </div>
 
     ${(() => {
       let dir = p.direccion || '';
