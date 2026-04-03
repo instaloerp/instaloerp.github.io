@@ -232,7 +232,7 @@ input[type=number]{-moz-appearance:textfield}
       <h2 id="hdrNombre">—</h2>
       <span id="hdrRol">—</span>
     </div>
-    <button class="hdr-btn" id="btnModo" onclick="toggleModo()" title="Cambiar modo" style="font-size:11px;padding:4px 10px;border-radius:12px;font-weight:700"></button>
+    <button id="btnModo" onclick="toggleModo()" title="Cambiar modo" style="font-size:11px;padding:6px 12px;border-radius:20px;font-weight:700;border:none;white-space:nowrap;cursor:pointer;margin-right:4px"></button>
     <button class="hdr-btn" onclick="doRefresh()" title="Actualizar">🔄</button>
     <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">🚪</button>
   </div>
@@ -356,34 +356,37 @@ async function loadEmpresa(id) {
 // ═══════════════════════════════════════════════
 function toggleModo() {
   if (localStorage.getItem('instalo_modo') === 'operario') {
-    localStorage.removeItem('instalo_modo');
+    localStorage.setItem('instalo_modo', 'jefe');
   } else {
     localStorage.setItem('instalo_modo', 'operario');
   }
-  // Recargar app con el nuevo modo
   showApp();
 }
 
 async function showApp() {
-  // ?modo=operario en la URL fuerza vista operario (para pruebas)
-  // Se guarda en localStorage porque Supabase Auth pierde los params de la URL al redirigir
+  // Primera carga: URL param establece el modo y se guarda en localStorage
+  // Después: el botón toggle cambia localStorage directamente
   const _params = new URLSearchParams(window.location.search);
-  if (_params.get('modo') === 'operario') localStorage.setItem('instalo_modo', 'operario');
-  if (_params.get('modo') === 'jefe') localStorage.removeItem('instalo_modo');
-  const _forzarOperario = localStorage.getItem('instalo_modo') === 'operario';
-  esJefe = _forzarOperario ? false : (CP?.es_superadmin === true);
+  const modoURL = _params.get('modo');
+  const modoLocal = localStorage.getItem('instalo_modo');
+  // Solo leer URL si no hay valor guardado aún
+  if (!modoLocal && modoURL) {
+    localStorage.setItem('instalo_modo', modoURL);
+  }
+  const modoFinal = localStorage.getItem('instalo_modo');
+  esJefe = modoFinal === 'operario' ? false : (CP?.es_superadmin === true);
   showScreen('s-app');
 
   // Header
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
-  document.getElementById('hdrRol').textContent = esJefe ? '👑 Jefe · ' + (EMPRESA?.nombre||'') : '👷 Operario · ' + (EMPRESA?.nombre||'');
+  document.getElementById('hdrRol').textContent = esJefe ? '⚙️ Administrador · ' + (EMPRESA?.nombre||'') : '👷 Operario · ' + (EMPRESA?.nombre||'');
 
   // Botón cambio de modo (solo visible si es superadmin real)
   const btnModo = document.getElementById('btnModo');
   if (CP?.es_superadmin) {
     btnModo.style.display = '';
-    btnModo.textContent = esJefe ? '👷 Modo Operario' : '👑 Modo Jefe';
+    btnModo.textContent = esJefe ? '👷 Ver como Operario' : '⚙️ Administrador';
     btnModo.style.background = esJefe ? '#F59E0B' : '#3B82F6';
     btnModo.style.color = '#fff';
   } else {
