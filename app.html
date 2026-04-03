@@ -232,6 +232,7 @@ input[type=number]{-moz-appearance:textfield}
       <h2 id="hdrNombre">—</h2>
       <span id="hdrRol">—</span>
     </div>
+    <button class="hdr-btn" id="btnModo" onclick="toggleModo()" title="Cambiar modo" style="font-size:11px;padding:4px 10px;border-radius:12px;font-weight:700"></button>
     <button class="hdr-btn" onclick="doRefresh()" title="Actualizar">🔄</button>
     <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">🚪</button>
   </div>
@@ -353,16 +354,41 @@ async function loadEmpresa(id) {
 // ═══════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════
+function toggleModo() {
+  if (localStorage.getItem('instalo_modo') === 'operario') {
+    localStorage.removeItem('instalo_modo');
+  } else {
+    localStorage.setItem('instalo_modo', 'operario');
+  }
+  // Recargar app con el nuevo modo
+  showApp();
+}
+
 async function showApp() {
   // ?modo=operario en la URL fuerza vista operario (para pruebas)
+  // Se guarda en localStorage porque Supabase Auth pierde los params de la URL al redirigir
   const _params = new URLSearchParams(window.location.search);
-  esJefe = _params.get('modo') === 'operario' ? false : (CP?.es_superadmin === true);
+  if (_params.get('modo') === 'operario') localStorage.setItem('instalo_modo', 'operario');
+  if (_params.get('modo') === 'jefe') localStorage.removeItem('instalo_modo');
+  const _forzarOperario = localStorage.getItem('instalo_modo') === 'operario';
+  esJefe = _forzarOperario ? false : (CP?.es_superadmin === true);
   showScreen('s-app');
 
   // Header
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
   document.getElementById('hdrRol').textContent = esJefe ? '👑 Jefe · ' + (EMPRESA?.nombre||'') : '👷 Operario · ' + (EMPRESA?.nombre||'');
+
+  // Botón cambio de modo (solo visible si es superadmin real)
+  const btnModo = document.getElementById('btnModo');
+  if (CP?.es_superadmin) {
+    btnModo.style.display = '';
+    btnModo.textContent = esJefe ? '👷 Modo Operario' : '👑 Modo Jefe';
+    btnModo.style.background = esJefe ? '#F59E0B' : '#3B82F6';
+    btnModo.style.color = '#fff';
+  } else {
+    btnModo.style.display = 'none';
+  }
 
   // Bottom nav
   renderBottomNav();
