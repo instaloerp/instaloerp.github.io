@@ -998,10 +998,19 @@ async function verDetalleParte(id) {
 
   // Firma
   let firmaHTML = '';
-  if (parte.firma_url) {
+  if (parte.firma_url || parte.firma_operario_url) {
     firmaHTML = `<div style="margin:16px 0">
-      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Firma</h4>
-      <img src="${parte.firma_url}" style="max-width:200px;border:1px solid var(--gris-200);border-radius:4px" />
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Firmas</h4>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        ${parte.firma_url ? `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gris-500);margin-bottom:4px">✍️ Cliente${parte.cliente_nombre_firma ? ' — ' + parte.cliente_nombre_firma : ''}${parte.cliente_dni ? ' · ' + parte.cliente_dni : ''}</div>
+          <img src="${parte.firma_url}" style="max-width:200px;border:1px solid var(--gris-200);border-radius:4px" />
+        </div>` : ''}
+        ${parte.firma_operario_url ? `<div>
+          <div style="font-size:11px;font-weight:600;color:var(--gris-500);margin-bottom:4px">👷 Operario${parte.operario_nombre_firma ? ' — ' + parte.operario_nombre_firma : ''}</div>
+          <img src="${parte.firma_operario_url}" style="max-width:200px;border:1px solid var(--gris-200);border-radius:4px" />
+        </div>` : ''}
+      </div>
     </div>`;
   }
 

@@ -993,8 +993,20 @@ function openParteDetail(id) {
     </div>` : ''}
 
     ${p.firma_url ? `<div style="margin-bottom:12px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:4px">✍️ Firma${p.cliente_nombre_firma ? ' — ' + p.cliente_nombre_firma : ''}</div>
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">✍️ Firma cliente${p.cliente_nombre_firma ? ' — ' + p.cliente_nombre_firma : ''}${p.cliente_dni ? ' · ' + p.cliente_dni : ''}</div>
       <img src="${p.firma_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
+    </div>` : ''}
+
+    ${p.firma_operario_url ? `<div style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">👷 Firma operario${p.operario_nombre_firma ? ' — ' + p.operario_nombre_firma : ''}</div>
+      <img src="${p.firma_operario_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
+    </div>` : ''}
+
+    ${p.mano_obra && p.mano_obra.length ? `<div style="margin-bottom:12px;padding:10px 12px;background:var(--gris-50);border-radius:8px;font-size:12px">
+      ${p.mano_obra.map(mo => {
+        if (mo.es_desplazamiento) return `<div>🚗 <b>Desplazamiento:</b> ${mo.km||0} km</div>`;
+        return `<div>⏱️ <b>Tiempo trabajado:</b> ${mo.minutos||0} min</div>`;
+      }).join('')}
     </div>` : ''}
 
     ${p.ubicacion_inicio ? `<div style="margin-bottom:12px;padding:8px 12px;background:var(--verde-light);border-radius:8px;font-size:12px">
@@ -1097,9 +1109,9 @@ function renderWizStep() {
           <span style="font-size:28px">📷</span>
           Cámara
         </div>
-        <div class="foto-add" onclick="document.getElementById('wz_foto_gal').click()">
-          <span style="font-size:28px">🖼️</span>
-          Galería
+        <div class="foto-add" onclick="document.getElementById('wz_foto_gal').click()" style="background:var(--azul-light);border-color:var(--azul)">
+          <span style="font-size:28px;color:var(--azul)">+</span>
+          <span style="color:var(--azul);font-weight:700">Añadir foto</span>
         </div>
       </div>
       <input type="file" id="wz_foto_cam" accept="image/*" capture="environment" style="display:none" onchange="wizAddFotos(this.files)">
@@ -1154,12 +1166,10 @@ function renderWizStep() {
 
   // ── STEP 4: Firma ──
   if (step === 3) {
-    const firmaHint = _wiz.mode === 'edit'
-      ? 'Si el cliente está disponible, puede firmar ahora. Si no, puedes hacerlo después al completar el parte.'
-      : 'El cliente firma para confirmar el trabajo. Una vez enviado, el parte queda cerrado.';
+    const operarioNombre = CP?.nombre || 'Operario';
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">${firmaHint}</p>
+        <p style="font-size:13px;color:var(--gris-500)">Firmas del cliente y del operario para cerrar el parte.</p>
       </div>
       <div class="field">
         <label>Nombre del cliente / receptor</label>
@@ -1178,13 +1188,38 @@ function renderWizStep() {
         <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail}"
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
       </div>
-      <label style="display:block;font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✍️ Firma del cliente *</label>
-      <div class="firma-container" id="firmaContainer">
-        <canvas id="firmaCanvas" width="600" height="150"></canvas>
-        <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
-        <button class="firma-clear" onclick="wizClearFirma()">🗑️ Borrar</button>
+
+      <!-- Firma Cliente (expandible) -->
+      <div style="margin-top:12px;border:2px solid var(--azul);border-radius:12px;overflow:hidden">
+        <div onclick="toggleFirmaPanel('cliente')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--azul-light);cursor:pointer">
+          <span style="font-size:13px;font-weight:700;color:var(--azul)">✍️ Firma del cliente *</span>
+          <span id="firmaClienteToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaData ? '✓' : '▼'}</span>
+        </div>
+        <div id="firmaClientePanel" style="display:block;padding:8px">
+          <div class="firma-container" id="firmaContainer" style="height:200px">
+            <canvas id="firmaCanvas" width="600" height="200"></canvas>
+            <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
+            <button class="firma-clear" onclick="wizClearFirma('cliente')">🗑️ Borrar</button>
+          </div>
+          ${_wiz.firmaData ? '<div style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px">✓ Firma capturada</div>' : ''}
+        </div>
       </div>
-      ${_wiz.firmaData ? '<div style="margin-top:8px;font-size:12px;color:var(--verde);font-weight:700;text-align:center">✓ Firma capturada</div>' : ''}
+
+      <!-- Firma Operario (expandible) -->
+      <div style="margin-top:12px;border:2px solid var(--violeta);border-radius:12px;overflow:hidden">
+        <div onclick="toggleFirmaPanel('operario')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--violeta-light);cursor:pointer">
+          <span style="font-size:13px;font-weight:700;color:var(--violeta)">👷 Firma del operario — ${operarioNombre}</span>
+          <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario ? '✓' : '▼'}</span>
+        </div>
+        <div id="firmaOperarioPanel" style="display:none;padding:8px">
+          <div class="firma-container" id="firmaOperarioContainer" style="height:200px">
+            <canvas id="firmaCanvasOp" width="600" height="200"></canvas>
+            <div class="firma-placeholder" id="firmaPlaceholderOp">Firme aquí con el dedo</div>
+            <button class="firma-clear" onclick="wizClearFirma('operario')">🗑️ Borrar</button>
+          </div>
+          ${_wiz.firmaOperario ? '<div style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px">✓ Firma capturada</div>' : ''}
+        </div>
+      </div>
     `;
   }
 
@@ -1247,15 +1282,15 @@ function wizSaveCurrentStep() {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
     _wiz.clienteDni = document.getElementById('wz_cli_dni')?.value?.toUpperCase()?.trim() || '';
     _wiz.clienteEmail = document.getElementById('wz_cli_email')?.value || '';
-    // Capturar firma si hay algo dibujado
+    // Capturar firma cliente
     const canvas = document.getElementById('firmaCanvas');
     if (canvas && _firmaHasTouched) {
-      try {
-        _wiz.firmaData = canvas.toDataURL('image/png');
-      } catch(e) {
-        console.warn('Canvas tainted, no se puede exportar firma:', e.message);
-        // No sobrescribir la firma existente si el canvas está contaminado
-      }
+      try { _wiz.firmaData = canvas.toDataURL('image/png'); } catch(e) { console.warn('Canvas tainted:', e.message); }
+    }
+    // Capturar firma operario
+    const canvasOp = document.getElementById('firmaCanvasOp');
+    if (canvasOp && _firmaOpHasTouched) {
+      try { _wiz.firmaOperario = canvasOp.toDataURL('image/png'); } catch(e) { console.warn('Canvas op tainted:', e.message); }
     }
   }
 }
@@ -1486,14 +1521,29 @@ function wizRemoveMO(idx) {
 let _firmaCtx = null;
 let _firmaDrawing = false;
 let _firmaHasTouched = false;
+let _firmaOpCtx = null;
+let _firmaOpDrawing = false;
+let _firmaOpHasTouched = false;
+
+function toggleFirmaPanel(tipo) {
+  const panel = document.getElementById(tipo === 'cliente' ? 'firmaClientePanel' : 'firmaOperarioPanel');
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  // Inicializar canvas cuando se abre
+  if (isHidden && tipo === 'operario') {
+    setTimeout(() => initFirmaCanvasOp(), 50);
+  }
+  if (isHidden && tipo === 'cliente') {
+    setTimeout(() => initFirmaCanvas(), 50);
+  }
+}
 
 function initFirmaCanvas() {
   const canvas = document.getElementById('firmaCanvas');
   if (!canvas) return;
   const container = canvas.parentElement;
-  // Ajustar tamaño real al contenedor — más compacto en móvil
   canvas.width = container.offsetWidth;
-  canvas.height = Math.min(150, window.innerHeight * 0.2);
+  canvas.height = 200;
   _firmaCtx = canvas.getContext('2d');
   _firmaCtx.strokeStyle = '#1E293B';
   _firmaCtx.lineWidth = 2.5;
@@ -1502,32 +1552,78 @@ function initFirmaCanvas() {
   _firmaDrawing = false;
   _firmaHasTouched = false;
 
-  // Si ya hay firma guardada, restaurar
   if (_wiz.firmaData) {
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // Evitar tainted canvas
+    img.crossOrigin = 'anonymous';
     img.onload = () => { _firmaCtx.drawImage(img, 0, 0, canvas.width, canvas.height); _firmaHasTouched = true; };
     img.onerror = () => { console.warn('No se pudo cargar firma previa'); _firmaHasTouched = false; };
     img.src = _wiz.firmaData;
     document.getElementById('firmaPlaceholder').style.display = 'none';
   }
 
-  // Touch events
   canvas.addEventListener('touchstart', firmaStart, { passive: false });
   canvas.addEventListener('touchmove', firmaMove, { passive: false });
   canvas.addEventListener('touchend', firmaEnd);
-  // Mouse fallback
   canvas.addEventListener('mousedown', firmaStart);
   canvas.addEventListener('mousemove', firmaMove);
   canvas.addEventListener('mouseup', firmaEnd);
   canvas.addEventListener('mouseleave', firmaEnd);
 }
 
-function _firmaPos(e) {
-  const canvas = document.getElementById('firmaCanvas');
+function initFirmaCanvasOp() {
+  const canvas = document.getElementById('firmaCanvasOp');
+  if (!canvas) return;
+  const container = canvas.parentElement;
+  canvas.width = container.offsetWidth;
+  canvas.height = 200;
+  _firmaOpCtx = canvas.getContext('2d');
+  _firmaOpCtx.strokeStyle = '#1E293B';
+  _firmaOpCtx.lineWidth = 2.5;
+  _firmaOpCtx.lineCap = 'round';
+  _firmaOpCtx.lineJoin = 'round';
+  _firmaOpDrawing = false;
+  _firmaOpHasTouched = false;
+
+  if (_wiz.firmaOperario) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { _firmaOpCtx.drawImage(img, 0, 0, canvas.width, canvas.height); _firmaOpHasTouched = true; };
+    img.onerror = () => { _firmaOpHasTouched = false; };
+    img.src = _wiz.firmaOperario;
+    document.getElementById('firmaPlaceholderOp').style.display = 'none';
+  }
+
+  canvas.addEventListener('touchstart', firmaOpStart, { passive: false });
+  canvas.addEventListener('touchmove', firmaOpMove, { passive: false });
+  canvas.addEventListener('touchend', firmaOpEnd);
+  canvas.addEventListener('mousedown', firmaOpStart);
+  canvas.addEventListener('mousemove', firmaOpMove);
+  canvas.addEventListener('mouseup', firmaOpEnd);
+  canvas.addEventListener('mouseleave', firmaOpEnd);
+}
+
+function firmaOpStart(e) {
+  e.preventDefault();
+  _firmaOpDrawing = true;
+  _firmaOpHasTouched = true;
+  document.getElementById('firmaPlaceholderOp').style.display = 'none';
+  const pos = _firmaPos(e, 'firmaCanvasOp');
+  _firmaOpCtx.beginPath();
+  _firmaOpCtx.moveTo(pos.x, pos.y);
+}
+function firmaOpMove(e) {
+  if (!_firmaOpDrawing) return;
+  e.preventDefault();
+  const pos = _firmaPos(e, 'firmaCanvasOp');
+  _firmaOpCtx.lineTo(pos.x, pos.y);
+  _firmaOpCtx.stroke();
+}
+function firmaOpEnd() { _firmaOpDrawing = false; }
+
+function _firmaPos(e, canvasId) {
+  const canvas = document.getElementById(canvasId || 'firmaCanvas');
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches ? e.touches[0] : e;
-  // Escalar coordenadas: el canvas CSS puede ser distinto del canvas real
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   return {
@@ -1558,13 +1654,23 @@ function firmaEnd(e) {
   _firmaDrawing = false;
 }
 
-function wizClearFirma() {
-  const canvas = document.getElementById('firmaCanvas');
-  if (canvas && _firmaCtx) {
-    _firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
-    _firmaHasTouched = false;
-    _wiz.firmaData = null;
-    document.getElementById('firmaPlaceholder').style.display = 'flex';
+function wizClearFirma(tipo) {
+  if (tipo === 'operario') {
+    const canvas = document.getElementById('firmaCanvasOp');
+    if (canvas && _firmaOpCtx) {
+      _firmaOpCtx.clearRect(0, 0, canvas.width, canvas.height);
+      _firmaOpHasTouched = false;
+      _wiz.firmaOperario = null;
+      document.getElementById('firmaPlaceholderOp').style.display = 'flex';
+    }
+  } else {
+    const canvas = document.getElementById('firmaCanvas');
+    if (canvas && _firmaCtx) {
+      _firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
+      _firmaHasTouched = false;
+      _wiz.firmaData = null;
+      document.getElementById('firmaPlaceholder').style.display = 'flex';
+    }
   }
 }
 
@@ -1656,22 +1762,27 @@ async function wizFinish() {
   try {
     wizSaveCurrentStep();
 
-    // Validar firma
+    // Validar firma cliente
     if (!_wiz.firmaData && !_firmaHasTouched) {
       toast('El cliente debe firmar', 'error'); return;
     }
-    // Capturar firma final
     const canvas = document.getElementById('firmaCanvas');
     if (canvas && _firmaHasTouched) {
-      try {
-        _wiz.firmaData = canvas.toDataURL('image/png');
-      } catch(e) {
-        console.warn('Canvas tainted, usando firma previa si existe:', e.message);
-        // Si el canvas está contaminado pero ya teníamos una firma URL, la mantenemos
-      }
+      try { _wiz.firmaData = canvas.toDataURL('image/png'); } catch(e) { console.warn('Canvas tainted:', e.message); }
     }
     if (!_wiz.firmaData) {
       toast('El cliente debe firmar', 'error'); return;
+    }
+    // Validar firma operario
+    if (!_wiz.firmaOperario && !_firmaOpHasTouched) {
+      toast('El operario debe firmar', 'error'); return;
+    }
+    const canvasOp = document.getElementById('firmaCanvasOp');
+    if (canvasOp && _firmaOpHasTouched) {
+      try { _wiz.firmaOperario = canvasOp.toDataURL('image/png'); } catch(e) { console.warn('Canvas op tainted:', e.message); }
+    }
+    if (!_wiz.firmaOperario) {
+      toast('El operario debe firmar', 'error'); return;
     }
 
     // Validar descripción obligatoria
@@ -1694,18 +1805,24 @@ async function wizFinish() {
     const id = _wiz.parteId;
     const eid = EMPRESA?.id || 'default';
 
-    // 0. Capturar ubicación final (GPS)
+    // 0. Capturar ubicación final (GPS) — OBLIGATORIO
     let ubicacionFin = null;
     if (navigator.geolocation) {
       try {
         ubicacionFin = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-            (err) => { console.warn('GPS fin error:', err.message); resolve(null); },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            (err) => { reject(err); },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
           );
         });
-      } catch(e) { console.warn('GPS error:', e); }
+      } catch(e) {
+        toast('⚠️ Debes permitir el acceso a la ubicación para completar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
+        return;
+      }
+    } else {
+      toast('⚠️ Tu dispositivo no tiene GPS. No se puede completar el parte sin ubicación.', 'error');
+      return;
     }
 
     toast('Enviando informe...', '');
@@ -1750,20 +1867,36 @@ async function wizFinish() {
       } catch(e) { console.error('Error subiendo foto:', e); }
     }
 
-    // 2. Subir firma
+    // 2. Subir firma cliente
     let firmaUrl = null;
     if (_wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
       try {
         const blob = await (await fetch(_wiz.firmaData)).blob();
-        const filename = `${eid}/${Date.now()}_firma.png`;
+        const filename = `${eid}/${Date.now()}_firma_cliente.png`;
         const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
         if (!error) {
           const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
           firmaUrl = data.publicUrl;
-        } else { console.warn('Upload firma error:', error.message); }
-      } catch(e) { console.error('Error subiendo firma:', e); }
+        } else { console.warn('Upload firma cliente error:', error.message); }
+      } catch(e) { console.error('Error subiendo firma cliente:', e); }
     } else if (_wiz.firmaData) {
-      firmaUrl = _wiz.firmaData; // existing URL
+      firmaUrl = _wiz.firmaData;
+    }
+
+    // 2b. Subir firma operario
+    let firmaOpUrl = null;
+    if (_wiz.firmaOperario && _wiz.firmaOperario.startsWith('data:')) {
+      try {
+        const blob = await (await fetch(_wiz.firmaOperario)).blob();
+        const filename = `${eid}/${Date.now()}_firma_operario.png`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          firmaOpUrl = data.publicUrl;
+        } else { console.warn('Upload firma operario error:', error.message); }
+      } catch(e) { console.error('Error subiendo firma operario:', e); }
+    } else if (_wiz.firmaOperario) {
+      firmaOpUrl = _wiz.firmaOperario;
     }
 
     // 3. Guardar todo en el parte — estado completado (bloqueado)
@@ -1777,6 +1910,8 @@ async function wizFinish() {
       materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
       mano_obra: (_wiz.manoObra && _wiz.manoObra.length > 0) ? _wiz.manoObra : null,
       firma_url: firmaUrl && !firmaUrl.startsWith('data:') ? firmaUrl : null,
+      firma_operario_url: firmaOpUrl && !firmaOpUrl.startsWith('data:') ? firmaOpUrl : null,
+      operario_nombre_firma: CP?.nombre || null,
       cliente_nombre_firma: _wiz.clienteNombre || null,
       cliente_email: _wiz.clienteEmail || null,
       cliente_dni: _wiz.clienteDni || null,
@@ -1840,8 +1975,10 @@ function openAddWorkInfo(id) {
     materiales: p.materiales ? [...p.materiales] : [],
     manoObra: p.mano_obra ? [...p.mano_obra] : [],
     firmaData: p.firma_url || null,
+    firmaOperario: p.firma_operario_url || null,
     clienteEmail: p.cliente_email || '',
     clienteNombre: p.cliente_nombre_firma || '',
+    clienteDni: p.cliente_dni || '',
   };
   renderWizStep();
 }
@@ -2009,13 +2146,12 @@ async function iniciarParteConGPS(id) {
       },
       (err) => {
         console.warn('GPS error:', err.message);
-        toast('GPS no disponible, iniciando sin ubicación', 'warning');
-        doStart(null);
+        toast('⚠️ Debes permitir el acceso a la ubicación para iniciar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   } else {
-    doStart(null);
+    toast('⚠️ Tu dispositivo no tiene GPS. No se puede iniciar el parte sin ubicación.', 'error');
   }
 }
 
@@ -2075,6 +2211,7 @@ function openInformarWizard(id) {
     materiales: p.materiales ? [...p.materiales] : [],
     manoObra: autoManoObra,
     firmaData: p.firma_url || null,
+    firmaOperario: p.firma_operario_url || null,
     clienteEmail: p.cliente_email || '',
     clienteNombre: p.cliente_nombre_firma || '',
     clienteDni: p.cliente_dni || '',
