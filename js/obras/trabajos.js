@@ -320,7 +320,9 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('ok-presup').textContent = presupData.length;
   document.getElementById('ok-albaranes').textContent = albData.length;
   document.getElementById('ok-facturas').textContent = factData.length;
-  document.getElementById('ok-partes').textContent = partesData.length;
+  // Partes KPI: completados/total (como tareas)
+  const _partesComp = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
+  document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
   document.getElementById('ok-docs').textContent = docsData.length;
   document.getElementById('ok-notas').textContent = notasData.length;
   updateTareasKpi();
@@ -531,13 +533,29 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('obra-hist-facturas').innerHTML = factHtml;
 
   // ── PARTES DE TRABAJO ──
-  const ESTADOS_PARTE = {borrador:'Borrador',enviado:'Enviado',revisado:'Revisado',facturado:'Facturado'};
-  const EST_PARTE_COL = {borrador:'#9CA3AF',enviado:'#3B82F6',revisado:'#10B981',facturado:'#8B5CF6'};
-  const EST_PARTE_BG  = {borrador:'#F3F4F6',enviado:'#EFF6FF',revisado:'#ECFDF5',facturado:'#F5F3FF'};
-  let partesHtml = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+  const ESTADOS_PARTE = {borrador:'Borrador',programado:'Programado',en_curso:'En curso',completado:'Completado',revisado:'Revisado',facturado:'Facturado'};
+  const EST_PARTE_ICO = {borrador:'📝',programado:'📅',en_curso:'🔧',completado:'✅',revisado:'👁️',facturado:'🧾'};
+  const EST_PARTE_COL = {borrador:'#9CA3AF',programado:'#3B82F6',en_curso:'#F59E0B',completado:'#10B981',revisado:'#059669',facturado:'#8B5CF6'};
+  const EST_PARTE_BG  = {borrador:'#F3F4F6',programado:'#EFF6FF',en_curso:'#FFFBEB',completado:'#ECFDF5',revisado:'#D1FAE5',facturado:'#F5F3FF'};
+
+  // Progreso partes (completados / total)
+  const estadosCompletados = ['completado','revisado','facturado'];
+  const partesCompletados = partesData.filter(p => estadosCompletados.includes(p.estado)).length;
+  const partesTotal = partesData.length;
+  const partesPorcent = partesTotal ? Math.round((partesCompletados / partesTotal) * 100) : 0;
+
+  let partesHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span style="font-size:13px;font-weight:700;color:var(--gris-700)">${EST_PARTE_ICO.completado} ${partesCompletados}/${partesTotal} completados</span>
     <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoParteDesdeObra(${id})">+ Nuevo parte</button>
   </div>`;
-  if (partesData.length) {
+
+  // Barra de progreso (como las tareas)
+  if (partesTotal > 0) {
+    partesHtml += `<div style="margin-bottom:14px">
+      <div style="height:8px;background:var(--gris-100);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${partesPorcent}%;background:${partesPorcent===100?'linear-gradient(90deg,#34D399,#059669)':'linear-gradient(90deg,#60A5FA,#2563EB)'};border-radius:4px;transition:width .5s"></div>
+      </div>
+    </div>`;
     partesHtml += resumenBar([
       resumenItem('Total horas', horasPartes.toFixed(1)+' h', 'var(--acento)'),
       resumenItem('Coste', fmtE(costePartes), 'var(--gris-700)'),
@@ -547,19 +565,31 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
       const horas = parseFloat(p.horas||0).toFixed(1);
       const est = ESTADOS_PARTE[p.estado]||p.estado||'—';
+      const estIco = EST_PARTE_ICO[p.estado]||'📝';
       const estCol = EST_PARTE_COL[p.estado]||'#6B7280';
       const estBg = EST_PARTE_BG[p.estado]||'#F3F4F6';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleParte(${p.id})">
+      // Siguiente acción rápida según estado
+      const nextActions = {
+        borrador:   {label:'📅 Programar', fn:`avanzarEstadoParte(${p.id},'programado')`, bg:'#3B82F6'},
+        programado: {label:'🔧 Iniciar', fn:`avanzarEstadoParte(${p.id},'en_curso')`, bg:'var(--acento)'},
+        en_curso:   {label:'✅ Completar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
+        completado: {label:'👁️ Revisar', fn:`avanzarEstadoParte(${p.id},'revisado')`, bg:'#10B981'},
+        revisado:   {label:'🧾 Facturar', fn:`avanzarEstadoParte(${p.id},'facturado')`, bg:'#8B5CF6'},
+      };
+      const nextAct = nextActions[p.estado];
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleParte(${p.id})">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
             <span style="font-weight:700;font-size:12.5px;font-family:monospace;color:var(--azul)">${p.numero||'—'}</span>
-            <span style="background:${estBg};color:${estCol};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600">${est}</span>
+            <span style="background:${estBg};color:${estCol};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600">${estIco} ${est}</span>
           </div>
           <div style="font-size:10.5px;color:var(--gris-400)">${fecha} · ${p.usuario_nombre||p.operario_nombre||'—'} · ${horas}h</div>
           ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:350px">'+p.descripcion+'</div>':''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          ${nextAct ? `<button class="btn btn-sm" style="font-size:10px;background:${nextAct.bg};color:#fff;border:none;padding:3px 8px;border-radius:6px;font-weight:600;white-space:nowrap" onclick="event.stopPropagation();${nextAct.fn}">${nextAct.label}</button>` : '<span style="font-size:10px;color:#8B5CF6;font-weight:700">✓ Facturado</span>'}
           <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();editarParte(${p.id})">✏️</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();verDetalleParte(${p.id})">👁️</button>
         </div>
       </div>`;
     }).join('');

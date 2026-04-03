@@ -343,7 +343,17 @@ function pt_autoFillDireccion(obraId) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function editarParte(id) {
-  const parte = partesData.find(p => p.id === id);
+  let parte = partesData.find(p => p.id === id);
+  // Si no está en partesData (acceso desde ficha obra), buscar en Supabase
+  if (!parte) {
+    try {
+      const { data } = await sb.from('partes_trabajo').select('*').eq('id', id).single();
+      if (data) {
+        parte = data;
+        partesData.push(parte);
+      }
+    } catch(e) { console.warn('[editarParte] fetch error:', e); }
+  }
   if (!parte) { toast('Parte no encontrado', 'error'); return; }
 
   pt_edicion = id;
@@ -787,6 +797,18 @@ async function guardarParte(estado = 'borrador') {
     return;
   }
 
+  // Registrar en audit log de la obra
+  if (trabajo_id && typeof registrarActividadObra === 'function') {
+    try {
+      if (pt_edicion) {
+        const num = partesData.find(p => p.id === pt_edicion)?.numero || '';
+        await registrarActividadObra(trabajo_id, 'Parte actualizado', `✏️ Parte ${num} editado por ${usuario_nombre}`);
+      } else {
+        await registrarActividadObra(trabajo_id, 'Parte creado', `📝 Nuevo parte ${payload.numero} creado — ${usuario_nombre} · ${fecha} · ${horas.toFixed(1)}h · Estado: ${estado}`);
+      }
+    } catch(e) { console.warn('[guardarParte] audit error:', e); }
+  }
+
   closeModal('mPartes');
   await loadPartes();
   // Refrescar ficha de obra si está abierta
@@ -801,7 +823,13 @@ async function guardarParte(estado = 'borrador') {
 
 async function cambiarEstadoParte(id, estado) {
   const updateObj = { estado };
-  const parte = partesData.find(p => p.id === id);
+  let parte = partesData.find(p => p.id === id);
+  if (!parte) {
+    try {
+      const { data } = await sb.from('partes_trabajo').select('*').eq('id', id).single();
+      if (data) { parte = data; partesData.push(parte); }
+    } catch(e) {}
+  }
 
   // Si se marca como revisado, guardar quién revisó
   if (estado === 'revisado') {
@@ -868,6 +896,17 @@ async function cambiarEstadoParte(id, estado) {
     if (estado === 'revisado' && parte.trabajo_id) {
       registrarActividadObra(parte.trabajo_id, 'Parte revisado', `👁️ ${parte.numero} revisado por ${CP?.nombre||'—'}`);
     }
+
+    // Registro para otros cambios de estado
+    if (estado === 'programado' && parte.trabajo_id) {
+      registrarActividadObra(parte.trabajo_id, 'Parte programado', `📅 ${parte.numero} programado — ${parte.usuario_nombre||'—'} · ${parte.fecha||''}`);
+    }
+    if (estado === 'en_curso' && parte.trabajo_id) {
+      registrarActividadObra(parte.trabajo_id, 'Parte en curso', `🔧 ${parte.numero} trabajo iniciado por ${parte.usuario_nombre||'—'}`);
+    }
+    if (estado === 'facturado' && parte.trabajo_id) {
+      registrarActividadObra(parte.trabajo_id, 'Parte facturado', `🧾 ${parte.numero} marcado como facturado`);
+    }
   }
 
   const estInfo = PT_ESTADOS[estado] || {};
@@ -892,9 +931,19 @@ async function avanzarEstadoParte(id, nuevoEstado) {
 // VER DETALLE
 // ═══════════════════════════════════════════════════════════════════════
 
-function verDetalleParte(id) {
-  const parte = partesData.find(p => p.id === id);
-  if (!parte) return;
+async function verDetalleParte(id) {
+  let parte = partesData.find(p => p.id === id);
+  // Si no está en partesData (acceso desde ficha obra sin haber cargado partes), buscar en Supabase
+  if (!parte) {
+    try {
+      const { data } = await sb.from('partes_trabajo').select('*').eq('id', id).single();
+      if (data) {
+        parte = data;
+        partesData.push(parte); // cachear para siguientes accesos
+      }
+    } catch(e) { console.warn('[verDetalleParte] fetch error:', e); }
+  }
+  if (!parte) { toast('Parte no encontrado', 'error'); return; }
 
   const hora_inicio = parte.hora_inicio ? parte.hora_inicio.substring(0, 5) : '—';
   const hora_fin = parte.hora_fin ? parte.hora_fin.substring(0, 5) : '—';
