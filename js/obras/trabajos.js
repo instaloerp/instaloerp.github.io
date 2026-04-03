@@ -284,7 +284,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   if (t.presupuesto_id) docOrClauses.push(`presupuesto_id.eq.${t.presupuesto_id}`);
   if (t.cliente_id) docOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
 
-  const [presups, albs, facts, partes, docs, notas, audit, tareas] = await Promise.all([
+  const [presups, albs, facts, partes, docs, notas, audit, tareas, equipo] = await Promise.all([
     safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(presOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
@@ -293,6 +293,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     safeQuery(sb.from('notas_trabajo').select('*').eq('trabajo_id',id).order('created_at',{ascending:false})),
     safeQuery(sb.from('audit_log').select('*').eq('entidad','trabajo').eq('entidad_id',String(id)).order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('tareas_obra').select('*').eq('trabajo_id',id).order('created_at',{ascending:true})),
+    safeQuery(sb.from('operarios_obra').select('*').eq('trabajo_id',id).order('created_at',{ascending:true})),
   ]);
 
   // Filtrar presupuestos/albaranes/facturas que realmente pertenecen a esta obra
@@ -345,6 +346,10 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       ${datoFichaObra('Coste partes', fmtE(costePartes))}
       ${totalFact>0 && costePartes>0 ? datoFichaObra('Margen', fmtE(totalFact-costePartes)) : ''}
     </div>`;
+
+  // ── EQUIPO ASIGNADO (panel izquierdo) ──
+  const equipoData = equipo.data||[];
+  renderEquipoObra(id, equipoData);
 
   // ── REGISTRO DE ACTIVIDAD (pestaña completa) ──
   const _isSuperadmin = CP?.rol === 'superadmin' || CP?.rol === 'admin';
@@ -524,22 +529,41 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('obra-hist-facturas').innerHTML = factHtml;
 
   // ── PARTES DE TRABAJO ──
-  const partesHtml = partesData.length ?
-    resumenBar([
+  const ESTADOS_PARTE = {borrador:'Borrador',enviado:'Enviado',revisado:'Revisado',facturado:'Facturado'};
+  const EST_PARTE_COL = {borrador:'#9CA3AF',enviado:'#3B82F6',revisado:'#10B981',facturado:'#8B5CF6'};
+  const EST_PARTE_BG  = {borrador:'#F3F4F6',enviado:'#EFF6FF',revisado:'#ECFDF5',facturado:'#F5F3FF'};
+  let partesHtml = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoParteDesdeObra(${id})">+ Nuevo parte</button>
+  </div>`;
+  if (partesData.length) {
+    partesHtml += resumenBar([
       resumenItem('Total horas', horasPartes.toFixed(1)+' h', 'var(--acento)'),
       resumenItem('Coste', fmtE(costePartes), 'var(--gris-700)'),
       resumenItem('Partes', partesData.length+'')
-    ]) +
-    partesData.map(p=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div>
-          <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
-          <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.operario_nombre||'—'} · ${parseFloat(p.horas||0).toFixed(1)}h</div>
-          ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px">'+p.descripcion+'</div>':''}
+    ]);
+    partesHtml += partesData.map(p=>{
+      const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
+      const horas = parseFloat(p.horas||0).toFixed(1);
+      const est = ESTADOS_PARTE[p.estado]||p.estado||'—';
+      const estCol = EST_PARTE_COL[p.estado]||'#6B7280';
+      const estBg = EST_PARTE_BG[p.estado]||'#F3F4F6';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleParte(${p.id})">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+            <span style="font-weight:700;font-size:12.5px;font-family:monospace;color:var(--azul)">${p.numero||'—'}</span>
+            <span style="background:${estBg};color:${estCol};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600">${est}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--gris-400)">${fecha} · ${p.usuario_nombre||p.operario_nombre||'—'} · ${horas}h</div>
+          ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:350px">'+p.descripcion+'</div>':''}
         </div>
-        <div style="text-align:right;font-weight:700;font-size:12.5px">${fmtE(p.coste_total||0)}</div>
-      </div>`).join('') :
-    '<div class="empty" style="padding:30px 0"><div class="ei">📝</div><p>Sin partes de trabajo</p></div>';
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();editarParte(${p.id})">✏️</button>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    partesHtml += '<div class="empty" style="padding:30px 0"><div class="ei">📝</div><p>Sin partes de trabajo</p></div>';
+  }
   document.getElementById('obra-hist-partes').innerHTML = partesHtml;
 
   // ── TAREAS ──
@@ -1840,6 +1864,89 @@ function exportarObras() {
   XLSX.utils.book_append_sheet(wb, ws, 'Obras');
   XLSX.writeFile(wb, `obras_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('Exportado ✓','success');
+}
+
+// ═══════════════════════════════════════════════
+// EQUIPO ASIGNADO A OBRA
+// ═══════════════════════════════════════════════
+let obraEquipoData = [];
+
+function renderEquipoObra(obraId, data) {
+  obraEquipoData = data || [];
+  const container = document.getElementById('fichaObraEquipo');
+  if (!container) return;
+
+  const AVC = ['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2'];
+  const ROL_LABEL = { operario:'Operario', encargado:'Encargado', jefe_obra:'Jefe de obra' };
+
+  let html = '';
+  if (obraEquipoData.length) {
+    html += obraEquipoData.map(op => {
+      const ini = (op.usuario_nombre||'?')[0].toUpperCase();
+      const bgColor = AVC[(op.usuario_nombre||'').charCodeAt(0)%AVC.length];
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gris-100)">
+        <div style="width:32px;height:32px;border-radius:50%;background:${bgColor};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${op.usuario_nombre||'—'}</div>
+          <div style="font-size:10px;color:var(--gris-400)">${ROL_LABEL[op.rol_obra]||'Operario'}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 5px;color:var(--rojo)" onclick="quitarOperarioObra(${obraId},${op.id})" title="Quitar">✕</button>
+      </div>`;
+    }).join('');
+  } else {
+    html += '<div style="color:var(--gris-400);font-size:11.5px;text-align:center;padding:8px 0">Sin operarios asignados</div>';
+  }
+
+  // Selector para añadir
+  html += `<div style="margin-top:8px">
+    <select id="sel_add_operario_obra" style="width:100%;padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+      <option value="">+ Añadir operario...</option>
+      ${(typeof todosUsuarios !== 'undefined' ? todosUsuarios : [])
+        .filter(u => u.activo !== false && !obraEquipoData.some(o => o.usuario_id === u.id))
+        .map(u => `<option value="${u.id}" data-nombre="${(u.nombre||'')} ${(u.apellidos||'')}">${u.nombre||''} ${u.apellidos||''} ${u.rol === 'operario' ? '👷' : '🖥️'}</option>`).join('')}
+    </select>
+    <button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px;font-size:11px" onclick="addOperarioObra(${obraId})">👷 Asignar</button>
+  </div>`;
+
+  container.innerHTML = html;
+}
+
+async function addOperarioObra(obraId) {
+  const sel = document.getElementById('sel_add_operario_obra');
+  if (!sel || !sel.value) { toast('Selecciona un operario','error'); return; }
+  const uid = sel.value;
+  const nombre = sel.options[sel.selectedIndex].getAttribute('data-nombre') || '';
+
+  const { error } = await sb.from('operarios_obra').insert({
+    empresa_id: EMPRESA.id,
+    trabajo_id: obraId,
+    usuario_id: uid,
+    usuario_nombre: nombre.trim(),
+    rol_obra: 'operario',
+    asignado_por: CU?.id || null,
+    asignado_por_nombre: CP?.nombre || '',
+  });
+  if (error) {
+    if (error.code === '23505') toast('Este operario ya está asignado','error');
+    else toast('Error: '+error.message,'error');
+    return;
+  }
+  toast(nombre.trim()+' asignado a la obra ✓','success');
+  // Registrar en audit_log
+  registrarActividadObra(obraId, 'Equipo modificado', `👷 ${nombre.trim()} asignado a la obra`);
+  // Recargar equipo
+  const { data } = await sb.from('operarios_obra').select('*').eq('trabajo_id',obraId).order('created_at',{ascending:true});
+  renderEquipoObra(obraId, data||[]);
+}
+
+async function quitarOperarioObra(obraId, operarioObraId) {
+  const op = obraEquipoData.find(o => o.id === operarioObraId);
+  if (!confirm(`¿Quitar a ${op?.usuario_nombre || 'este operario'} de la obra?`)) return;
+  await sb.from('operarios_obra').delete().eq('id', operarioObraId);
+  toast('Operario quitado de la obra','info');
+  registrarActividadObra(obraId, 'Equipo modificado', `❌ ${op?.usuario_nombre||'Operario'} quitado de la obra`);
+  const { data } = await sb.from('operarios_obra').select('*').eq('trabajo_id',obraId).order('created_at',{ascending:true});
+  renderEquipoObra(obraId, data||[]);
 }
 
 // ═══════════════════════════════════════════════

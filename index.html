@@ -574,6 +574,10 @@
                 <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">📊 Resumen económico</h3></div>
                 <div class="card-b" id="fichaObraResumen" style="padding:10px 14px"></div>
               </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">👷 Equipo asignado</h3></div>
+                <div class="card-b" id="fichaObraEquipo" style="padding:10px 14px"></div>
+              </div>
               <!-- Registro se ha movido a pestaña completa en panel derecho -->
             </div>
             <!-- Panel derecho: contenido dinámico -->
@@ -1168,18 +1172,23 @@
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-          <input type="text" id="pt-filter-texto" placeholder="Buscar..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
-          <select id="pt-filter-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="text" id="pt-filter-texto" placeholder="Buscar..." oninput="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:250px">
+          <select id="pt-filter-estado" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los estados</option>
             <option value="borrador">Borrador</option>
             <option value="enviado">Enviado</option>
             <option value="revisado">Revisado</option>
             <option value="facturado">Facturado</option>
           </select>
+          <select id="pt-filter-usuario" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los operarios</option>
+          </select>
+          <input type="date" id="pt-filter-desde" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" title="Desde">
+          <input type="date" id="pt-filter-hasta" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" title="Hasta">
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Número</th><th>Obra</th><th>Usuario</th><th>Fecha</th><th>Horas</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
+            <th>Número</th><th>Obra</th><th>Operario</th><th>Fecha</th><th>Horario</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="ptTable"></tbody></table></div>
         </div>
       </div>
@@ -2928,16 +2937,16 @@
 <div id="acArticulos"></div>
 
 <!-- Core -->
-<script src="js/core/app.js?v=20260403g"></script>
-<script src="js/core/ui.js?v=20260403g"></script>
-<script src="js/core/dashboard.js?v=20260403g"></script>
+<script src="js/core/app.js?v=20260403h"></script>
+<script src="js/core/ui.js?v=20260403h"></script>
+<script src="js/core/dashboard.js?v=20260403h"></script>
 <script src="js/core/sidebar.js"></script>
 
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
-<script src="js/comercial/clientes.js?v=20260403g"></script>
-<script src="js/comercial/presupuestos.js?v=20260403g"></script>
-<script src="js/comercial/albaranes.js?v=20260403g"></script>
+<script src="js/comercial/clientes.js?v=20260403h"></script>
+<script src="js/comercial/presupuestos.js?v=20260403h"></script>
+<script src="js/comercial/albaranes.js?v=20260403h"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
@@ -2955,16 +2964,16 @@
 <script src="js/almacen/traspasos.js"></script>
 
 <!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=20260403g"></script>
+<script src="js/obras/trabajos.js?v=20260403h"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
-<script src="js/obras/calendario.js?v=20260403g"></script>
+<script src="js/obras/calendario.js?v=20260403h"></script>
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js"></script>
 
 <!-- Editor de Documentos -->
-<script src="js/editor/editor.js?v=20260403g"></script>
+<script src="js/editor/editor.js?v=20260403h"></script>
 
 <!-- Administración -->
 <script src="js/admin/usuarios.js"></script>

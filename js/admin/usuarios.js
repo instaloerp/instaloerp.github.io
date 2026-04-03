@@ -4,6 +4,9 @@
 
 let usuariosFotoFile = null;
 
+// Variable global para acceso desde otros módulos
+let todosUsuarios = [];
+
 async function loadUsuarios() {
   // Cargar invitaciones y solicitudes si es superadmin
   if (CP?.es_superadmin) {
@@ -12,39 +15,76 @@ async function loadUsuarios() {
   }
   const { data } = await sb.from('perfiles').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
   const users = data || [];
+  todosUsuarios = users;
   document.getElementById('usrCount').textContent = users.length + ' usuarios';
+
+  const ROL_INFO = {
+    admin:         { label:'Administrador',      ico:'⭐', color:'#D97706', bg:'#FFFBEB' },
+    administrativo:{ label:'Administrativo',      ico:'🖥️', color:'#2563EB', bg:'#EFF6FF' },
+    encargado:     { label:'Encargado almacén',   ico:'📦', color:'#7C3AED', bg:'#F5F3FF' },
+    operario:      { label:'Operario de campo',   ico:'👷', color:'#059669', bg:'#ECFDF5' },
+  };
   const AVC2 = ['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2'];
-  document.getElementById('usuariosGrid').innerHTML = users.length ?
-    users.map(u => {
-      const perms = u.permisos || {};
-      const permList = ['clientes','presupuestos','facturas','trabajos','partes','stock'];
-      return `<div class="card" style="padding:18px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-          <div style="width:52px;height:52px;border-radius:50%;background:${u.avatar_url ? 'transparent' : AVC2[(u.nombre||'').charCodeAt(0)%AVC2.length]};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid var(--gris-200)">
-            ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">` : (u.nombre||'?')[0].toUpperCase()}
+
+  // Separar por tipo
+  const admins = users.filter(u => u.es_superadmin || u.rol === 'admin' || u.rol === 'administrativo');
+  const operarios = users.filter(u => u.rol === 'operario');
+  const otros = users.filter(u => !admins.includes(u) && !operarios.includes(u));
+
+  function renderUserCard(u) {
+    const rolKey = u.es_superadmin ? 'admin' : (u.rol || 'operario');
+    const ri = ROL_INFO[rolKey] || ROL_INFO.operario;
+    return `<div class="card" style="padding:18px;border-left:3px solid ${ri.color}">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:52px;height:52px;border-radius:50%;background:${u.avatar_url ? 'transparent' : AVC2[(u.nombre||'').charCodeAt(0)%AVC2.length]};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid var(--gris-200)">
+          ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">` : (u.nombre||'?')[0].toUpperCase()}
+        </div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:800">${u.nombre || '—'} ${u.apellidos || ''}</div>
+          <div style="font-size:11px;color:var(--gris-400)">${u.email || '—'}</div>
+          <div style="margin-top:4px">
+            <span style="background:${ri.bg};color:${ri.color};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">
+              ${ri.ico} ${u.es_superadmin ? 'Superadmin' : ri.label}
+            </span>
+            <span style="background:${u.activo !== false ? 'var(--verde-light)' : 'var(--gris-100)'};color:${u.activo !== false ? 'var(--verde)' : 'var(--gris-500)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:5px">
+              ${u.activo !== false ? 'Activo' : 'Inactivo'}
+            </span>
           </div>
-          <div style="flex:1">
-            <div style="font-size:14px;font-weight:800">${u.nombre || '—'} ${u.apellidos || ''}</div>
-            <div style="font-size:11px;color:var(--gris-400)">${u.email}</div>
-            <div style="margin-top:4px">
-              <span style="background:${u.es_superadmin ? 'var(--amarillo-light)' : 'var(--azul-light)'};color:${u.es_superadmin ? 'var(--amarillo)' : 'var(--azul)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">
-                ${u.es_superadmin ? '⭐ Superadmin' : u.rol || 'Usuario'}
-              </span>
-              <span style="background:${u.activo !== false ? 'var(--verde-light)' : 'var(--gris-100)'};color:${u.activo !== false ? 'var(--verde)' : 'var(--gris-500)'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:5px">
-                ${u.activo !== false ? 'Activo' : 'Inactivo'}
-              </span>
-            </div>
-          </div>
         </div>
-        <div style="font-size:11.5px;color:var(--gris-500);margin-bottom:12px">
-          ${u.telefono ? '📱 '+u.telefono : ''}
-        </div>
-        <div style="display:flex;gap:7px">
-          <button class="btn btn-secondary btn-sm" onclick="editUsuario('${u.id}')">✏️ Editar</button> ${u.id === CU.id ? '<span style="font-size:11px;color:var(--azul);font-weight:700">· Eres tú</span>' : ''}
-        </div>
-      </div>`;
-    }).join('') :
-    '<div class="empty" style="grid-column:1/-1"><div class="ei">👷</div><h3>Sin usuarios</h3><p>Crea el primer usuario del equipo</p></div>';
+      </div>
+      <div style="font-size:11.5px;color:var(--gris-500);margin-bottom:12px">
+        ${u.telefono ? '📱 '+u.telefono : ''}
+      </div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="editUsuario('${u.id}')">✏️ Editar</button>
+        ${u.id === CU.id ? '<span style="font-size:11px;color:var(--azul);font-weight:700">· Eres tú</span>' : ''}
+      </div>
+    </div>`;
+  }
+
+  let html = '';
+  if (admins.length) {
+    html += `<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">🖥️ Administración <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${admins.length})</span></div></div>`;
+    html += admins.map(renderUserCard).join('');
+  }
+  if (operarios.length) {
+    html += `<div style="grid-column:1/-1;margin-top:16px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">👷 Operarios de campo <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${operarios.length})</span></div></div>`;
+    html += operarios.map(renderUserCard).join('');
+  }
+  if (otros.length) {
+    html += `<div style="grid-column:1/-1;margin-top:16px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">📋 Otros <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${otros.length})</span></div></div>`;
+    html += otros.map(renderUserCard).join('');
+  }
+
+  document.getElementById('usuariosGrid').innerHTML = html || '<div class="empty" style="grid-column:1/-1"><div class="ei">👷</div><h3>Sin usuarios</h3><p>Crea el primer usuario del equipo</p></div>';
+}
+
+// Obtener operarios (para usar desde otros módulos)
+function getOperarios() {
+  return todosUsuarios.filter(u => u.rol === 'operario' && u.activo !== false);
+}
+function getTodosUsuariosActivos() {
+  return todosUsuarios.filter(u => u.activo !== false);
 }
 
 function previewUsrFoto(input) {

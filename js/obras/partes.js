@@ -30,6 +30,13 @@ async function loadPartes() {
     partesData = data || [];
     partesFiltrados = [...partesData];
     renderPartes(partesData);
+    // Poblar filtro de operarios
+    const selFiltroUsr = document.getElementById('pt-filter-usuario');
+    if (selFiltroUsr) {
+      const usrs = typeof todosUsuarios !== 'undefined' ? todosUsuarios.filter(u => u.activo !== false) : [];
+      selFiltroUsr.innerHTML = '<option value="">Todos los operarios</option>' +
+        usrs.map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+    }
   } catch (e) {
     console.error('Error cargando partes:', e);
     toast('Error al cargar partes', 'error');
@@ -99,11 +106,11 @@ function renderPartes(list) {
 // ═══════════════════════════════════════════════════════════════════════
 
 function filtrarPartes() {
-  const q = (document.getElementById('ptSearch')?.value || '').toLowerCase();
-  const estado = document.getElementById('ptEstado')?.value || '';
-  const desde = document.getElementById('ptDesde')?.value || '';
-  const hasta = document.getElementById('ptHasta')?.value || '';
-  const usuario_id = document.getElementById('ptUsuario')?.value || '';
+  const q = (document.getElementById('pt-filter-texto')?.value || document.getElementById('ptSearch')?.value || '').toLowerCase();
+  const estado = document.getElementById('pt-filter-estado')?.value || document.getElementById('ptEstado')?.value || '';
+  const desde = document.getElementById('pt-filter-desde')?.value || document.getElementById('ptDesde')?.value || '';
+  const hasta = document.getElementById('pt-filter-hasta')?.value || document.getElementById('ptHasta')?.value || '';
+  const usuario_id = document.getElementById('pt-filter-usuario')?.value || document.getElementById('ptUsuario')?.value || '';
   const trabajo_id = document.getElementById('ptTrabajo')?.value || '';
 
   partesFiltrados = partesData.filter(p =>
@@ -114,7 +121,7 @@ function filtrarPartes() {
     (!estado || p.estado === estado) &&
     (!desde || (p.fecha && p.fecha >= desde)) &&
     (!hasta || (p.fecha && p.fecha <= hasta)) &&
-    (!usuario_id || p.usuario_id === parseInt(usuario_id)) &&
+    (!usuario_id || p.usuario_id === usuario_id) &&
     (!trabajo_id || p.trabajo_id === parseInt(trabajo_id))
   );
 
@@ -125,7 +132,7 @@ function filtrarPartes() {
 // CREAR NUEVO PARTE - MODAL
 // ═══════════════════════════════════════════════════════════════════════
 
-function nuevoParteModal() {
+function nuevoParteModal(preselObraId) {
   pt_edicion = null;
   pt_materiales = [];
   pt_fotos = [];
@@ -135,15 +142,11 @@ function nuevoParteModal() {
   if (selTr) {
     selTr.innerHTML = '<option value="">— Selecciona obra —</option>' +
       (typeof trabajos !== 'undefined' ? trabajos : []).map(t => `<option value="${t.id}">${t.numero ? t.numero+' – ' : ''}${t.titulo}</option>`).join('');
+    if (preselObraId) selTr.value = preselObraId;
   }
 
-  // Poblar select de usuario (usuario actual)
-  const selUsr = document.getElementById('pt_usuario');
-  if (selUsr && CP) {
-    selUsr.innerHTML = `<option value="${CU?.id||''}">${CP.nombre||''} ${CP.apellidos||''}</option>`;
-    selUsr.value = CU?.id || '';
-    selUsr.disabled = true;
-  }
+  // Poblar select de operario — todos los usuarios activos (admins pueden asignar a cualquiera)
+  poblarSelectOperario();
 
   // Limpiar campos de texto
   ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones'].forEach(id => {
@@ -151,10 +154,14 @@ function nuevoParteModal() {
     if (el) el.value = '';
   });
 
-  // Prefijar fecha de hoy
+  // Prefijar fecha de hoy y horario por defecto
   const hoy = new Date().toISOString().split('T')[0];
   const elFecha = document.getElementById('pt_fecha');
   if (elFecha) elFecha.value = hoy;
+  const elInicio = document.getElementById('pt_inicio');
+  if (elInicio && !elInicio.value) elInicio.value = '08:00';
+  const elFin = document.getElementById('pt_fin');
+  if (elFin && !elFin.value) elFin.value = '14:00';
 
   document.getElementById('mParteTit').textContent = 'Nuevo Parte de Trabajo';
   pt_renderMateriales();
@@ -162,6 +169,29 @@ function nuevoParteModal() {
   limpiarFirma();
   initFirmaCanvas();
   openModal('mPartes');
+}
+
+// Abrir nuevo parte pre-seleccionando la obra (llamado desde ficha de obra)
+function nuevoParteDesdeObra(obraId) {
+  nuevoParteModal(obraId);
+}
+
+// Poblar select de operarios con todos los usuarios activos
+function poblarSelectOperario(selVal) {
+  const selUsr = document.getElementById('pt_usuario');
+  if (!selUsr) return;
+  const usuarios = typeof todosUsuarios !== 'undefined' ? todosUsuarios.filter(u => u.activo !== false) : [];
+  if (usuarios.length > 0) {
+    selUsr.innerHTML = usuarios.map(u => {
+      const rolTag = u.rol === 'operario' ? ' 👷' : '';
+      return `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}${rolTag}</option>`;
+    }).join('');
+    selUsr.value = selVal || CU?.id || '';
+    selUsr.disabled = false;
+  } else {
+    selUsr.innerHTML = `<option value="${CU?.id||''}">${CP?.nombre||''} ${CP?.apellidos||''}</option>`;
+    selUsr.disabled = true;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -182,16 +212,8 @@ async function editarParte(id) {
     selTr.innerHTML = '<option value="">— Selecciona obra —</option>' +
       (typeof trabajos !== 'undefined' ? trabajos : []).map(t => `<option value="${t.id}">${t.numero ? t.numero+' – ' : ''}${t.titulo}</option>`).join('');
   }
-  const selUsr = document.getElementById('pt_usuario');
-  if (selUsr) {
-    // Cargar usuarios de la empresa para poder mostrar el autor original
-    try {
-      const { data: usrs } = await sb.from('perfiles').select('id,nombre,apellidos').eq('empresa_id', EMPRESA.id);
-      selUsr.innerHTML = (usrs||[]).map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
-    } catch(e) {
-      selUsr.innerHTML = `<option value="${CU?.id||''}">${CP?.nombre||''} ${CP?.apellidos||''}</option>`;
-    }
-  }
+  // Poblar select de operario con todos los usuarios
+  poblarSelectOperario(parte.usuario_id);
 
   // Cargar datos en el formulario
   setVal({
@@ -205,7 +227,6 @@ async function editarParte(id) {
   });
 
   document.getElementById('mParteTit').textContent = 'Editar Parte de Trabajo';
-  document.getElementById('pt_usuario').disabled = true;
   pt_renderMateriales();
   pt_renderFotos();
   if (parte.firma_url) {
@@ -514,9 +535,11 @@ async function guardarParte(estado = 'borrador') {
   const trabajo = trabajos.find(t => t.id === trabajo_id);
   const trabajo_titulo = trabajo?.titulo || '';
 
-  // Información del usuario actual
-  const usuario_id = CU?.id || null;
-  const usuario_nombre = CP?.nombre || '';
+  // Información del operario seleccionado
+  const selUsr = document.getElementById('pt_usuario');
+  const usuario_id = selUsr?.value || CU?.id || null;
+  const selOption = selUsr?.options[selUsr.selectedIndex];
+  const usuario_nombre = selOption ? selOption.textContent.replace(/👷|🖥️/g,'').trim() : (CP?.nombre || '');
 
   // Materiales
   const materiales = pt_materiales.filter(m => m.articulo_id && m.cantidad > 0);

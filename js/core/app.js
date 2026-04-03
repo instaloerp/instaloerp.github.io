@@ -554,7 +554,7 @@ async function mostrarApp() {
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
-  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb] = await Promise.all([
+  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr] = await Promise.all([
     sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo'),
@@ -568,6 +568,7 @@ async function cargarTodos() {
     sb.from('empresas').select('id,nombre').eq('id',eid),
     sb.from('facturas').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
     sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
+    sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
   ]);
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
   almacenes=alm.data||[]; trabajos=tr.data||[];
@@ -577,6 +578,8 @@ async function cargarTodos() {
   // Sincronizar albaranesData: variable global (let en albaranes.js) + window para acceso cruzado
   albaranesData=alb.data||[];
   window.albaranesData=albaranesData;
+  // Usuarios disponibles globalmente
+  todosUsuarios=usr.data||[];
   renderAll();
 }
 
