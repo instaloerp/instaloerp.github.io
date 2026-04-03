@@ -153,7 +153,8 @@ async function saveUsuario() {
       const { data: up } = await sb.storage.from('fotos-partes').upload(`avatars/${id}_${Date.now()}`, usuariosFotoFile);
       if (up) { const { data: url } = sb.storage.from('fotos-partes').getPublicUrl(up.path); obj.avatar_url = url.publicUrl; }
     }
-    await sb.from('perfiles').update(obj).eq('id', id);
+    const { error: updErr } = await sb.from('perfiles').update(obj).eq('id', id);
+    if (updErr) { toast('Error al guardar: ' + updErr.message, 'error'); console.error('[saveUsuario] Error:', updErr); return; }
     toast('Usuario actualizado ✓', 'success');
   } else {
     const { data: authData, error: authErr } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
@@ -178,18 +179,25 @@ async function saveUsuario() {
   await loadUsuarios();
 }
 
-async function editUsuario(uid) {
+function editUsuario(uid) {
+  console.log('[editUsuario] uid:', uid, 'todosUsuarios:', todosUsuarios.length);
   // Usar datos ya cargados (evita problemas de RLS)
-  let u = todosUsuarios.find(x => x.id === uid);
-  if (!u) {
-    // Fallback: intentar cargar de BD
-    const { data } = await sb.from('perfiles').select('*').eq('id', uid).single();
-    u = data;
-  }
-  if (!u) { toast('No se pudo cargar el usuario','error'); return; }
+  const u = todosUsuarios.find(x => x.id === uid);
+  if (!u) { toast('No se pudo cargar el usuario','error'); console.error('[editUsuario] No encontrado en todosUsuarios'); return; }
+  console.log('[editUsuario] Encontrado:', u.nombre, u.apellidos);
+
   document.getElementById('usr_id').value = u.id;
   document.getElementById('mUsrTit').textContent = 'Editar Usuario';
-  setVal({ usr_nombre: u.nombre||'', usr_apellidos: u.apellidos||'', usr_email: u.email||'', usr_tel: u.telefono||'' });
+
+  // Rellenar campos
+  const elNombre = document.getElementById('usr_nombre');
+  const elApellidos = document.getElementById('usr_apellidos');
+  const elEmail = document.getElementById('usr_email');
+  const elTel = document.getElementById('usr_tel');
+  if (elNombre) elNombre.value = u.nombre || '';
+  if (elApellidos) elApellidos.value = u.apellidos || '';
+  if (elEmail) elEmail.value = u.email || '';
+  if (elTel) elTel.value = u.telefono || '';
 
   const rol = u.es_superadmin ? 'admin' : (u.rol || 'operario');
   document.getElementById('usr_rol').value = rol;
