@@ -550,7 +550,140 @@ async function mostrarApp() {
   // Cargar datos
   await cargarTodos();
   loadDashboard();
+  // Suscripción Realtime — notificaciones de partes
+  initRealtimePartes();
 }
+
+// ═══════════════════════════════════════════════
+// REALTIME — Notificaciones de partes de trabajo
+// ═══════════════════════════════════════════════
+let _rtChannel = null;
+
+function initRealtimePartes() {
+  if (!EMPRESA || !CP?.es_superadmin) return; // Solo para admins/jefes
+  // Cerrar canal anterior si existe
+  if (_rtChannel) { sb.removeChannel(_rtChannel); _rtChannel = null; }
+
+  _rtChannel = sb.channel('partes-realtime')
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
+      (payload) => {
+        const nuevo = payload.new;
+        const viejo = payload.old;
+        if (!nuevo || !viejo) return;
+        // Solo notificar si el cambio no lo hizo el usuario actual
+        // (comparar por revisado_por o completado_at para inferir quién cambió)
+        const cambioEstado = nuevo.estado !== viejo.estado;
+        if (!cambioEstado) return;
+
+        const operario = nuevo.usuario_nombre || 'Un operario';
+        const numero = nuevo.numero || '';
+        const obra = nuevo.trabajo_titulo || '';
+
+        // Notificaciones según el nuevo estado
+        const notifs = {
+          en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
+          completado: { ico:'✅', titulo:'Parte completado',  msg:`${operario} ha completado ${numero}`, color:'var(--verde)' },
+          programado: { ico:'📅', titulo:'Parte programado',  msg:`${numero} ha sido programado`, color:'var(--azul)' },
+          revisado:   { ico:'👁️', titulo:'Parte revisado',    msg:`${numero} revisado`, color:'#10B981' },
+          facturado:  { ico:'🧾', titulo:'Parte facturado',   msg:`${numero} marcado como facturado`, color:'#8B5CF6' },
+        };
+        const n = notifs[nuevo.estado];
+        if (!n) return;
+
+        // Mostrar notificación popup
+        showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
+
+        // Notificación del sistema (si el navegador la permite)
+        if (Notification.permission === 'granted') {
+          new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' });
+        }
+
+        // Actualizar datos locales en background
+        if (typeof loadPartes === 'function') {
+          try { loadPartes(); } catch(e) {}
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Realtime] Status:', status);
+    });
+
+  // Pedir permiso para notificaciones del sistema
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function showRealtimeNotif(ico, titulo, msg, color, parteId) {
+  // Crear elemento de notificación
+  let container = document.getElementById('rt-notifs');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'rt-notifs';
+    container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:400px;pointer-events:none';
+    document.body.appendChild(container);
+  }
+
+  const notif = document.createElement('div');
+  notif.style.cssText = `
+    pointer-events:auto;cursor:pointer;
+    background:#fff;border-radius:12px;padding:14px 18px;
+    box-shadow:0 8px 30px rgba(0,0,0,.15),0 0 0 1px rgba(0,0,0,.05);
+    display:flex;align-items:flex-start;gap:12px;
+    animation:rtSlideIn .4s ease;
+    border-left:4px solid ${color};
+    max-width:400px;
+  `;
+  notif.innerHTML = `
+    <span style="font-size:28px;line-height:1;flex-shrink:0">${ico}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800;font-size:14px;color:var(--gris-900);margin-bottom:2px">${titulo}</div>
+      <div style="font-size:12.5px;color:var(--gris-500);line-height:1.4">${msg}</div>
+      <div style="font-size:10px;color:var(--gris-300);margin-top:4px">${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;font-size:16px;color:var(--gris-300);cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>
+  `;
+
+  // Click abre detalle del parte
+  notif.addEventListener('click', (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    notif.remove();
+    if (parteId && typeof verDetalleParte === 'function') {
+      verDetalleParte(parteId);
+    }
+  });
+
+  container.appendChild(notif);
+
+  // Sonido de notificación (tono corto)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    osc.type = 'sine';
+    gain.gain.value = 0.1;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+
+  // Auto-remove después de 8 segundos
+  setTimeout(() => { if (notif.parentElement) notif.style.animation = 'rtSlideOut .3s ease forwards'; setTimeout(() => notif.remove(), 300); }, 8000);
+}
+
+// Inyectar CSS de animación para notificaciones
+(function(){
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes rtSlideIn { from { transform:translateX(120%);opacity:0 } to { transform:translateX(0);opacity:1 } }
+    @keyframes rtSlideOut { from { transform:translateX(0);opacity:1 } to { transform:translateX(120%);opacity:0 } }
+  `;
+  document.head.appendChild(style);
+})();
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
