@@ -1432,12 +1432,11 @@ function renderWizStep() {
             <button class="del" onclick="wizRemoveFoto(${i})">✕</button>
           </div>
         `).join('')}
-        <div class="foto-add" onclick="document.getElementById('wz_foto_gal').click()" style="background:var(--azul-light);border-color:var(--azul)">
+        <div class="foto-add" onclick="wizAbrirSelectorFoto()" style="background:var(--azul-light);border-color:var(--azul)">
           <span style="font-size:28px;color:var(--azul)">+</span>
           <span style="color:var(--azul);font-weight:700">Añadir foto</span>
         </div>
       </div>
-      <input type="file" id="wz_foto_gal" accept="image/*" capture="environment" multiple style="display:none" onchange="wizAddFotos(this.files)">
       <p style="font-size:11px;color:var(--gris-400);text-align:center">${allFotos.length} foto${allFotos.length!==1?'s':''}</p>
     `;
   }
@@ -1704,6 +1703,22 @@ function wizPrev() {
 }
 
 // ── FOTOS ──
+// Crea un input file NUEVO cada vez para que el móvil siempre muestre el selector
+// (cámara / galería / archivos) sin recordar la última elección
+function wizAbrirSelectorFoto() {
+  const old = document.getElementById('wz_foto_gal');
+  if (old) old.remove();
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.id = 'wz_foto_gal';
+  inp.accept = 'image/*';
+  inp.multiple = true;
+  inp.style.display = 'none';
+  inp.onchange = function() { wizAddFotos(this.files); };
+  document.body.appendChild(inp);
+  inp.click();
+}
+
 function wizAddFotos(files) {
   Array.from(files).forEach(f => {
     const reader = new FileReader();
