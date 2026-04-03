@@ -913,29 +913,26 @@ async function de_guardar(estado) {
   if (error) { toast('Error: '+error.message,'error'); return; }
   deConfig.editId = savedId;
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
-  toast(cfg.ico+' '+(isNew?'Borrador creado':'Guardado')+' ✓','success');
-
-  // After save — handle mode transitions (presupuestos y albaranes con conBorrador)
-  if (cfg.conBorrador) {
-    if (datos.estado === 'borrador') {
-      // Borrador: stays editable
-    } else {
-      // Pendiente/Aceptado/etc: switch to view mode
-      cfg._mode = 'view';
-      de_setReadonly(true);
-      de_showVersion(cfg._version || 1);
-      const _vBtn3 = cfg.conVersiones ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
-      const btnBox2 = document.getElementById('de_buttons');
-      btnBox2.innerHTML = `${_vBtn3}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
-    }
-  }
+  const _toastMsg = isNew
+    ? (datos.estado === 'borrador' ? 'Borrador creado' : cfg.titulo + ' ' + datos.numero + ' creado')
+    : 'Guardado';
+  toast(cfg.ico+' '+_toastMsg+' ✓','success');
 
   // Recargar lista correspondiente
   if (cfg.tipo==='presupuesto') await loadPresupuestos();
   if (cfg.tipo==='albaran') await loadAlbaranes();
   loadDashboard();
+
+  // Siempre cerrar editor al guardar manualmente (borrador o pendiente)
+  // El autoguardado no pasa por esta función, así que no se ve afectado
+  const _obraOrigen = cfg.trabajo_id || null;
+  cerrarEditor();
+  if (_obraOrigen && typeof abrirFichaObra === 'function') {
+    const {data:_trR} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+    if (_trR) trabajos = _trR;
+    await abrirFichaObra(_obraOrigen, false);
+  }
+
   return savedId;
 }
 
