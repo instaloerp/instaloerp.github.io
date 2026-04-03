@@ -93,6 +93,7 @@ async function loadDashboardTareas() {
     .eq('empresa_id', EMPRESA.id)
     .eq('responsable_id', userId)
     .neq('estado', 'completada')
+    .neq('estado', 'rechazada')
     .order('created_at', { ascending: false })
     .limit(15);
 

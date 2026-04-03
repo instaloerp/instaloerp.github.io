@@ -620,6 +620,7 @@ const TAREA_ESTADOS = {
   en_curso:   { label:'En curso',   color:'#2563EB', bg:'#EFF6FF', ico:'🔄' },
   completada: { label:'Completada', color:'#059669', bg:'#ECFDF5', ico:'✔️' },
   bloqueada:  { label:'Bloqueada',  color:'#DC2626', bg:'#FEF2F2', ico:'🚫' },
+  rechazada:  { label:'Rechazada',  color:'#9333EA', bg:'#FAF5FF', ico:'✖️' },
 };
 
 const TAREA_PRIORIDADES = {
@@ -696,10 +697,14 @@ function renderObraTareas() {
     </details>
   </div>`;
 
-  // Lista de tareas pendientes
-  if (pendientes.length) {
-    html += pendientes.map(t => renderTareaItem(t)).join('');
-  } else if (!completadas.length) {
+  // Separar tareas activas, completadas y rechazadas
+  const rechazadas = obraTareasData.filter(t => t.estado === 'rechazada');
+  const activas = obraTareasData.filter(t => t.estado !== 'completada' && t.estado !== 'rechazada');
+
+  // Lista de tareas activas
+  if (activas.length) {
+    html += activas.map(t => renderTareaItem(t)).join('');
+  } else if (!completadas.length && !rechazadas.length) {
     html += `<div style="text-align:center;padding:30px 0;color:var(--gris-400)">
       <div style="font-size:32px;margin-bottom:8px">✅</div>
       <p style="font-size:13px">Sin tareas. Añade una arriba o usa las plantillas.</p>
@@ -708,11 +713,21 @@ function renderObraTareas() {
 
   // Tareas completadas (colapsable)
   if (completadas.length) {
-    html += `<details style="margin-top:12px" ${pendientes.length ? '' : 'open'}>
+    html += `<details style="margin-top:12px" ${activas.length ? '' : 'open'}>
       <summary style="font-size:11.5px;color:var(--gris-400);cursor:pointer;user-select:none;font-weight:700;padding:6px 0;border-top:1px solid var(--gris-100)">
         ✔️ ${completadas.length} tarea${completadas.length>1?'s':''} completada${completadas.length>1?'s':''}
       </summary>
       <div style="opacity:0.7">${completadas.map(t => renderTareaItem(t)).join('')}</div>
+    </details>`;
+  }
+
+  // Tareas rechazadas (colapsable)
+  if (rechazadas.length) {
+    html += `<details style="margin-top:8px">
+      <summary style="font-size:11.5px;color:#9333EA;cursor:pointer;user-select:none;font-weight:700;padding:6px 0;border-top:1px solid var(--gris-100)">
+        ✖️ ${rechazadas.length} tarea${rechazadas.length>1?'s':''} rechazada${rechazadas.length>1?'s':''}
+      </summary>
+      <div style="opacity:0.6">${rechazadas.map(t => renderTareaItem(t)).join('')}</div>
     </details>`;
   }
 
@@ -725,28 +740,30 @@ function renderObraTareas() {
 function renderTareaItem(t) {
   const est = TAREA_ESTADOS[t.estado] || TAREA_ESTADOS.pendiente;
   const prio = TAREA_PRIORIDADES[t.prioridad] || TAREA_PRIORIDADES.normal;
-  const isCompleta = t.estado === 'completada';
-  const vencida = t.fecha_limite && !isCompleta && new Date(t.fecha_limite) < new Date();
+  const isCerrada = t.estado === 'completada' || t.estado === 'rechazada';
+  const vencida = t.fecha_limite && !isCerrada && new Date(t.fecha_limite) < new Date();
   const hoy = t.fecha_limite && new Date(t.fecha_limite).toDateString() === new Date().toDateString();
+  const fechaCreacion = t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '';
 
-  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCompleta?'text-decoration:line-through;opacity:0.6':''}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCerrada?'text-decoration:line-through;opacity:0.6':''}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
     <!-- Checkbox -->
-    <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${isCompleta?'#059669':'var(--gris-300)'};background:${isCompleta?'#ECFDF5':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .2s" onmouseover="this.style.borderColor='${isCompleta?'#059669':'var(--azul)'}'" onmouseout="this.style.borderColor='${isCompleta?'#059669':'var(--gris-300)'}'">${isCompleta?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':''}</div>
+    <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'};background:${t.estado==='completada'?'#ECFDF5':t.estado==='rechazada'?'#FAF5FF':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .2s" onmouseover="this.style.borderColor='${t.estado==='completada'?'#059669':'var(--azul)'}'" onmouseout="this.style.borderColor='${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'}'">${t.estado==='completada'?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':t.estado==='rechazada'?'<span style="color:#9333EA;font-size:13px;font-weight:800">✕</span>':''}</div>
     <!-- Contenido -->
     <div style="flex:1;min-width:0">
-      <div style="font-size:12.5px;font-weight:600;line-height:1.4;color:${isCompleta?'var(--gris-400)':'var(--gris-800)'}">${t.texto}</div>
+      <div style="font-size:12.5px;font-weight:600;line-height:1.4;color:${isCerrada?'var(--gris-400)':'var(--gris-800)'}">${t.texto}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;align-items:center">
         <span style="font-size:10px;color:${prio.color};font-weight:700">${prio.ico} ${prio.label}</span>
         ${t.responsable_nombre ? `<span style="font-size:10px;background:var(--gris-100);padding:1px 6px;border-radius:4px;color:var(--gris-600)">👤 ${t.responsable_nombre}</span>` : ''}
         ${t.fecha_limite ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;${vencida?'background:#FEF2F2;color:#DC2626':hoy?'background:#FFFBEB;color:#D97706':'background:var(--gris-50);color:var(--gris-500)'}">📅 ${new Date(t.fecha_limite).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}${vencida?' ¡Vencida!':hoy?' Hoy':''}</span>` : ''}
+        ${fechaCreacion ? `<span style="font-size:9px;color:var(--gris-300)">Creada ${fechaCreacion}</span>` : ''}
       </div>
     </div>
     <!-- Acciones -->
-    <div style="display:flex;gap:2px;flex-shrink:0">
-      ${!isCompleta ? `<select onchange="cambiarEstadoTarea(${t.id},this.value)" style="padding:2px 4px;border:1px solid var(--gris-200);border-radius:4px;font-size:10px;cursor:pointer;background:${est.bg};color:${est.color};font-weight:700;outline:none">
+    <div style="display:flex;gap:2px;flex-shrink:0;align-items:center">
+      <select onchange="cambiarEstadoTarea(${t.id},this.value)" style="padding:2px 4px;border:1px solid var(--gris-200);border-radius:4px;font-size:10px;cursor:pointer;background:${est.bg};color:${est.color};font-weight:700;outline:none">
         ${Object.entries(TAREA_ESTADOS).map(([k,v])=>`<option value="${k}" ${k===t.estado?'selected':''}>${v.ico} ${v.label}</option>`).join('')}
-      </select>` : ''}
-      <button onclick="eliminarTareaObra(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--gris-400);font-size:14px;padding:2px 4px" title="Eliminar">✕</button>
+      </select>
+      <button onclick="editarTareaObra(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--gris-400);font-size:13px;padding:2px 4px" title="Editar tarea">✏️</button>
     </div>
   </div>`;
 }
@@ -881,52 +898,73 @@ async function cargarTodasPlantillas() {
 async function toggleTareaObra(id) {
   const tarea = obraTareasData.find(t => t.id === id);
   if (!tarea) return;
-  const nuevoEstado = tarea.estado === 'completada' ? 'pendiente' : 'completada';
+  // Si está completada o rechazada → reabrir como pendiente; si no → completar
+  const nuevoEstado = (tarea.estado === 'completada' || tarea.estado === 'rechazada') ? 'pendiente' : 'completada';
 
   const { error } = await sb.from('tareas_obra').update({ estado: nuevoEstado, completada_at: nuevoEstado === 'completada' ? new Date().toISOString() : null }).eq('id', id);
   if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
     toast('Error: '+error.message,'error'); return;
   }
+  const estadoAnterior = tarea.estado;
   tarea.estado = nuevoEstado;
   tarea.completada_at = nuevoEstado === 'completada' ? new Date().toISOString() : null;
-  await registrarActividadObra(obraActualId, nuevoEstado === 'completada' ? 'Tarea completada' : 'Tarea reabierta', `${nuevoEstado === 'completada' ? '✅' : '🔄'} ${tarea.texto}`);
+  const accion = nuevoEstado === 'completada' ? 'Tarea completada' : 'Tarea reabierta';
+  await registrarActividadObra(obraActualId, accion, `${nuevoEstado === 'completada' ? '✅' : '🔄'} "${tarea.texto}" — ${estadoAnterior} → ${nuevoEstado}`);
   updateTareasKpi();
   renderObraTareas();
 }
 
-async function cambiarEstadoTarea(id, estado) {
+async function cambiarEstadoTarea(id, nuevoEstado) {
+  const tarea = obraTareasData.find(t => t.id === id);
+  if (!tarea) return;
+  const estadoAnterior = tarea.estado;
+
+  const updateData = { estado: nuevoEstado };
+  if (nuevoEstado === 'completada') updateData.completada_at = new Date().toISOString();
+  else if (estadoAnterior === 'completada') updateData.completada_at = null;
+
+  const { error } = await sb.from('tareas_obra').update(updateData).eq('id', id);
+  if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
+    toast('Error: '+error.message,'error'); return;
+  }
+  tarea.estado = nuevoEstado;
+  if (updateData.completada_at !== undefined) tarea.completada_at = updateData.completada_at;
+
+  const estInfo = TAREA_ESTADOS[nuevoEstado] || {};
+  const accion = nuevoEstado === 'rechazada' ? 'Tarea rechazada'
+    : nuevoEstado === 'completada' ? 'Tarea completada'
+    : 'Estado tarea cambiado';
+  await registrarActividadObra(obraActualId, accion, `${estInfo.ico||'🔀'} "${tarea.texto}" — ${estadoAnterior} → ${nuevoEstado}`);
+  updateTareasKpi();
+  renderObraTareas();
+  toast(`${estInfo.ico||''} Tarea ${estInfo.label?.toLowerCase()||nuevoEstado}`, 'success');
+}
+
+async function editarTareaObra(id) {
   const tarea = obraTareasData.find(t => t.id === id);
   if (!tarea) return;
 
-  const { error } = await sb.from('tareas_obra').update({ estado }).eq('id', id);
-  if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
-    toast('Error: '+error.message,'error'); return;
-  }
-  tarea.estado = estado;
-  await registrarActividadObra(obraActualId, 'Estado tarea cambiado', `🔀 "${tarea.texto}" → ${estado}`);
-  updateTareasKpi();
-  renderObraTareas();
-}
+  const nuevoTexto = prompt('Editar tarea:', tarea.texto);
+  if (nuevoTexto === null || nuevoTexto.trim() === '') return;
+  if (nuevoTexto.trim() === tarea.texto) return;
 
-async function eliminarTareaObra(id) {
-  if (!confirm('¿Eliminar esta tarea?')) return;
-  const tareaElim = obraTareasData.find(t => t.id === id);
-  const { error } = await sb.from('tareas_obra').delete().eq('id', id);
+  const textoAnterior = tarea.texto;
+  const { error } = await sb.from('tareas_obra').update({ texto: nuevoTexto.trim() }).eq('id', id);
   if (error && !(error.code === '42P01' || error.message?.includes('does not exist'))) {
     toast('Error: '+error.message,'error'); return;
   }
-  obraTareasData = obraTareasData.filter(t => t.id !== id);
-  await registrarActividadObra(obraActualId, 'Tarea eliminada', `🗑️ ${tareaElim?.texto || 'Tarea #'+id}`);
-  updateTareasKpi();
+  tarea.texto = nuevoTexto.trim();
+  await registrarActividadObra(obraActualId, 'Tarea editada', `✏️ "${textoAnterior}" → "${nuevoTexto.trim()}"`);
   renderObraTareas();
-  toast('Tarea eliminada','info');
+  toast('Tarea editada ✓', 'success');
 }
 
 function updateTareasKpi() {
   const el = document.getElementById('ok-tareas');
   if (el) {
-    const completadas = obraTareasData.filter(t => t.estado === 'completada').length;
-    const total = obraTareasData.length;
+    const sinRechazadas = obraTareasData.filter(t => t.estado !== 'rechazada');
+    const completadas = sinRechazadas.filter(t => t.estado === 'completada').length;
+    const total = sinRechazadas.length;
     el.textContent = total ? `${completadas}/${total}` : '0';
   }
 }

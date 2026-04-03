@@ -188,12 +188,23 @@ async function abrirFicha(id) {
     sb.from('notas_cliente').select('*').eq('cliente_id',id).order('created_at',{ascending:false}),
   ]);
 
+  // Cargar documentos de las obras del cliente
+  const trabIds = (trabs.data||[]).map(t => t.id);
+  let docsObras = [];
+  if (trabIds.length) {
+    const { data: docsObraData } = await sb.from('documentos_trabajo').select('*').in('trabajo_id', trabIds).order('created_at',{ascending:false});
+    docsObras = (docsObraData||[]).map(d => {
+      const obra = (trabs.data||[]).find(t => t.id === d.trabajo_id);
+      return { ...d, _obraNumero: obra?.numero || '', _obraTitulo: obra?.titulo || '', _fromObra: true };
+    });
+  }
+
   // KPIs — solo cantidades
   document.getElementById('fk-trabajos').textContent = trabs.data?.length||0;
   document.getElementById('fk-presup').textContent = presups.data?.length||0;
   document.getElementById('fk-albaranes').textContent = (albs.data||[]).length;
   document.getElementById('fk-facturas').textContent = (facts.data||[]).length;
-  document.getElementById('fk-docs').textContent = (docs.data||[]).length;
+  document.getElementById('fk-docs').textContent = (docs.data||[]).length + docsObras.length;
   document.getElementById('fk-notas').textContent = (notas.data||[]).length;
 
   // Totales para resúmenes dentro de cada panel
@@ -224,15 +235,20 @@ async function abrirFicha(id) {
         <label class="btn btn-primary btn-sm" for="docFile" style="cursor:pointer;font-size:11px">📎 Subir</label>
         <input type="file" id="docFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocumento(this)">
       </div>
-      ${(docs.data||[]).length ? (docs.data||[]).map(d => `
+      ${(docs.data||[]).length ? '<div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:6px 0 2px">Documentos del cliente</div>' + (docs.data||[]).map(d => `
         <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
           <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
           <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
           <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarDoc(${d.id})">🗑️</button>
-        </div>`).join('') :
-        '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>'
-      }
+        </div>`).join('') : ''}
+      ${docsObras.length ? '<div style="font-size:10px;color:var(--azul);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos de obras</div>' + docsObras.map(d => `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+          <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')} · <span style="color:var(--azul)">🏗️ ${d._obraNumero}${d._obraTitulo ? ' — '+d._obraTitulo : ''}</span></div></div>
+          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
+        </div>`).join('') : ''}
+      ${!(docs.data||[]).length && !docsObras.length ? '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>' : ''}
     </div>`;
 
   // Notas — formulario integrado + listado

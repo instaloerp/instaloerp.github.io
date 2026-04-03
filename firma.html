@@ -280,6 +280,9 @@ async function enviarFirma() {
     }
   }
 
+  // ── Post-firma: crear tarea + registro en obra ──
+  await postFirmaAcciones(nombre, dni, dispositivo);
+
   const fechaStr = new Date().toLocaleString('es-ES');
   document.getElementById('app').innerHTML = `
     <div class="success">
@@ -300,6 +303,64 @@ async function enviarFirma() {
       </div>
       <p style="color:#94a3b8;margin-top:16px;font-size:13px">Puedes cerrar esta página. La empresa recibirá tu aprobación.</p>
     </div>`;
+}
+
+// ── Post-firma: generar tarea para el emisor + registro en la obra ──
+async function postFirmaAcciones(nombre, dni, dispositivo) {
+  if (!presData) return;
+  try {
+    // Buscar la obra vinculada a este presupuesto
+    const { data: obras } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
+      .eq('empresa_id', presData.empresa_id)
+      .eq('presupuesto_id', presData.id)
+      .limit(1);
+    const obra = obras?.[0] || null;
+
+    const fechaHoy = new Date().toISOString();
+    const fechaCorta = new Date().toLocaleDateString('es-ES');
+
+    // 1. Crear tarea para el usuario que envió el presupuesto
+    if (presData.firma_enviado_por) {
+      const tareaPayload = {
+        empresa_id: presData.empresa_id,
+        trabajo_id: obra?.id || null,
+        texto: `📝 Presupuesto ${presData.numero} firmado por ${nombre} (${dni}) el ${fechaCorta}`,
+        estado: 'pendiente',
+        prioridad: 'alta',
+        responsable_id: presData.firma_enviado_por,
+        responsable_nombre: presData.firma_enviado_por_nombre || 'Usuario',
+        fecha_limite: null,
+        creado_por: null,
+        creado_por_nombre: 'Sistema — Firma remota',
+      };
+      await sb.from('tareas_obra').insert(tareaPayload);
+    }
+
+    // 2. Registrar en audit_log de la obra (si existe)
+    if (obra) {
+      await sb.from('audit_log').insert({
+        empresa_id: presData.empresa_id,
+        entidad: 'trabajo',
+        entidad_id: String(obra.id),
+        accion: 'Presupuesto firmado',
+        detalle: `✍️ ${presData.numero} firmado por ${nombre} (${dni}) — IP: ${dispositivo.ip||'—'} · ${dispositivo.tipo||''} · ${dispositivo.ubicacion||'Sin ubicación'}`,
+        usuario_id: null,
+        usuario_nombre: nombre + ' (cliente)',
+      });
+    }
+
+    // 3. Registrar en audit_log del presupuesto
+    await sb.from('audit_log').insert({
+      empresa_id: presData.empresa_id,
+      entidad: 'presupuesto',
+      entidad_id: String(presData.id),
+      accion: 'Firma remota recibida',
+      detalle: `✍️ Firmado por ${nombre} (${dni}) — IP: ${dispositivo.ip||'—'} · Dispositivo: ${dispositivo.tipo||''} ${dispositivo.browser||''} · Ubicación: ${dispositivo.ubicacion||'No disponible'}`,
+      usuario_id: null,
+      usuario_nombre: nombre + ' (cliente)',
+    });
+
+  } catch(e) { /* silent — la firma ya se guardó, esto es secundario */ }
 }
 
 init();
