@@ -105,10 +105,13 @@ a{color:var(--azul);text-decoration:none}
 /* ── MODAL ── */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
 .modal-overlay.active{display:flex}
-.modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:85dvh;overflow-y:auto;padding:20px 16px calc(20px + var(--safe-bottom));animation:slideUp .3s ease}
+.modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:92dvh;overflow-y:auto;padding:20px 16px calc(20px + var(--safe-bottom));animation:slideUp .3s ease;display:flex;flex-direction:column}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .modal-handle{width:40px;height:4px;background:var(--gris-300);border-radius:4px;margin:0 auto 16px}
 .modal-title{font-size:18px;font-weight:800;margin-bottom:16px}
+.wiz-nav{position:sticky;bottom:-20px;background:#fff;padding:12px 0;border-top:1px solid var(--gris-200);z-index:5;margin-top:auto}
+.firma-container{max-height:160px;position:relative}
+.firma-container canvas{max-height:140px}
 
 /* ── STAT CARDS ── */
 .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
@@ -1052,12 +1055,17 @@ function renderWizStep() {
             <button class="del" onclick="wizRemoveFoto(${i})">✕</button>
           </div>
         `).join('')}
-        <div class="foto-add" onclick="document.getElementById('wz_foto_input').click()">
+        <div class="foto-add" onclick="document.getElementById('wz_foto_cam').click()">
           <span style="font-size:28px">📷</span>
-          Añadir foto
+          Cámara
+        </div>
+        <div class="foto-add" onclick="document.getElementById('wz_foto_gal').click()">
+          <span style="font-size:28px">🖼️</span>
+          Galería
         </div>
       </div>
-      <input type="file" id="wz_foto_input" accept="image/*" capture="environment" multiple style="display:none" onchange="wizAddFotos(this.files)">
+      <input type="file" id="wz_foto_cam" accept="image/*" capture="environment" style="display:none" onchange="wizAddFotos(this.files)">
+      <input type="file" id="wz_foto_gal" accept="image/*" multiple style="display:none" onchange="wizAddFotos(this.files)">
       <p style="font-size:11px;color:var(--gris-400);text-align:center">${allFotos.length} foto${allFotos.length!==1?'s':''}</p>
     `;
   }
@@ -1105,7 +1113,7 @@ function renderWizStep() {
       </div>
       <label style="display:block;font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✍️ Firma del cliente *</label>
       <div class="firma-container" id="firmaContainer">
-        <canvas id="firmaCanvas" width="600" height="400"></canvas>
+        <canvas id="firmaCanvas" width="600" height="150"></canvas>
         <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
         <button class="firma-clear" onclick="wizClearFirma()">🗑️ Borrar</button>
       </div>
@@ -1322,9 +1330,9 @@ function initFirmaCanvas() {
   const canvas = document.getElementById('firmaCanvas');
   if (!canvas) return;
   const container = canvas.parentElement;
-  // Ajustar tamaño real al contenedor
+  // Ajustar tamaño real al contenedor — más compacto en móvil
   canvas.width = container.offsetWidth;
-  canvas.height = 200;
+  canvas.height = Math.min(150, window.innerHeight * 0.2);
   _firmaCtx = canvas.getContext('2d');
   _firmaCtx.strokeStyle = '#1E293B';
   _firmaCtx.lineWidth = 2.5;
@@ -1515,66 +1523,80 @@ async function saveWorkInfo(id) {
 
 // Guardar wizard en modo edición (sin cambiar estado)
 async function wizFinishEdit() {
-  wizSaveCurrentStep();
+  try {
+    wizSaveCurrentStep();
+    toast('Guardando...', '');
+    const id = _wiz.parteId;
+    const eid = EMPRESA?.id || 'default';
 
-  toast('Guardando...', '');
-  const id = _wiz.parteId;
+    // 1. Subir fotos nuevas a Supabase Storage
+    let fotosUrls = _wiz.fotos ? [..._wiz.fotos] : [];
+    for (const foto of (_wiz.fotosNuevas || [])) {
+      try {
+        const blob = await (await fetch(foto.data)).blob();
+        const filename = `${eid}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          fotosUrls.push(data.publicUrl);
+        } else {
+          console.warn('Storage upload foto error:', error.message);
+        }
+      } catch(e) { console.error('Error subiendo foto:', e); }
+    }
 
-  // 1. Subir fotos nuevas a Supabase Storage
-  let fotosUrls = [..._wiz.fotos];
-  for (const foto of _wiz.fotosNuevas) {
-    try {
-      const blob = await (await fetch(foto.data)).blob();
-      const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
-      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-      if (!error) {
-        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-        fotosUrls.push(data.publicUrl);
-      }
-    } catch(e) { console.error('Error subiendo foto:', e); }
+    // 2. Subir firma si hay nueva (data: URL → storage)
+    let firmaUrl = null;
+    if (_wiz.firmaData && !_wiz.firmaData.startsWith('data:')) {
+      // Ya es una URL de storage, mantenerla
+      firmaUrl = _wiz.firmaData;
+    } else if (_firmaHasTouched && _wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
+      try {
+        const blob = await (await fetch(_wiz.firmaData)).blob();
+        const filename = `${eid}/${Date.now()}_firma.png`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          firmaUrl = data.publicUrl;
+        } else {
+          console.warn('Storage upload firma error:', error.message);
+        }
+      } catch(e) { console.error('Error subiendo firma:', e); }
+    }
+
+    // 3. Guardar sin cambiar estado
+    const updateObj = {
+      descripcion: _wiz.desc || null,
+      trabajos_pendientes: _wiz.pendientes || null,
+      observaciones: _wiz.observaciones || null,
+    };
+    // Solo incluir fotos/materiales si hay datos
+    if (fotosUrls.length > 0) updateObj.fotos = fotosUrls;
+    if (_wiz.materiales && _wiz.materiales.length > 0) updateObj.materiales = _wiz.materiales;
+    // Solo incluir firma si es URL válida (no data:)
+    if (firmaUrl && !firmaUrl.startsWith('data:')) updateObj.firma_url = firmaUrl;
+    if (_wiz.clienteNombre) updateObj.cliente_nombre_firma = _wiz.clienteNombre;
+    if (_wiz.clienteEmail) updateObj.cliente_email = _wiz.clienteEmail;
+
+    console.log('[wizFinishEdit] Saving:', JSON.stringify(Object.keys(updateObj)));
+    const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+    if (error) {
+      toast('Error al guardar: ' + error.message, 'error');
+      return;
+    }
+
+    // Actualizar local
+    const p = misPartes.find(x => x.id === id);
+    if (p) Object.assign(p, updateObj);
+
+    toast('Información guardada', 'success');
+    closeModal();
+    document.removeEventListener('click', _closeMaterialSearch);
+    navigateTo(currentTab);
+  } catch(err) {
+    console.error('[wizFinishEdit] Error:', err);
+    toast('Error: ' + (err.message || 'desconocido'), 'error');
   }
-
-  // 2. Subir firma si hay nueva
-  let firmaUrl = _wiz.firmaData; // mantener la existente
-  if (_firmaHasTouched && _wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
-    try {
-      const blob = await (await fetch(_wiz.firmaData)).blob();
-      const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
-      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-      if (!error) {
-        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-        firmaUrl = data.publicUrl;
-      }
-    } catch(e) { console.error('Error subiendo firma:', e); }
-  }
-
-  // 3. Guardar sin cambiar estado
-  const updateObj = {
-    descripcion: _wiz.desc || null,
-    trabajos_pendientes: _wiz.pendientes || null,
-    observaciones: _wiz.observaciones || null,
-    fotos: fotosUrls.length > 0 ? fotosUrls : null,
-    materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
-  };
-  // Solo incluir firma/email si se han rellenado
-  if (firmaUrl) updateObj.firma_url = firmaUrl;
-  if (_wiz.clienteNombre) updateObj.cliente_nombre_firma = _wiz.clienteNombre;
-  if (_wiz.clienteEmail) updateObj.cliente_email = _wiz.clienteEmail;
-
-  const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
-  if (error) {
-    toast('Error: ' + error.message, 'error');
-    return;
-  }
-
-  // Actualizar local
-  const p = misPartes.find(x => x.id === id);
-  if (p) Object.assign(p, updateObj);
-
-  toast('💾 Información guardada', 'success');
-  closeModal();
-  document.removeEventListener('click', _closeMaterialSearch);
-  navigateTo(currentTab);
 }
 
 // ═══════════════════════════════════════════════
