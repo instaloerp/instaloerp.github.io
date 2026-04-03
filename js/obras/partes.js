@@ -1187,22 +1187,19 @@ async function verDetalleParte(id) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function eliminarParte(id) {
-  closeModal('dtlPartes');
-  setTimeout(() => delParte(id), 300);
-}
-
-async function delParte(id) {
   const parte = partesData.find(p => p.id === id);
   if (!parte) return;
-  if (!confirm(`¿Eliminar el parte ${parte.numero}?`)) return;
+  if (!confirm(`¿Eliminar el parte ${parte.numero}? Esta acción no se puede deshacer.`)) return;
+
+  closeModal('dtlPartes');
 
   const { error } = await sb.from('partes_trabajo').delete().eq('id', id);
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (error) { toast('Error al eliminar: ' + error.message, 'error'); return; }
 
   partesData = partesData.filter(p => p.id !== id);
   partesFiltrados = partesFiltrados.filter(p => p.id !== id);
   renderPartes(partesFiltrados.length ? partesFiltrados : partesData);
-  toast('Eliminado ✓', 'info');
+  toast('Parte ' + (parte.numero || '') + ' eliminado ✓', 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
