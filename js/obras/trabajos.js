@@ -216,10 +216,15 @@ function cerrarFichaObra() {
 // ═══════════════════════════════════════════════
 // ABRIR FICHA DE OBRA
 // ═══════════════════════════════════════════════
-async function abrirFichaObra(id) {
+async function abrirFichaObra(id, _esAccesoDirecto) {
   obraActualId = id;
   const t = trabajos.find(x=>x.id===id);
   if (!t) { toast('Obra no encontrada','error'); return; }
+
+  // Registrar acceso solo cuando es apertura directa (no refresh interno)
+  if (_esAccesoDirecto !== false) {
+    registrarActividadObra(id, 'Obra consultada', `👁️ ${t.numero} — ${t.titulo}`);
+  }
 
   // Asegurar que estamos en la página de obras y vista ficha
   if (!document.getElementById('page-trabajos')?.classList.contains('active')) {
@@ -1194,7 +1199,7 @@ async function obraAprobarPres(presId) {
   if (p) p.estado = 'aceptado';
   registrarAudit('cambiar_estado', 'presupuesto', presId, 'Aprobado desde ficha de obra'+(p?' — '+p.numero:''));
   toast('✅ Presupuesto aprobado','success');
-  abrirFichaObra(obraActualId);
+  abrirFichaObra(obraActualId, false);
   if (typeof loadDashboard === 'function') loadDashboard();
 }
 
@@ -1234,7 +1239,7 @@ async function obraPresToAlbaran(presId) {
   window.albaranesData = _albR||[]; if (typeof albaranesData!=='undefined') albaranesData = _albR||[];
   await registrarActividadObra(obraActualId, 'Albarán creado', `📄 ${numero} desde presupuesto ${p.numero}`);
   toast('📄 Albarán creado', 'success');
-  abrirFichaObra(obraActualId);
+  abrirFichaObra(obraActualId, false);
 }
 
 async function obraPresToFactura(presId) {
@@ -1277,7 +1282,7 @@ async function obraPresToFactura(presId) {
   window.albaranesData = _aR2||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR2||[];
   await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde presupuesto ${p.numero}`);
   toast('🧾 Factura creada', 'success');
-  abrirFichaObra(obraActualId);
+  abrirFichaObra(obraActualId, false);
 }
 
 async function obraAlbToFactura(albId) {
@@ -1311,7 +1316,7 @@ async function obraAlbToFactura(albId) {
   window.albaranesData = _aR3||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR3||[];
   await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde albarán ${a.numero}`);
   toast('🧾 Factura creada', 'success');
-  abrirFichaObra(obraActualId);
+  abrirFichaObra(obraActualId, false);
 }
 
 async function obraFacturarTodosAlb() {
@@ -1361,7 +1366,7 @@ async function obraFacturarTodosAlb() {
   }
   await registrarActividadObra(obraActualId, 'Factura agrupada creada', `🧾 ${numero} agrupando ${albs.length} albarán(es): ${nums}`);
   toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
-  abrirFichaObra(obraActualId); // Refrescar
+  abrirFichaObra(obraActualId, false); // Refrescar
 }
 
 // ═══════════════════════════════════════════════
@@ -1379,7 +1384,7 @@ async function guardarNotaObra() {
   if (error) { toast('Error: '+error.message,'error'); return; }
   await registrarActividadObra(obraActualId, 'Nota añadida', `📝 ${tipo}: ${texto.substring(0,80)}${texto.length>80?'…':''}`);
   document.getElementById('obraNotaTexto').value = '';
-  await abrirFichaObra(obraActualId);
+  await abrirFichaObra(obraActualId, false);
   obraTab('notas');
   toast('Nota guardada ✓','success');
 }
@@ -1388,7 +1393,7 @@ async function eliminarNotaObra(id) {
   if (!confirm('¿Eliminar nota?')) return;
   await sb.from('notas_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Nota eliminada', `🗑️ Nota #${id} eliminada`);
-  await abrirFichaObra(obraActualId);
+  await abrirFichaObra(obraActualId, false);
   obraTab('notas');
   toast('Nota eliminada','info');
 }
@@ -1418,7 +1423,7 @@ async function subirDocObra(input) {
   await registrarActividadObra(obraActualId, 'Documento subido', `📎 ${nombre} (${tipo})`);
   input.value = '';
   document.getElementById('obraDocNombre').value = '';
-  await abrirFichaObra(obraActualId);
+  await abrirFichaObra(obraActualId, false);
   obraTab('documentos');
   toast('Documento subido ✓','success');
 }
@@ -1427,7 +1432,7 @@ async function eliminarDocObra(id) {
   if (!confirm('¿Eliminar documento?')) return;
   await sb.from('documentos_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Documento eliminado', `🗑️ Documento #${id} eliminado`);
-  await abrirFichaObra(obraActualId);
+  await abrirFichaObra(obraActualId, false);
   obraTab('documentos');
   toast('Documento eliminado','info');
 }
@@ -1436,7 +1441,7 @@ async function eliminarAuditEntry(id) {
   if (!(CP?.rol === 'superadmin' || CP?.rol === 'admin')) { toast('Solo el superadmin puede eliminar registros','error'); return; }
   if (!confirm('¿Eliminar esta entrada del registro?')) return;
   await sb.from('audit_log').delete().eq('id', id);
-  await abrirFichaObra(obraActualId);
+  await abrirFichaObra(obraActualId, false);
   obraTab('registro');
   toast('Entrada eliminada del registro','info');
 }
@@ -1517,7 +1522,7 @@ async function saveTrabajo() {
     document.getElementById('mTrabTit').textContent = 'Nueva Obra';
     const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
     trabajos=data||[];
-    await abrirFichaObra(obraActualId);
+    await abrirFichaObra(obraActualId, false);
     toast('Obra actualizada ✓','success');
     return;
   }
