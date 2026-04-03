@@ -831,14 +831,33 @@ function renderParteCard(p, showActions = false) {
   const horas = (parseFloat(p.horas)||0).toFixed(1);
   const operario = p.usuario_nombre || '—';
 
-  const nextActions = {
-    borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
-    programado: {label:'🔧 Iniciar',   estado:'en_curso',   bg:'var(--acento)'},
-    en_curso:   {label:'✅ Completar', estado:'completado', bg:'var(--verde)'},
-    completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
-    revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
-  };
-  const next = nextActions[p.estado];
+  // Acciones según estado (para operario)
+  let actionHtml = '';
+  if (showActions && !esJefe) {
+    if (p.estado === 'programado') {
+      actionHtml = `<div class="parte-actions">
+        <button class="btn btn-sm" style="background:var(--acento);color:#fff" onclick="event.stopPropagation();iniciarParteConGPS(${p.id})">🔧 Iniciar</button>
+      </div>`;
+    } else if (p.estado === 'en_curso') {
+      actionHtml = `<div class="parte-actions">
+        <button class="btn btn-sm" style="background:var(--verde);color:#fff" onclick="event.stopPropagation();openInformarWizard(${p.id})">📋 Informar</button>
+      </div>`;
+    }
+  } else if (showActions && esJefe) {
+    const nextActions = {
+      borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
+      programado: {label:'🔧 Iniciar',   estado:'en_curso',   bg:'var(--acento)'},
+      en_curso:   {label:'✅ Completar', estado:'completado', bg:'var(--verde)'},
+      completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
+      revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
+    };
+    const next = nextActions[p.estado];
+    if (next) {
+      actionHtml = `<div class="parte-actions">
+        <button class="btn btn-sm" style="background:${next.bg};color:#fff" onclick="event.stopPropagation();cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>
+      </div>`;
+    }
+  }
 
   return `<div class="parte-card" onclick="openParteDetail(${p.id})">
     <div class="parte-row">
@@ -849,12 +868,7 @@ function renderParteCard(p, showActions = false) {
     <div class="parte-meta">${fecha} · ${hi}${hf?'-'+hf:''} · ${horas}h · ${operario}</div>
     ${p.trabajo_titulo ? `<div style="font-size:12px;color:var(--gris-600);margin-top:2px">🏗️ ${p.trabajo_titulo}</div>` : ''}
     ${p.descripcion ? `<div class="parte-desc">${p.descripcion.substring(0,120)}${p.descripcion.length>120?'...':''}</div>` : ''}
-    ${showActions && next ? `
-      <div class="parte-actions">
-        <button class="btn btn-sm" style="background:${next.bg};color:#fff" onclick="event.stopPropagation();cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>
-        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openParteDetail(${p.id})">👁️ Ver</button>
-      </div>
-    ` : ''}
+    ${actionHtml}
   </div>`;
 }
 
@@ -914,7 +928,7 @@ function openParteDetail(id) {
 
     ${p.direccion ? `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
       <span style="font-size:13px;flex:1">📍 ${p.direccion}</span>
-      <a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
+      ${esJefe ? `<a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>` : ''}
     </div>` : ''}
 
     ${p.instrucciones ? `<div style="margin-bottom:12px;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:6px">
@@ -956,20 +970,43 @@ function openParteDetail(id) {
       </div>
     </div>` : ''}
 
+    ${p.mano_obra && p.mano_obra.length ? `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px">👷 Mano de obra</div>
+      ${p.mano_obra.map(mo => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;border-bottom:1px solid var(--gris-100)">
+        <span>${mo.descripcion||'Trabajo'} · ${mo.horas||0}h × ${(mo.precio_hora||0).toFixed(2)}€/h</span>
+        <span style="font-weight:700">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-weight:800;font-size:13px">
+        <span>Total mano obra:</span>
+        <span>${p.mano_obra.reduce((s,mo) => s+(parseFloat(mo.total)||0), 0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+      </div>
+    </div>` : ''}
+
     ${p.firma_url ? `<div style="margin-bottom:12px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">✍️ Firma${p.cliente_nombre_firma ? ' — ' + p.cliente_nombre_firma : ''}</div>
       <img src="${p.firma_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
     </div>` : ''}
 
+    ${p.ubicacion_inicio ? `<div style="margin-bottom:12px;padding:8px 12px;background:var(--verde-light);border-radius:8px;font-size:12px">
+      <span style="font-weight:700">📍 Ubicación inicio:</span>
+      <a href="https://maps.google.com/?q=${p.ubicacion_inicio.lat},${p.ubicacion_inicio.lng}" target="_blank" style="color:var(--azul)">${p.ubicacion_inicio.lat.toFixed(5)}, ${p.ubicacion_inicio.lng.toFixed(5)}</a>
+      ${p.inicio_at ? ` · ${new Date(p.inicio_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}` : ''}
+    </div>` : ''}
+
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
+    ${!esJefe ? `
+      ${p.estado === 'programado' ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
+      ${p.estado === 'en_curso' ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="openInformarWizard(${p.id})">📋 Informar parte</button>` : ''}
+      ${['completado','revisado','facturado'].includes(p.estado) ? `<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:13px;font-style:italic">🔒 Parte informado — no editable</div>` : ''}
+    ` : `
       ${next ? `<button class="btn btn-primary" style="background:${next.bg}" onclick="cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>` : ''}
-      ${p.estado === 'en_curso' || p.estado === 'programado' ? `<button class="btn btn-secondary" onclick="openAddWorkInfo(${p.id})">✏️ Añadir info del trabajo</button>` : ''}
       ${p.estado !== 'facturado' ? `
         <select onchange="if(this.value){cambiarEstado(${p.id},this.value)}" style="padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
           <option value="">Cambiar estado...</option>
           ${Object.keys(PT_ESTADOS).filter(e=>e!==p.estado).map(e=>`<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
         </select>
       ` : ''}
+    `}
     </div>
   `;
 
@@ -990,23 +1027,8 @@ const WIZ_STEPS = [
 ];
 
 function openCompletarWizard(id) {
-  const p = misPartes.find(x => x.id === id);
-  if (!p) return;
-  _wiz = {
-    parteId: id,
-    step: 0,
-    mode: 'completar',
-    desc: p.descripcion || '',
-    pendientes: p.trabajos_pendientes || '',
-    observaciones: p.observaciones || '',
-    fotos: p.fotos ? [...p.fotos] : [],
-    fotosNuevas: [], // base64 de fotos nuevas
-    materiales: p.materiales ? [...p.materiales] : [],
-    firmaData: null,
-    clienteEmail: p.cliente_email || '',
-    clienteNombre: p.cliente_nombre_firma || '',
-  };
-  renderWizStep();
+  // Legacy — redirigir a openInformarWizard
+  openInformarWizard(id);
 }
 
 function renderWizStep() {
@@ -1070,12 +1092,17 @@ function renderWizStep() {
     `;
   }
 
-  // ── STEP 3: Materiales ──
+  // ── STEP 3: Materiales + Mano de obra ──
   if (step === 2) {
+    const manoObra = _wiz.manoObra || [];
+    const totalMat = _wiz.materiales.reduce((s,m) => s + (parseFloat(m.total)||0), 0);
+    const totalMO = manoObra.reduce((s,mo) => s + (parseFloat(mo.total)||0), 0);
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">Añade los materiales utilizados. Busca en el catálogo o escribe manualmente.</p>
+        <p style="font-size:13px;color:var(--gris-500)">Añade materiales del catálogo y registra la mano de obra.</p>
       </div>
+
+      <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--azul)">🔧 Materiales</div>
       <div class="mat-search" style="margin-bottom:12px">
         <input id="wz_mat_buscar" type="text" placeholder="🔍 Buscar artículo o escribir nombre..."
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)"
@@ -1083,11 +1110,28 @@ function renderWizStep() {
         <div id="wz_mat_results" class="mat-search-results"></div>
       </div>
       <div id="wz_mat_list">
-        ${_wiz.materiales.length ? _wiz.materiales.map((m, i) => renderWizMatRow(m, i)).join('') : '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Sin materiales añadidos</div>'}
+        ${_wiz.materiales.length ? _wiz.materiales.map((m, i) => renderWizMatRow(m, i)).join('') : '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:12px">Sin materiales</div>'}
       </div>
-      <div style="margin-top:12px;padding:12px;background:var(--gris-50);border-radius:8px;display:flex;justify-content:space-between">
-        <span style="font-weight:700;font-size:13px">Total materiales:</span>
-        <span style="font-weight:800;font-size:14px">${_wiz.materiales.reduce((s,m) => s + (parseFloat(m.total)||0), 0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+      <div style="margin-top:8px;padding:8px 12px;background:var(--gris-50);border-radius:8px;display:flex;justify-content:space-between">
+        <span style="font-weight:700;font-size:12px">Total materiales:</span>
+        <span style="font-weight:800;font-size:13px">${totalMat.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
+        <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--violeta)">👷 Mano de obra</div>
+        <div id="wz_mo_list">
+          ${manoObra.length ? manoObra.map((mo, i) => renderWizMORow(mo, i)).join('') : '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:12px">Sin mano de obra registrada</div>'}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="wizAddManoObra()" style="margin-top:8px;width:100%">➕ Añadir mano de obra</button>
+        <div style="margin-top:8px;padding:8px 12px;background:var(--violeta-light);border-radius:8px;display:flex;justify-content:space-between">
+          <span style="font-weight:700;font-size:12px">Total mano obra:</span>
+          <span style="font-weight:800;font-size:13px">${totalMO.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between">
+        <span style="font-weight:800;font-size:14px">TOTAL:</span>
+        <span style="font-weight:800;font-size:15px;color:var(--azul)">${(totalMat + totalMO).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>
     `;
   }
@@ -1096,7 +1140,7 @@ function renderWizStep() {
   if (step === 3) {
     const firmaHint = _wiz.mode === 'edit'
       ? 'Si el cliente está disponible, puede firmar ahora. Si no, puedes hacerlo después al completar el parte.'
-      : 'El cliente debe firmar para confirmar el trabajo realizado.';
+      : 'El cliente firma para confirmar el trabajo. Una vez enviado, el parte queda cerrado.';
     content = `
       <div style="margin-bottom:12px">
         <p style="font-size:13px;color:var(--gris-500)">${firmaHint}</p>
@@ -1123,10 +1167,15 @@ function renderWizStep() {
 
   // Render todo
   const isEditMode = _wiz.mode === 'edit';
-  const titleText = isEditMode ? `✏️ Info del parte ${p.numero}` : `✅ Completar parte ${p.numero}`;
-  const finishBtn = isEditMode
-    ? `<button class="btn btn-primary" onclick="wizFinishEdit()">💾 Guardar todo</button>`
-    : `<button class="btn btn-primary" style="background:var(--verde)" onclick="wizFinish()">✅ Completar y firmar</button>`;
+  const isInformar = _wiz.mode === 'informar';
+  let titleText, finishBtn;
+  if (isEditMode) {
+    titleText = `✏️ Info del parte ${p.numero}`;
+    finishBtn = `<button class="btn btn-primary" onclick="wizFinishEdit()">💾 Guardar todo</button>`;
+  } else {
+    titleText = `📋 Informar parte ${p.numero}`;
+    finishBtn = `<button class="btn btn-primary" style="background:var(--verde)" onclick="wizFinish()">✅ Completar y enviar</button>`;
+  }
 
   document.getElementById('modalContent').innerHTML = `
     <div style="margin-bottom:16px">
@@ -1184,7 +1233,7 @@ function wizSaveCurrentStep() {
 
 function wizNext() {
   wizSaveCurrentStep();
-  // Validar paso actual (solo obligatorio en modo completar, no en edición)
+  // Validar paso actual (obligatorio en modo informar, no en edición)
   if (_wiz.step === 0 && !_wiz.desc.trim() && _wiz.mode !== 'edit') {
     toast('Describe el trabajo realizado', 'error'); return;
   }
@@ -1321,6 +1370,60 @@ function wizRemoveMat(idx) {
   renderWizStep();
 }
 
+// ── MANO DE OBRA ──
+function renderWizMORow(mo, idx) {
+  return `<div class="mat-row" style="background:var(--violeta-light);border-radius:8px;padding:8px;margin-bottom:6px">
+    <div style="flex:1;min-width:0">
+      <input type="text" value="${mo.descripcion||''}" placeholder="Descripción trabajo"
+        style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:4px"
+        onchange="wizUpdateMO(${idx},'descripcion',this.value)">
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">Horas:</label>
+        <input type="number" value="${mo.horas||0}" min="0" step="0.25"
+          style="width:55px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
+          onchange="wizUpdateMO(${idx},'horas',this.value)">
+        <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/h:</label>
+        <input type="number" value="${mo.precio_hora||0}" min="0" step="0.5"
+          style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:12px;font-family:var(--font)"
+          onchange="wizUpdateMO(${idx},'precio_hora',this.value)">
+        <span style="font-size:12px;font-weight:700;color:var(--violeta);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+        <button class="mat-del" onclick="wizRemoveMO(${idx})">🗑️</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wizAddManoObra() {
+  if (!_wiz.manoObra) _wiz.manoObra = [];
+  _wiz.manoObra.push({
+    descripcion: 'Trabajo realizado',
+    horas: 1,
+    precio_hora: 35,
+    total: 35,
+  });
+  renderWizStep();
+}
+
+function wizUpdateMO(idx, field, val) {
+  const mo = (_wiz.manoObra || [])[idx];
+  if (!mo) return;
+  if (field === 'descripcion') {
+    mo.descripcion = val;
+  } else if (field === 'horas') {
+    mo.horas = parseFloat(val) || 0;
+    mo.total = mo.horas * (mo.precio_hora || 0);
+  } else if (field === 'precio_hora') {
+    mo.precio_hora = parseFloat(val) || 0;
+    mo.total = (mo.horas || 0) * mo.precio_hora;
+  }
+  renderWizStep();
+}
+
+function wizRemoveMO(idx) {
+  if (_wiz.manoObra) _wiz.manoObra.splice(idx, 1);
+  renderWizStep();
+}
+
 // ── FIRMA DIGITAL ──
 let _firmaCtx = null;
 let _firmaDrawing = false;
@@ -1401,83 +1504,100 @@ function wizClearFirma() {
 
 // ── FINALIZAR WIZARD ──
 async function wizFinish() {
-  wizSaveCurrentStep();
-
-  // Validar firma
-  if (!_wiz.firmaData && !_firmaHasTouched) {
-    toast('El cliente debe firmar', 'error'); return;
-  }
-  // Capturar firma final
-  const canvas = document.getElementById('firmaCanvas');
-  if (canvas && _firmaHasTouched) {
-    _wiz.firmaData = canvas.toDataURL('image/png');
-  }
-  if (!_wiz.firmaData) {
-    toast('El cliente debe firmar', 'error'); return;
-  }
-
-  toast('Guardando...', '');
-
-  const id = _wiz.parteId;
-
-  // 1. Subir fotos nuevas a Supabase Storage
-  let fotosUrls = [..._wiz.fotos]; // URLs existentes
-  for (const foto of _wiz.fotosNuevas) {
-    try {
-      const blob = await (await fetch(foto.data)).blob();
-      const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
-      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-      if (!error) {
-        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-        fotosUrls.push(data.publicUrl);
-      }
-    } catch(e) { console.error('Error subiendo foto:', e); }
-  }
-
-  // 2. Subir firma
-  let firmaUrl = null;
   try {
-    const blob = await (await fetch(_wiz.firmaData)).blob();
-    const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
-    const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-    if (!error) {
-      const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-      firmaUrl = data.publicUrl;
+    wizSaveCurrentStep();
+
+    // Validar firma
+    if (!_wiz.firmaData && !_firmaHasTouched) {
+      toast('El cliente debe firmar', 'error'); return;
     }
-  } catch(e) { console.error('Error subiendo firma:', e); }
+    // Capturar firma final
+    const canvas = document.getElementById('firmaCanvas');
+    if (canvas && _firmaHasTouched) {
+      _wiz.firmaData = canvas.toDataURL('image/png');
+    }
+    if (!_wiz.firmaData) {
+      toast('El cliente debe firmar', 'error'); return;
+    }
 
-  // 3. Guardar todo en el parte
-  const updateObj = {
-    estado: 'completado',
-    completado_at: new Date().toISOString(),
-    descripcion: _wiz.desc || null,
-    trabajos_pendientes: _wiz.pendientes || null,
-    observaciones: _wiz.observaciones || null,
-    fotos: fotosUrls.length > 0 ? fotosUrls : null,
-    materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
-    firma_url: firmaUrl,
-    cliente_nombre_firma: _wiz.clienteNombre || null,
-    cliente_email: _wiz.clienteEmail || null,
-  };
+    // Validar descripción obligatoria
+    if (!_wiz.desc.trim()) {
+      toast('Describe el trabajo realizado', 'error'); return;
+    }
 
-  const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
-  if (error) {
-    toast('Error: ' + error.message, 'error');
-    return;
-  }
+    toast('Enviando informe...', '');
 
-  // Actualizar local
-  const p = misPartes.find(x => x.id === id);
-  if (p) Object.assign(p, updateObj);
+    const id = _wiz.parteId;
+    const eid = EMPRESA?.id || 'default';
 
-  toast('✅ Parte completado y firmado', 'success');
-  closeModal();
-  document.removeEventListener('click', _closeMaterialSearch);
-  navigateTo(currentTab);
+    // 1. Subir fotos nuevas a Supabase Storage
+    let fotosUrls = [..._wiz.fotos]; // URLs existentes
+    for (const foto of (_wiz.fotosNuevas || [])) {
+      try {
+        const blob = await (await fetch(foto.data)).blob();
+        const filename = `${eid}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          fotosUrls.push(data.publicUrl);
+        } else { console.warn('Upload foto error:', error.message); }
+      } catch(e) { console.error('Error subiendo foto:', e); }
+    }
 
-  // 4. Enviar email al cliente (si hay email)
-  if (_wiz.clienteEmail) {
-    enviarEmailParte(id, _wiz.clienteEmail);
+    // 2. Subir firma
+    let firmaUrl = null;
+    if (_wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
+      try {
+        const blob = await (await fetch(_wiz.firmaData)).blob();
+        const filename = `${eid}/${Date.now()}_firma.png`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          firmaUrl = data.publicUrl;
+        } else { console.warn('Upload firma error:', error.message); }
+      } catch(e) { console.error('Error subiendo firma:', e); }
+    } else if (_wiz.firmaData) {
+      firmaUrl = _wiz.firmaData; // existing URL
+    }
+
+    // 3. Guardar todo en el parte — estado completado (bloqueado)
+    const updateObj = {
+      estado: 'completado',
+      completado_at: new Date().toISOString(),
+      descripcion: _wiz.desc || null,
+      trabajos_pendientes: _wiz.pendientes || null,
+      observaciones: _wiz.observaciones || null,
+      fotos: fotosUrls.length > 0 ? fotosUrls : null,
+      materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
+      mano_obra: (_wiz.manoObra && _wiz.manoObra.length > 0) ? _wiz.manoObra : null,
+      firma_url: firmaUrl && !firmaUrl.startsWith('data:') ? firmaUrl : null,
+      cliente_nombre_firma: _wiz.clienteNombre || null,
+      cliente_email: _wiz.clienteEmail || null,
+    };
+
+    console.log('[wizFinish] Saving:', JSON.stringify(Object.keys(updateObj)));
+    const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+    if (error) {
+      toast('Error: ' + error.message, 'error');
+      return;
+    }
+
+    // Actualizar local
+    const p = misPartes.find(x => x.id === id);
+    if (p) Object.assign(p, updateObj);
+
+    toast('✅ Parte informado y enviado', 'success');
+    closeModal();
+    document.removeEventListener('click', _closeMaterialSearch);
+    navigateTo(currentTab);
+
+    // 4. Enviar email al cliente (si hay email)
+    if (_wiz.clienteEmail) {
+      enviarEmailParte(id, _wiz.clienteEmail);
+    }
+  } catch(err) {
+    console.error('[wizFinish] Error:', err);
+    toast('Error: ' + (err.message || 'desconocido'), 'error');
   }
 }
 
@@ -1503,13 +1623,14 @@ function openAddWorkInfo(id) {
   _wiz = {
     parteId: id,
     step: 0,
-    mode: 'edit', // <-- diferencia con completar: no cambia estado
+    mode: 'edit',
     desc: p.descripcion || '',
     pendientes: p.trabajos_pendientes || '',
     observaciones: p.observaciones || '',
     fotos: p.fotos ? [...p.fotos] : [],
     fotosNuevas: [],
     materiales: p.materiales ? [...p.materiales] : [],
+    manoObra: p.mano_obra ? [...p.mano_obra] : [],
     firmaData: p.firma_url || null,
     clienteEmail: p.cliente_email || '',
     clienteNombre: p.cliente_nombre_firma || '',
@@ -1570,9 +1691,10 @@ async function wizFinishEdit() {
       trabajos_pendientes: _wiz.pendientes || null,
       observaciones: _wiz.observaciones || null,
     };
-    // Solo incluir fotos/materiales si hay datos
+    // Solo incluir fotos/materiales/mano_obra si hay datos
     if (fotosUrls.length > 0) updateObj.fotos = fotosUrls;
     if (_wiz.materiales && _wiz.materiales.length > 0) updateObj.materiales = _wiz.materiales;
+    if (_wiz.manoObra && _wiz.manoObra.length > 0) updateObj.mano_obra = _wiz.manoObra;
     // Solo incluir firma si es URL válida (no data:)
     if (firmaUrl && !firmaUrl.startsWith('data:')) updateObj.firma_url = firmaUrl;
     if (_wiz.clienteNombre) updateObj.cliente_nombre_firma = _wiz.clienteNombre;
@@ -1644,11 +1766,74 @@ function openOperarioDetail(uid) {
 // ACTIONS
 // ═══════════════════════════════════════════════
 
+// ── INICIAR PARTE CON GPS ──
+async function iniciarParteConGPS(id) {
+  toast('Obteniendo ubicación...', '');
+
+  const doStart = async (ubicacion) => {
+    const updateObj = {
+      estado: 'en_curso',
+      inicio_at: new Date().toISOString(),
+    };
+    if (ubicacion) {
+      updateObj.ubicacion_inicio = ubicacion;
+    }
+
+    const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+    const p = misPartes.find(x => x.id === id);
+    if (p) Object.assign(p, updateObj);
+
+    toast('🔧 Trabajo iniciado' + (ubicacion ? ' · GPS guardado' : ''), 'success');
+    closeModal();
+    navigateTo(currentTab);
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        doStart({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+      },
+      (err) => {
+        console.warn('GPS error:', err.message);
+        toast('GPS no disponible, iniciando sin ubicación', 'warning');
+        doStart(null);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  } else {
+    doStart(null);
+  }
+}
+
+// ── ABRIR WIZARD INFORMAR ──
+function openInformarWizard(id) {
+  const p = misPartes.find(x => x.id === id);
+  if (!p) return;
+  _wiz = {
+    parteId: id,
+    step: 0,
+    mode: 'informar',
+    desc: p.descripcion || '',
+    pendientes: p.trabajos_pendientes || '',
+    observaciones: p.observaciones || '',
+    fotos: p.fotos ? [...p.fotos] : [],
+    fotosNuevas: [],
+    materiales: p.materiales ? [...p.materiales] : [],
+    manoObra: p.mano_obra ? [...p.mano_obra] : [],
+    firmaData: p.firma_url || null,
+    clienteEmail: p.cliente_email || '',
+    clienteNombre: p.cliente_nombre_firma || '',
+  };
+  renderWizStep();
+}
+
 async function cambiarEstado(id, nuevoEstado) {
   // Si se intenta completar → abrir wizard obligatorio
   if (nuevoEstado === 'completado') {
     closeModal();
-    setTimeout(() => openCompletarWizard(id), 300);
+    setTimeout(() => openInformarWizard(id), 300);
     return;
   }
 
