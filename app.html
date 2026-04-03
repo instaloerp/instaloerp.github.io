@@ -992,6 +992,7 @@ function openCompletarWizard(id) {
   _wiz = {
     parteId: id,
     step: 0,
+    mode: 'completar',
     desc: p.descripcion || '',
     pendientes: p.trabajos_pendientes || '',
     observaciones: p.observaciones || '',
@@ -1085,9 +1086,12 @@ function renderWizStep() {
 
   // ── STEP 4: Firma ──
   if (step === 3) {
+    const firmaHint = _wiz.mode === 'edit'
+      ? 'Si el cliente está disponible, puede firmar ahora. Si no, puedes hacerlo después al completar el parte.'
+      : 'El cliente debe firmar para confirmar el trabajo realizado.';
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">El cliente debe firmar para confirmar el trabajo realizado.</p>
+        <p style="font-size:13px;color:var(--gris-500)">${firmaHint}</p>
       </div>
       <div class="field">
         <label>Nombre del cliente / receptor</label>
@@ -1110,9 +1114,15 @@ function renderWizStep() {
   }
 
   // Render todo
+  const isEditMode = _wiz.mode === 'edit';
+  const titleText = isEditMode ? `✏️ Info del parte ${p.numero}` : `✅ Completar parte ${p.numero}`;
+  const finishBtn = isEditMode
+    ? `<button class="btn btn-primary" onclick="wizFinishEdit()">💾 Guardar todo</button>`
+    : `<button class="btn btn-primary" style="background:var(--verde)" onclick="wizFinish()">✅ Completar y firmar</button>`;
+
   document.getElementById('modalContent').innerHTML = `
     <div style="margin-bottom:16px">
-      <div style="font-size:16px;font-weight:800;margin-bottom:4px">✅ Completar parte ${p.numero}</div>
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px">${titleText}</div>
       <div style="font-size:12px;color:var(--gris-400)">${p.trabajo_titulo||''}</div>
     </div>
     <div class="wiz-steps">${stepper}</div>
@@ -1120,8 +1130,9 @@ function renderWizStep() {
     <div class="wiz-nav">
       ${step > 0 ? `<button class="btn btn-secondary" onclick="wizPrev()">← Anterior</button>` : `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>`}
       ${isLast
-        ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="wizFinish()">✅ Completar y firmar</button>`
+        ? finishBtn
         : `<button class="btn btn-primary" onclick="wizNext()">Siguiente →</button>`}
+      ${isEditMode && !isLast ? `<button class="btn btn-primary" onclick="wizFinishEdit()" style="background:var(--gris-600)">💾 Guardar</button>` : ''}
     </div>
   `;
   openModal();
@@ -1165,8 +1176,8 @@ function wizSaveCurrentStep() {
 
 function wizNext() {
   wizSaveCurrentStep();
-  // Validar paso actual
-  if (_wiz.step === 0 && !_wiz.desc.trim()) {
+  // Validar paso actual (solo obligatorio en modo completar, no en edición)
+  if (_wiz.step === 0 && !_wiz.desc.trim() && _wiz.mode !== 'edit') {
     toast('Describe el trabajo realizado', 'error'); return;
   }
   document.removeEventListener('click', _closeMaterialSearch);
@@ -1476,47 +1487,93 @@ async function enviarEmailParte(parteId, email) {
   }
 }
 
-// ── ADD WORK INFO (acceso rápido sin wizard completo) ──
+// ── ADD WORK INFO (wizard completo sin cambiar estado) ──
+// Reutiliza el mismo wizard de 4 pasos pero guarda sin cambiar a "completado"
 function openAddWorkInfo(id) {
   const p = misPartes.find(x => x.id === id);
   if (!p) return;
-
-  document.getElementById('modalContent').innerHTML = `
-    <div class="modal-title">✏️ Info del trabajo — ${p.numero}</div>
-    <div class="field">
-      <label>Trabajo realizado</label>
-      <textarea id="wi_desc" rows="4" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.descripcion||''}</textarea>
-    </div>
-    <div class="field">
-      <label>Trabajos pendientes</label>
-      <textarea id="wi_pend" rows="3" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.trabajos_pendientes||''}</textarea>
-    </div>
-    <div class="field">
-      <label>Observaciones</label>
-      <textarea id="wi_obs" rows="2" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.observaciones||''}</textarea>
-    </div>
-    <button class="btn btn-primary" onclick="saveWorkInfo(${id})" style="margin-top:8px">💾 Guardar</button>
-  `;
+  _wiz = {
+    parteId: id,
+    step: 0,
+    mode: 'edit', // <-- diferencia con completar: no cambia estado
+    desc: p.descripcion || '',
+    pendientes: p.trabajos_pendientes || '',
+    observaciones: p.observaciones || '',
+    fotos: p.fotos ? [...p.fotos] : [],
+    fotosNuevas: [],
+    materiales: p.materiales ? [...p.materiales] : [],
+    firmaData: p.firma_url || null,
+    clienteEmail: p.cliente_email || '',
+    clienteNombre: p.cliente_nombre_firma || '',
+  };
+  renderWizStep();
 }
 
 async function saveWorkInfo(id) {
-  const desc = document.getElementById('wi_desc')?.value || '';
-  const pend = document.getElementById('wi_pend')?.value || '';
-  const obs = document.getElementById('wi_obs')?.value || '';
+  // Ya no se usa directamente — la lógica pasa por wizFinishEdit
+}
 
-  const { error } = await sb.from('partes_trabajo').update({
-    descripcion: desc || null,
-    trabajos_pendientes: pend || null,
-    observaciones: obs || null,
-  }).eq('id', id);
+// Guardar wizard en modo edición (sin cambiar estado)
+async function wizFinishEdit() {
+  wizSaveCurrentStep();
 
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast('Guardando...', '');
+  const id = _wiz.parteId;
 
+  // 1. Subir fotos nuevas a Supabase Storage
+  let fotosUrls = [..._wiz.fotos];
+  for (const foto of _wiz.fotosNuevas) {
+    try {
+      const blob = await (await fetch(foto.data)).blob();
+      const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
+      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+      if (!error) {
+        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+        fotosUrls.push(data.publicUrl);
+      }
+    } catch(e) { console.error('Error subiendo foto:', e); }
+  }
+
+  // 2. Subir firma si hay nueva
+  let firmaUrl = _wiz.firmaData; // mantener la existente
+  if (_firmaHasTouched && _wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
+    try {
+      const blob = await (await fetch(_wiz.firmaData)).blob();
+      const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
+      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+      if (!error) {
+        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+        firmaUrl = data.publicUrl;
+      }
+    } catch(e) { console.error('Error subiendo firma:', e); }
+  }
+
+  // 3. Guardar sin cambiar estado
+  const updateObj = {
+    descripcion: _wiz.desc || null,
+    trabajos_pendientes: _wiz.pendientes || null,
+    observaciones: _wiz.observaciones || null,
+    fotos: fotosUrls.length > 0 ? fotosUrls : null,
+    materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
+  };
+  // Solo incluir firma/email si se han rellenado
+  if (firmaUrl) updateObj.firma_url = firmaUrl;
+  if (_wiz.clienteNombre) updateObj.cliente_nombre_firma = _wiz.clienteNombre;
+  if (_wiz.clienteEmail) updateObj.cliente_email = _wiz.clienteEmail;
+
+  const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+  if (error) {
+    toast('Error: ' + error.message, 'error');
+    return;
+  }
+
+  // Actualizar local
   const p = misPartes.find(x => x.id === id);
-  if (p) { p.descripcion = desc; p.trabajos_pendientes = pend; p.observaciones = obs; }
+  if (p) Object.assign(p, updateObj);
 
-  toast('Guardado ✓', 'success');
+  toast('💾 Información guardada', 'success');
   closeModal();
+  document.removeEventListener('click', _closeMaterialSearch);
   navigateTo(currentTab);
 }
 

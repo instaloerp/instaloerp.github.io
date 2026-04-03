@@ -558,24 +558,46 @@ async function mostrarApp() {
 // REALTIME — Notificaciones de partes de trabajo
 // ═══════════════════════════════════════════════
 let _rtChannel = null;
+// Cache local de estados: parteId → estado (payload.old no incluye campos por defecto en Supabase)
+const _partesEstadoCache = new Map();
+
+// Poblar cache cuando se cargan partes
+function _populateEstadoCache(partes) {
+  if (!partes) return;
+  partes.forEach(p => { if (p.id && p.estado) _partesEstadoCache.set(p.id, p.estado); });
+}
 
 function initRealtimePartes() {
   if (!EMPRESA || !CP?.es_superadmin) return; // Solo para admins/jefes
   // Cerrar canal anterior si existe
   if (_rtChannel) { sb.removeChannel(_rtChannel); _rtChannel = null; }
 
+  // Poblar cache inicial con datos ya cargados
+  if (typeof partesData !== 'undefined' && Array.isArray(partesData)) {
+    _populateEstadoCache(partesData);
+  }
+
   _rtChannel = sb.channel('partes-realtime')
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
       (payload) => {
         const nuevo = payload.new;
-        const viejo = payload.old;
-        if (!nuevo || !viejo) return;
+        if (!nuevo) return;
 
-        // SOLO notificar cuando cambia el estado a "en_curso" o "completado"
-        const cambioEstado = nuevo.estado !== viejo.estado;
-        if (!cambioEstado) return;
+        // SOLO notificar cuando el estado ES "en_curso" o "completado"
         if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') return;
+
+        // Comparar con cache local (payload.old no trae campos sin REPLICA IDENTITY FULL)
+        const estadoPrevio = _partesEstadoCache.get(nuevo.id);
+        if (estadoPrevio && estadoPrevio === nuevo.estado) {
+          // No hubo cambio de estado real → fue otro campo (guardar info, etc.)
+          return;
+        }
+        // Actualizar cache
+        _partesEstadoCache.set(nuevo.id, nuevo.estado);
+
+        // Ignorar cambios hechos por el propio usuario
+        if (nuevo.revisado_por === CU?.id) return;
 
         const operario = nuevo.usuario_nombre || 'Un operario';
         const numero = nuevo.numero || '';

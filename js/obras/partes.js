@@ -30,6 +30,8 @@ async function loadPartes() {
 
     partesData = data || [];
     partesFiltrados = [...partesData];
+    // Actualizar cache de estados para Realtime
+    if (typeof _populateEstadoCache === 'function') _populateEstadoCache(partesData);
     renderPartes(partesData);
     // Poblar filtro de operarios
     const selFiltroUsr = document.getElementById('pt-filter-usuario');
