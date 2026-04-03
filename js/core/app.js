@@ -568,77 +568,89 @@ function _populateEstadoCache(partes) {
 }
 
 function initRealtimePartes() {
-  if (!EMPRESA || !CP?.es_superadmin) return; // Solo para admins/jefes
-  // Cerrar canal anterior si existe
+  if (!EMPRESA || !CP?.es_superadmin) return;
   if (_rtChannel) { sb.removeChannel(_rtChannel); _rtChannel = null; }
 
-  // Poblar cache inicial con datos ya cargados
+  // Poblar cache inicial
   if (typeof partesData !== 'undefined' && Array.isArray(partesData)) {
     _populateEstadoCache(partesData);
+  }
+
+  console.log('[Realtime] Iniciando suscripción para empresa:', EMPRESA.id);
+
+  function _handleParteChange(payload) {
+    const nuevo = payload.new;
+    if (!nuevo) { console.log('[Realtime] Payload sin .new:', payload); return; }
+
+    console.log('[Realtime] Evento recibido:', payload.eventType || payload.type, 'parte:', nuevo.numero, 'estado:', nuevo.estado);
+
+    // Solo notificar en_curso y completado
+    if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') {
+      console.log('[Realtime] Estado ignorado:', nuevo.estado);
+      return;
+    }
+
+    // Comparar con cache local para evitar duplicados
+    const estadoPrevio = _partesEstadoCache.get(nuevo.id);
+    if (estadoPrevio && estadoPrevio === nuevo.estado) {
+      console.log('[Realtime] Mismo estado que cache, ignorando. estado:', nuevo.estado);
+      return;
+    }
+    _partesEstadoCache.set(nuevo.id, nuevo.estado);
+
+    // Ignorar cambios del propio usuario (por usuario_id, no revisado_por)
+    if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) {
+      console.log('[Realtime] Cambio propio, ignorando');
+      return;
+    }
+
+    const operario = nuevo.usuario_nombre || 'Un operario';
+    const numero = nuevo.numero || '';
+    const obra = nuevo.trabajo_titulo || '';
+    const obraId = nuevo.trabajo_id || null;
+
+    const notifs = {
+      en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
+      completado: { ico:'✅', titulo:'Parte completado',  msg:`${operario} ha completado ${numero}`, color:'var(--verde)' },
+    };
+    const n = notifs[nuevo.estado];
+    if (!n) return;
+
+    console.log('[Realtime] ✅ Mostrando notificación:', n.titulo);
+    showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
+
+    // Notificación del sistema
+    if (Notification.permission === 'granted') {
+      try { new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' }); } catch(e) {}
+    }
+
+    // Auto-refrescar
+    if (typeof loadPartes === 'function') { try { loadPartes(); } catch(e) {} }
+    if (obraId && typeof obraActualId !== 'undefined' && obraActualId && obraActualId === obraId) {
+      try { abrirFichaObra(obraActualId, false); } catch(e) {}
+    }
+    if (typeof loadDashboard === 'function') { try { loadDashboard(); } catch(e) {} }
   }
 
   _rtChannel = sb.channel('partes-realtime')
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
-      (payload) => {
-        const nuevo = payload.new;
-        if (!nuevo) return;
-
-        // SOLO notificar cuando el estado ES "en_curso" o "completado"
-        if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') return;
-
-        // Comparar con cache local (payload.old no trae campos sin REPLICA IDENTITY FULL)
-        const estadoPrevio = _partesEstadoCache.get(nuevo.id);
-        if (estadoPrevio && estadoPrevio === nuevo.estado) {
-          // No hubo cambio de estado real → fue otro campo (guardar info, etc.)
-          return;
-        }
-        // Actualizar cache
-        _partesEstadoCache.set(nuevo.id, nuevo.estado);
-
-        // Ignorar cambios hechos por el propio usuario
-        if (nuevo.revisado_por === CU?.id) return;
-
-        const operario = nuevo.usuario_nombre || 'Un operario';
-        const numero = nuevo.numero || '';
-        const obra = nuevo.trabajo_titulo || '';
-        const obraId = nuevo.trabajo_id || null;
-
-        const notifs = {
-          en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
-          completado: { ico:'✅', titulo:'Parte completado',  msg:`${operario} ha completado ${numero}`, color:'var(--verde)' },
-        };
-        const n = notifs[nuevo.estado];
-        if (!n) return;
-
-        // Mostrar notificación popup
-        showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
-
-        // Notificación del sistema (si el navegador la permite)
-        if (Notification.permission === 'granted') {
-          new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' });
-        }
-
-        // ── AUTO-REFRESCAR TODO ──
-        // 1. Refrescar lista de partes de trabajo (pestaña principal)
-        if (typeof loadPartes === 'function') {
-          try { loadPartes(); } catch(e) {}
-        }
-        // 2. Refrescar ficha de obra si está abierta y es la misma obra
-        if (obraId && typeof obraActualId !== 'undefined' && obraActualId && obraActualId === obraId) {
-          try { abrirFichaObra(obraActualId, false); } catch(e) {}
-        }
-        // 3. Refrescar dashboard
-        if (typeof loadDashboard === 'function') {
-          try { loadDashboard(); } catch(e) {}
-        }
-      }
+      _handleParteChange
     )
-    .subscribe((status) => {
-      console.log('[Realtime] Status:', status);
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
+      _handleParteChange
+    )
+    .subscribe((status, err) => {
+      console.log('[Realtime] Status:', status, err ? 'Error: ' + err.message : '');
+      if (status === 'SUBSCRIBED') {
+        console.log('[Realtime] ✅ Suscripción activa — escuchando cambios en partes_trabajo');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('[Realtime] ❌ Error de conexión. Verifica que partes_trabajo está en la publicación supabase_realtime');
+      }
     });
 
-  // Pedir permiso para notificaciones del sistema
+  // Pedir permiso notificaciones del sistema
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
