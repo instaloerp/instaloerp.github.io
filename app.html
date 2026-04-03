@@ -1492,20 +1492,7 @@ function renderWizStep() {
     const emailMode = _wiz.clienteEmailMode || 'si';
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">Firmas del cliente y del operario para cerrar el parte.</p>
-      </div>
-      <div class="field">
-        <label>👤 NOMBRE DEL CLIENTE / RECEPTOR <span style="color:var(--rojo)">*</span></label>
-        <input id="wz_cli_nombre" type="text" placeholder="Nombre completo" value="${_wiz.clienteNombre}"
-          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
-        <div id="wz_nombre_error" style="display:none;color:var(--rojo);font-size:11px;font-weight:600;margin-top:4px"></div>
-      </div>
-      <div class="field">
-        <label>🪪 DNI / NIF DEL CLIENTE <span style="color:var(--rojo)">*</span></label>
-        <input id="wz_cli_dni" type="text" placeholder="12345678A" value="${_wiz.clienteDni||''}"
-          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);text-transform:uppercase"
-          maxlength="10" oninput="this.value=this.value.toUpperCase()">
-        <div id="wz_dni_error" style="display:none;color:var(--rojo);font-size:11px;font-weight:600;margin-top:4px"></div>
+        <p style="font-size:13px;color:var(--gris-500)">Firmas y datos de contacto para cerrar el parte.</p>
       </div>
       <div class="field">
         <label style="margin-bottom:8px;display:block">📧 EMAIL (PARA ENVIAR COPIA DEL PARTE)</label>
@@ -1514,23 +1501,41 @@ function renderWizStep() {
           <button id="email_no_btn" class="btn btn-sm" onclick="wizSetEmailMode('no')" style="flex:1;background:${emailMode==='no'?'var(--gris-600)':'var(--gris-200)'};color:${emailMode==='no'?'white':'var(--gris-600)'};border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">❌ No</button>
         </div>
         <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail||''}"
+          autocomplete="off" inputmode="email"
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);display:${emailMode==='si'?'block':'none'}">
       </div>
 
-      <!-- Firma Cliente (expandible, cerrado por defecto) -->
+      <!-- Firma persona responsable en la visita (expandible, cerrado por defecto) -->
       <div style="margin-top:12px;border:2px solid ${_wiz.firmaData_validated ? 'var(--verde)' : 'var(--azul)'};border-radius:12px;overflow:hidden" id="firmaClienteContainer">
         <div onclick="toggleFirmaPanel('cliente')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${_wiz.firmaData_validated ? 'var(--verde-light)' : 'var(--azul-light)'};cursor:pointer">
-          <span style="font-size:13px;font-weight:700;color:${_wiz.firmaData_validated ? 'var(--verde)' : 'var(--azul)'}">✍️ Firma del cliente <span style="color:var(--rojo)">*</span></span>
+          <span style="font-size:13px;font-weight:700;color:${_wiz.firmaData_validated ? 'var(--verde)' : 'var(--azul)'}">✍️ Persona responsable en la visita <span style="color:var(--rojo)">*</span></span>
           <span id="firmaClienteToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaData_validated ? '✅' : '▼'}</span>
         </div>
-        <div id="firmaClientePanel" style="display:none;padding:8px">
-          <div class="firma-container" id="firmaContainer" style="height:300px">
-            <canvas id="firmaCanvas" width="600" height="300"></canvas>
+        <div id="firmaClientePanel" style="display:none;padding:12px">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1">
+              <label style="font-size:11px;font-weight:700;color:var(--gris-500)">NOMBRE COMPLETO <span style="color:var(--rojo)">*</span></label>
+              <input id="wz_cli_nombre" type="text" placeholder="Nombre y dos apellidos" value="${_wiz.clienteNombre}"
+                autocomplete="off" spellcheck="false"
+                style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-family:var(--font)">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1">
+              <label style="font-size:11px;font-weight:700;color:var(--gris-500)">DNI / NIF <span style="color:var(--rojo)">*</span></label>
+              <input id="wz_cli_dni" type="text" placeholder="12345678A" value="${_wiz.clienteDni||''}"
+                autocomplete="off" spellcheck="false" inputmode="text"
+                style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-family:var(--font);text-transform:uppercase"
+                maxlength="10" oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+          <div class="firma-container" id="firmaContainer" style="height:350px">
+            <canvas id="firmaCanvas" width="700" height="350"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
             <button class="firma-clear" onclick="wizClearFirma('cliente')">🗑️ Borrar</button>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
+            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:10px;border-radius:6px;font-weight:700;font-size:15px">✅ Validar firma</button>
           </div>
         </div>
       </div>
@@ -1541,9 +1546,9 @@ function renderWizStep() {
           <span style="font-size:13px;font-weight:700;color:${_wiz.firmaOperario_validated ? 'var(--verde)' : 'var(--violeta)'}">👷 Firma del operario <span style="color:var(--rojo)">*</span> — ${operarioNombre}</span>
           <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario_validated ? '✅' : '▼'}</span>
         </div>
-        <div id="firmaOperarioPanel" style="display:none;padding:8px">
-          <div class="firma-container" id="firmaOperarioContainerInner" style="height:300px">
-            <canvas id="firmaCanvasOp" width="600" height="300"></canvas>
+        <div id="firmaOperarioPanel" style="display:none;padding:12px">
+          <div class="firma-container" id="firmaOperarioContainerInner" style="height:350px">
+            <canvas id="firmaCanvasOp" width="700" height="350"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholderOp">Firme aquí con el dedo</div>
             <button class="firma-clear" onclick="wizClearFirma('operario')">🗑️ Borrar</button>
           </div>
@@ -1653,6 +1658,29 @@ function wizSaveCurrentStep() {
   }
 }
 
+function _wizAutoSave() {
+  try {
+    // Guardar estado del wizard en localStorage (sin firmas base64 para no saturar)
+    const save = Object.assign({}, _wiz);
+    delete save.firmaData;
+    delete save.firmaOperario;
+    delete save.fotosNuevas; // Las fotos nuevas son blobs, no se pueden serializar
+    localStorage.setItem('instalo_wiz_' + _wiz.parteId, JSON.stringify(save));
+  } catch(e) { console.warn('Auto-save wizard error:', e); }
+}
+
+function _wizClearAutoSave(parteId) {
+  try { localStorage.removeItem('instalo_wiz_' + parteId); } catch(e) {}
+}
+
+function _wizLoadAutoSave(parteId) {
+  try {
+    const saved = localStorage.getItem('instalo_wiz_' + parteId);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return null;
+}
+
 function wizNext() {
   wizSaveCurrentStep();
   // Validar paso actual (obligatorio en modo informar, no en edición)
@@ -1663,6 +1691,7 @@ function wizNext() {
   }
   document.removeEventListener('click', _closeMaterialSearch);
   _wiz.step++;
+  _wizAutoSave();
   renderWizStep();
 }
 
@@ -1670,6 +1699,7 @@ function wizPrev() {
   wizSaveCurrentStep();
   document.removeEventListener('click', _closeMaterialSearch);
   _wiz.step--;
+  _wizAutoSave();
   renderWizStep();
 }
 
@@ -2019,11 +2049,101 @@ function wizSetEmailMode(mode) {
   renderWizStep();
 }
 
+function _validarDNI(dni) {
+  if (!dni) return false;
+  dni = dni.toUpperCase().trim().replace(/[\s\-\.]/g, '');
+  const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
+
+  // ── DNI: 8 dígitos + letra (con verificación de letra) ──
+  let match = dni.match(/^(\d{8})([A-Z])$/);
+  if (match) {
+    return letras[parseInt(match[1]) % 23] === match[2];
+  }
+
+  // ── NIE: X/Y/Z + 7 dígitos + letra (con verificación de letra) ──
+  match = dni.match(/^([XYZ])(\d{7})([A-Z])$/);
+  if (match) {
+    const prefix = { X: '0', Y: '1', Z: '2' }[match[1]];
+    return letras[parseInt(prefix + match[2]) % 23] === match[3];
+  }
+
+  // ── NIF especial: K/L/M + 7 dígitos + letra ──
+  // K = menores 14 años, L = españoles en extranjero, M = extranjeros sin NIE
+  match = dni.match(/^([KLM])(\d{7})([A-Z])$/);
+  if (match) {
+    return letras[parseInt(match[2]) % 23] === match[3];
+  }
+
+  // ── CIF: letra + 7 dígitos + dígito/letra de control (verificación completa) ──
+  // A=SA, B=SL, C=Colectiva, D=Comanditaria, E=Comunidad de bienes,
+  // F=Cooperativa, G=Asociación, H=Comunidad propietarios, J=Sociedad civil,
+  // N=Entidad extranjera, P=Corporación local, Q=Organismo público,
+  // R=Congregación religiosa, S=Admón Estado, U=UTE, V=Otros, W=Establec. permanente
+  match = dni.match(/^([ABCDEFGHJNPQRSUVW])(\d{7})([0-9A-J])$/);
+  if (match) {
+    const tipo = match[1];
+    const nums = match[2];
+    const control = match[3];
+
+    // Algoritmo de control CIF
+    let sumPar = 0, sumImpar = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = parseInt(nums[i]);
+      if (i % 2 === 0) {
+        // Posiciones impares (1ª,3ª,5ª,7ª): multiplicar por 2, sumar dígitos
+        const doble = d * 2;
+        sumImpar += Math.floor(doble / 10) + (doble % 10);
+      } else {
+        // Posiciones pares (2ª,4ª,6ª): sumar directamente
+        sumPar += d;
+      }
+    }
+    const total = sumPar + sumImpar;
+    const digitoControl = (10 - (total % 10)) % 10;
+    const letraControl = 'JABCDEFGHI'[digitoControl];
+
+    // Según tipo de entidad: control es dígito, letra, o ambos
+    const soloDigito = 'ABEH';    // Siempre dígito de control
+    const soloLetra = 'KPQS';     // Siempre letra de control
+    // El resto (C,D,F,G,J,N,R,U,V,W): aceptan dígito o letra
+
+    if (soloDigito.includes(tipo)) {
+      return control === String(digitoControl);
+    } else if (soloLetra.includes(tipo)) {
+      return control === letraControl;
+    } else {
+      return control === String(digitoControl) || control === letraControl;
+    }
+  }
+
+  return false;
+}
+
 function wizConfirmFirma(tipo) {
   const isCliente = tipo === 'cliente';
   const canvas = isCliente ? document.getElementById('firmaCanvas') : document.getElementById('firmaCanvasOp');
   const ctx = isCliente ? _firmaCtx : _firmaOpCtx;
   const hasTouched = isCliente ? _firmaHasTouched : _firmaOpHasTouched;
+
+  // Validar nombre y DNI para firma del receptor
+  if (isCliente) {
+    const nombre = (document.getElementById('wz_cli_nombre')?.value || '').trim();
+    const palabras = nombre.split(/\s+/).filter(w => w.length > 0);
+    if (palabras.length < 3) {
+      toast('⚠️ El nombre debe tener al menos 3 palabras (nombre + 2 apellidos)', 'error');
+      document.getElementById('wz_cli_nombre')?.focus();
+      return;
+    }
+    _wiz.clienteNombre = nombre;
+
+    const dni = (document.getElementById('wz_cli_dni')?.value || '').toUpperCase().trim();
+    if (!_validarDNI(dni)) {
+      toast('⚠️ Documento no válido. Acepta: DNI, NIE, CIF', 'error');
+      document.getElementById('wz_cli_dni')?.focus();
+      return;
+    }
+    _wiz.clienteDni = dni;
+  }
 
   if (!canvas || !hasTouched) {
     toast('Debes firmar primero', 'error');
@@ -2342,8 +2462,7 @@ async function wizFinish() {
       cliente_email: _wiz.clienteEmail || null,
       cliente_dni: _wiz.clienteDni || null,
       // cliente_sin_email removed — column does not exist in DB
-      ubicacion_firma_cliente: _wiz.ubicacion_firma_cliente || null,
-      ubicacion_firma_operario: _wiz.ubicacion_firma_operario || null,
+      // ubicacion_firma_cliente/operario — columnas no existen aún en DB
     };
     if (ubicacionFin) updateObj.ubicacion_fin = ubicacionFin;
 
@@ -2358,6 +2477,7 @@ async function wizFinish() {
     const p = misPartes.find(x => x.id === id);
     if (p) Object.assign(p, updateObj);
 
+    _wizClearAutoSave(id);
     toast('✅ Parte informado y enviado', 'success');
     closeModal();
     document.removeEventListener('click', _closeMaterialSearch);
@@ -2644,27 +2764,43 @@ function openInformarWizard(id) {
     }
   }
 
-  _wiz = {
-    parteId: id,
-    step: 0,
-    mode: 'informar',
-    desc: p.descripcion || '',
-    pendientes_checked: !!p.trabajos_pendientes,
-    pendientes: p.trabajos_pendientes || '',
-    observaciones: p.observaciones || '',
-    fotos: p.fotos ? [...p.fotos] : [],
-    fotosNuevas: [],
-    materiales: p.materiales ? [...p.materiales] : [],
-    manoObra: autoManoObra,
-    firmaData: null,
-    firmaOperario: null,
-    firmaData_validated: false,
-    firmaOperario_validated: false,
-    clienteEmailMode: _prefillEmail ? 'si' : 'si',
-    clienteEmail: _prefillEmail,
-    clienteNombre: _prefillNombre,
-    clienteDni: p.cliente_dni || '',
-  };
+  // Intentar recuperar progreso auto-guardado
+  const _saved = _wizLoadAutoSave(id);
+  if (_saved && _saved.mode === 'informar') {
+    _wiz = Object.assign(_saved, {
+      parteId: id,
+      firmaData: null,
+      firmaOperario: null,
+      firmaData_validated: false,
+      firmaOperario_validated: false,
+      fotosNuevas: [],
+    });
+    // Mantener manoObra calculada si no tenía guardada
+    if (!_wiz.manoObra || !_wiz.manoObra.length) _wiz.manoObra = autoManoObra;
+    toast('Se ha recuperado tu progreso anterior', 'success');
+  } else {
+    _wiz = {
+      parteId: id,
+      step: 0,
+      mode: 'informar',
+      desc: p.descripcion || '',
+      pendientes_checked: !!p.trabajos_pendientes,
+      pendientes: p.trabajos_pendientes || '',
+      observaciones: p.observaciones || '',
+      fotos: p.fotos ? [...p.fotos] : [],
+      fotosNuevas: [],
+      materiales: p.materiales ? [...p.materiales] : [],
+      manoObra: autoManoObra,
+      firmaData: null,
+      firmaOperario: null,
+      firmaData_validated: false,
+      firmaOperario_validated: false,
+      clienteEmailMode: 'si',
+      clienteEmail: _prefillEmail,
+      clienteNombre: _prefillNombre,
+      clienteDni: p.cliente_dni || '',
+    };
+  }
   renderWizStep();
 }
 
