@@ -413,7 +413,7 @@ async function loadAllData() {
       sb.from('perfiles').select('*').eq('empresa_id', eid).eq('activo', true),
       sb.from('trabajos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}),
       sb.from('clientes').select('*').eq('empresa_id', eid).order('nombre'),
-      sb.from('articulos').select('id,codigo,nombre,precio_venta,unidad').eq('empresa_id', eid).eq('activo', true).order('nombre'),
+      sb.from('articulos').select('id,codigo,nombre,precio_venta').eq('empresa_id', eid).eq('activo', true).order('nombre'),
     ];
 
     // Jefe: cargar tareas de todas las obras; Operario: solo sus tareas
@@ -1226,7 +1226,12 @@ function wizSaveCurrentStep() {
     // Capturar firma si hay algo dibujado
     const canvas = document.getElementById('firmaCanvas');
     if (canvas && _firmaHasTouched) {
-      _wiz.firmaData = canvas.toDataURL('image/png');
+      try {
+        _wiz.firmaData = canvas.toDataURL('image/png');
+      } catch(e) {
+        console.warn('Canvas tainted, no se puede exportar firma:', e.message);
+        // No sobrescribir la firma existente si el canvas está contaminado
+      }
     }
   }
 }
@@ -1447,7 +1452,9 @@ function initFirmaCanvas() {
   // Si ya hay firma guardada, restaurar
   if (_wiz.firmaData) {
     const img = new Image();
+    img.crossOrigin = 'anonymous'; // Evitar tainted canvas
     img.onload = () => { _firmaCtx.drawImage(img, 0, 0, canvas.width, canvas.height); _firmaHasTouched = true; };
+    img.onerror = () => { console.warn('No se pudo cargar firma previa'); _firmaHasTouched = false; };
     img.src = _wiz.firmaData;
     document.getElementById('firmaPlaceholder').style.display = 'none';
   }
@@ -1514,7 +1521,12 @@ async function wizFinish() {
     // Capturar firma final
     const canvas = document.getElementById('firmaCanvas');
     if (canvas && _firmaHasTouched) {
-      _wiz.firmaData = canvas.toDataURL('image/png');
+      try {
+        _wiz.firmaData = canvas.toDataURL('image/png');
+      } catch(e) {
+        console.warn('Canvas tainted, usando firma previa si existe:', e.message);
+        // Si el canvas está contaminado pero ya teníamos una firma URL, la mantenemos
+      }
     }
     if (!_wiz.firmaData) {
       toast('El cliente debe firmar', 'error'); return;
