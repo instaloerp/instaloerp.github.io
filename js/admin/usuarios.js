@@ -233,7 +233,7 @@ function editUsuario(uid) {
   const btnSave = document.querySelector('#mNuevoUsuario .modal-f .btn-primary');
   if (btnSave) btnSave.textContent = '💾 Guardar cambios';
 
-  openModal('mNuevoUsuario');
+  openModal('mNuevoUsuario', true);  // skipReset=true para NO borrar los datos que acabamos de poner
 }
 
 async function delUsuario(id) {
