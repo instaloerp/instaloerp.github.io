@@ -386,7 +386,7 @@ async function showApp() {
   const btnModo = document.getElementById('btnModo');
   if (CP?.es_superadmin) {
     btnModo.style.display = '';
-    btnModo.textContent = esJefe ? '👷 Ver como Operario' : '⚙️ Administrador';
+    btnModo.textContent = esJefe ? '👷 Operario' : '⚙️ Administrador';
     btnModo.style.background = esJefe ? '#F59E0B' : '#3B82F6';
     btnModo.style.color = '#fff';
   } else {
