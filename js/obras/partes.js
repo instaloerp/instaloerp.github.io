@@ -1208,6 +1208,16 @@ async function eliminarParte(id) {
   partesData = partesData.filter(p => p.id !== id);
   partesFiltrados = partesFiltrados.filter(p => p.id !== id);
   renderPartes(partesFiltrados.length ? partesFiltrados : partesData);
+
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId) {
+    try { abrirFichaObra(obraActualId, false); } catch(e) {}
+  }
+  // Refrescar dashboard
+  if (typeof loadDashboard === 'function') {
+    try { loadDashboard(); } catch(e) {}
+  }
+
   toast('Parte ' + (parte.numero || '') + ' eliminado ✓', 'ok');
 }
 

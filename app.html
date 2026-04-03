@@ -585,9 +585,9 @@ function renderOperarioInicio(el) {
             <span style="color:var(--gris-400);font-size:12px;font-weight:700;background:var(--gris-100);padding:2px 8px;border-radius:12px">${partes.length}</span>
             <span style="color:var(--gris-400);font-size:16px;transition:transform .2s" class="day-toggle" data-date="${fecha}">▼</span>
           </div>
-          <div id="day-\${fecha}" class="day-section \${isToday?'expanded':'collapsed'}" style="max-height:\${isToday?'999px':'0'};overflow:hidden;transition:max-height .3s ease">
+          <div id="day-${fecha}" class="day-section ${isToday?'expanded':'collapsed'}" style="max-height:${isToday?'999px':'0'};overflow:hidden;transition:max-height .3s ease">
             <div style="padding:8px 0">
-              \${partes.map(p => renderParteCard(p)).join('')}
+              ${partes.map(p => renderParteCard(p)).join('')}
             </div>
           </div>
         </div>
