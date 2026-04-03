@@ -5,6 +5,7 @@
 // Docs attached to work
 let trDocsFiles = [];
 let obraActualId = null;
+let obraActualPresupuestos = [];
 let obraTabActual = 'presupuestos'; // recordar pestaña activa
 
 // ═══════════════════════════════════════════════
@@ -300,6 +301,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const presupData = (presups.data||[]).filter(p =>
     p.trabajo_id === id || (t.presupuesto_id && p.id === t.presupuesto_id)
   );
+  obraActualPresupuestos = presupData;
   // Crear set con TODOS los presupuesto_id vinculados a esta obra para buscar alb/fact
   const _presIdsObra = new Set(presupData.map(p=>p.id));
   const albData = (albs.data||[]).filter(a =>
@@ -1172,8 +1174,8 @@ function siguientePasoObra(etapas, t) {
     tip: 'Cuando el cliente acepte, cambia el estado del presupuesto a "Aceptado"'
   };
   if (!etapas.programado) return {
-    texto: 'Presupuesto aprobado. Crea un parte de trabajo para programar la ejecución.',
-    accion: 'nuevoParteObraActual()', boton: '📝 Crear parte de trabajo', prioridad: 'alta'
+    texto: 'Presupuesto aprobado. Programa la primera cita con el operario.',
+    accion: 'programarCitaObraActual()', boton: '📅 Programar cita', prioridad: 'alta'
   };
   if (!etapas.ejecucion) return {
     texto: 'Obra programada. Cuando empiece el trabajo, registra el avance en los partes.',
@@ -1348,16 +1350,21 @@ function nuevoAlbaranObraActual() {
 
 function nuevoParteObraActual() {
   if (!obraActualId) return;
-  if (typeof nuevoParteModal === 'function') {
-    nuevoParteModal();
-    setTimeout(() => {
-      const sel = document.getElementById('pt_trabajo');
-      if (sel) {
-        sel.value = obraActualId;
-        sel.dispatchEvent(new Event('change'));
-      }
-    }, 300);
-  }
+  nuevoParteDesdeObra(obraActualId);
+}
+
+function programarCitaObraActual() {
+  if (!obraActualId) return;
+  // Buscar presupuesto aceptado de esta obra
+  const obra = trabajos.find(t => t.id === obraActualId);
+  const presup = obraActualPresupuestos?.find(p => p.estado === 'aceptado') || null;
+  const dir = obra?.direccion_obra_texto || '';
+  programarCitaDesdeObra(
+    obraActualId,
+    presup?.id || null,
+    presup?.numero || null,
+    dir
+  );
 }
 
 // ═══════════════════════════════════════════════

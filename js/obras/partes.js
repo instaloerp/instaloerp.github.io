@@ -13,6 +13,7 @@ let pt_materiales = [];             // Array de materiales temporales
 let pt_fotos = [];                  // Array de fotos temporales
 let pt_acMouseOver = false;         // Para evitar cerrar dropdown de autocomplete
 let pt_acTimer = null;              // Timer para debounce de búsqueda
+let pt_checklist = [];              // Array de items del checklist
 
 // ═══════════════════════════════════════════════════════════════════════
 // CARGA Y RENDERIZADO PRINCIPAL
@@ -43,19 +44,23 @@ async function loadPartes() {
   }
 }
 
-function renderPartes(list) {
-  // ─ Estados con colores
-  const ESTADOS = {
-    borrador:     { label: 'Borrador',        color: '#9CA3AF', bg: '#F3F4F6' },
-    enviado:      { label: 'Enviado',         color: '#3B82F6', bg: '#EFF6FF' },
-    revisado:     { label: 'Revisado',        color: '#10B981', bg: '#ECFDF5' },
-    facturado:    { label: 'Facturado',       color: '#8B5CF6', bg: '#F5F3FF' }
-  };
+// Estados globales del parte (flujo de 3 fases)
+const PT_ESTADOS = {
+  programado:  { label:'Programado',  color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
+  en_curso:    { label:'En curso',    color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
+  completado:  { label:'Completado',  color:'#059669', bg:'#ECFDF5',  ico:'✅' },
+  revisado:    { label:'Revisado',    color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
+  facturado:   { label:'Facturado',   color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
+  borrador:    { label:'Borrador',    color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
+  enviado:     { label:'Enviado',     color:'#3B82F6', bg:'#EFF6FF',  ico:'📤' },
+};
 
+function renderPartes(list) {
   // ─ Calcular KPIs
   const kpiTotal = partesData.length;
   const kpiHoras = partesData.reduce((s, p) => s + (parseFloat(p.horas) || 0), 0);
-  const kpiPend = partesData.filter(p => p.estado === 'borrador' || p.estado === 'enviado').length;
+  const kpiProg = partesData.filter(p => p.estado === 'programado').length;
+  const kpiPend = partesData.filter(p => p.estado === 'completado').length;
   const kpiMat = partesData.reduce((s, p) => {
     if (!p.materiales || !Array.isArray(p.materiales)) return s;
     return s + p.materiales.reduce((sm, m) => sm + (parseFloat(m.total) || 0), 0);
@@ -65,15 +70,15 @@ function renderPartes(list) {
   const el = id => document.getElementById(id);
   if (el('pt-kpi-total')) el('pt-kpi-total').textContent = kpiTotal;
   if (el('pt-kpi-horas')) el('pt-kpi-horas').textContent = kpiHoras.toFixed(1);
-  if (el('pt-kpi-pendientes')) el('pt-kpi-pendientes').textContent = kpiPend;
-  if (el('pt-kpi-material')) el('pt-kpi-material').textContent = fmtE(kpiMat);
+  if (el('pt-kpi-pendientes')) { el('pt-kpi-pendientes').textContent = kpiProg; }
+  if (el('pt-kpi-material')) el('pt-kpi-material').textContent = kpiPend;
 
   // ─ Renderizar tabla
   const tbody = document.getElementById('ptTable');
   if (!tbody) return;
 
   tbody.innerHTML = list.length ? list.map(p => {
-    const est = ESTADOS[p.estado] || { label: p.estado || '—', color: '#6B7280', bg: '#F3F4F6' };
+    const est = PT_ESTADOS[p.estado] || { label: p.estado || '—', color: '#6B7280', bg: '#F3F4F6', ico:'📝' };
     const hora_inicio = p.hora_inicio ? p.hora_inicio.substring(0, 5) : '—';
     const hora_fin = p.hora_fin ? p.hora_fin.substring(0, 5) : '—';
     const horas = (parseFloat(p.horas) || 0).toFixed(1);
@@ -87,13 +92,12 @@ function renderPartes(list) {
       <td style="font-size:12.5px">${hora_inicio} - ${hora_fin}</td>
       <td style="text-align:center;font-weight:600">${horas}h</td>
       <td style="text-align:center">
-        <span style="background:${est.bg};color:${est.color};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600">${est.label}</span>
+        <span style="background:${est.bg};color:${est.color};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600">${est.ico} ${est.label}</span>
       </td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:3px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="verDetalleParte(${p.id})" title="Ver">👁️</button>
           <button class="btn btn-ghost btn-sm" onclick="editarParte(${p.id})" title="Editar">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="delParte(${p.id})" title="Eliminar">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -149,10 +153,11 @@ function nuevoParteModal(preselObraId) {
   poblarSelectOperario();
 
   // Limpiar campos de texto
-  ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones'].forEach(id => {
+  ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones', 'pt_instrucciones', 'pt_pendientes', 'pt_direccion'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  pt_checklist = [];
 
   // Prefijar fecha de hoy y horario por defecto
   const hoy = new Date().toISOString().split('T')[0];
@@ -164,6 +169,9 @@ function nuevoParteModal(preselObraId) {
   if (elFin && !elFin.value) elFin.value = '14:00';
 
   document.getElementById('mParteTit').textContent = 'Nuevo Parte de Trabajo';
+  window._pt_presupuesto_id = null;
+  window._pt_presupuesto_numero = null;
+  pt_renderChecklist();
   pt_renderMateriales();
   pt_renderFotos();
   limpiarFirma();
@@ -174,6 +182,58 @@ function nuevoParteModal(preselObraId) {
 // Abrir nuevo parte pre-seleccionando la obra (llamado desde ficha de obra)
 function nuevoParteDesdeObra(obraId) {
   nuevoParteModal(obraId);
+}
+
+// Programar cita desde obra con datos del presupuesto
+function programarCitaDesdeObra(obraId, presupuestoId, presupuestoNumero, clienteDireccion) {
+  nuevoParteModal(obraId);
+  // Pre-rellenar campos
+  if (presupuestoNumero) {
+    const instrEl = document.getElementById('pt_instrucciones');
+    if (instrEl) instrEl.value = `Trabajo según presupuesto ${presupuestoNumero}`;
+  }
+  if (clienteDireccion) {
+    const dirEl = document.getElementById('pt_direccion');
+    if (dirEl) dirEl.value = clienteDireccion;
+  }
+  // Guardar referencia al presupuesto (se usará al guardar)
+  window._pt_presupuesto_id = presupuestoId || null;
+  window._pt_presupuesto_numero = presupuestoNumero || null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CHECKLIST
+// ═══════════════════════════════════════════════════════════════════════
+
+function pt_addCheckItem() {
+  const input = document.getElementById('pt_checklist_new');
+  const texto = input?.value?.trim();
+  if (!texto) return;
+  pt_checklist.push({ texto, done: false });
+  input.value = '';
+  pt_renderChecklist();
+}
+
+function pt_removeCheckItem(i) {
+  pt_checklist.splice(i, 1);
+  pt_renderChecklist();
+}
+
+function pt_toggleCheckItem(i) {
+  if (pt_checklist[i]) pt_checklist[i].done = !pt_checklist[i].done;
+  pt_renderChecklist();
+}
+
+function pt_renderChecklist() {
+  const container = document.getElementById('pt_checklist_items');
+  if (!container) return;
+  container.innerHTML = pt_checklist.map((c, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:${c.done?'#ECFDF5':'white'};border:1px solid var(--gris-200);border-radius:6px">
+      <input type="checkbox" ${c.done?'checked':''} onchange="pt_toggleCheckItem(${i})" style="cursor:pointer">
+      <span style="flex:1;font-size:12.5px;${c.done?'text-decoration:line-through;color:var(--gris-400)':''}">${c.texto}</span>
+      <button onclick="pt_removeCheckItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:12px;padding:0 4px">✕</button>
+    </div>
+  `).join('');
 }
 
 // Poblar select de operarios con todos los usuarios activos
@@ -216,6 +276,9 @@ async function editarParte(id) {
   poblarSelectOperario(parte.usuario_id);
 
   // Cargar datos en el formulario
+  pt_checklist = parte.checklist ? [...parte.checklist] : [];
+  window._pt_presupuesto_id = parte.presupuesto_id || null;
+  window._pt_presupuesto_numero = parte.presupuesto_numero || null;
   setVal({
     pt_trabajo: parte.trabajo_id || '',
     pt_fecha: parte.fecha || '',
@@ -223,10 +286,14 @@ async function editarParte(id) {
     pt_fin: parte.hora_fin || '',
     pt_desc: parte.descripcion || '',
     pt_observaciones: parte.observaciones || '',
-    pt_usuario: parte.usuario_id || ''
+    pt_usuario: parte.usuario_id || '',
+    pt_instrucciones: parte.instrucciones || '',
+    pt_direccion: parte.direccion || '',
+    pt_pendientes: parte.trabajos_pendientes || '',
   });
 
   document.getElementById('mParteTit').textContent = 'Editar Parte de Trabajo';
+  pt_renderChecklist();
   pt_renderMateriales();
   pt_renderFotos();
   if (parte.firma_url) {
@@ -599,8 +666,20 @@ async function guardarParte(estado = 'borrador') {
     fotos: fotos_urls.length > 0 ? fotos_urls : null,
     firma_url,
     estado,
-    observaciones: v('pt_observaciones') || null
+    observaciones: v('pt_observaciones') || null,
+    // Nuevos campos fase programación
+    instrucciones: v('pt_instrucciones') || null,
+    checklist: pt_checklist.length > 0 ? pt_checklist : null,
+    direccion: v('pt_direccion') || null,
+    trabajos_pendientes: v('pt_pendientes') || null,
+    presupuesto_id: window._pt_presupuesto_id || null,
+    presupuesto_numero: window._pt_presupuesto_numero || null,
   };
+  // Si se programa, guardar quién programó
+  if (estado === 'programado' && !pt_edicion) {
+    payload.programado_por = CU?.id || null;
+    payload.programado_por_nombre = CP?.nombre || '';
+  }
 
   // Insertar o actualizar
   let error;
@@ -633,17 +712,88 @@ async function guardarParte(estado = 'borrador') {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function cambiarEstadoParte(id, estado) {
-  const { error } = await sb.from('partes_trabajo')
-    .update({ estado })
-    .eq('id', id);
+  const updateObj = { estado };
+  const parte = partesData.find(p => p.id === id);
 
+  // Si se marca como revisado, guardar quién revisó
+  if (estado === 'revisado') {
+    updateObj.revisado_por = CU?.id || null;
+    updateObj.revisado_por_nombre = CP?.nombre || '';
+    updateObj.revisado_at = new Date().toISOString();
+  }
+  if (estado === 'completado') {
+    updateObj.completado_at = new Date().toISOString();
+  }
+
+  const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  const parte = partesData.find(p => p.id === id);
-  if (parte) parte.estado = estado;
+  if (parte) Object.assign(parte, updateObj);
 
-  toast('Estado actualizado ✓', 'success');
+  // ── AUTOMATIZACIONES POST-CAMBIO ──
+  if (parte) {
+    const fechaCorta = new Date().toLocaleDateString('es-ES');
+
+    // Cuando operario completa → tarea para el admin que programó
+    if (estado === 'completado') {
+      const responsableId = parte.programado_por || null;
+      const responsableNombre = parte.programado_por_nombre || 'Administración';
+      // Tarea: revisar parte
+      try {
+        await sb.from('tareas_obra').insert({
+          empresa_id: EMPRESA.id,
+          trabajo_id: parte.trabajo_id || null,
+          texto: `📝 Parte ${parte.numero} completado por ${parte.usuario_nombre||'operario'} el ${fechaCorta} — Pendiente de revisión`,
+          estado: 'pendiente',
+          prioridad: 'alta',
+          responsable_id: responsableId,
+          responsable_nombre: responsableNombre,
+          creado_por: CU?.id || null,
+          creado_por_nombre: CP?.nombre || 'Sistema',
+        });
+      } catch(e) { console.error('Error creando tarea revisión:', e); }
+
+      // Si hay trabajos pendientes → tarea extra
+      if (parte.trabajos_pendientes) {
+        try {
+          await sb.from('tareas_obra').insert({
+            empresa_id: EMPRESA.id,
+            trabajo_id: parte.trabajo_id || null,
+            texto: `⚠️ Trabajos pendientes en parte ${parte.numero}: ${parte.trabajos_pendientes.substring(0,100)}${parte.trabajos_pendientes.length>100?'...':''}`,
+            estado: 'pendiente',
+            prioridad: 'urgente',
+            responsable_id: responsableId,
+            responsable_nombre: responsableNombre,
+            creado_por: null,
+            creado_por_nombre: 'Sistema — Parte completado',
+          });
+        } catch(e) { console.error('Error creando tarea pendientes:', e); }
+      }
+
+      // Registro en audit_log de la obra
+      if (parte.trabajo_id) {
+        registrarActividadObra(parte.trabajo_id, 'Parte completado', `✅ ${parte.numero} completado por ${parte.usuario_nombre||'—'} · ${parseFloat(parte.horas||0).toFixed(1)}h${parte.trabajos_pendientes ? ' ⚠️ Con trabajos pendientes' : ''}`);
+      }
+    }
+
+    // Cuando admin revisa → registro
+    if (estado === 'revisado' && parte.trabajo_id) {
+      registrarActividadObra(parte.trabajo_id, 'Parte revisado', `👁️ ${parte.numero} revisado por ${CP?.nombre||'—'}`);
+    }
+  }
+
+  const estInfo = PT_ESTADOS[estado] || {};
+  toast(`${estInfo.ico||''} ${estInfo.label||estado} ✓`, 'success');
   renderPartes(partesFiltrados.length ? partesFiltrados : partesData);
+}
+
+async function avanzarEstadoParte(id, nuevoEstado) {
+  await cambiarEstadoParte(id, nuevoEstado);
+  closeModal('dtlPartes');
+  // Si ahora está completado, reabrir para que el admin vea el resultado
+  if (nuevoEstado === 'revisado' || nuevoEstado === 'completado') {
+    setTimeout(() => verDetalleParte(id), 300);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -654,17 +804,11 @@ function verDetalleParte(id) {
   const parte = partesData.find(p => p.id === id);
   if (!parte) return;
 
-  const ESTADOS = {
-    borrador: 'Borrador',
-    enviado: 'Enviado',
-    revisado: 'Revisado',
-    facturado: 'Facturado'
-  };
-
   const hora_inicio = parte.hora_inicio ? parte.hora_inicio.substring(0, 5) : '—';
   const hora_fin = parte.hora_fin ? parte.hora_fin.substring(0, 5) : '—';
   const horas = (parseFloat(parte.horas) || 0).toFixed(1);
   const fecha = parte.fecha ? new Date(parte.fecha).toLocaleDateString('es-ES') : '—';
+  const est = PT_ESTADOS[parte.estado] || PT_ESTADOS.borrador;
 
   // Materiales
   let matHTML = '';
@@ -718,20 +862,40 @@ function verDetalleParte(id) {
     </div>`;
   }
 
+  // Checklist
+  let checkHTML = '';
+  if (parte.checklist && Array.isArray(parte.checklist) && parte.checklist.length > 0) {
+    checkHTML = `<div style="margin:16px 0">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">✅ Checklist</h4>
+      ${parte.checklist.map(c => `<div style="display:flex;align-items:center;gap:6px;padding:4px 0">
+        <span style="font-size:14px">${c.done ? '☑️' : '⬜'}</span>
+        <span style="font-size:12.5px;${c.done?'text-decoration:line-through;color:var(--gris-400)':''}">${c.texto||''}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Siguiente acción según estado
+  const nextAction = {
+    programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', color:'var(--acento)'},
+    en_curso:   {label:'✅ Marcar completado', estado:'completado', color:'var(--verde)'},
+    completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
+    revisado:   {label:'🧾 Marcar facturado', estado:'facturado', color:'#8B5CF6'},
+  };
+  const next = nextAction[parte.estado];
+
   const html = `<div style="padding:20px;max-height:70vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
       <div>
         <h2 style="margin:0 0 4px;font-size:20px;font-weight:700">${parte.numero}</h2>
-        <p style="margin:0;color:var(--gris-600);font-size:13px">${parte.trabajo_titulo}</p>
+        <p style="margin:0;color:var(--gris-600);font-size:13px">${parte.trabajo_titulo||'Sin obra'}</p>
+        ${parte.presupuesto_numero ? `<p style="margin:4px 0 0;font-size:11px;color:var(--azul)">📋 Presupuesto: ${parte.presupuesto_numero}</p>` : ''}
       </div>
-      <span style="background:${parte.estado === 'borrador' ? '#F3F4F6' : parte.estado === 'enviado' ? '#EFF6FF' : parte.estado === 'revisado' ? '#ECFDF5' : '#F5F3FF'};
-        color:${parte.estado === 'borrador' ? '#9CA3AF' : parte.estado === 'enviado' ? '#3B82F6' : parte.estado === 'revisado' ? '#10B981' : '#8B5CF6'};
-        padding:6px 12px;border-radius:16px;font-size:11px;font-weight:700">
-        ${ESTADOS[parte.estado] || parte.estado}
+      <span style="background:${est.bg};color:${est.color};padding:6px 12px;border-radius:16px;font-size:11px;font-weight:700">
+        ${est.ico} ${est.label}
       </span>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;padding:12px;background:var(--gris-50);border-radius:8px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;padding:12px;background:var(--gris-50);border-radius:8px">
       <div>
         <div style="font-size:11px;color:var(--gris-600);font-weight:700;text-transform:uppercase">Fecha</div>
         <div style="font-size:14px;font-weight:600">${fecha}</div>
@@ -745,13 +909,24 @@ function verDetalleParte(id) {
         <div style="font-size:14px;font-weight:600">${horas}h</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--gris-600);font-weight:700;text-transform:uppercase">Usuario</div>
+        <div style="font-size:11px;color:var(--gris-600);font-weight:700;text-transform:uppercase">Operario</div>
         <div style="font-size:14px;font-weight:600">${parte.usuario_nombre || '—'}</div>
       </div>
+      ${parte.direccion ? `<div style="grid-column:1/-1">
+        <div style="font-size:11px;color:var(--gris-600);font-weight:700;text-transform:uppercase">Dirección</div>
+        <div style="font-size:13px;font-weight:600">${parte.direccion}</div>
+      </div>` : ''}
     </div>
 
-    ${parte.descripcion ? `<div style="margin:16px 0;padding:12px;background:var(--gris-50);border-left:3px solid var(--azul);border-radius:4px">
-      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Descripción</h4>
+    ${parte.instrucciones ? `<div style="margin:16px 0;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:4px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">📋 Instrucciones del trabajo</h4>
+      <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.instrucciones}</p>
+    </div>` : ''}
+
+    ${checkHTML}
+
+    ${parte.descripcion ? `<div style="margin:16px 0;padding:12px;background:var(--gris-50);border-left:3px solid var(--verde);border-radius:4px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">🔧 Trabajo realizado</h4>
       <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.descripcion}</p>
     </div>` : ''}
 
@@ -759,23 +934,33 @@ function verDetalleParte(id) {
     ${fotosHTML}
     ${firmaHTML}
 
-    ${parte.observaciones ? `<div style="margin:16px 0;padding:12px;background:#FFF8DC;border-left:3px solid var(--acento);border-radius:4px">
-      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Observaciones</h4>
+    ${parte.trabajos_pendientes ? `<div style="margin:16px 0;padding:12px;background:#FFF8DC;border-left:3px solid var(--acento);border-radius:4px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">⚠️ Trabajos pendientes</h4>
+      <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.trabajos_pendientes}</p>
+    </div>` : ''}
+
+    ${parte.observaciones ? `<div style="margin:16px 0;padding:12px;background:var(--gris-50);border-left:3px solid var(--gris-400);border-radius:4px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">📝 Observaciones</h4>
       <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.observaciones}</p>
     </div>` : ''}
 
-    <div style="margin:20px 0;padding-top:20px;border-top:1px solid var(--gris-200);display:flex;gap:8px;flex-wrap:wrap">
-      <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-primary btn-sm">✏️ Editar</button>
+    ${parte.revision_notas ? `<div style="margin:16px 0;padding:12px;background:#ECFDF5;border-left:3px solid #10B981;border-radius:4px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">👁️ Notas de revisión</h4>
+      <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.revision_notas}</p>
+      ${parte.revisado_por_nombre ? `<div style="font-size:10.5px;color:var(--gris-400);margin-top:6px">Revisado por ${parte.revisado_por_nombre} · ${parte.revisado_at ? new Date(parte.revisado_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>` : ''}
+    </div>` : ''}
+
+    <div style="margin:20px 0;padding-top:20px;border-top:1px solid var(--gris-200);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      ${next ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
+      <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-secondary btn-sm">✏️ Editar</button>
+      <button onclick="exportarPartePDF(${parte.id})" class="btn btn-ghost btn-sm">📄 PDF</button>
 
       ${parte.estado !== 'facturado' ? `
-        <select onchange="cambiarEstadoParte(${parte.id},this.value);closeModal('dtlPartes')" style="padding:6px 12px;border:1px solid var(--gris-300);border-radius:6px;font-size:13px;cursor:pointer">
-          <option value="">— Cambiar estado —</option>
-          ${['borrador', 'enviado', 'revisado', 'facturado'].filter(e => e !== parte.estado).map(e => `<option value="${e}">${ESTADOS[e]}</option>`).join('')}
+        <select onchange="if(this.value)cambiarEstadoParte(${parte.id},this.value);closeModal('dtlPartes')" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">
+          <option value="">Estado...</option>
+          ${Object.keys(PT_ESTADOS).filter(e => e !== parte.estado).map(e => `<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
         </select>
       ` : ''}
-
-      <button onclick="exportarPartePDF(${parte.id})" class="btn btn-ghost btn-sm">📄 PDF</button>
-      <button onclick="delParte(${parte.id});closeModal('dtlPartes')" class="btn btn-ghost btn-sm" style="color:var(--rojo)">🗑️ Eliminar</button>
     </div>
   </div>`;
 

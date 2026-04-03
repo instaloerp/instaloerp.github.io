@@ -1163,22 +1163,24 @@
             <div id="pt-kpi-horas" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
           </div>
           <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
-            <div id="pt-kpi-pendientes" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">📅 Programados</div>
+            <div id="pt-kpi-pendientes" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
           </div>
           <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Materiales</div>
-            <div id="pt-kpi-material" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">✅ Pte. Revisión</div>
+            <div id="pt-kpi-material" style="font-size:24px;font-weight:800;color:var(--acento)">0</div>
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
           <input type="text" id="pt-filter-texto" placeholder="Buscar..." oninput="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:250px">
           <select id="pt-filter-estado" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los estados</option>
-            <option value="borrador">Borrador</option>
-            <option value="enviado">Enviado</option>
-            <option value="revisado">Revisado</option>
-            <option value="facturado">Facturado</option>
+            <option value="programado">📅 Programado</option>
+            <option value="en_curso">🔧 En curso</option>
+            <option value="completado">✅ Completado</option>
+            <option value="revisado">👁️ Revisado</option>
+            <option value="facturado">🧾 Facturado</option>
+            <option value="borrador">✏️ Borrador</option>
           </select>
           <select id="pt-filter-usuario" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los operarios</option>
@@ -2146,21 +2148,39 @@
   <div class="modal modal-lg" style="max-width:700px">
     <div class="modal-h"><span>📝</span><h2 id="mParteTit">Nuevo Parte de Trabajo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPartes')">✕</button></div>
     <div class="modal-b" style="max-height:70vh;overflow-y:auto">
-      <!-- Obra y fecha -->
-      <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Obra *</label><select id="pt_trabajo"><option value="">— Selecciona obra —</option></select></div>
-        <div class="fg"><label>Fecha *</label><input type="date" id="pt_fecha"></div>
+      <!-- ═══ FASE 1: PROGRAMACIÓN (Oficina) ═══ -->
+      <div style="background:#EFF6FF;border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:800;color:var(--azul);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">📅 Programación</div>
+        <div class="fg-row" style="margin-bottom:11px">
+          <div class="fg"><label>Obra *</label><select id="pt_trabajo"><option value="">— Selecciona obra —</option></select></div>
+          <div class="fg"><label>Operario *</label><select id="pt_usuario"></select></div>
+        </div>
+        <div class="fg-row" style="margin-bottom:11px">
+          <div class="fg"><label>Fecha *</label><input type="date" id="pt_fecha"></div>
+          <div class="fg"><label>Hora inicio *</label><input type="time" id="pt_inicio" value="08:00"></div>
+          <div class="fg"><label>Hora fin *</label><input type="time" id="pt_fin" value="14:00"></div>
+        </div>
+        <div class="fg" style="margin-bottom:11px"><label>Dirección de la obra</label><input id="pt_direccion" placeholder="Dirección donde se realiza el trabajo"></div>
+        <div class="fg" style="margin-bottom:11px"><label>Instrucciones para el operario</label><textarea id="pt_instrucciones" rows="3" placeholder="Qué tiene que hacer, materiales que llevar, acceso, contacto del cliente..." autocorrect="on" spellcheck="true"></textarea></div>
+        <!-- Checklist -->
+        <div style="margin-bottom:4px">
+          <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">✅ Checklist del trabajo</label>
+          <div id="pt_checklist_items" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:6px">
+            <input id="pt_checklist_new" placeholder="Nueva tarea del checklist..." style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();pt_addCheckItem()}">
+            <button class="btn btn-secondary btn-sm" onclick="pt_addCheckItem()" style="font-size:11px">+ Añadir</button>
+          </div>
+        </div>
       </div>
-      <!-- Horario -->
-      <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Hora inicio *</label><input type="time" id="pt_inicio" value="08:00"></div>
-        <div class="fg"><label>Hora fin *</label><input type="time" id="pt_fin" value="14:00"></div>
-        <div class="fg"><label>Operario</label><select id="pt_usuario" disabled></select></div>
+
+      <!-- ═══ FASE 2: EJECUCIÓN (Campo) ═══ -->
+      <div style="background:#FFFBEB;border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:800;color:var(--acento);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">🔧 Ejecución (rellena el operario)</div>
+        <div class="fg" style="margin-bottom:11px"><label>Trabajo realizado</label><textarea id="pt_desc" rows="3" placeholder="Descripción de lo que se ha hecho..." autocorrect="on" spellcheck="true"></textarea></div>
+        <div class="fg" style="margin-bottom:11px"><label>Trabajos pendientes</label><textarea id="pt_pendientes" rows="2" placeholder="Si queda algo por hacer, descríbelo aquí..." autocorrect="on" spellcheck="true"></textarea></div>
+        <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="pt_observaciones" rows="2" placeholder="Notas internas, incidencias..." autocorrect="on" spellcheck="true"></textarea></div>
       </div>
-      <!-- Descripción -->
-      <div class="fg" style="margin-bottom:11px"><label>Descripción del trabajo</label><textarea id="pt_desc" rows="3" placeholder="Detalla el trabajo realizado..." autocorrect="on" spellcheck="true"></textarea></div>
-      <!-- Observaciones -->
-      <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="pt_observaciones" rows="2" placeholder="Notas internas, incidencias..." autocorrect="on" spellcheck="true"></textarea></div>
       <!-- Materiales -->
       <div style="margin-bottom:11px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -2188,8 +2208,8 @@
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mPartes')">Cancelar</button>
-      <button class="btn btn-ghost" onclick="guardarParte('borrador')">💾 Guardar borrador</button>
-      <button class="btn btn-primary" onclick="guardarParte('enviado')">📤 Guardar y enviar</button>
+      <button class="btn btn-ghost" onclick="guardarParte('borrador')">💾 Borrador</button>
+      <button class="btn btn-primary" onclick="guardarParte('programado')">📅 Programar cita</button>
     </div>
   </div>
 </div>
@@ -2937,16 +2957,16 @@
 <div id="acArticulos"></div>
 
 <!-- Core -->
-<script src="js/core/app.js?v=20260403h"></script>
-<script src="js/core/ui.js?v=20260403h"></script>
-<script src="js/core/dashboard.js?v=20260403h"></script>
+<script src="js/core/app.js?v=20260403i"></script>
+<script src="js/core/ui.js?v=20260403i"></script>
+<script src="js/core/dashboard.js?v=20260403i"></script>
 <script src="js/core/sidebar.js"></script>
 
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
-<script src="js/comercial/clientes.js?v=20260403h"></script>
-<script src="js/comercial/presupuestos.js?v=20260403h"></script>
-<script src="js/comercial/albaranes.js?v=20260403h"></script>
+<script src="js/comercial/clientes.js?v=20260403i"></script>
+<script src="js/comercial/presupuestos.js?v=20260403i"></script>
+<script src="js/comercial/albaranes.js?v=20260403i"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
@@ -2964,16 +2984,16 @@
 <script src="js/almacen/traspasos.js"></script>
 
 <!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=20260403h"></script>
+<script src="js/obras/trabajos.js?v=20260403i"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
-<script src="js/obras/calendario.js?v=20260403h"></script>
+<script src="js/obras/calendario.js?v=20260403i"></script>
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js"></script>
 
 <!-- Editor de Documentos -->
-<script src="js/editor/editor.js?v=20260403h"></script>
+<script src="js/editor/editor.js?v=20260403i"></script>
 
 <!-- Administración -->
 <script src="js/admin/usuarios.js"></script>
