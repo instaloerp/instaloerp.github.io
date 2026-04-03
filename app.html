@@ -167,7 +167,7 @@ a{color:var(--azul);text-decoration:none}
 .wiz-steps{display:flex;gap:4px;margin-bottom:20px}
 .wiz-step{flex:1;text-align:center;padding:8px 4px;border-radius:8px;font-size:11px;font-weight:700;background:var(--gris-100);color:var(--gris-400);transition:all .3s}
 .wiz-step.active{background:var(--azul);color:#fff}
-.wiz-step.done{background:var(--verde-light);color:var(--verde)}
+.wiz-step.done{background:var(--verde-light);color:var(--verde);cursor:pointer}
 .wiz-nav{display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)}
 .wiz-nav .btn{flex:1}
 
@@ -195,6 +195,14 @@ a{color:var(--azul);text-decoration:none}
 .firma-container canvas{width:100%;height:200px;display:block}
 .firma-clear{position:absolute;top:8px;right:8px;background:var(--gris-100);border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer}
 .firma-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gris-300);font-size:14px;font-weight:600;pointer-events:none}
+/* ── FULLSCREEN SIGNATURE OVERLAY ── */
+.firma-fullscreen{position:fixed;inset:0;z-index:9999;background:#fff;display:flex;flex-direction:column}
+.firma-fullscreen .firma-fs-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--azul);color:#fff}
+.firma-fullscreen .firma-fs-header h3{margin:0;font-size:16px;font-weight:700}
+.firma-fullscreen .firma-fs-canvas-wrap{flex:1;position:relative;touch-action:none;background:#fff}
+.firma-fullscreen .firma-fs-canvas-wrap canvas{width:100%;height:100%;display:block}
+.firma-fullscreen .firma-fs-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gris-300);font-size:18px;font-weight:600;pointer-events:none}
+.firma-fullscreen .firma-fs-actions{display:flex;gap:8px;padding:12px 16px;background:var(--gris-50)}
 /* Ocultar flechas spinner en inputs numéricos */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
@@ -1391,7 +1399,8 @@ function renderWizStep() {
   // Stepper
   const stepper = WIZ_STEPS.map((s, i) => {
     const cls = i === step ? 'active' : (i < step ? 'done' : '');
-    return `<div class="wiz-step ${cls}">${i < step ? '✓' : s.ico}<br>${s.label}</div>`;
+    const clickable = i < step ? `onclick="wizGoToStep(${i})"` : '';
+    return `<div class="wiz-step ${cls}" ${clickable}>${i < step ? '✓' : s.ico}<br>${s.label}</div>`;
   }).join('');
 
   let content = '';
@@ -1528,10 +1537,11 @@ function renderWizStep() {
                 maxlength="10" oninput="this.value=this.value.toUpperCase()">
             </div>
           </div>
-          <div class="firma-container" id="firmaContainer" style="height:350px">
-            <canvas id="firmaCanvas" width="700" height="350"></canvas>
-            <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
-            <button class="firma-clear" onclick="wizClearFirma('cliente')">🗑️ Borrar</button>
+          <div id="firmaClientePreview" style="border:2px dashed var(--gris-200);border-radius:12px;padding:20px;text-align:center;background:var(--gris-50);min-height:80px;display:flex;align-items:center;justify-content:center">
+            ${_wiz.firmaData ? '<img src="'+_wiz.firmaData+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>'}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button onclick="abrirFirmaFullscreen('cliente')" style="flex:1;background:var(--azul);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaData ? 'Repetir firma' : 'Firmar a pantalla completa'}</button>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:10px;border-radius:6px;font-weight:700;font-size:15px">✅ Validar firma</button>
@@ -1546,10 +1556,11 @@ function renderWizStep() {
           <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario_validated ? '✅' : '▼'}</span>
         </div>
         <div id="firmaOperarioPanel" style="display:none;padding:12px">
-          <div class="firma-container" id="firmaOperarioContainerInner" style="height:350px">
-            <canvas id="firmaCanvasOp" width="700" height="350"></canvas>
-            <div class="firma-placeholder" id="firmaPlaceholderOp">Firme aquí con el dedo</div>
-            <button class="firma-clear" onclick="wizClearFirma('operario')">🗑️ Borrar</button>
+          <div id="firmaOperarioPreview" style="border:2px dashed var(--gris-200);border-radius:12px;padding:20px;text-align:center;background:var(--gris-50);min-height:80px;display:flex;align-items:center;justify-content:center">
+            ${_wiz.firmaOperario ? '<img src="'+_wiz.firmaOperario+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>'}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button onclick="abrirFirmaFullscreen('operario')" style="flex:1;background:var(--violeta);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaOperario ? 'Repetir firma' : 'Firmar a pantalla completa'}</button>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('operario')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
@@ -1644,16 +1655,7 @@ function wizSaveCurrentStep() {
     } else {
       _wiz.clienteEmail = '';
     }
-    // Capturar firma cliente
-    const canvas = document.getElementById('firmaCanvas');
-    if (canvas && _firmaHasTouched && !_wiz.firmaData_validated) {
-      try { _wiz.firmaData = canvas.toDataURL('image/png'); } catch(e) { console.warn('Canvas tainted:', e.message); }
-    }
-    // Capturar firma operario
-    const canvasOp = document.getElementById('firmaCanvasOp');
-    if (canvasOp && _firmaOpHasTouched && !_wiz.firmaOperario_validated) {
-      try { _wiz.firmaOperario = canvasOp.toDataURL('image/png'); } catch(e) { console.warn('Canvas op tainted:', e.message); }
-    }
+    // Las firmas se capturan en cerrarFirmaFullscreen(), no necesitan captura aquí
   }
 }
 
@@ -1698,6 +1700,16 @@ function wizPrev() {
   wizSaveCurrentStep();
   document.removeEventListener('click', _closeMaterialSearch);
   _wiz.step--;
+  _wizAutoSave();
+  renderWizStep();
+}
+
+// Navegar a un paso ya completado (solo pasos anteriores al actual)
+function wizGoToStep(targetStep) {
+  if (targetStep >= _wiz.step) return; // Solo se puede ir a pasos ya hechos
+  wizSaveCurrentStep();
+  document.removeEventListener('click', _closeMaterialSearch);
+  _wiz.step = targetStep;
   _wizAutoSave();
   renderWizStep();
 }
@@ -1922,141 +1934,146 @@ function wizRemoveMO(idx) {
   renderWizStep();
 }
 
-// ── FIRMA DIGITAL ──
-let _firmaCtx = null;
-let _firmaDrawing = false;
-let _firmaHasTouched = false;
-let _firmaOpCtx = null;
-let _firmaOpDrawing = false;
-let _firmaOpHasTouched = false;
+// ── FIRMA DIGITAL (FULLSCREEN) ──
+let _fsCtx = null;
+let _fsDrawing = false;
+let _fsHasTouched = false;
+let _fsTipo = null; // 'cliente' o 'operario'
 
 function toggleFirmaPanel(tipo) {
   const panel = document.getElementById(tipo === 'cliente' ? 'firmaClientePanel' : 'firmaOperarioPanel');
   const isHidden = panel.style.display === 'none';
   panel.style.display = isHidden ? 'block' : 'none';
-  // Inicializar canvas cuando se abre
-  if (isHidden && tipo === 'operario') {
-    setTimeout(() => initFirmaCanvasOp(), 50);
-  }
-  if (isHidden && tipo === 'cliente') {
-    setTimeout(() => initFirmaCanvas(), 50);
-  }
 }
 
-function initFirmaCanvas() {
-  const canvas = document.getElementById('firmaCanvas');
-  if (!canvas) return;
-  const container = canvas.parentElement;
-  canvas.width = container.offsetWidth;
-  canvas.height = 300;
-  _firmaCtx = canvas.getContext('2d');
-  _firmaCtx.strokeStyle = '#1E293B';
-  _firmaCtx.lineWidth = 2.5;
-  _firmaCtx.lineCap = 'round';
-  _firmaCtx.lineJoin = 'round';
-  _firmaDrawing = false;
-  _firmaHasTouched = false;
+// Abrir overlay fullscreen para firmar
+function abrirFirmaFullscreen(tipo) {
+  _fsTipo = tipo;
+  _fsDrawing = false;
+  _fsHasTouched = false;
 
-  if (_wiz.firmaData) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { _firmaCtx.drawImage(img, 0, 0, canvas.width, canvas.height); _firmaHasTouched = true; };
-    img.onerror = () => { console.warn('No se pudo cargar firma previa'); _firmaHasTouched = false; };
-    img.src = _wiz.firmaData;
-    document.getElementById('firmaPlaceholder').style.display = 'none';
-  }
+  const overlay = document.createElement('div');
+  overlay.className = 'firma-fullscreen';
+  overlay.id = 'firmaFullscreenOverlay';
 
-  canvas.addEventListener('touchstart', firmaStart, { passive: false });
-  canvas.addEventListener('touchmove', firmaMove, { passive: false });
-  canvas.addEventListener('touchend', firmaEnd);
-  canvas.addEventListener('mousedown', firmaStart);
-  canvas.addEventListener('mousemove', firmaMove);
-  canvas.addEventListener('mouseup', firmaEnd);
-  canvas.addEventListener('mouseleave', firmaEnd);
+  const titulo = tipo === 'cliente' ? 'Firma de la persona responsable' : 'Firma del operario';
+  const color = tipo === 'cliente' ? 'var(--azul)' : 'var(--violeta)';
+
+  overlay.innerHTML = `
+    <div class="firma-fs-header" style="background:${color}">
+      <h3>${titulo}</h3>
+      <button onclick="cerrarFirmaFullscreen(false)" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 14px;border-radius:6px;font-weight:700;font-size:14px">✕ Cancelar</button>
+    </div>
+    <div class="firma-fs-canvas-wrap">
+      <canvas id="firmaFSCanvas"></canvas>
+      <div class="firma-fs-placeholder" id="firmaFSPlaceholder">Firme aquí con el dedo</div>
+    </div>
+    <div class="firma-fs-actions">
+      <button onclick="limpiarFirmaFS()" style="flex:1;padding:14px;border-radius:8px;border:2px solid var(--gris-300);background:#fff;font-weight:700;font-size:15px;cursor:pointer">🗑️ Borrar</button>
+      <button onclick="cerrarFirmaFullscreen(true)" style="flex:2;padding:14px;border-radius:8px;border:none;background:var(--verde);color:#fff;font-weight:700;font-size:15px;cursor:pointer">✅ Aceptar firma</button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+
+  // Inicializar canvas al tamaño real del contenedor
+  setTimeout(() => {
+    const canvas = document.getElementById('firmaFSCanvas');
+    const wrap = canvas.parentElement;
+    canvas.width = wrap.offsetWidth * 2;  // Retina
+    canvas.height = wrap.offsetHeight * 2;
+    canvas.style.width = wrap.offsetWidth + 'px';
+    canvas.style.height = wrap.offsetHeight + 'px';
+    _fsCtx = canvas.getContext('2d');
+    _fsCtx.scale(2, 2); // Retina scaling
+    _fsCtx.strokeStyle = '#1E293B';
+    _fsCtx.lineWidth = 2.5;
+    _fsCtx.lineCap = 'round';
+    _fsCtx.lineJoin = 'round';
+
+    // Si ya tiene firma previa, dibujarla
+    const prevData = tipo === 'cliente' ? _wiz.firmaData : _wiz.firmaOperario;
+    if (prevData) {
+      const img = new Image();
+      img.onload = () => {
+        _fsCtx.drawImage(img, 0, 0, wrap.offsetWidth, wrap.offsetHeight);
+        _fsHasTouched = true;
+        document.getElementById('firmaFSPlaceholder').style.display = 'none';
+      };
+      img.src = prevData;
+    }
+
+    canvas.addEventListener('touchstart', _fsStart, { passive: false });
+    canvas.addEventListener('touchmove', _fsMove, { passive: false });
+    canvas.addEventListener('touchend', _fsEnd);
+    canvas.addEventListener('mousedown', _fsStart);
+    canvas.addEventListener('mousemove', _fsMove);
+    canvas.addEventListener('mouseup', _fsEnd);
+    canvas.addEventListener('mouseleave', _fsEnd);
+  }, 50);
 }
 
-function initFirmaCanvasOp() {
-  const canvas = document.getElementById('firmaCanvasOp');
-  if (!canvas) return;
-  const container = canvas.parentElement;
-  canvas.width = container.offsetWidth;
-  canvas.height = 300;
-  _firmaOpCtx = canvas.getContext('2d');
-  _firmaOpCtx.strokeStyle = '#1E293B';
-  _firmaOpCtx.lineWidth = 2.5;
-  _firmaOpCtx.lineCap = 'round';
-  _firmaOpCtx.lineJoin = 'round';
-  _firmaOpDrawing = false;
-  _firmaOpHasTouched = false;
-
-  if (_wiz.firmaOperario) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { _firmaOpCtx.drawImage(img, 0, 0, canvas.width, canvas.height); _firmaOpHasTouched = true; };
-    img.onerror = () => { _firmaOpHasTouched = false; };
-    img.src = _wiz.firmaOperario;
-    document.getElementById('firmaPlaceholderOp').style.display = 'none';
-  }
-
-  canvas.addEventListener('touchstart', firmaOpStart, { passive: false });
-  canvas.addEventListener('touchmove', firmaOpMove, { passive: false });
-  canvas.addEventListener('touchend', firmaOpEnd);
-  canvas.addEventListener('mousedown', firmaOpStart);
-  canvas.addEventListener('mousemove', firmaOpMove);
-  canvas.addEventListener('mouseup', firmaOpEnd);
-  canvas.addEventListener('mouseleave', firmaOpEnd);
-}
-
-function firmaOpStart(e) {
-  e.preventDefault();
-  _firmaOpDrawing = true;
-  _firmaOpHasTouched = true;
-  document.getElementById('firmaPlaceholderOp').style.display = 'none';
-  const pos = _firmaPos(e, 'firmaCanvasOp');
-  _firmaOpCtx.beginPath();
-  _firmaOpCtx.moveTo(pos.x, pos.y);
-}
-function firmaOpMove(e) {
-  if (!_firmaOpDrawing) return;
-  e.preventDefault();
-  const pos = _firmaPos(e, 'firmaCanvasOp');
-  _firmaOpCtx.lineTo(pos.x, pos.y);
-  _firmaOpCtx.stroke();
-}
-function firmaOpEnd() { _firmaOpDrawing = false; }
-
-function _firmaPos(e, canvasId) {
-  const canvas = document.getElementById(canvasId || 'firmaCanvas');
+function _fsPos(e) {
+  const canvas = document.getElementById('firmaFSCanvas');
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches ? e.touches[0] : e;
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
   return {
-    x: (touch.clientX - rect.left) * scaleX,
-    y: (touch.clientY - rect.top) * scaleY
+    x: touch.clientX - rect.left,
+    y: touch.clientY - rect.top
   };
 }
 
-function firmaStart(e) {
+function _fsStart(e) {
   e.preventDefault();
-  _firmaDrawing = true;
-  _firmaHasTouched = true;
-  document.getElementById('firmaPlaceholder').style.display = 'none';
-  const pos = _firmaPos(e);
-  _firmaCtx.beginPath();
-  _firmaCtx.moveTo(pos.x, pos.y);
+  _fsDrawing = true;
+  _fsHasTouched = true;
+  const ph = document.getElementById('firmaFSPlaceholder');
+  if (ph) ph.style.display = 'none';
+  const pos = _fsPos(e);
+  _fsCtx.beginPath();
+  _fsCtx.moveTo(pos.x, pos.y);
 }
 
-function firmaMove(e) {
-  if (!_firmaDrawing) return;
+function _fsMove(e) {
+  if (!_fsDrawing) return;
   e.preventDefault();
-  const pos = _firmaPos(e);
-  _firmaCtx.lineTo(pos.x, pos.y);
-  _firmaCtx.stroke();
+  const pos = _fsPos(e);
+  _fsCtx.lineTo(pos.x, pos.y);
+  _fsCtx.stroke();
 }
 
-function firmaEnd(e) {
-  _firmaDrawing = false;
+function _fsEnd() { _fsDrawing = false; }
+
+function limpiarFirmaFS() {
+  const canvas = document.getElementById('firmaFSCanvas');
+  const wrap = canvas.parentElement;
+  _fsCtx.clearRect(0, 0, wrap.offsetWidth, wrap.offsetHeight);
+  _fsHasTouched = false;
+  document.getElementById('firmaFSPlaceholder').style.display = 'flex';
+}
+
+function cerrarFirmaFullscreen(guardar) {
+  if (guardar) {
+    if (!_fsHasTouched) {
+      toast('Debes firmar primero', 'error');
+      return;
+    }
+    const canvas = document.getElementById('firmaFSCanvas');
+    const dataUrl = canvas.toDataURL('image/png');
+    if (_fsTipo === 'cliente') {
+      _wiz.firmaData = dataUrl;
+    } else {
+      _wiz.firmaOperario = dataUrl;
+    }
+  }
+
+  const overlay = document.getElementById('firmaFullscreenOverlay');
+  if (overlay) overlay.remove();
+  document.body.style.overflow = '';
+
+  // Re-render para mostrar la miniatura
+  renderWizStep();
 }
 
 function wizSetEmailMode(mode) {
@@ -2136,9 +2153,6 @@ function _validarDNI(dni) {
 
 function wizConfirmFirma(tipo) {
   const isCliente = tipo === 'cliente';
-  const canvas = isCliente ? document.getElementById('firmaCanvas') : document.getElementById('firmaCanvasOp');
-  const ctx = isCliente ? _firmaCtx : _firmaOpCtx;
-  const hasTouched = isCliente ? _firmaHasTouched : _firmaOpHasTouched;
 
   // Validar nombre y DNI para firma del receptor
   if (isCliente) {
@@ -2160,88 +2174,43 @@ function wizConfirmFirma(tipo) {
     _wiz.clienteDni = dni;
   }
 
-  if (!canvas || !hasTouched) {
-    toast('Debes firmar primero', 'error');
+  // Verificar que hay firma
+  const firmaData = isCliente ? _wiz.firmaData : _wiz.firmaOperario;
+  if (!firmaData) {
+    toast('Debes firmar primero (pulsa el botón de firmar)', 'error');
     return;
   }
 
-  // Guardar firma en base64
-  try {
-    const firmaData = canvas.toDataURL('image/png');
-    if (isCliente) {
-      _wiz.firmaData = firmaData;
-      _wiz.firmaData_validated = true;
-      // Cerrar panel y poner verde
-      const container = document.getElementById('firmaClienteContainer');
-      container.style.borderColor = 'var(--verde)';
-      const header = container.querySelector('div[onclick]');
-      if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
-      document.getElementById('firmaClienteToggle').textContent = '✅';
-      document.getElementById('firmaClientePanel').style.display = 'none';
-    } else {
-      _wiz.firmaOperario = firmaData;
-      _wiz.firmaOperario_validated = true;
-      // Cerrar panel y poner verde
-      const container = document.getElementById('firmaOperarioContainer');
-      container.style.borderColor = 'var(--verde)';
-      const header = container.querySelector('div[onclick]');
-      if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
-      document.getElementById('firmaOperarioToggle').textContent = '✅';
-      document.getElementById('firmaOperarioPanel').style.display = 'none';
-    }
-
-    // Capturar ubicación
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        if (isCliente) {
-          _wiz.ubicacion_firma_cliente = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-        } else {
-          _wiz.ubicacion_firma_operario = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-        }
-      }, err => { console.warn('GPS error:', err.message); });
-    }
-
-    toast('✅ Firma validada', 'success');
-  } catch(e) {
-    console.error('Error validating firma:', e);
-    toast('Error al validar firma', 'error');
-  }
-}
-
-function wizClearFirma(tipo) {
-  if (tipo === 'operario') {
-    const canvas = document.getElementById('firmaCanvasOp');
-    if (canvas && _firmaOpCtx) {
-      _firmaOpCtx.clearRect(0, 0, canvas.width, canvas.height);
-      _firmaOpHasTouched = false;
-      _wiz.firmaOperario = null;
-      _wiz.firmaOperario_validated = false;
-      document.getElementById('firmaPlaceholderOp').style.display = 'flex';
-      const container = document.getElementById('firmaOperarioContainer');
-      container.style.borderColor = 'var(--violeta)';
-      const header = container.querySelector('div[onclick]');
-      if (header) { header.style.background = 'var(--violeta-light)'; header.querySelector('span').style.color = 'var(--violeta)'; }
-      document.getElementById('firmaOperarioToggle').textContent = '▼';
-      document.getElementById('firmaCanvasOp').style.pointerEvents = 'auto';
-      document.getElementById('firmaCanvasOp').style.opacity = '1';
-    }
+  if (isCliente) {
+    _wiz.firmaData_validated = true;
+    const container = document.getElementById('firmaClienteContainer');
+    container.style.borderColor = 'var(--verde)';
+    const header = container.querySelector('div[onclick]');
+    if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
+    document.getElementById('firmaClienteToggle').textContent = '✅';
+    document.getElementById('firmaClientePanel').style.display = 'none';
   } else {
-    const canvas = document.getElementById('firmaCanvas');
-    if (canvas && _firmaCtx) {
-      _firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
-      _firmaHasTouched = false;
-      _wiz.firmaData = null;
-      _wiz.firmaData_validated = false;
-      document.getElementById('firmaPlaceholder').style.display = 'flex';
-      const container = document.getElementById('firmaClienteContainer');
-      container.style.borderColor = 'var(--azul)';
-      const header = container.querySelector('div[onclick]');
-      if (header) { header.style.background = 'var(--azul-light)'; header.querySelector('span').style.color = 'var(--azul)'; }
-      document.getElementById('firmaClienteToggle').textContent = '▼';
-      document.getElementById('firmaCanvas').style.pointerEvents = 'auto';
-      document.getElementById('firmaCanvas').style.opacity = '1';
-    }
+    _wiz.firmaOperario_validated = true;
+    const container = document.getElementById('firmaOperarioContainer');
+    container.style.borderColor = 'var(--verde)';
+    const header = container.querySelector('div[onclick]');
+    if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
+    document.getElementById('firmaOperarioToggle').textContent = '✅';
+    document.getElementById('firmaOperarioPanel').style.display = 'none';
   }
+
+  // Capturar ubicación
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (isCliente) {
+        _wiz.ubicacion_firma_cliente = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      } else {
+        _wiz.ubicacion_firma_operario = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      }
+    }, err => { console.warn('GPS error:', err.message); });
+  }
+
+  toast('✅ Firma validada', 'success');
 }
 
 // ── CALCULAR KM POR CARRETERA ──
@@ -2493,15 +2462,25 @@ async function wizFinish() {
     if (p) Object.assign(p, updateObj);
 
     _wizClearAutoSave(id);
-    toast('✅ Parte informado y enviado', 'success');
-    closeModal();
     document.removeEventListener('click', _closeMaterialSearch);
-    navigateTo(currentTab);
 
     // 4. Enviar email al cliente (si hay email)
     if (_wiz.clienteEmail) {
       enviarEmailParte(id, _wiz.clienteEmail);
     }
+
+    // 5. Mostrar modal de éxito con opciones de envío
+    const parteNum = p?.numero || id;
+    // Buscar teléfono del cliente desde trabajo/obra
+    let cliTel = p?.cliente_telefono || '';
+    if (!cliTel && p?.trabajo_id) {
+      const _t = trabajos.find(tr => tr.id === p.trabajo_id);
+      if (_t) {
+        const _c = _t.cliente_id ? clientes.find(c => c.id === _t.cliente_id) : null;
+        if (_c) cliTel = _c.telefono || '';
+      }
+    }
+    mostrarModalEnvio(id, parteNum, cliTel);
   } catch(err) {
     console.error('[wizFinish] Error:', err);
     toast('Error: ' + (err.message || 'desconocido'), 'error');
@@ -2520,6 +2499,79 @@ async function enviarEmailParte(parteId, email) {
     console.warn('Edge Function no disponible aún:', e.message);
     toast('📧 Email pendiente (Edge Function no configurada)', 'warning');
   }
+}
+
+// ── MODAL ENVÍO PARTE (WhatsApp / SMS / Cerrar) ──
+function mostrarModalEnvio(parteId, parteNum, telefonoCliente) {
+  const baseUrl = window.location.origin;
+  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+  const empresa = EMPRESA?.nombre || 'Instalo';
+  const mensaje = `Hola, le enviamos el parte de trabajo nº ${parteNum} de ${empresa}. Puede consultarlo aquí: ${enlace}`;
+  const mensajeEncoded = encodeURIComponent(mensaje);
+
+  // Limpiar teléfono: quitar espacios, guiones, etc.
+  let tel = (telefonoCliente || '').replace(/[\s\-\.\(\)]/g, '');
+  // Si empieza por 6/7/9 sin prefijo, añadir +34
+  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+  // Si empieza por 0034, cambiar a 34
+  if (tel.startsWith('0034')) tel = tel.substring(2);
+  // Si no empieza por +, añadirlo para WhatsApp
+  const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
+
+  const content = `
+    <div style="text-align:center;padding:20px 0">
+      <div style="font-size:48px;margin-bottom:12px">✅</div>
+      <h2 style="margin:0 0 8px;color:var(--verde)">Parte completado</h2>
+      <p style="color:var(--gris-500);margin:0 0 20px;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
+
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:16px;text-align:left">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500)">ENLACE DEL PARTE</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <input id="enlaceParteInput" type="text" value="${enlace}" readonly
+            style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;font-family:var(--font);background:#fff">
+          <button onclick="copiarEnlaceParte()" style="padding:8px 12px;border:none;background:var(--azul);color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">📋 Copiar</button>
+        </div>
+      </div>
+
+      ${tel ? `
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+        <a href="https://wa.me/${telWA}?text=${mensajeEncoded}" target="_blank" rel="noopener"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">
+          <span style="font-size:20px">📱</span> Enviar por WhatsApp
+        </a>
+        <a href="sms:${tel}?body=${mensajeEncoded}"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:var(--azul);color:#fff;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">
+          <span style="font-size:20px">💬</span> Enviar por SMS
+        </a>
+      </div>
+      ` : `
+      <p style="color:var(--gris-400);font-size:13px;font-style:italic;margin-bottom:16px">No hay teléfono del cliente. Puedes copiar el enlace y enviarlo manualmente.</p>
+      `}
+
+      <button onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-600)">Cerrar</button>
+    </div>
+  `;
+
+  document.getElementById('modalBody').innerHTML = content;
+  document.getElementById('modalTitle').textContent = '';
+}
+
+function copiarEnlaceParte() {
+  const input = document.getElementById('enlaceParteInput');
+  if (input) {
+    navigator.clipboard.writeText(input.value).then(() => {
+      toast('📋 Enlace copiado al portapapeles', 'success');
+    }).catch(() => {
+      input.select();
+      document.execCommand('copy');
+      toast('📋 Enlace copiado', 'success');
+    });
+  }
+}
+
+function cerrarModalEnvio() {
+  closeModal();
+  navigateTo(currentTab);
 }
 
 // ── ADD WORK INFO (wizard completo sin cambiar estado) ──
@@ -2580,7 +2632,7 @@ async function wizFinishEdit() {
     if (_wiz.firmaData && !_wiz.firmaData.startsWith('data:')) {
       // Ya es una URL de storage, mantenerla
       firmaUrl = _wiz.firmaData;
-    } else if (_firmaHasTouched && _wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
+    } else if (_wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
       try {
         const blob = await (await fetch(_wiz.firmaData)).blob();
         const filename = `${eid}/${Date.now()}_firma.png`;
@@ -2765,16 +2817,13 @@ function openInformarWizard(id) {
 
   // Pre-fill email del cliente desde trabajo/obra si no existe en el parte
   let _prefillEmail = p.cliente_email || '';
-  let _prefillNombre = p.cliente_nombre_firma || '';
+  // El nombre NO se pre-rellena: es la persona responsable en la visita, no el cliente
   if (!_prefillEmail && p.trabajo_id) {
     const _trab = trabajos.find(tr => tr.id === p.trabajo_id);
     if (_trab) {
       const _cli = _trab.cliente_id ? clientes.find(c => c.id === _trab.cliente_id) : null;
       if (_cli) {
         if (!_prefillEmail) _prefillEmail = _cli.email || '';
-        if (!_prefillNombre) _prefillNombre = _cli.nombre || _trab.cliente_nombre || '';
-      } else {
-        if (!_prefillNombre) _prefillNombre = _trab.cliente_nombre || '';
       }
     }
   }
@@ -2812,7 +2861,7 @@ function openInformarWizard(id) {
       firmaOperario_validated: false,
       clienteEmailMode: 'si',
       clienteEmail: _prefillEmail,
-      clienteNombre: _prefillNombre,
+      clienteNombre: '',
       clienteDni: p.cliente_dni || '',
     };
   }
