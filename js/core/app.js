@@ -571,22 +571,20 @@ function initRealtimePartes() {
         const nuevo = payload.new;
         const viejo = payload.old;
         if (!nuevo || !viejo) return;
-        // Solo notificar si el cambio no lo hizo el usuario actual
-        // (comparar por revisado_por o completado_at para inferir quién cambió)
+
+        // SOLO notificar cuando cambia el estado a "en_curso" o "completado"
         const cambioEstado = nuevo.estado !== viejo.estado;
         if (!cambioEstado) return;
+        if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') return;
 
         const operario = nuevo.usuario_nombre || 'Un operario';
         const numero = nuevo.numero || '';
         const obra = nuevo.trabajo_titulo || '';
+        const obraId = nuevo.trabajo_id || null;
 
-        // Notificaciones según el nuevo estado
         const notifs = {
           en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
           completado: { ico:'✅', titulo:'Parte completado',  msg:`${operario} ha completado ${numero}`, color:'var(--verde)' },
-          programado: { ico:'📅', titulo:'Parte programado',  msg:`${numero} ha sido programado`, color:'var(--azul)' },
-          revisado:   { ico:'👁️', titulo:'Parte revisado',    msg:`${numero} revisado`, color:'#10B981' },
-          facturado:  { ico:'🧾', titulo:'Parte facturado',   msg:`${numero} marcado como facturado`, color:'#8B5CF6' },
         };
         const n = notifs[nuevo.estado];
         if (!n) return;
@@ -599,9 +597,18 @@ function initRealtimePartes() {
           new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' });
         }
 
-        // Actualizar datos locales en background
+        // ── AUTO-REFRESCAR TODO ──
+        // 1. Refrescar lista de partes de trabajo (pestaña principal)
         if (typeof loadPartes === 'function') {
           try { loadPartes(); } catch(e) {}
+        }
+        // 2. Refrescar ficha de obra si está abierta y es la misma obra
+        if (obraId && typeof obraActualId !== 'undefined' && obraActualId && obraActualId === obraId) {
+          try { abrirFichaObra(obraActualId, false); } catch(e) {}
+        }
+        // 3. Refrescar dashboard
+        if (typeof loadDashboard === 'function') {
+          try { loadDashboard(); } catch(e) {}
         }
       }
     )
