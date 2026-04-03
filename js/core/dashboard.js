@@ -79,4 +79,66 @@ async function loadDashboard() {
         </div>
       </div>`).join('') :
     '<div class="empty"><div class="ei">📋</div><p>Sin presupuestos pendientes</p></div>';
+
+  // ── MIS TAREAS (todas las tareas asignadas al usuario actual) ──
+  await loadDashboardTareas();
+}
+
+async function loadDashboardTareas() {
+  const userId = CU?.id;
+  if (!userId) return;
+
+  const { data: tareas } = await sb.from('tareas_obra')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('responsable_id', userId)
+    .neq('estado', 'completada')
+    .order('created_at', { ascending: false })
+    .limit(15);
+
+  const misTareas = tareas || [];
+  const el = document.getElementById('d-tareas-list');
+  const countEl = document.getElementById('d-tareas-count');
+  if (!el) return;
+
+  if (countEl) countEl.textContent = misTareas.length ? misTareas.length + ' pendiente' + (misTareas.length > 1 ? 's' : '') : '';
+
+  if (!misTareas.length) {
+    el.innerHTML = '<div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div>';
+    return;
+  }
+
+  // Buscar obra asociada a cada tarea para poder navegar
+  const trabajoIds = [...new Set(misTareas.map(t => t.trabajo_id).filter(Boolean))];
+  const obrasMap = {};
+  trabajoIds.forEach(tid => {
+    const ob = trabajos.find(t => t.id === tid);
+    if (ob) obrasMap[tid] = ob;
+  });
+
+  const prioColor = { Urgente: 'var(--rojo)', Alta: 'var(--acento)', Normal: 'var(--gris-500)', Baja: 'var(--azul)' };
+  const prioIco = { Urgente: '🔴', Alta: '🟠', Normal: '⚪', Baja: '🔵' };
+
+  el.innerHTML = misTareas.map(t => {
+    const obra = obrasMap[t.trabajo_id];
+    const obraLabel = obra ? obra.numero + ' · ' + (obra.titulo || '').substring(0, 30) : '';
+    const onclick = obra
+      ? `goPage('trabajos');abrirFichaObra(${obra.id});setTimeout(()=>obraTab('tareas'),300)`
+      : '';
+    const fechaLimite = t.fecha_limite
+      ? `<span style="font-size:10px;color:${new Date(t.fecha_limite) < new Date() ? 'var(--rojo)' : 'var(--gris-400)'}">${t.fecha_limite}</span>`
+      : '';
+
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100);cursor:${onclick?'pointer':'default'}" ${onclick ? `onclick="${onclick}"` : ''}>
+      <span style="font-size:12px;margin-top:2px">${prioIco[t.prioridad] || '⚪'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.texto}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:2px">
+          ${obraLabel ? `<span style="font-size:10px;color:var(--azul)">🏗️ ${obraLabel}</span>` : ''}
+          ${fechaLimite}
+        </div>
+      </div>
+      <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${t.estado==='en_progreso'?'#DBEAFE':'var(--gris-50)'};color:${t.estado==='en_progreso'?'var(--azul)':'var(--gris-500)'};font-weight:700;white-space:nowrap">${(t.estado||'pendiente').replace('_',' ')}</span>
+    </div>`;
+  }).join('');
 }

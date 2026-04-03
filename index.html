@@ -167,20 +167,20 @@
       <!-- COMPRAS -->
       <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)">Compras</div>
       <div class="sb-section-items" id="sec-compras">
-        <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores</button>
-        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos<span class="sb-beta">nuevo</span></button>
-        <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos</button>
-        <button class="sb-item" onclick="goPage('albaranes-proveedor')"><span class="ico">📥</span> Albaranes</button>
-        <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.</button>
+        <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('albaranes-proveedor')"><span class="ico">📥</span> Albaranes<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- ALMACÉN -->
       <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)">Almacén</div>
       <div class="sb-section-items" id="sec-almacen">
         <button class="sb-item" onclick="goPage('articulos')"><span class="ico">📦</span> Artículos</button>
-        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes</button>
-        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock</button>
-        <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos</button>
+        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos<span class="sb-beta">pronto</span></button>
         <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos<span class="sb-beta">pronto</span></button>
       </div>
 
@@ -188,27 +188,33 @@
       <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)">Gestión de obras</div>
       <div class="sb-section-items" id="sec-obras">
         <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
-        <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">nuevo</span></button>
-        <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes</button>
-        <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario</button>
-        <button class="sb-item" onclick="goPage('mistareas')"><span class="ico">✅</span> Mis Tareas</button>
+        <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario<span class="sb-beta">beta</span></button>
+        <button class="sb-item" onclick="goPage('mistareas')"><span class="ico">✅</span> Mis Tareas<span class="sb-beta">beta</span></button>
+      </div>
+
+      <!-- COMUNICACIÓN -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)">Comunicación</div>
+      <div class="sb-section-items" id="sec-comunicacion">
+        <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- PERSONAL -->
       <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)">Personal</div>
       <div class="sb-section-items" id="sec-personal">
-        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes</button>
+        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- ADMINISTRACIÓN -->
       <div id="adminSection" style="display:none">
         <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)">Administración</div>
         <div class="sb-section-items" id="sec-admin">
-          <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios</button>
-          <button class="sb-item" onclick="goPage('etiquetas-qr')"><span class="ico">🏷️</span> Etiquetas QR</button>
-          <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad</button>
-          <button class="sb-item" onclick="goPage('papelera')"><span class="ico">🗑️</span> Papelera</button>
-        <button class="sb-item" id="btnConfig" onclick="goPage('configuracion')" style="display:none"><span class="ico">⚙️</span> Configuración</button>
+          <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios<span class="sb-beta">beta</span></button>
+          <button class="sb-item" onclick="goPage('etiquetas-qr')"><span class="ico">🏷️</span> Etiquetas QR<span class="sb-beta">pronto</span></button>
+          <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad<span class="sb-beta">beta</span></button>
+          <button class="sb-item" onclick="goPage('papelera')"><span class="ico">🗑️</span> Papelera<span class="sb-beta">beta</span></button>
+        <button class="sb-item" id="btnConfig" onclick="goPage('configuracion')" style="display:none"><span class="ico">⚙️</span> Configuración<span class="sb-beta">beta</span></button>
         </div>
       </div>
     </div>
@@ -256,12 +262,22 @@
           <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="d-vencidas">—</div><div class="sl">Facturas vencidas</div></div>
         </div>
 
-        <!-- FILA 3: Tablas -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <!-- FILA 3: Mis Tareas + Tablas -->
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
+          <!-- MIS TAREAS -->
+          <div class="card">
+            <div class="card-h"><h3>✅ Mis Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
+            <div class="card-b" id="d-tareas-list" style="max-height:320px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
+          </div>
+          <!-- OBRAS ACTIVAS -->
           <div class="card">
             <div class="card-h"><h3>🏗️ Obras activas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('trabajos')">Ver todos</button></div></div>
             <div class="card-b" id="d-trabajos-list"><div class="empty"><div class="ei">🏗️</div><p>Sin obras</p></div></div>
           </div>
+        </div>
+
+        <!-- FILA 4: Facturas + Presupuestos -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div class="card">
             <div class="card-h"><h3>🧾 Facturas pendientes cobro</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas')">Ver todas</button></div></div>
             <div class="card-b" id="d-fact-list"><div class="empty"><div class="ei">🧾</div><p>Sin facturas pendientes</p></div></div>
@@ -1332,6 +1348,23 @@
       </div>
 
       <!-- ═══ PAPELERA (DOCS ELIMINADOS) ═══ -->
+      <div class="page" id="page-correo">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">📧 Correo</h2><p style="font-size:11.5px;color:var(--gris-400)">Gestión de correo electrónico integrado</p></div>
+        </div>
+        <div class="card">
+          <div class="card-b" style="padding:40px;text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">📧</div>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:8px">Gestor de correo — Próximamente</h3>
+            <p style="color:var(--gris-400);font-size:13px;max-width:400px;margin:0 auto;line-height:1.6">
+              Envía y recibe correos directamente desde el ERP.<br>
+              Presupuestos, facturas, recordatorios de cobro y más.<br>
+              Las respuestas de los clientes se vincularán automáticamente a obras y presupuestos.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="page-papelera">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div><h2 style="font-size:17px;font-weight:800">🗑️ Papelera</h2><p style="font-size:11.5px;color:var(--gris-400)">Documentos eliminados — solo visible para superadmin</p></div>
@@ -2897,7 +2930,7 @@
 <!-- Core -->
 <script src="js/core/app.js?v=20260403"></script>
 <script src="js/core/ui.js?v=20260403"></script>
-<script src="js/core/dashboard.js"></script>
+<script src="js/core/dashboard.js?v=20260403"></script>
 <script src="js/core/sidebar.js"></script>
 
 <!-- Comercial -->
