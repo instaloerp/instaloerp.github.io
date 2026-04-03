@@ -87,6 +87,30 @@ function getTodosUsuariosActivos() {
   return todosUsuarios.filter(u => u.activo !== false);
 }
 
+function nuevoUsuarioModal() {
+  document.getElementById('usr_id').value = '';
+  document.getElementById('mUsrTit').textContent = 'Nuevo Usuario';
+  ['usr_nombre','usr_apellidos','usr_email','usr_tel'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('usr_pass').value = '';
+  document.getElementById('usr_pass').placeholder = 'Mínimo 8 caracteres';
+  document.getElementById('usr_rol').value = 'operario';
+  // Reset foto
+  const prev = document.getElementById('usrFotoPreview');
+  prev.innerHTML = '?';
+  prev.style.background = 'var(--azul)';
+  usuariosFotoFile = null;
+  // Permisos por defecto para operario
+  ['up_clientes','up_presupuestos','up_facturas','up_stock','up_config','up_usuarios'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  ['up_trabajos','up_partes'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=true; });
+  // Disponible partes por defecto true para nuevo operario
+  const elDP = document.getElementById('up_disponible_partes');
+  if(elDP) elDP.checked = true;
+  // Botón guardar
+  const btnSave = document.querySelector('#mNuevoUsuario .modal-f .btn-primary');
+  if (btnSave) btnSave.textContent = '💾 Crear usuario';
+  openModal('mNuevoUsuario');
+}
+
 function previewUsrFoto(input) {
   const file = input.files[0];
   if (!file) return;
@@ -121,8 +145,10 @@ async function saveUsuario() {
 
   let avatar_url = null;
 
+  const disponible_partes = document.getElementById('up_disponible_partes')?.checked || false;
+
   if (id) {
-    const obj = { nombre, apellidos: v('usr_apellidos'), telefono: v('usr_tel'), rol: v('usr_rol'), permisos };
+    const obj = { nombre, apellidos: v('usr_apellidos'), telefono: v('usr_tel'), rol: v('usr_rol'), permisos, disponible_partes };
     if (usuariosFotoFile) {
       const { data: up } = await sb.storage.from('fotos-partes').upload(`avatars/${id}_${Date.now()}`, usuariosFotoFile);
       if (up) { const { data: url } = sb.storage.from('fotos-partes').getPublicUrl(up.path); obj.avatar_url = url.publicUrl; }
@@ -142,7 +168,7 @@ async function saveUsuario() {
       id: authData.user.id, nombre, apellidos: v('usr_apellidos'),
       email, telefono: v('usr_tel'), rol: v('usr_rol'),
       empresa_id: EMPRESA.id, es_superadmin: false,
-      activo: true, avatar_url, permisos
+      activo: true, avatar_url, permisos, disponible_partes
     });
     toast(`Usuario ${nombre} creado ✓ — recibirá email para confirmar acceso`, 'success');
   }
@@ -184,6 +210,14 @@ async function editUsuario(uid) {
   const elUsr = document.getElementById('up_usuarios');
   if(elCfg) elCfg.checked = isAdmin ? true : (p['configuracion'] || p['config'] || false);
   if(elUsr) elUsr.checked = isAdmin ? true : (p['usuarios'] || false);
+
+  // Disponible para partes
+  const elDP = document.getElementById('up_disponible_partes');
+  if (elDP) elDP.checked = u.disponible_partes === true;
+
+  // Botón guardar
+  const btnSave = document.querySelector('#mNuevoUsuario .modal-f .btn-primary');
+  if (btnSave) btnSave.textContent = '💾 Guardar cambios';
 
   openModal('mNuevoUsuario');
 }

@@ -1516,7 +1516,7 @@
       <div class="page" id="page-usuarios">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div><h2 style="font-size:17px;font-weight:800">Usuarios</h2><p style="font-size:11.5px;color:var(--gris-400)" id="usrCount">—</p></div>
-          <button class="btn btn-primary" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>
+          <button class="btn btn-primary" onclick="nuevoUsuarioModal()">+ Nuevo usuario</button>
         </div>
         <div id="usuariosGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
 
@@ -2378,6 +2378,10 @@
           </select>
         </div>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-top:8px;margin-bottom:8px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:9px">
+        <div><span style="font-size:13px;font-weight:700">📍 Disponible para partes de trabajo</span><div style="font-size:10.5px;color:var(--gris-400);margin-top:2px">Aparece en el selector de operarios al programar citas</div></div>
+        <label class="toggle"><input type="checkbox" id="up_disponible_partes"><span class="toggle-sl"></span></label>
+      </div>
       <div style="background:var(--gris-50);border-radius:9px;padding:13px;margin-top:4px">
         <div style="font-size:11.5px;font-weight:700;color:var(--gris-600);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">🔐 Permisos de acceso</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
@@ -2965,16 +2969,16 @@
 <div id="acArticulos"></div>
 
 <!-- Core -->
-<script src="js/core/app.js?v=20260403k"></script>
-<script src="js/core/ui.js?v=20260403k"></script>
-<script src="js/core/dashboard.js?v=20260403k"></script>
+<script src="js/core/app.js?v=20260403l"></script>
+<script src="js/core/ui.js?v=20260403l"></script>
+<script src="js/core/dashboard.js?v=20260403l"></script>
 <script src="js/core/sidebar.js"></script>
 
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
-<script src="js/comercial/clientes.js?v=20260403k"></script>
-<script src="js/comercial/presupuestos.js?v=20260403k"></script>
-<script src="js/comercial/albaranes.js?v=20260403k"></script>
+<script src="js/comercial/clientes.js?v=20260403l"></script>
+<script src="js/comercial/presupuestos.js?v=20260403l"></script>
+<script src="js/comercial/albaranes.js?v=20260403l"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
@@ -2992,16 +2996,16 @@
 <script src="js/almacen/traspasos.js"></script>
 
 <!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=20260403k"></script>
+<script src="js/obras/trabajos.js?v=20260403l"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
-<script src="js/obras/calendario.js?v=20260403k"></script>
+<script src="js/obras/calendario.js?v=20260403l"></script>
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js"></script>
 
 <!-- Editor de Documentos -->
-<script src="js/editor/editor.js?v=20260403k"></script>
+<script src="js/editor/editor.js?v=20260403l"></script>
 
 <!-- Administración -->
 <script src="js/admin/usuarios.js"></script>
