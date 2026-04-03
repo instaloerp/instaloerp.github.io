@@ -544,10 +544,22 @@ function renderOperarioInicio(el) {
     });
   });
 
-  // Sort days and separate today from future
-  const sortedDias = Array.from(diasMap.entries())
+  // Separar caducados (fecha pasada + no completados) de hoy/futuro
+  const caducados = [];
+  const sortedDias = [];
+  Array.from(diasMap.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .filter(([, partes]) => partes.length > 0);
+    .filter(([, partes]) => partes.length > 0)
+    .forEach(([fecha, partes]) => {
+      if (fecha < hoy) {
+        // Partes pasados no completados → caducados
+        const noCompletados = partes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
+        if (noCompletados.length) caducados.push({ fecha, partes: noCompletados });
+        // Los completados de días pasados no se muestran aquí
+      } else {
+        sortedDias.push([fecha, partes]);
+      }
+    });
 
   el.innerHTML = `
     <div style="margin-bottom:16px">
@@ -574,6 +586,28 @@ function renderOperarioInicio(el) {
       </div>
     </div>
 
+    ${caducados.length ? `
+      <div style="margin-bottom:16px;border:2px solid var(--rojo);border-radius:12px;overflow:hidden;background:#FFF5F5">
+        <div class="day-header" data-date="caducados" style="display:flex;align-items:center;gap:8px;padding:12px;background:#FEE2E2;cursor:pointer;user-select:none">
+          <span style="font-weight:800;color:var(--rojo);flex:1">⚠️ Caducados</span>
+          <span style="color:var(--rojo);font-size:12px;font-weight:700;background:#FECACA;padding:2px 8px;border-radius:12px">${caducados.reduce((s,d) => s+d.partes.length, 0)}</span>
+          <span style="color:var(--rojo);font-size:16px" class="day-toggle" data-date="caducados">▶</span>
+        </div>
+        <div id="day-caducados" style="display:none;padding:8px">
+          ${caducados.map(d => {
+            const date = new Date(d.fecha + 'T00:00:00');
+            const label = date.toLocaleDateString('es-ES', {weekday:'short', day:'numeric', month:'short'});
+            return d.partes.map(p => `
+              <div style="position:relative">
+                <div style="position:absolute;top:8px;right:8px;background:#FECACA;color:var(--rojo);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">${label}</div>
+                ${renderParteCard(p)}
+              </div>
+            `).join('');
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
     <div class="section-title">📅 Trabajos por día</div>
     ${sortedDias.map(([fecha, partes]) => {
       const isToday = fecha === hoy;
@@ -594,7 +628,7 @@ function renderOperarioInicio(el) {
       `;
     }).join('')}
 
-    ${sortedDias.length === 0 ? `
+    ${sortedDias.length === 0 && !caducados.length ? `
       <div class="card" style="text-align:center;padding:24px">
         <div style="font-size:36px;margin-bottom:8px">☀️</div>
         <p style="font-size:14px;color:var(--gris-400)">No tienes partes programados</p>
@@ -1175,21 +1209,14 @@ function openParteDetail(id) {
       </div>` : ''}
     </div>` : ''}
 
-    ${p.firma_url ? `<div style="margin-bottom:12px">
+    ${['completado','revisado','facturado'].includes(p.estado) && p.firma_url ? `<div style="margin-bottom:12px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">✍️ Firma cliente${p.cliente_nombre_firma ? ' — ' + p.cliente_nombre_firma : ''}${p.cliente_dni ? ' · ' + p.cliente_dni : ''}</div>
       <img src="${p.firma_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
     </div>` : ''}
 
-    ${p.firma_operario_url ? `<div style="margin-bottom:12px">
+    ${['completado','revisado','facturado'].includes(p.estado) && p.firma_operario_url ? `<div style="margin-bottom:12px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">👷 Firma operario${p.operario_nombre_firma ? ' — ' + p.operario_nombre_firma : ''}</div>
       <img src="${p.firma_operario_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
-    </div>` : ''}
-
-    ${p.mano_obra && p.mano_obra.length ? `<div style="margin-bottom:12px;padding:10px 12px;background:var(--gris-50);border-radius:8px;font-size:12px">
-      ${p.mano_obra.map(mo => {
-        if (mo.es_desplazamiento) return `<div>🚗 <b>Desplazamiento:</b> ${mo.km||0} km</div>`;
-        return `<div>⏱️ <b>Tiempo trabajado:</b> ${mo.minutos||0} min</div>`;
-      }).join('')}
     </div>` : ''}
 
     ${p.ubicacion_inicio ? `<div style="margin-bottom:12px;padding:8px 12px;background:var(--verde-light);border-radius:8px;font-size:12px">
