@@ -257,6 +257,12 @@ const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
+// ─── Config Desplazamiento ───
+const OFICINA_LAT = 43.6619;
+const OFICINA_LNG = -7.4478;
+const GMAPS_API_KEY = ''; // ← Pon aquí tu API Key de Google Maps
+let _gmapsLoaded = false;
+
 // ─── State ───
 let CU = null, CP = null, EMPRESA = null;
 let esJefe = false;
@@ -977,13 +983,13 @@ function openParteDetail(id) {
     ${p.mano_obra && p.mano_obra.length ? `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
       <div style="font-weight:700;font-size:12px;margin-bottom:8px">👷 Mano de obra</div>
       ${p.mano_obra.map(mo => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;border-bottom:1px solid var(--gris-100)">
-        <span>${mo.descripcion||'Trabajo'} · ${mo.horas||0}h × ${(mo.precio_hora||0).toFixed(2)}€/h</span>
-        <span style="font-weight:700">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+        <span>${mo.descripcion||'Trabajo'}${mo.es_desplazamiento ? ` · ${mo.km||0} km` : ` · ${mo.minutos||0} min`}${esJefe ? ` × ${(mo.precio_hora||0).toFixed(2)}€/${mo.es_desplazamiento?'km':'h'}` : ''}</span>
+        ${esJefe ? `<span style="font-weight:700">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
       </div>`).join('')}
-      <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-weight:800;font-size:13px">
+      ${esJefe ? `<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-weight:800;font-size:13px">
         <span>Total mano obra:</span>
         <span>${p.mano_obra.reduce((s,mo) => s+(parseFloat(mo.total)||0), 0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
-      </div>
+      </div>` : ''}
     </div>` : ''}
 
     ${p.firma_url ? `<div style="margin-bottom:12px">
@@ -1116,10 +1122,10 @@ function renderWizStep() {
       <div id="wz_mat_list">
         ${_wiz.materiales.length ? _wiz.materiales.map((m, i) => renderWizMatRow(m, i)).join('') : '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:12px">Sin materiales</div>'}
       </div>
-      <div style="margin-top:8px;padding:8px 12px;background:var(--gris-50);border-radius:8px;display:flex;justify-content:space-between">
+      ${esJefe ? `<div style="margin-top:8px;padding:8px 12px;background:var(--gris-50);border-radius:8px;display:flex;justify-content:space-between">
         <span style="font-weight:700;font-size:12px">Total materiales:</span>
         <span style="font-weight:800;font-size:13px">${totalMat.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
-      </div>
+      </div>` : ''}
 
       <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
         <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--violeta)">👷 Mano de obra</div>
@@ -1127,16 +1133,16 @@ function renderWizStep() {
           ${manoObra.length ? manoObra.map((mo, i) => renderWizMORow(mo, i)).join('') : '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:12px">Sin mano de obra registrada</div>'}
         </div>
         <button class="btn btn-secondary btn-sm" onclick="wizAddManoObra()" style="margin-top:8px;width:100%">➕ Añadir mano de obra</button>
-        <div style="margin-top:8px;padding:8px 12px;background:var(--violeta-light);border-radius:8px;display:flex;justify-content:space-between">
+        ${esJefe ? `<div style="margin-top:8px;padding:8px 12px;background:var(--violeta-light);border-radius:8px;display:flex;justify-content:space-between">
           <span style="font-weight:700;font-size:12px">Total mano obra:</span>
           <span style="font-weight:800;font-size:13px">${totalMO.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
-        </div>
+        </div>` : ''}
       </div>
 
-      <div style="margin-top:16px;padding:12px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between">
+      ${esJefe ? `<div style="margin-top:16px;padding:12px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between">
         <span style="font-weight:800;font-size:14px">TOTAL:</span>
         <span style="font-weight:800;font-size:15px;color:var(--azul)">${(totalMat + totalMO).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
-      </div>
+      </div>` : ''}
     `;
   }
 
@@ -1357,11 +1363,11 @@ function renderWizMatRow(m, idx) {
       style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:13px;font-family:var(--font)"
       onchange="wizUpdateMatQty(${idx},this.value)">
     <span style="font-size:11px;color:var(--gris-400)">${m.unidad||'ud'}</span>
-    <input type="number" value="${m.precio}" min="0" step="0.01"
+    ${esJefe ? `<input type="number" value="${m.precio}" min="0" step="0.01"
       style="width:70px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:13px;font-family:var(--font)"
       onchange="wizUpdateMatPrice(${idx},this.value)">
     <span style="font-size:11px;color:var(--gris-400)">€</span>
-    <span class="mat-qty">${(parseFloat(m.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+    <span class="mat-qty">${(parseFloat(m.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
     <button class="mat-del" onclick="wizRemoveMat(${idx})">🗑️</button>
   </div>`;
 }
@@ -1399,11 +1405,11 @@ function renderWizMORow(mo, idx) {
           <input type="number" value="${mo.km||0}" min="0" step="1"
             style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
             onchange="wizUpdateMO(${idx},'km',this.value)">
-          <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/km:</label>
+          ${esJefe ? `<label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/km:</label>
           <input type="number" value="${mo.precio_hora||0.26}" min="0" step="0.01"
             style="width:55px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:12px;font-family:var(--font)"
             onchange="wizUpdateMO(${idx},'precio_hora',this.value)">
-          <span style="font-size:12px;font-weight:700;color:var(--amarillo);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--amarillo);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
           <button class="mat-del" onclick="wizRemoveMO(${idx})">🗑️</button>
         </div>
       </div>
@@ -1415,15 +1421,15 @@ function renderWizMORow(mo, idx) {
         style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:4px"
         onchange="wizUpdateMO(${idx},'descripcion',this.value)">
       <div style="display:flex;gap:6px;align-items:center">
-        <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">Horas:</label>
-        <input type="number" value="${mo.horas||0}" min="0" step="0.25"
-          style="width:55px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
-          onchange="wizUpdateMO(${idx},'horas',this.value)">
-        <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/h:</label>
+        <label style="font-size:10px;color:var(--gris-500);white-space:nowrap">Minutos:</label>
+        <input type="number" value="${mo.minutos||0}" min="0" step="1"
+          style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
+          onchange="wizUpdateMO(${idx},'minutos',this.value)">
+        ${esJefe ? `<label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/h:</label>
         <input type="number" value="${mo.precio_hora||0}" min="0" step="0.5"
           style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:12px;font-family:var(--font)"
           onchange="wizUpdateMO(${idx},'precio_hora',this.value)">
-        <span style="font-size:12px;font-weight:700;color:var(--violeta);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--violeta);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
         <button class="mat-del" onclick="wizRemoveMO(${idx})">🗑️</button>
       </div>
     </div>
@@ -1434,9 +1440,9 @@ function wizAddManoObra() {
   if (!_wiz.manoObra) _wiz.manoObra = [];
   _wiz.manoObra.push({
     descripcion: 'Trabajo realizado',
-    horas: 1,
-    precio_hora: 35,
-    total: 35,
+    minutos: 60,
+    precio_hora: esJefe ? 35 : 0,
+    total: esJefe ? 35 : 0,
   });
   renderWizStep();
 }
@@ -1449,15 +1455,17 @@ function wizUpdateMO(idx, field, val) {
   } else if (field === 'km') {
     mo.km = parseFloat(val) || 0;
     mo.total = mo.km * (mo.precio_hora || 0.26);
-  } else if (field === 'horas') {
-    mo.horas = parseFloat(val) || 0;
-    mo.total = mo.horas * (mo.precio_hora || 0);
+  } else if (field === 'minutos') {
+    mo.minutos = parseFloat(val) || 0;
+    const horas = mo.minutos / 60;
+    mo.total = horas * (mo.precio_hora || 0);
   } else if (field === 'precio_hora') {
     mo.precio_hora = parseFloat(val) || 0;
     if (mo.es_desplazamiento) {
       mo.total = (mo.km || 0) * mo.precio_hora;
     } else {
-      mo.total = (mo.horas || 0) * mo.precio_hora;
+      const horas = (mo.minutos || 0) / 60;
+      mo.total = horas * mo.precio_hora;
     }
   }
   renderWizStep();
@@ -1513,7 +1521,13 @@ function _firmaPos(e) {
   const canvas = document.getElementById('firmaCanvas');
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches ? e.touches[0] : e;
-  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  // Escalar coordenadas: el canvas CSS puede ser distinto del canvas real
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (touch.clientX - rect.left) * scaleX,
+    y: (touch.clientY - rect.top) * scaleY
+  };
 }
 
 function firmaStart(e) {
@@ -1548,6 +1562,58 @@ function wizClearFirma() {
   }
 }
 
+// ── CALCULAR KM POR CARRETERA ──
+function _loadGoogleMaps() {
+  return new Promise((resolve, reject) => {
+    if (_gmapsLoaded && window.google && window.google.maps) return resolve();
+    if (!GMAPS_API_KEY) return reject(new Error('No API key'));
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=geometry`;
+    s.onload = () => { _gmapsLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('Error cargando Google Maps'));
+    document.head.appendChild(s);
+  });
+}
+
+async function calcularKmCarretera(destLat, destLng) {
+  // 1) Intentar con Google Maps Directions
+  if (GMAPS_API_KEY) {
+    try {
+      await _loadGoogleMaps();
+      const svc = new google.maps.DirectionsService();
+      const result = await new Promise((resolve, reject) => {
+        svc.route({
+          origin: new google.maps.LatLng(OFICINA_LAT, OFICINA_LNG),
+          destination: new google.maps.LatLng(destLat, destLng),
+          travelMode: google.maps.TravelMode.DRIVING,
+        }, (res, status) => {
+          if (status === 'OK') resolve(res);
+          else reject(new Error('Directions: ' + status));
+        });
+      });
+      const distMetros = result.routes[0].legs[0].distance.value;
+      return Math.round((distMetros / 1000) * 2); // km ida y vuelta
+    } catch(e) { console.warn('[calcKm] Google Maps falló:', e.message); }
+  }
+
+  // 2) Fallback: OSRM (gratuito, sin API key)
+  try {
+    const resp = await fetch(`https://router.project-osrm.org/route/v1/driving/${OFICINA_LNG},${OFICINA_LAT};${destLng},${destLat}?overview=false`);
+    const data = await resp.json();
+    if (data.routes && data.routes[0]) {
+      return Math.round((data.routes[0].distance / 1000) * 2); // km ida y vuelta
+    }
+  } catch(e) { console.warn('[calcKm] OSRM falló:', e.message); }
+
+  // 3) Último recurso: haversine x1.35 factor carretera
+  const R = 6371;
+  const dLat = (destLat - OFICINA_LAT) * Math.PI / 180;
+  const dLon = (destLng - OFICINA_LNG) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(OFICINA_LAT*Math.PI/180)*Math.cos(destLat*Math.PI/180)*Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return Math.round(R * c * 1.35 * 2);
+}
+
 // ── VALIDAR DNI/NIF/NIE/CIF ──
 function validarDNI(valor) {
   if (!valor) return { valid: false, msg: 'El DNI es obligatorio' };
@@ -1558,9 +1624,8 @@ function validarDNI(valor) {
   if (nifRegex.test(valor)) {
     const [, num, letra] = valor.match(nifRegex);
     const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
-    const letraCorrecta = letras[parseInt(num) % 23];
-    if (letra === letraCorrecta) return { valid: true, valor };
-    return { valid: false, msg: `Letra incorrecta. Debería ser: ${letraCorrecta}` };
+    if (letra === letras[parseInt(num) % 23]) return { valid: true, valor };
+    return { valid: false, msg: 'DNI no válido' };
   }
 
   // NIE: X/Y/Z + 7 dígitos + letra
@@ -1569,16 +1634,15 @@ function validarDNI(valor) {
     const [, prefix, num, letra] = valor.match(nieRegex);
     const prefixNum = { X: '0', Y: '1', Z: '2' }[prefix];
     const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
-    const letraCorrecta = letras[parseInt(prefixNum + num) % 23];
-    if (letra === letraCorrecta) return { valid: true, valor };
-    return { valid: false, msg: `Letra incorrecta. Debería ser: ${letraCorrecta}` };
+    if (letra === letras[parseInt(prefixNum + num) % 23]) return { valid: true, valor };
+    return { valid: false, msg: 'NIE no válido' };
   }
 
   // CIF: Letra + 7 dígitos + dígito/letra
   const cifRegex = /^[ABCDEFGHJKLMNPQRSUVW]\d{7}[\dA-J]$/;
   if (cifRegex.test(valor)) return { valid: true, valor };
 
-  return { valid: false, msg: 'Formato no válido. Usa NIF (12345678A), NIE (X1234567A) o CIF' };
+  return { valid: false, msg: 'DNI no válido' };
 }
 
 // ── FINALIZAR WIZARD ──
@@ -1928,31 +1992,42 @@ function openInformarWizard(id) {
   const p = misPartes.find(x => x.id === id);
   if (!p) return;
 
-  // Auto-calcular horas trabajadas desde inicio_at
+  // Auto-calcular minutos trabajados desde inicio_at
   let autoManoObra = p.mano_obra ? [...p.mano_obra] : [];
   if (autoManoObra.length === 0 && p.inicio_at) {
     const inicio = new Date(p.inicio_at);
     const ahora = new Date();
     const diffMs = ahora - inicio;
-    const diffHoras = Math.round((diffMs / (1000 * 60 * 60)) * 4) / 4; // Redondear a cuartos de hora
+    const diffMinutos = Math.max(1, Math.round(diffMs / (1000 * 60)));
     autoManoObra.push({
       descripcion: 'Trabajo realizado',
-      horas: Math.max(0.25, diffHoras),
+      minutos: diffMinutos,
       precio_hora: 35,
-      total: Math.max(0.25, diffHoras) * 35,
+      total: (diffMinutos / 60) * 35,
     });
   }
 
-  // Auto-añadir línea de desplazamiento
+  // Auto-añadir línea de desplazamiento con cálculo de km por carretera
   if (autoManoObra.length <= 1 && !autoManoObra.find(mo => mo.descripcion && mo.descripcion.toLowerCase().includes('desplazamiento'))) {
     autoManoObra.push({
       descripcion: 'Desplazamiento',
-      horas: 0,
-      precio_hora: 0,
+      minutos: 0,
+      precio_hora: 0.26,
       total: 0,
       km: 0,
       es_desplazamiento: true,
     });
+    // Calcular km reales por carretera (Google Maps → OSRM → haversine)
+    if (p.ubicacion && p.ubicacion.lat && p.ubicacion.lng) {
+      calcularKmCarretera(p.ubicacion.lat, p.ubicacion.lng).then(km => {
+        const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
+        if (despMO) {
+          despMO.km = km;
+          despMO.total = km * (despMO.precio_hora || 0.26);
+          renderWizStep();
+        }
+      }).catch(() => {});
+    }
   }
 
   _wiz = {
