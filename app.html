@@ -594,15 +594,22 @@ function renderOperarioInicio(el) {
           <span style="color:var(--rojo);font-size:16px" class="day-toggle" data-date="caducados">▶</span>
         </div>
         <div id="day-caducados" style="display:none;padding:8px">
-          ${caducados.map(d => {
+          ${caducados.sort((a,b) => b.fecha.localeCompare(a.fecha)).map(d => {
             const date = new Date(d.fecha + 'T00:00:00');
-            const label = date.toLocaleDateString('es-ES', {weekday:'short', day:'numeric', month:'short'});
-            return d.partes.map(p => `
-              <div style="position:relative">
-                <div style="position:absolute;top:8px;right:8px;background:#FECACA;color:var(--rojo);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">${label}</div>
-                ${renderParteCard(p)}
+            const label = date.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+            const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
+            return `
+              <div style="margin-bottom:8px">
+                <div class="day-header" data-date="cad-${d.fecha}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#FEE2E2;border-radius:8px;cursor:pointer;user-select:none">
+                  <span style="font-weight:700;color:var(--rojo);flex:1;font-size:13px">${labelCap}</span>
+                  <span style="color:var(--rojo);font-size:11px;font-weight:700;background:#FECACA;padding:1px 6px;border-radius:10px">${d.partes.length}</span>
+                  <span style="color:var(--rojo);font-size:14px" class="day-toggle" data-date="cad-${d.fecha}">▶</span>
+                </div>
+                <div id="day-cad-${d.fecha}" style="display:none;padding:4px 0">
+                  ${d.partes.map(p => renderParteCard(p)).join('')}
+                </div>
               </div>
-            `).join('');
+            `;
           }).join('')}
         </div>
       </div>
