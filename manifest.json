@@ -1,0 +1,22 @@
+{
+  "name": "Instalo App",
+  "short_name": "Instalo",
+  "description": "Gestión de partes de trabajo, agenda y equipo",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "background_color": "#1B4FD8",
+  "theme_color": "#1B4FD8",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "es",
+  "dir": "ltr"
+}

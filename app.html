@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1B4FD8">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Instalo App</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --azul:#1B4FD8;--azul-dark:#1339A8;--azul-light:#EEF3FF;
+  --verde:#16A34A;--verde-light:#DCFCE7;
+  --rojo:#DC2626;--rojo-light:#FEE2E2;
+  --amarillo:#D97706;--amarillo-light:#FEF3C7;
+  --violeta:#7C3AED;--violeta-light:#EDE9FE;
+  --acento:#F97316;
+  --gris-50:#F8FAFC;--gris-100:#F1F5F9;--gris-200:#E2E8F0;
+  --gris-300:#CBD5E1;--gris-400:#94A3B8;--gris-500:#64748B;
+  --gris-600:#475569;--gris-700:#334155;--gris-800:#1E293B;--gris-900:#0F172A;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+  --radius:12px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+body{font-family:var(--font);background:var(--gris-50);color:var(--gris-900);min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--azul);text-decoration:none}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100dvh}
+.screen.active{display:flex;flex-direction:column}
+
+/* ── LOGIN ── */
+#s-login{align-items:center;justify-content:center;background:linear-gradient(135deg,var(--azul-dark),var(--azul));padding:24px}
+.login-card{background:#fff;border-radius:20px;padding:32px 24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.login-card h1{text-align:center;font-size:22px;font-weight:800;color:var(--azul);margin-bottom:4px}
+.login-card p{text-align:center;font-size:13px;color:var(--gris-400);margin-bottom:24px}
+.login-card .logo{text-align:center;margin-bottom:16px;font-size:40px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.field input{width:100%;padding:12px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:15px;outline:none;transition:border .2s;font-family:var(--font)}
+.field input:focus{border-color:var(--azul)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:10px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;width:100%}
+.btn-primary{background:var(--azul);color:#fff}
+.btn-primary:active{background:var(--azul-dark);transform:scale(.98)}
+.btn-secondary{background:var(--gris-100);color:var(--gris-700)}
+.btn-danger{background:var(--rojo);color:#fff}
+.btn-sm{padding:8px 14px;font-size:12px;border-radius:8px;width:auto}
+.err{display:none;background:var(--rojo-light);color:var(--rojo);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:12px;text-align:center}
+
+/* ── APP SHELL ── */
+#s-app{background:var(--gris-50)}
+.app-header{position:sticky;top:0;z-index:100;background:#fff;padding:calc(var(--safe-top) + 8px) 16px 8px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px}
+.app-header .avatar{width:36px;height:36px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
+.app-header .info{flex:1;min-width:0}
+.app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
+.app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+
+.app-body{flex:1;padding:12px 16px;padding-bottom:calc(80px + var(--safe-bottom))}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--gris-200);display:flex;padding-bottom:var(--safe-bottom);z-index:100}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;gap:2px;cursor:pointer;border:none;background:none;color:var(--gris-400);font-family:var(--font);transition:color .2s}
+.bottom-nav .nav-item.active{color:var(--azul)}
+.bottom-nav .nav-item .ico{font-size:22px;line-height:1}
+.bottom-nav .nav-item .lbl{font-size:10px;font-weight:700}
+.bottom-nav .nav-item .badge{position:absolute;top:-2px;right:-6px;background:var(--rojo);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center}
+
+/* ── CARDS ── */
+.card{background:#fff;border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);border:1px solid var(--gris-100)}
+.card-title{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.section-title{font-size:13px;font-weight:800;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px;padding-left:4px}
+
+/* ── PARTE CARD ── */
+.parte-card{background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid var(--gris-100);cursor:pointer;transition:box-shadow .2s}
+.parte-card:active{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.parte-row{display:flex;align-items:center;gap:8px}
+.parte-num{font-family:monospace;font-weight:700;font-size:13px;color:var(--azul)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700}
+.parte-meta{font-size:11.5px;color:var(--gris-400);margin-top:4px}
+.parte-desc{font-size:12.5px;color:var(--gris-600);margin-top:6px;line-height:1.4}
+.parte-actions{display:flex;gap:8px;margin-top:10px}
+.parte-actions .btn{flex:1}
+
+/* ── TAREA ITEM ── */
+.tarea-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--gris-100)}
+.tarea-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--gris-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all .2s;font-size:12px}
+.tarea-check.done{background:var(--verde);border-color:var(--verde);color:#fff}
+.tarea-texto{flex:1;font-size:13px}
+.tarea-texto.done{text-decoration:line-through;color:var(--gris-400)}
+
+/* ── AGENDA ── */
+.agenda-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--gris-100)}
+.agenda-time{font-size:12px;font-weight:800;color:var(--azul);width:50px;flex-shrink:0;text-align:right}
+.agenda-content{flex:1;min-width:0}
+.agenda-title{font-size:13.5px;font-weight:700}
+.agenda-sub{font-size:11.5px;color:var(--gris-400);margin-top:2px}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:85dvh;overflow-y:auto;padding:20px 16px calc(20px + var(--safe-bottom));animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:40px;height:4px;background:var(--gris-300);border-radius:4px;margin:0 auto 16px}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:16px}
+
+/* ── STAT CARDS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--gris-100)}
+.stat-num{font-size:24px;font-weight:800}
+.stat-label{font-size:11px;font-weight:600;color:var(--gris-400);margin-top:2px}
+
+/* ── PROGRESS ── */
+.progress-bar{height:8px;background:var(--gris-100);border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;border-radius:4px;transition:width .5s}
+
+/* ── EMPTY ── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--gris-400)}
+.empty-state .ico{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:14px}
+
+/* ── TOAST ── */
+.toast{position:fixed;top:calc(var(--safe-top) + 12px);left:50%;transform:translateX(-50%);background:var(--gris-800);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+.toast.success{background:var(--verde)}
+.toast.error{background:var(--rojo)}
+.toast.warning{background:var(--amarillo)}
+
+/* ── JEFE: OPERARIO CARDS ── */
+.operario-card{background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;border:1px solid var(--gris-100);display:flex;align-items:center;gap:12px;cursor:pointer}
+.operario-card:active{background:var(--gris-50)}
+.operario-av{width:42px;height:42px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0}
+.operario-info{flex:1;min-width:0}
+.operario-name{font-size:14px;font-weight:700}
+.operario-status{font-size:11.5px;margin-top:2px}
+
+/* ── JEFE: TABS ── */
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:8px 16px;border-radius:20px;font-size:12.5px;font-weight:700;white-space:nowrap;border:none;background:var(--gris-100);color:var(--gris-500);cursor:pointer;transition:all .2s;font-family:var(--font)}
+.tab.active{background:var(--azul);color:#fff}
+
+/* ── PULL TO REFRESH ── */
+.ptr-indicator{text-align:center;padding:8px;font-size:12px;color:var(--gris-400);display:none}
+
+/* ── INSTALL BANNER ── */
+.install-banner{background:linear-gradient(135deg,var(--azul),var(--violeta));color:#fff;border-radius:var(--radius);padding:16px;margin-bottom:12px;display:none}
+.install-banner h3{font-size:14px;font-weight:800;margin-bottom:4px}
+.install-banner p{font-size:12px;opacity:.8;margin-bottom:10px}
+.install-banner .btn{background:rgba(255,255,255,.2);color:#fff;width:auto;padding:8px 16px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="appToast" class="toast"></div>
+
+<!-- ═══════════ LOGIN SCREEN ═══════════ -->
+<div id="s-login" class="screen active">
+  <div class="login-card">
+    <div class="logo">🔧</div>
+    <h1>Instalo App</h1>
+    <p>Accede a tu cuenta de trabajo</p>
+    <div id="loginErr" class="err"></div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="lEmail" placeholder="tu@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()" id="btnLogin">Entrar</button>
+  </div>
+</div>
+
+<!-- ═══════════ APP SCREEN ═══════════ -->
+<div id="s-app" class="screen">
+  <!-- Header -->
+  <div class="app-header">
+    <div class="avatar" id="hdrAvatar">J</div>
+    <div class="info">
+      <h2 id="hdrNombre">—</h2>
+      <span id="hdrRol">—</span>
+    </div>
+    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar">🔄</button>
+    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">🚪</button>
+  </div>
+
+  <!-- Body (content rendered by JS) -->
+  <div class="app-body" id="appBody"></div>
+
+  <!-- Bottom Navigation (rendered by JS based on role) -->
+  <nav class="bottom-nav" id="bottomNav"></nav>
+</div>
+
+<!-- ═══════════ MODALS ═══════════ -->
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-sheet" id="modalSheet">
+    <div class="modal-handle"></div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// INSTALO MOBILE WEB APP
+// ═══════════════════════════════════════════════════════════════
+
+const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ─── State ───
+let CU = null, CP = null, EMPRESA = null;
+let esJefe = false;
+let currentTab = 'inicio';
+let misPartes = [];
+let misTareas = [];
+let todosUsuarios = [];
+let trabajos = [];
+let clientes = [];
+
+// ─── Estados de partes ───
+const PT_ESTADOS = {
+  borrador:   { label:'Borrador',   color:'#9CA3AF', bg:'#F3F4F6', ico:'✏️' },
+  programado: { label:'Programado', color:'#3B82F6', bg:'#EFF6FF', ico:'📅' },
+  en_curso:   { label:'En curso',   color:'#D97706', bg:'#FFFBEB', ico:'🔧' },
+  completado: { label:'Completado', color:'#059669', bg:'#ECFDF5', ico:'✅' },
+  revisado:   { label:'Revisado',   color:'#10B981', bg:'#D1FAE5', ico:'👁️' },
+  facturado:  { label:'Facturado',  color:'#8B5CF6', bg:'#F5F3FF', ico:'🧾' },
+};
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  // Enter key on login
+  document.getElementById('lPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  document.getElementById('lEmail').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('lPass').focus(); });
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    CU = session.user;
+    await loadProfile();
+    if (CP?.empresa_id) {
+      await loadEmpresa(CP.empresa_id);
+      showApp();
+    } else {
+      showScreen('s-login');
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('lEmail').value.trim();
+  const pass  = document.getElementById('lPass').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent = 'Completa todos los campos'; errEl.style.display = 'block'; return; }
+
+  document.getElementById('btnLogin').textContent = 'Entrando...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  document.getElementById('btnLogin').textContent = 'Entrar';
+
+  if (error) { errEl.textContent = 'Email o contraseña incorrectos'; errEl.style.display = 'block'; return; }
+
+  CU = data.user;
+  await loadProfile();
+  if (!CP?.empresa_id) { errEl.textContent = 'Sin empresa asignada'; errEl.style.display = 'block'; return; }
+  await loadEmpresa(CP.empresa_id);
+  showApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  CU = null; CP = null; EMPRESA = null;
+  showScreen('s-login');
+}
+
+async function loadProfile() {
+  const { data } = await sb.from('perfiles').select('*').eq('id', CU.id).single();
+  CP = data;
+}
+
+async function loadEmpresa(id) {
+  const { data } = await sb.from('empresas').select('*').eq('id', id).single();
+  EMPRESA = data;
+}
+
+// ═══════════════════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════════════════
+async function showApp() {
+  esJefe = CP?.es_superadmin === true;
+  showScreen('s-app');
+
+  // Header
+  document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
+  document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
+  document.getElementById('hdrRol').textContent = esJefe ? '👑 Jefe · ' + (EMPRESA?.nombre||'') : '👷 Operario · ' + (EMPRESA?.nombre||'');
+
+  // Bottom nav
+  renderBottomNav();
+
+  // Load data
+  await loadAllData();
+  navigateTo('inicio');
+}
+
+function renderBottomNav() {
+  const nav = document.getElementById('bottomNav');
+  if (esJefe) {
+    nav.innerHTML = `
+      <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
+      <button class="nav-item" data-tab="partes" onclick="navigateTo('partes')"><span class="ico">📝</span><span class="lbl">Partes</span></button>
+      <button class="nav-item" data-tab="equipo" onclick="navigateTo('equipo')"><span class="ico">👥</span><span class="lbl">Equipo</span></button>
+      <button class="nav-item" data-tab="docs" onclick="navigateTo('docs')"><span class="ico">📄</span><span class="lbl">Docs</span></button>
+      <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">⚙️</span><span class="lbl">Más</span></button>
+    `;
+  } else {
+    nav.innerHTML = `
+      <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
+      <button class="nav-item" data-tab="partes" onclick="navigateTo('partes')"><span class="ico">📝</span><span class="lbl">Mis partes</span></button>
+      <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
+      <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
+    `;
+  }
+}
+
+function navigateTo(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const body = document.getElementById('appBody');
+
+  if (esJefe) {
+    switch(tab) {
+      case 'inicio': renderJefeInicio(body); break;
+      case 'partes': renderJefePartes(body); break;
+      case 'equipo': renderJefeEquipo(body); break;
+      case 'docs': renderJefeDocs(body); break;
+      case 'mas': renderJefeMas(body); break;
+    }
+  } else {
+    switch(tab) {
+      case 'inicio': renderOperarioInicio(body); break;
+      case 'partes': renderOperarioPartes(body); break;
+      case 'tareas': renderOperarioTareas(body); break;
+      case 'agenda': renderOperarioAgenda(body); break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════
+async function loadAllData() {
+  if (!EMPRESA) return;
+  const eid = EMPRESA.id;
+
+  try {
+    const promises = [
+      sb.from('partes_trabajo').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('fecha',{ascending:false}).limit(100),
+      sb.from('perfiles').select('*').eq('empresa_id', eid).eq('activo', true),
+      sb.from('trabajos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}),
+      sb.from('clientes').select('*').eq('empresa_id', eid).order('nombre'),
+    ];
+
+    // Jefe: cargar tareas de todas las obras; Operario: solo sus tareas
+    if (esJefe) {
+      promises.push(sb.from('tareas_obra').select('*').eq('empresa_id', eid).neq('estado','rechazada').order('created_at',{ascending:false}).limit(200));
+    } else {
+      promises.push(sb.from('tareas_obra').select('*').eq('empresa_id', eid).eq('responsable_id', CU.id).neq('estado','rechazada').order('created_at',{ascending:false}).limit(100));
+    }
+
+    const [partesR, usersR, trabR, cliR, tareasR] = await Promise.all(promises);
+
+    const allPartes = partesR.data || [];
+    todosUsuarios = usersR.data || [];
+    trabajos = trabR.data || [];
+    clientes = cliR.data || [];
+    const allTareas = tareasR.data || [];
+
+    if (esJefe) {
+      misPartes = allPartes;
+      misTareas = allTareas;
+    } else {
+      misPartes = allPartes.filter(p => p.usuario_id === CU.id);
+      misTareas = allTareas;
+    }
+  } catch(e) {
+    console.error('Error loading data:', e);
+    toast('Error cargando datos', 'error');
+  }
+}
+
+async function doRefresh() {
+  toast('Actualizando...', '');
+  await loadAllData();
+  navigateTo(currentTab);
+  toast('Actualizado ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// OPERARIO VIEWS
+// ═══════════════════════════════════════════════
+
+function renderOperarioInicio(el) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const partesHoy = misPartes.filter(p => p.fecha === hoy);
+  const partesPend = misPartes.filter(p => ['programado','en_curso'].includes(p.estado));
+  const tareasActivas = misTareas.filter(t => t.estado !== 'completada');
+  const proxParte = misPartes.find(p => p.fecha >= hoy && ['programado','borrador'].includes(p.estado));
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:800">¡Hola, ${(CP?.nombre||'').split(' ')[0]}! 👋</h2>
+      <p style="font-size:13px;color:var(--gris-400)">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--azul)">${partesHoy.length}</div>
+        <div class="stat-label">Partes hoy</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--acento)">${partesPend.length}</div>
+        <div class="stat-label">Pendientes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--verde)">${misTareas.filter(t=>t.estado==='completada').length}/${misTareas.length}</div>
+        <div class="stat-label">Tareas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--violeta)">${misPartes.filter(p=>p.estado==='completado').length}</div>
+        <div class="stat-label">Completados</div>
+      </div>
+    </div>
+
+    ${proxParte ? `
+      <div class="section-title">📅 Próximo trabajo</div>
+      ${renderParteCard(proxParte)}
+    ` : ''}
+
+    ${partesHoy.length ? `
+      <div class="section-title">🔧 Hoy</div>
+      ${partesHoy.map(p => renderParteCard(p)).join('')}
+    ` : `
+      <div class="card" style="text-align:center;padding:24px">
+        <div style="font-size:36px;margin-bottom:8px">☀️</div>
+        <p style="font-size:14px;color:var(--gris-400)">No tienes partes programados para hoy</p>
+      </div>
+    `}
+
+    ${tareasActivas.length ? `
+      <div class="section-title">✅ Tareas pendientes</div>
+      <div class="card">
+        ${tareasActivas.slice(0,5).map(t => renderTareaItem(t)).join('')}
+        ${tareasActivas.length > 5 ? `<div style="text-align:center;padding:8px"><button class="btn btn-secondary btn-sm" onclick="navigateTo('tareas')">Ver todas (${tareasActivas.length})</button></div>` : ''}
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderOperarioPartes(el) {
+  const activos = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
+  const completados = misPartes.filter(p => ['completado','revisado','facturado'].includes(p.estado));
+
+  el.innerHTML = `
+    <div class="section-title">📝 Partes activos (${activos.length})</div>
+    ${activos.length ? activos.map(p => renderParteCard(p, true)).join('') : '<div class="empty-state"><div class="ico">✨</div><p>Sin partes activos</p></div>'}
+
+    ${completados.length ? `
+      <div class="section-title" style="margin-top:24px">✅ Completados (${completados.length})</div>
+      ${completados.slice(0,10).map(p => renderParteCard(p)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderOperarioTareas(el) {
+  const pendientes = misTareas.filter(t => t.estado !== 'completada');
+  const hechas = misTareas.filter(t => t.estado === 'completada');
+  const total = misTareas.length;
+  const porcent = total ? Math.round((hechas.length / total) * 100) : 0;
+
+  el.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700">${hechas.length} de ${total} completadas</span>
+        <span style="font-size:14px;font-weight:800;color:${porcent===100?'var(--verde)':'var(--azul)'}">${porcent}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${porcent}%;background:${porcent===100?'var(--verde)':'var(--azul)'}"></div></div>
+    </div>
+
+    ${pendientes.length ? `
+      <div class="section-title">📋 Pendientes</div>
+      <div class="card">${pendientes.map(t => renderTareaItem(t)).join('')}</div>
+    ` : ''}
+
+    ${hechas.length ? `
+      <div class="section-title" style="opacity:.6">✅ Completadas</div>
+      <div class="card" style="opacity:.7">${hechas.slice(0,10).map(t => renderTareaItem(t)).join('')}</div>
+    ` : ''}
+
+    ${!total ? '<div class="empty-state"><div class="ico">✅</div><p>Sin tareas asignadas</p></div>' : ''}
+  `;
+}
+
+function renderOperarioAgenda(el) {
+  const hoy = new Date().toISOString().split('T')[0];
+  // Próximos 7 días
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().split('T')[0];
+    const partesDia = misPartes.filter(p => p.fecha === key && p.estado !== 'eliminado');
+    if (partesDia.length || i === 0) {
+      dias.push({ fecha: d, key, partes: partesDia });
+    }
+  }
+
+  el.innerHTML = `
+    <div class="section-title">📅 Mi agenda — próximos 7 días</div>
+    ${dias.map(d => `
+      <div class="card">
+        <div style="font-size:13px;font-weight:800;color:${d.key===hoy?'var(--azul)':'var(--gris-700)'};margin-bottom:8px">
+          ${d.key === hoy ? '🔵 HOY' : ''} ${d.fecha.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'})}
+        </div>
+        ${d.partes.length ? d.partes.map(p => {
+          const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+          const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
+          const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+          return `<div class="agenda-item" onclick="openParteDetail(${p.id})">
+            <div class="agenda-time">${hi}</div>
+            <div class="agenda-content">
+              <div class="agenda-title">${p.trabajo_titulo || 'Sin obra'}</div>
+              <div class="agenda-sub">${hi}-${hf} · ${est.ico} ${est.label}</div>
+              ${p.direccion ? `<div class="agenda-sub">📍 ${p.direccion}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('') : '<div style="padding:8px 0;font-size:12.5px;color:var(--gris-400)">Sin trabajos programados</div>'}
+      </div>
+    `).join('')}
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// JEFE VIEWS
+// ═══════════════════════════════════════════════
+
+function renderJefeInicio(el) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const partesHoy = misPartes.filter(p => p.fecha === hoy);
+  const pendRevision = misPartes.filter(p => p.estado === 'completado');
+  const enCurso = misPartes.filter(p => p.estado === 'en_curso');
+  const programados = misPartes.filter(p => p.estado === 'programado');
+  const borradores = misPartes.filter(p => p.estado === 'borrador');
+  const operarios = todosUsuarios.filter(u => u.disponible_partes === true);
+
+  // Resumen operarios hoy
+  const opResumen = operarios.map(op => {
+    const partesOp = misPartes.filter(p => p.usuario_id === op.id && p.fecha === hoy);
+    const enCursoOp = partesOp.find(p => p.estado === 'en_curso');
+    return { ...op, partesHoy: partesOp, enCurso: enCursoOp };
+  });
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:800">Panel de control 👑</h2>
+      <p style="font-size:13px;color:var(--gris-400)">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card" onclick="navigateTo('partes')" style="cursor:pointer">
+        <div class="stat-num" style="color:var(--azul)">${partesHoy.length}</div>
+        <div class="stat-label">Partes hoy</div>
+      </div>
+      <div class="stat-card" style="cursor:pointer" onclick="filterPartes('completado')">
+        <div class="stat-num" style="color:${pendRevision.length?'var(--rojo)':'var(--verde)'}">${pendRevision.length}</div>
+        <div class="stat-label">Pend. revisión</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--acento)">${enCurso.length}</div>
+        <div class="stat-label">En curso</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--gris-500)">${borradores.length}</div>
+        <div class="stat-label">Borradores</div>
+      </div>
+    </div>
+
+    <div class="section-title">👥 Equipo hoy</div>
+    ${opResumen.map(op => {
+      let status = '⚫ Sin partes';
+      let statusColor = 'var(--gris-400)';
+      if (op.enCurso) { status = '🔧 Trabajando'; statusColor = 'var(--acento)'; }
+      else if (op.partesHoy.some(p=>p.estado==='programado')) { status = '📅 Programado'; statusColor = 'var(--azul)'; }
+      else if (op.partesHoy.some(p=>p.estado==='completado')) { status = '✅ Completado'; statusColor = 'var(--verde)'; }
+      return `<div class="operario-card" onclick="openOperarioDetail('${op.id}')">
+        <div class="operario-av">${(op.nombre||'?')[0].toUpperCase()}</div>
+        <div class="operario-info">
+          <div class="operario-name">${op.nombre||''} ${op.apellidos||''}</div>
+          <div class="operario-status" style="color:${statusColor}">${status} · ${op.partesHoy.length} parte${op.partesHoy.length!==1?'s':''}</div>
+        </div>
+        <span style="font-size:18px">›</span>
+      </div>`;
+    }).join('')}
+
+    ${pendRevision.length ? `
+      <div class="section-title">⚠️ Pendientes de revisión</div>
+      ${pendRevision.slice(0,5).map(p => renderParteCard(p)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderJefePartes(el) {
+  let filteredPartes = [...misPartes];
+  const filterState = window._jefeParteFilter || 'todos';
+
+  if (filterState !== 'todos') {
+    filteredPartes = misPartes.filter(p => p.estado === filterState);
+  }
+
+  const counts = {};
+  misPartes.forEach(p => { counts[p.estado] = (counts[p.estado]||0) + 1; });
+
+  el.innerHTML = `
+    <div class="tabs">
+      <button class="tab ${filterState==='todos'?'active':''}" onclick="filterPartes('todos')">Todos (${misPartes.length})</button>
+      <button class="tab ${filterState==='borrador'?'active':''}" onclick="filterPartes('borrador')">✏️ Borrador (${counts.borrador||0})</button>
+      <button class="tab ${filterState==='programado'?'active':''}" onclick="filterPartes('programado')">📅 Programado (${counts.programado||0})</button>
+      <button class="tab ${filterState==='en_curso'?'active':''}" onclick="filterPartes('en_curso')">🔧 En curso (${counts.en_curso||0})</button>
+      <button class="tab ${filterState==='completado'?'active':''}" onclick="filterPartes('completado')">✅ Completado (${counts.completado||0})</button>
+      <button class="tab ${filterState==='revisado'?'active':''}" onclick="filterPartes('revisado')">👁️ Revisado (${counts.revisado||0})</button>
+      <button class="tab ${filterState==='facturado'?'active':''}" onclick="filterPartes('facturado')">🧾 Facturado (${counts.facturado||0})</button>
+    </div>
+
+    ${filteredPartes.length ? filteredPartes.slice(0,50).map(p => renderParteCard(p, true)).join('') : '<div class="empty-state"><div class="ico">📝</div><p>Sin partes en este estado</p></div>'}
+  `;
+}
+
+function filterPartes(estado) {
+  window._jefeParteFilter = estado;
+  navigateTo('partes');
+}
+
+function renderJefeEquipo(el) {
+  const operarios = todosUsuarios.filter(u => u.disponible_partes === true);
+  const hoy = new Date().toISOString().split('T')[0];
+
+  el.innerHTML = `
+    <div class="section-title">👥 Operarios de campo</div>
+    ${operarios.map(op => {
+      const partesOp = misPartes.filter(p => p.usuario_id === op.id);
+      const partesHoy = partesOp.filter(p => p.fecha === hoy);
+      const completados = partesOp.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
+      return `<div class="operario-card" onclick="openOperarioDetail('${op.id}')">
+        <div class="operario-av" style="background:${partesHoy.some(p=>p.estado==='en_curso')?'var(--acento)':'var(--azul)'}">${(op.nombre||'?')[0].toUpperCase()}</div>
+        <div class="operario-info">
+          <div class="operario-name">${op.nombre||''} ${op.apellidos||''}</div>
+          <div class="operario-status" style="color:var(--gris-400)">${partesOp.length} partes · ${completados} completados · Hoy: ${partesHoy.length}</div>
+        </div>
+        <span style="font-size:18px">›</span>
+      </div>`;
+    }).join('')}
+
+    <div class="section-title" style="margin-top:24px">📅 Agenda del equipo — Hoy</div>
+    ${operarios.map(op => {
+      const partesHoy = misPartes.filter(p => p.usuario_id === op.id && p.fecha === hoy).sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+      if (!partesHoy.length) return '';
+      return `<div class="card">
+        <div class="card-title">👷 ${op.nombre||''}</div>
+        ${partesHoy.map(p => {
+          const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+          const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
+          const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+          return `<div class="agenda-item" onclick="openParteDetail(${p.id})">
+            <div class="agenda-time">${hi}</div>
+            <div class="agenda-content">
+              <div class="agenda-title">${p.trabajo_titulo||'Sin obra'}</div>
+              <div class="agenda-sub">${hi}-${hf} · <span style="color:${est.color}">${est.ico} ${est.label}</span></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('') || '<div class="card" style="text-align:center;padding:20px;color:var(--gris-400)">Sin partes programados hoy</div>'}
+  `;
+}
+
+function renderJefeDocs(el) {
+  // Presupuestos y facturas
+  el.innerHTML = `
+    <div class="tabs" id="docsTabs">
+      <button class="tab active" onclick="showDocTab('presupuestos')">📋 Presupuestos</button>
+      <button class="tab" onclick="showDocTab('albaranes')">📄 Albaranes</button>
+      <button class="tab" onclick="showDocTab('facturas')">🧾 Facturas</button>
+    </div>
+    <div id="docsContent"><div style="text-align:center;padding:20px;color:var(--gris-400)">Cargando...</div></div>
+  `;
+  showDocTab('presupuestos');
+}
+
+async function showDocTab(tipo) {
+  document.querySelectorAll('#docsTabs .tab').forEach(t => t.classList.remove('active'));
+  event?.target?.classList.add('active');
+  const container = document.getElementById('docsContent');
+  if (!container) return;
+
+  try {
+    let query;
+    if (tipo === 'presupuestos') {
+      query = sb.from('presupuestos').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
+    } else if (tipo === 'albaranes') {
+      query = sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
+    } else {
+      query = sb.from('facturas').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
+    }
+    const { data } = await query;
+    const docs = data || [];
+
+    if (!docs.length) {
+      container.innerHTML = `<div class="empty-state"><div class="ico">${tipo==='presupuestos'?'📋':tipo==='albaranes'?'📄':'🧾'}</div><p>Sin ${tipo}</p></div>`;
+      return;
+    }
+
+    container.innerHTML = docs.map(d => {
+      const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString('es-ES') : '—';
+      const total = d.total != null ? d.total.toLocaleString('es-ES',{style:'currency',currency:'EUR'}) : '—';
+      const estCol = d.estado==='aceptado'||d.estado==='cobrada'?'var(--verde)':d.estado==='pendiente'||d.estado==='vencida'?'var(--acento)':'var(--gris-400)';
+      return `<div class="card" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;font-size:13px;font-family:monospace;color:var(--azul)">${d.numero||'—'}</div>
+            <div style="font-size:12px;color:var(--gris-500)">${d.cliente_nombre||'—'} · ${fecha}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:800;font-size:14px">${total}</div>
+            <div style="font-size:11px;color:${estCol};font-weight:700">${(d.estado||'—').toUpperCase()}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--rojo)">Error cargando</div>';
+  }
+}
+
+function renderJefeMas(el) {
+  el.innerHTML = `
+    <div class="section-title">⚙️ Opciones</div>
+    <div class="card" onclick="window.open(location.href.replace('app.html','index.html'),'_blank')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🖥️</span>
+      <div><div style="font-weight:700;font-size:14px">Abrir ERP completo</div><div style="font-size:12px;color:var(--gris-400)">Versión de escritorio con todas las funciones</div></div>
+    </div>
+    <div class="card" onclick="doRefresh()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🔄</span>
+      <div><div style="font-weight:700;font-size:14px">Actualizar datos</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y equipo</div></div>
+    </div>
+    <div class="card" onclick="doLogout()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🚪</span>
+      <div><div style="font-weight:700;font-size:14px">Cerrar sesión</div><div style="font-size:12px;color:var(--gris-400)">${CU?.email||''}</div></div>
+    </div>
+
+    <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
+      Instalo ERP · App móvil v1.0
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// SHARED COMPONENTS
+// ═══════════════════════════════════════════════
+
+function renderParteCard(p, showActions = false) {
+  const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+  const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '—';
+  const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '';
+  const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '';
+  const horas = (parseFloat(p.horas)||0).toFixed(1);
+  const operario = p.usuario_nombre || '—';
+
+  const nextActions = {
+    borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
+    programado: {label:'🔧 Iniciar',   estado:'en_curso',   bg:'var(--acento)'},
+    en_curso:   {label:'✅ Completar', estado:'completado', bg:'var(--verde)'},
+    completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
+    revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
+  };
+  const next = nextActions[p.estado];
+
+  return `<div class="parte-card" onclick="openParteDetail(${p.id})">
+    <div class="parte-row">
+      <span class="parte-num">${p.numero||'—'}</span>
+      <span class="badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+      ${p.direccion ? `<a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" onclick="event.stopPropagation()" style="margin-left:auto;background:#3B82F6;color:#fff;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;text-decoration:none">📍 GPS</a>` : ''}
+    </div>
+    <div class="parte-meta">${fecha} · ${hi}${hf?'-'+hf:''} · ${horas}h · ${operario}</div>
+    ${p.trabajo_titulo ? `<div style="font-size:12px;color:var(--gris-600);margin-top:2px">🏗️ ${p.trabajo_titulo}</div>` : ''}
+    ${p.descripcion ? `<div class="parte-desc">${p.descripcion.substring(0,120)}${p.descripcion.length>120?'...':''}</div>` : ''}
+    ${showActions && next ? `
+      <div class="parte-actions">
+        <button class="btn btn-sm" style="background:${next.bg};color:#fff" onclick="event.stopPropagation();cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openParteDetail(${p.id})">👁️ Ver</button>
+      </div>
+    ` : ''}
+  </div>`;
+}
+
+function renderTareaItem(t) {
+  const done = t.estado === 'completada';
+  const obraTitulo = trabajos.find(tr => tr.id === t.trabajo_id)?.titulo || '';
+  const prio = {urgente:'🔺',alta:'▲',normal:'◆',baja:'▽'};
+  return `<div class="tarea-item">
+    <div class="tarea-check ${done?'done':''}" onclick="toggleTarea(${t.id}, ${done?'false':'true'})">
+      ${done ? '✓' : ''}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div class="tarea-texto ${done?'done':''}">${prio[t.prioridad]||'◆'} ${t.texto||'—'}</div>
+      ${obraTitulo ? `<div style="font-size:10.5px;color:var(--gris-400);margin-top:1px">🏗️ ${obraTitulo}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// PARTE DETAIL MODAL
+// ═══════════════════════════════════════════════
+
+function openParteDetail(id) {
+  const p = misPartes.find(x => x.id === id);
+  if (!p) return;
+
+  const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+  const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'long'}) : '—';
+  const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+  const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
+  const horas = (parseFloat(p.horas)||0).toFixed(1);
+
+  const nextActions = {
+    borrador:   {label:'📅 Programar cita', estado:'programado', bg:'#3B82F6'},
+    programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', bg:'var(--acento)'},
+    en_curso:   {label:'✅ Marcar completado', estado:'completado', bg:'var(--verde)'},
+    completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', bg:'#10B981'},
+    revisado:   {label:'🧾 Marcar facturado', estado:'facturado', bg:'#8B5CF6'},
+  };
+  const next = nextActions[p.estado];
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <div style="font-family:monospace;font-weight:800;font-size:16px;color:var(--azul)">${p.numero||'—'}</div>
+        <div style="font-size:13px;color:var(--gris-500);margin-top:2px">${p.trabajo_titulo||'Sin obra'}</div>
+      </div>
+      <span class="badge" style="background:${est.bg};color:${est.color};font-size:12px;padding:6px 14px">${est.ico} ${est.label}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:var(--gris-50);border-radius:10px">
+      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Fecha</div><div style="font-size:14px;font-weight:700">${fecha}</div></div>
+      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Horario</div><div style="font-size:14px;font-weight:700">${hi} - ${hf}</div></div>
+      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Horas</div><div style="font-size:14px;font-weight:700">${horas}h</div></div>
+      <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Operario</div><div style="font-size:14px;font-weight:700">${p.usuario_nombre||'—'}</div></div>
+    </div>
+
+    ${p.direccion ? `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:13px;flex:1">📍 ${p.direccion}</span>
+      <a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
+    </div>` : ''}
+
+    ${p.instrucciones ? `<div style="margin-bottom:12px;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:6px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">📋 Instrucciones</div>
+      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.instrucciones}</div>
+    </div>` : ''}
+
+    ${p.descripcion ? `<div style="margin-bottom:12px;padding:12px;background:var(--gris-50);border-left:3px solid var(--verde);border-radius:6px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">🔧 Trabajo realizado</div>
+      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.descripcion}</div>
+    </div>` : ''}
+
+    ${p.trabajos_pendientes ? `<div style="margin-bottom:12px;padding:12px;background:var(--amarillo-light);border-left:3px solid var(--amarillo);border-radius:6px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">⚠️ Trabajos pendientes</div>
+      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.trabajos_pendientes}</div>
+    </div>` : ''}
+
+    ${p.observaciones ? `<div style="margin-bottom:12px;padding:12px;background:var(--gris-50);border-left:3px solid var(--gris-400);border-radius:6px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">📝 Observaciones</div>
+      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.observaciones}</div>
+    </div>` : ''}
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
+      ${next ? `<button class="btn btn-primary" style="background:${next.bg}" onclick="cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>` : ''}
+      ${p.estado === 'en_curso' || p.estado === 'programado' ? `<button class="btn btn-secondary" onclick="openAddWorkInfo(${p.id})">✏️ Añadir info del trabajo</button>` : ''}
+      ${p.estado !== 'facturado' ? `
+        <select onchange="if(this.value){cambiarEstado(${p.id},this.value)}" style="padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
+          <option value="">Cambiar estado...</option>
+          ${Object.keys(PT_ESTADOS).filter(e=>e!==p.estado).map(e=>`<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
+        </select>
+      ` : ''}
+    </div>
+  `;
+
+  document.getElementById('modalContent').innerHTML = html;
+  openModal();
+}
+
+// ═══════════════════════════════════════════════
+// ADD WORK INFO (for operarios)
+// ═══════════════════════════════════════════════
+
+function openAddWorkInfo(id) {
+  const p = misPartes.find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-title">✏️ Info del trabajo — ${p.numero}</div>
+    <div class="field">
+      <label>Trabajo realizado</label>
+      <textarea id="wi_desc" rows="4" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.descripcion||''}</textarea>
+    </div>
+    <div class="field">
+      <label>Trabajos pendientes</label>
+      <textarea id="wi_pend" rows="3" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.trabajos_pendientes||''}</textarea>
+    </div>
+    <div class="field">
+      <label>Observaciones</label>
+      <textarea id="wi_obs" rows="2" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${p.observaciones||''}</textarea>
+    </div>
+    <button class="btn btn-primary" onclick="saveWorkInfo(${id})" style="margin-top:8px">💾 Guardar</button>
+  `;
+}
+
+async function saveWorkInfo(id) {
+  const desc = document.getElementById('wi_desc')?.value || '';
+  const pend = document.getElementById('wi_pend')?.value || '';
+  const obs = document.getElementById('wi_obs')?.value || '';
+
+  const { error } = await sb.from('partes_trabajo').update({
+    descripcion: desc || null,
+    trabajos_pendientes: pend || null,
+    observaciones: obs || null,
+  }).eq('id', id);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Update local
+  const p = misPartes.find(x => x.id === id);
+  if (p) { p.descripcion = desc; p.trabajos_pendientes = pend; p.observaciones = obs; }
+
+  toast('Guardado ✓', 'success');
+  closeModal();
+  navigateTo(currentTab);
+}
+
+// ═══════════════════════════════════════════════
+// OPERARIO DETAIL (for jefe)
+// ═══════════════════════════════════════════════
+
+function openOperarioDetail(uid) {
+  const op = todosUsuarios.find(u => u.id === uid);
+  if (!op) return;
+
+  const partesOp = misPartes.filter(p => p.usuario_id === uid).slice(0, 20);
+  const tareasOp = misTareas.filter(t => t.responsable_id === uid);
+
+  document.getElementById('modalContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div class="operario-av" style="width:50px;height:50px;font-size:20px">${(op.nombre||'?')[0].toUpperCase()}</div>
+      <div>
+        <div style="font-size:18px;font-weight:800">${op.nombre||''} ${op.apellidos||''}</div>
+        <div style="font-size:12px;color:var(--gris-400)">${op.email||''} · ${op.telefono||''}</div>
+      </div>
+    </div>
+
+    <div class="section-title">📝 Últimos partes</div>
+    ${partesOp.length ? partesOp.map(p => {
+      const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+      const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '—';
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="closeModal();setTimeout(()=>openParteDetail(${p.id}),300)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul)">${p.numero||'—'}</span>
+          <span class="badge" style="background:${est.bg};color:${est.color};font-size:9px">${est.ico} ${est.label}</span>
+        </div>
+        <div style="font-size:11px;color:var(--gris-400)">${fecha} · ${p.trabajo_titulo||'—'} · ${(parseFloat(p.horas)||0).toFixed(1)}h</div>
+      </div>`;
+    }).join('') : '<div style="padding:12px 0;color:var(--gris-400);font-size:13px">Sin partes</div>'}
+
+    ${tareasOp.length ? `
+      <div class="section-title" style="margin-top:16px">✅ Tareas asignadas</div>
+      ${tareasOp.slice(0,10).map(t => renderTareaItem(t)).join('')}
+    ` : ''}
+  `;
+  openModal();
+}
+
+// ═══════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════
+
+async function cambiarEstado(id, nuevoEstado) {
+  const updateObj = { estado: nuevoEstado };
+  if (nuevoEstado === 'completado') updateObj.completado_at = new Date().toISOString();
+  if (nuevoEstado === 'revisado') {
+    updateObj.revisado_por = CU?.id || null;
+    updateObj.revisado_por_nombre = CP?.nombre || '';
+    updateObj.revisado_at = new Date().toISOString();
+  }
+
+  const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const p = misPartes.find(x => x.id === id);
+  if (p) Object.assign(p, updateObj);
+
+  const estInfo = PT_ESTADOS[nuevoEstado] || {};
+  toast(`${estInfo.ico||''} ${estInfo.label||nuevoEstado} ✓`, 'success');
+  closeModal();
+  navigateTo(currentTab);
+}
+
+async function toggleTarea(id, completar) {
+  const nuevoEstado = completar === true || completar === 'true' ? 'completada' : 'pendiente';
+  const { error } = await sb.from('tareas_obra').update({ estado: nuevoEstado }).eq('id', id);
+  if (error) { toast('Error', 'error'); return; }
+
+  const t = misTareas.find(x => x.id === id);
+  if (t) t.estado = nuevoEstado;
+  toast(completar ? '✅ Completada' : '↩️ Reabierta', 'success');
+  navigateTo(currentTab);
+}
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+function openModal() {
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function toast(msg, type) {
+  const el = document.getElementById('appToast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = 'toast', 2500);
+}
+
+// ═══════════════════════════════════════════════
+// PWA: Service Worker & Install
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
+}
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(r => {
+      if (r.outcome === 'accepted') toast('App instalada ✓', 'success');
+      deferredPrompt = null;
+    });
+  }
+}
+</script>
+</body>
+</html>
