@@ -1541,9 +1541,9 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
   const cli = p.cliente_id ? clientes.find(c => c.id === p.cliente_id) : null;
   const emailCliente = cli?.email || '';
 
-  // Generar token corto si no existe
+  // Generar token corto si no existe o si es un UUID largo
   let firmaToken = p.firma_token;
-  if (!firmaToken) {
+  if (!firmaToken || firmaToken.length > 16) {
     firmaToken = generarTokenCorto();
     const { error: tokErr } = await sb.from('presupuestos').update({
       firma_token: firmaToken,
@@ -1560,22 +1560,18 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
     }).eq('id', presId).then(() => {}).catch(() => {});
   }
 
-  // Construir URL de firma
-  const firmaUrl = `https://instaloerp.github.io/firma.html?token=${firmaToken}`;
+  // Construir URL corta de firma
+  const firmaUrl = `https://instaloerp.github.io/f.html?t=${firmaToken}`;
   const empresaNombre = EMPRESA.nombre || 'Nuestra empresa';
   const importeStr = (p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
 
-  // Construir mailto con formato limpio
+  // Construir mailto
   const asunto = encodeURIComponent(`Presupuesto ${p.numero} — ${empresaNombre}`);
   const cuerpo = encodeURIComponent(
     `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
     `Le enviamos el presupuesto ${p.numero}${p.titulo ? ' (' + p.titulo + ')' : ''} por importe de ${importeStr} €.\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `  REVISAR Y FIRMAR PRESUPUESTO\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `${firmaUrl}\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `Al acceder al enlace podrá revisar el detalle del presupuesto y firmarlo digitalmente.\n\n` +
+    `Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:\n\n` +
+    `>> ${firmaUrl}\n\n` +
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
     `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`
   );

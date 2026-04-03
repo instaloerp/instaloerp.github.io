@@ -230,12 +230,39 @@ async function recogerDatosDispositivo() {
   return info;
 }
 
+// Validar DNI/NIF español (8 dígitos + letra correcta) o NIE (X/Y/Z + 7 dígitos + letra)
+function validarDniNif(valor) {
+  if (!valor) return false;
+  const v = valor.toUpperCase().replace(/[\s.-]/g, '');
+  const letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
+  // DNI: 8 dígitos + letra
+  const dniMatch = v.match(/^(\d{8})([A-Z])$/);
+  if (dniMatch) return letras[parseInt(dniMatch[1]) % 23] === dniMatch[2];
+  // NIE: X/Y/Z + 7 dígitos + letra
+  const nieMatch = v.match(/^([XYZ])(\d{7})([A-Z])$/);
+  if (nieMatch) {
+    const nieNum = (nieMatch[1]==='X'?'0':nieMatch[1]==='Y'?'1':'2') + nieMatch[2];
+    return letras[parseInt(nieNum) % 23] === nieMatch[3];
+  }
+  // CIF empresas: letra + 8 dígitos (no validamos dígito control, solo formato)
+  if (/^[ABCDEFGHJNPQRSUVW]\d{8}$/.test(v)) return true;
+  return false;
+}
+
+function validarNombreCompleto(nombre) {
+  if (!nombre) return false;
+  const partes = nombre.trim().split(/\s+/).filter(p => p.length >= 2);
+  return partes.length >= 2; // Al menos nombre + apellido
+}
+
 async function enviarFirma() {
   if (isCanvasEmpty()) { alert('Por favor, dibuja tu firma en el recuadro'); return; }
   const nombre = document.getElementById('firmaNombre').value.trim();
   if (!nombre) { alert('Por favor, introduce tu nombre completo'); return; }
+  if (!validarNombreCompleto(nombre)) { alert('Por favor, introduce nombre y apellidos (mínimo 2 palabras)'); return; }
   const dni = document.getElementById('firmaDni').value.trim();
   if (!dni) { alert('Por favor, introduce tu DNI o NIF'); return; }
+  if (!validarDniNif(dni)) { alert('El DNI/NIF/NIE introducido no es válido.\n\nFormatos aceptados:\n• DNI: 12345678A\n• NIE: X1234567A\n• CIF: B12345678'); return; }
 
   // Deshabilitar botón mientras procesa
   const btn = event.target;
@@ -309,31 +336,15 @@ async function enviarFirma() {
 async function postFirmaAcciones(nombre, dni, dispositivo) {
   if (!presData) return;
   try {
-    // Buscar la obra vinculada a este presupuesto (doble vía)
-    let obra = null;
-    // 1. Si el presupuesto tiene trabajo_id directo
-    if (presData.trabajo_id) {
-      const { data: ob1 } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
-        .eq('id', presData.trabajo_id).single();
-      if (ob1) obra = ob1;
-    }
-    // 2. Si no, buscar obra que tenga presupuesto_id apuntando a este presupuesto
-    if (!obra) {
-      const { data: obs } = await sb.from('trabajos').select('id,numero,titulo,empresa_id')
-        .eq('empresa_id', presData.empresa_id)
-        .eq('presupuesto_id', presData.id)
-        .limit(1);
-      if (obs?.[0]) obra = obs[0];
-    }
-
-    const fechaHoy = new Date().toISOString();
+    // Usar trabajo_id directamente del presupuesto (no consultamos trabajos — anon key no tiene acceso a esa tabla)
+    const obraId = presData.trabajo_id || null;
     const fechaCorta = new Date().toLocaleDateString('es-ES');
 
     // 1. Crear tarea para el usuario que envió el presupuesto
     if (presData.firma_enviado_por) {
-      const tareaPayload = {
+      await sb.from('tareas_obra').insert({
         empresa_id: presData.empresa_id,
-        trabajo_id: obra?.id || null,
+        trabajo_id: obraId,
         texto: `📝 Presupuesto ${presData.numero} firmado por ${nombre} (${dni}) el ${fechaCorta}`,
         estado: 'pendiente',
         prioridad: 'alta',
@@ -342,16 +353,15 @@ async function postFirmaAcciones(nombre, dni, dispositivo) {
         fecha_limite: null,
         creado_por: null,
         creado_por_nombre: 'Sistema — Firma remota',
-      };
-      await sb.from('tareas_obra').insert(tareaPayload);
+      });
     }
 
-    // 2. Registrar en audit_log de la obra (si existe)
-    if (obra) {
+    // 2. Registrar en audit_log de la obra (si hay obra vinculada)
+    if (obraId) {
       await sb.from('audit_log').insert({
         empresa_id: presData.empresa_id,
         entidad: 'trabajo',
-        entidad_id: String(obra.id),
+        entidad_id: String(obraId),
         accion: 'Presupuesto firmado',
         detalle: `✍️ ${presData.numero} firmado por ${nombre} (${dni}) — IP: ${dispositivo.ip||'—'} · ${dispositivo.tipo||''} · ${dispositivo.ubicacion||'Sin ubicación'}`,
         usuario_id: null,
