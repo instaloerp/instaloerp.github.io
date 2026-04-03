@@ -603,7 +603,7 @@ function initRealtimePartes() {
     // if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) {
     //   console.log('[Realtime] Cambio propio, ignorando');
     //   return;
-    }
+    // }
 
     const operario = nuevo.usuario_nombre || 'Un operario';
     const numero = nuevo.numero || '';

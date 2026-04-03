@@ -354,7 +354,9 @@ async function loadEmpresa(id) {
 // APP INIT
 // ═══════════════════════════════════════════════
 async function showApp() {
-  esJefe = CP?.es_superadmin === true;
+  // ?modo=operario en la URL fuerza vista operario (para pruebas)
+  const _params = new URLSearchParams(window.location.search);
+  esJefe = _params.get('modo') === 'operario' ? false : (CP?.es_superadmin === true);
   showScreen('s-app');
 
   // Header
