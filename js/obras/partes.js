@@ -1005,6 +1005,59 @@ async function verDetalleParte(id) {
     </div>`;
   }
 
+  // Mano de obra
+  let moHTML = '';
+  if (parte.mano_obra && Array.isArray(parte.mano_obra) && parte.mano_obra.length > 0) {
+    moHTML = `<div style="margin:16px 0">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">👷 Mano de obra</h4>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tbody>
+          ${parte.mano_obra.map(mo => {
+            if (mo.es_desplazamiento) {
+              return `<tr style="border-bottom:1px solid var(--gris-100);background:#FFFBEB">
+                <td style="padding:8px">🚗 ${mo.descripcion||'Desplazamiento'}</td>
+                <td style="padding:8px;text-align:center">${mo.km||0} km</td>
+                <td style="padding:8px;text-align:right">${fmtE(mo.precio_hora||0.26)}/km</td>
+                <td style="padding:8px;text-align:right;font-weight:700">${fmtE(mo.total||0)}</td>
+              </tr>`;
+            }
+            return `<tr style="border-bottom:1px solid var(--gris-100)">
+              <td style="padding:8px">${mo.descripcion||'Trabajo'}</td>
+              <td style="padding:8px;text-align:center">${mo.minutos||mo.horas||0} ${mo.minutos !== undefined ? 'min' : 'h'}</td>
+              <td style="padding:8px;text-align:right">${fmtE(mo.precio_hora||0)}/h</td>
+              <td style="padding:8px;text-align:right;font-weight:700">${fmtE(mo.total||0)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot style="border-top:2px solid var(--gris-200)">
+          <tr>
+            <td colspan="3" style="padding:8px;text-align:right;font-weight:700">TOTAL:</td>
+            <td style="padding:8px;text-align:right;font-weight:700;font-size:13px">${fmtE(parte.mano_obra.reduce((s,mo)=>s+(mo.total||0),0))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+  }
+
+  // Ubicaciones GPS
+  let gpsHTML = '';
+  if (parte.ubicacion_inicio || parte.ubicacion_fin) {
+    gpsHTML = `<div style="margin:16px 0;padding:12px;background:#ECFDF5;border-radius:8px;font-size:12px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">📍 Ubicaciones GPS</h4>
+      ${parte.ubicacion_inicio ? `<div style="margin-bottom:6px">
+        <span style="font-weight:600">Inicio:</span>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_inicio.lat},${parte.ubicacion_inicio.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_inicio.lat.toFixed(5)}, ${parte.ubicacion_inicio.lng.toFixed(5)}</a>
+        ${parte.inicio_at ? ` · ${new Date(parte.inicio_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
+      </div>` : ''}
+      ${parte.ubicacion_fin ? `<div>
+        <span style="font-weight:600">Fin:</span>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_fin.lat},${parte.ubicacion_fin.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_fin.lat.toFixed(5)}, ${parte.ubicacion_fin.lng.toFixed(5)}</a>
+        ${parte.completado_at ? ` · ${new Date(parte.completado_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
+      </div>` : ''}
+      ${parte.cliente_dni ? `<div style="margin-top:6px"><span style="font-weight:600">DNI Cliente:</span> ${parte.cliente_dni}</div>` : ''}
+    </div>`;
+  }
+
   // Checklist
   let checkHTML = '';
   if (parte.checklist && Array.isArray(parte.checklist) && parte.checklist.length > 0) {
@@ -1080,8 +1133,10 @@ async function verDetalleParte(id) {
     </div>` : ''}
 
     ${matHTML}
+    ${moHTML}
     ${fotosHTML}
     ${firmaHTML}
+    ${gpsHTML}
 
     ${parte.trabajos_pendientes ? `<div style="margin:16px 0;padding:12px;background:#FFF8DC;border-left:3px solid var(--acento);border-radius:4px">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">⚠️ Trabajos pendientes</h4>
