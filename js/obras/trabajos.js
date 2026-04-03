@@ -1138,14 +1138,14 @@ function detectarEtapasObra(t, presupData, albData, factData, partesData) {
   //    Por ahora: se marca si la obra está en_curso o superior (implica material gestionado)
   etapas.material = presupAprobado && (t.estado === 'en_curso' || t.estado === 'finalizado' || t.estado === 'completado');
 
-  // 4. Programado — tiene al menos un parte de trabajo o tarea con fecha programada
-  //    La fecha de la obra NO cuenta (es la fecha de alta), necesitamos una cita real
-  const tienePartesProgramados = partesData.length > 0;
-  const tieneTareasProgramadas = (typeof obraTareasData !== 'undefined' && obraTareasData.length > 0);
-  etapas.programado = tienePartesProgramados || tieneTareasProgramadas;
+  // 4. Programado — tiene al menos un parte con estado >= programado (NO borradores)
+  const estadosReales = ['programado','en_curso','completado','revisado','facturado'];
+  const tienePartesProgramados = partesData.some(p => estadosReales.includes(p.estado));
+  etapas.programado = tienePartesProgramados;
 
-  // 5. En ejecución — tiene partes de trabajo reales o estado en_curso
-  etapas.ejecucion = partesData.length > 0 || t.estado === 'en_curso';
+  // 5. En ejecución — tiene partes en_curso o superior, o estado de obra en_curso
+  const estadosEjecucion = ['en_curso','completado','revisado','facturado'];
+  etapas.ejecucion = partesData.some(p => estadosEjecucion.includes(p.estado)) || t.estado === 'en_curso';
 
   // 6. Albarán — tiene al menos un albarán
   etapas.albaran = albData.length > 0;

@@ -789,6 +789,10 @@ async function guardarParte(estado = 'borrador') {
 
   closeModal('mPartes');
   await loadPartes();
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId) {
+    try { abrirFichaObra(obraActualId, false); } catch(e) {}
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -869,6 +873,10 @@ async function cambiarEstadoParte(id, estado) {
   const estInfo = PT_ESTADOS[estado] || {};
   toast(`${estInfo.ico||''} ${estInfo.label||estado} ✓`, 'success');
   renderPartes(partesFiltrados.length ? partesFiltrados : partesData);
+  // Refrescar ficha de obra si está abierta
+  if (typeof obraActualId !== 'undefined' && obraActualId) {
+    try { abrirFichaObra(obraActualId, false); } catch(e) {}
+  }
 }
 
 async function avanzarEstadoParte(id, nuevoEstado) {
@@ -960,6 +968,7 @@ function verDetalleParte(id) {
 
   // Siguiente acción según estado
   const nextAction = {
+    borrador:   {label:'📅 Programar cita', estado:'programado', color:'#3B82F6'},
     programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', color:'var(--acento)'},
     en_curso:   {label:'✅ Marcar completado', estado:'completado', color:'var(--verde)'},
     completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
