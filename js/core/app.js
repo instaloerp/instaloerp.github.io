@@ -598,10 +598,11 @@ function initRealtimePartes() {
     }
     _partesEstadoCache.set(nuevo.id, nuevo.estado);
 
+    // TODO: Reactivar cuando haya operarios reales
     // Ignorar cambios del propio usuario (por usuario_id, no revisado_por)
-    if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) {
-      console.log('[Realtime] Cambio propio, ignorando');
-      return;
+    // if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) {
+    //   console.log('[Realtime] Cambio propio, ignorando');
+    //   return;
     }
 
     const operario = nuevo.usuario_nombre || 'Un operario';
