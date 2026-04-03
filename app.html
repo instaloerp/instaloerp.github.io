@@ -518,7 +518,9 @@ function forceCacheClear() {
 // ═══════════════════════════════════════════════
 
 function renderOperarioInicio(el) {
-  const hoy = new Date().toISOString().split('T')[0];
+  // Usar fecha local (no UTC) para evitar desfase horario
+  const _ahora = new Date();
+  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
   const partesPend = misPartes.filter(p => ['programado','en_curso'].includes(p.estado));
   const tareasActivas = misTareas.filter(t => t.estado !== 'completada');
 
@@ -580,15 +582,13 @@ function renderOperarioInicio(el) {
       const dayLabelFormatted = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
       return `
         <div style="margin-bottom:10px">
-          <div onclick="toggleDaySection('day-${fecha}')" style="display:flex;align-items:center;gap:8px;padding:12px;background:#fff;border-radius:10px;cursor:pointer;border:1px solid var(--gris-100);user-select:none" class="day-header" data-date="${fecha}">
+          <div class="day-header" data-date="${fecha}" style="display:flex;align-items:center;gap:8px;padding:12px;background:#fff;border-radius:10px;cursor:pointer;border:1px solid var(--gris-100);user-select:none">
             <span style="font-weight:800;color:${isToday?'var(--azul)':'var(--gris-700)'};flex:1">${dayLabelFormatted}</span>
             <span style="color:var(--gris-400);font-size:12px;font-weight:700;background:var(--gris-100);padding:2px 8px;border-radius:12px">${partes.length}</span>
-            <span style="color:var(--gris-400);font-size:16px;transition:transform .2s" class="day-toggle" data-date="${fecha}">▼</span>
+            <span style="color:var(--gris-400);font-size:16px" class="day-toggle" data-date="${fecha}">${isToday?'▼':'▶'}</span>
           </div>
-          <div id="day-${fecha}" class="day-section ${isToday?'expanded':'collapsed'}" style="max-height:${isToday?'999px':'0'};overflow:hidden;transition:max-height .3s ease">
-            <div style="padding:8px 0">
-              ${partes.map(p => renderParteCard(p)).join('')}
-            </div>
+          <div id="day-${fecha}" style="display:${isToday?'block':'none'};padding:8px 0">
+            ${partes.map(p => renderParteCard(p)).join('')}
           </div>
         </div>
       `;
@@ -610,28 +610,20 @@ function renderOperarioInicio(el) {
     ` : ''}
   `;
 
-  // Add script to handle collapsible sections
+  // Desplegables por día
   setTimeout(() => {
     document.querySelectorAll('.day-header').forEach(header => {
-      const fecha = header.dataset.date;
-      const section = document.getElementById(`day-${fecha}`);
-      if (section) {
+      header.addEventListener('click', () => {
+        const fecha = header.dataset.date;
+        const section = document.getElementById('day-' + fecha);
         const toggle = header.querySelector('.day-toggle');
-        header.addEventListener('click', () => {
-          const isExpanded = section.classList.contains('expanded');
-          if (isExpanded) {
-            section.classList.remove('expanded');
-            section.classList.add('collapsed');
-            toggle.textContent = '▶';
-          } else {
-            section.classList.add('expanded');
-            section.classList.remove('collapsed');
-            toggle.textContent = '▼';
-          }
-        });
-      }
+        if (!section) return;
+        const visible = section.style.display !== 'none';
+        section.style.display = visible ? 'none' : 'block';
+        if (toggle) toggle.textContent = visible ? '▶' : '▼';
+      });
     });
-  }, 0);
+  }, 50);
 }
 
 
@@ -680,7 +672,9 @@ function renderOperarioTareas(el) {
 }
 
 function renderOperarioAgenda(el) {
-  const hoy = new Date().toISOString().split('T')[0];
+  // Usar fecha local (no UTC) para evitar desfase horario
+  const _ahora = new Date();
+  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
   // Próximos 7 días
   const dias = [];
   for (let i = 0; i < 7; i++) {
@@ -723,7 +717,9 @@ function renderOperarioAgenda(el) {
 // ═══════════════════════════════════════════════
 
 function renderJefeInicio(el) {
-  const hoy = new Date().toISOString().split('T')[0];
+  // Usar fecha local (no UTC) para evitar desfase horario
+  const _ahora = new Date();
+  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
   const partesHoy = misPartes.filter(p => p.fecha === hoy);
   const pendRevision = misPartes.filter(p => p.estado === 'completado');
   const enCurso = misPartes.filter(p => p.estado === 'en_curso');
@@ -820,7 +816,9 @@ function filterPartes(estado) {
 
 function renderJefeEquipo(el) {
   const operarios = todosUsuarios.filter(u => u.disponible_partes === true);
-  const hoy = new Date().toISOString().split('T')[0];
+  // Usar fecha local (no UTC) para evitar desfase horario
+  const _ahora = new Date();
+  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
 
   el.innerHTML = `
     <div class="section-title">👥 Operarios de campo</div>
@@ -1053,12 +1051,35 @@ function openParteDetail(id) {
       <span class="badge" style="background:${est.bg};color:${est.color};font-size:12px;padding:6px 14px">${est.ico} ${est.label}</span>
     </div>
 
-    ${p.cliente_nombre_firma || p.cliente_email ? `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--violeta)">👤 Cliente</div>
-      ${p.cliente_nombre_firma ? `<div style="font-size:13px;font-weight:700;margin-bottom:4px">${p.cliente_nombre_firma}</div>` : ''}
-      ${p.cliente_telefono ? `<div style="font-size:13px;margin-bottom:3px"><a href="tel:${p.cliente_telefono}" style="color:var(--azul);text-decoration:none">📞 ${p.cliente_telefono}</a></div>` : ''}
-      ${p.cliente_email ? `<div style="font-size:13px"><a href="mailto:${p.cliente_email}" style="color:var(--azul);text-decoration:none">📧 ${p.cliente_email}</a></div>` : ''}
-    </div>` : ''}
+    ${(() => {
+      // Intentar obtener datos del cliente desde trabajo/obra si no hay datos de firma
+      let cliNombre = p.cliente_nombre_firma || '';
+      let cliTelefono = p.cliente_telefono || '';
+      let cliEmail = p.cliente_email || '';
+      let cliInstrucciones = p.instrucciones || '';
+      if (!cliNombre && p.trabajo_id) {
+        const trab = trabajos.find(tr => tr.id === p.trabajo_id);
+        if (trab) {
+          const cli = trab.cliente_id ? clientes.find(c => c.id === trab.cliente_id) : null;
+          if (cli) {
+            cliNombre = cli.nombre || trab.cliente_nombre || '';
+            cliTelefono = cli.telefono || '';
+            cliEmail = cli.email || '';
+          } else {
+            cliNombre = trab.cliente_nombre || '';
+          }
+        }
+      }
+      if (cliNombre || cliTelefono || cliEmail) {
+        return `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--violeta)">👤 Cliente</div>
+          ${cliNombre ? `<div style="font-size:14px;font-weight:700;margin-bottom:4px">${cliNombre}</div>` : ''}
+          ${cliTelefono ? `<div style="font-size:13px;margin-bottom:3px"><a href="tel:${cliTelefono}" style="color:var(--azul);text-decoration:none">📞 ${cliTelefono}</a></div>` : ''}
+          ${cliEmail ? `<div style="font-size:13px"><a href="mailto:${cliEmail}" style="color:var(--azul);text-decoration:none">📧 ${cliEmail}</a></div>` : ''}
+        </div>`;
+      }
+      return '';
+    })()}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:var(--gris-50);border-radius:10px">
       <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Fecha</div><div style="font-size:14px;font-weight:700">${fecha}</div></div>
@@ -1067,15 +1088,46 @@ function openParteDetail(id) {
       <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Operario</div><div style="font-size:14px;font-weight:700">${p.usuario_nombre||'—'}</div></div>
     </div>
 
-    ${p.direccion ? `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:13px;flex:1">📍 ${p.direccion}</span>
-      <a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
-    </div>` : ''}
+    ${(() => {
+      let dir = p.direccion || '';
+      if (!dir && p.trabajo_id) {
+        const trab = trabajos.find(tr => tr.id === p.trabajo_id);
+        if (trab) dir = trab.direccion_obra_texto || '';
+      }
+      if (dir) {
+        return `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;flex:1">📍 ${dir}</span>
+          <a href="https://maps.google.com/?q=${encodeURIComponent(dir)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
+        </div>`;
+      }
+      return '';
+    })()}
 
-    ${p.instrucciones ? `<div style="margin-bottom:12px;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:6px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:4px">📋 Instrucciones</div>
-      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.instrucciones}</div>
-    </div>` : ''}
+    ${(() => {
+      let instr = p.instrucciones || '';
+      let trabDesc = '';
+      if (p.trabajo_id) {
+        const trab = trabajos.find(tr => tr.id === p.trabajo_id);
+        if (trab) {
+          if (!instr) instr = trab.instrucciones || '';
+          trabDesc = trab.descripcion || '';
+        }
+      }
+      let html = '';
+      if (trabDesc) {
+        html += `<div style="margin-bottom:12px;padding:12px;background:#F0FDF4;border-left:3px solid var(--verde);border-radius:6px">
+          <div style="font-weight:700;font-size:12px;margin-bottom:4px">🏗️ Descripción de la obra</div>
+          <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${trabDesc}</div>
+        </div>`;
+      }
+      if (instr) {
+        html += `<div style="margin-bottom:12px;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:6px">
+          <div style="font-weight:700;font-size:12px;margin-bottom:4px">📋 Instrucciones</div>
+          <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${instr}</div>
+        </div>`;
+      }
+      return html;
+    })()}
 
     ${p.descripcion ? `<div style="margin-bottom:12px;padding:12px;background:var(--gris-50);border-left:3px solid var(--verde);border-radius:6px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">🔧 Trabajo realizado</div>
@@ -1153,19 +1205,15 @@ function openParteDetail(id) {
     </div>` : ''}
 
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
-    ${!esJefe ? `
-      ${p.estado === 'programado' ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
-      ${p.estado === 'en_curso' ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="openInformarWizard(${p.id})">📋 Informar parte</button>` : ''}
-      ${['completado','revisado','facturado'].includes(p.estado) ? `<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:13px;font-style:italic">🔒 Parte informado — no editable</div>` : ''}
-    ` : `
-      ${next ? `<button class="btn btn-primary" style="background:${next.bg}" onclick="cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>` : ''}
-      ${p.estado !== 'facturado' ? `
-        <select onchange="if(this.value){cambiarEstado(${p.id},this.value)}" style="padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
-          <option value="">Cambiar estado...</option>
-          ${Object.keys(PT_ESTADOS).filter(e=>e!==p.estado).map(e=>`<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
-        </select>
-      ` : ''}
-    `}
+    ${p.estado === 'programado' ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
+    ${p.estado === 'en_curso' ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="openInformarWizard(${p.id})">📋 Informar parte</button>` : ''}
+    ${['completado','revisado','facturado'].includes(p.estado) ? `<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:13px;font-style:italic">🔒 Parte informado — no editable</div>` : ''}
+    ${esJefe && p.estado !== 'facturado' ? `
+      <select onchange="if(this.value){cambiarEstado(${p.id},this.value)}" style="padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
+        <option value="">Cambiar estado manualmente...</option>
+        ${Object.keys(PT_ESTADOS).filter(e=>e!==p.estado).map(e=>`<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
+      </select>
+    ` : ''}
     </div>
   `;
 
@@ -1213,15 +1261,15 @@ function renderWizStep() {
       </div>
       <div class="field">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <input id="wz_pend_check" type="checkbox" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';renderWizStep();">
-          <label style="margin:0;font-weight:600">¿Quedan trabajos pendientes?</label>
+          <input id="wz_pend_check" type="checkbox" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="wizSaveCurrentStep();_wiz.pendientes_checked=this.checked;document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';">
+          <label style="margin:0;font-weight:600">Quedan trabajos pendientes</label>
         </div>
-        <textarea id="wz_pend_textarea" rows="2" placeholder="¿Queda algo por hacer?" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical;display:${_wiz.pendientes_checked?'block':'none'}">${_wiz.pendientes}</textarea>
+        <textarea id="wz_pend_textarea" rows="2" placeholder="Describe los trabajos pendientes..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical;display:${_wiz.pendientes_checked?'block':'none'}">${_wiz.pendientes}</textarea>
       </div>
       <div class="field">
-        <label>📝 OBSERVACIONES (notas internas) <span style="color:var(--gris-400);font-size:11px;font-weight:400">Solo visible para la empresa, el cliente no las ve.</span></label>
-        <div style="font-size:11px;color:var(--gris-500);font-style:italic;margin-bottom:6px">Estas notas son privadas y el cliente no las verá.</div>
+        <label>📝 Notas internas</label>
         <textarea id="wz_obs" rows="2" placeholder="Notas adicionales..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${_wiz.observaciones}</textarea>
+        <div style="font-size:11px;color:var(--gris-500);font-style:italic;margin-top:4px">Solo visible para la empresa, el cliente no las ve.</div>
       </div>
     `;
   }
@@ -1325,13 +1373,13 @@ function renderWizStep() {
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);display:${emailMode==='si'?'block':'none'}">
       </div>
 
-      <!-- Firma Cliente (expandible) -->
-      <div style="margin-top:12px;border:2px solid var(--azul);border-radius:12px;overflow:hidden" id="firmaClienteContainer">
-        <div onclick="toggleFirmaPanel('cliente')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--azul-light);cursor:pointer">
-          <span style="font-size:13px;font-weight:700;color:var(--azul)">✍️ Firma del cliente <span style="color:var(--rojo)">*</span></span>
-          <span id="firmaClienteToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaData ? '✓' : '▼'}</span>
+      <!-- Firma Cliente (expandible, cerrado por defecto) -->
+      <div style="margin-top:12px;border:2px solid ${_wiz.firmaData_validated ? 'var(--verde)' : 'var(--azul)'};border-radius:12px;overflow:hidden" id="firmaClienteContainer">
+        <div onclick="toggleFirmaPanel('cliente')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${_wiz.firmaData_validated ? 'var(--verde-light)' : 'var(--azul-light)'};cursor:pointer">
+          <span style="font-size:13px;font-weight:700;color:${_wiz.firmaData_validated ? 'var(--verde)' : 'var(--azul)'}">✍️ Firma del cliente <span style="color:var(--rojo)">*</span></span>
+          <span id="firmaClienteToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaData_validated ? '✅' : '▼'}</span>
         </div>
-        <div id="firmaClientePanel" style="display:block;padding:8px">
+        <div id="firmaClientePanel" style="display:none;padding:8px">
           <div class="firma-container" id="firmaContainer" style="height:300px">
             <canvas id="firmaCanvas" width="600" height="300"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
@@ -1340,18 +1388,17 @@ function renderWizStep() {
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
           </div>
-          <div id="firmaClienteStatus" style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px;display:${_wiz.firmaData_validated ? 'block' : 'none'}">✓ Firma validada</div>
         </div>
       </div>
 
-      <!-- Firma Operario (expandible) -->
-      <div style="margin-top:12px;border:2px solid var(--violeta);border-radius:12px;overflow:hidden" id="firmaOperarioContainer">
-        <div onclick="toggleFirmaPanel('operario')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--violeta-light);cursor:pointer">
-          <span style="font-size:13px;font-weight:700;color:var(--violeta)">👷 Firma del operario <span style="color:var(--rojo)">*</span> — ${operarioNombre}</span>
-          <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario ? '✓' : '▼'}</span>
+      <!-- Firma Operario (expandible, cerrado por defecto) -->
+      <div style="margin-top:12px;border:2px solid ${_wiz.firmaOperario_validated ? 'var(--verde)' : 'var(--violeta)'};border-radius:12px;overflow:hidden" id="firmaOperarioContainer">
+        <div onclick="toggleFirmaPanel('operario')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${_wiz.firmaOperario_validated ? 'var(--verde-light)' : 'var(--violeta-light)'};cursor:pointer">
+          <span style="font-size:13px;font-weight:700;color:${_wiz.firmaOperario_validated ? 'var(--verde)' : 'var(--violeta)'}">👷 Firma del operario <span style="color:var(--rojo)">*</span> — ${operarioNombre}</span>
+          <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario_validated ? '✅' : '▼'}</span>
         </div>
         <div id="firmaOperarioPanel" style="display:none;padding:8px">
-          <div class="firma-container" id="firmaOperarioContainer" style="height:300px">
+          <div class="firma-container" id="firmaOperarioContainerInner" style="height:300px">
             <canvas id="firmaCanvasOp" width="600" height="300"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholderOp">Firme aquí con el dedo</div>
             <button class="firma-clear" onclick="wizClearFirma('operario')">🗑️ Borrar</button>
@@ -1359,7 +1406,6 @@ function renderWizStep() {
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('operario')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
           </div>
-          <div id="firmaOperarioStatus" style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px;display:${_wiz.firmaOperario_validated ? 'block' : 'none'}">✓ Firma validada</div>
         </div>
       </div>
     `;
@@ -1377,10 +1423,33 @@ function renderWizStep() {
     finishBtn = `<button class="btn btn-primary" style="background:var(--verde)" onclick="wizFinish()">✅ Completar y enviar</button>`;
   }
 
+  // Obtener info del trabajo/cliente para el header del wizard
+  let _wzCli = '', _wzTel = '', _wzDir = '', _wzInstr = '';
+  if (p.trabajo_id) {
+    const _wzTrab = trabajos.find(tr => tr.id === p.trabajo_id);
+    if (_wzTrab) {
+      const _wzCliObj = _wzTrab.cliente_id ? clientes.find(c => c.id === _wzTrab.cliente_id) : null;
+      _wzCli = _wzCliObj?.nombre || _wzTrab.cliente_nombre || '';
+      _wzTel = _wzCliObj?.telefono || '';
+      _wzDir = p.direccion || _wzTrab.direccion_obra_texto || '';
+      _wzInstr = p.instrucciones || _wzTrab.instrucciones || '';
+    }
+  }
+  if (!_wzDir) _wzDir = p.direccion || '';
+  if (!_wzInstr) _wzInstr = p.instrucciones || '';
+
   document.getElementById('modalContent').innerHTML = `
-    <div style="margin-bottom:16px">
-      <div style="font-size:16px;font-weight:800;margin-bottom:4px">${titleText}</div>
-      <div style="font-size:12px;color:var(--gris-400)">${p.trabajo_titulo||''}</div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:16px;font-weight:800;margin-bottom:2px">${titleText}</div>
+          <div style="font-size:12px;color:var(--gris-400)">${p.trabajo_titulo||''}</div>
+        </div>
+        <span style="font-family:monospace;font-weight:800;font-size:13px;color:var(--azul)">${p.numero||''}</span>
+      </div>
+      ${_wzCli ? `<div style="font-size:13px;margin-top:6px">👤 <b>${_wzCli}</b>${_wzTel ? ` · <a href="tel:${_wzTel}" style="color:var(--azul);text-decoration:none">📞 ${_wzTel}</a>` : ''}</div>` : ''}
+      ${_wzDir ? `<div style="font-size:12px;margin-top:4px;color:var(--gris-500)">📍 ${_wzDir}</div>` : ''}
+      ${_wzInstr ? `<div style="margin-top:6px;padding:8px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:4px;font-size:12px;line-height:1.4"><b>📋 Instrucciones:</b> ${_wzInstr}</div>` : ''}
     </div>
     <div class="wiz-steps">${stepper}</div>
     ${content}
@@ -1394,10 +1463,7 @@ function renderWizStep() {
   `;
   openModal();
 
-  // Init firma canvas si estamos en paso 4
-  if (step === 3) {
-    setTimeout(() => initFirmaCanvas(), 100);
-  }
+  // Canvas firma se inicializa al abrir cada panel (toggleFirmaPanel)
 
   // Cerrar búsqueda materiales al hacer click fuera
   if (step === 2) {
@@ -1826,17 +1892,23 @@ function wizConfirmFirma(tipo) {
     if (isCliente) {
       _wiz.firmaData = firmaData;
       _wiz.firmaData_validated = true;
-      document.getElementById('firmaClienteContainer').style.borderColor = 'var(--verde)';
-      document.getElementById('firmaClienteStatus').style.display = 'block';
-      document.getElementById('firmaCanvas').style.pointerEvents = 'none';
-      document.getElementById('firmaCanvas').style.opacity = '0.7';
+      // Cerrar panel y poner verde
+      const container = document.getElementById('firmaClienteContainer');
+      container.style.borderColor = 'var(--verde)';
+      const header = container.querySelector('div[onclick]');
+      if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
+      document.getElementById('firmaClienteToggle').textContent = '✅';
+      document.getElementById('firmaClientePanel').style.display = 'none';
     } else {
       _wiz.firmaOperario = firmaData;
       _wiz.firmaOperario_validated = true;
-      document.getElementById('firmaOperarioContainer').style.borderColor = 'var(--verde)';
-      document.getElementById('firmaOperarioStatus').style.display = 'block';
-      document.getElementById('firmaCanvasOp').style.pointerEvents = 'none';
-      document.getElementById('firmaCanvasOp').style.opacity = '0.7';
+      // Cerrar panel y poner verde
+      const container = document.getElementById('firmaOperarioContainer');
+      container.style.borderColor = 'var(--verde)';
+      const header = container.querySelector('div[onclick]');
+      if (header) { header.style.background = 'var(--verde-light)'; header.querySelector('span').style.color = 'var(--verde)'; }
+      document.getElementById('firmaOperarioToggle').textContent = '✅';
+      document.getElementById('firmaOperarioPanel').style.display = 'none';
     }
 
     // Capturar ubicación
@@ -1866,8 +1938,11 @@ function wizClearFirma(tipo) {
       _wiz.firmaOperario = null;
       _wiz.firmaOperario_validated = false;
       document.getElementById('firmaPlaceholderOp').style.display = 'flex';
-      document.getElementById('firmaOperarioContainer').style.borderColor = 'var(--violeta)';
-      document.getElementById('firmaOperarioStatus').style.display = 'none';
+      const container = document.getElementById('firmaOperarioContainer');
+      container.style.borderColor = 'var(--violeta)';
+      const header = container.querySelector('div[onclick]');
+      if (header) { header.style.background = 'var(--violeta-light)'; header.querySelector('span').style.color = 'var(--violeta)'; }
+      document.getElementById('firmaOperarioToggle').textContent = '▼';
       document.getElementById('firmaCanvasOp').style.pointerEvents = 'auto';
       document.getElementById('firmaCanvasOp').style.opacity = '1';
     }
@@ -1879,8 +1954,11 @@ function wizClearFirma(tipo) {
       _wiz.firmaData = null;
       _wiz.firmaData_validated = false;
       document.getElementById('firmaPlaceholder').style.display = 'flex';
-      document.getElementById('firmaClienteContainer').style.borderColor = 'var(--azul)';
-      document.getElementById('firmaClienteStatus').style.display = 'none';
+      const container = document.getElementById('firmaClienteContainer');
+      container.style.borderColor = 'var(--azul)';
+      const header = container.querySelector('div[onclick]');
+      if (header) { header.style.background = 'var(--azul-light)'; header.querySelector('span').style.color = 'var(--azul)'; }
+      document.getElementById('firmaClienteToggle').textContent = '▼';
       document.getElementById('firmaCanvas').style.pointerEvents = 'auto';
       document.getElementById('firmaCanvas').style.opacity = '1';
     }
@@ -2119,7 +2197,7 @@ async function wizFinish() {
       cliente_nombre_firma: _wiz.clienteNombre || null,
       cliente_email: _wiz.clienteEmail || null,
       cliente_dni: _wiz.clienteDni || null,
-      cliente_sin_email: _wiz.clienteSinEmail || false,
+      // cliente_sin_email removed — column does not exist in DB
       ubicacion_firma_cliente: _wiz.ubicacion_firma_cliente || null,
       ubicacion_firma_operario: _wiz.ubicacion_firma_operario || null,
     };
@@ -2406,6 +2484,22 @@ function openInformarWizard(id) {
     }
   }
 
+  // Pre-fill email del cliente desde trabajo/obra si no existe en el parte
+  let _prefillEmail = p.cliente_email || '';
+  let _prefillNombre = p.cliente_nombre_firma || '';
+  if (!_prefillEmail && p.trabajo_id) {
+    const _trab = trabajos.find(tr => tr.id === p.trabajo_id);
+    if (_trab) {
+      const _cli = _trab.cliente_id ? clientes.find(c => c.id === _trab.cliente_id) : null;
+      if (_cli) {
+        if (!_prefillEmail) _prefillEmail = _cli.email || '';
+        if (!_prefillNombre) _prefillNombre = _cli.nombre || _trab.cliente_nombre || '';
+      } else {
+        if (!_prefillNombre) _prefillNombre = _trab.cliente_nombre || '';
+      }
+    }
+  }
+
   _wiz = {
     parteId: id,
     step: 0,
@@ -2418,13 +2512,13 @@ function openInformarWizard(id) {
     fotosNuevas: [],
     materiales: p.materiales ? [...p.materiales] : [],
     manoObra: autoManoObra,
-    firmaData: p.firma_url || null,
-    firmaOperario: p.firma_operario_url || null,
-    firmaData_validated: !!p.firma_url,
-    firmaOperario_validated: !!p.firma_operario_url,
-    clienteEmailMode: p.cliente_email ? 'si' : 'no',
-    clienteEmail: p.cliente_email || '',
-    clienteNombre: p.cliente_nombre_firma || '',
+    firmaData: null,
+    firmaOperario: null,
+    firmaData_validated: false,
+    firmaOperario_validated: false,
+    clienteEmailMode: _prefillEmail ? 'si' : 'si',
+    clienteEmail: _prefillEmail,
+    clienteNombre: _prefillNombre,
     clienteDni: p.cliente_dni || '',
   };
   renderWizStep();
