@@ -233,7 +233,7 @@ input[type=number]{-moz-appearance:textfield}
       <span id="hdrRol">—</span>
     </div>
     <button id="btnModo" onclick="toggleModo()" title="Cambiar modo" style="font-size:11px;padding:6px 12px;border-radius:20px;font-weight:700;border:none;white-space:nowrap;cursor:pointer;margin-right:4px"></button>
-    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar">🔄</button>
+    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar datos">🔄</button>
     <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">🚪</button>
   </div>
 
@@ -338,7 +338,10 @@ async function doLogin() {
 async function doLogout() {
   await sb.auth.signOut();
   CU = null; CP = null; EMPRESA = null;
-  showScreen('s-login');
+  // Borrar caché y Service Workers al salir
+  if ('caches' in window) { caches.keys().then(names => names.forEach(n => caches.delete(n))); }
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
+  window.location.reload(true);
 }
 
 async function loadProfile() {
@@ -494,6 +497,20 @@ async function doRefresh() {
   await loadAllData();
   navigateTo(currentTab);
   toast('Actualizado ✓', 'success');
+}
+
+function forceCacheClear() {
+  if (!confirm('Se va a borrar la caché y recargar la aplicación.\n\n¿Continuar?')) return;
+  // Borrar caches del Service Worker
+  if ('caches' in window) {
+    caches.keys().then(names => names.forEach(n => caches.delete(n)));
+  }
+  // Desregistrar Service Workers
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  }
+  // Recargar sin caché
+  window.location.reload(true);
 }
 
 // ═══════════════════════════════════════════════

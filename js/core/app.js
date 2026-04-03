@@ -494,6 +494,13 @@ async function crearDatosIniciales(empId) {
   ]);
 }
 
+function forceCacheClear() {
+  if (!confirm('Se va a borrar la caché y recargar la aplicación.\n\n¿Continuar?')) return;
+  if ('caches' in window) { caches.keys().then(names => names.forEach(n => caches.delete(n))); }
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
+  window.location.reload(true);
+}
+
 async function doLogout() {
   if (sessionTimer) clearTimeout(sessionTimer);
   if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
@@ -502,12 +509,11 @@ async function doLogout() {
   sessionStorage.removeItem('erp_session_active');
   CU = null; CP = null; EMPRESA = null;
   await sb.auth.signOut();
-  // Limpiar campos de login
-  const lEmail = document.getElementById('lEmail');
-  const lPass = document.getElementById('lPass');
-  if (lEmail) lEmail.value = '';
-  if (lPass) lPass.value = '';
-  showScreen('s-login');
+  // Borrar caché y Service Workers al salir
+  if ('caches' in window) { caches.keys().then(names => names.forEach(n => caches.delete(n))); }
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
+  // Recargar limpio
+  window.location.reload(true);
 }
 
 // ═══════════════════════════════════════════════
