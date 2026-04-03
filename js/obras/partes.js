@@ -1050,20 +1050,29 @@ async function verDetalleParte(id) {
 
   // Ubicaciones GPS
   let gpsHTML = '';
-  if (parte.ubicacion_inicio || parte.ubicacion_fin) {
+  if (parte.ubicacion_inicio || parte.ubicacion_fin || parte.ubicacion_firma_cliente || parte.ubicacion_firma_operario) {
     gpsHTML = `<div style="margin:16px 0;padding:12px;background:#ECFDF5;border-radius:8px;font-size:12px">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">📍 Ubicaciones GPS</h4>
       ${parte.ubicacion_inicio ? `<div style="margin-bottom:6px">
-        <span style="font-weight:600">Inicio:</span>
+        <span style="font-weight:600">🟢 Inicio:</span>
         <a href="https://maps.google.com/?q=${parte.ubicacion_inicio.lat},${parte.ubicacion_inicio.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_inicio.lat.toFixed(5)}, ${parte.ubicacion_inicio.lng.toFixed(5)}</a>
         ${parte.inicio_at ? ` · ${new Date(parte.inicio_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
       </div>` : ''}
-      ${parte.ubicacion_fin ? `<div>
-        <span style="font-weight:600">Fin:</span>
+      ${parte.ubicacion_fin ? `<div style="margin-bottom:6px">
+        <span style="font-weight:600">🔴 Fin:</span>
         <a href="https://maps.google.com/?q=${parte.ubicacion_fin.lat},${parte.ubicacion_fin.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_fin.lat.toFixed(5)}, ${parte.ubicacion_fin.lng.toFixed(5)}</a>
         ${parte.completado_at ? ` · ${new Date(parte.completado_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
       </div>` : ''}
-      ${parte.cliente_dni ? `<div style="margin-top:6px"><span style="font-weight:600">DNI Cliente:</span> ${parte.cliente_dni}</div>` : ''}
+      ${parte.ubicacion_firma_cliente ? `<div style="margin-bottom:6px">
+        <span style="font-weight:600">✍️ Firma cliente:</span>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_cliente.lat},${parte.ubicacion_firma_cliente.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_firma_cliente.lat.toFixed(5)}, ${parte.ubicacion_firma_cliente.lng.toFixed(5)}</a>
+      </div>` : ''}
+      ${parte.ubicacion_firma_operario ? `<div style="margin-bottom:6px">
+        <span style="font-weight:600">👷 Firma operario:</span>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_operario.lat},${parte.ubicacion_firma_operario.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_firma_operario.lat.toFixed(5)}, ${parte.ubicacion_firma_operario.lng.toFixed(5)}</a>
+      </div>` : ''}
+      ${parte.cliente_dni ? `<div style="margin-top:6px"><span style="font-weight:600">🪪 DNI Cliente:</span> ${parte.cliente_dni}</div>` : ''}
+      ${parte.cliente_sin_email ? `<div style="margin-top:4px;font-size:11px;color:var(--gris-400)">📧 Cliente sin email</div>` : ''}
     </div>`;
   }
 

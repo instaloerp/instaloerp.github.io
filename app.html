@@ -502,10 +502,33 @@ async function doRefresh() {
 
 function renderOperarioInicio(el) {
   const hoy = new Date().toISOString().split('T')[0];
-  const partesHoy = misPartes.filter(p => p.fecha === hoy);
   const partesPend = misPartes.filter(p => ['programado','en_curso'].includes(p.estado));
   const tareasActivas = misTareas.filter(t => t.estado !== 'completada');
-  const proxParte = misPartes.find(p => p.fecha >= hoy && ['programado','borrador'].includes(p.estado));
+
+  // Group partes by day
+  const diasMap = new Map();
+  misPartes.forEach(p => {
+    if (p.fecha && p.estado !== 'eliminado') {
+      if (!diasMap.has(p.fecha)) {
+        diasMap.set(p.fecha, []);
+      }
+      diasMap.get(p.fecha).push(p);
+    }
+  });
+
+  // Sort each day's partes by hora_inicio
+  diasMap.forEach((partes) => {
+    partes.sort((a, b) => {
+      const aTime = a.hora_inicio || '23:59';
+      const bTime = b.hora_inicio || '23:59';
+      return aTime.localeCompare(bTime);
+    });
+  });
+
+  // Sort days and separate today from future
+  const sortedDias = Array.from(diasMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .filter(([, partes]) => partes.length > 0);
 
   el.innerHTML = `
     <div style="margin-bottom:16px">
@@ -515,7 +538,7 @@ function renderOperarioInicio(el) {
 
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-num" style="color:var(--azul)">${partesHoy.length}</div>
+        <div class="stat-num" style="color:var(--azul)">${misPartes.filter(p => p.fecha === hoy).length}</div>
         <div class="stat-label">Partes hoy</div>
       </div>
       <div class="stat-card">
@@ -532,30 +555,68 @@ function renderOperarioInicio(el) {
       </div>
     </div>
 
-    ${proxParte ? `
-      <div class="section-title">📅 Próximo trabajo</div>
-      ${renderParteCard(proxParte)}
-    ` : ''}
+    <div class="section-title">📅 Trabajos por día</div>
+    ${sortedDias.map(([fecha, partes]) => {
+      const isToday = fecha === hoy;
+      const date = new Date(fecha + 'T00:00:00');
+      const dayLabel = isToday ? '🔵 HOY' : date.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+      const dayLabelFormatted = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+      return `
+        <div style="margin-bottom:10px">
+          <div onclick="toggleDaySection('day-${fecha}')" style="display:flex;align-items:center;gap:8px;padding:12px;background:#fff;border-radius:10px;cursor:pointer;border:1px solid var(--gris-100);user-select:none" class="day-header" data-date="${fecha}">
+            <span style="font-weight:800;color:${isToday?'var(--azul)':'var(--gris-700)'};flex:1">${dayLabelFormatted}</span>
+            <span style="color:var(--gris-400);font-size:12px;font-weight:700;background:var(--gris-100);padding:2px 8px;border-radius:12px">${partes.length}</span>
+            <span style="color:var(--gris-400);font-size:16px;transition:transform .2s" class="day-toggle" data-date="${fecha}">▼</span>
+          </div>
+          <div id="day-\${fecha}" class="day-section \${isToday?'expanded':'collapsed'}" style="max-height:\${isToday?'999px':'0'};overflow:hidden;transition:max-height .3s ease">
+            <div style="padding:8px 0">
+              \${partes.map(p => renderParteCard(p)).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('')}
 
-    ${partesHoy.length ? `
-      <div class="section-title">🔧 Hoy</div>
-      ${partesHoy.map(p => renderParteCard(p)).join('')}
-    ` : `
+    ${sortedDias.length === 0 ? `
       <div class="card" style="text-align:center;padding:24px">
         <div style="font-size:36px;margin-bottom:8px">☀️</div>
-        <p style="font-size:14px;color:var(--gris-400)">No tienes partes programados para hoy</p>
+        <p style="font-size:14px;color:var(--gris-400)">No tienes partes programados</p>
       </div>
-    `}
+    ` : ''}
 
     ${tareasActivas.length ? `
-      <div class="section-title">✅ Tareas pendientes</div>
+      <div class="section-title" style="margin-top:20px">✅ Tareas pendientes</div>
       <div class="card">
         ${tareasActivas.slice(0,5).map(t => renderTareaItem(t)).join('')}
         ${tareasActivas.length > 5 ? `<div style="text-align:center;padding:8px"><button class="btn btn-secondary btn-sm" onclick="navigateTo('tareas')">Ver todas (${tareasActivas.length})</button></div>` : ''}
       </div>
     ` : ''}
   `;
+
+  // Add script to handle collapsible sections
+  setTimeout(() => {
+    document.querySelectorAll('.day-header').forEach(header => {
+      const fecha = header.dataset.date;
+      const section = document.getElementById(`day-${fecha}`);
+      if (section) {
+        const toggle = header.querySelector('.day-toggle');
+        header.addEventListener('click', () => {
+          const isExpanded = section.classList.contains('expanded');
+          if (isExpanded) {
+            section.classList.remove('expanded');
+            section.classList.add('collapsed');
+            toggle.textContent = '▶';
+          } else {
+            section.classList.add('expanded');
+            section.classList.remove('collapsed');
+            toggle.textContent = '▼';
+          }
+        });
+      }
+    });
+  }, 0);
 }
+
 
 function renderOperarioPartes(el) {
   const activos = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
@@ -888,18 +949,27 @@ function renderParteCard(p, showActions = false) {
       </div>`;
     }
   } else if (showActions && esJefe) {
-    const nextActions = {
-      borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
-      programado: {label:'🔧 Iniciar',   estado:'en_curso',   bg:'var(--acento)'},
-      en_curso:   {label:'✅ Completar', estado:'completado', bg:'var(--verde)'},
-      completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
-      revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
-    };
-    const next = nextActions[p.estado];
-    if (next) {
+    // Jefe usa los mismos flujos completos que operario para iniciar/informar
+    if (p.estado === 'programado') {
       actionHtml = `<div class="parte-actions">
-        <button class="btn btn-sm" style="background:${next.bg};color:#fff" onclick="event.stopPropagation();cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>
+        <button class="btn btn-sm" style="background:var(--acento);color:#fff" onclick="event.stopPropagation();iniciarParteConGPS(${p.id})">🔧 Iniciar</button>
       </div>`;
+    } else if (p.estado === 'en_curso') {
+      actionHtml = `<div class="parte-actions">
+        <button class="btn btn-sm" style="background:var(--verde);color:#fff" onclick="event.stopPropagation();openInformarWizard(${p.id})">📋 Informar</button>
+      </div>`;
+    } else {
+      const nextActions = {
+        borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
+        completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
+        revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
+      };
+      const next = nextActions[p.estado];
+      if (next) {
+        actionHtml = `<div class="parte-actions">
+          <button class="btn btn-sm" style="background:${next.bg};color:#fff" onclick="event.stopPropagation();cambiarEstado(${p.id},'${next.estado}')">${next.label}</button>
+        </div>`;
+      }
     }
   }
 
@@ -909,12 +979,15 @@ function renderParteCard(p, showActions = false) {
       <span class="badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
       ${p.direccion ? `<a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" onclick="event.stopPropagation()" style="margin-left:auto;background:#3B82F6;color:#fff;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;text-decoration:none">📍 GPS</a>` : ''}
     </div>
-    <div class="parte-meta">${fecha} · ${hi}${hf?'-'+hf:''} · ${horas}h · ${operario}</div>
-    ${p.trabajo_titulo ? `<div style="font-size:12px;color:var(--gris-600);margin-top:2px">🏗️ ${p.trabajo_titulo}</div>` : ''}
-    ${p.descripcion ? `<div class="parte-desc">${p.descripcion.substring(0,120)}${p.descripcion.length>120?'...':''}</div>` : ''}
+    ${hi ? `<div style="font-size:15px;font-weight:800;color:var(--azul);margin:8px 0">${hi}${hf?'-'+hf:''}</div>` : ''}
+    ${p.direccion ? `<div style="font-size:12.5px;color:var(--gris-600);margin-bottom:6px">📍 ${p.direccion}</div>` : ''}
+    ${p.trabajo_titulo ? `<div style="font-size:12px;color:var(--gris-500);margin-bottom:2px">🏗️ ${p.trabajo_titulo}</div>` : ''}
+    <div class="parte-meta">${fecha} · ${horas}h</div>
+    ${p.descripcion ? `<div class="parte-desc">${p.descripcion.substring(0,100)}${p.descripcion.length>100?'...':''}</div>` : ''}
     ${actionHtml}
   </div>`;
 }
+
 
 function renderTareaItem(t) {
   const done = t.estado === 'completada';
@@ -963,6 +1036,13 @@ function openParteDetail(id) {
       <span class="badge" style="background:${est.bg};color:${est.color};font-size:12px;padding:6px 14px">${est.ico} ${est.label}</span>
     </div>
 
+    ${p.cliente_nombre_firma || p.cliente_email ? `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--violeta)">👤 Cliente</div>
+      ${p.cliente_nombre_firma ? `<div style="font-size:13px;font-weight:700;margin-bottom:4px">${p.cliente_nombre_firma}</div>` : ''}
+      ${p.cliente_telefono ? `<div style="font-size:13px;margin-bottom:3px"><a href="tel:${p.cliente_telefono}" style="color:var(--azul);text-decoration:none">📞 ${p.cliente_telefono}</a></div>` : ''}
+      ${p.cliente_email ? `<div style="font-size:13px"><a href="mailto:${p.cliente_email}" style="color:var(--azul);text-decoration:none">📧 ${p.cliente_email}</a></div>` : ''}
+    </div>` : ''}
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:var(--gris-50);border-radius:10px">
       <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Fecha</div><div style="font-size:14px;font-weight:700">${fecha}</div></div>
       <div><div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase">Horario</div><div style="font-size:14px;font-weight:700">${hi} - ${hf}</div></div>
@@ -972,7 +1052,7 @@ function openParteDetail(id) {
 
     ${p.direccion ? `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
       <span style="font-size:13px;flex:1">📍 ${p.direccion}</span>
-      ${esJefe ? `<a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>` : ''}
+      <a href="https://maps.google.com/?q=${encodeURIComponent(p.direccion)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
     </div>` : ''}
 
     ${p.instrucciones ? `<div style="margin-bottom:12px;padding:12px;background:#EFF6FF;border-left:3px solid var(--azul);border-radius:6px">
@@ -1115,11 +1195,15 @@ function renderWizStep() {
         <textarea id="wz_desc" rows="4" placeholder="Describe el trabajo que has realizado..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${_wiz.desc}</textarea>
       </div>
       <div class="field">
-        <label>⚠️ Trabajos pendientes</label>
-        <textarea id="wz_pend" rows="2" placeholder="¿Queda algo por hacer?" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${_wiz.pendientes}</textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <input id="wz_pend_check" type="checkbox" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';renderWizStep();">
+          <label style="margin:0;font-weight:600">¿Quedan trabajos pendientes?</label>
+        </div>
+        <textarea id="wz_pend_textarea" rows="2" placeholder="¿Queda algo por hacer?" style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical;display:${_wiz.pendientes_checked?'block':'none'}">${_wiz.pendientes}</textarea>
       </div>
       <div class="field">
-        <label>📝 Observaciones</label>
+        <label>📝 OBSERVACIONES (notas internas) <span style="color:var(--gris-400);font-size:11px;font-weight:400">Solo visible para la empresa, el cliente no las ve.</span></label>
+        <div style="font-size:11px;color:var(--gris-500);font-style:italic;margin-bottom:6px">Estas notas son privadas y el cliente no las verá.</div>
         <textarea id="wz_obs" rows="2" placeholder="Notas adicionales..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${_wiz.observaciones}</textarea>
       </div>
     `;
@@ -1130,7 +1214,7 @@ function renderWizStep() {
     const allFotos = [..._wiz.fotos, ..._wiz.fotosNuevas];
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">Añade fotos del trabajo realizado. Puedes usar la cámara o seleccionar de la galería.</p>
+        <p style="font-size:13px;color:var(--gris-500)">Añade fotos del trabajo realizado. En dispositivos móviles, podrás usar la cámara o la galería.</p>
       </div>
       <div class="foto-grid">
         ${allFotos.map((f, i) => `
@@ -1139,17 +1223,12 @@ function renderWizStep() {
             <button class="del" onclick="wizRemoveFoto(${i})">✕</button>
           </div>
         `).join('')}
-        <div class="foto-add" onclick="document.getElementById('wz_foto_cam').click()">
-          <span style="font-size:28px">📷</span>
-          Cámara
-        </div>
         <div class="foto-add" onclick="document.getElementById('wz_foto_gal').click()" style="background:var(--azul-light);border-color:var(--azul)">
           <span style="font-size:28px;color:var(--azul)">+</span>
           <span style="color:var(--azul);font-weight:700">Añadir foto</span>
         </div>
       </div>
-      <input type="file" id="wz_foto_cam" accept="image/*" capture="environment" style="display:none" onchange="wizAddFotos(this.files)">
-      <input type="file" id="wz_foto_gal" accept="image/*" multiple style="display:none" onchange="wizAddFotos(this.files)">
+      <input type="file" id="wz_foto_gal" accept="image/*" capture="environment" multiple style="display:none" onchange="wizAddFotos(this.files)">
       <p style="font-size:11px;color:var(--gris-400);text-align:center">${allFotos.length} foto${allFotos.length!==1?'s':''}</p>
     `;
   }
@@ -1201,57 +1280,69 @@ function renderWizStep() {
   // ── STEP 4: Firma ──
   if (step === 3) {
     const operarioNombre = CP?.nombre || 'Operario';
+    const emailMode = _wiz.clienteEmailMode || 'si';
     content = `
       <div style="margin-bottom:12px">
         <p style="font-size:13px;color:var(--gris-500)">Firmas del cliente y del operario para cerrar el parte.</p>
       </div>
       <div class="field">
-        <label>Nombre del cliente / receptor</label>
+        <label>👤 NOMBRE DEL CLIENTE / RECEPTOR <span style="color:var(--rojo)">*</span></label>
         <input id="wz_cli_nombre" type="text" placeholder="Nombre completo" value="${_wiz.clienteNombre}"
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
+        <div id="wz_nombre_error" style="display:none;color:var(--rojo);font-size:11px;font-weight:600;margin-top:4px"></div>
       </div>
       <div class="field">
-        <label>🪪 DNI / NIF del cliente *</label>
+        <label>🪪 DNI / NIF DEL CLIENTE <span style="color:var(--rojo)">*</span></label>
         <input id="wz_cli_dni" type="text" placeholder="12345678A" value="${_wiz.clienteDni||''}"
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);text-transform:uppercase"
           maxlength="10" oninput="this.value=this.value.toUpperCase()">
         <div id="wz_dni_error" style="display:none;color:var(--rojo);font-size:11px;font-weight:600;margin-top:4px"></div>
       </div>
       <div class="field">
-        <label>📧 Email (para enviar copia del parte)</label>
-        <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail}"
-          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
+        <label style="margin-bottom:8px;display:block">📧 EMAIL (PARA ENVIAR COPIA DEL PARTE)</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button id="email_si_btn" class="btn btn-sm" onclick="wizSetEmailMode('si')" style="flex:1;background:${emailMode==='si'?'var(--azul)':'var(--gris-200)'};color:${emailMode==='si'?'white':'var(--gris-600)'};border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✉️ Sí</button>
+          <button id="email_no_btn" class="btn btn-sm" onclick="wizSetEmailMode('no')" style="flex:1;background:${emailMode==='no'?'var(--gris-600)':'var(--gris-200)'};color:${emailMode==='no'?'white':'var(--gris-600)'};border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">❌ No</button>
+        </div>
+        <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail||''}"
+          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);display:${emailMode==='si'?'block':'none'}">
       </div>
 
       <!-- Firma Cliente (expandible) -->
-      <div style="margin-top:12px;border:2px solid var(--azul);border-radius:12px;overflow:hidden">
+      <div style="margin-top:12px;border:2px solid var(--azul);border-radius:12px;overflow:hidden" id="firmaClienteContainer">
         <div onclick="toggleFirmaPanel('cliente')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--azul-light);cursor:pointer">
-          <span style="font-size:13px;font-weight:700;color:var(--azul)">✍️ Firma del cliente *</span>
+          <span style="font-size:13px;font-weight:700;color:var(--azul)">✍️ Firma del cliente <span style="color:var(--rojo)">*</span></span>
           <span id="firmaClienteToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaData ? '✓' : '▼'}</span>
         </div>
         <div id="firmaClientePanel" style="display:block;padding:8px">
-          <div class="firma-container" id="firmaContainer" style="height:200px">
-            <canvas id="firmaCanvas" width="600" height="200"></canvas>
+          <div class="firma-container" id="firmaContainer" style="height:300px">
+            <canvas id="firmaCanvas" width="600" height="300"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholder">Firme aquí con el dedo</div>
             <button class="firma-clear" onclick="wizClearFirma('cliente')">🗑️ Borrar</button>
           </div>
-          ${_wiz.firmaData ? '<div style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px">✓ Firma capturada</div>' : ''}
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
+          </div>
+          <div id="firmaClienteStatus" style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px;display:${_wiz.firmaData_validated ? 'block' : 'none'}">✓ Firma validada</div>
         </div>
       </div>
 
       <!-- Firma Operario (expandible) -->
-      <div style="margin-top:12px;border:2px solid var(--violeta);border-radius:12px;overflow:hidden">
+      <div style="margin-top:12px;border:2px solid var(--violeta);border-radius:12px;overflow:hidden" id="firmaOperarioContainer">
         <div onclick="toggleFirmaPanel('operario')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--violeta-light);cursor:pointer">
-          <span style="font-size:13px;font-weight:700;color:var(--violeta)">👷 Firma del operario — ${operarioNombre}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--violeta)">👷 Firma del operario <span style="color:var(--rojo)">*</span> — ${operarioNombre}</span>
           <span id="firmaOperarioToggle" style="font-size:18px;transition:transform .3s">${_wiz.firmaOperario ? '✓' : '▼'}</span>
         </div>
         <div id="firmaOperarioPanel" style="display:none;padding:8px">
-          <div class="firma-container" id="firmaOperarioContainer" style="height:200px">
-            <canvas id="firmaCanvasOp" width="600" height="200"></canvas>
+          <div class="firma-container" id="firmaOperarioContainer" style="height:300px">
+            <canvas id="firmaCanvasOp" width="600" height="300"></canvas>
             <div class="firma-placeholder" id="firmaPlaceholderOp">Firme aquí con el dedo</div>
             <button class="firma-clear" onclick="wizClearFirma('operario')">🗑️ Borrar</button>
           </div>
-          ${_wiz.firmaOperario ? '<div style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px">✓ Firma capturada</div>' : ''}
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('operario')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
+          </div>
+          <div id="firmaOperarioStatus" style="font-size:11px;color:var(--verde);font-weight:700;text-align:center;padding:4px;display:${_wiz.firmaOperario_validated ? 'block' : 'none'}">✓ Firma validada</div>
         </div>
       </div>
     `;
@@ -1309,21 +1400,27 @@ function _closeMaterialSearch(e) {
 function wizSaveCurrentStep() {
   if (_wiz.step === 0) {
     _wiz.desc = document.getElementById('wz_desc')?.value || '';
-    _wiz.pendientes = document.getElementById('wz_pend')?.value || '';
+    _wiz.pendientes_checked = document.getElementById('wz_pend_check')?.checked || false;
+    _wiz.pendientes = document.getElementById('wz_pend_textarea')?.value || '';
     _wiz.observaciones = document.getElementById('wz_obs')?.value || '';
   }
   if (_wiz.step === 3) {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
     _wiz.clienteDni = document.getElementById('wz_cli_dni')?.value?.toUpperCase()?.trim() || '';
-    _wiz.clienteEmail = document.getElementById('wz_cli_email')?.value || '';
+    _wiz.clienteEmailMode = _wiz.clienteEmailMode || 'si';
+    if (_wiz.clienteEmailMode === 'si') {
+      _wiz.clienteEmail = document.getElementById('wz_cli_email')?.value || '';
+    } else {
+      _wiz.clienteEmail = '';
+    }
     // Capturar firma cliente
     const canvas = document.getElementById('firmaCanvas');
-    if (canvas && _firmaHasTouched) {
+    if (canvas && _firmaHasTouched && !_wiz.firmaData_validated) {
       try { _wiz.firmaData = canvas.toDataURL('image/png'); } catch(e) { console.warn('Canvas tainted:', e.message); }
     }
     // Capturar firma operario
     const canvasOp = document.getElementById('firmaCanvasOp');
-    if (canvasOp && _firmaOpHasTouched) {
+    if (canvasOp && _firmaOpHasTouched && !_wiz.firmaOperario_validated) {
       try { _wiz.firmaOperario = canvasOp.toDataURL('image/png'); } catch(e) { console.warn('Canvas op tainted:', e.message); }
     }
   }
@@ -1332,8 +1429,10 @@ function wizSaveCurrentStep() {
 function wizNext() {
   wizSaveCurrentStep();
   // Validar paso actual (obligatorio en modo informar, no en edición)
-  if (_wiz.step === 0 && !_wiz.desc.trim() && _wiz.mode !== 'edit') {
-    toast('Describe el trabajo realizado', 'error'); return;
+  if (_wiz.step === 0) {
+    if (!_wiz.desc.trim()) {
+      toast('⚠️ Debes describir el trabajo realizado', 'error'); return;
+    }
   }
   document.removeEventListener('click', _closeMaterialSearch);
   _wiz.step++;
@@ -1577,7 +1676,7 @@ function initFirmaCanvas() {
   if (!canvas) return;
   const container = canvas.parentElement;
   canvas.width = container.offsetWidth;
-  canvas.height = 200;
+  canvas.height = 300;
   _firmaCtx = canvas.getContext('2d');
   _firmaCtx.strokeStyle = '#1E293B';
   _firmaCtx.lineWidth = 2.5;
@@ -1609,7 +1708,7 @@ function initFirmaCanvasOp() {
   if (!canvas) return;
   const container = canvas.parentElement;
   canvas.width = container.offsetWidth;
-  canvas.height = 200;
+  canvas.height = 300;
   _firmaOpCtx = canvas.getContext('2d');
   _firmaOpCtx.strokeStyle = '#1E293B';
   _firmaOpCtx.lineWidth = 2.5;
@@ -1688,6 +1787,59 @@ function firmaEnd(e) {
   _firmaDrawing = false;
 }
 
+function wizSetEmailMode(mode) {
+  _wiz.clienteEmailMode = mode;
+  renderWizStep();
+}
+
+function wizConfirmFirma(tipo) {
+  const isCliente = tipo === 'cliente';
+  const canvas = isCliente ? document.getElementById('firmaCanvas') : document.getElementById('firmaCanvasOp');
+  const ctx = isCliente ? _firmaCtx : _firmaOpCtx;
+  const hasTouched = isCliente ? _firmaHasTouched : _firmaOpHasTouched;
+
+  if (!canvas || !hasTouched) {
+    toast('Debes firmar primero', 'error');
+    return;
+  }
+
+  // Guardar firma en base64
+  try {
+    const firmaData = canvas.toDataURL('image/png');
+    if (isCliente) {
+      _wiz.firmaData = firmaData;
+      _wiz.firmaData_validated = true;
+      document.getElementById('firmaClienteContainer').style.borderColor = 'var(--verde)';
+      document.getElementById('firmaClienteStatus').style.display = 'block';
+      document.getElementById('firmaCanvas').style.pointerEvents = 'none';
+      document.getElementById('firmaCanvas').style.opacity = '0.7';
+    } else {
+      _wiz.firmaOperario = firmaData;
+      _wiz.firmaOperario_validated = true;
+      document.getElementById('firmaOperarioContainer').style.borderColor = 'var(--verde)';
+      document.getElementById('firmaOperarioStatus').style.display = 'block';
+      document.getElementById('firmaCanvasOp').style.pointerEvents = 'none';
+      document.getElementById('firmaCanvasOp').style.opacity = '0.7';
+    }
+
+    // Capturar ubicación
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        if (isCliente) {
+          _wiz.ubicacion_firma_cliente = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+        } else {
+          _wiz.ubicacion_firma_operario = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+        }
+      }, err => { console.warn('GPS error:', err.message); });
+    }
+
+    toast('✅ Firma validada', 'success');
+  } catch(e) {
+    console.error('Error validating firma:', e);
+    toast('Error al validar firma', 'error');
+  }
+}
+
 function wizClearFirma(tipo) {
   if (tipo === 'operario') {
     const canvas = document.getElementById('firmaCanvasOp');
@@ -1695,7 +1847,12 @@ function wizClearFirma(tipo) {
       _firmaOpCtx.clearRect(0, 0, canvas.width, canvas.height);
       _firmaOpHasTouched = false;
       _wiz.firmaOperario = null;
+      _wiz.firmaOperario_validated = false;
       document.getElementById('firmaPlaceholderOp').style.display = 'flex';
+      document.getElementById('firmaOperarioContainer').style.borderColor = 'var(--violeta)';
+      document.getElementById('firmaOperarioStatus').style.display = 'none';
+      document.getElementById('firmaCanvasOp').style.pointerEvents = 'auto';
+      document.getElementById('firmaCanvasOp').style.opacity = '1';
     }
   } else {
     const canvas = document.getElementById('firmaCanvas');
@@ -1703,7 +1860,12 @@ function wizClearFirma(tipo) {
       _firmaCtx.clearRect(0, 0, canvas.width, canvas.height);
       _firmaHasTouched = false;
       _wiz.firmaData = null;
+      _wiz.firmaData_validated = false;
       document.getElementById('firmaPlaceholder').style.display = 'flex';
+      document.getElementById('firmaClienteContainer').style.borderColor = 'var(--azul)';
+      document.getElementById('firmaClienteStatus').style.display = 'none';
+      document.getElementById('firmaCanvas').style.pointerEvents = 'auto';
+      document.getElementById('firmaCanvas').style.opacity = '1';
     }
   }
 }
@@ -1796,42 +1958,33 @@ async function wizFinish() {
   try {
     wizSaveCurrentStep();
 
-    // Validar firma cliente
-    if (!_wiz.firmaData && !_firmaHasTouched) {
-      toast('El cliente debe firmar', 'error'); return;
-    }
-    const canvas = document.getElementById('firmaCanvas');
-    if (canvas && _firmaHasTouched) {
-      try { _wiz.firmaData = canvas.toDataURL('image/png'); } catch(e) { console.warn('Canvas tainted:', e.message); }
-    }
-    if (!_wiz.firmaData) {
-      toast('El cliente debe firmar', 'error'); return;
-    }
-    // Validar firma operario
-    if (!_wiz.firmaOperario && !_firmaOpHasTouched) {
-      toast('El operario debe firmar', 'error'); return;
-    }
-    const canvasOp = document.getElementById('firmaCanvasOp');
-    if (canvasOp && _firmaOpHasTouched) {
-      try { _wiz.firmaOperario = canvasOp.toDataURL('image/png'); } catch(e) { console.warn('Canvas op tainted:', e.message); }
-    }
-    if (!_wiz.firmaOperario) {
-      toast('El operario debe firmar', 'error'); return;
-    }
-
     // Validar descripción obligatoria
     if (!_wiz.desc.trim()) {
-      toast('Describe el trabajo realizado', 'error'); return;
+      toast('⚠️ Describe el trabajo realizado', 'error'); return;
+    }
+
+    // Validar nombre obligatorio (2+ palabras)
+    const nombreWords = (_wiz.clienteNombre || '').trim().split(/\s+/).filter(w => w.length > 0);
+    if (nombreWords.length < 2) {
+      toast('⚠️ Introduce el nombre completo del cliente (mínimo 2 palabras)', 'error'); return;
     }
 
     // Validar DNI obligatorio
-    if (_wiz.clienteDni) {
-      const dniCheck = validarDNI(_wiz.clienteDni);
-      if (!dniCheck.valid) {
-        toast('DNI no válido: ' + dniCheck.msg, 'error'); return;
-      }
-    } else {
-      toast('Introduce el DNI del cliente', 'error'); return;
+    if (!_wiz.clienteDni) {
+      toast('⚠️ Introduce el DNI del cliente', 'error'); return;
+    }
+    const dniCheck = validarDNI(_wiz.clienteDni);
+    if (!dniCheck.valid) {
+      toast('⚠️ DNI no válido: ' + dniCheck.msg, 'error'); return;
+    }
+
+    // Validar firma cliente validada
+    if (!_wiz.firmaData_validated) {
+      toast('⚠️ El cliente debe firmar y validar su firma', 'error'); return;
+    }
+    // Validar firma operario validada
+    if (!_wiz.firmaOperario_validated) {
+      toast('⚠️ El operario debe firmar y validar su firma', 'error'); return;
     }
 
     toast('📍 Obteniendo ubicación final...', '');
@@ -1949,6 +2102,9 @@ async function wizFinish() {
       cliente_nombre_firma: _wiz.clienteNombre || null,
       cliente_email: _wiz.clienteEmail || null,
       cliente_dni: _wiz.clienteDni || null,
+      cliente_sin_email: _wiz.clienteSinEmail || false,
+      ubicacion_firma_cliente: _wiz.ubicacion_firma_cliente || null,
+      ubicacion_firma_operario: _wiz.ubicacion_firma_operario || null,
     };
     if (ubicacionFin) updateObj.ubicacion_fin = ubicacionFin;
 
@@ -2148,7 +2304,7 @@ function openOperarioDetail(uid) {
 // ── INICIAR PARTE CON GPS ──
 async function iniciarParteConGPS(id) {
   // Mostrar confirmación con aviso de GPS
-  const confirmed = confirm('📍 Al iniciar el parte se registrará tu ubicación GPS actual.\n\n¿Iniciar el trabajo?');
+  const confirmed = confirm('📍 UBICACIÓN GPS OBLIGATORIA\n\nAl iniciar el parte se registrará tu ubicación GPS. Este paso es obligatorio y no se puede omitir.\n\nAsegúrate de tener el GPS activado y los permisos de ubicación concedidos.\n\n¿Iniciar el trabajo?');
   if (!confirmed) return;
 
   toast('📍 Obteniendo ubicación...', '');
@@ -2238,6 +2394,7 @@ function openInformarWizard(id) {
     step: 0,
     mode: 'informar',
     desc: p.descripcion || '',
+    pendientes_checked: !!p.trabajos_pendientes,
     pendientes: p.trabajos_pendientes || '',
     observaciones: p.observaciones || '',
     fotos: p.fotos ? [...p.fotos] : [],
@@ -2246,6 +2403,9 @@ function openInformarWizard(id) {
     manoObra: autoManoObra,
     firmaData: p.firma_url || null,
     firmaOperario: p.firma_operario_url || null,
+    firmaData_validated: !!p.firma_url,
+    firmaOperario_validated: !!p.firma_operario_url,
+    clienteEmailMode: p.cliente_email ? 'si' : 'no',
     clienteEmail: p.cliente_email || '',
     clienteNombre: p.cliente_nombre_firma || '',
     clienteDni: p.cliente_dni || '',
