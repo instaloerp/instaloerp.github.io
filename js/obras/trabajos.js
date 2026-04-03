@@ -460,8 +460,9 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       if (esBorrador) {
         acciones += `<button onclick="event.stopPropagation();abrirEditor('presupuesto',${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--amarillo-light);color:var(--amarillo);font-size:10px;font-weight:700;border:1px solid var(--amarillo);cursor:pointer">✏️ Editar borrador</button>`;
       } else if (noAnulado) {
-        // Pendiente: Aprobar (sin Albaranar/Facturar)
+        // Pendiente: Enviar al cliente + Aprobar
         if (p.estado === 'pendiente') {
+          acciones += `<button onclick="event.stopPropagation();enviarPresupuestoCliente(${p.id})" style="padding:3px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer" title="Enviar enlace de firma al cliente">📩 Enviar</button> `;
           acciones += `<button onclick="event.stopPropagation();abrirModalAprobar(${p.id})" style="padding:3px 8px;border-radius:6px;background:var(--verde);color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">✅ Aprobar</button>`;
         } else if (p.estado === 'aceptado') {
           // Aceptado: botones de conversión
@@ -1367,6 +1368,66 @@ async function obraFacturarTodosAlb() {
   await registrarActividadObra(obraActualId, 'Factura agrupada creada', `🧾 ${numero} agrupando ${albs.length} albarán(es): ${nums}`);
   toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
   abrirFichaObra(obraActualId, false); // Refrescar
+}
+
+// ═══════════════════════════════════════════════
+// FIRMA REMOTA — ENVIAR PRESUPUESTO AL CLIENTE
+// ═══════════════════════════════════════════════
+async function enviarPresupuestoCliente(presId) {
+  if (!obraActualId) return;
+  const { data: p, error: err } = await sb.from('presupuestos').select('*').eq('id', presId).single();
+  if (err || !p) { toast('Error al cargar presupuesto', 'error'); return; }
+
+  // Buscar email del cliente
+  const cli = p.cliente_id ? clientes.find(c => c.id === p.cliente_id) : null;
+  const emailCliente = cli?.email || '';
+
+  // Generar token único si no existe
+  let firmaToken = p.firma_token;
+  if (!firmaToken) {
+    firmaToken = crypto.randomUUID();
+    const { error: tokErr } = await sb.from('presupuestos').update({
+      firma_token: firmaToken,
+      firma_enviado_por: CU?.id || null,
+      firma_enviado_por_nombre: CP ? (CP.nombre || '') + ' ' + (CP.apellidos || '') : CU?.email || '',
+    }).eq('id', presId);
+    if (tokErr) {
+      // Fallback si las columnas nuevas no existen aún
+      await sb.from('presupuestos').update({ firma_token: firmaToken }).eq('id', presId);
+    }
+  } else {
+    // Actualizar quién lo envía (puede reenviarse por otra persona)
+    await sb.from('presupuestos').update({
+      firma_enviado_por: CU?.id || null,
+      firma_enviado_por_nombre: CP ? (CP.nombre || '') + ' ' + (CP.apellidos || '') : CU?.email || '',
+    }).eq('id', presId).then(() => {}).catch(() => {});
+  }
+
+  // Construir URL de firma
+  const firmaUrl = `https://instaloerp.github.io/firma.html?token=${firmaToken}`;
+  const empresaNombre = EMPRESA.nombre || 'Nuestra empresa';
+
+  // Construir mailto
+  const asunto = encodeURIComponent(`Presupuesto ${p.numero} — ${empresaNombre}`);
+  const cuerpo = encodeURIComponent(
+    `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
+    `Le adjuntamos el presupuesto ${p.numero}${p.titulo ? ' — ' + p.titulo : ''} por un importe de ${(p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €.\n\n` +
+    `Para revisar y firmar el presupuesto, acceda al siguiente enlace:\n` +
+    `${firmaUrl}\n\n` +
+    `Si tiene alguna duda, no dude en contactarnos.\n\n` +
+    `Un saludo,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}`
+  );
+  const mailto = `mailto:${emailCliente}?subject=${asunto}&body=${cuerpo}`;
+
+  // Registrar en actividad de la obra
+  await registrarActividadObra(obraActualId, 'Presupuesto enviado al cliente', `📩 ${p.numero} enviado a ${cli?.nombre || 'cliente'}${emailCliente ? ' (' + emailCliente + ')' : ''}`);
+
+  // Abrir mailto
+  window.open(mailto, '_blank');
+  toast('📩 Enlace de firma generado — se abre tu correo', 'success');
+
+  // Refrescar ficha
+  abrirFichaObra(obraActualId, false);
 }
 
 // ═══════════════════════════════════════════════
