@@ -1970,6 +1970,15 @@
         <div class="fg"><label>Hora fin *</label><input type="time" id="pt_fin" value="14:00"></div>
         <div class="fg"><label>Operario</label><select id="pt_usuario" disabled></select></div>
       </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Dirección del cliente</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="pt_direccion" placeholder="Se rellena automáticamente del cliente" style="flex:1" readonly>
+          <a id="pt_gps_link" href="#" target="_blank" rel="noopener" title="Abrir en Google Maps — Navegación GPS"
+             style="display:none;align-items:center;justify-content:center;background:#3B82F6;color:white;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;gap:4px"
+             >📍 GPS</a>
+        </div>
+      </div>
       <div class="fg" style="margin-bottom:11px"><label>Descripción del trabajo</label><textarea id="pt_desc" rows="3" placeholder="Detalla el trabajo realizado..." autocorrect="on" spellcheck="true"></textarea></div>
       <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="pt_observaciones" rows="2" placeholder="Notas internas, incidencias..." autocorrect="on" spellcheck="true"></textarea></div>
       <div style="margin-bottom:11px">
@@ -2735,16 +2744,16 @@
 <div id="acArticulos"></div>
 
 <!-- Core -->
-<script src="js/core/app.js?v=20260403i"></script>
-<script src="js/core/ui.js?v=20260403i"></script>
-<script src="js/core/dashboard.js?v=20260403i"></script>
+<script src="js/core/app.js?v=20260403j"></script>
+<script src="js/core/ui.js?v=20260403j"></script>
+<script src="js/core/dashboard.js?v=20260403j"></script>
 <script src="js/core/sidebar.js"></script>
 
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
-<script src="js/comercial/clientes.js?v=20260403i"></script>
-<script src="js/comercial/presupuestos.js?v=20260403i"></script>
-<script src="js/comercial/albaranes.js?v=20260403i"></script>
+<script src="js/comercial/clientes.js?v=20260403j"></script>
+<script src="js/comercial/presupuestos.js?v=20260403j"></script>
+<script src="js/comercial/albaranes.js?v=20260403j"></script>
 <script src="js/comercial/facturas.js?v=6"></script>
 
 <!-- Compras -->
@@ -2762,16 +2771,16 @@
 <script src="js/almacen/traspasos.js"></script>
 
 <!-- Gestión de Obras -->
-<script src="js/obras/trabajos.js?v=20260403i"></script>
+<script src="js/obras/trabajos.js?v=20260403j"></script>
 <script src="js/obras/mantenimientos.js"></script>
 <script src="js/obras/partes.js?v=3"></script>
-<script src="js/obras/calendario.js?v=20260403i"></script>
+<script src="js/obras/calendario.js?v=20260403j"></script>
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js"></script>
 
 <!-- Editor de Documentos -->
-<script src="js/editor/editor.js?v=20260403i"></script>
+<script src="js/editor/editor.js?v=20260403j"></script>
 
 <!-- Administración -->
 <script src="js/admin/usuarios.js"></script>

@@ -1355,10 +1355,11 @@ function nuevoParteObraActual() {
 
 function programarCitaObraActual() {
   if (!obraActualId) return;
-  // Buscar presupuesto aceptado de esta obra
   const obra = trabajos.find(t => t.id === obraActualId);
   const presup = obraActualPresupuestos?.find(p => p.estado === 'aceptado') || null;
-  const dir = obra?.direccion_obra_texto || '';
+  // Dirección del CLIENTE propietario de la obra
+  const cli = obra?.cliente_id ? clientes.find(c => c.id === obra.cliente_id) : null;
+  const dir = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : (obra?.direccion_obra_texto || '');
   programarCitaDesdeObra(
     obraActualId,
     presup?.id || null,

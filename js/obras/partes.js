@@ -146,18 +146,55 @@ function nuevoParteModal(preselObraId) {
   if (selTr) {
     selTr.innerHTML = '<option value="">— Selecciona obra —</option>' +
       (typeof trabajos !== 'undefined' ? trabajos : []).map(t => `<option value="${t.id}">${t.numero ? t.numero+' – ' : ''}${t.titulo}</option>`).join('');
-    if (preselObraId) selTr.value = preselObraId;
+    if (preselObraId) {
+      selTr.value = preselObraId;
+      selTr.disabled = true; // Obra fija cuando se abre desde ficha
+    } else {
+      selTr.disabled = false;
+    }
+    // Auto-rellenar dirección del cliente al cambiar obra
+    selTr.onchange = function() {
+      const oId = parseInt(this.value) || null;
+      pt_autoFillDireccion(oId);
+    };
   }
 
   // Poblar select de operario — todos los usuarios activos (admins pueden asignar a cualquiera)
   poblarSelectOperario();
 
   // Limpiar campos de texto
-  ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones', 'pt_instrucciones', 'pt_pendientes', 'pt_direccion'].forEach(id => {
+  ['pt_fecha', 'pt_inicio', 'pt_fin', 'pt_desc', 'pt_observaciones', 'pt_instrucciones', 'pt_pendientes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   pt_checklist = [];
+
+  // Dirección: auto-rellenar del cliente si hay obra preseleccionada
+  const dirEl = document.getElementById('pt_direccion');
+  const gpsBtn = document.getElementById('pt_gps_link');
+  if (dirEl) dirEl.value = '';
+  if (gpsBtn) gpsBtn.style.display = 'none';
+
+  if (preselObraId && typeof trabajos !== 'undefined') {
+    const obra = trabajos.find(t => t.id === preselObraId);
+    if (obra?.cliente_id && typeof clientes !== 'undefined') {
+      const cli = clientes.find(c => c.id === obra.cliente_id);
+      if (cli) {
+        const addr = [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ');
+        if (dirEl) {
+          dirEl.value = addr;
+          dirEl.readOnly = true;
+          dirEl.style.background = '#F3F4F6';
+        }
+        if (gpsBtn && addr) {
+          gpsBtn.href = 'https://maps.google.com/?q=' + encodeURIComponent(addr);
+          gpsBtn.style.display = 'inline-flex';
+        }
+      }
+    }
+  } else {
+    if (dirEl) { dirEl.readOnly = false; dirEl.style.background = ''; }
+  }
 
   // Prefijar fecha de hoy y horario por defecto
   const hoy = new Date().toISOString().split('T')[0];
@@ -186,15 +223,23 @@ function nuevoParteDesdeObra(obraId) {
 
 // Programar cita desde obra con datos del presupuesto
 function programarCitaDesdeObra(obraId, presupuestoId, presupuestoNumero, clienteDireccion) {
-  nuevoParteModal(obraId);
-  // Pre-rellenar campos
+  nuevoParteModal(obraId); // ya auto-rellena dirección del cliente y bloquea obra
+  // Pre-rellenar instrucciones con referencia al presupuesto
   if (presupuestoNumero) {
     const instrEl = document.getElementById('pt_instrucciones');
     if (instrEl) instrEl.value = `Trabajo según presupuesto ${presupuestoNumero}`;
   }
-  if (clienteDireccion) {
-    const dirEl = document.getElementById('pt_direccion');
-    if (dirEl) dirEl.value = clienteDireccion;
+  // Si nuevoParteModal no pudo obtener la dirección (fallback), usar la pasada
+  const dirEl = document.getElementById('pt_direccion');
+  if (dirEl && !dirEl.value && clienteDireccion) {
+    dirEl.value = clienteDireccion;
+    dirEl.readOnly = true;
+    dirEl.style.background = '#F3F4F6';
+    const gpsBtn = document.getElementById('pt_gps_link');
+    if (gpsBtn) {
+      gpsBtn.href = 'https://maps.google.com/?q=' + encodeURIComponent(clienteDireccion);
+      gpsBtn.style.display = 'inline-flex';
+    }
   }
   // Guardar referencia al presupuesto (se usará al guardar)
   window._pt_presupuesto_id = presupuestoId || null;
@@ -251,6 +296,45 @@ function poblarSelectOperario(selVal) {
   } else {
     selUsr.innerHTML = `<option value="${CU?.id||''}">${CP?.nombre||''} ${CP?.apellidos||''}</option>`;
     selUsr.disabled = true;
+  }
+}
+
+// Auto-rellenar dirección del cliente asociado a una obra
+function pt_autoFillDireccion(obraId) {
+  const dirEl = document.getElementById('pt_direccion');
+  const gpsBtn = document.getElementById('pt_gps_link');
+  if (!dirEl) return;
+  if (!obraId) {
+    dirEl.value = '';
+    dirEl.readOnly = true;
+    if (gpsBtn) gpsBtn.style.display = 'none';
+    return;
+  }
+  const obra = (typeof trabajos !== 'undefined' ? trabajos : []).find(t => t.id === obraId);
+  if (obra?.cliente_id && typeof clientes !== 'undefined') {
+    const cli = clientes.find(c => c.id === obra.cliente_id);
+    if (cli) {
+      const addr = [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ');
+      dirEl.value = addr;
+      dirEl.readOnly = true;
+      dirEl.style.background = '#F3F4F6';
+      if (gpsBtn && addr) {
+        gpsBtn.href = 'https://maps.google.com/?q=' + encodeURIComponent(addr);
+        gpsBtn.style.display = 'inline-flex';
+      }
+      return;
+    }
+  }
+  dirEl.value = obra?.direccion_obra_texto || '';
+  dirEl.readOnly = true;
+  dirEl.style.background = '#F3F4F6';
+  if (gpsBtn) {
+    if (dirEl.value) {
+      gpsBtn.href = 'https://maps.google.com/?q=' + encodeURIComponent(dirEl.value);
+      gpsBtn.style.display = 'inline-flex';
+    } else {
+      gpsBtn.style.display = 'none';
+    }
   }
 }
 
@@ -914,7 +998,12 @@ function verDetalleParte(id) {
       </div>
       ${parte.direccion ? `<div style="grid-column:1/-1">
         <div style="font-size:11px;color:var(--gris-600);font-weight:700;text-transform:uppercase">Dirección</div>
-        <div style="font-size:13px;font-weight:600">${parte.direccion}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600">${parte.direccion}</span>
+          <a href="https://maps.google.com/?q=${encodeURIComponent(parte.direccion)}" target="_blank" rel="noopener"
+             style="display:inline-flex;align-items:center;gap:3px;background:#3B82F6;color:white;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap"
+             title="Abrir navegación GPS">📍 GPS</a>
+        </div>
       </div>` : ''}
     </div>
 
