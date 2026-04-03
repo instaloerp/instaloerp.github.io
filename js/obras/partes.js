@@ -281,11 +281,11 @@ function pt_renderChecklist() {
   `).join('');
 }
 
-// Poblar select de operarios con todos los usuarios activos
+// Poblar select de operarios — solo usuarios con disponible_partes=true
 function poblarSelectOperario(selVal) {
   const selUsr = document.getElementById('pt_usuario');
   if (!selUsr) return;
-  const usuarios = typeof todosUsuarios !== 'undefined' ? todosUsuarios.filter(u => u.activo !== false) : [];
+  const usuarios = typeof todosUsuarios !== 'undefined' ? todosUsuarios.filter(u => u.activo !== false && u.disponible_partes === true) : [];
   if (usuarios.length > 0) {
     selUsr.innerHTML = usuarios.map(u => {
       const rolTag = u.rol === 'operario' ? ' 👷' : '';
