@@ -1003,6 +1003,12 @@ function openParteDetail(id) {
       ${p.inicio_at ? ` · ${new Date(p.inicio_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}` : ''}
     </div>` : ''}
 
+    ${p.ubicacion_fin ? `<div style="margin-bottom:12px;padding:8px 12px;background:var(--verde-light);border-radius:8px;font-size:12px">
+      <span style="font-weight:700">🏁 Ubicación fin:</span>
+      <a href="https://maps.google.com/?q=${p.ubicacion_fin.lat},${p.ubicacion_fin.lng}" target="_blank" style="color:var(--azul)">${p.ubicacion_fin.lat.toFixed(5)}, ${p.ubicacion_fin.lng.toFixed(5)}</a>
+      ${p.completado_at ? ` · ${new Date(p.completado_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}` : ''}
+    </div>` : ''}
+
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
     ${!esJefe ? `
       ${p.estado === 'programado' ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
@@ -1127,19 +1133,19 @@ function renderWizStep() {
         <span style="font-weight:800;font-size:13px">${totalMat.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>` : ''}
 
-      <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
+      ${esJefe ? `<div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
         <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--violeta)">👷 Mano de obra</div>
         <div id="wz_mo_list">
           ${manoObra.length ? manoObra.map((mo, i) => renderWizMORow(mo, i)).join('') : '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:12px">Sin mano de obra registrada</div>'}
         </div>
         <button class="btn btn-secondary btn-sm" onclick="wizAddManoObra()" style="margin-top:8px;width:100%">➕ Añadir mano de obra</button>
-        ${esJefe ? `<div style="margin-top:8px;padding:8px 12px;background:var(--violeta-light);border-radius:8px;display:flex;justify-content:space-between">
+        <div style="margin-top:8px;padding:8px 12px;background:var(--violeta-light);border-radius:8px;display:flex;justify-content:space-between">
           <span style="font-weight:700;font-size:12px">Total mano obra:</span>
           <span style="font-weight:800;font-size:13px">${totalMO.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
-        </div>` : ''}
+        </div>
       </div>
 
-      ${esJefe ? `<div style="margin-top:16px;padding:12px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between">
+      <div style="margin-top:16px;padding:12px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between">
         <span style="font-weight:800;font-size:14px">TOTAL:</span>
         <span style="font-weight:800;font-size:15px;color:var(--azul)">${(totalMat + totalMO).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>` : ''}
@@ -1704,6 +1710,32 @@ async function wizFinish() {
 
     toast('Enviando informe...', '');
 
+    // 0b. Recalcular minutos trabajados (inicio_at → ahora) y km por carretera
+    const parteActual = misPartes.find(x => x.id === id);
+    if (parteActual && _wiz.manoObra) {
+      // Recalcular minutos
+      if (parteActual.inicio_at) {
+        const moTrabajo = _wiz.manoObra.find(mo => !mo.es_desplazamiento);
+        if (moTrabajo) {
+          const diffMs = new Date() - new Date(parteActual.inicio_at);
+          moTrabajo.minutos = Math.max(1, Math.round(diffMs / (1000 * 60)));
+          moTrabajo.total = (moTrabajo.minutos / 60) * (moTrabajo.precio_hora || 35);
+        }
+      }
+      // Recalcular km por carretera
+      const ubi = parteActual.ubicacion_inicio || parteActual.ubicacion;
+      if (ubi && ubi.lat && ubi.lng) {
+        try {
+          const kmReal = await calcularKmCarretera(ubi.lat, ubi.lng);
+          const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
+          if (despMO) {
+            despMO.km = kmReal;
+            despMO.total = kmReal * (despMO.precio_hora || 0.26);
+          }
+        } catch(e) { console.warn('[wizFinish] Error calculando km:', e); }
+      }
+    }
+
     // 1. Subir fotos nuevas a Supabase Storage
     let fotosUrls = [..._wiz.fotos]; // URLs existentes
     for (const foto of (_wiz.fotosNuevas || [])) {
@@ -2018,8 +2050,9 @@ function openInformarWizard(id) {
       es_desplazamiento: true,
     });
     // Calcular km reales por carretera (Google Maps → OSRM → haversine)
-    if (p.ubicacion && p.ubicacion.lat && p.ubicacion.lng) {
-      calcularKmCarretera(p.ubicacion.lat, p.ubicacion.lng).then(km => {
+    const ubi = p.ubicacion_inicio || p.ubicacion;
+    if (ubi && ubi.lat && ubi.lng) {
+      calcularKmCarretera(ubi.lat, ubi.lng).then(km => {
         const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
         if (despMO) {
           despMO.km = km;
