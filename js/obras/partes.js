@@ -1167,6 +1167,7 @@ async function verDetalleParte(id) {
       ${next ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
       <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-secondary btn-sm">✏️ Editar</button>
       <button onclick="exportarPartePDF(${parte.id})" class="btn btn-ghost btn-sm">📄 PDF</button>
+      <button onclick="eliminarParte(${parte.id})" class="btn btn-sm" style="background:#EF4444;color:#fff;font-weight:700">🗑️ Eliminar</button>
 
       ${parte.estado !== 'facturado' ? `
         <select onchange="if(this.value)cambiarEstadoParte(${parte.id},this.value);closeModal('dtlPartes')" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">
@@ -1184,6 +1185,11 @@ async function verDetalleParte(id) {
 // ═══════════════════════════════════════════════════════════════════════
 // ELIMINAR
 // ═══════════════════════════════════════════════════════════════════════
+
+async function eliminarParte(id) {
+  closeModal('dtlPartes');
+  setTimeout(() => delParte(id), 300);
+}
 
 async function delParte(id) {
   const parte = partesData.find(p => p.id === id);
