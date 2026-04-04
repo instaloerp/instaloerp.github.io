@@ -86,7 +86,7 @@ function renderPartes(list) {
     const horas = (parseFloat(p.horas) || 0).toFixed(1);
     const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
 
-    return `<tr style="cursor:pointer;transition:background .2s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''" onclick="verDetalleParte(${p.id})">
+    return `<tr class="hov-bg" style="cursor:pointer" onclick="verDetalleParte(${p.id})">
       <td style="font-family:monospace;font-weight:700;font-size:12.5px;color:var(--azul)">${p.numero || '—'}</td>
       <td>${p.trabajo_titulo || '—'}</td>
       <td>${p.usuario_nombre || '—'}</td>
@@ -510,9 +510,7 @@ async function pt_buscarArticulo(q, i) {
     if (resultados.length > 0 && dropdown) {
       dropdown.style.display = 'block';
       dropdown.innerHTML = resultados.map(a => `
-        <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100);transition:background .2s"
-          onmouseover="this.style.background='var(--gris-50)'"
-          onmouseout="this.style.background='white'"
+        <div class="hov-bg" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100)"
           onmousedown="pt_seleccionarArticulo(${i}, ${a.id}, '${(a.nombre || '').replace(/'/g, "\\'")}', ${a.precio || 0})">
           <strong>${a.nombre}</strong><br>
           <small style="color:var(--gris-500)">${a.codigo || ''} · ${fmtE(a.precio || 0)}</small>

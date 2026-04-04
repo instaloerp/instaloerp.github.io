@@ -1009,7 +1009,7 @@ async function de_verVersiones(ev) {
     const d = v.datos||{};
     const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
     const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-    items += `<div style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onmouseenter="this.style.background='var(--gris-50)'" onmouseleave="this.style.background=''">
+    items += `<div class="hov-bg" style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer">
       <div style="min-width:0">
         <div style="font-weight:700;font-size:12px">v${v.version} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
         <div style="font-size:11px;color:var(--gris-500)">${d.cliente_nombre||'—'} — ${fmtE(d.total||0)}</div>

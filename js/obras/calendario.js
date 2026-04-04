@@ -149,7 +149,7 @@ async function renderCalendario() {
     const dayObras = obrasMap[d] || [];
     const hasItems = dayTareas.length || dayObras.length;
 
-    html += `<div onclick="calSelectDay(${d})" style="padding:4px 6px;min-height:80px;cursor:${hasItems?'pointer':'default'};border-bottom:1px solid var(--gris-100);border-right:1px solid var(--gris-100);${isToday?'background:#EFF6FF;':''}${isWeekend?'background:var(--gris-50);':''}transition:background .15s" onmouseover="this.style.background='${isToday?'#DBEAFE':'var(--gris-50)'}'" onmouseout="this.style.background='${isToday?'#EFF6FF':isWeekend?'var(--gris-50)':''}'">`
+    html += `<div onclick="calSelectDay(${d})" class="hov-bg" style="padding:4px 6px;min-height:80px;cursor:${hasItems?'pointer':'default'};border-bottom:1px solid var(--gris-100);border-right:1px solid var(--gris-100);${isToday?'background:#EFF6FF;':''}${isWeekend?'background:var(--gris-50);':''}">`
 
     // Número del día
     html += `<div style="font-size:12px;font-weight:${isToday?'800':'600'};color:${isToday?'var(--azul)':'var(--gris-700)'};margin-bottom:3px">${d}</div>`;
@@ -351,7 +351,7 @@ function renderMisTareas() {
       const estIco = EST_ICO[t.estado] || '⏳';
       const clickObra = trabajo ? `goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('tareas'),300)` : '';
 
-      html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCerrada?'opacity:.6':''};cursor:${clickObra?'pointer':'default'}" onclick="${clickObra}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+      html += `<div class="hov-bg" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--gris-100);${isCerrada?'opacity:.6':''};cursor:${clickObra?'pointer':'default'}" onclick="${clickObra}">
         <div onclick="event.stopPropagation();mtToggleTarea('${t.id}')" style="width:20px;height:20px;border-radius:50%;border:2px solid ${isDone?'#059669':isRech?'#9333EA':'var(--gris-300)'};display:flex;align-items:center;justify-content:center;cursor:pointer;background:${isDone?'#059669':isRech?'#9333EA':'transparent'};flex-shrink:0;transition:all .15s">
           ${isDone?'<span style="color:#fff;font-size:11px">✓</span>':isRech?'<span style="color:#fff;font-size:11px">✕</span>':''}
         </div>

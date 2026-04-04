@@ -237,7 +237,7 @@ function cambiarEstadoPresMenu(event, id) {
   const menu = document.createElement('div');
   menu.className = 'est-menu-popup';
   menu.style.cssText = 'position:fixed;z-index:9999;background:white;border-radius:10px;box-shadow:var(--sh-lg);padding:6px;min-width:160px';
-  menu.innerHTML = ESTADOS.map(e=>`<button onclick="cambiarEstadoPres(${id},'${e.key}');this.parentElement.remove()" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;font-family:var(--font)" onmouseenter="this.style.background='var(--gris-50)'" onmouseleave="this.style.background='none'">${e.ico} ${e.label}</button>`).join('');
+  menu.innerHTML = ESTADOS.map(e=>`<button onclick="cambiarEstadoPres(${id},'${e.key}');this.parentElement.remove()" class="hov-bg" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;font-family:var(--font)">${e.ico} ${e.label}</button>`).join('');
   document.body.appendChild(menu);
   const rect = event.target.getBoundingClientRect();
   menu.style.top = (rect.bottom+4)+'px';

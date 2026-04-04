@@ -286,3 +286,15 @@ body.ocultar-sensibles .col-sensible,
 body.ocultar-sensibles .td-sensible{visibility:hidden!important;user-select:none}
 body.ocultar-sensibles .kpi-sensible .sv{visibility:hidden!important}
 body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:italic;color:var(--gris-400)}
+
+/* ─── Hover utilities (CSS puro, sin JS) ─── */
+.hov-shadow{transition:box-shadow .15s;contain:layout style}
+.hov-shadow:hover{box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.hov-bg{transition:background .12s}
+.hov-bg:hover{background:var(--gris-50)}
+.hov-bg-white{transition:background .12s}
+.hov-bg-white:hover{background:var(--gris-50)}
+.hov-bg-azul{transition:background .12s,border-color .12s}
+.hov-bg-azul:hover{background:var(--azul-light);border-color:var(--azul)}
+.hov-bright{transition:opacity .15s}
+.hov-bright:hover{opacity:.88}

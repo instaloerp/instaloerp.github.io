@@ -33,7 +33,7 @@ function initTrCliBuscador() {
     const matches = clientes.filter(c => (c.nombre||'').toLowerCase().includes(q) || (c.telefono||'').includes(q) || (c.email||'').toLowerCase().includes(q)).slice(0, 8);
     let html = matches.map(c => {
       const dir = c.direccion_fiscal || c.direccion || c.municipio_fiscal || c.municipio || '';
-      return `<div onmousedown="trSeleccionarCliente(${c.id})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100);transition:background .1s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background='#fff'">
+      return `<div onmousedown="trSeleccionarCliente(${c.id})" class="hov-bg-white" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100)">
         <div style="font-weight:600;font-size:12.5px">${c.nombre}</div>
         ${dir ? `<div style="font-size:10.5px;color:var(--gris-400)">${dir}</div>` : ''}
       </div>`;
@@ -639,7 +639,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         };
         const nextAct = nextActions[p.estado];
 
-        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 1px 4px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onclick="verDetalleParte(${p.id})">
+        partesHtml += `<div class="hov-shadow" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px" onclick="verDetalleParte(${p.id})">
           <div style="min-width:60px;text-align:center">
             <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hi || '—'}</div>
             <div style="font-size:10px;color:var(--gris-400)">${hf ? hi + '-' + hf : ''}</div>
@@ -816,7 +816,7 @@ function renderObraTareas() {
           const yaExiste = obraTareasData.some(t => t.texto === p.texto);
           return yaExiste
             ? `<button disabled style="background:var(--gris-100);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;color:var(--gris-300);text-decoration:line-through;cursor:default">${p.texto}</button>`
-            : `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:background .15s,border-color .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`;
+            : `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" class="hov-bg-azul" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600)" >${p.texto}</button>`;
         }).join('')}
       </div>
       <div style="margin-top:8px;text-align:right">
@@ -873,7 +873,7 @@ function renderTareaItem(t) {
   const hoy = t.fecha_limite && new Date(t.fecha_limite).toDateString() === new Date().toDateString();
   const fechaCreacion = t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '';
 
-  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);transition:background .15s;${isCerrada?'text-decoration:line-through;opacity:0.6':''}" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+  return `<div class="hov-bg" style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);${isCerrada?'text-decoration:line-through;opacity:0.6':''}">
     <!-- Checkbox -->
     <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'};background:${t.estado==='completada'?'#ECFDF5':t.estado==='rechazada'?'#FAF5FF':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .2s" onmouseover="this.style.borderColor='${t.estado==='completada'?'#059669':'var(--azul)'}'" onmouseout="this.style.borderColor='${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'}'">${t.estado==='completada'?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':t.estado==='rechazada'?'<span style="color:#9333EA;font-size:13px;font-weight:800">✕</span>':''}</div>
     <!-- Contenido -->
