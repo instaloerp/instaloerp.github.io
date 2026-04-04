@@ -680,7 +680,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 
         // Siguiente acción rápida
         const nextActions = {
-          borrador:   {label:'📅 Programar', fn:`avanzarEstadoParte(${p.id},'programado')`, bg:'#3B82F6'},
+          borrador:   {label:'📅 Programar', fn:`programarParteBorrador(${p.id})`, bg:'#3B82F6'},
           programado: {label:'🔧 Iniciar', fn:`avanzarEstadoParte(${p.id},'en_curso')`, bg:'var(--acento)'},
           en_curso:   {label:'✅ Cumplimentar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
           completado: {label:'👁️ Revisar', fn:`avanzarEstadoParte(${p.id},'revisado')`, bg:'#10B981'},
@@ -2156,8 +2156,17 @@ function programarCitaObraActual() {
   if (!obraActualId) return;
   const obra = trabajos.find(t => t.id === obraActualId);
   const titulo = obra ? (obra.numero ? obra.numero + ' – ' : '') + (obra.titulo || obra.descripcion || 'Obra') : 'Obra';
-  // Abrir planificador fullscreen con la obra preseleccionada — el usuario elige operario y hueco
   abrirPlanificadorDesdeObra(obraActualId, titulo);
+}
+
+/** Programar un parte en borrador: abre el planificador fullscreen con la obra del parte */
+function programarParteBorrador(parteId) {
+  const parte = (typeof partesData !== 'undefined') ? partesData.find(p => p.id === parteId) : null;
+  if (!parte) { toast('Parte no encontrado', 'error'); return; }
+  const obraId = parte.trabajo_id;
+  const obra = trabajos.find(t => t.id === obraId);
+  const titulo = obra ? (obra.numero ? obra.numero + ' – ' : '') + (obra.titulo || obra.descripcion || 'Obra') : (parte.trabajo_titulo || 'Obra');
+  abrirPlanificadorDesdeObra(obraId, titulo);
 }
 
 // ═══════════════════════════════════════════════

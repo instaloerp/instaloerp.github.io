@@ -823,7 +823,7 @@ function abrirCrearParteRapido(fecha, hora) {
   if (prev) prev.remove();
 
   const horaStr = String(hora).padStart(2, '0') + ':00';
-  const horaFinStr = String(hora + 1).padStart(2, '0') + ':00';
+  const horaFinDefault = String(Math.min(hora + 1, 23)).padStart(2, '0') + ':00';
   const fechaObj = new Date(fecha + 'T00:00:00');
   const fechaLegible = fechaObj.toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' });
 
@@ -836,10 +836,11 @@ function abrirCrearParteRapido(fecha, hora) {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
 
   const box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;max-width:440px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.2)';
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;max-width:500px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto';
   box.innerHTML = `
     <div style="font-size:16px;font-weight:700;margin-bottom:4px">📅 Nuevo parte de trabajo</div>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${fechaLegible} · ${horaStr}-${horaFinStr} · ${operarioNombre}</div>
+    <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${operarioNombre}</div>
+
     <div style="margin-bottom:12px;position:relative">
       <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Obra *</label>
       ${planObraFija
@@ -851,10 +852,37 @@ function abrirCrearParteRapido(fecha, hora) {
            <input type="hidden" id="planNuevoObraTitulo" value="">
            <div id="planObraResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow:auto;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>`}
     </div>
+
+    <!-- Fechas e Horarios -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha inicio *</label>
+        <input type="date" id="planNuevoFechaIni" value="${fecha}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha fin <span style="font-size:10px;color:#9CA3AF">(varios días)</span></label>
+        <input type="date" id="planNuevoFechaFin" value="${fecha}" min="${fecha}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Hora inicio</label>
+        <input type="time" id="planNuevoHoraIni" value="${horaStr}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Hora fin</label>
+        <input type="time" id="planNuevoHoraFin" value="${horaFinDefault}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+    </div>
+
+    <div id="planMultiDiaInfo" style="display:none;padding:8px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:11.5px;color:#1E40AF;margin-bottom:12px"></div>
+
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Instrucciones (opcional)</label>
-      <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical" placeholder="Instrucciones para el operario..."></textarea>
+      <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Instrucciones para el operario..."></textarea>
     </div>
+
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button id="planCrearNo" style="padding:8px 16px;border-radius:8px;border:1px solid #D1D5DB;background:#fff;cursor:pointer;font-weight:600;font-size:13px">Cancelar</button>
       <button id="planCrearBorrador" style="padding:8px 16px;border-radius:8px;border:1px solid #9CA3AF;background:#F3F4F6;cursor:pointer;font-weight:600;font-size:13px;color:#374151">✏️ Borrador</button>
@@ -866,143 +894,204 @@ function abrirCrearParteRapido(fecha, hora) {
 
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.getElementById('planCrearNo').onclick = () => overlay.remove();
-  document.getElementById('planCrearBorrador').onclick = () => {
-    crearParteDesdeplanificador(fecha, hora, 'borrador');
-  };
-  document.getElementById('planCrearProgramar').onclick = () => {
-    crearParteDesdeplanificador(fecha, hora, 'programado');
-  };
+  document.getElementById('planCrearBorrador').onclick = () => crearPartesDesdeModal('borrador');
+  document.getElementById('planCrearProgramar').onclick = () => crearPartesDesdeModal('programado');
+
+  // ── Multi-día info ──
+  const fechaIniEl = document.getElementById('planNuevoFechaIni');
+  const fechaFinEl = document.getElementById('planNuevoFechaFin');
+  const infoEl = document.getElementById('planMultiDiaInfo');
+  function actualizarInfoMultiDia() {
+    const fi = fechaIniEl.value, ff = fechaFinEl.value;
+    if (!fi || !ff || ff <= fi) { infoEl.style.display = 'none'; return; }
+    const dias = _contarDiasLaborables(fi, ff);
+    const hi = document.getElementById('planNuevoHoraIni').value || '08:30';
+    const hf = document.getElementById('planNuevoHoraFin').value || '16:30';
+    infoEl.innerHTML = `📋 Se crearán <strong>${dias} partes</strong> (1 por día laborable, L-V) del ${new Date(fi+'T00:00:00').toLocaleDateString('es-ES')} al ${new Date(ff+'T00:00:00').toLocaleDateString('es-ES')}, horario ${hi}-${hf}`;
+    infoEl.style.display = 'block';
+  }
+  fechaIniEl.addEventListener('change', () => { fechaFinEl.min = fechaIniEl.value; actualizarInfoMultiDia(); });
+  fechaFinEl.addEventListener('change', actualizarInfoMultiDia);
+  document.getElementById('planNuevoHoraIni').addEventListener('change', actualizarInfoMultiDia);
+  document.getElementById('planNuevoHoraFin').addEventListener('change', actualizarInfoMultiDia);
 
   // ── Buscador de obras ──
-  const inputBusca = document.getElementById('planBuscaObra');
-  const resultsDiv = document.getElementById('planObraResults');
-  if (inputBusca && resultsDiv) {
-    const obrasDisponibles = (typeof trabajos !== 'undefined' && Array.isArray(trabajos))
-      ? trabajos.filter(t => t.estado !== 'eliminado')
-      : [];
-
-    inputBusca.addEventListener('input', () => {
-      const q = inputBusca.value.toLowerCase().trim();
-      if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
-
-      const resultados = obrasDisponibles.filter(t => {
-        const num = (t.numero || '').toLowerCase();
-        const tit = (t.titulo || '').toLowerCase();
-        const cli = (t.cliente_nombre || '').toLowerCase();
-        return num.includes(q) || tit.includes(q) || cli.includes(q);
-      }).slice(0, 8); // máximo 8 resultados
-
-      if (resultados.length === 0) {
-        resultsDiv.innerHTML = '<div style="padding:10px;color:#9CA3AF;font-size:12px">Sin resultados</div>';
-        resultsDiv.style.display = 'block';
-        return;
-      }
-
-      resultsDiv.innerHTML = resultados.map(t => `
-        <div class="plan-obra-result" data-id="${t.id}" data-titulo="${(t.titulo||'').replace(/"/g,'&quot;')}"
-             style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F3F4F6;font-size:12px;transition:background .1s">
-          <div style="font-weight:700;color:#1F2937">${t.numero || '—'} — ${t.titulo || 'Sin título'}</div>
-          <div style="color:#6B7280;font-size:11px">${t.cliente_nombre || 'Sin cliente'}</div>
-        </div>`).join('');
-      resultsDiv.style.display = 'block';
-
-      // Click en resultado
-      resultsDiv.querySelectorAll('.plan-obra-result').forEach(el => {
-        el.addEventListener('mouseenter', () => el.style.background = '#EFF6FF');
-        el.addEventListener('mouseleave', () => el.style.background = '#fff');
-        el.addEventListener('click', () => {
-          document.getElementById('planNuevoObraId').value = el.dataset.id;
-          document.getElementById('planNuevoObraTitulo').value = el.dataset.titulo;
-          inputBusca.value = el.querySelector('div').textContent;
-          inputBusca.style.borderColor = '#3B82F6';
-          inputBusca.style.fontWeight = '600';
-          resultsDiv.style.display = 'none';
-        });
-      });
-    });
-
-    // Cerrar al pulsar fuera
-    inputBusca.addEventListener('blur', () => {
-      setTimeout(() => { resultsDiv.style.display = 'none'; }, 200);
-    });
-
-    // Focus automático
-    setTimeout(() => inputBusca.focus(), 100);
-  }
+  _initBuscadorObrasModal();
 }
 
-async function crearParteDesdeplanificador(fecha, hora, estado) {
-  const instrucciones = document.getElementById('planNuevoInstrucciones');
+/** Cuenta días laborables (L-V) entre dos fechas inclusive */
+function _contarDiasLaborables(fechaIni, fechaFin) {
+  let count = 0;
+  const d = new Date(fechaIni + 'T00:00:00');
+  const end = new Date(fechaFin + 'T00:00:00');
+  while (d <= end) {
+    const dow = d.getDay();
+    if (dow >= 1 && dow <= 5) count++; // L=1 ... V=5
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
 
+/** Devuelve array de fechas laborables (YYYY-MM-DD) entre ini y fin inclusive */
+function _obtenerDiasLaborables(fechaIni, fechaFin) {
+  const dias = [];
+  const d = new Date(fechaIni + 'T00:00:00');
+  const end = new Date(fechaFin + 'T00:00:00');
+  while (d <= end) {
+    const dow = d.getDay();
+    if (dow >= 1 && dow <= 5) {
+      dias.push(d.toISOString().split('T')[0]);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return dias;
+}
+
+/** Inicializa el buscador de obras dentro del modal */
+function _initBuscadorObrasModal() {
+  const inputBusca = document.getElementById('planBuscaObra');
+  const resultsDiv = document.getElementById('planObraResults');
+  if (!inputBusca || !resultsDiv) return;
+
+  const obrasDisponibles = (typeof trabajos !== 'undefined' && Array.isArray(trabajos))
+    ? trabajos.filter(t => t.estado !== 'eliminado')
+    : [];
+
+  inputBusca.addEventListener('input', () => {
+    const q = inputBusca.value.toLowerCase().trim();
+    if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
+
+    const resultados = obrasDisponibles.filter(t => {
+      const num = (t.numero || '').toLowerCase();
+      const tit = (t.titulo || '').toLowerCase();
+      const cli = (t.cliente_nombre || '').toLowerCase();
+      return num.includes(q) || tit.includes(q) || cli.includes(q);
+    }).slice(0, 8);
+
+    if (resultados.length === 0) {
+      resultsDiv.innerHTML = '<div style="padding:10px;color:#9CA3AF;font-size:12px">Sin resultados</div>';
+      resultsDiv.style.display = 'block';
+      return;
+    }
+
+    resultsDiv.innerHTML = resultados.map(t => `
+      <div class="plan-obra-result" data-id="${t.id}" data-titulo="${(t.titulo||'').replace(/"/g,'&quot;')}"
+           style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F3F4F6;font-size:12px;transition:background .1s">
+        <div style="font-weight:700;color:#1F2937">${t.numero || '—'} — ${t.titulo || 'Sin título'}</div>
+        <div style="color:#6B7280;font-size:11px">${t.cliente_nombre || 'Sin cliente'}</div>
+      </div>`).join('');
+    resultsDiv.style.display = 'block';
+
+    resultsDiv.querySelectorAll('.plan-obra-result').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = '#EFF6FF');
+      el.addEventListener('mouseleave', () => el.style.background = '#fff');
+      el.addEventListener('click', () => {
+        document.getElementById('planNuevoObraId').value = el.dataset.id;
+        document.getElementById('planNuevoObraTitulo').value = el.dataset.titulo;
+        inputBusca.value = el.querySelector('div').textContent;
+        inputBusca.style.borderColor = '#3B82F6';
+        inputBusca.style.fontWeight = '600';
+        resultsDiv.style.display = 'none';
+      });
+    });
+  });
+
+  inputBusca.addEventListener('blur', () => {
+    setTimeout(() => { resultsDiv.style.display = 'none'; }, 200);
+  });
+  setTimeout(() => inputBusca.focus(), 100);
+}
+
+/** Crea uno o varios partes desde el modal (soporta multi-día) */
+async function crearPartesDesdeModal(estado) {
   const trabajo_id = parseInt(document.getElementById('planNuevoObraId')?.value);
   if (!trabajo_id) {
     toast('Busca y selecciona una obra', 'error');
-    return; // Modal sigue abierto para que el usuario seleccione obra
+    return;
   }
 
-  // Cerrar modal ANTES de cualquier operación async
+  const fechaIni = document.getElementById('planNuevoFechaIni')?.value;
+  const fechaFin = document.getElementById('planNuevoFechaFin')?.value || fechaIni;
+  const horaIni = (document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00';
+  const horaFin = (document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00';
+  const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
+  const trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
+
+  if (!fechaIni) { toast('Selecciona una fecha', 'error'); return; }
+
+  // Calcular horas de la jornada
+  const [hiH, hiM] = horaIni.split(':').map(Number);
+  const [hfH, hfM] = horaFin.split(':').map(Number);
+  let minsDia = (hfH * 60 + hfM) - (hiH * 60 + hiM);
+  if (minsDia <= 0) minsDia = 480; // fallback 8h
+  const horasDia = (minsDia / 60).toFixed(2);
+
+  // Cerrar modal
   const modal = document.getElementById('planCrearParteModal');
   if (modal) modal.remove();
-
-  let trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
-
-  const horaIni = String(hora).padStart(2, '0') + ':00:00';
-  const horaFin = String(hora + 1).padStart(2, '0') + ':00:00';
 
   // Operario seleccionado
   const operario = planUsuarios.find(u => u.id === planOperarioFilter);
   const usuario_id = planOperarioFilter;
   const usuario_nombre = operario ? `${operario.nombre || ''} ${operario.apellidos || ''}`.trim() : '';
 
-  // Generar número
+  // Determinar días: si multi-día, solo laborables (L-V)
+  const dias = (fechaFin > fechaIni) ? _obtenerDiasLaborables(fechaIni, fechaFin) : [fechaIni];
+
   const yearStr = new Date().getFullYear();
-  const numero = `PRT-${yearStr}-${String(Date.now()).slice(-4)}`;
+  let creados = 0;
+  let errores = 0;
 
-  const payload = {
-    empresa_id: EMPRESA.id,
-    numero,
-    trabajo_id,
-    trabajo_titulo,
-    usuario_id,
-    usuario_nombre,
-    fecha,
-    hora_inicio: horaIni,
-    hora_fin: horaFin,
-    horas: '1.00',
-    estado,
-    instrucciones: instrucciones?.value || null,
-  };
+  for (let i = 0; i < dias.length; i++) {
+    const diaFecha = dias[i];
+    const numero = `PRT-${yearStr}-${String(Date.now()).slice(-4)}${dias.length > 1 ? String.fromCharCode(65 + i) : ''}`;
 
-  // Si se programa, guardar quién programó
-  if (estado === 'programado' && typeof CU !== 'undefined' && CU) {
-    payload.programado_por = CU.id || null;
-    payload.programado_por_nombre = (typeof CP !== 'undefined' && CP) ? CP.nombre || '' : '';
+    const payload = {
+      empresa_id: EMPRESA.id,
+      numero,
+      trabajo_id,
+      trabajo_titulo,
+      usuario_id,
+      usuario_nombre,
+      fecha: diaFecha,
+      hora_inicio: horaIni,
+      hora_fin: horaFin,
+      horas: horasDia,
+      estado,
+      instrucciones: dias.length > 1
+        ? `[Día ${i + 1}/${dias.length}] ${instrucciones || ''}`
+        : instrucciones,
+    };
+
+    if (estado === 'programado' && typeof CU !== 'undefined' && CU) {
+      payload.programado_por = CU.id || null;
+      payload.programado_por_nombre = (typeof CP !== 'undefined' && CP) ? CP.nombre || '' : '';
+    }
+
+    try {
+      const { error } = await sb.from('partes_trabajo').insert(payload);
+      if (error) { errores++; console.error('Error creando parte:', error); }
+      else creados++;
+    } catch (e) { errores++; console.error('Error:', e); }
+
+    // Pequeña pausa entre inserts para números únicos
+    if (dias.length > 1 && i < dias.length - 1) await new Promise(r => setTimeout(r, 50));
   }
 
-  try {
-    const { error } = await sb.from('partes_trabajo').insert(payload);
-    if (error) {
-      toast('❌ Error: ' + error.message, 'error');
-      return;
-    }
-
-    toast(`✅ Parte ${numero} creado como ${estado}`, 'success');
-
-    // Si estamos en fullscreen (abierto desde ficha de obra), cerrar y volver a la ficha
-    if (planFullscreen) {
-      cerrarPlanificadorFullscreen();
-      return;
-    }
-
-    // Recargar
-    await cargarPartesParaPlanificador();
-    // También recargar lista de partes global si existe
-    if (typeof loadPartes === 'function') {
-      try { await loadPartes(); } catch(e) {}
-    }
-    renderPlanificador();
-  } catch (e) {
-    console.error('Error creando parte:', e);
-    toast('❌ Error al crear parte', 'error');
+  if (creados > 0) {
+    toast(`✅ ${creados} parte${creados > 1 ? 's' : ''} creado${creados > 1 ? 's' : ''} como ${estado}${errores > 0 ? ` (${errores} error${errores > 1 ? 'es' : ''})` : ''}`, 'success');
+  } else {
+    toast('❌ Error al crear partes', 'error');
   }
+
+  // Si fullscreen (desde ficha obra), cerrar y volver
+  if (planFullscreen) {
+    cerrarPlanificadorFullscreen();
+    return;
+  }
+
+  // Recargar planificador
+  await cargarPartesParaPlanificador();
+  if (typeof loadPartes === 'function') { try { await loadPartes(); } catch(e) {} }
+  renderPlanificador();
 }
