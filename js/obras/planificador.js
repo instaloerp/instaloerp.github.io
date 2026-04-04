@@ -203,9 +203,11 @@ function sincronizarScrollHorasFS() {
 
 function getMonday(d) {
   d = new Date(d);
+  d.setHours(0, 0, 0, 0); // ¡CRÍTICO! Normalizar a medianoche
   var day = d.getDay(),
       diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+  d.setDate(diff);
+  return d;
 }
 
 // Calcular altura de cada fila para llenar todo el espacio disponible
@@ -577,8 +579,9 @@ function renderPartesSinCita(partesExtra) {
 // Calcular índice del día (0=lunes, 6=domingo)
 function getDayIndex(fechaStr) {
   const parteDate = new Date(fechaStr + 'T00:00:00');
-  const mondayTime = new Date(planCurrentDate).getTime();
-  const diffMs = parteDate.getTime() - mondayTime;
+  const monday = new Date(planCurrentDate);
+  monday.setHours(0, 0, 0, 0);
+  const diffMs = parteDate.getTime() - monday.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
   return diffDays;
 }
