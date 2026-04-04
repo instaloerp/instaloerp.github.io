@@ -324,6 +324,13 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-parte.estado-facturado{background:#8B5CF6}
 .plan-parte.estado-borrador{background:#9CA3AF}
 .plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
+.plan-day-header.plan-today{background:var(--azul-light);color:var(--azul)}
+.plan-day-header.plan-today .plan-day-name{color:var(--azul)}
+.plan-day-header.plan-today .plan-day-date{color:var(--azul)}
+.plan-grid-cell.plan-today-col{background:rgba(59,130,246,.03)}
+#page-planificador{transform:translateZ(0);will-change:auto}
+#page-planificador .sc{contain:none!important}
+#page-planificador *{-webkit-backface-visibility:hidden}
 
 /* ══ SIDEBAR COLAPSABLE ══ */
 .sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 8px;padding:8px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;font-size:13px}

@@ -48,12 +48,12 @@ function getMonday(d) {
 async function cargarUsuarios() {
   if (!sb || !EMPRESA) return;
   try {
-    const { data } = await sb.from('usuarios')
-      .select('id,nombre,apellidos,activo')
+    const { data } = await sb.from('perfiles')
+      .select('id,nombre,apellidos')
       .eq('empresa_id', EMPRESA.id)
-      .eq('activo', true)
       .order('nombre', { ascending: true });
     todosUsuarios = data || [];
+    console.log('Planificador: usuarios cargados =', todosUsuarios.length);
     renderFiltroOperarios();
   } catch (e) {
     console.error('Error cargando usuarios:', e);
@@ -152,6 +152,7 @@ function renderDayHeaders() {
   const container = document.getElementById('planDaysHeader');
   if (!container) return;
 
+  const hoyStr = new Date().toISOString().split('T')[0];
   container.innerHTML = '';
   for (let i = 0; i < 7; i++) {
     const d = new Date(planCurrentDate);
@@ -160,9 +161,10 @@ function renderDayHeaders() {
     const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase();
     const dayDate = d.getDate();
     const dayMonth = d.toLocaleDateString('es-ES', { month: 'short' });
+    const esHoy = d.toISOString().split('T')[0] === hoyStr;
 
     const div = document.createElement('div');
-    div.className = 'plan-day-header';
+    div.className = 'plan-day-header' + (esHoy ? ' plan-today' : '');
     div.innerHTML = `<span class="plan-day-name">${dayName}</span><span class="plan-day-date">${dayDate} ${dayMonth}</span>`;
     container.appendChild(div);
   }
@@ -193,19 +195,32 @@ function renderGrid() {
     partesFiltrados = planPartesData.filter(p => p.usuario_id === planOperarioFilter);
   }
 
-  // Separar partes con hora y sin hora
-  const partesConHora = partesFiltrados.filter(p => p.hora_inicio);
+  // Separar partes: con hora dentro del rango, con hora fuera del rango, sin hora
+  const partesConHora = partesFiltrados.filter(p => {
+    if (!p.hora_inicio) return false;
+    const [h] = p.hora_inicio.split(':').map(Number);
+    return h >= PLAN_HORAS_INICIO && h < PLAN_HORAS_FIN;
+  });
+  const partesFueraRango = partesFiltrados.filter(p => {
+    if (!p.hora_inicio) return false;
+    const [h] = p.hora_inicio.split(':').map(Number);
+    return h < PLAN_HORAS_INICIO || h >= PLAN_HORAS_FIN;
+  });
   const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio);
+  // Juntar sin hora + fuera de rango para mostrar debajo
+  const partesExtra = [...partesSinHora, ...partesFueraRango];
 
   // Crear celdas para cada hora de cada día
+  const hoyStr = new Date().toISOString().split('T')[0];
   for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
     const dayDate = new Date(planCurrentDate);
     dayDate.setDate(dayDate.getDate() + dayIdx);
     const dayStr = dayDate.toISOString().split('T')[0];
+    const esHoy = dayStr === hoyStr;
 
     for (let hourIdx = PLAN_HORAS_INICIO; hourIdx < PLAN_HORAS_FIN; hourIdx++) {
       const cell = document.createElement('div');
-      cell.className = 'plan-grid-cell';
+      cell.className = 'plan-grid-cell' + (esHoy ? ' plan-today-col' : '');
       cell.style.gridColumn = dayIdx + 1;
       cell.style.gridRow = (hourIdx - PLAN_HORAS_INICIO) + 1;
 
@@ -224,27 +239,28 @@ function renderGrid() {
     }
   }
 
-  // Mostrar partes SIN hora asignada debajo de la rejilla
+  // Mostrar partes SIN hora o FUERA de rango debajo de la rejilla
   const sinHoraContainer = document.getElementById('planSinHora');
   if (sinHoraContainer) {
     sinHoraContainer.innerHTML = '';
-    if (partesSinHora.length > 0) {
+    if (partesExtra.length > 0) {
       sinHoraContainer.style.display = 'block';
       const titulo = document.createElement('h4');
       titulo.style.cssText = 'margin:0 0 10px;font-size:14px;color:#6B7280;font-weight:600';
-      titulo.textContent = `📋 Partes sin hora asignada (${partesSinHora.length})`;
+      titulo.textContent = `📋 Partes sin hora o fuera de horario (${partesExtra.length})`;
       sinHoraContainer.appendChild(titulo);
 
       const grid = document.createElement('div');
       grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px';
 
-      partesSinHora.forEach(parte => {
+      partesExtra.forEach(parte => {
         const card = document.createElement('div');
         const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
+        const horaStr = parte.hora_inicio ? parte.hora_inicio.substring(0,5) : 'Sin hora';
         card.style.cssText = `background:${estadoInfo.bg};border:1px solid ${estadoInfo.color}30;border-left:3px solid ${estadoInfo.color};border-radius:6px;padding:8px 10px;cursor:pointer;font-size:12px`;
         card.innerHTML = `
           <div style="font-weight:600;margin-bottom:3px">${estadoInfo.ico} ${parte.trabajo_titulo || 'Sin título'}</div>
-          <div style="color:#6B7280">${parte.fecha || ''} · ${parte.usuario_nombre || '—'}</div>
+          <div style="color:#6B7280">${parte.fecha || ''} · ${horaStr} · ${parte.usuario_nombre || '—'}</div>
           <div style="margin-top:3px"><span style="background:${estadoInfo.color};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px">${estadoInfo.label}</span></div>`;
         card.onclick = () => { if (typeof verDetalleParte === 'function') verDetalleParte(parte.id); };
         grid.appendChild(card);
@@ -255,6 +271,9 @@ function renderGrid() {
       sinHoraContainer.style.display = 'none';
     }
   }
+
+  // Resumen de partes cargados
+  console.log(`Planificador: ${partesFiltrados.length} total, ${partesConHora.length} en rejilla, ${partesExtra.length} extra`);
 
   // Mensaje si no hay partes en absoluto
   if (partesFiltrados.length === 0) {

@@ -1,0 +1,81 @@
+===============================================================
+ INSTALO ERP - REGISTRO DE CAMBIOS (CHANGELOG)
+===============================================================
+
+---------------------------------------------------------------
+ v1.2.0 (2026-04-04)
+ Fix: Planificador completo + filtro operarios + anti-reflow
+---------------------------------------------------------------
+CORREGIDO:
+- Planificador: tabla de usuarios corregida (era 'usuarios',
+  debe ser 'perfiles') - ahora el filtro de operarios funciona
+- Planificador: corregidas referencias a variables globales
+  (window.sb -> sb, window.EMPRESA -> EMPRESA)
+- Planificador: muestra TODOS los partes de cualquier estado
+  (borrador, programado, en_curso, completado, revisado, facturado)
+- Planificador: partes sin hora Y partes fuera de horario (7-19h)
+  ahora aparecen en seccion "Partes sin hora o fuera de horario"
+- Layout shift (reflow): añadido CSS anti-reflow con
+  translateZ(0) y backface-visibility para evitar saltos
+- Eliminada funcion toast() duplicada en planificador.js
+
+NUEVO:
+- Highlight del dia de hoy: cabecera y columna en azul claro
+- Partes fuera de horario (ej. 04:00) se muestran con su hora
+
+MEJORADO:
+- Sidebar colapsado: secciones plegadas se abren
+  automaticamente para mostrar iconos
+- Sidebar colapsado: iconos mas grandes (18px)
+
+ARCHIVOS MODIFICADOS (respecto a v1.1.0):
+- js/obras/planificador.js (fix tabla perfiles, todos estados,
+  highlight hoy, partes fuera de rango)
+- css/styles.css (plan-today, anti-reflow, sidebar collapsed)
+- index.html (div planSinHora + version bump)
+- app.html (version bump)
+- CHANGELOG.txt (nuevo)
+
+---------------------------------------------------------------
+ v1.1.0 (2026-04-04)
+ Planificador Semanal + Sidebar colapsable
+---------------------------------------------------------------
+NUEVO:
+- Planificador Semanal: vista de rejilla 7 dias x 12 horas
+  con navegacion por semanas y filtro por operario
+- Sidebar colapsable: boton para colapsar/expandir el menu
+  lateral, mostrando solo iconos cuando esta colapsado
+- Estado persistente del sidebar en localStorage
+
+ARCHIVOS NUEVOS:
+- js/obras/planificador.js (modulo completo planificador)
+
+ARCHIVOS MODIFICADOS (respecto a v1.0.3):
+- index.html (pagina planificador, menu item, sidebar toggle)
+- css/styles.css (CSS planificador + CSS sidebar colapsable)
+- js/core/ui.js (toggleSidebar, initPlanificador en goPage)
+
+NOTA: CSS original de v1.0.3 NO modificado. Solo se añadieron
+reglas nuevas al final del archivo.
+
+---------------------------------------------------------------
+ v1.0.3 (2026-04-03)
+ Version base estable
+---------------------------------------------------------------
+- Version de referencia estable
+- Modulos: Clientes, Presupuestos, Albaranes, Facturas,
+  Proveedores, Articulos, Obras, Partes, Calendario,
+  Usuarios, Configuracion, etc.
+- Primera version con todas las funcionalidades basicas
+  del ERP operativas
+
+===============================================================
+ NOTAS PARA DESPLIEGUE EN GITHUB
+===============================================================
+- Subir siempre el CONTENIDO de la carpeta de version,
+  NO la carpeta en si (causa 404)
+- Ejemplo: arrastrar el contenido de v1.2.0/ a GitHub,
+  no la carpeta v1.2.0/
+- Este archivo CHANGELOG.txt no afecta al funcionamiento
+  de la aplicacion
+===============================================================
