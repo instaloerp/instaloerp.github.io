@@ -300,7 +300,7 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .hov-bright:hover{opacity:.88}
 
 /* ══ PLANIFICADOR SEMANAL ══ */
-.plan-container{display:flex;flex-direction:column;height:calc(100vh - 250px);min-height:500px;background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);box-shadow:var(--sh);overflow:hidden}
+.plan-container{display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:500px;background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);box-shadow:var(--sh);overflow:hidden}
 .plan-header{display:flex;border-bottom:1.5px solid var(--gris-200);flex-shrink:0}
 .plan-hours-header{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200)}
 .plan-days-header{display:grid;grid-template-columns:repeat(7,1fr);flex:1}

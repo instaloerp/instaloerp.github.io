@@ -2,6 +2,14 @@
 // MÓDULO: Planificador Semanal (Weekly Scheduler) v1.2.1
 // ═══════════════════════════════════════════════════════════════════════
 
+// ─── HELPER: fecha local sin bug de timezone ────────────────────────
+function fechaLocalStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 // ─── VARIABLES GLOBALES ──────────────────────────────────────────────
 let planPartesData = [];
 let planCurrentDate = new Date();
@@ -203,9 +211,9 @@ function getMonday(d) {
 // Calcular altura de cada fila para llenar todo el espacio disponible
 function calcularAlturaFilas() {
   const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO; // 24
-  // Usar viewport directamente: 100vh - 250px (container) - ~65px (header días)
+  // Usar viewport directamente: 100vh - 200px (container) - ~65px (header días)
   const vh = window.innerHeight;
-  const containerH = vh - 250;
+  const containerH = vh - 200;
   const headerH = 65; // altura aproximada de la cabecera de días
   const available = containerH - headerH;
   planHoraHeight = Math.max(18, Math.floor(available / totalRows));
@@ -250,8 +258,8 @@ async function cargarPartesParaPlanificador() {
     const startDate = new Date(planCurrentDate);
     const endDate = new Date(planCurrentDate);
     endDate.setDate(endDate.getDate() + 7);
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
+    const startStr = fechaLocalStr(startDate);
+    const endStr = fechaLocalStr(endDate);
 
     // 1) Partes de la semana (todos excepto eliminado)
     const { data: semanales } = await sb.from('partes_trabajo')
@@ -371,13 +379,13 @@ function renderDayHeaders() { renderDayHeadersTo('planDaysHeader'); }
 function renderDayHeadersTo(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const hoyStr = new Date().toISOString().split('T')[0];
+  const hoyStr = fechaLocalStr(new Date());
   container.innerHTML = '';
 
   for (let i = 0; i < 7; i++) {
     const d = new Date(planCurrentDate);
     d.setDate(d.getDate() + i);
-    const dayStr = d.toISOString().split('T')[0];
+    const dayStr = fechaLocalStr(d);
     const esHoy = dayStr === hoyStr;
     const esFinde = (d.getDay() === 0 || d.getDay() === 6);
     const esFestivo = planFestivos.includes(dayStr);
@@ -433,13 +441,13 @@ function renderGridTo(containerId) {
   const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio && p.estado !== 'borrador');
   const partesExtra = [...partesBorradores, ...partesSinHora];
 
-  const hoyStr = new Date().toISOString().split('T')[0];
+  const hoyStr = fechaLocalStr(new Date());
 
   // ── Generar celdas de la rejilla ──
   for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
     const dayDate = new Date(planCurrentDate);
     dayDate.setDate(dayDate.getDate() + dayIdx);
-    const dayStr = dayDate.toISOString().split('T')[0];
+    const dayStr = fechaLocalStr(dayDate);
     const esHoy = dayStr === hoyStr;
     const esFinde = (dayDate.getDay() === 0 || dayDate.getDay() === 6);
     const esFestivo = planFestivos.includes(dayStr);
