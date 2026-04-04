@@ -9,7 +9,7 @@
 let planPartesData = [];
 let planCurrentDate = new Date();
 let planOperarioFilter = '';
-let todosUsuarios = [];
+let planUsuarios = [];
 
 const PLAN_HORAS_INICIO = 7;
 const PLAN_HORAS_FIN = 19;
@@ -52,8 +52,8 @@ async function cargarUsuarios() {
       .select('id,nombre,apellidos')
       .eq('empresa_id', EMPRESA.id)
       .order('nombre', { ascending: true });
-    todosUsuarios = data || [];
-    console.log('Planificador: usuarios cargados =', todosUsuarios.length);
+    planUsuarios = data || [];
+    console.log('Planificador: usuarios cargados =', planUsuarios.length);
     renderFiltroOperarios();
   } catch (e) {
     console.error('Error cargando usuarios:', e);
@@ -94,7 +94,7 @@ function renderFiltroOperarios() {
   const sel = document.getElementById('plan-filtro-operario');
   if (!sel) return;
   sel.innerHTML = '<option value="">Todos los operarios</option>' +
-    todosUsuarios.map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+    planUsuarios.map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
 }
 
 function filtrarPlanificador() {
