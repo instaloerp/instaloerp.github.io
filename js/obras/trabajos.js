@@ -325,11 +325,11 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('ok-seguimiento').textContent = _tareasTotal ? `${_tareasComp}/${_tareasTotal}` : '0';
   document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
   document.getElementById('ok-presup').textContent = presupData.length;
-  document.getElementById('ok-albaranes').textContent = albData.length;
-  document.getElementById('ok-facturas').textContent = factData.length;
+  document.getElementById('ok-facturacion').textContent = (albData.length + factData.length) || '0';
+  document.getElementById('ok-documentos').textContent = (docsData.length + _fotosPartes) || '0';
   document.getElementById('ok-materiales').textContent = '—';
   document.getElementById('ok-mensajes').textContent = '—';
-  document.getElementById('ok-historial').textContent = auditData.length + docsData.length + _fotosPartes;
+  document.getElementById('ok-historial').textContent = auditData.length;
 
   // ── WORKFLOW — Panel de estado del proyecto ──
   renderObraWorkflow(t, presupData, albData, factData, partesData);
@@ -499,16 +499,18 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos vinculados</p></div>');
   document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
 
-  // ── ALBARANES ── (con botones inteligentes de conversión)
+  // ── ALBARANES ── (con checkboxes para selección múltiple)
   const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
   const albHtml = albData.length ?
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
-    (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="obraFacturarTodosAlb()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px">🧾 Facturar ${albSinFacturar.length} albaranes juntos</button></div>` : '') +
+    (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" id="btnFacturarSeleccionados" onclick="obraFacturarAlbSeleccionados()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px;opacity:.5;pointer-events:none">🧾 Facturar albaranes seleccionados</button></div>` : '') +
     albData.map(a=>{
       const tieneFac = factData.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && factData.some(f=>f.presupuesto_id===a.presupuesto_id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700';
+      const esFacturable = !tieneFac && a.estado !== 'anulado';
       return `
-      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
+      <div class="ficha-doc-row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
+        ${esFacturable && albSinFacturar.length >= 2 ? `<input type="checkbox" class="alb-check" data-alb-id="${a.id}" onclick="event.stopPropagation();actualizarBtnFacturarSeleccionados()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">` : ''}
         <div style="flex:1">
           <div style="font-weight:700;font-size:12.5px">${a.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div>
@@ -573,8 +575,17 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         <div style="height:100%;width:${partesPorcent}%;background:${partesPorcent===100?'linear-gradient(90deg,#34D399,#059669)':'linear-gradient(90deg,#60A5FA,#2563EB)'};border-radius:4px;transition:width .5s"></div>
       </div>
     </div>`;
-    // Horas programadas (todos los partes) vs realizadas (solo completados/revisados/facturados)
-    const horasRealizadas = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).reduce((s,p)=>s+(parseFloat(p.horas)||0),0);
+    // Horas programadas (todos los partes) vs realizadas (hora_inicio→hora_fin reales de todos los partes)
+    const horasRealizadas = partesData.reduce((s,p) => {
+      if (p.hora_inicio && p.hora_fin) {
+        const [hi,mi] = p.hora_inicio.split(':').map(Number);
+        const [hf,mf] = p.hora_fin.split(':').map(Number);
+        let mins = (hf*60+mf) - (hi*60+mi);
+        if (mins < 0) mins += 24*60; // cruce de medianoche
+        return s + mins/60;
+      }
+      return s;
+    }, 0);
     partesHtml += resumenBar([
       resumenItem('Horas programadas', horasPartes.toFixed(1)+' h', 'var(--azul)'),
       resumenItem('Horas realizadas', horasRealizadas.toFixed(1)+' h', 'var(--acento)'),
@@ -723,32 +734,56 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       </div>`;
   }
 
-  // ── DOCUMENTOS + REGISTRO → HISTORIAL ──
+  // ── DOCUMENTOS (pestaña propia) ──
   renderObraDocumentos(docsData, partesData, presupData, albData, factData);
-  const _docsContent = document.getElementById('obra-hist-historial');
-  if (_docsContent) {
-    // renderObraDocumentos escribió en obra-hist-documentos que ya no existe en HTML;
-    // lo reconstruimos directamente aquí
-    const _docsHtmlCapture = _docsContent.innerHTML; // puede estar vacío si renderObraDocumentos no encontró target
-    // Construir historial: docs arriba + registro abajo
-    const _regHtml = `<div style="margin-top:20px;padding-top:14px;border-top:2px solid var(--gris-100)">
-      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">🕐 Registro de actividad</h4>
-      <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:11px;color:var(--gris-400)">${_timeline.length} eventos registrados</span>
-        ${_isSuperadmin ? '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Modo superadmin</span>' : '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Solo lectura</span>'}
-      </div>
-      ${registroHtml}
+
+  // ── HISTORIAL (solo audit log + filtros) ──
+  const _histEl = document.getElementById('obra-hist-historial');
+  if (_histEl) {
+    const _tiposFiltro = [...new Set(_timeline.map(e => e.tipo))];
+    const _filtrosHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="historialFiltros">
+      <button class="btn btn-sm" data-hfilt="todos" onclick="filtrarHistorial('todos')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:var(--azul);color:#fff;font-weight:600;cursor:pointer">Todos (${_timeline.length})</button>
+      ${_tiposFiltro.includes('audit') ? `<button class="btn btn-sm" data-hfilt="audit" onclick="filtrarHistorial('audit')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📝 Audit</button>` : ''}
+      ${_tiposFiltro.includes('crear') ? `<button class="btn btn-sm" data-hfilt="crear" onclick="filtrarHistorial('crear')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">🆕 Creación</button>` : ''}
+      ${_tiposFiltro.includes('nota') ? `<button class="btn btn-sm" data-hfilt="nota" onclick="filtrarHistorial('nota')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">💬 Notas</button>` : ''}
+      ${_tiposFiltro.includes('presupuesto') ? `<button class="btn btn-sm" data-hfilt="presupuesto" onclick="filtrarHistorial('presupuesto')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📋 Presupuestos</button>` : ''}
+      ${_tiposFiltro.includes('albaran') ? `<button class="btn btn-sm" data-hfilt="albaran" onclick="filtrarHistorial('albaran')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📄 Albaranes</button>` : ''}
+      ${_tiposFiltro.includes('factura') ? `<button class="btn btn-sm" data-hfilt="factura" onclick="filtrarHistorial('factura')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">🧾 Facturas</button>` : ''}
+      ${_tiposFiltro.includes('documento') ? `<button class="btn btn-sm" data-hfilt="documento" onclick="filtrarHistorial('documento')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📎 Documentos</button>` : ''}
     </div>`;
-    _docsContent.innerHTML = _docsHtmlCapture + _regHtml;
+    const _headerHtml = `<div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--gris-400)">${_timeline.length} eventos registrados</span>
+      ${_isSuperadmin ? '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Modo superadmin</span>' : '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Solo lectura</span>'}
+    </div>`;
+    _histEl.innerHTML = _filtrosHtml + _headerHtml + `<div id="historialItems">${registroHtml}</div>`;
+    // Guardamos la timeline en variable global para el filtro
+    window._obraTimeline = _timeline;
+    window._obraIsSuperadmin = _isSuperadmin;
   }
 
-  // ── MATERIALES (placeholder) ──
-  document.getElementById('obra-hist-materiales').innerHTML = `
-    <div class="empty" style="padding:40px 0">
-      <div class="ei">📦</div>
-      <h3>Materiales</h3>
-      <p style="color:var(--gris-400)">Gestión de pedidos a proveedores y salidas de almacén.<br>Próximamente disponible.</p>
+  // ── MATERIALES ──
+  const _matEl = document.getElementById('obra-hist-materiales');
+  if (_matEl) {
+    // Botones de acción + filtros + lista de movimientos
+    const _matBtns = `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" data-matfilt="todos" onclick="filtrarMateriales('todos')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:var(--azul);color:#fff;font-weight:600;cursor:pointer">Todos</button>
+        <button class="btn btn-sm" data-matfilt="pedido" onclick="filtrarMateriales('pedido')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">🚚 Pedidos</button>
+        <button class="btn btn-sm" data-matfilt="salida" onclick="filtrarMateriales('salida')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📤 Salidas</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoPedidoProveedorObra()">🚚 Pedido a proveedor</button>
+        <button class="btn btn-sm" style="font-size:11px;background:#D97706;color:#fff;border:none" onclick="nuevaSalidaAlmacenObra()">📤 Salida de almacén</button>
+      </div>
     </div>`;
+    const _matList = `<div id="obraMatList" style="min-height:120px">
+      <div class="empty" style="padding:30px 0">
+        <div class="ei">📦</div>
+        <p style="color:var(--gris-400)">Sin movimientos de material registrados.<br>Crea un pedido a proveedor o una salida de almacén.</p>
+      </div>
+    </div>`;
+    _matEl.innerHTML = _matBtns + _matList;
+  }
 
   // ── MENSAJES (placeholder) ──
   document.getElementById('obra-hist-mensajes').innerHTML = `
@@ -768,7 +803,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 let _obraDocFilter = 'todos';
 
 function renderObraDocumentos(docsData, partesData, presupData, albData, factData) {
-  const container = document.getElementById('obra-hist-historial');
+  const container = document.getElementById('obra-hist-documentos');
   if (!container) return;
 
   // ── 1. Recopilar TODAS las fotos de partes ──
@@ -940,11 +975,10 @@ function filtrarObraDocs(cat) {
 // ═══════════════════════════════════════════════
 // PESTAÑAS DE LA FICHA
 // ═══════════════════════════════════════════════
-const OBRA_TAB_TITLES = {seguimiento:'✅ Seguimiento',partes:'📝 Partes de trabajo',presupuestos:'📋 Presupuestos',facturacion:'📄 Facturación',materiales:'📦 Materiales',mensajes:'💬 Mensajes',historial:'🕐 Historial'};
-const OBRA_TABS = ['seguimiento','partes','presupuestos','facturacion','materiales','mensajes','historial'];
-// Mapeo de KPIs a la pestaña de contenido que abren (albaranes y facturas → facturacion)
-const OBRA_KPI_TO_TAB = {seguimiento:'seguimiento',partes:'partes',presupuestos:'presupuestos',albaranes:'facturacion',facturas:'facturacion',materiales:'materiales',mensajes:'mensajes',historial:'historial'};
-const OBRA_ALL_KPIS = ['seguimiento','partes','presupuestos','albaranes','facturas','materiales','mensajes','historial'];
+const OBRA_TAB_TITLES = {seguimiento:'✅ Seguimiento',partes:'📝 Partes de trabajo',presupuestos:'📋 Presupuestos',facturacion:'🧾 Facturación',documentos:'📎 Documentos',materiales:'📦 Materiales',mensajes:'💬 Mensajes',historial:'🕐 Historial'};
+const OBRA_TABS = ['seguimiento','partes','presupuestos','facturacion','documentos','materiales','mensajes','historial'];
+const OBRA_KPI_TO_TAB = {seguimiento:'seguimiento',partes:'partes',presupuestos:'presupuestos',facturacion:'facturacion',documentos:'documentos',materiales:'materiales',mensajes:'mensajes',historial:'historial'};
+const OBRA_ALL_KPIS = ['seguimiento','partes','presupuestos','facturacion','documentos','materiales','mensajes','historial'];
 
 let _facturacionFiltro = 'todos'; // 'todos','albaranes','facturas'
 
@@ -1455,6 +1489,32 @@ function updateTareasKpi() {
   }
 }
 
+// Checkboxes de albaranes para facturación múltiple
+function actualizarBtnFacturarSeleccionados() {
+  const checks = document.querySelectorAll('.alb-check:checked');
+  const btn = document.getElementById('btnFacturarSeleccionados');
+  if (btn) {
+    const n = checks.length;
+    btn.style.opacity = n >= 1 ? '1' : '.5';
+    btn.style.pointerEvents = n >= 1 ? 'auto' : 'none';
+    btn.textContent = n > 0 ? `🧾 Facturar ${n} albarán${n>1?'es':''} seleccionado${n>1?'s':''}` : '🧾 Facturar albaranes seleccionados';
+  }
+}
+
+function obraFacturarAlbSeleccionados() {
+  const checks = document.querySelectorAll('.alb-check:checked');
+  const ids = Array.from(checks).map(c => parseInt(c.dataset.albId));
+  if (ids.length === 0) { toast('Selecciona al menos un albarán','warning'); return; }
+  // Reutilizar la función existente de facturar múltiples albaranes
+  if (typeof obraFacturarAlbaranesMultiples === 'function') {
+    obraFacturarAlbaranesMultiples(ids);
+  } else if (typeof obraFacturarTodosAlb === 'function') {
+    // Fallback: usar la existente pasando los IDs seleccionados
+    window._albIdsSeleccionados = ids;
+    obraFacturarTodosAlb();
+  }
+}
+
 // Filtro interno de la pestaña Facturación
 function filtrarFacturacion(filtro) {
   _facturacionFiltro = filtro;
@@ -1473,6 +1533,91 @@ function aplicarFiltroFacturacion() {
     b.style.background = isActive ? 'var(--azul)' : 'var(--gris-100)';
     b.style.color = isActive ? '#fff' : 'var(--gris-600)';
     b.style.fontWeight = isActive ? '700' : '500';
+  });
+}
+
+// ═══════════════════════════════════════════════
+// MATERIALES — Pedidos a proveedor y salidas de almacén
+// ═══════════════════════════════════════════════
+let _materialesFiltro = 'todos';
+
+function filtrarMateriales(tipo) {
+  _materialesFiltro = tipo;
+  document.querySelectorAll('[data-matfilt]').forEach(b => {
+    const isActive = b.dataset.matfilt === tipo;
+    b.style.background = isActive ? 'var(--azul)' : '#fff';
+    b.style.color = isActive ? '#fff' : 'var(--gris-600)';
+  });
+  // TODO: Filtrar lista de movimientos cuando se implemente la tabla
+}
+
+function nuevoPedidoProveedorObra() {
+  if (!obraActualId) return;
+  toast('Funcionalidad de pedido a proveedor en desarrollo', 'info');
+  // TODO: Abrir modal de nuevo pedido a proveedor vinculado a la obra
+}
+
+function nuevaSalidaAlmacenObra() {
+  if (!obraActualId) return;
+  toast('Funcionalidad de salida de almacén en desarrollo', 'info');
+  // TODO: Abrir modal de salida de almacén vinculado a la obra
+}
+
+// ═══════════════════════════════════════════════
+// FILTRO DE HISTORIAL (audit log)
+// ═══════════════════════════════════════════════
+let _historialFiltro = 'todos';
+
+function filtrarHistorial(tipo) {
+  _historialFiltro = tipo;
+  const timeline = window._obraTimeline || [];
+  const isSuperadmin = window._obraIsSuperadmin || false;
+  const filtrados = tipo === 'todos' ? timeline : timeline.filter(e => e.tipo === tipo);
+
+  const _fmtAudit = (d) => new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const _accionIco = (a) => {
+    const al = (a||'').toLowerCase();
+    if (al.includes('crear') || al.includes('creada') || al.includes('nuevo')) return '🆕';
+    if (al.includes('editar') || al.includes('modific')) return '✏️';
+    if (al.includes('estado')) return '🔄';
+    if (al.includes('nota')) return '💬';
+    if (al.includes('factura')) return '🧾';
+    if (al.includes('albar')) return '📄';
+    if (al.includes('presup')) return '📋';
+    if (al.includes('parte')) return '📝';
+    if (al.includes('document') || al.includes('subido')) return '📎';
+    if (al.includes('eliminar') || al.includes('borrar')) return '🗑️';
+    if (al.includes('aprobar') || al.includes('aceptar')) return '✅';
+    return '📝';
+  };
+
+  const html = filtrados.length ? filtrados.map(e => `
+    <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-100);align-items:flex-start">
+      <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:${
+        e.tipo==='crear'?'#DBEAFE': e.tipo==='documento'?'#F3E8FF':
+        e.tipo==='nota'?'#FEF3C7': e.tipo==='presupuesto'?'#DBEAFE':
+        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': '#F3F4F6'
+      };display:flex;align-items:center;justify-content:center;font-size:14px">${_accionIco(e.accion)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:12px">${e.accion}</span>
+          <span style="font-size:10px;color:var(--gris-400);white-space:nowrap">${_fmtAudit(e.fecha)}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--gris-600);margin-top:2px;overflow-wrap:break-word">${e.detalle}</div>
+        <div style="font-size:10px;color:var(--gris-400);margin-top:1px">por ${e.usuario}</div>
+      </div>
+      ${isSuperadmin && e.id ? `<button onclick="eliminarAuditEntry(${e.id})" style="background:none;border:none;cursor:pointer;color:var(--gris-300);font-size:12px;padding:2px" title="Eliminar (solo superadmin)">🗑️</button>` : ''}
+    </div>
+  `).join('') : '<div style="color:var(--gris-400);font-size:12.5px;padding:30px 0;text-align:center">Sin eventos en esta categoría</div>';
+
+  const itemsEl = document.getElementById('historialItems');
+  if (itemsEl) itemsEl.innerHTML = html;
+
+  // Actualizar botones activos
+  document.querySelectorAll('#historialFiltros button').forEach(b => {
+    const isActive = b.dataset.hfilt === _historialFiltro;
+    b.style.background = isActive ? 'var(--azul)' : '#fff';
+    b.style.color = isActive ? '#fff' : 'var(--gris-600)';
   });
 }
 
@@ -2033,8 +2178,12 @@ async function obraAlbToFactura(albId) {
 
 async function obraFacturarTodosAlb() {
   if (!obraActualId) return;
-  // Obtener todos los albaranes no facturados de esta obra
-  const { data: albs } = await sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado');
+  // Si hay IDs seleccionados (desde checkboxes), usarlos; si no, facturar todos
+  const _selIds = window._albIdsSeleccionados || null;
+  window._albIdsSeleccionados = null;
+  let query = sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).eq('trabajo_id', obraActualId).neq('estado', 'facturado').neq('estado', 'anulado').neq('estado', 'eliminado');
+  if (_selIds && _selIds.length > 0) query = query.in('id', _selIds);
+  const { data: albs } = await query;
   if (!albs || albs.length < 1) { toast('No hay albaranes pendientes de facturar', 'info'); return; }
 
   // Verificar mismo cliente

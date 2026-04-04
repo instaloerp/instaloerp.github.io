@@ -179,7 +179,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.2.14</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.2.15</span></div>
     </div>
 
     <div class="sb-emp-selector" onclick="openModal('mEmpresas')">
@@ -581,11 +581,11 @@
             <div class="sc ficha-kpi" onclick="obraTab('presupuestos')" id="okpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📋</span><div><div class="sv" id="ok-presup" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Presupuestos</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('facturacion','albaranes')" id="okpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📄</span><div><div class="sv" id="ok-albaranes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Albaranes</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('facturacion')" id="okpi-facturacion" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🧾</span><div><div class="sv" id="ok-facturacion" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Facturación</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('facturacion','facturas')" id="okpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🧾</span><div><div class="sv" id="ok-facturas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Facturas</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('documentos')" id="okpi-documentos" style="--c:#8B5CF6;--bg:#F5F3FF;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📎</span><div><div class="sv" id="ok-documentos" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Documentos</div></div></div>
             </div>
             <div class="sc ficha-kpi" onclick="obraTab('materiales')" id="okpi-materiales" style="--c:#D97706;--bg:#FFFBEB;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📦</span><div><div class="sv" id="ok-materiales" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Materiales</div></div></div>
@@ -640,6 +640,7 @@
                 <div id="obra-hist-partes" style="display:none"></div>
                 <div id="obra-hist-presupuestos" style="display:none"></div>
                 <div id="obra-hist-facturacion" style="display:none"></div>
+                <div id="obra-hist-documentos" style="display:none"></div>
                 <div id="obra-hist-materiales" style="display:none"></div>
                 <div id="obra-hist-mensajes" style="display:none"></div>
                 <div id="obra-hist-historial" style="display:none"></div>
