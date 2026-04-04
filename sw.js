@@ -1,5 +1,5 @@
-// Instalo App — Service Worker
-const CACHE_NAME = 'instalo-app-v1';
+// Instalo App — Service Worker v2 (Offline-capable)
+const CACHE_NAME = 'instalo-app-v2';
 const STATIC_ASSETS = [
   '/app.html',
   '/icon.svg',
@@ -24,30 +24,40 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for assets
+// Fetch: network-first for API (with offline fallback), cache-first for assets
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // API calls → always network
+  // API calls → network first, notify app if offline
   if (url.hostname.includes('supabase')) {
-    event.respondWith(fetch(event.request));
+    // Solo interceptar GETs para leer de cache offline
+    // Las escrituras (POST/PATCH/DELETE) se manejan desde la app con la cola de sync
+    event.respondWith(
+      fetch(event.request).catch(err => {
+        // Sin red — la app se encarga via IndexedDB
+        return new Response(JSON.stringify({ error: 'offline' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
     return;
   }
 
   // Static assets → cache first, fallback network
   event.respondWith(
     caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Cache new static assets
+      // Devolver cache y actualizar en background (stale-while-revalidate)
+      const fetchPromise = fetch(event.request).then(response => {
         if (response.ok && event.request.method === 'GET') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      });
+      }).catch(() => cached);
+
+      return cached || fetchPromise;
     }).catch(() => {
-      // Offline fallback
       if (event.request.mode === 'navigate') {
         return caches.match('/app.html');
       }

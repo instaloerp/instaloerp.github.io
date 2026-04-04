@@ -246,7 +246,10 @@ input[type=number]{-moz-appearance:textfield}
       <span id="hdrRol">—</span>
     </div>
     <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
-    <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> LIVE</div>
+    <div style="position:relative;display:inline-flex">
+      <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> OK</div>
+      <span id="syncBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;text-align:center;line-height:16px">0</span>
+    </div>
     <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión" style="background:var(--rojo);color:#fff;font-size:15px;font-weight:700;width:36px;height:36px">✕</button>
   </div>
 
@@ -294,6 +297,242 @@ let articulos = [];
 // Wizard state
 let _wiz = { parteId:null, step:0, fotos:[], materiales:[], firmaData:null };
 
+// ═══════════════════════════════════════════════
+// OFFLINE — IndexedDB + Sync Queue
+// ═══════════════════════════════════════════════
+let _db = null;
+let _isOnline = navigator.onLine;
+const IDB_NAME = 'instalo_offline';
+const IDB_VERSION = 1;
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      // Stores para cachear datos
+      if (!db.objectStoreNames.contains('partes'))   db.createObjectStore('partes', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('trabajos'))  db.createObjectStore('trabajos', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('clientes'))  db.createObjectStore('clientes', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('articulos')) db.createObjectStore('articulos', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('perfiles'))  db.createObjectStore('perfiles', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('tareas'))    db.createObjectStore('tareas', { keyPath: 'id' });
+      // Cola de operaciones pendientes
+      if (!db.objectStoreNames.contains('syncQueue')) db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
+    req.onerror = (e) => { console.error('[IDB] Error:', e); reject(e); };
+  });
+}
+
+// Guardar array de registros en un store
+function idbSaveAll(storeName, records) {
+  return new Promise((resolve, reject) => {
+    if (!_db) { resolve(); return; }
+    const tx = _db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear(); // Reemplazar todo con datos frescos
+    (records || []).forEach(r => store.put(r));
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+// Leer todos los registros de un store
+function idbGetAll(storeName) {
+  return new Promise((resolve, reject) => {
+    if (!_db) { resolve([]); return; }
+    const tx = _db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = (e) => reject(e);
+  });
+}
+
+// ── Cola de sincronización ──
+function syncQueueAdd(operation) {
+  // operation: { table, action: 'insert'|'update'|'upsert', data, match, timestamp }
+  return new Promise((resolve, reject) => {
+    if (!_db) { resolve(); return; }
+    const tx = _db.transaction('syncQueue', 'readwrite');
+    const store = tx.objectStore('syncQueue');
+    operation.timestamp = Date.now();
+    store.add(operation);
+    tx.oncomplete = () => {
+      console.log('[Sync] Operación encolada:', operation.action, operation.table);
+      _updateSyncBadge();
+      resolve();
+    };
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function syncQueueGetAll() {
+  return idbGetAll('syncQueue');
+}
+
+function syncQueueClear() {
+  return new Promise((resolve, reject) => {
+    if (!_db) { resolve(); return; }
+    const tx = _db.transaction('syncQueue', 'readwrite');
+    tx.objectStore('syncQueue').clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function syncQueueDelete(id) {
+  return new Promise((resolve, reject) => {
+    if (!_db) { resolve(); return; }
+    const tx = _db.transaction('syncQueue', 'readwrite');
+    tx.objectStore('syncQueue').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+// Procesar cola de sync — subir operaciones pendientes
+async function processSyncQueue() {
+  if (!navigator.onLine) return;
+  const ops = await syncQueueGetAll();
+  if (ops.length === 0) return;
+
+  console.log(`[Sync] Procesando ${ops.length} operaciones pendientes...`);
+  toast(`Sincronizando ${ops.length} cambio${ops.length > 1 ? 's' : ''}...`, 'info');
+  let ok = 0, fail = 0;
+
+  for (const op of ops) {
+    try {
+      let result;
+      if (op.action === 'update') {
+        result = await sb.from(op.table).update(op.data).match(op.match);
+      } else if (op.action === 'insert') {
+        result = await sb.from(op.table).insert(op.data);
+      } else if (op.action === 'upsert') {
+        result = await sb.from(op.table).upsert(op.data);
+      }
+      if (result?.error) throw result.error;
+      await syncQueueDelete(op.id);
+      ok++;
+    } catch (e) {
+      console.error('[Sync] Error en op:', op, e);
+      fail++;
+    }
+  }
+
+  _updateSyncBadge();
+  if (ok > 0) toast(`✅ ${ok} cambio${ok > 1 ? 's' : ''} sincronizado${ok > 1 ? 's' : ''}`, 'success');
+  if (fail > 0) toast(`⚠️ ${fail} cambio${fail > 1 ? 's' : ''} no se pudieron subir`, 'error');
+
+  // Refrescar datos tras sincronizar
+  if (ok > 0) {
+    await loadAllData();
+    navigateTo(currentTab);
+  }
+}
+
+function _updateSyncBadge() {
+  syncQueueGetAll().then(ops => {
+    const badge = document.getElementById('syncBadge');
+    if (badge) {
+      if (ops.length > 0) {
+        badge.textContent = ops.length;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  });
+}
+
+// ── Helper: update con fallback offline ──
+async function offlineUpdate(table, data, match) {
+  if (navigator.onLine) {
+    const result = await sb.from(table).update(data).match(match);
+    if (result.error) throw result.error;
+    return result;
+  } else {
+    // Sin red → encolar para sincronizar después
+    await syncQueueAdd({ table, action: 'update', data, match });
+    toast('Guardado offline — se subirá con conexión', 'info');
+    return { data: null, error: null };
+  }
+}
+
+// Guardar datos en cache offline tras cada loadAllData exitoso
+async function cacheDataOffline() {
+  try {
+    await Promise.all([
+      idbSaveAll('partes', misPartes),
+      idbSaveAll('trabajos', trabajos),
+      idbSaveAll('clientes', clientes),
+      idbSaveAll('articulos', articulos),
+      idbSaveAll('perfiles', todosUsuarios),
+      idbSaveAll('tareas', misTareas),
+    ]);
+    localStorage.setItem('instalo_last_cache', Date.now().toString());
+    console.log('[Offline] Datos cacheados en IndexedDB');
+  } catch(e) {
+    console.error('[Offline] Error cacheando:', e);
+  }
+}
+
+// Cargar datos desde cache offline
+async function loadFromOfflineCache() {
+  try {
+    const [p, t, c, a, u, ta] = await Promise.all([
+      idbGetAll('partes'),
+      idbGetAll('trabajos'),
+      idbGetAll('clientes'),
+      idbGetAll('articulos'),
+      idbGetAll('perfiles'),
+      idbGetAll('tareas'),
+    ]);
+    misPartes = p; trabajos = t; clientes = c; articulos = a; todosUsuarios = u; misTareas = ta;
+    const lastCache = localStorage.getItem('instalo_last_cache');
+    const ago = lastCache ? Math.round((Date.now() - parseInt(lastCache)) / 60000) : '?';
+    console.log(`[Offline] Datos cargados desde cache (hace ${ago} min)`);
+    return p.length > 0; // true si hay datos
+  } catch(e) {
+    console.error('[Offline] Error leyendo cache:', e);
+    return false;
+  }
+}
+
+// Eventos de conectividad
+window.addEventListener('online', () => {
+  _isOnline = true;
+  _updateConnIndicator();
+  toast('Conexión recuperada', 'success');
+  // Sincronizar cola pendiente
+  setTimeout(() => processSyncQueue(), 1000);
+});
+
+window.addEventListener('offline', () => {
+  _isOnline = false;
+  _updateConnIndicator();
+  toast('Sin conexión — modo offline', 'info');
+});
+
+function _updateConnIndicator() {
+  const el = document.getElementById('hdrLive');
+  if (!el) return;
+  // Reset estilos inline
+  el.removeAttribute('style');
+  if (navigator.onLine) {
+    el.className = 'hdr-live';
+    const ago = Math.round((Date.now() - _lastRefresh) / 60000);
+    el.innerHTML = '<span class="live-dot"></span> ' + (ago < 1 ? 'OK' : ago + ' min');
+  } else {
+    el.className = 'hdr-live';
+    el.style.background = '#FEF3C7';
+    el.style.borderColor = '#FCD34D';
+    el.style.color = '#B45309';
+    el.innerHTML = '<span class="live-dot" style="background:#F59E0B"></span> OFFLINE';
+  }
+}
+
 // ─── Estados de partes ───
 const PT_ESTADOS = {
   borrador:   { label:'Borrador',   color:'#9CA3AF', bg:'#F3F4F6', ico:'✏️' },
@@ -308,6 +547,16 @@ const PT_ESTADOS = {
 // INIT
 // ═══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
+  // Inicializar IndexedDB para offline
+  try { await openOfflineDB(); } catch(e) { console.warn('[IDB] No disponible:', e); }
+
+  // Registrar Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(r => {
+      console.log('[SW] Registrado:', r.scope);
+    }).catch(e => console.warn('[SW] Error:', e));
+  }
+
   // Enter key on login
   document.getElementById('lPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
   document.getElementById('lEmail').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('lPass').focus(); });
@@ -349,11 +598,14 @@ async function doLogin() {
 }
 
 async function doLogout() {
+  // Comprobar si hay cambios offline pendientes
+  const pendingOps = await syncQueueGetAll();
+  if (pendingOps.length > 0) {
+    if (!confirm(`Tienes ${pendingOps.length} cambio(s) sin sincronizar.\n\nSi cierras sesión se perderán.\n\n¿Continuar?`)) return;
+  }
   await sb.auth.signOut();
   CU = null; CP = null; EMPRESA = null;
-  // Borrar caché y Service Workers al salir
-  if ('caches' in window) { caches.keys().then(names => names.forEach(n => caches.delete(n))); }
-  if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
+  // No borrar SW/cache para permitir acceso offline
   window.location.reload(true);
 }
 
@@ -478,6 +730,22 @@ async function loadAllData() {
   if (!EMPRESA) return;
   const eid = EMPRESA.id;
 
+  // Si no hay red → cargar desde cache offline
+  if (!navigator.onLine) {
+    console.log('[LoadData] Sin red, usando cache offline');
+    const hasCached = await loadFromOfflineCache();
+    if (hasCached) {
+      // Filtrar partes para operario
+      if (!esJefe) {
+        misPartes = misPartes.filter(p => p.usuario_id === CU.id);
+      }
+      _updateConnIndicator();
+      return;
+    }
+    toast('Sin conexión y sin datos en cache', 'error');
+    return;
+  }
+
   try {
     const promises = [
       sb.from('partes_trabajo').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('fecha',{ascending:false}).limit(100),
@@ -510,9 +778,22 @@ async function loadAllData() {
       misPartes = allPartes.filter(p => p.usuario_id === CU.id);
       misTareas = allTareas;
     }
+
+    // ✅ Guardar en cache offline para uso sin conexión
+    await cacheDataOffline();
+    _updateConnIndicator();
+
   } catch(e) {
     console.error('Error loading data:', e);
-    toast('Error cargando datos', 'error');
+    // Si falla la red, intentar cache offline
+    const hasCached = await loadFromOfflineCache();
+    if (hasCached) {
+      if (!esJefe) misPartes = misPartes.filter(p => p.usuario_id === CU.id);
+      toast('Usando datos en cache (sin conexión)', 'info');
+      _updateConnIndicator();
+    } else {
+      toast('Error cargando datos', 'error');
+    }
   }
 }
 
@@ -558,16 +839,7 @@ async function _silentRefresh() {
 }
 
 function _updateSyncIndicator() {
-  const el = document.getElementById('hdrLive');
-  if (!el) return;
-  const ago = Math.round((Date.now() - _lastRefresh) / 60000);
-  if (ago < 1) {
-    el.className = 'hdr-live';
-    el.innerHTML = '<span class="live-dot"></span> OK';
-  } else {
-    el.className = 'hdr-live';
-    el.innerHTML = '<span class="live-dot"></span> ' + ago + ' min';
-  }
+  _updateConnIndicator();
 }
 
 // Al volver a primer plano → refresh inmediato
@@ -585,11 +857,14 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => _updateSyncIndicator(), 60000);
 
 function forceCacheClear() {
-  if (!confirm('Se va a borrar la caché y recargar la aplicación.\n\n¿Continuar?')) return;
+  if (!confirm('Se va a borrar toda la caché (incluidos datos offline) y recargar la aplicación.\n\n¿Continuar?')) return;
   // Borrar caches del Service Worker
   if ('caches' in window) {
     caches.keys().then(names => names.forEach(n => caches.delete(n)));
   }
+  // Borrar IndexedDB offline
+  try { indexedDB.deleteDatabase(IDB_NAME); } catch(e) {}
+  localStorage.removeItem('instalo_last_cache');
   // Desregistrar Service Workers
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
@@ -1161,36 +1436,54 @@ async function showDocTab(tipo) {
   }
 }
 
-function renderJefeMas(el) {
+async function renderJefeMas(el) {
+  const lastCache = localStorage.getItem('instalo_last_cache');
+  const cacheInfo = lastCache
+    ? 'Última descarga: ' + new Date(parseInt(lastCache)).toLocaleString('es-ES', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+    : 'Sin datos descargados aún';
+  const pendingOps = await syncQueueGetAll();
+  const pendingInfo = pendingOps.length > 0
+    ? `<div style="margin-top:6px;font-size:12px;color:#B45309;font-weight:600">${pendingOps.length} cambio(s) pendientes de subir</div>`
+    : '';
+
   el.innerHTML = `
     <div class="section-title">⚙️ Opciones</div>
     <div class="card" onclick="window.open(location.href.replace('app.html','index.html'),'_blank')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🖥️</span>
       <div><div style="font-weight:700;font-size:14px">Abrir ERP completo</div><div style="font-size:12px;color:var(--gris-400)">Versión de escritorio con todas las funciones</div></div>
     </div>
+
+    <div class="section-title" style="margin-top:16px">📡 Conexión y datos</div>
     <div class="card" style="display:flex;align-items:center;gap:12px">
-      <span style="font-size:24px">📡</span>
+      <span style="font-size:24px">${navigator.onLine ? '🟢' : '🟡'}</span>
       <div style="flex:1">
-        <div style="font-weight:700;font-size:14px">Actualización automática</div>
-        <div style="font-size:12px;color:var(--gris-400)">Se actualizan los partes cada 10 min y al abrir la app</div>
+        <div style="font-weight:700;font-size:14px">${navigator.onLine ? 'Conectado' : 'Sin conexión (modo offline)'}</div>
+        <div style="font-size:12px;color:var(--gris-400)">Auto-refresh cada 10 min · ${cacheInfo}</div>
+        ${pendingInfo}
       </div>
-      <span style="width:10px;height:10px;border-radius:50%;background:#10B981"></span>
     </div>
+    ${pendingOps.length > 0 ? `
+    <div class="card" onclick="processSyncQueue()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">📤</span>
+      <div><div style="font-weight:700;font-size:14px">Sincronizar ahora</div><div style="font-size:12px;color:var(--gris-400)">Subir ${pendingOps.length} cambio(s) pendiente(s)</div></div>
+    </div>` : ''}
     <div class="card" onclick="doRefresh()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🔄</span>
-      <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y equipo manualmente</div></div>
+      <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y equipo</div></div>
     </div>
     <div class="card" onclick="forceCacheClear()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🗑️</span>
-      <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar datos guardados y recargar</div></div>
+      <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
     </div>
+
+    <div class="section-title" style="margin-top:16px">🔒 Sesión</div>
     <div class="card" onclick="doLogout()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🚪</span>
       <div><div style="font-weight:700;font-size:14px">Cerrar sesión</div><div style="font-size:12px;color:var(--gris-400)">${CU?.email||''}</div></div>
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      Instalo ERP · App móvil v1.0
+      Instalo ERP · App móvil v2.0 (offline)
     </div>
   `;
 }
@@ -1245,25 +1538,48 @@ function renderParteCard(p, showActions = false) {
   }
 
   // Color de fondo según estado y hora
-  let cardBg = '#fff'; // blanco por defecto
+  // Verde suave  → completado, revisado, facturado
+  // Azul suave   → en curso
+  // Blanco       → programado/borrador dentro de su horario
+  // Amarillo     → programado pero ya pasó hora de INICIO
+  // Rojo         → programado pero ya pasó hora de FIN (caducado)
+  let cardBg = '#fff';
   let cardBorder = 'var(--gris-100)';
   if (['completado','revisado','facturado'].includes(p.estado)) {
     cardBg = '#F0FDF4'; cardBorder = '#BBF7D0'; // verde suave
   } else if (p.estado === 'en_curso') {
     cardBg = '#EFF6FF'; cardBorder = '#BFDBFE'; // azul suave
   } else if (p.estado === 'programado' || p.estado === 'borrador') {
-    // Comprobar si la hora de la cita ya pasó
     const ahora = new Date();
-    const hoy = ahora.toISOString().split('T')[0];
-    if (p.fecha === hoy && p.hora_fin) {
-      const [hh, mm] = p.hora_fin.split(':').map(Number);
-      const finHoy = new Date(); finHoy.setHours(hh, mm, 0, 0);
-      if (ahora > finHoy) {
-        cardBg = '#FFFBEB'; cardBorder = '#FDE68A'; // amarillo suave — fuera de hora
+    const _a = ahora;
+    const hoyStr = _a.getFullYear() + '-' + String(_a.getMonth()+1).padStart(2,'0') + '-' + String(_a.getDate()).padStart(2,'0');
+
+    if (p.fecha && p.fecha < hoyStr) {
+      // Día anterior sin completar → ROJO (caducado)
+      cardBg = '#FEF2F2'; cardBorder = '#FECACA';
+    } else if (p.fecha === hoyStr) {
+      // Hoy: comprobar horas
+      let pasoFin = false, pasoInicio = false;
+      if (p.hora_fin) {
+        const [hh, mm] = p.hora_fin.split(':').map(Number);
+        const finDate = new Date(); finDate.setHours(hh, mm, 0, 0);
+        if (ahora > finDate) pasoFin = true;
       }
-    } else if (p.fecha && p.fecha < hoy) {
-      cardBg = '#FEF2F2'; cardBorder = '#FECACA'; // rojo suave — día pasado (caducado)
+      if (p.hora_inicio) {
+        const [hh, mm] = p.hora_inicio.split(':').map(Number);
+        const iniDate = new Date(); iniDate.setHours(hh, mm, 0, 0);
+        if (ahora > iniDate) pasoInicio = true;
+      }
+      if (pasoFin) {
+        // Ya pasó la hora de fin → ROJO (caducado)
+        cardBg = '#FEF2F2'; cardBorder = '#FECACA';
+      } else if (pasoInicio) {
+        // Ya pasó la hora de inicio pero no la de fin → AMARILLO (retraso)
+        cardBg = '#FFFBEB'; cardBorder = '#FDE68A';
+      }
+      // Si no pasó ninguna → blanco (dentro de hora)
     }
+    // Fecha futura → blanco
   }
 
   return `<div class="parte-card" onclick="openParteDetail(${p.id})" style="background:${cardBg};border-color:${cardBorder}">
