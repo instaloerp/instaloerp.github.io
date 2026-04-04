@@ -134,10 +134,9 @@ body.editor-open #content{margin-top:0}
 #de_lineas tr.de-drag-over{background:var(--azul-light)!important;box-shadow:inset 0 -2px 0 var(--azul)}
 #de_lineas tr.de-drag-over-top{background:var(--azul-light)!important;box-shadow:inset 0 2px 0 var(--azul)}
 #de_lineas tr[draggable="true"]:hover td:first-child{color:var(--azul)!important}
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .18s}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
 .overlay.open{opacity:1;pointer-events:all}
-.modal{background:#fff;border-radius:14px;box-shadow:var(--sh-lg);width:100%;max-height:92vh;overflow-y:auto;transform:scale(.96) translateY(10px);transition:transform .2s}
-.overlay.open .modal{transform:scale(1) translateY(0)}
+.modal{background:#fff;border-radius:14px;box-shadow:var(--sh-lg);width:100%;max-height:92vh;overflow-y:auto}
 .modal-sm{max-width:420px}.modal-md{max-width:600px}.modal-lg{max-width:800px}
 .modal-h{padding:15px 19px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:8px}
 .modal-h h2{font-size:14.5px;font-weight:700;flex:1;color:var(--gris-900)}

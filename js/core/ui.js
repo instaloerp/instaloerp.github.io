@@ -110,21 +110,26 @@ function showScreen(id){
   document.getElementById(id).classList.add('active');
 }
 
+// Modales de solo lectura que NO necesitan populateSelects
+const _readOnlyModals = new Set(['dtlPartes','modal-detalle-trasp','modal-movimientos-stock','mArtVistaRapida']);
+
 function openModal(id, skipReset){
   // Solo resetear si NO venimos de una edición
   if(!skipReset){
     ['c_id','pv_id','art_id','alm_id','ser_id','iva_id','ud_id','fp_id','fam_id'].forEach(hid=>{const el=document.getElementById(hid);if(el)el.value='';});
   }
-  // Guardar valores de selects antes de repopular
-  const savedSelects = {};
-  if(skipReset){
-    ['c_fpago','pv_fpago'].forEach(sid=>{
-      const sel=document.getElementById(sid); if(sel) savedSelects[sid]=sel.value;
-    });
-  }
-  populateSelects();
-  if(skipReset){
-    Object.entries(savedSelects).forEach(([sid,val])=>{const sel=document.getElementById(sid);if(sel)sel.value=val;});
+  // Saltar populateSelects para modales de solo lectura (evita reflow costoso)
+  if(!_readOnlyModals.has(id)){
+    const savedSelects = {};
+    if(skipReset){
+      ['c_fpago','pv_fpago'].forEach(sid=>{
+        const sel=document.getElementById(sid); if(sel) savedSelects[sid]=sel.value;
+      });
+    }
+    populateSelects();
+    if(skipReset){
+      Object.entries(savedSelects).forEach(([sid,val])=>{const sel=document.getElementById(sid);if(sel)sel.value=val;});
+    }
   }
   if(id==='mPresup'){pPartidas=[];renderPPartidas();document.getElementById('p_fecha').value=new Date().toISOString().split('T')[0];}
   if(id==='mCliente'&&!skipReset){
@@ -604,7 +609,7 @@ function avC(n){return AVC[(n||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%
 
 function catIco(c){return{Fontanería:'🚿',Calefacción:'🔥','Aire Acondicionado':'❄️','Energías Renovables':'☀️',Reforma:'🛁',Electricidad:'⚡'}[c]||'🔧';}
 
-function estadoBadge(e){const m={pendiente:'<span class="badge bg-gray">⏳ Pendiente</span>',planificado:'<span class="badge bg-blue">📅 Planificado</span>',en_curso:'<span class="badge bg-yellow">🔧 En curso</span>',finalizado:'<span class="badge bg-green">✅ Finalizado</span>'};return m[e]||`<span class="badge bg-gray">${e||'—'}</span>`;}
+function estadoBadge(e){const m={pendiente:'<span class="badge bg-gray">⏳ Pendiente</span>',planificado:'<span class="badge bg-blue">📅 Planificado</span>',en_curso:'<span class="badge bg-yellow">🔧 En curso</span>',facturado:'<span class="badge" style="background:#F5F3FF;color:#7C3AED">🧾 Facturado</span>',finalizado:'<span class="badge bg-green">✅ Finalizado</span>'};return m[e]||`<span class="badge bg-gray">${e||'—'}</span>`;}
 
 function estadoBadgeP(e){const m={borrador:'<span class="badge bg-gray">✏️ Borrador</span>',pendiente:'<span class="badge bg-yellow">⏳ Pendiente</span>',aceptado:'<span class="badge bg-green">✅ Aceptado</span>',caducado:'<span class="badge bg-red">⏰ Caducado</span>',anulado:'<span class="badge bg-gray">🚫 Anulado</span>'};return m[e]||`<span class="badge bg-gray">${e||'—'}</span>`;}
 

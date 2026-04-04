@@ -250,7 +250,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('fichaObraDatos').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFichaObra('Número', t.numero)}
-      ${datoFichaObra('Estado', t.estado ? t.estado.replace('_',' ') : '—')}
+      ${datoFichaObra('Estado', `<span data-campo="estado">${t.estado ? t.estado.replace('_',' ') : '—'}</span>`)}
       ${datoFichaObra('Categoría', t.categoria||'—')}
       ${datoFichaObra('Prioridad', t.prioridad||'Normal')}
       ${datoFichaObra('Fecha', t.fecha||'—')}
@@ -331,6 +331,9 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 
   // ── WORKFLOW — Panel de estado del proyecto ──
   renderObraWorkflow(t, presupData, albData, factData, partesData);
+
+  // ── Botón cerrar/reabrir obra ──
+  renderBtnCerrarObra(t, presupData, albData, factData, partesData);
 
   // Totales para resumen económico
   const totalPresup = presupData.reduce((s,p)=>s+(p.total||0),0);
@@ -1398,9 +1401,9 @@ function detectarEtapasObra(t, presupData, albData, factData, partesData) {
   );
   etapas.aprobado = presupAprobado;
 
-  // 3. Material — pendiente de desarrollar módulo de compras/pedidos
-  //    Por ahora: se marca si la obra está en_curso o superior (implica material gestionado)
-  etapas.material = presupAprobado && (t.estado === 'en_curso' || t.estado === 'finalizado' || t.estado === 'completado');
+  // 3. Material — módulo de compras/pedidos pendiente de desarrollar
+  //    Por ahora: auto-pasa si hay presupuesto aprobado (no bloquea el workflow)
+  etapas.material = presupAprobado;
 
   // 4. Programado — tiene al menos un parte con estado >= programado (NO borradores)
   const estadosReales = ['programado','en_curso','completado','revisado','facturado'];
@@ -1529,7 +1532,150 @@ function renderObraWorkflow(t, presupData, albData, factData, partesData) {
   // Calcular progreso porcentual
   const completadas = WORKFLOW_ETAPAS.filter(e => etapas[e.id]).length;
   const porcent = Math.round((completadas / WORKFLOW_ETAPAS.length) * 100);
+
+  // ── AUTO-DERIVAR ESTADO DE LA OBRA ──
+  // No auto-derivar si está cerrada manualmente (finalizado) — requiere reabrir explícitamente
+  const nuevoEstado = derivarEstadoObra(etapas);
+  if (nuevoEstado && t.estado !== nuevoEstado && t.estado !== 'finalizado') {
+    const estadoAnterior = t.estado;
+    // Actualizar en Supabase sin bloquear el render
+    sb.from('trabajos').update({ estado: nuevoEstado }).eq('id', t.id).then(() => {
+      t.estado = nuevoEstado;
+      // Refrescar badge y dato en la ficha
+      const estBadgeEl = document.getElementById('fichaObraEstado');
+      if (estBadgeEl) estBadgeEl.innerHTML = estadoBadge(nuevoEstado);
+      const datosEl = document.getElementById('fichaObraDatos');
+      if (datosEl) {
+        const estSpan = datosEl.querySelector('[data-campo="estado"]');
+        if (estSpan) estSpan.textContent = nuevoEstado.replace('_',' ');
+      }
+      // Actualizar en la lista local
+      const idx = trabajos.findIndex(tr => tr.id === t.id);
+      if (idx >= 0) trabajos[idx].estado = nuevoEstado;
+      // Registrar cambio en audit_log
+      registrarAudit('cambio_estado_auto', 'trabajo', t.id,
+        `Estado cambiado automáticamente: ${estadoAnterior} → ${nuevoEstado}`);
+    });
+  }
+
   return { etapas, paso, porcent, completadas };
+}
+
+// Deriva el estado de la obra a partir de las etapas completadas del workflow
+function derivarEstadoObra(etapas) {
+  if (etapas.cobrado) return 'finalizado';
+  if (etapas.factura) return 'facturado';
+  if (etapas.albaran) return 'en_curso';
+  if (etapas.ejecucion) return 'en_curso';
+  if (etapas.programado) return 'planificado';
+  if (etapas.aprobado) return 'planificado';
+  if (etapas.presupuesto) return 'pendiente';
+  return 'pendiente';
+}
+
+// ═══════════════════════════════════════════════
+// CERRAR / REABRIR OBRA (con validación)
+// ═══════════════════════════════════════════════
+
+function renderBtnCerrarObra(t, presupData, albData, factData, partesData) {
+  const el = document.getElementById('fichaObraCerrarBtn');
+  if (!el) return;
+  if (t.estado === 'finalizado') {
+    el.innerHTML = `<button class="btn btn-sm" style="background:#FFFBEB;color:#D97706;border:1px solid #D97706" onclick="reabrirObra()">🔓 Reabrir obra</button>`;
+  } else {
+    el.innerHTML = `<button class="btn btn-sm" style="background:#ECFDF5;color:#059669;border:1px solid #059669" onclick="cerrarObra()">🔒 Cerrar obra</button>`;
+  }
+}
+
+async function cerrarObra() {
+  if (!obraActualId) return;
+  const t = trabajos.find(x => x.id === obraActualId);
+  if (!t) return;
+
+  // Recopilar datos actuales de la obra
+  const eid = EMPRESA.id;
+  const [presups, albs, facts, partes] = await Promise.all([
+    safeQuery(sb.from('presupuestos').select('id,estado,numero').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('albaranes').select('id,estado,numero').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('facturas').select('id,estado,numero,total').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('partes_trabajo').select('id,estado,numero').eq('trabajo_id',obraActualId)),
+  ]);
+  const presupData = presups.data || [];
+  const albData = albs.data || [];
+  const factData = facts.data || [];
+  const partesData = partes.data || [];
+
+  // Validar pendientes
+  const avisos = [];
+  const partesNoValidados = partesData.filter(p => !['completado','revisado','facturado'].includes(p.estado));
+  if (partesNoValidados.length) {
+    avisos.push(`📝 ${partesNoValidados.length} parte(s) sin validar (${partesNoValidados.map(p=>p.numero||'borrador').join(', ')})`);
+  }
+  const presupPendientes = presupData.filter(p => ['borrador','pendiente'].includes(p.estado));
+  if (presupPendientes.length) {
+    avisos.push(`📋 ${presupPendientes.length} presupuesto(s) pendiente(s) (${presupPendientes.map(p=>p.numero||'borrador').join(', ')})`);
+  }
+  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
+  if (albSinFacturar.length) {
+    avisos.push(`📄 ${albSinFacturar.length} albarán(es) sin facturar (${albSinFacturar.map(a=>a.numero).join(', ')})`);
+  }
+  const factSinCobrar = factData.filter(f => !['cobrada','pagada','paid','anulada'].includes((f.estado||'').toLowerCase()));
+  if (factSinCobrar.length) {
+    avisos.push(`🧾 ${factSinCobrar.length} factura(s) sin cobrar (${factSinCobrar.map(f=>f.numero).join(', ')})`);
+  }
+
+  // Mostrar confirmación
+  let msg = '¿Estás seguro de que quieres cerrar esta obra?';
+  if (avisos.length) {
+    msg = '⚠️ Hay elementos pendientes:\n\n' + avisos.join('\n') + '\n\n¿Cerrar la obra de todas formas?';
+  }
+  if (!confirm(msg)) return;
+
+  // Cerrar obra
+  const { error } = await sb.from('trabajos').update({ estado: 'finalizado' }).eq('id', obraActualId);
+  if (error) { toast('Error al cerrar: ' + error.message, 'error'); return; }
+
+  t.estado = 'finalizado';
+  const idx = trabajos.findIndex(tr => tr.id === obraActualId);
+  if (idx >= 0) trabajos[idx].estado = 'finalizado';
+
+  registrarAudit('cerrar_obra', 'trabajo', obraActualId,
+    'Obra cerrada manualmente' + (avisos.length ? ' — Avisos: ' + avisos.join('; ') : ''));
+
+  toast('Obra cerrada correctamente', 'success');
+  abrirFichaObra(obraActualId);
+}
+
+async function reabrirObra() {
+  if (!obraActualId) return;
+  const t = trabajos.find(x => x.id === obraActualId);
+  if (!t) return;
+
+  if (!confirm('¿Reabrir esta obra? Se generará un registro en el historial.')) return;
+
+  // Calcular cuál sería el estado correcto según el workflow
+  const eid = EMPRESA.id;
+  const [presups, albs, facts, partes] = await Promise.all([
+    safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('albaranes').select('*').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('facturas').select('*').eq('empresa_id',eid).eq('trabajo_id',obraActualId).neq('estado','eliminado')),
+    safeQuery(sb.from('partes_trabajo').select('*').eq('trabajo_id',obraActualId)),
+  ]);
+  const etapas = detectarEtapasObra(t, presups.data||[], albs.data||[], facts.data||[], partes.data||[]);
+  const nuevoEstado = derivarEstadoObra(etapas);
+
+  const { error } = await sb.from('trabajos').update({ estado: nuevoEstado }).eq('id', obraActualId);
+  if (error) { toast('Error al reabrir: ' + error.message, 'error'); return; }
+
+  t.estado = nuevoEstado;
+  const idx = trabajos.findIndex(tr => tr.id === obraActualId);
+  if (idx >= 0) trabajos[idx].estado = nuevoEstado;
+
+  registrarAudit('reabrir_obra', 'trabajo', obraActualId,
+    'Obra reabierta — nuevo estado: ' + nuevoEstado);
+
+  toast('Obra reabierta', 'success');
+  abrirFichaObra(obraActualId);
 }
 
 // ═══════════════════════════════════════════════
