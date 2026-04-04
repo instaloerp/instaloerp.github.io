@@ -1140,7 +1140,7 @@ async function verDetalleParte(id) {
   };
   const next = nextAction[parte.estado];
 
-  const html = `<div style="padding:20px;max-height:70vh;overflow-y:auto">
+  const html = `<div style="padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
       <div>
         <h2 style="margin:0 0 4px;font-size:20px;font-weight:700">${parte.numero}</h2>
@@ -1348,7 +1348,10 @@ async function validarParteCompleto(parteId) {
       await generarTraspasoAlmacen(parte, matsFurgoneta);
     }
 
-    toast('✅ Parte validado — albarán y partes generados', 'success');
+    let successMsg = '✅ Parte validado — albarán generado';
+    if (parte.gremios_pendientes && Object.keys(parte.gremios_pendientes).length > 0) successMsg += ' + partes de gremio';
+    if (matsFurgoneta.length > 0) successMsg += ' + traspaso almacén';
+    toast(successMsg, 'success');
     closeModal('dtlPartes');
 
     // Refrescar datos
@@ -1387,28 +1390,33 @@ async function generarAlbaranDesdeParte(parte) {
   const num = `ALB-${year}-${String((count||0)+1).padStart(4,'0')}`;
 
   // Líneas del albarán: materiales + mano de obra
+  // Formato compatible con módulo comercial: { desc, cant, precio }
   const lineas = [];
   if (parte.materiales && Array.isArray(parte.materiales)) {
     parte.materiales.forEach(m => {
       lineas.push({
-        tipo: 'material',
-        descripcion: m.nombre || 'Material',
-        cantidad: parseFloat(m.cantidad) || 1,
-        precio_unitario: parseFloat(m.precio) || 0,
-        total: parseFloat(m.total) || 0,
+        desc: m.nombre || 'Material',
+        cant: parseFloat(m.cantidad) || 1,
+        precio: parseFloat(m.precio) || 0,
       });
     });
   }
   if (parte.mano_obra && Array.isArray(parte.mano_obra)) {
     parte.mano_obra.forEach(mo => {
-      lineas.push({
-        tipo: mo.es_desplazamiento ? 'desplazamiento' : 'mano_obra',
-        descripcion: mo.descripcion || (mo.es_desplazamiento ? 'Desplazamiento' : 'Mano de obra'),
-        cantidad: mo.es_desplazamiento ? (parseFloat(mo.km) || 0) : (parseFloat(mo.minutos || mo.horas) || 0),
-        unidad: mo.es_desplazamiento ? 'km' : (mo.minutos !== undefined ? 'min' : 'h'),
-        precio_unitario: parseFloat(mo.precio_hora) || 0,
-        total: parseFloat(mo.total) || 0,
-      });
+      if (mo.es_desplazamiento) {
+        lineas.push({
+          desc: `Desplazamiento (${mo.km||0} km)`,
+          cant: 1,
+          precio: parseFloat(mo.total) || 0,
+        });
+      } else {
+        const horas = ((parseFloat(mo.minutos) || 0) / 60) || parseFloat(mo.horas) || 0;
+        lineas.push({
+          desc: `${mo.descripcion || 'Mano de obra'} (${Math.round(parseFloat(mo.minutos)||0)} min)`,
+          cant: Math.round(horas * 100) / 100 || 1,
+          precio: parseFloat(mo.precio_hora) || 0,
+        });
+      }
     });
   }
 
@@ -1495,9 +1503,26 @@ async function generarPartesGremios(parteOrigen) {
       auto_generado: true,
     };
 
-    const { error } = await sb.from('partes_trabajo').insert(nuevoParte);
+    let { error } = await sb.from('partes_trabajo').insert(nuevoParte);
     if (error) {
-      console.error(`[Gremio] Error creando parte ${gr.label}:`, error);
+      // Si falla por columnas nuevas que no existen, reintentar sin ellas
+      console.warn(`[Gremio] Insert con columnas extra falló, reintentando básico:`, error.message);
+      const parteBasico = {
+        empresa_id: EMPRESA.id,
+        numero: numero,
+        trabajo_id: parteOrigen.trabajo_id || null,
+        trabajo_titulo: parteOrigen.trabajo_titulo || null,
+        estado: 'borrador',
+        instrucciones: `${gr.ico} ${gr.label}: ${desc}\n[Parte origen: ${parteOrigen.numero}]`,
+        direccion: parteOrigen.direccion || null,
+      };
+      const r2 = await sb.from('partes_trabajo').insert(parteBasico);
+      if (r2.error) {
+        console.error(`[Gremio] Error creando parte ${gr.label}:`, r2.error);
+        toast(`⚠️ Error creando parte ${gr.label}: ${r2.error.message}`, 'error');
+      } else {
+        console.log(`[Gremio] Parte ${numero} creado para ${gr.label} (modo básico)`);
+      }
     } else {
       console.log(`[Gremio] Parte ${numero} creado para ${gr.label}`);
     }
