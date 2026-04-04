@@ -242,9 +242,9 @@ input[type=number]{-moz-appearance:textfield}
       <h2 id="hdrNombre">—</h2>
       <span id="hdrRol">—</span>
     </div>
-    <button id="btnModo" onclick="toggleModo()" title="Cambiar modo" style="font-size:11px;padding:6px 12px;border-radius:20px;font-weight:700;border:none;white-space:nowrap;cursor:pointer;margin-right:4px"></button>
-    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar datos">🔄</button>
-    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">🚪</button>
+    <button id="btnModo" class="hdr-btn" onclick="toggleModo()" title="Cambiar modo" style="font-size:14px"></button>
+    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar datos" style="color:var(--verde);font-size:18px">⟳</button>
+    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión" style="background:var(--rojo);color:#fff;font-size:14px;font-weight:700;width:38px;height:38px">✕</button>
   </div>
 
   <!-- Body (content rendered by JS) -->
@@ -399,9 +399,10 @@ async function showApp() {
   const btnModo = document.getElementById('btnModo');
   if (CP?.es_superadmin) {
     btnModo.style.display = '';
-    btnModo.textContent = esJefe ? '👷 Operario' : '⚙️ Administrador';
+    btnModo.textContent = esJefe ? '👷' : '⚙️';
     btnModo.style.background = esJefe ? '#F59E0B' : '#3B82F6';
     btnModo.style.color = '#fff';
+    btnModo.title = esJefe ? 'Cambiar a modo Operario' : 'Cambiar a modo Administrador';
   } else {
     btnModo.style.display = 'none';
   }
@@ -1421,10 +1422,10 @@ function renderWizStep() {
         <textarea id="wz_desc" rows="4" placeholder="Describe el trabajo que has realizado..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical">${_wiz.desc}</textarea>
       </div>
       <div class="field">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <input id="wz_pend_check" type="checkbox" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="wizSaveCurrentStep();_wiz.pendientes_checked=this.checked;document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';">
-          <label style="margin:0;font-weight:600">Quedan trabajos pendientes</label>
-        </div>
+        <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-weight:600;font-size:14px;cursor:pointer">
+          <input id="wz_pend_check" type="checkbox" style="width:20px;height:20px;flex-shrink:0" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="wizSaveCurrentStep();_wiz.pendientes_checked=this.checked;document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';">
+          <span>Quedan trabajos pendientes</span>
+        </label>
         <textarea id="wz_pend_textarea" rows="2" placeholder="Describe los trabajos pendientes..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical;display:${_wiz.pendientes_checked?'block':'none'}">${_wiz.pendientes}</textarea>
       </div>
       <div class="field">
@@ -1505,20 +1506,9 @@ function renderWizStep() {
   // ── STEP 4: Firma ──
   if (step === 3) {
     const operarioNombre = CP?.nombre || 'Operario';
-    const emailMode = _wiz.clienteEmailMode || 'si';
     content = `
       <div style="margin-bottom:12px">
-        <p style="font-size:13px;color:var(--gris-500)">Firmas y datos de contacto para cerrar el parte.</p>
-      </div>
-      <div class="field">
-        <label style="margin-bottom:8px;display:block">📧 EMAIL (PARA ENVIAR COPIA DEL PARTE)</label>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button id="email_si_btn" class="btn btn-sm" onclick="wizSetEmailMode('si')" style="flex:1;background:${emailMode==='si'?'var(--azul)':'var(--gris-200)'};color:${emailMode==='si'?'white':'var(--gris-600)'};border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✉️ Sí</button>
-          <button id="email_no_btn" class="btn btn-sm" onclick="wizSetEmailMode('no')" style="flex:1;background:${emailMode==='no'?'var(--gris-600)':'var(--gris-200)'};color:${emailMode==='no'?'white':'var(--gris-600)'};border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">❌ No</button>
-        </div>
-        <input id="wz_cli_email" type="email" placeholder="email@ejemplo.com" value="${_wiz.clienteEmail||''}"
-          autocomplete="off" inputmode="email"
-          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);display:${emailMode==='si'?'block':'none'}">
+        <p style="font-size:13px;color:var(--gris-500)">Firmas para cerrar el parte.</p>
       </div>
 
       <!-- Firma persona responsable en la visita (expandible, cerrado por defecto) -->
@@ -1651,13 +1641,8 @@ function wizSaveCurrentStep() {
   if (_wiz.step === 3) {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
     _wiz.clienteDni = document.getElementById('wz_cli_dni')?.value?.toUpperCase()?.trim() || '';
-    _wiz.clienteEmailMode = _wiz.clienteEmailMode || 'si';
-    if (_wiz.clienteEmailMode === 'si') {
-      _wiz.clienteEmail = document.getElementById('wz_cli_email')?.value || '';
-    } else {
-      _wiz.clienteEmail = '';
-    }
-    // Las firmas se capturan en cerrarFirmaFullscreen(), no necesitan captura aquí
+    // Email se gestiona en el modal de envío post-completado, no aquí
+    // Firmas se capturan en cerrarFirmaFullscreen()
   }
 }
 
@@ -2484,23 +2469,21 @@ async function wizFinish() {
     _wizClearAutoSave(id);
     document.removeEventListener('click', _closeMaterialSearch);
 
-    // 4. Enviar email al cliente (si hay email)
-    if (_wiz.clienteEmail) {
-      enviarEmailParte(id, _wiz.clienteEmail);
-    }
-
-    // 5. Mostrar modal de éxito con opciones de envío
+    // 4. Mostrar modal de éxito con opciones de envío (email, WhatsApp, SMS)
     const parteNum = p?.numero || id;
-    // Buscar teléfono del cliente desde trabajo/obra
     let cliTel = p?.cliente_telefono || '';
-    if (!cliTel && p?.trabajo_id) {
+    let cliEmail = _wiz.clienteEmail || p?.cliente_email || '';
+    if (p?.trabajo_id) {
       const _t = trabajos.find(tr => tr.id === p.trabajo_id);
       if (_t) {
         const _c = _t.cliente_id ? clientes.find(c => c.id === _t.cliente_id) : null;
-        if (_c) cliTel = _c.telefono || '';
+        if (_c) {
+          if (!cliTel) cliTel = _c.telefono || '';
+          if (!cliEmail) cliEmail = _c.email || '';
+        }
       }
     }
-    mostrarModalEnvio(id, parteNum, cliTel);
+    mostrarModalEnvio(id, parteNum, cliTel, cliEmail);
   } catch(err) {
     console.error('[wizFinish] Error:', err);
     toast('Error: ' + (err.message || 'desconocido'), 'error');
@@ -2522,51 +2505,61 @@ async function enviarEmailParte(parteId, email) {
 }
 
 // ── MODAL ENVÍO PARTE (WhatsApp / SMS / Cerrar) ──
-function mostrarModalEnvio(parteId, parteNum, telefonoCliente) {
+function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente) {
   const baseUrl = window.location.origin;
   const enlace = `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
   const mensaje = `Hola, le enviamos el parte de trabajo nº ${parteNum} de ${empresa}. Puede consultarlo aquí: ${enlace}`;
   const mensajeEncoded = encodeURIComponent(mensaje);
 
-  // Limpiar teléfono: quitar espacios, guiones, etc.
+  // Limpiar teléfono
   let tel = (telefonoCliente || '').replace(/[\s\-\.\(\)]/g, '');
-  // Si empieza por 6/7/9 sin prefijo, añadir +34
   if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
-  // Si empieza por 0034, cambiar a 34
   if (tel.startsWith('0034')) tel = tel.substring(2);
-  // Si no empieza por +, añadirlo para WhatsApp
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
 
   const content = `
-    <div style="text-align:center;padding:20px 0">
-      <div style="font-size:48px;margin-bottom:12px">✅</div>
-      <h2 style="margin:0 0 8px;color:var(--verde)">Parte completado</h2>
-      <p style="color:var(--gris-500);margin:0 0 20px;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:48px;margin-bottom:8px">✅</div>
+      <h2 style="margin:0 0 4px;color:var(--verde)">Parte completado</h2>
+      <p style="color:var(--gris-500);margin:0 0 16px;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
 
-      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:16px;text-align:left">
+      <div style="background:var(--gris-50);border-radius:10px;padding:10px;margin-bottom:12px;text-align:left">
         <label style="font-size:11px;font-weight:700;color:var(--gris-500)">ENLACE DEL PARTE</label>
-        <div style="display:flex;gap:8px;margin-top:4px">
+        <div style="display:flex;gap:6px;margin-top:4px">
           <input id="enlaceParteInput" type="text" value="${enlace}" readonly
-            style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;font-family:var(--font);background:#fff">
-          <button onclick="copiarEnlaceParte()" style="padding:8px 12px;border:none;background:var(--azul);color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">📋 Copiar</button>
+            style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:11px;font-family:var(--font);background:#fff">
+          <button onclick="copiarEnlaceParte()" style="padding:8px 10px;border:none;background:var(--azul);color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px">📋 Copiar</button>
         </div>
       </div>
 
-      ${tel ? `
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <!-- Email -->
+        <div style="background:var(--gris-50);border-radius:10px;padding:10px;text-align:left">
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">📧 ENVIAR POR EMAIL</label>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <input id="envioEmailInput" type="email" placeholder="email@ejemplo.com" value="${emailCliente || ''}"
+              inputmode="email" autocomplete="off"
+              style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;font-family:var(--font)">
+            <button onclick="enviarEmailDesdModal(${parteId})" style="padding:8px 12px;border:none;background:#EA580C;color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap">📧 Enviar</button>
+          </div>
+        </div>
+
+        ${tel ? `
+        <!-- WhatsApp -->
         <a href="https://wa.me/${telWA}?text=${mensajeEncoded}" target="_blank" rel="noopener"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">
-          <span style="font-size:20px">📱</span> Enviar por WhatsApp
+          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none">
+          📱 Enviar por WhatsApp
         </a>
+        <!-- SMS -->
         <a href="sms:${tel}?body=${mensajeEncoded}"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:var(--azul);color:#fff;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none">
-          <span style="font-size:20px">💬</span> Enviar por SMS
+          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--azul);color:#fff;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none">
+          💬 Enviar por SMS
         </a>
+        ` : `
+        <p style="color:var(--gris-400);font-size:12px;font-style:italic;margin:4px 0">Sin teléfono del cliente. Puedes enviar por email o copiar el enlace.</p>
+        `}
       </div>
-      ` : `
-      <p style="color:var(--gris-400);font-size:13px;font-style:italic;margin-bottom:16px">No hay teléfono del cliente. Puedes copiar el enlace y enviarlo manualmente.</p>
-      `}
 
       <button onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-600)">Cerrar</button>
     </div>
@@ -2587,6 +2580,21 @@ function copiarEnlaceParte() {
       toast('📋 Enlace copiado', 'success');
     });
   }
+}
+
+function enviarEmailDesdModal(parteId) {
+  const email = document.getElementById('envioEmailInput')?.value?.trim();
+  if (!email || !email.includes('@')) {
+    toast('⚠️ Introduce un email válido', 'error');
+    document.getElementById('envioEmailInput')?.focus();
+    return;
+  }
+  // Guardar email en el parte
+  sb.from('partes_trabajo').update({ cliente_email: email }).eq('id', parteId).then(() => {
+    const p = misPartes.find(x => x.id === parteId);
+    if (p) p.cliente_email = email;
+  });
+  enviarEmailParte(parteId, email);
 }
 
 function cerrarModalEnvio() {
