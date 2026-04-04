@@ -82,11 +82,12 @@ function getMonday(d) {
 
 // Calcular altura de cada fila para llenar todo el espacio disponible
 function calcularAlturaFilas() {
-  const container = document.querySelector('.plan-container');
-  const header = document.querySelector('.plan-header');
-  if (!container || !header) return;
-  const available = container.clientHeight - header.offsetHeight;
-  const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO;
+  const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO; // 24
+  // Usar viewport directamente: 100vh - 250px (container) - ~65px (header días)
+  const vh = window.innerHeight;
+  const containerH = vh - 250;
+  const headerH = 65; // altura aproximada de la cabecera de días
+  const available = containerH - headerH;
   planHoraHeight = Math.max(18, Math.floor(available / totalRows));
 }
 
