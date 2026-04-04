@@ -46,11 +46,11 @@ function getMonday(d) {
 }
 
 async function cargarUsuarios() {
-  if (!window.sb || !window.EMPRESA) return;
+  if (!sb || !EMPRESA) return;
   try {
-    const { data } = await window.sb.from('usuarios')
+    const { data } = await sb.from('usuarios')
       .select('id,nombre,apellidos,activo')
-      .eq('empresa_id', window.EMPRESA.id)
+      .eq('empresa_id', EMPRESA.id)
       .eq('activo', true)
       .order('nombre', { ascending: true });
     todosUsuarios = data || [];
@@ -61,7 +61,7 @@ async function cargarUsuarios() {
 }
 
 async function cargarPartesParaPlanificador() {
-  if (!window.sb || !window.EMPRESA) return;
+  if (!sb || !EMPRESA) return;
   try {
     const startDate = new Date(planCurrentDate);
     const endDate = new Date(planCurrentDate);
@@ -70,15 +70,16 @@ async function cargarPartesParaPlanificador() {
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
 
-    const { data } = await window.sb.from('partes_trabajo')
+    const { data } = await sb.from('partes_trabajo')
       .select('*')
-      .eq('empresa_id', window.EMPRESA.id)
+      .eq('empresa_id', EMPRESA.id)
       .gte('fecha', startStr)
       .lt('fecha', endStr)
       .neq('estado', 'eliminado')
       .order('fecha', { ascending: true });
 
     planPartesData = data || [];
+    console.log('Planificador: partes cargados =', planPartesData.length, planPartesData);
   } catch (e) {
     console.error('Error cargando partes:', e);
     toast('Error al cargar partes de trabajo', 'error');
@@ -192,27 +193,28 @@ function renderGrid() {
     partesFiltrados = planPartesData.filter(p => p.usuario_id === planOperarioFilter);
   }
 
+  // Separar partes con hora y sin hora
+  const partesConHora = partesFiltrados.filter(p => p.hora_inicio);
+  const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio);
+
   // Crear celdas para cada hora de cada día
   for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+    const dayDate = new Date(planCurrentDate);
+    dayDate.setDate(dayDate.getDate() + dayIdx);
+    const dayStr = dayDate.toISOString().split('T')[0];
+
     for (let hourIdx = PLAN_HORAS_INICIO; hourIdx < PLAN_HORAS_FIN; hourIdx++) {
       const cell = document.createElement('div');
       cell.className = 'plan-grid-cell';
       cell.style.gridColumn = dayIdx + 1;
       cell.style.gridRow = (hourIdx - PLAN_HORAS_INICIO) + 1;
 
-      // Buscar partes que caigan en este slot
-      const dayDate = new Date(planCurrentDate);
-      dayDate.setDate(dayDate.getDate() + dayIdx);
-      const dayStr = dayDate.toISOString().split('T')[0];
-
-      const partesEnSlot = partesFiltrados.filter(p => {
+      const partesEnSlot = partesConHora.filter(p => {
         if (p.fecha !== dayStr) return false;
-        if (!p.hora_inicio) return false;
-        const [hStart, minStart] = p.hora_inicio.split(':').map(Number);
+        const [hStart] = p.hora_inicio.split(':').map(Number);
         return hStart === hourIdx;
       });
 
-      // Mostrar partes en la celda
       partesEnSlot.forEach(parte => {
         const parteEl = crearElementoParte(parte);
         cell.appendChild(parteEl);
@@ -222,7 +224,39 @@ function renderGrid() {
     }
   }
 
-  // Mensaje si no hay partes
+  // Mostrar partes SIN hora asignada debajo de la rejilla
+  const sinHoraContainer = document.getElementById('planSinHora');
+  if (sinHoraContainer) {
+    sinHoraContainer.innerHTML = '';
+    if (partesSinHora.length > 0) {
+      sinHoraContainer.style.display = 'block';
+      const titulo = document.createElement('h4');
+      titulo.style.cssText = 'margin:0 0 10px;font-size:14px;color:#6B7280;font-weight:600';
+      titulo.textContent = `📋 Partes sin hora asignada (${partesSinHora.length})`;
+      sinHoraContainer.appendChild(titulo);
+
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px';
+
+      partesSinHora.forEach(parte => {
+        const card = document.createElement('div');
+        const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
+        card.style.cssText = `background:${estadoInfo.bg};border:1px solid ${estadoInfo.color}30;border-left:3px solid ${estadoInfo.color};border-radius:6px;padding:8px 10px;cursor:pointer;font-size:12px`;
+        card.innerHTML = `
+          <div style="font-weight:600;margin-bottom:3px">${estadoInfo.ico} ${parte.trabajo_titulo || 'Sin título'}</div>
+          <div style="color:#6B7280">${parte.fecha || ''} · ${parte.usuario_nombre || '—'}</div>
+          <div style="margin-top:3px"><span style="background:${estadoInfo.color};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px">${estadoInfo.label}</span></div>`;
+        card.onclick = () => { if (typeof verDetalleParte === 'function') verDetalleParte(parte.id); };
+        grid.appendChild(card);
+      });
+
+      sinHoraContainer.appendChild(grid);
+    } else {
+      sinHoraContainer.style.display = 'none';
+    }
+  }
+
+  // Mensaje si no hay partes en absoluto
   if (partesFiltrados.length === 0) {
     const emptyEl = document.createElement('div');
     emptyEl.className = 'plan-empty';
@@ -256,14 +290,5 @@ function crearElementoParte(parte) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// AUXILIARES
+// AUXILIARES (toast global definido en ui.js)
 // ═══════════════════════════════════════════════════════════════════════
-
-function toast(msg, tipo) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.background = tipo === 'error' ? '#EF4444' : '#10B981';
-  el.style.opacity = '1';
-  setTimeout(() => { el.style.opacity = '0'; }, 3000);
-}

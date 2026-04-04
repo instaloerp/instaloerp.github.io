@@ -350,3 +350,6 @@ body.sb-collapsed .sb-item .ico{margin:0}
 body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 16px)}
 body.sb-collapsed .sb-user{justify-content:center;padding:10px}
 body.sb-collapsed .sb-nav{padding:6px 4px}
+body.sb-collapsed .sb-section-items{max-height:500px!important;opacity:1!important}
+body.sb-collapsed .sb-item .ico{font-size:18px}
+body.sb-collapsed .sb-item{min-height:36px}
