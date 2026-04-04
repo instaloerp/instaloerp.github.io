@@ -560,8 +560,8 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       <button class="btn btn-sm" style="font-size:10.5px" onclick="filtrarFacturacion('facturas')" data-filt="facturas">🧾 Facturas (${factData.length})</button>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoAlbaranObraActual()">+ Albarán</button>
-      <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevaFacturaObraActual()">+ Factura</button>
+      <button class="btn btn-sm" style="font-size:11px;background:var(--azul);color:#fff;border:none;font-weight:700" onclick="nuevoAlbaranObraActual()">+ Albarán</button>
+      <button class="btn btn-sm" style="font-size:11px;background:var(--azul);color:#fff;border:none;font-weight:700" onclick="nuevaFacturaObraActual()">+ Factura</button>
     </div>
   </div>`;
   document.getElementById('obra-hist-facturacion').innerHTML = _facFilterBtns +
@@ -741,15 +741,43 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
 
-  // Seguimiento: tareas arriba, separator, notas abajo
+  // Seguimiento: NOTAS arriba, TAREAS abajo con filtros por usuario
   if (_tareasEl) {
-    // renderObraTareas ya puso su contenido; lo capturamos y añadimos notas debajo
     const tareasContent = _tareasEl.innerHTML;
-    _tareasEl.innerHTML = tareasContent +
-      `<div style="margin-top:20px;padding-top:14px;border-top:2px solid var(--gris-100)">
-        <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">💬 Notas</h4>
-        ${notaForm}${notaList}
+
+    // Construir filtro de usuarios para tareas
+    const _esAdmin = CP?.rol === 'superadmin' || CP?.rol === 'admin';
+    const _userId = CP?.id;
+    const _tareasUsuarios = [...new Set(obraTareasData.filter(t=>t.responsable_id).map(t=>t.responsable_id))];
+    const _tareasNombres = {};
+    obraTareasData.forEach(t => { if(t.responsable_id && t.responsable_nombre) _tareasNombres[t.responsable_id]=t.responsable_nombre; });
+
+    let _tareaFiltroHtml = '';
+    if (_esAdmin && _tareasUsuarios.length > 0) {
+      _tareaFiltroHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="tareasFiltroUsuario">
+        <button class="btn btn-sm" data-tfilt="todos" onclick="filtrarTareasUsuario('todos')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:var(--azul);color:#fff;font-weight:600;cursor:pointer">Todos</button>
+        ${_tareasUsuarios.map(uid => {
+          const nombre = _tareasNombres[uid] || 'Sin nombre';
+          const primerNombre = nombre.split(' ')[0];
+          return `<button class="btn btn-sm" data-tfilt="${uid}" onclick="filtrarTareasUsuario('${uid}')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">👷 ${primerNombre}</button>`;
+        }).join('')}
+        <button class="btn btn-sm" data-tfilt="sin_asignar" onclick="filtrarTareasUsuario('sin_asignar')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">Sin asignar</button>
       </div>`;
+    }
+
+    _tareasEl.innerHTML =
+      `<h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">💬 Notas</h4>
+      ${notaForm}${notaList}
+      <div style="margin-top:20px;padding-top:14px;border-top:2px solid var(--gris-100)">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">📋 Tareas</h4>
+        ${_tareaFiltroHtml}
+        <div id="tareasContentFiltered">${tareasContent}</div>
+      </div>`;
+
+    // Si NO es admin, filtrar automáticamente por el usuario actual
+    if (!_esAdmin && _userId) {
+      filtrarTareasUsuario(String(_userId));
+    }
   }
 
   // ── DOCUMENTOS (pestaña propia) ──
@@ -917,6 +945,9 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
       <input type="file" id="obraDocFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocObra(this)">
     </div>`;
 
+  // Guardar items para filtrado rápido sin recargar ficha
+  window._obraDocsItems = todosItems;
+
   // ── 7. Renderizar items filtrados ──
   const filtrados = _obraDocFilter === 'todos' ? todosItems : todosItems.filter(d => d._cat === _obraDocFilter);
 
@@ -981,13 +1012,59 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
     </div>`;
 }
 
+function _renderDocsItems(filtrados, cat) {
+  if (filtrados.length === 0) return '<div style="color:var(--gris-400);font-size:12.5px;padding:30px 0;text-align:center">Sin documentos en esta categoría</div>';
+  let html = '';
+  const soloFotos = filtrados.filter(d => d.isImage);
+  const noFotos = filtrados.filter(d => !d.isImage);
+  if (soloFotos.length > 0) {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">';
+    soloFotos.forEach(f => {
+      const deleteBtn = f._source === 'doc' && f.id
+        ? `<button onclick="event.stopPropagation();eliminarDocObra(${f.id})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:none" class="doc-del-btn">✕</button>`
+        : '';
+      html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--gris-200);cursor:pointer;aspect-ratio:1" onclick="window.open('${f.url}','_blank')" onmouseenter="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')" onmouseleave="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
+        <img src="${f.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--gris-50);color:var(--gris-400);font-size:28px;position:absolute;inset:0">📷</div>
+        ${deleteBtn}
+        <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:6px 8px 5px;color:#fff;font-size:10px;line-height:1.3">
+          <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.nombre}</div>
+          <div style="opacity:.8">${f.subtitulo}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (noFotos.length > 0) {
+    noFotos.forEach(d => {
+      const deleteBtn = d._source === 'doc' && d.id
+        ? `<button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="event.stopPropagation();eliminarDocObra(${d.id})">🗑️</button>`
+        : '';
+      html += `<div class="ficha-doc-row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px" onclick="window.open('${d.url}','_blank')">
+        <span style="font-size:18px">${d.ico || '📄'}</span>
+        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.subtitulo}</div></div>
+        <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" onclick="event.stopPropagation()">👁️</a>
+        ${deleteBtn}
+      </div>`;
+    });
+  }
+  return html;
+}
+
 function filtrarObraDocs(cat) {
   _obraDocFilter = cat;
-  // Re-renderizar documentos con el filtro actualizado
-  // Los datos están ya cargados en la ficha — forzar refresh
-  if (typeof obraActualId !== 'undefined' && obraActualId) {
-    abrirFichaObra(obraActualId, false);
-  }
+  // Actualizar botones de filtro activo
+  document.querySelectorAll('[id^="docTab-"]').forEach(b => {
+    const key = b.id.replace('docTab-','');
+    b.style.background = key === cat ? 'var(--azul)' : '#fff';
+    b.style.color = key === cat ? '#fff' : 'var(--gris-600)';
+  });
+  // Filtrar items directamente sin recargar la ficha
+  const contentEl = document.getElementById('obraDocsContent');
+  if (!contentEl || !window._obraDocsItems) return;
+  const items = window._obraDocsItems;
+  const filtrados = cat === 'todos' ? items : items.filter(d => d._cat === cat);
+  contentEl.innerHTML = _renderDocsItems(filtrados, cat);
 }
 
 // ═══════════════════════════════════════════════
@@ -1166,7 +1243,7 @@ function renderTareaItem(t) {
   const hoy = t.fecha_limite && new Date(t.fecha_limite).toDateString() === new Date().toDateString();
   const fechaCreacion = t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '';
 
-  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);${isCerrada?'text-decoration:line-through;opacity:0.6':''}">
+  return `<div data-tarea-resp="${t.responsable_id||''}" style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);${isCerrada?'text-decoration:line-through;opacity:0.6':''}">
     <!-- Checkbox -->
     <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'};background:${t.estado==='completada'?'#ECFDF5':t.estado==='rechazada'?'#FAF5FF':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${t.estado==='completada'?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':t.estado==='rechazada'?'<span style="color:#9333EA;font-size:13px;font-weight:800">✕</span>':''}</div>
     <!-- Contenido -->
@@ -1505,6 +1582,30 @@ function updateTareasKpi() {
     const total = sinRechazadas.length;
     el.textContent = total ? `${completadas}/${total}` : '0';
   }
+}
+
+// Filtro de tareas por usuario en pestaña Seguimiento
+let _tareaFiltroActual = 'todos';
+
+function filtrarTareasUsuario(uid) {
+  _tareaFiltroActual = uid;
+  // Mostrar/ocultar items de tarea basándose en data-resp-id
+  document.querySelectorAll('[data-tarea-resp]').forEach(el => {
+    const respId = el.dataset.tareaResp || '';
+    if (uid === 'todos') {
+      el.style.display = '';
+    } else if (uid === 'sin_asignar') {
+      el.style.display = !respId ? '' : 'none';
+    } else {
+      el.style.display = respId === uid ? '' : 'none';
+    }
+  });
+  // Actualizar botones activos
+  document.querySelectorAll('#tareasFiltroUsuario button').forEach(b => {
+    const isActive = b.dataset.tfilt === uid;
+    b.style.background = isActive ? 'var(--azul)' : '#fff';
+    b.style.color = isActive ? '#fff' : 'var(--gris-600)';
+  });
 }
 
 // Checkboxes de albaranes para facturación múltiple
@@ -2048,17 +2149,16 @@ function nuevoParteObraActual() {
 
 function programarCitaObraActual() {
   if (!obraActualId) return;
-  const obra = trabajos.find(t => t.id === obraActualId);
-  const presup = obraActualPresupuestos?.find(p => p.estado === 'aceptado') || null;
-  // Dirección del CLIENTE propietario de la obra
-  const cli = obra?.cliente_id ? clientes.find(c => c.id === obra.cliente_id) : null;
-  const dir = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : (obra?.direccion_obra_texto || '');
-  programarCitaDesdeObra(
-    obraActualId,
-    presup?.id || null,
-    presup?.numero || null,
-    dir
-  );
+  // Navegar al planificador semanal con la obra preseleccionada
+  goPage('planificador');
+  // Esperar a que el planificador cargue y luego abrir modal de nuevo parte con obra pre-rellenada
+  setTimeout(() => {
+    const obra = trabajos.find(t => t.id === obraActualId);
+    const presup = obraActualPresupuestos?.find(p => p.estado === 'aceptado') || null;
+    const cli = obra?.cliente_id ? clientes.find(c => c.id === obra.cliente_id) : null;
+    const dir = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : (obra?.direccion_obra_texto || '');
+    programarCitaDesdeObra(obraActualId, presup?.id || null, presup?.numero || null, dir);
+  }, 400);
 }
 
 // ═══════════════════════════════════════════════
