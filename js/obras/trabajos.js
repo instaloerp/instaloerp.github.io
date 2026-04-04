@@ -561,38 +561,110 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       resumenItem('Coste', fmtE(costePartes), 'var(--gris-700)'),
       resumenItem('Partes', partesData.length+'')
     ]);
-    partesHtml += partesData.map(p=>{
-      const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
-      const horas = parseFloat(p.horas||0).toFixed(1);
-      const est = ESTADOS_PARTE[p.estado]||p.estado||'—';
-      const estIco = EST_PARTE_ICO[p.estado]||'📝';
-      const estCol = EST_PARTE_COL[p.estado]||'#6B7280';
-      const estBg = EST_PARTE_BG[p.estado]||'#F3F4F6';
-      // Siguiente acción rápida según estado
-      const nextActions = {
-        borrador:   {label:'📅 Programar', fn:`avanzarEstadoParte(${p.id},'programado')`, bg:'#3B82F6'},
-        programado: {label:'🔧 Iniciar', fn:`avanzarEstadoParte(${p.id},'en_curso')`, bg:'var(--acento)'},
-        en_curso:   {label:'✅ Completar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
-        completado: {label:'👁️ Revisar', fn:`avanzarEstadoParte(${p.id},'revisado')`, bg:'#10B981'},
-        revisado:   {label:'🧾 Facturar', fn:`avanzarEstadoParte(${p.id},'facturado')`, bg:'#8B5CF6'},
-      };
-      const nextAct = nextActions[p.estado];
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleParte(${p.id})">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-            <span style="font-weight:700;font-size:12.5px;font-family:monospace;color:var(--azul)">${p.numero||'—'}</span>
-            <span style="background:${estBg};color:${estCol};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600">${estIco} ${est}</span>
+    // ── Agrupar por operario, ordenar por hora inicio ──
+    const _operarioGroups = {};
+    partesData.forEach(p => {
+      const opName = p.usuario_nombre || p.operario_nombre || 'Sin asignar';
+      const opId = p.usuario_id || 'none';
+      if (!_operarioGroups[opId]) _operarioGroups[opId] = { nombre: opName, partes: [] };
+      _operarioGroups[opId].partes.push(p);
+    });
+    // Ordenar partes de cada operario por fecha + hora_inicio
+    Object.values(_operarioGroups).forEach(g => {
+      g.partes.sort((a, b) => {
+        const da = (a.fecha || '') + (a.hora_inicio || '');
+        const db = (b.fecha || '') + (b.hora_inicio || '');
+        return da.localeCompare(db);
+      });
+    });
+
+    const _operarioIds = Object.keys(_operarioGroups);
+    // Si solo hay 1 operario, no mostrar desplegable
+    const _showGroupHeaders = _operarioIds.length > 1;
+
+    _operarioIds.forEach(opId => {
+      const group = _operarioGroups[opId];
+      const groupId = 'partesGroup_' + opId.replace(/[^a-zA-Z0-9]/g, '_');
+
+      if (_showGroupHeaders) {
+        const completadosGrp = group.partes.filter(p => estadosCompletados.includes(p.estado)).length;
+        partesHtml += `<div style="margin-top:10px">
+          <div onclick="const b=document.getElementById('${groupId}');b.style.display=b.style.display==='none'?'':'none';this.querySelector('.grp-arrow').textContent=b.style.display==='none'?'▶':'▼'"
+               style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--gris-50);border-radius:8px;margin-bottom:6px">
+            <span style="font-size:18px">👷</span>
+            <span style="font-weight:700;font-size:13px;flex:1">${group.nombre}</span>
+            <span style="font-size:11px;color:var(--gris-400)">${completadosGrp}/${group.partes.length} completados</span>
+            <span class="grp-arrow" style="font-size:10px;color:var(--gris-400)">▼</span>
           </div>
-          <div style="font-size:10.5px;color:var(--gris-400)">${fecha} · ${p.usuario_nombre||p.operario_nombre||'—'} · ${horas}h</div>
-          ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:350px">'+p.descripcion+'</div>':''}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          ${nextAct ? `<button class="btn btn-sm" style="font-size:10px;background:${nextAct.bg};color:#fff;border:none;padding:3px 8px;border-radius:6px;font-weight:600;white-space:nowrap" onclick="event.stopPropagation();${nextAct.fn}">${nextAct.label}</button>` : '<span style="font-size:10px;color:#8B5CF6;font-weight:700">✓ Facturado</span>'}
-          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();editarParte(${p.id})">✏️</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();verDetalleParte(${p.id})">👁️</button>
-        </div>
-      </div>`;
-    }).join('');
+          <div id="${groupId}">`;
+      }
+
+      group.partes.forEach(p => {
+        const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'}) : '—';
+        const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '';
+        const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '';
+        const horasTxt = parseFloat(p.horas||0).toFixed(1);
+        const est = ESTADOS_PARTE[p.estado]||p.estado||'—';
+        const estIco = EST_PARTE_ICO[p.estado]||'📝';
+        const estCol = EST_PARTE_COL[p.estado]||'#6B7280';
+        const estBg = EST_PARTE_BG[p.estado]||'#F3F4F6';
+
+        // Color de fondo tarjeta según estado y hora
+        let _cardBg = '#fff', _cardBorder = 'var(--gris-100)';
+        if (estadosCompletados.includes(p.estado)) {
+          _cardBg = '#F0FDF4'; _cardBorder = '#BBF7D0';
+        } else if (p.estado === 'en_curso') {
+          _cardBg = '#EFF6FF'; _cardBorder = '#BFDBFE';
+        } else if (p.estado === 'programado' || p.estado === 'borrador') {
+          const _now = new Date();
+          const _todayStr = _now.getFullYear() + '-' + String(_now.getMonth()+1).padStart(2,'0') + '-' + String(_now.getDate()).padStart(2,'0');
+          if (p.fecha && p.fecha < _todayStr) {
+            _cardBg = '#FEF2F2'; _cardBorder = '#FECACA'; // rojo — caducado
+          } else if (p.fecha === _todayStr) {
+            let _pasoFin = false, _pasoIni = false;
+            if (p.hora_fin) { const [h,m] = p.hora_fin.split(':').map(Number); const d = new Date(); d.setHours(h,m,0,0); if (_now > d) _pasoFin = true; }
+            if (p.hora_inicio) { const [h,m] = p.hora_inicio.split(':').map(Number); const d = new Date(); d.setHours(h,m,0,0); if (_now > d) _pasoIni = true; }
+            if (_pasoFin) { _cardBg = '#FEF2F2'; _cardBorder = '#FECACA'; }
+            else if (_pasoIni) { _cardBg = '#FFFBEB'; _cardBorder = '#FDE68A'; }
+          }
+        }
+
+        // Siguiente acción rápida
+        const nextActions = {
+          borrador:   {label:'📅 Programar', fn:`avanzarEstadoParte(${p.id},'programado')`, bg:'#3B82F6'},
+          programado: {label:'🔧 Iniciar', fn:`avanzarEstadoParte(${p.id},'en_curso')`, bg:'var(--acento)'},
+          en_curso:   {label:'✅ Completar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
+          completado: {label:'👁️ Revisar', fn:`avanzarEstadoParte(${p.id},'revisado')`, bg:'#10B981'},
+          revisado:   {label:'🧾 Facturar', fn:`avanzarEstadoParte(${p.id},'facturado')`, bg:'#8B5CF6'},
+        };
+        const nextAct = nextActions[p.estado];
+
+        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px;transition:filter .15s" onmouseover="this.style.filter='brightness(.97)'" onmouseout="this.style.filter=''" onclick="verDetalleParte(${p.id})">
+          <div style="min-width:60px;text-align:center">
+            <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hi || '—'}</div>
+            <div style="font-size:10px;color:var(--gris-400)">${hf ? hi + '-' + hf : ''}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+              <span style="font-size:12px;font-weight:600;color:var(--gris-700)">${fecha}</span>
+              <span style="background:${estBg};color:${estCol};padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600">${estIco} ${est}</span>
+              <span style="font-size:10px;color:var(--gris-400)">${horasTxt}h</span>
+            </div>
+            <div style="font-size:10.5px;color:var(--gris-400)">${p.numero||'—'}${!_showGroupHeaders ? ' · '+(p.usuario_nombre||p.operario_nombre||'—') : ''}</div>
+            ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:350px">'+p.descripcion+'</div>':''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${nextAct ? `<button class="btn btn-sm" style="font-size:10px;background:${nextAct.bg};color:#fff;border:none;padding:3px 8px;border-radius:6px;font-weight:600;white-space:nowrap" onclick="event.stopPropagation();${nextAct.fn}">${nextAct.label}</button>` : '<span style="font-size:10px;color:#8B5CF6;font-weight:700">✓ Facturado</span>'}
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();editarParte(${p.id})">✏️</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="event.stopPropagation();verDetalleParte(${p.id})">👁️</button>
+          </div>
+        </div>`;
+      });
+
+      if (_showGroupHeaders) {
+        partesHtml += `</div></div>`;
+      }
+    });
   } else {
     partesHtml += '<div class="empty" style="padding:30px 0"><div class="ei">📝</div><p>Sin partes de trabajo</p></div>';
   }

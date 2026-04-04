@@ -84,7 +84,7 @@ a{color:var(--azul);text-decoration:none}
 .section-title{font-size:13px;font-weight:800;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px;padding-left:4px}
 
 /* ── PARTE CARD ── */
-.parte-card{background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid var(--gris-100);cursor:pointer;transition:box-shadow .2s}
+.parte-card{border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid var(--gris-100);cursor:pointer;transition:box-shadow .2s}
 .parte-card:active{box-shadow:0 2px 8px rgba(0,0,0,.1)}
 .parte-row{display:flex;align-items:center;gap:8px}
 .parte-num{font-family:monospace;font-weight:700;font-size:13px;color:var(--azul)}
@@ -1582,7 +1582,14 @@ function renderParteCard(p, showActions = false) {
     // Fecha futura → blanco
   }
 
-  return `<div class="parte-card" onclick="openParteDetail(${p.id})" style="background:${cardBg};border-color:${cardBorder}">
+  // Borde izquierdo de color para refuerzo visual
+  const _borderLeftColor = (['completado','revisado','facturado'].includes(p.estado)) ? '#22C55E'
+    : p.estado === 'en_curso' ? '#3B82F6'
+    : cardBg === '#FEF2F2' ? '#EF4444'
+    : cardBg === '#FFFBEB' ? '#F59E0B'
+    : 'transparent';
+
+  return `<div class="parte-card" onclick="openParteDetail(${p.id})" style="background:${cardBg};border-color:${cardBorder};border-left:4px solid ${_borderLeftColor}">
     <div class="parte-row">
       <span class="parte-num">${p.numero||'—'}</span>
       <span class="badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
