@@ -657,49 +657,50 @@ const AVC=['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777'
 // PREVIEW HOVER DE IMÁGENES (zoom al pasar ratón)
 // ═══════════════════════════════════════════════
 let _hoverPreview = null;
+let _hoverUrl = '';
 
 function showImgPreview(url, e) {
   if (!url) return;
-  // Crear overlay si no existe
+  _hoverUrl = url;
   if (!_hoverPreview) {
     _hoverPreview = document.createElement('div');
     _hoverPreview.id = 'imgHoverPreview';
-    _hoverPreview.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#000;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:4px;transition:opacity .15s;opacity:0;max-width:70vw;max-height:70vh;display:flex;align-items:center;justify-content:center';
-    _hoverPreview.innerHTML = '<img style="max-width:100%;max-height:100%;border-radius:8px;display:block">';
+    _hoverPreview.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#111;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);padding:3px;display:none';
+    _hoverPreview.innerHTML = '<img style="display:block;border-radius:6px;max-width:400px;max-height:350px;object-fit:contain">';
     document.body.appendChild(_hoverPreview);
   }
   const img = _hoverPreview.querySelector('img');
-  img.src = url;
-  _hoverPreview.style.opacity = '0';
-  _hoverPreview.style.display = 'flex';
-  // Posicionar cerca del ratón
+  // Si la URL cambió, recargar
+  if (img.getAttribute('data-src') !== url) {
+    img.setAttribute('data-src', url);
+    img.src = url;
+  }
+  _hoverPreview.style.display = 'block';
   _positionPreview(e);
-  // Mostrar con fade cuando cargue
-  if (img.complete) { _hoverPreview.style.opacity = '1'; }
-  else { img.onload = () => { _hoverPreview.style.opacity = '1'; }; }
 }
 
 function moveImgPreview(e) {
-  if (_hoverPreview && _hoverPreview.style.display !== 'none') _positionPreview(e);
+  if (_hoverPreview && _hoverPreview.style.display === 'block') _positionPreview(e);
 }
 
 function hideImgPreview() {
-  if (_hoverPreview) { _hoverPreview.style.opacity = '0'; setTimeout(() => { if (_hoverPreview) _hoverPreview.style.display = 'none'; }, 150); }
+  _hoverUrl = '';
+  if (_hoverPreview) _hoverPreview.style.display = 'none';
 }
 
 function _positionPreview(e) {
   if (!_hoverPreview) return;
-  const pad = 16;
+  const pad = 12;
   const vw = window.innerWidth, vh = window.innerHeight;
-  const pw = _hoverPreview.offsetWidth || 400, ph = _hoverPreview.offsetHeight || 300;
-  // Intentar poner a la derecha del cursor; si no cabe, a la izquierda
+  // Posición fija: arriba-derecha del cursor
   let left = e.clientX + pad;
-  if (left + pw > vw - pad) left = e.clientX - pw - pad;
+  let top = e.clientY - pad - 200;
+  // Si no cabe a la derecha, poner a la izquierda
+  if (left + 410 > vw) left = e.clientX - 410 - pad;
   if (left < pad) left = pad;
-  // Intentar centrar verticalmente con el cursor
-  let top = e.clientY - ph / 2;
-  if (top < pad) top = pad;
-  if (top + ph > vh - pad) top = vh - ph - pad;
+  // Si no cabe arriba, poner abajo
+  if (top < pad) top = e.clientY + pad;
+  if (top + 360 > vh) top = vh - 370;
   if (top < pad) top = pad;
   _hoverPreview.style.left = left + 'px';
   _hoverPreview.style.top = top + 'px';
