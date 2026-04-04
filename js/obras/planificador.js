@@ -1,19 +1,24 @@
 // ═══════════════════════════════════════════════════════════════════════
-// MÓDULO: Planificador Semanal (Weekly Scheduler)
-// Gestión completa: vista semanal de partes de trabajo, navegación, filtros
+// MÓDULO: Planificador Semanal (Weekly Scheduler) v1.2.0
 // ═══════════════════════════════════════════════════════════════════════
 
-// ─────────────────────────────────────────────────────────────────────
-// VARIABLES GLOBALES
-// ─────────────────────────────────────────────────────────────────────
+// ─── VARIABLES GLOBALES ──────────────────────────────────────────────
 let planPartesData = [];
 let planCurrentDate = new Date();
 let planOperarioFilter = '';
 let planUsuarios = [];
 
-const PLAN_HORAS_INICIO = 7;
-const PLAN_HORAS_FIN = 19;
-const PLAN_HORA_HEIGHT = 60; // pixels
+// Horario visible (6:00 a 00:00 = 18 filas)
+const PLAN_HORAS_INICIO = 6;
+const PLAN_HORAS_FIN = 24;
+const PLAN_HORA_HEIGHT = 50; // pixels por fila
+
+// Horario laboral por defecto (se puede cambiar desde admin)
+let PLAN_HORA_LABORAL_INI = 7;
+let PLAN_HORA_LABORAL_FIN = 19;
+
+// Festivos (array de strings 'YYYY-MM-DD', se carga desde config)
+let planFestivos = [];
 
 const PT_ESTADOS_PLAN = {
   programado:  { label:'Programado',  color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
@@ -29,13 +34,12 @@ const PT_ESTADOS_PLAN = {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function initPlanificador() {
-  planCurrentDate = new Date();
-  // Mover al lunes de la semana actual
-  planCurrentDate = getMonday(planCurrentDate);
-
+  planCurrentDate = getMonday(new Date());
+  await cargarConfigPlanificador();
   await cargarUsuarios();
   await cargarPartesParaPlanificador();
   renderPlanificador();
+  sincronizarScrollHoras();
 }
 
 function getMonday(d) {
@@ -43,6 +47,25 @@ function getMonday(d) {
   var day = d.getDay(),
       diff = d.getDate() - day + (day === 0 ? -6 : 1);
   return new Date(d.setDate(diff));
+}
+
+// Cargar config de horario laboral y festivos desde empresa
+async function cargarConfigPlanificador() {
+  if (!sb || !EMPRESA) return;
+  try {
+    const { data } = await sb.from('empresas')
+      .select('config')
+      .eq('id', EMPRESA.id)
+      .single();
+    if (data && data.config) {
+      const cfg = typeof data.config === 'string' ? JSON.parse(data.config) : data.config;
+      if (cfg.hora_laboral_ini != null) PLAN_HORA_LABORAL_INI = cfg.hora_laboral_ini;
+      if (cfg.hora_laboral_fin != null) PLAN_HORA_LABORAL_FIN = cfg.hora_laboral_fin;
+      if (Array.isArray(cfg.festivos)) planFestivos = cfg.festivos;
+    }
+  } catch (e) {
+    console.log('Planificador: sin config especial, usando horario por defecto');
+  }
 }
 
 async function cargarUsuarios() {
@@ -53,7 +76,6 @@ async function cargarUsuarios() {
       .eq('empresa_id', EMPRESA.id)
       .order('nombre', { ascending: true });
     planUsuarios = data || [];
-    console.log('Planificador: usuarios cargados =', planUsuarios.length);
     renderFiltroOperarios();
   } catch (e) {
     console.error('Error cargando usuarios:', e);
@@ -66,7 +88,6 @@ async function cargarPartesParaPlanificador() {
     const startDate = new Date(planCurrentDate);
     const endDate = new Date(planCurrentDate);
     endDate.setDate(endDate.getDate() + 7);
-
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
 
@@ -79,11 +100,23 @@ async function cargarPartesParaPlanificador() {
       .order('fecha', { ascending: true });
 
     planPartesData = data || [];
-    console.log('Planificador: partes cargados =', planPartesData.length, planPartesData);
   } catch (e) {
     console.error('Error cargando partes:', e);
     toast('Error al cargar partes de trabajo', 'error');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCROLL SINCRONIZADO
+// ═══════════════════════════════════════════════════════════════════════
+
+function sincronizarScrollHoras() {
+  const gridContainer = document.getElementById('planGridContainer');
+  const hoursCol = document.getElementById('planHoursColumn');
+  if (!gridContainer || !hoursCol) return;
+  gridContainer.addEventListener('scroll', function() {
+    hoursCol.scrollTop = gridContainer.scrollTop;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -136,36 +169,38 @@ function renderPlanificador() {
 function renderWeekLabel() {
   const lbl = document.getElementById('planWeekLabel');
   if (!lbl) return;
-
   const startDate = new Date(planCurrentDate);
   const endDate = new Date(planCurrentDate);
   endDate.setDate(endDate.getDate() + 6);
-
   const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-  const start = startDate.toLocaleDateString('es-ES', opts);
-  const end = endDate.toLocaleDateString('es-ES', opts);
-
-  lbl.textContent = `${start} - ${end}`;
+  lbl.textContent = `${startDate.toLocaleDateString('es-ES', opts)} - ${endDate.toLocaleDateString('es-ES', opts)}`;
 }
 
 function renderDayHeaders() {
   const container = document.getElementById('planDaysHeader');
   if (!container) return;
-
   const hoyStr = new Date().toISOString().split('T')[0];
   container.innerHTML = '';
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(planCurrentDate);
     d.setDate(d.getDate() + i);
+    const dayStr = d.toISOString().split('T')[0];
+    const esHoy = dayStr === hoyStr;
+    const esFinde = (d.getDay() === 0 || d.getDay() === 6);
+    const esFestivo = planFestivos.includes(dayStr);
+
+    const div = document.createElement('div');
+    let cls = 'plan-day-header';
+    if (esHoy) cls += ' plan-today';
+    if (esFinde || esFestivo) cls += ' plan-nolab-day';
+    div.className = cls;
 
     const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase();
     const dayDate = d.getDate();
     const dayMonth = d.toLocaleDateString('es-ES', { month: 'short' });
-    const esHoy = d.toISOString().split('T')[0] === hoyStr;
-
-    const div = document.createElement('div');
-    div.className = 'plan-day-header' + (esHoy ? ' plan-today' : '');
     div.innerHTML = `<span class="plan-day-name">${dayName}</span><span class="plan-day-date">${dayDate} ${dayMonth}</span>`;
+    if (esFestivo) div.innerHTML += '<span class="plan-festivo-badge">Festivo</span>';
     container.appendChild(div);
   }
 }
@@ -173,11 +208,12 @@ function renderDayHeaders() {
 function renderHoursColumn() {
   const container = document.getElementById('planHoursColumn');
   if (!container) return;
-
   container.innerHTML = '';
   for (let h = PLAN_HORAS_INICIO; h < PLAN_HORAS_FIN; h++) {
     const div = document.createElement('div');
-    div.className = 'plan-hour';
+    const esLaboral = (h >= PLAN_HORA_LABORAL_INI && h < PLAN_HORA_LABORAL_FIN);
+    div.className = 'plan-hour' + (esLaboral ? '' : ' plan-hour-nolab');
+    div.style.height = PLAN_HORA_HEIGHT + 'px';
     div.textContent = `${h}:00`;
     container.appendChild(div);
   }
@@ -186,60 +222,71 @@ function renderHoursColumn() {
 function renderGrid() {
   const container = document.getElementById('planGrid');
   if (!container) return;
-
   container.innerHTML = '';
 
-  // Filtrar partes según el filtro de operario
+  const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO;
+  container.style.gridTemplateRows = `repeat(${totalRows}, ${PLAN_HORA_HEIGHT}px)`;
+
+  // Filtrar por operario
   let partesFiltrados = planPartesData;
   if (planOperarioFilter) {
     partesFiltrados = planPartesData.filter(p => p.usuario_id === planOperarioFilter);
   }
 
-  // Separar partes: con hora dentro del rango, con hora fuera del rango, sin hora
-  const partesConHora = partesFiltrados.filter(p => {
-    if (!p.hora_inicio) return false;
-    const [h] = p.hora_inicio.split(':').map(Number);
-    return h >= PLAN_HORAS_INICIO && h < PLAN_HORAS_FIN;
-  });
-  const partesFueraRango = partesFiltrados.filter(p => {
-    if (!p.hora_inicio) return false;
-    const [h] = p.hora_inicio.split(':').map(Number);
-    return h < PLAN_HORAS_INICIO || h >= PLAN_HORAS_FIN;
-  });
-  const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio);
-  // Juntar sin hora + fuera de rango para mostrar debajo
-  const partesExtra = [...partesSinHora, ...partesFueraRango];
+  // TODOS en rejilla excepto borradores sin hora
+  // Borradores van abajo (sección extra)
+  const partesParaRejilla = partesFiltrados.filter(p => p.hora_inicio && p.estado !== 'borrador');
+  const partesBorradores = partesFiltrados.filter(p => p.estado === 'borrador');
+  const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio && p.estado !== 'borrador');
+  const partesExtra = [...partesBorradores, ...partesSinHora];
 
-  // Crear celdas para cada hora de cada día
   const hoyStr = new Date().toISOString().split('T')[0];
+
   for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
     const dayDate = new Date(planCurrentDate);
     dayDate.setDate(dayDate.getDate() + dayIdx);
     const dayStr = dayDate.toISOString().split('T')[0];
     const esHoy = dayStr === hoyStr;
+    const esFinde = (dayDate.getDay() === 0 || dayDate.getDay() === 6);
+    const esFestivo = planFestivos.includes(dayStr);
 
     for (let hourIdx = PLAN_HORAS_INICIO; hourIdx < PLAN_HORAS_FIN; hourIdx++) {
       const cell = document.createElement('div');
-      cell.className = 'plan-grid-cell' + (esHoy ? ' plan-today-col' : '');
+      const esLaboral = (hourIdx >= PLAN_HORA_LABORAL_INI && hourIdx < PLAN_HORA_LABORAL_FIN);
+
+      let cls = 'plan-grid-cell';
+      if (esHoy) cls += ' plan-today-col';
+      if (!esLaboral) cls += ' plan-cell-nolab';
+      if (esFinde || esFestivo) cls += ' plan-cell-finde';
+      cell.className = cls;
+
       cell.style.gridColumn = dayIdx + 1;
       cell.style.gridRow = (hourIdx - PLAN_HORAS_INICIO) + 1;
 
-      const partesEnSlot = partesConHora.filter(p => {
+      // Click en celda vacía → aviso si fuera de horario
+      cell.onclick = () => {
+        if (!esLaboral || esFinde || esFestivo) {
+          const motivo = esFestivo ? 'festivo' : esFinde ? 'fin de semana' : 'fuera del horario laboral';
+          toast(`⚠️ Atención: esta hora es ${motivo}`, 'info');
+        }
+      };
+
+      // Partes en este slot
+      const partesEnSlot = partesParaRejilla.filter(p => {
         if (p.fecha !== dayStr) return false;
         const [hStart] = p.hora_inicio.split(':').map(Number);
         return hStart === hourIdx;
       });
 
       partesEnSlot.forEach(parte => {
-        const parteEl = crearElementoParte(parte);
-        cell.appendChild(parteEl);
+        cell.appendChild(crearElementoParte(parte));
       });
 
       container.appendChild(cell);
     }
   }
 
-  // Mostrar partes SIN hora o FUERA de rango debajo de la rejilla
+  // ── Sección extra: borradores + sin hora ──
   const sinHoraContainer = document.getElementById('planSinHora');
   if (sinHoraContainer) {
     sinHoraContainer.innerHTML = '';
@@ -247,7 +294,7 @@ function renderGrid() {
       sinHoraContainer.style.display = 'block';
       const titulo = document.createElement('h4');
       titulo.style.cssText = 'margin:0 0 10px;font-size:14px;color:#6B7280;font-weight:600';
-      titulo.textContent = `📋 Partes sin hora o fuera de horario (${partesExtra.length})`;
+      titulo.textContent = `✏️ Borradores y partes sin hora (${partesExtra.length})`;
       sinHoraContainer.appendChild(titulo);
 
       const grid = document.createElement('div');
@@ -265,17 +312,13 @@ function renderGrid() {
         card.onclick = () => { if (typeof verDetalleParte === 'function') verDetalleParte(parte.id); };
         grid.appendChild(card);
       });
-
       sinHoraContainer.appendChild(grid);
     } else {
       sinHoraContainer.style.display = 'none';
     }
   }
 
-  // Resumen de partes cargados
-  console.log(`Planificador: ${partesFiltrados.length} total, ${partesConHora.length} en rejilla, ${partesExtra.length} extra`);
-
-  // Mensaje si no hay partes en absoluto
+  // Mensaje vacío
   if (partesFiltrados.length === 0) {
     const emptyEl = document.createElement('div');
     emptyEl.className = 'plan-empty';
@@ -293,21 +336,15 @@ function crearElementoParte(parte) {
   const horaFin = parte.hora_fin ? parte.hora_fin.substring(0, 5) : '—';
   const titulo = parte.trabajo_titulo || 'Sin título';
   const usuario = parte.usuario_nombre || '—';
+  const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
 
-  el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong><br>${titulo}<br><small>${usuario}</small>`;
+  el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${titulo}<br><small>${usuario}</small>`;
   el.style.cursor = 'pointer';
-  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}`;
+  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}\n${estadoInfo.label}`;
 
   el.onclick = (e) => {
     e.stopPropagation();
-    if (typeof verDetalleParte === 'function') {
-      verDetalleParte(parte.id);
-    }
+    if (typeof verDetalleParte === 'function') verDetalleParte(parte.id);
   };
-
   return el;
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// AUXILIARES (toast global definido en ui.js)
-// ═══════════════════════════════════════════════════════════════════════

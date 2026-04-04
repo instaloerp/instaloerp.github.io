@@ -4,34 +4,38 @@
 
 ---------------------------------------------------------------
  v1.2.0 (2026-04-04)
- Fix: Planificador completo + filtro operarios + anti-reflow
+ Planificador profesional + horario laboral + festivos
 ---------------------------------------------------------------
 CORREGIDO:
-- Planificador: tabla de usuarios corregida (era 'usuarios',
-  debe ser 'perfiles') - ahora el filtro de operarios funciona
-- Planificador: corregidas referencias a variables globales
-  (window.sb -> sb, window.EMPRESA -> EMPRESA)
-- Planificador: muestra TODOS los partes de cualquier estado
-  (borrador, programado, en_curso, completado, revisado, facturado)
-- Planificador: partes sin hora Y partes fuera de horario (7-19h)
-  ahora aparecen en seccion "Partes sin hora o fuera de horario"
-- Layout shift (reflow): añadido CSS anti-reflow con
-  translateZ(0) y backface-visibility para evitar saltos
-- Eliminada funcion toast() duplicada en planificador.js
+- Planificador: tabla usuarios corregida ('perfiles' no 'usuarios')
+- Planificador: variable renombrada a planUsuarios (colision
+  con usuarios.js causaba pantalla en blanco)
+- Planificador: referencias globales (sb, EMPRESA) corregidas
+- Layout shift (reflow): CSS anti-reflow con translateZ(0)
 
-NUEVO:
-- Highlight del dia de hoy: cabecera y columna en azul claro
-- Partes fuera de horario (ej. 04:00) se muestran con su hora
+NUEVO - PLANIFICADOR:
+- Horario extendido: de 6:00 a 00:00 (antes 7:00-19:00)
+- Todos los partes en la rejilla EXCEPTO borradores
+  (borradores van en seccion aparte debajo)
+- Scroll sincronizado: horas se mueven con la rejilla
+- Horario laboral: celdas blancas dentro, oscuras fuera
+  (por defecto 7:00-19:00, configurable desde admin)
+- Fines de semana: columnas con fondo gris
+- Festivos: columnas oscuras + badge rojo "Festivo"
+  (configurables desde admin -> config -> festivos)
+- Aviso toast al hacer click fuera de horario laboral
+- Highlight dia de hoy en azul claro
+- Icono de estado en cada parte de la rejilla
+- Config se carga desde empresas.config (JSON):
+  { hora_laboral_ini, hora_laboral_fin, festivos:[] }
 
 MEJORADO:
-- Sidebar colapsado: secciones plegadas se abren
-  automaticamente para mostrar iconos
+- Sidebar colapsado: secciones se abren para mostrar iconos
 - Sidebar colapsado: iconos mas grandes (18px)
 
 ARCHIVOS MODIFICADOS (respecto a v1.1.0):
-- js/obras/planificador.js (fix tabla perfiles, todos estados,
-  highlight hoy, partes fuera de rango)
-- css/styles.css (plan-today, anti-reflow, sidebar collapsed)
+- js/obras/planificador.js (reescritura completa)
+- css/styles.css (planificador + sidebar collapsed)
 - index.html (div planSinHora + version bump)
 - app.html (version bump)
 - CHANGELOG.txt (nuevo)
