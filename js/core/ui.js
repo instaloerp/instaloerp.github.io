@@ -658,6 +658,8 @@ const AVC=['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777'
 // ═══════════════════════════════════════════════
 let _hoverPreview = null;
 let _hoverUrl = '';
+const _PREVIEW_W = 620;  // ancho máximo preview
+const _PREVIEW_H = 520;  // alto máximo preview
 
 function showImgPreview(url, e) {
   if (!url) return;
@@ -665,12 +667,11 @@ function showImgPreview(url, e) {
   if (!_hoverPreview) {
     _hoverPreview = document.createElement('div');
     _hoverPreview.id = 'imgHoverPreview';
-    _hoverPreview.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#111;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);padding:3px;display:none';
-    _hoverPreview.innerHTML = '<img style="display:block;border-radius:6px;max-width:400px;max-height:350px;object-fit:contain">';
+    _hoverPreview.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#111;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.45);padding:4px;display:none';
+    _hoverPreview.innerHTML = `<img style="display:block;border-radius:6px;max-width:${_PREVIEW_W - 8}px;max-height:${_PREVIEW_H - 8}px;object-fit:contain">`;
     document.body.appendChild(_hoverPreview);
   }
   const img = _hoverPreview.querySelector('img');
-  // Si la URL cambió, recargar
   if (img.getAttribute('data-src') !== url) {
     img.setAttribute('data-src', url);
     img.src = url;
@@ -680,7 +681,7 @@ function showImgPreview(url, e) {
 }
 
 function moveImgPreview(e) {
-  if (_hoverPreview && _hoverPreview.style.display === 'block') _positionPreview(e);
+  // No reposicionar — la preview se fija al entrar para no tapar las fotos vecinas
 }
 
 function hideImgPreview() {
@@ -690,18 +691,27 @@ function hideImgPreview() {
 
 function _positionPreview(e) {
   if (!_hoverPreview) return;
-  const pad = 12;
+  const gap = 8;
   const vw = window.innerWidth, vh = window.innerHeight;
-  // Posición fija: arriba-derecha del cursor
-  let left = e.clientX + pad;
-  let top = e.clientY - pad - 200;
-  // Si no cabe a la derecha, poner a la izquierda
-  if (left + 410 > vw) left = e.clientX - 410 - pad;
-  if (left < pad) left = pad;
-  // Si no cabe arriba, poner abajo
-  if (top < pad) top = e.clientY + pad;
-  if (top + 360 > vh) top = vh - 370;
-  if (top < pad) top = pad;
+
+  // Buscar el elemento miniatura sobre el que estamos haciendo hover
+  const thumb = e.target.closest('[onmouseenter*="showImgPreview"]') || e.target;
+  const rect = thumb.getBoundingClientRect();
+
+  // Centrar horizontalmente con la miniatura
+  let left = rect.left + rect.width / 2 - _PREVIEW_W / 2;
+  if (left + _PREVIEW_W + gap > vw) left = vw - _PREVIEW_W - gap;
+  if (left < gap) left = gap;
+
+  // Intentar poner ENCIMA de la fila de miniaturas; si no cabe, DEBAJO
+  let top = rect.top - _PREVIEW_H - gap - 8;
+  if (top < gap) {
+    // No cabe arriba → poner debajo
+    top = rect.bottom + gap;
+  }
+  // Si tampoco cabe debajo, forzar arriba pegado al borde
+  if (top + _PREVIEW_H > vh - gap) top = gap;
+
   _hoverPreview.style.left = left + 'px';
   _hoverPreview.style.top = top + 'px';
 }
