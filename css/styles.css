@@ -367,6 +367,12 @@ body.sb-collapsed .sb-nav{padding:6px 4px}
 body.sb-collapsed .sb-section-items{display:block!important;overflow:visible!important}
 body.sb-collapsed *{transition:none!important}
 
+/* ══ FICHA OBRA — filas de docs y partes ══ */
+.parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100);transition:box-shadow .12s,filter .12s}
+.parte-row:hover{box-shadow:0 2px 8px rgba(0,0,0,.08);filter:brightness(.97)}
+.ficha-doc-row{transition:background .12s}
+.ficha-doc-row:hover{background:var(--gris-50)}
+
 /* ══ PLANIFICADOR FULLSCREEN ══ */
 .plan-fullscreen{position:fixed!important;inset:0;z-index:900;background:#fff;margin:0!important;padding:16px;overflow:auto}
 .plan-fullscreen .plan-container{height:calc(100vh - 120px)!important;min-height:auto}

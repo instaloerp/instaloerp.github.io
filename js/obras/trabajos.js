@@ -482,14 +482,14 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         }
       }
       return `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div style="cursor:pointer;flex:1" onclick="${esBorrador ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
+      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="${esBorrador ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
+        <div style="flex:1">
           <div style="font-weight:700;font-size:12.5px">${esBorrador ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : p.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.titulo||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
-          <div style="display:flex;gap:3px;margin-left:8px;align-items:center">${acciones}</div>
+          <div style="display:flex;gap:3px;margin-left:8px;align-items:center" onclick="event.stopPropagation()">${acciones}</div>
         </div>
       </div>`;
     }).join('') :
@@ -505,14 +505,14 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       const tieneFac = factData.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && factData.some(f=>f.presupuesto_id===a.presupuesto_id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700';
       return `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-        <div style="cursor:pointer;flex:1" onclick="verDetalleAlbaran(${a.id})">
+      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
+        <div style="flex:1">
           <div style="font-weight:700;font-size:12.5px">${a.numero}</div>
           <div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
-          ${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (a.estado!=='anulado' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : '')}
+          <div onclick="event.stopPropagation()">${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (a.estado!=='anulado' ? `<button class="btn btn-ghost btn-sm" onclick="obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : '')}</div>
         </div>
       </div>`;
     }).join('') :
@@ -525,7 +525,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const factHtml = factData.length ?
     resumenBar(factResumen) +
     factData.map(f=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('factura',${f.id})">
+      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="abrirEditor('factura',${f.id})">
         <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
@@ -639,7 +639,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         };
         const nextAct = nextActions[p.estado];
 
-        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px" onclick="verDetalleParte(${p.id})">
+        partesHtml += `<div class="parte-row" style="background:${_cardBg};border-left-color:${_cardBorder}" onclick="verDetalleParte(${p.id})">
           <div style="min-width:60px;text-align:center">
             <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hi || '—'}</div>
             <div style="font-size:10px;color:var(--gris-400)">${hf ? hi + '-' + hf : ''}</div>
