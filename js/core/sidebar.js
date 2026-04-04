@@ -33,11 +33,17 @@ const ALL_PAGES = [
   {id:'configuracion',ico:'⚙️',label:'Configuración'},
 ];
 
+// Páginas marcadas como "pronto" — se ocultan automáticamente del sidebar
+const PAGES_PRONTO = new Set([
+  'facturas','proveedores','presupuestos-compra','pedidos-compra',
+  'albaranes-proveedor','facturas-proveedor','almacenes','stock',
+  'traspasos','activos','mantenimientos','correo','fichajes','etiquetas-qr'
+]);
+
 let sbCollapsed = JSON.parse(localStorage.getItem('sb_collapsed')||'{}');
 let sbFavoritos = JSON.parse(localStorage.getItem('sb_favoritos')||'["clientes","trabajos","presupuestos"]');
-// Items ocultos del sidebar (el usuario los ha ocultado manualmente)
 let sbHidden = JSON.parse(localStorage.getItem('sb_hidden')||'[]');
-// Asegurar que dashboard siempre está primero en favoritos
+let sbShown = JSON.parse(localStorage.getItem('sb_shown')||'[]');
 if (!sbFavoritos.includes('dashboard')) { sbFavoritos.unshift('dashboard'); localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos)); }
 let favEditMode = false;
 
@@ -71,56 +77,51 @@ function renderFavoritos() {
   document.getElementById('sbFavSection').style.display = 'block';
 
   if (favEditMode) {
-    // Modo edición con drag & drop
-    list.innerHTML = sbFavoritos.map((id, idx) => {
+    // ── MODO EDICIÓN: Lista única con ⭐ y 🙈 por cada item ──
+    // Primero los favoritos actuales (reordenables), luego el resto
+    let html = '<div style="font-size:11px;color:rgba(255,255,255,.45);padding:4px 11px 8px">⭐ = favorito &nbsp; 🙈 = ocultar del menú</div>';
+
+    // Favoritos (con drag & drop)
+    html += sbFavoritos.map((id, idx) => {
       const p = ALL_PAGES.find(x => x.id === id);
       if (!p) return '';
       const esFijo = id === 'dashboard';
+      const isHidden = sbHidden.includes(id);
+      const isProonto = PAGES_PRONTO.has(id);
       return `<div ${esFijo?'':'draggable="true"'} data-idx="${idx}"
         ${esFijo?'':'ondragstart="favDragStart(event,'+idx+')" ondragover="favDragOver(event)" ondrop="favDrop(event,'+idx+')" ondragleave="favDragLeave(event)"'}
-        style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;color:#fff;font-size:15px;${esFijo?'opacity:.7;cursor:default':'cursor:grab'};transition:background .12s;user-select:none">
-        <span style="opacity:.5;font-size:14px;flex-shrink:0">${esFijo?'📌':'⠿'}</span>
-        <span style="font-size:18px;width:21px;text-align:center;flex-shrink:0">${p.ico}</span>
-        <span style="flex:1">${p.label}${esFijo?' <span style="font-size:10px;opacity:.6">(fijo)</span>':''}</span>
-        ${esFijo?'':`<span onclick="removeFav('${id}')" style="color:var(--rojo);font-size:18px;cursor:pointer;padding:0 4px;flex-shrink:0">✕</span>`}
+        style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;${esFijo?'opacity:.6;cursor:default':'cursor:grab'};transition:background .12s;user-select:none;border-left:3px solid rgba(255,200,0,.6)">
+        <span style="opacity:.4;font-size:12px;flex-shrink:0;width:14px">${esFijo?'📌':'⠿'}</span>
+        <span style="font-size:17px;width:20px;text-align:center;flex-shrink:0">${p.ico}</span>
+        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.5;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':''}</span>
+        ${esFijo?'':`<button onclick="toggleFavItem('${id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0" title="Quitar de favoritos">⭐</button>`}
+        ${esFijo?'':`<button onclick="toggleHideItem('${id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${isHidden?'Mostrar':'Ocultar'}">${isHidden?'🙈':'🙈'}</button>`}
       </div>`;
     }).join('');
 
-    // Páginas disponibles para añadir (no están ya en favoritos)
-    const available = ALL_PAGES.filter(p => !sbFavoritos.includes(p.id));
-    if (available.length) {
-      list.innerHTML += '<div style="border-top:1px solid rgba(255,255,255,.15);margin:8px 4px;padding-top:8px">' +
-        '<div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);padding:0 7px 6px">Añadir a favoritos:</div>' +
-        available.map(p => {
-          const isHidden = sbHidden.includes(p.id);
-          return `<button class="sb-fav-item" style="display:flex;align-items:center;gap:8px;width:100%;opacity:${isHidden?'.5':'1'}" onclick="addFav('${p.id}')">
-          <span style="font-size:18px;width:21px;text-align:center;flex-shrink:0">${p.ico}</span>
-          <span style="flex:1;text-align:left">${p.label}</span>
-          <span style="color:var(--verde);font-size:18px;font-weight:700;flex-shrink:0">+</span>
-        </button>`;
-        }).join('') + '</div>';
-    }
+    // Separador
+    html += '<div style="border-top:1px solid rgba(255,255,255,.12);margin:8px 4px"></div>';
 
-    // Items ocultos del sidebar — opción de mostrar/ocultar
-    const hideable = ALL_PAGES.filter(p => p.id !== 'dashboard');
-    if (hideable.length) {
-      const hiddenCount = sbHidden.length;
-      list.innerHTML += `<div style="border-top:1px solid rgba(255,255,255,.15);margin:8px 4px;padding-top:8px">
-        <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.6);padding:0 7px 6px">Visibilidad en menú: <span style="font-weight:400;font-size:11px">(${hiddenCount} ocultos)</span></div>
-        ${hideable.map(p => {
-          const isHidden = sbHidden.includes(p.id);
-          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 11px;color:#fff;font-size:13px;opacity:${isHidden?'.5':'1'}">
-            <span style="font-size:16px;width:21px;text-align:center;flex-shrink:0">${p.ico}</span>
-            <span style="flex:1">${p.label}</span>
-            <button onclick="toggleHideSbItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:${isHidden?'var(--verde)':'rgba(255,255,255,.4)'}" title="${isHidden?'Mostrar':'Ocultar'}">
-              ${isHidden?'👁️':'🙈'}
-            </button>
-          </div>`;
-        }).join('')}
+    // Resto de items (no están en favoritos)
+    const resto = ALL_PAGES.filter(p => !sbFavoritos.includes(p.id));
+    html += resto.map(p => {
+      const isHidden = sbHidden.includes(p.id);
+      const isProonto = PAGES_PRONTO.has(p.id);
+      const isShown = sbShown.includes(p.id);
+      // Opacidad: oculto→.3, pronto (no activado)→.5, visible→1
+      const opacity = isHidden ? '.35' : (isProonto && !isShown ? '.5' : '1');
+      return `<div style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;opacity:${opacity};transition:opacity .15s">
+        <span style="width:14px;flex-shrink:0"></span>
+        <span style="font-size:17px;width:20px;text-align:center;flex-shrink:0">${p.ico}</span>
+        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.6;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':''}</span>
+        <button onclick="toggleFavItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:.3" title="Añadir a favoritos">⭐</button>
+        <button onclick="toggleHideItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${isHidden?'Mostrar':'Ocultar'}">${isHidden?'🙈':'🙈'}</button>
       </div>`;
-    }
+    }).join('');
+
+    list.innerHTML = html;
   } else {
-    // Modo normal
+    // Modo normal — solo los favoritos como botones
     list.innerHTML = sbFavoritos.map(id => {
       const p = ALL_PAGES.find(x => x.id === id);
       if (!p) return '';
@@ -131,21 +132,29 @@ function renderFavoritos() {
     }).join('');
   }
 
-  // Actualizar visibilidad de items en la lista principal del sidebar
   applySbItemVisibility();
 }
 
-// Ocultar/mostrar items del sidebar que ya están en favoritos o están ocultos
+// Ocultar/mostrar items del sidebar principal
 function applySbItemVisibility() {
   document.querySelectorAll('.sb-item').forEach(btn => {
-    // Extraer el id de la página del onclick
     const match = btn.getAttribute('onclick')?.match(/goPage\('([^']+)'\)/);
     if (!match) return;
     const pageId = match[1];
-    // Ocultar si está en favoritos o si el usuario lo ha ocultado
     const inFavs = sbFavoritos.includes(pageId);
     const isHidden = sbHidden.includes(pageId);
-    btn.style.display = (inFavs || isHidden) ? 'none' : '';
+    const isProonto = PAGES_PRONTO.has(pageId) && !sbShown.includes(pageId);
+    btn.style.display = (inFavs || isHidden || isProonto) ? 'none' : '';
+  });
+  // Ocultar secciones enteras si todos sus items están ocultos
+  document.querySelectorAll('.sb-section-items').forEach(sec => {
+    const visibles = sec.querySelectorAll('.sb-item:not([style*="display: none"])');
+    const header = sec.previousElementSibling;
+    if (header && header.classList.contains('sb-sec')) {
+      header.style.display = visibles.length === 0 ? 'none' : '';
+    }
+    if (visibles.length === 0) sec.style.display = 'none';
+    else sec.style.display = '';
   });
 }
 
@@ -183,28 +192,45 @@ function toggleFavEdit() {
   renderFavoritos();
 }
 
-function addFav(id) {
-  if (!sbFavoritos.includes(id)) {
+// Toggle favorito: si está, lo quita; si no está, lo añade
+function toggleFavItem(id) {
+  if (id === 'dashboard') return;
+  if (sbFavoritos.includes(id)) {
+    sbFavoritos = sbFavoritos.filter(x => x !== id);
+  } else {
     sbFavoritos.push(id);
-    localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
-    renderFavoritos();
   }
-}
-
-function removeFav(id) {
-  if (id === 'dashboard') return; // Panel siempre fijo
-  sbFavoritos = sbFavoritos.filter(x => x !== id);
   localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
   renderFavoritos();
 }
 
-function toggleHideSbItem(id) {
+// Toggle ocultar: si está oculto, lo muestra; si no, lo oculta
+function toggleHideItem(id) {
   if (id === 'dashboard') return;
   if (sbHidden.includes(id)) {
     sbHidden = sbHidden.filter(x => x !== id);
   } else {
     sbHidden.push(id);
+    // Si lo ocultas y estaba en favoritos, quitarlo también
+    if (sbFavoritos.includes(id)) {
+      sbFavoritos = sbFavoritos.filter(x => x !== id);
+      localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
+    }
   }
   localStorage.setItem('sb_hidden', JSON.stringify(sbHidden));
+  renderFavoritos();
+}
+
+// Compat: old function names
+function addFav(id) { toggleFavItem(id); }
+function removeFav(id) { toggleFavItem(id); }
+function toggleHideSbItem(id) { toggleHideItem(id); }
+function toggleShowProonto(id) {
+  if (sbShown.includes(id)) {
+    sbShown = sbShown.filter(x => x !== id);
+  } else {
+    sbShown.push(id);
+  }
+  localStorage.setItem('sb_shown', JSON.stringify(sbShown));
   renderFavoritos();
 }

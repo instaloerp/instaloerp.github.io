@@ -166,31 +166,52 @@ function closeModal(id){
 // Close modal when clicking overlay
 document.addEventListener('click',e=>{if(e.target.classList.contains('overlay'))closeModal(e.target.id);});
 
-// Descripciones de páginas en desarrollo
-const PAGE_DEV_DESC = {
-  'facturas': 'Gestión completa de facturas de venta: emisión, envío, cobro y seguimiento de pagos.',
-  'proveedores': 'Directorio de proveedores con datos de contacto, condiciones y documentos asociados.',
-  'presupuestos-compra': 'Solicitar y comparar presupuestos de proveedores para tus compras.',
-  'pedidos-compra': 'Crear pedidos de compra, seguimiento de entregas y recepción de materiales.',
-  'albaranes-proveedor': 'Registro de albaranes recibidos de proveedores y control de mercancía.',
-  'facturas-proveedor': 'Facturas recibidas de proveedores, control de vencimientos y pagos.',
-  'almacenes': 'Gestión multi-almacén: ubicaciones, capacidad y configuración de cada almacén.',
-  'stock': 'Control de inventario en tiempo real, mínimos, máximos y alertas de stock.',
-  'traspasos': 'Movimientos de material entre almacenes con trazabilidad completa.',
-  'activos': 'Registro de herramientas, vehículos y equipos: mantenimiento, asignación y caducidades.',
-  'mantenimientos': 'Gestión de contratos de mantenimiento recurrente con clientes.',
-  'correo': 'Envía y recibe correos directamente desde el ERP, vinculados a obras y clientes.',
-  'fichajes': 'Control de entradas/salidas de empleados, horarios y horas trabajadas.',
-  'etiquetas-qr': 'Genera etiquetas QR para artículos, almacenes y activos. Escanea para acceso rápido.',
+// Info de páginas "pronto" — icono, título y descripción + features previstos
+const PAGE_PRONTO_INFO = {
+  'facturas':            {ico:'🧾', titulo:'Facturas de venta', desc:'Gestión completa de facturas de venta: emisión, envío, cobro y seguimiento de pagos.', features:['Generación automática desde albaranes y presupuestos','Envío por email con enlace de pago','Control de vencimientos y cobros','Exportación contable']},
+  'proveedores':         {ico:'🏭', titulo:'Proveedores', desc:'Directorio de proveedores con datos de contacto, condiciones y documentos asociados.', features:['Ficha completa de proveedor','Historial de compras y condiciones','Documentación vinculada','Evaluación de proveedores']},
+  'presupuestos-compra': {ico:'📋', titulo:'Presupuestos de compra', desc:'Solicita y compara presupuestos de proveedores para tus compras.', features:['Solicitud de presupuesto a múltiples proveedores','Comparativa de ofertas','Conversión a pedido con un clic','Vinculación con obras']},
+  'pedidos-compra':      {ico:'🛒', titulo:'Pedidos de compra', desc:'Crea pedidos, haz seguimiento de entregas y controla la recepción de materiales.', features:['Pedidos desde presupuestos aprobados','Seguimiento de estado y entregas','Recepción parcial de mercancía','Vinculación automática con obras']},
+  'albaranes-proveedor': {ico:'📥', titulo:'Albaranes de proveedor', desc:'Registro de albaranes recibidos y control de mercancía entrante.', features:['Registro de entradas por proveedor','Control de cantidades recibidas','Vinculación con pedidos','Actualización automática de stock']},
+  'facturas-proveedor':  {ico:'📑', titulo:'Facturas de proveedor', desc:'Control de facturas recibidas, vencimientos y pagos a proveedores.', features:['Registro de facturas de compra','Control de vencimientos','Programación de pagos','Conciliación con albaranes']},
+  'almacenes':           {ico:'🏪', titulo:'Almacenes', desc:'Gestión multi-almacén: ubicaciones, capacidad y configuración.', features:['Múltiples almacenes y ubicaciones','Configuración de capacidad','Asignación a obras','Inventario por almacén']},
+  'stock':               {ico:'📊', titulo:'Stock', desc:'Control de inventario en tiempo real con mínimos, máximos y alertas.', features:['Inventario en tiempo real','Alertas de stock mínimo','Valoración de existencias','Movimientos y trazabilidad']},
+  'traspasos':           {ico:'🔄', titulo:'Traspasos', desc:'Movimientos de material entre almacenes con trazabilidad completa.', features:['Transferencia entre almacenes','Trazabilidad de cada movimiento','Aprobación de traspasos','Historial completo']},
+  'activos':             {ico:'🔧', titulo:'Activos', desc:'Registro de herramientas, vehículos y equipos con mantenimiento y asignación.', features:['Inventario de herramientas y equipos','Control de mantenimiento preventivo','Asignación a operarios y obras','Alertas de caducidad y revisiones']},
+  'mantenimientos':      {ico:'🔧', titulo:'Mantenimientos', desc:'Contratos de mantenimiento recurrente: planificación y seguimiento.', features:['Contratos con periodicidad configurable','Generación automática de partes','Historial de intervenciones','Facturación recurrente']},
+  'correo':              {ico:'📧', titulo:'Correo', desc:'Envía y recibe correos directamente desde el ERP, vinculados a obras y clientes.', features:['Bandeja de entrada integrada','Envío de presupuestos y facturas','Respuestas vinculadas a obras','Plantillas personalizables']},
+  'fichajes':            {ico:'⏱️', titulo:'Fichajes', desc:'Control de entradas y salidas de empleados, horarios y horas trabajadas.', features:['Fichaje por app y QR','Horarios y turnos','Informes de horas','Integración con partes de trabajo']},
+  'etiquetas-qr':        {ico:'🏷️', titulo:'Etiquetas QR', desc:'Genera etiquetas QR para artículos, almacenes y activos.', features:['Generación masiva de QR','Etiquetas personalizables','Escaneo desde móvil','Acceso rápido a fichas']},
 };
 
 function goPage(id, opts){
   opts = opts || {};
-  // Si la página no tiene contenido propio y es "en desarrollo", mostrar info
-  const pageEl = document.getElementById('page-'+id);
-  if (!pageEl && PAGE_DEV_DESC[id]) {
-    toast(`🚧 ${id}: ${PAGE_DEV_DESC[id]}`, 'info', 4000);
-    return;
+  // Si la página es "pronto", inyectar contenido de "en construcción"
+  if (typeof PAGES_PRONTO !== 'undefined' && PAGES_PRONTO.has(id)) {
+    const info = PAGE_PRONTO_INFO[id];
+    if (info) {
+      const pageEl = document.getElementById('page-'+id);
+      if (pageEl) {
+        pageEl.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div><h2 style="font-size:17px;font-weight:800">${info.ico} ${info.titulo}</h2><p style="font-size:11.5px;color:var(--gris-400)">${info.desc}</p></div>
+          </div>
+          <div class="card">
+            <div class="card-b" style="padding:40px;text-align:center">
+              <div style="font-size:48px;margin-bottom:16px">${info.ico}</div>
+              <h3 style="font-size:16px;font-weight:700;margin-bottom:8px">${info.titulo} — Próximamente</h3>
+              <p style="color:var(--gris-400);font-size:13px;max-width:460px;margin:0 auto;line-height:1.6">${info.desc}</p>
+              ${info.features ? `<div style="margin-top:20px;text-align:left;max-width:380px;margin-left:auto;margin-right:auto">
+                <div style="font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:8px">Funcionalidades previstas:</div>
+                ${info.features.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px;color:var(--gris-500);border-bottom:1px solid var(--gris-100)"><span style="color:var(--verde);font-size:14px">✓</span> ${f}</div>`).join('')}
+              </div>` : ''}
+              <div style="margin-top:24px;padding:12px 16px;background:var(--azul-light);border-radius:8px;display:inline-block">
+                <span style="font-size:13px;color:var(--azul);font-weight:600">🚧 Esta sección está en desarrollo</span>
+              </div>
+            </div>
+          </div>`;
+      }
+    }
   }
   // Guardar estado actual en la pila (salvo si es navegación "atrás")
   if (!opts._isBack) {
