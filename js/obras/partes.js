@@ -985,7 +985,8 @@ async function verDetalleParte(id) {
   if (parte.materiales && Array.isArray(parte.materiales) && parte.materiales.length > 0) {
     matHTML = `<div style="margin:16px 0">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Materiales utilizados</h4>
-      <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <div style="overflow-x:auto">
+      <table style="width:100%;font-size:12px;border-collapse:collapse;word-break:break-word">
         <thead>
           <tr style="background:var(--gris-50);border-bottom:1px solid var(--gris-200)">
             <th style="text-align:left;padding:8px">Artículo</th>
@@ -1009,6 +1010,7 @@ async function verDetalleParte(id) {
           </tr>
         </tfoot>
       </table>
+      </div>
     </div>`;
   }
 
@@ -1093,23 +1095,23 @@ async function verDetalleParte(id) {
   if (parte.ubicacion_inicio || parte.ubicacion_fin || parte.ubicacion_firma_cliente || parte.ubicacion_firma_operario) {
     gpsHTML = `<div style="margin:16px 0;padding:12px;background:#ECFDF5;border-radius:8px;font-size:12px">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">📍 Ubicaciones GPS</h4>
-      ${parte.ubicacion_inicio ? `<div style="margin-bottom:6px">
+      ${parte.ubicacion_inicio?.lat ? `<div style="margin-bottom:6px">
         <span style="font-weight:600">🟢 Inicio:</span>
-        <a href="https://maps.google.com/?q=${parte.ubicacion_inicio.lat},${parte.ubicacion_inicio.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_inicio.lat.toFixed(5)}, ${parte.ubicacion_inicio.lng.toFixed(5)}</a>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_inicio.lat},${parte.ubicacion_inicio.lng}" target="_blank" style="color:var(--azul)">${parseFloat(parte.ubicacion_inicio.lat).toFixed(5)}, ${parseFloat(parte.ubicacion_inicio.lng).toFixed(5)}</a>
         ${parte.inicio_at ? ` · ${new Date(parte.inicio_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
       </div>` : ''}
-      ${parte.ubicacion_fin ? `<div style="margin-bottom:6px">
+      ${parte.ubicacion_fin?.lat ? `<div style="margin-bottom:6px">
         <span style="font-weight:600">🔴 Fin:</span>
-        <a href="https://maps.google.com/?q=${parte.ubicacion_fin.lat},${parte.ubicacion_fin.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_fin.lat.toFixed(5)}, ${parte.ubicacion_fin.lng.toFixed(5)}</a>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_fin.lat},${parte.ubicacion_fin.lng}" target="_blank" style="color:var(--azul)">${parseFloat(parte.ubicacion_fin.lat).toFixed(5)}, ${parseFloat(parte.ubicacion_fin.lng).toFixed(5)}</a>
         ${parte.completado_at ? ` · ${new Date(parte.completado_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}
       </div>` : ''}
-      ${parte.ubicacion_firma_cliente ? `<div style="margin-bottom:6px">
+      ${parte.ubicacion_firma_cliente?.lat ? `<div style="margin-bottom:6px">
         <span style="font-weight:600">✍️ Firma cliente:</span>
-        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_cliente.lat},${parte.ubicacion_firma_cliente.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_firma_cliente.lat.toFixed(5)}, ${parte.ubicacion_firma_cliente.lng.toFixed(5)}</a>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_cliente.lat},${parte.ubicacion_firma_cliente.lng}" target="_blank" style="color:var(--azul)">${parseFloat(parte.ubicacion_firma_cliente.lat).toFixed(5)}, ${parseFloat(parte.ubicacion_firma_cliente.lng).toFixed(5)}</a>
       </div>` : ''}
-      ${parte.ubicacion_firma_operario ? `<div style="margin-bottom:6px">
+      ${parte.ubicacion_firma_operario?.lat ? `<div style="margin-bottom:6px">
         <span style="font-weight:600">👷 Firma operario:</span>
-        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_operario.lat},${parte.ubicacion_firma_operario.lng}" target="_blank" style="color:var(--azul)">${parte.ubicacion_firma_operario.lat.toFixed(5)}, ${parte.ubicacion_firma_operario.lng.toFixed(5)}</a>
+        <a href="https://maps.google.com/?q=${parte.ubicacion_firma_operario.lat},${parte.ubicacion_firma_operario.lng}" target="_blank" style="color:var(--azul)">${parseFloat(parte.ubicacion_firma_operario.lat).toFixed(5)}, ${parseFloat(parte.ubicacion_firma_operario.lng).toFixed(5)}</a>
       </div>` : ''}
       ${parte.cliente_dni ? `<div style="margin-top:6px"><span style="font-weight:600">🪪 DNI Cliente:</span> ${parte.cliente_dni}</div>` : ''}
       ${parte.cliente_sin_email ? `<div style="margin-top:4px;font-size:11px;color:var(--gris-400)">📧 Cliente sin email</div>` : ''}
@@ -1417,16 +1419,20 @@ async function generarAlbaranDesdeParte(parte) {
     numero: num,
     fecha: new Date().toISOString().split('T')[0],
     trabajo_id: parte.trabajo_id || null,
-    parte_id: parte.id,
     cliente_id: trabajo?.cliente_id || null,
     cliente_nombre: cliente?.nombre || parte.cliente_nombre_firma || '',
-    direccion: parte.direccion || trabajo?.direccion || '',
-    descripcion: parte.descripcion || '',
+    referencia: `Parte ${parte.numero || ''}`,
+    observaciones: [
+      parte.descripcion || '',
+      parte.direccion ? `Dirección: ${parte.direccion}` : '',
+      `Operario: ${parte.usuario_nombre || '—'}`,
+      parte.firma_url ? `Firma: ${parte.firma_url}` : '',
+    ].filter(Boolean).join('\n'),
     lineas: lineas,
     total: totalAlbaran,
+    base_imponible: totalAlbaran,
+    total_iva: 0,
     estado: 'pendiente',
-    operario_nombre: parte.usuario_nombre || '',
-    firma_url: parte.firma_url || null,
   };
 
   const { error } = await sb.from('albaranes').insert(albaran);
