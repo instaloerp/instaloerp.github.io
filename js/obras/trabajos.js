@@ -639,7 +639,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         };
         const nextAct = nextActions[p.estado];
 
-        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px;transition:filter .15s" onmouseover="this.style.filter='brightness(.97)'" onmouseout="this.style.filter=''" onclick="verDetalleParte(${p.id})">
+        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 1px 4px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onclick="verDetalleParte(${p.id})">
           <div style="min-width:60px;text-align:center">
             <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hi || '—'}</div>
             <div style="font-size:10px;color:var(--gris-400)">${hf ? hi + '-' + hf : ''}</div>
@@ -816,7 +816,7 @@ function renderObraTareas() {
           const yaExiste = obraTareasData.some(t => t.texto === p.texto);
           return yaExiste
             ? `<button disabled style="background:var(--gris-100);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;color:var(--gris-300);text-decoration:line-through;cursor:default">${p.texto}</button>`
-            : `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:all .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`;
+            : `<button onclick="addTareaPlantilla('${p.texto.replace(/'/g,"\\'")}','${p.prioridad}')" style="background:var(--gris-50);border:1px solid var(--gris-200);padding:4px 8px;border-radius:6px;font-size:10.5px;cursor:pointer;color:var(--gris-600);transition:background .15s,border-color .15s" onmouseover="this.style.background='var(--azul-light)';this.style.borderColor='var(--azul)'" onmouseout="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'">${p.texto}</button>`;
         }).join('')}
       </div>
       <div style="margin-top:8px;text-align:right">
@@ -1341,7 +1341,7 @@ function renderObraWorkflow(t, presupData, albData, factData, partesData) {
         opacity = '0.6';
       }
       const checkOrNum = completada ? '<span style="font-size:10px">✔</span>' : (activa ? '►' : '');
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;background:${bg};color:${color};border-bottom:${border};opacity:${opacity};transition:all .3s;position:relative;min-width:0" title="${e.desc}">
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;background:${bg};color:${color};border-bottom:${border};opacity:${opacity};transition:background .3s,color .3s,opacity .3s;position:relative;min-width:0" title="${e.desc}">
         <div style="font-size:16px;line-height:1">${e.ico}</div>
         <div style="font-size:9.5px;font-weight:700;margin-top:2px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 2px">${e.label}</div>
         <div style="position:absolute;top:3px;right:5px;font-size:8px;font-weight:800">${checkOrNum}</div>
