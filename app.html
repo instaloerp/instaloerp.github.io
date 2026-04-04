@@ -1254,9 +1254,15 @@ function openParteDetail(id) {
         if (trab) dir = trab.direccion_obra_texto || '';
       }
       if (dir) {
-        return `<div style="margin-bottom:12px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;align-items:center;gap:8px">
-          <span style="font-size:13px;flex:1">📍 ${dir}</span>
-          <a href="https://maps.google.com/?q=${encodeURIComponent(dir)}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Navegar</a>
+        const dirEnc = encodeURIComponent(dir);
+        const mapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + dirEnc;
+        const embedUrl = 'https://www.openstreetmap.org/export/embed.html?bbox=&layer=mapnik&marker=&query=' + dirEnc;
+        return `<div style="margin-bottom:12px;border-radius:10px;overflow:hidden;border:1.5px solid var(--gris-200)">
+          <iframe src="https://maps.google.com/maps?q=${dirEnc}&z=15&output=embed" width="100%" height="150" style="border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <div style="padding:10px;background:var(--gris-50);display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;flex:1;color:var(--gris-600)">📍 ${dir}</span>
+            <a href="${mapsUrl}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Indicaciones</a>
+          </div>
         </div>`;
       }
       return '';
@@ -1396,11 +1402,13 @@ function renderWizStep() {
   const step = _wiz.step;
   const isLast = step === WIZ_STEPS.length - 1;
 
-  // Stepper
+  // Stepper — trackear paso máximo alcanzado
+  if (!_wiz.maxStep || _wiz.maxStep < step) _wiz.maxStep = step;
   const stepper = WIZ_STEPS.map((s, i) => {
-    const cls = i === step ? 'active' : (i < step ? 'done' : '');
-    const clickable = i < step ? `onclick="wizGoToStep(${i})"` : '';
-    return `<div class="wiz-step ${cls}" ${clickable}>${i < step ? '✓' : s.ico}<br>${s.label}</div>`;
+    const isDone = i < step || (i <= _wiz.maxStep && i !== step);
+    const cls = i === step ? 'active' : (isDone ? 'done' : '');
+    const clickable = isDone ? `onclick="wizGoToStep(${i})"` : '';
+    return `<div class="wiz-step ${cls}" ${clickable}>${isDone ? '✓' : s.ico}<br>${s.label}</div>`;
   }).join('');
 
   let content = '';
@@ -1538,13 +1546,10 @@ function renderWizStep() {
             </div>
           </div>
           <div id="firmaClientePreview" style="border:2px dashed var(--gris-200);border-radius:12px;padding:20px;text-align:center;background:var(--gris-50);min-height:80px;display:flex;align-items:center;justify-content:center">
-            ${_wiz.firmaData ? '<img src="'+_wiz.firmaData+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>'}
+            ${_wiz.firmaData_validated ? '<img src="'+_wiz.firmaData+'" style="max-width:100%;max-height:120px;border-radius:8px"><div style="color:var(--verde);font-weight:700;font-size:12px;margin-top:6px">✅ Firma validada</div>' : (_wiz.firmaData ? '<img src="'+_wiz.firmaData+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>')}
           </div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button onclick="abrirFirmaFullscreen('cliente')" style="flex:1;background:var(--azul);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaData ? 'Repetir firma' : 'Firmar a pantalla completa'}</button>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('cliente')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:10px;border-radius:6px;font-weight:700;font-size:15px">✅ Validar firma</button>
+            <button onclick="wizIniciarFirmaCliente()" style="flex:1;background:var(--azul);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaData_validated ? 'Repetir firma' : 'Firmar'}</button>
           </div>
         </div>
       </div>
@@ -1557,13 +1562,10 @@ function renderWizStep() {
         </div>
         <div id="firmaOperarioPanel" style="display:none;padding:12px">
           <div id="firmaOperarioPreview" style="border:2px dashed var(--gris-200);border-radius:12px;padding:20px;text-align:center;background:var(--gris-50);min-height:80px;display:flex;align-items:center;justify-content:center">
-            ${_wiz.firmaOperario ? '<img src="'+_wiz.firmaOperario+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>'}
+            ${_wiz.firmaOperario_validated ? '<img src="'+_wiz.firmaOperario+'" style="max-width:100%;max-height:120px;border-radius:8px"><div style="color:var(--verde);font-weight:700;font-size:12px;margin-top:6px">✅ Firma validada</div>' : (_wiz.firmaOperario ? '<img src="'+_wiz.firmaOperario+'" style="max-width:100%;max-height:120px;border-radius:8px">' : '<span style="color:var(--gris-400)">Sin firma todavía</span>')}
           </div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button onclick="abrirFirmaFullscreen('operario')" style="flex:1;background:var(--violeta);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaOperario ? 'Repetir firma' : 'Firmar a pantalla completa'}</button>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm btn-success" onclick="wizConfirmFirma('operario')" style="flex:1;background:var(--verde);color:white;border:none;cursor:pointer;padding:8px;border-radius:6px;font-weight:600">✅ Firmar</button>
+            <button onclick="abrirFirmaFullscreen('operario')" style="flex:1;background:var(--violeta);color:white;border:none;cursor:pointer;padding:12px;border-radius:8px;font-weight:700;font-size:15px">✍️ ${_wiz.firmaOperario_validated ? 'Repetir firma' : 'Firmar'}</button>
           </div>
         </div>
       </div>
@@ -1704,9 +1706,10 @@ function wizPrev() {
   renderWizStep();
 }
 
-// Navegar a un paso ya completado (solo pasos anteriores al actual)
+// Navegar a un paso ya visitado (verde)
 function wizGoToStep(targetStep) {
-  if (targetStep >= _wiz.step) return; // Solo se puede ir a pasos ya hechos
+  if (targetStep === _wiz.step) return; // Ya estás ahí
+  if (targetStep > _wiz.maxStep) return; // No se puede ir a pasos no visitados
   wizSaveCurrentStep();
   document.removeEventListener('click', _closeMaterialSearch);
   _wiz.step = targetStep;
@@ -1970,7 +1973,7 @@ function abrirFirmaFullscreen(tipo) {
     </div>
     <div class="firma-fs-actions">
       <button onclick="limpiarFirmaFS()" style="flex:1;padding:14px;border-radius:8px;border:2px solid var(--gris-300);background:#fff;font-weight:700;font-size:15px;cursor:pointer">🗑️ Borrar</button>
-      <button onclick="cerrarFirmaFullscreen(true)" style="flex:2;padding:14px;border-radius:8px;border:none;background:var(--verde);color:#fff;font-weight:700;font-size:15px;cursor:pointer">✅ Aceptar firma</button>
+      <button onclick="cerrarFirmaFullscreen(true)" style="flex:2;padding:14px;border-radius:8px;border:none;background:var(--verde);color:#fff;font-weight:700;font-size:15px;cursor:pointer">✅ Validar firma</button>
     </div>
   `;
 
@@ -2053,6 +2056,29 @@ function limpiarFirmaFS() {
   document.getElementById('firmaFSPlaceholder').style.display = 'flex';
 }
 
+// Validar nombre + DNI antes de abrir firma del cliente
+function wizIniciarFirmaCliente() {
+  const nombre = (document.getElementById('wz_cli_nombre')?.value || '').trim();
+  const palabras = nombre.split(/\s+/).filter(w => w.length > 0);
+  if (palabras.length < 3) {
+    toast('⚠️ El nombre debe tener al menos 3 palabras (nombre + 2 apellidos)', 'error');
+    document.getElementById('wz_cli_nombre')?.focus();
+    return;
+  }
+  _wiz.clienteNombre = nombre;
+
+  const dni = (document.getElementById('wz_cli_dni')?.value || '').toUpperCase().trim();
+  if (!_validarDNI(dni)) {
+    toast('⚠️ Documento no válido. Acepta: DNI, NIE, CIF', 'error');
+    document.getElementById('wz_cli_dni')?.focus();
+    return;
+  }
+  _wiz.clienteDni = dni;
+
+  // Todo OK → abrir firma fullscreen
+  abrirFirmaFullscreen('cliente');
+}
+
 function cerrarFirmaFullscreen(guardar) {
   if (guardar) {
     if (!_fsHasTouched) {
@@ -2063,8 +2089,12 @@ function cerrarFirmaFullscreen(guardar) {
     const dataUrl = canvas.toDataURL('image/png');
     if (_fsTipo === 'cliente') {
       _wiz.firmaData = dataUrl;
+      _wiz.firmaData_validated = true;
+      toast('✅ Firma validada', 'success');
     } else {
       _wiz.firmaOperario = dataUrl;
+      _wiz.firmaOperario_validated = true;
+      toast('✅ Firma del operario validada', 'success');
     }
   }
 
@@ -2072,7 +2102,7 @@ function cerrarFirmaFullscreen(guardar) {
   if (overlay) overlay.remove();
   document.body.style.overflow = '';
 
-  // Re-render para mostrar la miniatura
+  // Re-render para actualizar estado visual (verde/check)
   renderWizStep();
 }
 
@@ -2199,17 +2229,7 @@ function wizConfirmFirma(tipo) {
     document.getElementById('firmaOperarioPanel').style.display = 'none';
   }
 
-  // Capturar ubicación
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      if (isCliente) {
-        _wiz.ubicacion_firma_cliente = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      } else {
-        _wiz.ubicacion_firma_operario = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      }
-    }, err => { console.warn('GPS error:', err.message); });
-  }
-
+  // Ubicación ya se captura al iniciar el parte (iniciarParteConGPS), no al firmar
   toast('✅ Firma validada', 'success');
 }
 
@@ -2552,8 +2572,8 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente) {
     </div>
   `;
 
-  document.getElementById('modalBody').innerHTML = content;
-  document.getElementById('modalTitle').textContent = '';
+  document.getElementById('modalContent').innerHTML = content;
+  openModal();
 }
 
 function copiarEnlaceParte() {
@@ -2730,7 +2750,7 @@ function openOperarioDetail(uid) {
 // ── INICIAR PARTE CON GPS ──
 async function iniciarParteConGPS(id) {
   // Mostrar confirmación con aviso de GPS
-  const confirmed = confirm('📍 UBICACIÓN GPS OBLIGATORIA\n\nAl iniciar el parte se registrará tu ubicación GPS. Este paso es obligatorio y no se puede omitir.\n\nAsegúrate de tener el GPS activado y los permisos de ubicación concedidos.\n\n¿Iniciar el trabajo?');
+  const confirmed = confirm('📍 Se registrará tu ubicación GPS.\n\n¿Iniciar el trabajo?');
   if (!confirmed) return;
 
   toast('📍 Obteniendo ubicación...', '');
@@ -2841,6 +2861,24 @@ function openInformarWizard(id) {
     });
     // Mantener manoObra calculada si no tenía guardada
     if (!_wiz.manoObra || !_wiz.manoObra.length) _wiz.manoObra = autoManoObra;
+    // El nombre de firma NO se recupera del auto-save (es persona en visita, no cliente)
+    // Solo mantenerlo si el usuario lo escribió manualmente (tiene 3+ palabras)
+    if (_wiz.clienteNombre) {
+      const _palabras = _wiz.clienteNombre.trim().split(/\s+/).filter(w => w.length > 0);
+      // Si coincide con el nombre del cliente, limpiar (fue auto-relleno viejo)
+      const _cliNom = p.cliente_nombre_firma || '';
+      let _nomObra = '';
+      if (p.trabajo_id) {
+        const _tr = trabajos.find(tr => tr.id === p.trabajo_id);
+        if (_tr) {
+          const _cl = _tr.cliente_id ? clientes.find(c => c.id === _tr.cliente_id) : null;
+          _nomObra = (_cl?.nombre || _tr.cliente_nombre || '');
+        }
+      }
+      if (_wiz.clienteNombre === _cliNom || _wiz.clienteNombre === _nomObra) {
+        _wiz.clienteNombre = '';
+      }
+    }
     toast('Se ha recuperado tu progreso anterior', 'success');
   } else {
     _wiz = {
