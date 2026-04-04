@@ -215,40 +215,46 @@ function rc_renderLineas() {
 // GUARDAR RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function guardarRecepcion() {
-  const numero = v('rc_numero').trim();
-  const provId = parseInt(v('rc_proveedor'));
-  const almacenId = parseInt(v('rc_almacen'));
+  if (_creando) return;
+  _creando = true;
+  try {
+    const numero = v('rc_numero').trim();
+    const provId = parseInt(v('rc_proveedor'));
+    const almacenId = parseInt(v('rc_almacen'));
 
-  if (!numero) {toast('Introduce número de recepción','error');return;}
-  if (!provId) {toast('Selecciona proveedor','error');return;}
-  if (!almacenId) {toast('Selecciona almacén','error');return;}
-  if (rcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
+    if (!numero) {toast('Introduce número de recepción','error');return;}
+    if (!provId) {toast('Selecciona proveedor','error');return;}
+    if (!almacenId) {toast('Selecciona almacén','error');return;}
+    if (rcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
 
-  const prov = (proveedores||[]).find(p => p.id === provId);
-  const obj = {
-    empresa_id: EMPRESA.id,
-    numero,
-    pedido_compra_id: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.pedido_compra_id : null,
-    proveedor_id: provId,
-    proveedor_nombre: prov?.nombre || '',
-    almacen_destino_id: almacenId,
-    fecha: v('rc_fecha'),
-    estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : 'pendiente',
-    lineas: rcLineas,
-    observaciones: v('rc_observaciones'),
-    usuario_id: CU.id,
-    usuario_nombre: CP?.nombre || CU.email
-  };
+    const prov = (proveedores||[]).find(p => p.id === provId);
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero,
+      pedido_compra_id: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.pedido_compra_id : null,
+      proveedor_id: provId,
+      proveedor_nombre: prov?.nombre || '',
+      almacen_destino_id: almacenId,
+      fecha: v('rc_fecha'),
+      estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : 'pendiente',
+      lineas: rcLineas,
+      observaciones: v('rc_observaciones'),
+      usuario_id: CU.id,
+      usuario_nombre: CP?.nombre || CU.email
+    };
 
-  if (rcEditId) {
-    await sb.from('recepciones').update(obj).eq('id', rcEditId);
-  } else {
-    await sb.from('recepciones').insert(obj);
+    if (rcEditId) {
+      await sb.from('recepciones').update(obj).eq('id', rcEditId);
+    } else {
+      await sb.from('recepciones').insert(obj);
+    }
+
+    closeModal('mRecepcion');
+    loadRecepciones();
+    toast('Recepción guardada ✓', 'success');
+  } finally {
+    _creando = false;
   }
-
-  closeModal('mRecepcion');
-  loadRecepciones();
-  toast('Recepción guardada ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -323,81 +329,93 @@ function exportRecepciones() {
 // CONVERSIONES
 // ═══════════════════════════════════════════════
 async function recepcionToFacturaProv(id) {
-  const r = recepciones.find(x => x.id === id);
-  if (!r) return;
-  if (r.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
-  if (!confirm(`¿Crear factura de proveedor desde el albarán ${r.numero}?`)) return;
-  const numero = await generarNumeroDoc('factura_proveedor');
-  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-  const total = r.lineas ? r.lineas.reduce((s, l) => s + ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0)), 0) : (r.total || 0);
-  const { error } = await sb.from('facturas_proveedor').insert({
-    empresa_id: EMPRESA.id, numero,
-    proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
-    fecha: hoy.toISOString().split('T')[0],
-    fecha_vencimiento: v.toISOString().split('T')[0],
-    base_imponible: Math.round(total * 100) / 100,
-    total_iva: 0,
-    total: Math.round(total * 100) / 100,
-    estado: 'pendiente',
-    observaciones: r.observaciones,
-    lineas: r.lineas,
-    recepcion_id: r.id,
-    pedido_compra_id: r.pedido_compra_id || null,
-  });
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
-  const rr = recepciones.find(x=>x.id===id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
-  toast('🧾 Factura proveedor creada — albarán bloqueado', 'success');
-  goPage('facturas-proveedor');
+  if (_creando) return;
+  _creando = true;
+  try {
+    const r = recepciones.find(x => x.id === id);
+    if (!r) return;
+    if (r.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
+    if (!confirm(`¿Crear factura de proveedor desde el albarán ${r.numero}?`)) return;
+    const numero = await generarNumeroDoc('factura_proveedor');
+    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+    const total = r.lineas ? r.lineas.reduce((s, l) => s + ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0)), 0) : (r.total || 0);
+    const { error } = await sb.from('facturas_proveedor').insert({
+      empresa_id: EMPRESA.id, numero,
+      proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
+      fecha: hoy.toISOString().split('T')[0],
+      fecha_vencimiento: v.toISOString().split('T')[0],
+      base_imponible: Math.round(total * 100) / 100,
+      total_iva: 0,
+      total: Math.round(total * 100) / 100,
+      estado: 'pendiente',
+      observaciones: r.observaciones,
+      lineas: r.lineas,
+      recepcion_id: r.id,
+      pedido_compra_id: r.pedido_compra_id || null,
+    });
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
+    const rr = recepciones.find(x=>x.id===id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+    toast('🧾 Factura proveedor creada — albarán bloqueado', 'success');
+    goPage('facturas-proveedor');
+  } finally {
+    _creando = false;
+  }
 }
 
 // Facturación múltiple: varios albaranes proveedor → 1 factura
 async function facturarRecepcionesMulti() {
-  const checks = document.querySelectorAll('.rc-check:checked');
-  if (checks.length < 2) return;
-  const ids = [...checks].map(c => parseInt(c.value));
-  const recs = ids.map(id => recepciones.find(x => x.id === id)).filter(Boolean);
-  if (!recs.length) return;
+  if (_creando) return;
+  _creando = true;
+  try {
+    const checks = document.querySelectorAll('.rc-check:checked');
+    if (checks.length < 2) return;
+    const ids = [...checks].map(c => parseInt(c.value));
+    const recs = ids.map(id => recepciones.find(x => x.id === id)).filter(Boolean);
+    if (!recs.length) return;
 
-  const provIds = new Set(recs.map(r => r.proveedor_id));
-  if (provIds.size > 1) { toast('Los albaranes deben ser del mismo proveedor', 'error'); return; }
+    const provIds = new Set(recs.map(r => r.proveedor_id));
+    if (provIds.size > 1) { toast('Los albaranes deben ser del mismo proveedor', 'error'); return; }
 
-  const nums = recs.map(r => r.numero).join(', ');
-  if (!confirm(`¿Crear una factura agrupando ${recs.length} albaranes proveedor?\n\n${nums}`)) return;
+    const nums = recs.map(r => r.numero).join(', ');
+    if (!confirm(`¿Crear una factura agrupando ${recs.length} albaranes proveedor?\n\n${nums}`)) return;
 
-  let lineasTodas = [];
-  let totalGlobal = 0;
-  recs.forEach(r => {
-    lineasTodas.push({ desc: `── ${r.numero} (${r.fecha || ''}) ──`, cant: 0, precio: 0, _separator: true });
-    (r.lineas || []).forEach(l => {
-      lineasTodas.push({ ...l });
-      totalGlobal += ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0));
+    let lineasTodas = [];
+    let totalGlobal = 0;
+    recs.forEach(r => {
+      lineasTodas.push({ desc: `── ${r.numero} (${r.fecha || ''}) ──`, cant: 0, precio: 0, _separator: true });
+      (r.lineas || []).forEach(l => {
+        lineasTodas.push({ ...l });
+        totalGlobal += ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0));
+      });
     });
-  });
 
-  const numero = await generarNumeroDoc('factura_proveedor');
-  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-  const { error } = await sb.from('facturas_proveedor').insert({
-    empresa_id: EMPRESA.id, numero,
-    proveedor_id: recs[0].proveedor_id, proveedor_nombre: recs[0].proveedor_nombre,
-    fecha: hoy.toISOString().split('T')[0],
-    fecha_vencimiento: v.toISOString().split('T')[0],
-    base_imponible: Math.round(totalGlobal * 100) / 100,
-    total_iva: 0,
-    total: Math.round(totalGlobal * 100) / 100,
-    estado: 'pendiente',
-    observaciones: `Factura agrupada: ${nums}`,
-    lineas: lineasTodas,
-    recepcion_ids: ids,
-  });
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
-  // Marcar todos como bloqueados
-  for (const r of recs) {
-    await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);
-    const rr = recepciones.find(x=>x.id===r.id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+    const numero = await generarNumeroDoc('factura_proveedor');
+    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+    const { error } = await sb.from('facturas_proveedor').insert({
+      empresa_id: EMPRESA.id, numero,
+      proveedor_id: recs[0].proveedor_id, proveedor_nombre: recs[0].proveedor_nombre,
+      fecha: hoy.toISOString().split('T')[0],
+      fecha_vencimiento: v.toISOString().split('T')[0],
+      base_imponible: Math.round(totalGlobal * 100) / 100,
+      total_iva: 0,
+      total: Math.round(totalGlobal * 100) / 100,
+      estado: 'pendiente',
+      observaciones: `Factura agrupada: ${nums}`,
+      lineas: lineasTodas,
+      recepcion_ids: ids,
+    });
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    // Marcar todos como bloqueados
+    for (const r of recs) {
+      await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);
+      const rr = recepciones.find(x=>x.id===r.id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+    }
+    toast(`🧾 Factura ${numero} creada con ${recs.length} albaranes — bloqueados`, 'success');
+    goPage('facturas-proveedor');
+  } finally {
+    _creando = false;
   }
-  toast(`🧾 Factura ${numero} creada con ${recs.length} albaranes — bloqueados`, 'success');
-  goPage('facturas-proveedor');
 }
 
 // ═══════════════════════════════════════════════

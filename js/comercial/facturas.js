@@ -170,48 +170,54 @@ function fr_renderLineas() {
 //  GUARDAR FACTURA
 // ═══════════════════════════════════════════════
 async function guardarFacturaRapida(estado) {
-  const clienteId = parseInt(document.getElementById('fr_cliente').value);
-  if (!clienteId) { toast('Selecciona un cliente','error'); return; }
+  if (_creando) return;
+  _creando = true;
+  try {
+    const clienteId = parseInt(document.getElementById('fr_cliente').value);
+    if (!clienteId) { toast('Selecciona un cliente','error'); return; }
 
-  const lineasValidas = frLineas.filter(l => l.desc || l.precio > 0);
-  if (!lineasValidas.length) { toast('Añade al menos una línea','error'); return; }
+    const lineasValidas = frLineas.filter(l => l.desc || l.precio > 0);
+    if (!lineasValidas.length) { toast('Añade al menos una línea','error'); return; }
 
-  const c = clientes.find(x => x.id === clienteId);
-  const serieId = parseInt(document.getElementById('fr_serie').value) || null;
-  const numero = document.getElementById('fr_numero').value;
+    const c = clientes.find(x => x.id === clienteId);
+    const serieId = parseInt(document.getElementById('fr_serie').value) || null;
+    const numero = document.getElementById('fr_numero').value;
 
-  let base = 0, ivaTotal = 0;
-  lineasValidas.forEach(l => {
-    const sub = l.cant * l.precio * (1 - l.dto/100);
-    base += sub;
-    ivaTotal += sub * (l.iva/100);
-  });
+    let base = 0, ivaTotal = 0;
+    lineasValidas.forEach(l => {
+      const sub = l.cant * l.precio * (1 - l.dto/100);
+      base += sub;
+      ivaTotal += sub * (l.iva/100);
+    });
 
-  const obj = {
-    empresa_id: EMPRESA.id,
-    numero, serie_id: serieId,
-    cliente_id: clienteId,
-    cliente_nombre: c?.nombre || '',
-    fecha: document.getElementById('fr_fecha').value,
-    fecha_vencimiento: document.getElementById('fr_vence').value || null,
-    forma_pago_id: parseInt(document.getElementById('fr_fpago').value) || null,
-    base_imponible: Math.round(base*100)/100,
-    total_iva: Math.round(ivaTotal*100)/100,
-    total: Math.round((base+ivaTotal)*100)/100,
-    estado,
-    observaciones: document.getElementById('fr_obs').value || null,
-    lineas: lineasValidas,
-  };
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero, serie_id: serieId,
+      cliente_id: clienteId,
+      cliente_nombre: c?.nombre || '',
+      fecha: document.getElementById('fr_fecha').value,
+      fecha_vencimiento: document.getElementById('fr_vence').value || null,
+      forma_pago_id: parseInt(document.getElementById('fr_fpago').value) || null,
+      base_imponible: Math.round(base*100)/100,
+      total_iva: Math.round(ivaTotal*100)/100,
+      total: Math.round((base+ivaTotal)*100)/100,
+      estado,
+      observaciones: document.getElementById('fr_obs').value || null,
+      lineas: lineasValidas,
+    };
 
-  const { error } = await sb.from('facturas').insert(obj);
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+    const { error } = await sb.from('facturas').insert(obj);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  closeModal('mFacturaRapida');
-  toast(estado === 'pendiente' ? '🧾 Factura emitida ✓' : '💾 Borrador guardado ✓', 'success');
+    closeModal('mFacturaRapida');
+    toast(estado === 'pendiente' ? '🧾 Factura emitida ✓' : '💾 Borrador guardado ✓', 'success');
 
-  if (cliActualId) await abrirFicha(cliActualId);
-  await loadPresupuestos();
-  loadDashboard();
+    if (cliActualId) await abrirFicha(cliActualId);
+    await loadPresupuestos();
+    loadDashboard();
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════

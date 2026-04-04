@@ -11,6 +11,22 @@ const { createClient } = supabase;
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ═══════════════════════════════════════════════
+//  Anti-duplicados: protección contra doble clic en botones de crear
+// ═══════════════════════════════════════════════
+let _creando = false;
+function withGuard(fn) {
+  return async function(...args) {
+    if (_creando) { console.log('[Guard] Operación en curso, ignorando clic'); return; }
+    _creando = true;
+    try {
+      await fn.apply(this, args);
+    } finally {
+      _creando = false;
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════
 let CU = null, CP = null, EMPRESA = null;

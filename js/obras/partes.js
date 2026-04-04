@@ -202,10 +202,21 @@ function nuevoParteModal(preselObraId) {
   const hoy = new Date().toISOString().split('T')[0];
   const elFecha = document.getElementById('pt_fecha');
   if (elFecha) elFecha.value = hoy;
+  // Hora inicio = ahora redondeada al próximo cuarto de hora, fin = +2h
+  const _ahora = new Date();
+  const _min = _ahora.getMinutes();
+  const _roundMin = Math.ceil(_min / 15) * 15;
+  const _iniDate = new Date(_ahora);
+  _iniDate.setMinutes(_roundMin, 0, 0);
+  if (_roundMin >= 60) { _iniDate.setHours(_iniDate.getHours() + 1); _iniDate.setMinutes(0); }
+  const _finDate = new Date(_iniDate.getTime() + 2 * 60 * 60 * 1000);
+  const _pad = n => String(n).padStart(2, '0');
+  const _iniStr = _pad(_iniDate.getHours()) + ':' + _pad(_iniDate.getMinutes());
+  const _finStr = _pad(_finDate.getHours()) + ':' + _pad(_finDate.getMinutes());
   const elInicio = document.getElementById('pt_inicio');
-  if (elInicio && !elInicio.value) elInicio.value = '08:00';
+  if (elInicio && !elInicio.value) elInicio.value = _iniStr;
   const elFin = document.getElementById('pt_fin');
-  if (elFin && !elFin.value) elFin.value = '14:00';
+  if (elFin && !elFin.value) elFin.value = _finStr;
 
   document.getElementById('mParteTit').textContent = 'Nuevo Parte de Trabajo';
   window._pt_presupuesto_id = null;
@@ -678,144 +689,150 @@ function guardarFirma() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function guardarParte(estado = 'borrador') {
-  // Validar campos obligatorios
-  const trabajo_id = parseInt(v('pt_trabajo')) || null;
+  if (_creando) return;
+  _creando = true;
+  try {
+    // Validar campos obligatorios
+    const trabajo_id = parseInt(v('pt_trabajo')) || null;
   const fecha = v('pt_fecha');
   const hora_inicio = v('pt_inicio');
   const hora_fin = v('pt_fin');
 
-  if (!trabajo_id) { toast('Selecciona una obra', 'error'); return; }
-  if (!fecha) { toast('Indica la fecha', 'error'); return; }
-  if (!hora_inicio) { toast('Indica la hora de inicio', 'error'); return; }
-  if (!hora_fin) { toast('Indica la hora de fin', 'error'); return; }
+    if (!trabajo_id) { toast('Selecciona una obra', 'error'); return; }
+    if (!fecha) { toast('Indica la fecha', 'error'); return; }
+    if (!hora_inicio) { toast('Indica la hora de inicio', 'error'); return; }
+    if (!hora_fin) { toast('Indica la hora de fin', 'error'); return; }
 
-  // Calcular horas
-  const ini = new Date(`2000-01-01T${hora_inicio}`);
-  const fin = new Date(`2000-01-01T${hora_fin}`);
-  const horas = Math.max(0, (fin - ini) / 3600000);
+    // Calcular horas
+    const ini = new Date(`2000-01-01T${hora_inicio}`);
+    const fin = new Date(`2000-01-01T${hora_fin}`);
+    const horas = Math.max(0, (fin - ini) / 3600000);
 
-  // Obtener info de la obra
-  const trabajo = trabajos.find(t => t.id === trabajo_id);
-  const trabajo_titulo = trabajo?.titulo || '';
+    // Obtener info de la obra
+    const trabajo = trabajos.find(t => t.id === trabajo_id);
+    const trabajo_titulo = trabajo?.titulo || '';
 
-  // Información del operario seleccionado
-  const selUsr = document.getElementById('pt_usuario');
-  const usuario_id = selUsr?.value || CU?.id || null;
-  const selOption = selUsr?.options[selUsr.selectedIndex];
-  const usuario_nombre = selOption ? selOption.textContent.replace(/👷|🖥️/g,'').trim() : (CP?.nombre || '');
+    // Información del operario seleccionado
+    const selUsr = document.getElementById('pt_usuario');
+    const usuario_id = selUsr?.value || CU?.id || null;
+    const selOption = selUsr?.options[selUsr.selectedIndex];
+    const usuario_nombre = selOption ? selOption.textContent.replace(/👷|🖥️/g,'').trim() : (CP?.nombre || '');
 
-  // Materiales
-  const materiales = pt_materiales.filter(m => m.articulo_id && m.cantidad > 0);
+    // Materiales
+    const materiales = pt_materiales.filter(m => m.articulo_id && m.cantidad > 0);
 
-  // Fotos: subir a Supabase Storage
-  let fotos_urls = [];
-  for (const foto of pt_fotos) {
-    if (foto.data && foto.data.startsWith('data:')) {
-      // Es una foto nueva en base64
+    // Fotos: subir a Supabase Storage
+    let fotos_urls = [];
+    for (const foto of pt_fotos) {
+      if (foto.data && foto.data.startsWith('data:')) {
+        // Es una foto nueva en base64
+        try {
+          const blob = await (await fetch(foto.data)).blob();
+          const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.png`;
+          const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+          if (!error) {
+            const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+            fotos_urls.push(data.publicUrl);
+          }
+        } catch (e) {
+          console.error('Error subiendo foto:', e);
+        }
+      } else if (typeof foto === 'string') {
+        // Es una URL que ya estaba en la BD
+        fotos_urls.push(foto);
+      }
+    }
+
+    // Firma
+    let firma_url = null;
+    const firma_data = guardarFirma();
+    if (firma_data) {
       try {
-        const blob = await (await fetch(foto.data)).blob();
-        const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.png`;
+        const blob = await (await fetch(firma_data)).blob();
+        const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
         const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
         if (!error) {
           const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-          fotos_urls.push(data.publicUrl);
+          firma_url = data.publicUrl;
         }
       } catch (e) {
-        console.error('Error subiendo foto:', e);
+        console.error('Error subiendo firma:', e);
       }
-    } else if (typeof foto === 'string') {
-      // Es una URL que ya estaba en la BD
-      fotos_urls.push(foto);
     }
-  }
 
-  // Firma
-  let firma_url = null;
-  const firma_data = guardarFirma();
-  if (firma_data) {
-    try {
-      const blob = await (await fetch(firma_data)).blob();
-      const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
-      const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-      if (!error) {
-        const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-        firma_url = data.publicUrl;
-      }
-    } catch (e) {
-      console.error('Error subiendo firma:', e);
+    // Preparar payload
+    const payload = {
+      empresa_id: EMPRESA.id,
+      trabajo_id,
+      trabajo_titulo,
+      usuario_id,
+      usuario_nombre,
+      fecha,
+      hora_inicio,
+      hora_fin,
+      horas: horas.toFixed(2),
+      descripcion: v('pt_desc'),
+      materiales: materiales.length > 0 ? materiales : null,
+      fotos: fotos_urls.length > 0 ? fotos_urls : null,
+      firma_url,
+      estado,
+      observaciones: v('pt_observaciones') || null,
+      // Nuevos campos fase programación
+      instrucciones: v('pt_instrucciones') || null,
+      checklist: pt_checklist.length > 0 ? pt_checklist : null,
+      direccion: v('pt_direccion') || null,
+      trabajos_pendientes: v('pt_pendientes') || null,
+      presupuesto_id: window._pt_presupuesto_id || null,
+      presupuesto_numero: window._pt_presupuesto_numero || null,
+    };
+    // Si se programa, guardar quién programó
+    if (estado === 'programado' && !pt_edicion) {
+      payload.programado_por = CU?.id || null;
+      payload.programado_por_nombre = CP?.nombre || '';
     }
-  }
 
-  // Preparar payload
-  const payload = {
-    empresa_id: EMPRESA.id,
-    trabajo_id,
-    trabajo_titulo,
-    usuario_id,
-    usuario_nombre,
-    fecha,
-    hora_inicio,
-    hora_fin,
-    horas: horas.toFixed(2),
-    descripcion: v('pt_desc'),
-    materiales: materiales.length > 0 ? materiales : null,
-    fotos: fotos_urls.length > 0 ? fotos_urls : null,
-    firma_url,
-    estado,
-    observaciones: v('pt_observaciones') || null,
-    // Nuevos campos fase programación
-    instrucciones: v('pt_instrucciones') || null,
-    checklist: pt_checklist.length > 0 ? pt_checklist : null,
-    direccion: v('pt_direccion') || null,
-    trabajos_pendientes: v('pt_pendientes') || null,
-    presupuesto_id: window._pt_presupuesto_id || null,
-    presupuesto_numero: window._pt_presupuesto_numero || null,
-  };
-  // Si se programa, guardar quién programó
-  if (estado === 'programado' && !pt_edicion) {
-    payload.programado_por = CU?.id || null;
-    payload.programado_por_nombre = CP?.nombre || '';
-  }
+    // Insertar o actualizar
+    let error;
+    if (pt_edicion) {
+      // Actualizar
+      const numero = partesData.find(p => p.id === pt_edicion)?.numero;
+      ({ error } = await sb.from('partes_trabajo')
+        .update(payload)
+        .eq('id', pt_edicion));
+      if (!error) toast(`Parte ${numero} actualizado ✓`, 'success');
+    } else {
+      // Crear nuevo - generar número
+      const numero = `PRT-${new Date().getFullYear()}-${String(partesData.length + 1).padStart(4, '0')}`;
+      payload.numero = numero;
+      ({ error } = await sb.from('partes_trabajo').insert(payload));
+      if (!error) toast(`Parte ${numero} creado ✓`, 'success');
+    }
 
-  // Insertar o actualizar
-  let error;
-  if (pt_edicion) {
-    // Actualizar
-    const numero = partesData.find(p => p.id === pt_edicion)?.numero;
-    ({ error } = await sb.from('partes_trabajo')
-      .update(payload)
-      .eq('id', pt_edicion));
-    if (!error) toast(`Parte ${numero} actualizado ✓`, 'success');
-  } else {
-    // Crear nuevo - generar número
-    const numero = `PRT-${new Date().getFullYear()}-${String(partesData.length + 1).padStart(4, '0')}`;
-    payload.numero = numero;
-    ({ error } = await sb.from('partes_trabajo').insert(payload));
-    if (!error) toast(`Parte ${numero} creado ✓`, 'success');
-  }
+    if (error) {
+      toast('Error: ' + error.message, 'error');
+      return;
+    }
 
-  if (error) {
-    toast('Error: ' + error.message, 'error');
-    return;
-  }
+    // Registrar en audit log de la obra
+    if (trabajo_id && typeof registrarActividadObra === 'function') {
+      try {
+        if (pt_edicion) {
+          const num = partesData.find(p => p.id === pt_edicion)?.numero || '';
+          await registrarActividadObra(trabajo_id, 'Parte actualizado', `✏️ Parte ${num} editado por ${usuario_nombre}`);
+        } else {
+          await registrarActividadObra(trabajo_id, 'Parte creado', `📝 Nuevo parte ${payload.numero} creado — ${usuario_nombre} · ${fecha} · ${horas.toFixed(1)}h · Estado: ${estado}`);
+        }
+      } catch(e) { console.warn('[guardarParte] audit error:', e); }
+    }
 
-  // Registrar en audit log de la obra
-  if (trabajo_id && typeof registrarActividadObra === 'function') {
-    try {
-      if (pt_edicion) {
-        const num = partesData.find(p => p.id === pt_edicion)?.numero || '';
-        await registrarActividadObra(trabajo_id, 'Parte actualizado', `✏️ Parte ${num} editado por ${usuario_nombre}`);
-      } else {
-        await registrarActividadObra(trabajo_id, 'Parte creado', `📝 Nuevo parte ${payload.numero} creado — ${usuario_nombre} · ${fecha} · ${horas.toFixed(1)}h · Estado: ${estado}`);
-      }
-    } catch(e) { console.warn('[guardarParte] audit error:', e); }
-  }
-
-  closeModal('mPartes');
-  await loadPartes();
-  // Refrescar ficha de obra si está abierta
-  if (typeof obraActualId !== 'undefined' && obraActualId) {
-    try { abrirFichaObra(obraActualId, false); } catch(e) {}
+    closeModal('mPartes');
+    await loadPartes();
+    // Refrescar ficha de obra si está abierta
+    if (typeof obraActualId !== 'undefined' && obraActualId) {
+      try { abrirFichaObra(obraActualId, false); } catch(e) {}
+    }
+  } finally {
+    _creando = false;
   }
 }
 
@@ -1218,7 +1235,7 @@ async function eliminarParte(id) {
     try { loadDashboard(); } catch(e) {}
   }
 
-  toast('Parte ' + (parte.numero || '') + ' eliminado ✓', 'ok');
+  toast('Parte ' + (parte.numero || '') + ' eliminado ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -847,58 +847,64 @@ async function poblarSelectResponsables() {
 }
 
 async function guardarTareaObra() {
-  if (!obraActualId) return;
-  const texto = document.getElementById('obraTareaTexto')?.value?.trim();
-  if (!texto) { toast('Escribe la tarea','error'); return; }
+  if (_creando) return;
+  _creando = true;
+  try {
+    if (!obraActualId) return;
+    const texto = document.getElementById('obraTareaTexto')?.value?.trim();
+    if (!texto) { toast('Escribe la tarea','error'); return; }
 
-  const prioridad = document.getElementById('obraTareaPrio')?.value || 'normal';
-  const responsable_id = document.getElementById('obraTareaResp')?.value || null;
-  const fecha_limite = document.getElementById('obraTareaFecha')?.value || null;
+    const prioridad = document.getElementById('obraTareaPrio')?.value || 'normal';
+    const responsable_id = document.getElementById('obraTareaResp')?.value || null;
+    const fecha_limite = document.getElementById('obraTareaFecha')?.value || null;
 
-  // Buscar nombre del responsable desde el select
-  let responsable_nombre = '';
-  if (responsable_id) {
-    const selResp = document.getElementById('obraTareaResp');
-    if (selResp) {
-      const opt = selResp.querySelector(`option[value="${responsable_id}"]`);
-      if (opt) responsable_nombre = opt.textContent.trim();
+    // Buscar nombre del responsable desde el select
+    let responsable_nombre = '';
+    if (responsable_id) {
+      const selResp = document.getElementById('obraTareaResp');
+      if (selResp) {
+        const opt = selResp.querySelector(`option[value="${responsable_id}"]`);
+        if (opt) responsable_nombre = opt.textContent.trim();
+      }
     }
-  }
 
-  const payload = {
-    empresa_id: EMPRESA.id,
-    trabajo_id: obraActualId,
-    texto,
-    estado: 'pendiente',
-    prioridad,
-    responsable_id: responsable_id || null,
-    responsable_nombre: responsable_nombre || null,
-    fecha_limite: fecha_limite || null,
-    creado_por: CU?.id || null,
-    creado_por_nombre: CP ? (CP.nombre||'')+' '+(CP.apellidos||'') : null,
-  };
+    const payload = {
+      empresa_id: EMPRESA.id,
+      trabajo_id: obraActualId,
+      texto,
+      estado: 'pendiente',
+      prioridad,
+      responsable_id: responsable_id || null,
+      responsable_nombre: responsable_nombre || null,
+      fecha_limite: fecha_limite || null,
+      creado_por: CU?.id || null,
+      creado_por_nombre: CP ? (CP.nombre||'')+' '+(CP.apellidos||'') : null,
+    };
 
-  const { data, error } = await sb.from('tareas_obra').insert(payload).select().single();
-  if (error) {
-    // Si la tabla no existe, guardar en local temporalmente
-    if (error.code === '42P01' || error.message?.includes('does not exist')) {
-      const localTarea = { id: Date.now(), ...payload, created_at: new Date().toISOString() };
-      obraTareasData.push(localTarea);
-      toast('Tarea añadida (modo local) ✓','info');
+    const { data, error } = await sb.from('tareas_obra').insert(payload).select().single();
+    if (error) {
+      // Si la tabla no existe, guardar en local temporalmente
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        const localTarea = { id: Date.now(), ...payload, created_at: new Date().toISOString() };
+        obraTareasData.push(localTarea);
+        toast('Tarea añadida (modo local) ✓','info');
+      } else {
+        toast('Error: '+error.message,'error'); return;
+      }
     } else {
-      toast('Error: '+error.message,'error'); return;
+      obraTareasData.push(data);
+      toast('Tarea añadida ✓','success');
     }
-  } else {
-    obraTareasData.push(data);
-    toast('Tarea añadida ✓','success');
-  }
-  await registrarActividadObra(obraActualId, 'Tarea añadida', `✅ ${texto} | Prioridad: ${prioridad}${responsable_nombre ? ' | Resp: '+responsable_nombre : ''}${fecha_limite ? ' | Límite: '+fecha_limite : ''}`);
+    await registrarActividadObra(obraActualId, 'Tarea añadida', `✅ ${texto} | Prioridad: ${prioridad}${responsable_nombre ? ' | Resp: '+responsable_nombre : ''}${fecha_limite ? ' | Límite: '+fecha_limite : ''}`);
 
-  // Limpiar input
-  document.getElementById('obraTareaTexto').value = '';
-  document.getElementById('obraTareaFecha').value = '';
-  updateTareasKpi();
-  renderObraTareas();
+    // Limpiar input
+    document.getElementById('obraTareaTexto').value = '';
+    document.getElementById('obraTareaFecha').value = '';
+    updateTareasKpi();
+    renderObraTareas();
+  } finally {
+    _creando = false;
+  }
 }
 
 function addTareaPlantilla(texto, prioridad) {
@@ -1780,38 +1786,41 @@ function tr_renderDocs() {
 // CREAR / ELIMINAR OBRA
 // ═══════════════════════════════════════════════
 async function saveTrabajo() {
-  const titulo=document.getElementById('tr_titulo').value.trim();
-  if(!titulo){toast('Introduce el título','error');return;}
-  const cliId=parseInt(document.getElementById('tr_cli').value)||null;
-  if(!cliId){toast('Selecciona un cliente','error');return;}
-  const cli=clientes.find(c=>c.id===cliId);
-  const desc = document.getElementById('tr_desc').value.trim();
-  if(desc.length < 10){toast('La descripción debe tener al menos 10 caracteres','error');return;}
-  // Dirección se obtiene del cliente
-  const dirCliente = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : '';
+  if (_creando) return;
+  _creando = true;
+  try {
+    const titulo=document.getElementById('tr_titulo').value.trim();
+    if(!titulo){toast('Introduce el título','error');return;}
+    const cliId=parseInt(document.getElementById('tr_cli').value)||null;
+    if(!cliId){toast('Selecciona un cliente','error');return;}
+    const cli=clientes.find(c=>c.id===cliId);
+    const desc = document.getElementById('tr_desc').value.trim();
+    if(desc.length < 10){toast('La descripción debe tener al menos 10 caracteres','error');return;}
+    // Dirección se obtiene del cliente
+    const dirCliente = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : '';
 
-  // Si estamos editando
-  if (obraActualId && document.getElementById('mTrabTit').textContent === 'Editar Obra') {
-    const { error } = await sb.from('trabajos').update({
-      titulo,
-      cliente_id: cliId, cliente_nombre: cli?.nombre||'',
-      prioridad: v('tr_prio'), categoria: v('tr_cat'),
-      fecha: v('tr_fecha'), hora: v('tr_hora'),
-      direccion_obra_texto: dirCliente, descripcion: desc,
-    }).eq('id', obraActualId);
-    if (error) { toast('Error: '+error.message,'error'); return; }
-    await registrarActividadObra(obraActualId, 'Obra editada', `Título: ${titulo} | Cliente: ${cli?.nombre||'—'} | Categoría: ${v('tr_cat')||'—'} | Prioridad: ${v('tr_prio')||'—'}`);
-    closeModal('mTrabajo');
-    document.getElementById('mTrabTit').textContent = 'Nueva Obra';
-    const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
-    trabajos=data||[];
-    await abrirFichaObra(obraActualId, false);
-    toast('Obra actualizada ✓','success');
-    return;
-  }
+    // Si estamos editando
+    if (obraActualId && document.getElementById('mTrabTit').textContent === 'Editar Obra') {
+      const { error } = await sb.from('trabajos').update({
+        titulo,
+        cliente_id: cliId, cliente_nombre: cli?.nombre||'',
+        prioridad: v('tr_prio'), categoria: v('tr_cat'),
+        fecha: v('tr_fecha'), hora: v('tr_hora'),
+        direccion_obra_texto: dirCliente, descripcion: desc,
+      }).eq('id', obraActualId);
+      if (error) { toast('Error: '+error.message,'error'); return; }
+      await registrarActividadObra(obraActualId, 'Obra editada', `Título: ${titulo} | Cliente: ${cli?.nombre||'—'} | Categoría: ${v('tr_cat')||'—'} | Prioridad: ${v('tr_prio')||'—'}`);
+      closeModal('mTrabajo');
+      document.getElementById('mTrabTit').textContent = 'Nueva Obra';
+      const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+      trabajos=data||[];
+      await abrirFichaObra(obraActualId, false);
+      toast('Obra actualizada ✓','success');
+      return;
+    }
 
-  const num=`TRB-${new Date().getFullYear()}-${String(trabajos.length+1).padStart(3,'0')}`;
-  const {data:insertData,error}=await sb.from('trabajos').insert({
+    const num=`TRB-${new Date().getFullYear()}-${String(trabajos.length+1).padStart(3,'0')}`;
+    const {data:insertData,error}=await sb.from('trabajos').insert({
     empresa_id:EMPRESA.id,numero:num,titulo,
     cliente_id:cliId,cliente_nombre:cli?.nombre||'',
     prioridad:v('tr_prio'),categoria:v('tr_cat'),
@@ -1853,10 +1862,13 @@ async function saveTrabajo() {
       await registrarActividadObra(newTrabajoId, 'Documentos adjuntados', `${trDocsFiles.length} documento(s) al crear la obra`);
     }
   }
-  closeModal('mTrabajo');
-  const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
-  trabajos=data||[]; renderTrabajos(); loadDashboard();
-  toast(`Obra ${num} creada ✓`,'success');
+    closeModal('mTrabajo');
+    const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+    trabajos=data||[]; renderTrabajos(); loadDashboard();
+    toast(`Obra ${num} creada ✓`,'success');
+  } finally {
+    _creando = false;
+  }
 }
 
 async function delTrabajo(id) {

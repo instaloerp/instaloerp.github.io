@@ -196,48 +196,54 @@ function pc_renderLineas() {
 // GUARDAR PEDIDO
 // ═══════════════════════════════════════════════
 async function guardarPedidoCompra(estado) {
-  const numero = v('pc_numero').trim();
-  const provId = parseInt(v('pc_proveedor'));
-  const fecha = v('pc_fecha');
-  const entrega = v('pc_entrega');
+  if (_creando) return;
+  _creando = true;
+  try {
+    const numero = v('pc_numero').trim();
+    const provId = parseInt(v('pc_proveedor'));
+    const fecha = v('pc_fecha');
+    const entrega = v('pc_entrega');
 
-  if (!numero) {toast('Introduce número de pedido','error');return;}
-  if (!provId) {toast('Selecciona proveedor','error');return;}
-  if (pcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
+    if (!numero) {toast('Introduce número de pedido','error');return;}
+    if (!provId) {toast('Selecciona proveedor','error');return;}
+    if (pcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
 
-  const prov = (proveedores||[]).find(p => p.id === provId);
-  let base = 0, ivaTotal = 0;
-  pcLineas.forEach(l => {
-    const subtotal = l.cantidad * l.precio;
-    base += subtotal;
-    ivaTotal += subtotal * (l.iva / 100);
-  });
+    const prov = (proveedores||[]).find(p => p.id === provId);
+    let base = 0, ivaTotal = 0;
+    pcLineas.forEach(l => {
+      const subtotal = l.cantidad * l.precio;
+      base += subtotal;
+      ivaTotal += subtotal * (l.iva / 100);
+    });
 
-  const obj = {
-    empresa_id: EMPRESA.id,
-    numero,
-    proveedor_id: provId,
-    proveedor_nombre: prov?.nombre || '',
-    fecha,
-    fecha_entrega_prevista: entrega,
-    estado,
-    base_imponible: base,
-    total_iva: ivaTotal,
-    total: base + ivaTotal,
-    lineas: pcLineas,
-    observaciones: v('pc_observaciones'),
-    usuario_id: CU.id
-  };
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero,
+      proveedor_id: provId,
+      proveedor_nombre: prov?.nombre || '',
+      fecha,
+      fecha_entrega_prevista: entrega,
+      estado,
+      base_imponible: base,
+      total_iva: ivaTotal,
+      total: base + ivaTotal,
+      lineas: pcLineas,
+      observaciones: v('pc_observaciones'),
+      usuario_id: CU.id
+    };
 
-  if (pcEditId) {
-    await sb.from('pedidos_compra').update(obj).eq('id', pcEditId);
-  } else {
-    await sb.from('pedidos_compra').insert(obj);
+    if (pcEditId) {
+      await sb.from('pedidos_compra').update(obj).eq('id', pcEditId);
+    } else {
+      await sb.from('pedidos_compra').insert(obj);
+    }
+
+    closeModal('mPedidoCompra');
+    loadPedidosCompra();
+    toast('Pedido guardado ✓', 'success');
+  } finally {
+    _creando = false;
   }
-
-  closeModal('mPedidoCompra');
-  loadPedidosCompra();
-  toast('Pedido guardado ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -253,39 +259,45 @@ async function cambiarEstadoPC(id, nuevoEstado) {
 // CONVERTIR A RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function pedidoToRecepcion(id) {
-  const pc = pedidosCompra.find(x => x.id === id);
-  if (!pc) return;
-  if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
+  if (_creando) return;
+  _creando = true;
+  try {
+    const pc = pedidosCompra.find(x => x.id === id);
+    if (!pc) return;
+    if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
 
-  // Crear recepción con líneas del pedido
-  const lineas = (pc.lineas||[]).map(l => ({
-    ...l,
-    cantidad_pedida: l.cantidad,
-    cantidad_recibida: 0
-  }));
+    // Crear recepción con líneas del pedido
+    const lineas = (pc.lineas||[]).map(l => ({
+      ...l,
+      cantidad_pedida: l.cantidad,
+      cantidad_recibida: 0
+    }));
 
-  const numero = await generarNumeroDoc('recepcion');
-  const obj = {
-    empresa_id: EMPRESA.id,
-    numero,
-    pedido_compra_id: id,
-    proveedor_id: pc.proveedor_id,
-    proveedor_nombre: pc.proveedor_nombre,
-    almacen_destino_id: (almacenes||[]).length > 0 ? almacenes[0].id : null,
-    fecha: new Date().toISOString().split('T')[0],
-    estado: 'pendiente',
-    lineas,
-    observaciones: '',
-    usuario_id: CU.id,
-    usuario_nombre: CP?.nombre || CU.email
-  };
+    const numero = await generarNumeroDoc('recepcion');
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero,
+      pedido_compra_id: id,
+      proveedor_id: pc.proveedor_id,
+      proveedor_nombre: pc.proveedor_nombre,
+      almacen_destino_id: (almacenes||[]).length > 0 ? almacenes[0].id : null,
+      fecha: new Date().toISOString().split('T')[0],
+      estado: 'pendiente',
+      lineas,
+      observaciones: '',
+      usuario_id: CU.id,
+      usuario_nombre: CP?.nombre || CU.email
+    };
 
-  await sb.from('recepciones').insert(obj);
-  await sb.from('pedidos_compra').update({ exportado_a:'recepcion', exportado_bloqueado:true }).eq('id', id);
-  await cambiarEstadoPC(id, 'enviado');
-  const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='recepcion'; pp.exportado_bloqueado=true; }
-  goPage('albaranes-proveedor');
-  toast('Albarán de proveedor creado — pedido bloqueado', 'success');
+    await sb.from('recepciones').insert(obj);
+    await sb.from('pedidos_compra').update({ exportado_a:'recepcion', exportado_bloqueado:true }).eq('id', id);
+    await cambiarEstadoPC(id, 'enviado');
+    const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='recepcion'; pp.exportado_bloqueado=true; }
+    goPage('albaranes-proveedor');
+    toast('Albarán de proveedor creado — pedido bloqueado', 'success');
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -318,31 +330,37 @@ function exportPedidosCompra() {
 // CONVERSIONES ADICIONALES
 // ═══════════════════════════════════════════════
 async function pedidoToFacturaProv(id) {
-  const pc = pedidosCompra.find(x => x.id === id);
-  if (!pc) return;
-  if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
-  if (!confirm(`¿Crear factura de proveedor desde el pedido ${pc.numero}?`)) return;
-  const numero = await generarNumeroDoc('factura_proveedor');
-  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-  const { error } = await sb.from('facturas_proveedor').insert({
-    empresa_id: EMPRESA.id, numero,
-    proveedor_id: pc.proveedor_id, proveedor_nombre: pc.proveedor_nombre,
-    fecha: hoy.toISOString().split('T')[0],
-    fecha_vencimiento: v.toISOString().split('T')[0],
-    base_imponible: pc.base_imponible || pc.total || 0,
-    total_iva: pc.total_iva || 0,
-    total: pc.total || 0,
-    estado: 'pendiente',
-    observaciones: pc.observaciones,
-    lineas: pc.lineas,
-    pedido_compra_id: pc.id,
-  });
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await sb.from('pedidos_compra').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
-  await cambiarEstadoPC(id, 'recibido');
-  const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }
-  toast('🧾 Factura proveedor creada — pedido bloqueado', 'success');
-  goPage('facturas-proveedor');
+  if (_creando) return;
+  _creando = true;
+  try {
+    const pc = pedidosCompra.find(x => x.id === id);
+    if (!pc) return;
+    if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
+    if (!confirm(`¿Crear factura de proveedor desde el pedido ${pc.numero}?`)) return;
+    const numero = await generarNumeroDoc('factura_proveedor');
+    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+    const { error } = await sb.from('facturas_proveedor').insert({
+      empresa_id: EMPRESA.id, numero,
+      proveedor_id: pc.proveedor_id, proveedor_nombre: pc.proveedor_nombre,
+      fecha: hoy.toISOString().split('T')[0],
+      fecha_vencimiento: v.toISOString().split('T')[0],
+      base_imponible: pc.base_imponible || pc.total || 0,
+      total_iva: pc.total_iva || 0,
+      total: pc.total || 0,
+      estado: 'pendiente',
+      observaciones: pc.observaciones,
+      lineas: pc.lineas,
+      pedido_compra_id: pc.id,
+    });
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    await sb.from('pedidos_compra').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
+    await cambiarEstadoPC(id, 'recibido');
+    const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }
+    toast('🧾 Factura proveedor creada — pedido bloqueado', 'success');
+    goPage('facturas-proveedor');
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════

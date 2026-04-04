@@ -145,57 +145,69 @@ async function delAlbaran(id) {
 }
 
 async function duplicarAlbaran(id) {
-  const a = albaranesData.find(x=>x.id===id);
-  if (!a) return;
-  const nuevo = {...a}; delete nuevo.id; delete nuevo.created_at;
-  nuevo.estado = 'pendiente';
-  nuevo.fecha  = new Date().toISOString().split('T')[0];
-  nuevo.numero = await generarNumeroDoc('albaran');
-  const { error } = await sb.from('albaranes').insert(nuevo);
-  if (error) { toast('Error: '+error.message,'error'); return; }
-  toast('Duplicado ✓','success');
-  await loadAlbaranes();
+  if (_creando) return;
+  _creando = true;
+  try {
+    const a = albaranesData.find(x=>x.id===id);
+    if (!a) return;
+    const nuevo = {...a}; delete nuevo.id; delete nuevo.created_at;
+    nuevo.estado = 'pendiente';
+    nuevo.fecha  = new Date().toISOString().split('T')[0];
+    nuevo.numero = await generarNumeroDoc('albaran');
+    const { error } = await sb.from('albaranes').insert(nuevo);
+    if (error) { toast('Error: '+error.message,'error'); return; }
+    toast('Duplicado ✓','success');
+    await loadAlbaranes();
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
 //  CONVERSIONES
 // ═══════════════════════════════════════════════
 async function albaranToFactura(id) {
-  const a = albaranesData.find(x=>x.id===id);
-  if (!a) return;
-  // Comprobar si ya tiene factura
-  const _fD4 = window.facturasData || [];
-  if (_fD4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fD4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
-  if (!confirm('¿Convertir el albarán '+a.numero+' en factura?')) return;
-  const numero = await generarNumeroDoc('factura');
-  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
-  // Asignar trabajo_id si el albarán pertenece a una obra
-  const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
-  const { error } = await sb.from('facturas').insert({
-    empresa_id: EMPRESA.id, numero,
-    cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
-    fecha: hoy.toISOString().split('T')[0],
-    fecha_vencimiento: v.toISOString().split('T')[0],
-    base_imponible: a.total||0, total_iva: 0, total: a.total||0,
-    estado: 'pendiente', observaciones: a.observaciones,
-    lineas: a.lineas, albaran_id: a.id,
-    presupuesto_id: a.presupuesto_id || null,
-    ...(_trabVinc ? {trabajo_id: _trabVinc} : {}),
-  });
-  if (error) { toast('Error: '+error.message,'error'); return; }
-  await sb.from('albaranes').update({estado:'facturado'}).eq('id',id);
-  const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; }
-  window.albaranesData = albaranesData;
-  // Refrescar facturas en memoria
-  const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
-  window.facturasData = facRefresh||[];
-  filtrarAlbaranes();
-  closeModal('mAbDetalle');
-  toast('✅ Factura creada — albarán marcado como facturado','success');
-  loadDashboard();
-  // Refrescar ficha de obra si está abierta y estamos en la página de obras
-  const _pg1 = document.querySelector('.page.active')?.id;
-  if (_pg1 === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  if (_creando) return;
+  _creando = true;
+  try {
+    const a = albaranesData.find(x=>x.id===id);
+    if (!a) return;
+    // Comprobar si ya tiene factura
+    const _fD4 = window.facturasData || [];
+    if (_fD4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fD4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
+    if (!confirm('¿Convertir el albarán '+a.numero+' en factura?')) return;
+    const numero = await generarNumeroDoc('factura');
+    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
+    // Asignar trabajo_id si el albarán pertenece a una obra
+    const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
+    const { error } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id, numero,
+      cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
+      fecha: hoy.toISOString().split('T')[0],
+      fecha_vencimiento: v.toISOString().split('T')[0],
+      base_imponible: a.total||0, total_iva: 0, total: a.total||0,
+      estado: 'pendiente', observaciones: a.observaciones,
+      lineas: a.lineas, albaran_id: a.id,
+      presupuesto_id: a.presupuesto_id || null,
+      ...(_trabVinc ? {trabajo_id: _trabVinc} : {}),
+    });
+    if (error) { toast('Error: '+error.message,'error'); return; }
+    await sb.from('albaranes').update({estado:'facturado'}).eq('id',id);
+    const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; }
+    window.albaranesData = albaranesData;
+    // Refrescar facturas en memoria
+    const {data:facRefresh} = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+    window.facturasData = facRefresh||[];
+    filtrarAlbaranes();
+    closeModal('mAbDetalle');
+    toast('✅ Factura creada — albarán marcado como facturado','success');
+    loadDashboard();
+    // Refrescar ficha de obra si está abierta y estamos en la página de obras
+    const _pg1 = document.querySelector('.page.active')?.id;
+    if (_pg1 === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -323,108 +335,120 @@ function abCheckChanged() {
 }
 
 async function facturarAlbaranesMulti() {
-  const checks = document.querySelectorAll('.ab-check:checked');
-  if (checks.length < 2) return;
-  const ids = [...checks].map(c => parseInt(c.value));
-  const albs = ids.map(id => albaranesData.find(x => x.id === id)).filter(Boolean);
-  if (!albs.length) return;
+  if (_creando) return;
+  _creando = true;
+  try {
+    const checks = document.querySelectorAll('.ab-check:checked');
+    if (checks.length < 2) return;
+    const ids = [...checks].map(c => parseInt(c.value));
+    const albs = ids.map(id => albaranesData.find(x => x.id === id)).filter(Boolean);
+    if (!albs.length) return;
 
-  // Verificar mismo cliente
-  const clienteIds = new Set(albs.map(a => a.cliente_id));
-  if (clienteIds.size > 1) { toast('Todos los albaranes deben ser del mismo cliente','error'); return; }
+    // Verificar mismo cliente
+    const clienteIds = new Set(albs.map(a => a.cliente_id));
+    if (clienteIds.size > 1) { toast('Todos los albaranes deben ser del mismo cliente','error'); return; }
 
-  const nums = albs.map(a => a.numero).join(', ');
-  if (!confirm(`¿Crear una factura agrupando ${albs.length} albaranes?\n\n${nums}`)) return;
+    const nums = albs.map(a => a.numero).join(', ');
+    if (!confirm(`¿Crear una factura agrupando ${albs.length} albaranes?\n\n${nums}`)) return;
 
-  // Combinar líneas con referencia al albarán
-  let lineasTodas = [];
-  let totalGlobal = 0;
-  albs.forEach(a => {
-    // Separador con nombre del albarán
-    lineasTodas.push({ desc: `── ${a.numero} (${a.fecha||''}) ──`, cant: 0, precio: 0, _separator: true });
-    (a.lineas || []).forEach(l => {
-      lineasTodas.push({ ...l });
-      totalGlobal += (l.cant || 0) * (l.precio || 0);
+    // Combinar líneas con referencia al albarán
+    let lineasTodas = [];
+    let totalGlobal = 0;
+    albs.forEach(a => {
+      // Separador con nombre del albarán
+      lineasTodas.push({ desc: `── ${a.numero} (${a.fecha||''}) ──`, cant: 0, precio: 0, _separator: true });
+      (a.lineas || []).forEach(l => {
+        lineasTodas.push({ ...l });
+        totalGlobal += (l.cant || 0) * (l.precio || 0);
+      });
     });
-  });
 
-  const numero = await generarNumeroDoc('factura');
-  const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+    const numero = await generarNumeroDoc('factura');
+    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
 
-  const { error } = await sb.from('facturas').insert({
-    empresa_id: EMPRESA.id, numero,
-    cliente_id: albs[0].cliente_id, cliente_nombre: albs[0].cliente_nombre,
-    fecha: hoy.toISOString().split('T')[0],
-    fecha_vencimiento: v.toISOString().split('T')[0],
-    base_imponible: Math.round(totalGlobal * 100) / 100,
-    total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
-    estado: 'pendiente',
-    observaciones: `Factura agrupada: ${nums}`,
-    lineas: lineasTodas,
-    albaran_ids: ids,
-  });
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+    const { error } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id, numero,
+      cliente_id: albs[0].cliente_id, cliente_nombre: albs[0].cliente_nombre,
+      fecha: hoy.toISOString().split('T')[0],
+      fecha_vencimiento: v.toISOString().split('T')[0],
+      base_imponible: Math.round(totalGlobal * 100) / 100,
+      total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
+      estado: 'pendiente',
+      observaciones: `Factura agrupada: ${nums}`,
+      lineas: lineasTodas,
+      albaran_ids: ids,
+    });
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  // Marcar todos como facturados
-  for (const a of albs) {
-    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
-    const ab = albaranesData.find(x => x.id === a.id);
-    if (ab) { ab.estado = 'facturado'; }
+    // Marcar todos como facturados
+    for (const a of albs) {
+      await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
+      const ab = albaranesData.find(x => x.id === a.id);
+      if (ab) { ab.estado = 'facturado'; }
+    }
+    renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
+    toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');
+    loadDashboard();
+  } finally {
+    _creando = false;
   }
-  renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
-  toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');
-  loadDashboard();
 }
 
 // ═══════════════════════════════════════════════
 //  ALBARÁN → OBRA
 // ═══════════════════════════════════════════════
 async function albaranToObra(id) {
-  const a = albaranesData.find(x=>x.id===id);
-  if (!a) return;
-  // Comprobar si ya tiene obra vinculada
-  if (a.trabajo_id && (typeof trabajos !== 'undefined') && trabajos.some(t=>t.id===a.trabajo_id)) {
-    toast('🔒 Este albarán ya tiene obra vinculada','error'); return;
-  }
-  if (!confirm(`¿Crear obra desde el albarán ${a.numero}?`)) return;
-  const c = clientes.find(x=>x.id===a.cliente_id);
-  const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
-  // Calcular número de obra correcto (max existente + 1)
-  const yr = new Date().getFullYear();
-  const maxNum = (trabajos||[]).reduce((mx, t) => {
-    const m = (t.numero||'').match(/TRB-\d+-(\d+)/);
-    return m ? Math.max(mx, parseInt(m[1])) : mx;
-  }, 0);
-  const numObra = `TRB-${yr}-${String(maxNum+1).padStart(3,'0')}`;
-  const { data: obraData, error } = await sb.from('trabajos').insert({
-    empresa_id: EMPRESA.id,
-    numero: numObra,
-    titulo: a.referencia || 'Obra desde '+a.numero,
-    cliente_id: a.cliente_id, cliente_nombre: c?.nombre||a.cliente_nombre||'',
-    estado: 'pendiente',
-    fecha: new Date().toISOString().split('T')[0],
-    presupuesto_id: a.presupuesto_id || null,
-    descripcion: a.observaciones||null,
-    direccion_obra_texto: dirParts||null,
-    operario_id: CU.id, operario_nombre: CP?.nombre||'',
-  }).select().single();
-  if (error) { toast('Error: '+error.message,'error'); return; }
-  // Vincular albarán a la obra recién creada
-  if (obraData?.id) {
-    await sb.from('albaranes').update({ trabajo_id: obraData.id }).eq('id', id);
-    const ab = albaranesData.find(x=>x.id===id);
-    if (ab) ab.trabajo_id = obraData.id;
-    // Si el albarán tiene presupuesto, vincular también el presupuesto a la obra
-    if (a.presupuesto_id) {
-      await sb.from('presupuestos').update({ trabajo_id: obraData.id }).eq('id', a.presupuesto_id);
+  if (_creando) return;
+  _creando = true;
+  try {
+    const a = albaranesData.find(x=>x.id===id);
+    if (!a) return;
+    // Comprobar si ya tiene obra vinculada
+    if (a.trabajo_id && (typeof trabajos !== 'undefined') && trabajos.some(t=>t.id===a.trabajo_id)) {
+      toast('🔒 Este albarán ya tiene obra vinculada','error'); return;
     }
+    if (!confirm(`¿Crear obra desde el albarán ${a.numero}?`)) return;
+    const c = clientes.find(x=>x.id===a.cliente_id);
+    const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
+    // Calcular número de obra correcto (max existente + 1)
+    const yr = new Date().getFullYear();
+    const maxNum = (trabajos||[]).reduce((mx, t) => {
+      const m = (t.numero||'').match(/TRB-\d+-(\d+)/);
+      return m ? Math.max(mx, parseInt(m[1])) : mx;
+    }, 0);
+    const numObra = `TRB-${yr}-${String(maxNum+1).padStart(3,'0')}`;
+    const { data: obraData, error } = await sb.from('trabajos').insert({
+      empresa_id: EMPRESA.id,
+      numero: numObra,
+      titulo: a.referencia || 'Obra desde '+a.numero,
+      cliente_id: a.cliente_id, cliente_nombre: c?.nombre||a.cliente_nombre||'',
+      estado: 'pendiente',
+      fecha: new Date().toISOString().split('T')[0],
+      presupuesto_id: a.presupuesto_id || null,
+      descripcion: a.observaciones||null,
+      direccion_obra_texto: dirParts||null,
+      operario_id: CU.id, operario_nombre: CP?.nombre||'',
+    }).select().single();
+    if (error) { toast('Error: '+error.message,'error'); return; }
+    // Vincular albarán a la obra recién creada
+    if (obraData?.id) {
+      await sb.from('albaranes').update({ trabajo_id: obraData.id }).eq('id', id);
+      const ab = albaranesData.find(x=>x.id===id);
+      if (ab) ab.trabajo_id = obraData.id;
+      // Si el albarán tiene presupuesto, vincular también el presupuesto a la obra
+      if (a.presupuesto_id) {
+        await sb.from('presupuestos').update({ trabajo_id: obraData.id }).eq('id', a.presupuesto_id);
+      }
+    }
+    // Refrescar trabajos en memoria
+    const {data:tRefresh} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+    if (typeof trabajos !== 'undefined') { trabajos.length = 0; (tRefresh||[]).forEach(t=>trabajos.push(t)); }
+    filtrarAlbaranes();
+    toast('🏗️ Obra creada desde albarán','success');
+    if (typeof loadDashboard === 'function') loadDashboard();
+  } finally {
+    _creando = false;
   }
-  // Refrescar trabajos en memoria
-  const {data:tRefresh} = await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
-  if (typeof trabajos !== 'undefined') { trabajos.length = 0; (tRefresh||[]).forEach(t=>trabajos.push(t)); }
-  filtrarAlbaranes();
-  toast('🏗️ Obra creada desde albarán','success');
-  if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 // ═══════════════════════════════════════════════

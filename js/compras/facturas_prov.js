@@ -207,50 +207,56 @@ function fp_renderLineas() {
 // GUARDAR FACTURA
 // ═══════════════════════════════════════════════
 async function guardarFacturaProv(estado) {
-  const numero = v('fp_numero').trim();
-  const provId = parseInt(v('fp_proveedor'));
-  const fecha = v('fp_fecha');
-  const vencimiento = v('fp_vencimiento');
-  const fpId = v('fp_formapago');
+  if (_creando) return;
+  _creando = true;
+  try {
+    const numero = v('fp_numero').trim();
+    const provId = parseInt(v('fp_proveedor'));
+    const fecha = v('fp_fecha');
+    const vencimiento = v('fp_vencimiento');
+    const fpId = v('fp_formapago');
 
-  if (!numero) {toast('Introduce número de factura','error');return;}
-  if (!provId) {toast('Selecciona proveedor','error');return;}
-  if (fpLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
+    if (!numero) {toast('Introduce número de factura','error');return;}
+    if (!provId) {toast('Selecciona proveedor','error');return;}
+    if (fpLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
 
-  const prov = (proveedores||[]).find(p => p.id === provId);
-  let base = 0, ivaTotal = 0;
-  fpLineas.forEach(l => {
-    const subtotal = l.cantidad * l.precio;
-    base += subtotal;
-    ivaTotal += subtotal * (l.iva / 100);
-  });
+    const prov = (proveedores||[]).find(p => p.id === provId);
+    let base = 0, ivaTotal = 0;
+    fpLineas.forEach(l => {
+      const subtotal = l.cantidad * l.precio;
+      base += subtotal;
+      ivaTotal += subtotal * (l.iva / 100);
+    });
 
-  const obj = {
-    empresa_id: EMPRESA.id,
-    numero,
-    proveedor_id: provId,
-    proveedor_nombre: prov?.nombre || '',
-    fecha,
-    fecha_vencimiento: vencimiento,
-    forma_pago_id: fpId ? parseInt(fpId) : null,
-    base_imponible: base,
-    total_iva: ivaTotal,
-    total: base + ivaTotal,
-    estado,
-    lineas: fpLineas,
-    observaciones: v('fp_observaciones'),
-    usuario_id: CU.id
-  };
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero,
+      proveedor_id: provId,
+      proveedor_nombre: prov?.nombre || '',
+      fecha,
+      fecha_vencimiento: vencimiento,
+      forma_pago_id: fpId ? parseInt(fpId) : null,
+      base_imponible: base,
+      total_iva: ivaTotal,
+      total: base + ivaTotal,
+      estado,
+      lineas: fpLineas,
+      observaciones: v('fp_observaciones'),
+      usuario_id: CU.id
+    };
 
-  if (fpEditId) {
-    await sb.from('facturas_proveedor').update(obj).eq('id', fpEditId);
-  } else {
-    await sb.from('facturas_proveedor').insert(obj);
+    if (fpEditId) {
+      await sb.from('facturas_proveedor').update(obj).eq('id', fpEditId);
+    } else {
+      await sb.from('facturas_proveedor').insert(obj);
+    }
+
+    closeModal('mFacturaProv');
+    loadFacturasProv();
+    toast('Factura guardada ✓', 'success');
+  } finally {
+    _creando = false;
   }
-
-  closeModal('mFacturaProv');
-  loadFacturasProv();
-  toast('Factura guardada ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -266,23 +272,29 @@ async function cambiarEstadoFP(id, nuevoEstado) {
 // REGISTRAR PAGO
 // ═══════════════════════════════════════════════
 async function pagarFacturaProv(id) {
-  const fp = facturasProveedor.find(x => x.id === id);
-  if (!fp) return;
+  if (_creando) return;
+  _creando = true;
+  try {
+    const fp = facturasProveedor.find(x => x.id === id);
+    if (!fp) return;
 
-  if (!confirm(`¿Registrar pago de ${fmtE(fp.total)}?`)) return;
+    if (!confirm(`¿Registrar pago de ${fmtE(fp.total)}?`)) return;
 
-  // Insertar registro de pago
-  await sb.from('pagos_proveedor').insert({
-    empresa_id: EMPRESA.id,
-    factura_id: id,
-    proveedor_id: fp.proveedor_id,
-    importe: fp.total,
-    fecha_pago: new Date().toISOString().split('T')[0],
-    usuario_id: CU.id
-  });
+    // Insertar registro de pago
+    await sb.from('pagos_proveedor').insert({
+      empresa_id: EMPRESA.id,
+      factura_id: id,
+      proveedor_id: fp.proveedor_id,
+      importe: fp.total,
+      fecha_pago: new Date().toISOString().split('T')[0],
+      usuario_id: CU.id
+    });
 
-  await cambiarEstadoFP(id, 'pagada');
-  toast('Pago registrado ✓', 'success');
+    await cambiarEstadoFP(id, 'pagada');
+    toast('Pago registrado ✓', 'success');
+  } finally {
+    _creando = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
