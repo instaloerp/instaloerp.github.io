@@ -230,8 +230,16 @@ function nuevoParteModal(preselObraId) {
 }
 
 // Abrir nuevo parte pre-seleccionando la obra (llamado desde ficha de obra)
+// Abre el planificador a pantalla completa con la obra prefijada
 function nuevoParteDesdeObra(obraId) {
-  nuevoParteModal(obraId);
+  const obra = (typeof trabajos !== 'undefined' && Array.isArray(trabajos))
+    ? trabajos.find(t => t.id === obraId) : null;
+  const titulo = obra ? obra.titulo : '';
+  if (typeof abrirPlanificadorDesdeObra === 'function') {
+    abrirPlanificadorDesdeObra(obraId, titulo);
+  } else {
+    nuevoParteModal(obraId);
+  }
 }
 
 // Programar cita desde obra con datos del presupuesto

@@ -56,21 +56,141 @@ async function initPlanificador() {
 async function abrirPlanificadorDesdeObra(obraId, obraTitulo) {
   planObraFija = { id: obraId, titulo: obraTitulo };
   planFullscreen = true;
-  goPage('planificador');
-  // Esperar a que se muestre la página
-  setTimeout(() => {
-    const page = document.getElementById('page-planificador');
-    if (page) page.classList.add('plan-fullscreen');
-    initPlanificador();
-  }, 100);
+
+  // Crear overlay fullscreen
+  let overlay = document.getElementById('planFullscreenOverlay');
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'planFullscreenOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:900;background:#fff;display:flex;flex-direction:column;overflow:auto';
+
+  // Banner superior: obra + operario + navegación + cerrar
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--gris-50);border-bottom:1px solid var(--gris-200);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:15px;font-weight:700;color:var(--gris-800)">📅 Programar parte — <span style="color:var(--azul)">${obraTitulo}</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select id="plan-filtro-operario-fs" onchange="filtrarPlanificadorFS()" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:8px;font-size:13px"></select>
+        <button onclick="planificadorSemanaAnteriorFS()" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:8px;background:#fff;cursor:pointer">‹</button>
+        <span id="planWeekLabelFS" style="font-size:12px;font-weight:600;color:var(--gris-600);min-width:200px;text-align:center"></span>
+        <button onclick="planificadorSemanaSiguienteFS()" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:8px;background:#fff;cursor:pointer">›</button>
+        <button onclick="planificadorHoyEnSemanaFS()" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:8px;background:#fff;cursor:pointer;font-size:12px">Hoy</button>
+        <button onclick="cerrarPlanificadorFullscreen()" style="padding:6px 14px;border:none;background:#EF4444;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px">✕ Cerrar</button>
+      </div>
+    </div>
+    <div style="padding:8px 12px;font-size:12px;color:#6B7280;background:#FFFBEB;border-bottom:1px solid #FDE68A;flex-shrink:0">
+      💡 Selecciona un operario arriba y haz click en el hueco horario para crear el parte. La obra <strong>${obraTitulo}</strong> se asignará automáticamente.
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="plan-container" id="planContainerFS" style="flex:1;margin:0;border-radius:0;border:none;height:auto;min-height:auto">
+        <div class="plan-header" id="planHeaderFS">
+          <div class="plan-hours-header"></div>
+          <div class="plan-days-header" id="planDaysHeaderFS"></div>
+        </div>
+        <div class="plan-body" style="flex:1;overflow:hidden">
+          <div class="plan-hours-column" id="planHoursColumnFS"></div>
+          <div class="plan-grid-container" id="planGridContainerFS" style="flex:1;overflow:auto">
+            <div class="plan-grid" id="planGridFS"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Inicializar
+  planCurrentDate = getMonday(new Date());
+  await cargarConfigPlanificador();
+  await cargarUsuarios();
+  await cargarPartesParaPlanificador();
+
+  // Popular filtro operarios en fullscreen
+  const selFS = document.getElementById('plan-filtro-operario-fs');
+  selFS.innerHTML = planUsuarios.map(u =>
+    `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`
+  ).join('');
+  const ultimo = localStorage.getItem('plan-filtro-operario');
+  if (ultimo && selFS.querySelector(`option[value="${ultimo}"]`)) {
+    selFS.value = ultimo;
+    planOperarioFilter = ultimo;
+  } else if (planUsuarios.length > 0) {
+    selFS.value = planUsuarios[0].id;
+    planOperarioFilter = planUsuarios[0].id;
+  }
+
+  calcularAlturaFilasFS();
+  renderPlanificadorFS();
+  sincronizarScrollHorasFS();
 }
 
 function cerrarPlanificadorFullscreen() {
   planFullscreen = false;
   planObraFija = null;
-  const page = document.getElementById('page-planificador');
-  if (page) page.classList.remove('plan-fullscreen');
-  renderPlanificador();
+  const overlay = document.getElementById('planFullscreenOverlay');
+  if (overlay) overlay.remove();
+  // Volver a la ficha de obra si existe
+  if (typeof obraActualId !== 'undefined' && obraActualId) {
+    try { abrirFichaObra(obraActualId, false); } catch(e) {}
+  }
+}
+
+// ── Funciones FS (fullscreen) que usan los IDs con sufijo FS ──
+function calcularAlturaFilasFS() {
+  const container = document.getElementById('planContainerFS');
+  const header = document.getElementById('planHeaderFS');
+  if (!container || !header) {
+    planHoraHeight = 28;
+    return;
+  }
+  const available = container.clientHeight - header.offsetHeight;
+  const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO;
+  planHoraHeight = Math.max(20, Math.floor(available / totalRows));
+}
+
+function renderPlanificadorFS() {
+  calcularAlturaFilasFS();
+  // Week label
+  const lbl = document.getElementById('planWeekLabelFS');
+  if (lbl) {
+    const s = new Date(planCurrentDate);
+    const e = new Date(planCurrentDate);
+    e.setDate(e.getDate() + 6);
+    const opts = { weekday:'long', month:'short', day:'numeric' };
+    lbl.textContent = `${s.toLocaleDateString('es-ES',opts)} - ${e.toLocaleDateString('es-ES',opts)}`;
+  }
+  // Day headers
+  renderDayHeadersTo('planDaysHeaderFS');
+  // Hours column
+  renderHoursColumnTo('planHoursColumnFS');
+  // Grid
+  renderGridTo('planGridFS');
+}
+
+function filtrarPlanificadorFS() {
+  const sel = document.getElementById('plan-filtro-operario-fs');
+  planOperarioFilter = sel ? sel.value : '';
+  localStorage.setItem('plan-filtro-operario', planOperarioFilter);
+  renderPlanificadorFS();
+}
+function planificadorSemanaAnteriorFS() {
+  planCurrentDate.setDate(planCurrentDate.getDate() - 7);
+  cargarPartesParaPlanificador().then(() => renderPlanificadorFS());
+}
+function planificadorSemanaSiguienteFS() {
+  planCurrentDate.setDate(planCurrentDate.getDate() + 7);
+  cargarPartesParaPlanificador().then(() => renderPlanificadorFS());
+}
+function planificadorHoyEnSemanaFS() {
+  planCurrentDate = getMonday(new Date());
+  cargarPartesParaPlanificador().then(() => renderPlanificadorFS());
+}
+function sincronizarScrollHorasFS() {
+  const gc = document.getElementById('planGridContainerFS');
+  const hc = document.getElementById('planHoursColumnFS');
+  if (!gc || !hc) return;
+  gc.addEventListener('scroll', () => { hc.scrollTop = gc.scrollTop; });
 }
 
 function getMonday(d) {
@@ -225,6 +345,11 @@ function planificadorHoyEnSemana() {
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderPlanificador() {
+  // Si estamos en fullscreen, usar las funciones FS
+  if (planFullscreen && document.getElementById('planFullscreenOverlay')) {
+    renderPlanificadorFS();
+    return;
+  }
   calcularAlturaFilas();
   renderWeekLabel();
   renderDayHeaders();
@@ -242,8 +367,9 @@ function renderWeekLabel() {
   lbl.textContent = `${startDate.toLocaleDateString('es-ES', opts)} - ${endDate.toLocaleDateString('es-ES', opts)}`;
 }
 
-function renderDayHeaders() {
-  const container = document.getElementById('planDaysHeader');
+function renderDayHeaders() { renderDayHeadersTo('planDaysHeader'); }
+function renderDayHeadersTo(containerId) {
+  const container = document.getElementById(containerId);
   if (!container) return;
   const hoyStr = new Date().toISOString().split('T')[0];
   container.innerHTML = '';
@@ -271,8 +397,9 @@ function renderDayHeaders() {
   }
 }
 
-function renderHoursColumn() {
-  const container = document.getElementById('planHoursColumn');
+function renderHoursColumn() { renderHoursColumnTo('planHoursColumn'); }
+function renderHoursColumnTo(containerId) {
+  const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
   for (let h = PLAN_HORAS_INICIO; h < PLAN_HORAS_FIN; h++) {
@@ -285,8 +412,9 @@ function renderHoursColumn() {
   }
 }
 
-function renderGrid() {
-  const container = document.getElementById('planGrid');
+function renderGrid() { renderGridTo('planGrid'); }
+function renderGridTo(containerId) {
+  const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
 
@@ -602,19 +730,39 @@ async function moverParte(parteId, nuevaFecha, nuevaHora, esNoLaboral) {
     updateData.estado = 'programado';
   }
 
+  console.log('[Planificador] Moviendo parte', parteId, 'a', nuevaFecha, horaStr, '-', horaFinStr, updateData);
+
   try {
-    const { error } = await sb.from('partes_trabajo')
+    // Usar .select() para confirmar que la fila se actualizó realmente
+    const { data, error } = await sb.from('partes_trabajo')
       .update(updateData)
-      .eq('id', parteId);
+      .eq('id', parteId)
+      .eq('empresa_id', EMPRESA.id)
+      .select();
 
     if (error) {
       toast('❌ Error al mover parte: ' + error.message, 'error');
+      console.error('[Planificador] Error update:', error);
       return;
     }
 
+    if (!data || data.length === 0) {
+      toast('❌ El parte no se actualizó (sin permisos o no encontrado)', 'error');
+      console.error('[Planificador] Update devolvió 0 filas. Parte ID:', parteId);
+      return;
+    }
+
+    console.log('[Planificador] Update OK, datos:', data[0].fecha, data[0].hora_inicio);
     toast('✅ Parte movido correctamente', 'success');
+
+    // Recargar datos del planificador
     await cargarPartesParaPlanificador();
     renderPlanificador();
+
+    // También refrescar partesData global para que el detalle muestre la fecha nueva
+    if (typeof loadPartes === 'function') {
+      try { await loadPartes(); } catch(e) {}
+    }
   } catch (e) {
     console.error('Error moviendo parte:', e);
     toast('❌ Error al mover parte', 'error');
@@ -639,13 +787,6 @@ function abrirCrearParteRapido(fecha, hora) {
   const operario = planUsuarios.find(u => u.id === planOperarioFilter);
   const operarioNombre = operario ? `${operario.nombre || ''} ${operario.apellidos || ''}`.trim() : '—';
 
-  // Preparar opciones de obras
-  const obrasOptions = (typeof trabajos !== 'undefined' && Array.isArray(trabajos))
-    ? trabajos.filter(t => t.estado !== 'eliminado' && t.estado !== 'completada').map(t =>
-        `<option value="${t.id}" data-titulo="${(t.titulo||'').replace(/"/g,'&quot;')}">${t.numero || ''} — ${t.titulo || 'Sin título'}</option>`
-      ).join('')
-    : '';
-
   const overlay = document.createElement('div');
   overlay.id = 'planCrearParteModal';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
@@ -655,14 +796,16 @@ function abrirCrearParteRapido(fecha, hora) {
   box.innerHTML = `
     <div style="font-size:16px;font-weight:700;margin-bottom:4px">📅 Nuevo parte de trabajo</div>
     <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${fechaLegible} · ${horaStr}-${horaFinStr} · ${operarioNombre}</div>
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:12px;position:relative">
       <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Obra *</label>
-      <select id="planNuevoObra" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px">
-        <option value="">Selecciona una obra...</option>
-        ${planObraFija
-          ? `<option value="${planObraFija.id}" selected>${planObraFija.titulo}</option>`
-          : obrasOptions}
-      </select>
+      ${planObraFija
+        ? `<div style="padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;background:#F9FAFB">${planObraFija.titulo}</div>
+           <input type="hidden" id="planNuevoObraId" value="${planObraFija.id}">
+           <input type="hidden" id="planNuevoObraTitulo" value="${planObraFija.titulo}">`
+        : `<input type="text" id="planBuscaObra" autocomplete="off" placeholder="Buscar por número, nombre o cliente..." style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+           <input type="hidden" id="planNuevoObraId" value="">
+           <input type="hidden" id="planNuevoObraTitulo" value="">
+           <div id="planObraResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow:auto;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>`}
     </div>
     <div style="margin-bottom:16px">
       <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Instrucciones (opcional)</label>
@@ -685,25 +828,75 @@ function abrirCrearParteRapido(fecha, hora) {
   document.getElementById('planCrearProgramar').onclick = () => {
     crearParteDesdeplanificador(fecha, hora, 'programado');
   };
+
+  // ── Buscador de obras ──
+  const inputBusca = document.getElementById('planBuscaObra');
+  const resultsDiv = document.getElementById('planObraResults');
+  if (inputBusca && resultsDiv) {
+    const obrasDisponibles = (typeof trabajos !== 'undefined' && Array.isArray(trabajos))
+      ? trabajos.filter(t => t.estado !== 'eliminado')
+      : [];
+
+    inputBusca.addEventListener('input', () => {
+      const q = inputBusca.value.toLowerCase().trim();
+      if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
+
+      const resultados = obrasDisponibles.filter(t => {
+        const num = (t.numero || '').toLowerCase();
+        const tit = (t.titulo || '').toLowerCase();
+        const cli = (t.cliente_nombre || '').toLowerCase();
+        return num.includes(q) || tit.includes(q) || cli.includes(q);
+      }).slice(0, 8); // máximo 8 resultados
+
+      if (resultados.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding:10px;color:#9CA3AF;font-size:12px">Sin resultados</div>';
+        resultsDiv.style.display = 'block';
+        return;
+      }
+
+      resultsDiv.innerHTML = resultados.map(t => `
+        <div class="plan-obra-result" data-id="${t.id}" data-titulo="${(t.titulo||'').replace(/"/g,'&quot;')}"
+             style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F3F4F6;font-size:12px;transition:background .1s">
+          <div style="font-weight:700;color:#1F2937">${t.numero || '—'} — ${t.titulo || 'Sin título'}</div>
+          <div style="color:#6B7280;font-size:11px">${t.cliente_nombre || 'Sin cliente'}</div>
+        </div>`).join('');
+      resultsDiv.style.display = 'block';
+
+      // Click en resultado
+      resultsDiv.querySelectorAll('.plan-obra-result').forEach(el => {
+        el.addEventListener('mouseenter', () => el.style.background = '#EFF6FF');
+        el.addEventListener('mouseleave', () => el.style.background = '#fff');
+        el.addEventListener('click', () => {
+          document.getElementById('planNuevoObraId').value = el.dataset.id;
+          document.getElementById('planNuevoObraTitulo').value = el.dataset.titulo;
+          inputBusca.value = el.querySelector('div').textContent;
+          inputBusca.style.borderColor = '#3B82F6';
+          inputBusca.style.fontWeight = '600';
+          resultsDiv.style.display = 'none';
+        });
+      });
+    });
+
+    // Cerrar al pulsar fuera
+    inputBusca.addEventListener('blur', () => {
+      setTimeout(() => { resultsDiv.style.display = 'none'; }, 200);
+    });
+
+    // Focus automático
+    setTimeout(() => inputBusca.focus(), 100);
+  }
 }
 
 async function crearParteDesdeplanificador(fecha, hora, estado) {
-  const selObra = document.getElementById('planNuevoObra');
   const instrucciones = document.getElementById('planNuevoInstrucciones');
 
-  const trabajo_id = parseInt(selObra?.value);
+  const trabajo_id = parseInt(document.getElementById('planNuevoObraId')?.value);
   if (!trabajo_id) {
-    toast('Selecciona una obra', 'error');
+    toast('Busca y selecciona una obra', 'error');
     return;
   }
 
-  // Obtener titulo de la obra
-  const selOption = selObra.options[selObra.selectedIndex];
-  let trabajo_titulo = selOption?.dataset?.titulo || selOption?.textContent || '';
-  // Limpiar — quitar número si tiene formato "NUM — TITULO"
-  if (trabajo_titulo.includes(' — ')) {
-    trabajo_titulo = trabajo_titulo.split(' — ').slice(1).join(' — ');
-  }
+  let trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
 
   const horaIni = String(hora).padStart(2, '0') + ':00:00';
   const horaFin = String(hora + 1).padStart(2, '0') + ':00:00';
