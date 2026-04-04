@@ -241,8 +241,8 @@ table.dt tbody tr:hover{background:var(--gris-50)}
   .cfg-grid{grid-template-columns:1fr}
 }
 
-.sb-section-items{overflow:hidden;transition:max-height .25s ease,opacity .2s ease;max-height:500px;opacity:1}
-.sb-section-items.collapsed{max-height:0;opacity:0}
+.sb-section-items{}
+.sb-section-items.collapsed{display:none}
 .sb-favoritos{padding:6px 8px}
 .sb-fav-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;color:#fff;font-size:15px;font-weight:500;cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left}
 .sb-fav-item:hover{background:rgba(255,255,255,.12);color:#fff}
@@ -252,7 +252,7 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 /* Drag & Drop reorder */
 .sb-item[draggable="true"]{cursor:grab}
 .sb-item[draggable="true"]:active{cursor:grabbing}
-.sb-item.drag-over{background:rgba(255,255,255,.15);border:1px dashed rgba(255,255,255,.4)}
+.sb-item.drag-over{background:rgba(255,255,255,.15);outline:1px dashed rgba(255,255,255,.4);outline-offset:-1px}
 .sb-fav-item[draggable="true"]{cursor:grab}
 .sb-fav-item.drag-over{background:rgba(255,255,255,.15)}
 .sb-drag-handle{opacity:.4;font-size:12px;margin-right:4px;cursor:grab;flex-shrink:0}
@@ -288,7 +288,7 @@ body.ocultar-sensibles .kpi-sensible .sv{visibility:hidden!important}
 body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:italic;color:var(--gris-400)}
 
 /* ─── Hover utilities (CSS puro, sin JS) ─── */
-.hov-shadow{transition:box-shadow .15s;contain:layout style}
+.hov-shadow{transition:box-shadow .15s}
 .hov-shadow:hover{box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .hov-bg{transition:background .12s}
 .hov-bg:hover{background:var(--gris-50)}
@@ -353,14 +353,14 @@ body.sb-collapsed .sb-user .logout,
 body.sb-collapsed #sbFavSection .sb-fav-titulo{display:none}
 body.sb-collapsed .sb-logo{justify-content:center;padding:16px 8px 13px}
 body.sb-collapsed .sb-emp-selector{justify-content:center;padding:9px}
-body.sb-collapsed .sb-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0}
-body.sb-collapsed .sb-item .ico{margin:0}
+body.sb-collapsed .sb-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0;height:36px;box-sizing:border-box}
+body.sb-collapsed .sb-item:hover{font-size:0}
+body.sb-collapsed .sb-item .ico{margin:0;font-size:18px;line-height:36px}
 body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 16px)}
 body.sb-collapsed .sb-user{justify-content:center;padding:10px}
 body.sb-collapsed .sb-nav{padding:6px 4px}
-body.sb-collapsed .sb-section-items{max-height:500px!important;opacity:1!important}
-body.sb-collapsed .sb-item .ico{font-size:18px;line-height:normal}
-body.sb-collapsed .sb-item{min-height:36px}
+body.sb-collapsed .sb-section-items{display:block!important;overflow:visible!important}
+body.sb-collapsed *{transition:none!important}
 
 /* ══ PLANIFICADOR FULLSCREEN ══ */
 .plan-fullscreen{position:fixed!important;inset:0;z-index:900;background:#fff;margin:0!important;padding:16px;overflow:auto}
