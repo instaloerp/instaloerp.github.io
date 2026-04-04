@@ -1486,6 +1486,7 @@ async function generarPartesGremios(parteOrigen) {
 
     const nuevoParte = {
       empresa_id: EMPRESA.id,
+      usuario_id: parteOrigen.usuario_id,
       numero: numero,
       trabajo_id: parteOrigen.trabajo_id || null,
       trabajo_titulo: parteOrigen.trabajo_titulo || null,
@@ -1509,6 +1510,7 @@ async function generarPartesGremios(parteOrigen) {
       console.warn(`[Gremio] Insert con columnas extra falló, reintentando básico:`, error.message);
       const parteBasico = {
         empresa_id: EMPRESA.id,
+        usuario_id: parteOrigen.usuario_id,
         numero: numero,
         trabajo_id: parteOrigen.trabajo_id || null,
         trabajo_titulo: parteOrigen.trabajo_titulo || null,
