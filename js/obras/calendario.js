@@ -235,7 +235,7 @@ function calSelectDay(day) {
       const isDone = t.estado === 'completada';
       const trabajo = calTrabajosCache.find(tr => tr.id === t.trabajo_id);
 
-      html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:${isDone?'#ECFDF5':isVencida?'#FEF2F2':'var(--gris-50)'};border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="if(typeof abrirFichaObra==='function' && ${t.trabajo_id}){goPage('trabajos');abrirFichaObra(${t.trabajo_id});setTimeout(()=>obraTab('tareas'),300)}">
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:${isDone?'#ECFDF5':isVencida?'#FEF2F2':'var(--gris-50)'};border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="if(typeof abrirFichaObra==='function' && ${t.trabajo_id}){goPage('trabajos');abrirFichaObra(${t.trabajo_id});setTimeout(()=>obraTab('seguimiento'),300)}">
         <div style="font-size:16px">${isDone?'✔️':isVencida?'🚨':'⏳'}</div>
         <div style="flex:1">
           <div style="font-weight:700;font-size:12px;${isDone?'text-decoration:line-through;opacity:.6':''}">${t.texto||'Tarea'}</div>
@@ -334,7 +334,7 @@ function renderMisTareas() {
     const obraLabel = trabajo ? `🏗️ ${trabajo.numero||''} — ${trabajo.titulo||trabajo.descripcion||''}` : '📋 Sin obra asignada';
 
     html += `<div style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--gris-100);cursor:${trabajo?'pointer':'default'}" ${trabajo ? `onclick="goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('tareas'),300)"`:''}>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--gris-100);cursor:${trabajo?'pointer':'default'}" ${trabajo ? `onclick="goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('seguimiento'),300)"`:''}>
         <span style="font-weight:800;font-size:13px;color:var(--gris-700)">${obraLabel}</span>
         <span style="font-size:10px;color:var(--gris-400);background:var(--gris-100);padding:2px 8px;border-radius:10px">${tareasObra.length} tarea${tareasObra.length>1?'s':''}</span>
       </div>`;
@@ -349,7 +349,7 @@ function renderMisTareas() {
       const estColor = EST_COLOR[t.estado] || EST_COLOR.pendiente;
       const estBg = EST_BG[t.estado] || EST_BG.pendiente;
       const estIco = EST_ICO[t.estado] || '⏳';
-      const clickObra = trabajo ? `goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('tareas'),300)` : '';
+      const clickObra = trabajo ? `goPage('trabajos');abrirFichaObra(${trabajo.id});setTimeout(()=>obraTab('seguimiento'),300)` : '';
 
       html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--gris-100);${isCerrada?'opacity:.6':''};cursor:${clickObra?'pointer':'default'}" onclick="${clickObra}">
         <div onclick="event.stopPropagation();mtToggleTarea('${t.id}')" style="width:20px;height:20px;border-radius:50%;border:2px solid ${isDone?'#059669':isRech?'#9333EA':'var(--gris-300)'};display:flex;align-items:center;justify-content:center;cursor:pointer;background:${isDone?'#059669':isRech?'#9333EA':'transparent'};flex-shrink:0">

@@ -316,18 +316,20 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const auditData = audit.data||[];
   obraTareasData = tareas.data||[];
 
-  // KPIs — solo cantidades
+  // KPIs — cantidades
+  const _partesComp = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
+  const _tareasComp = obraTareasData.filter(t => t.estado === 'completada').length;
+  const _tareasTotal = obraTareasData.filter(t => t.estado !== 'rechazada').length;
+  const _fotosPartes = partesData.reduce((n,p) => n + (Array.isArray(p.fotos) ? p.fotos.length : 0), 0);
+
+  document.getElementById('ok-seguimiento').textContent = _tareasTotal ? `${_tareasComp}/${_tareasTotal}` : '0';
+  document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
   document.getElementById('ok-presup').textContent = presupData.length;
   document.getElementById('ok-albaranes').textContent = albData.length;
   document.getElementById('ok-facturas').textContent = factData.length;
-  // Partes KPI: completados/total (como tareas)
-  const _partesComp = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
-  document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
-  // Docs KPI: documentos adjuntos + fotos de partes
-  const _fotosPartes = partesData.reduce((n,p) => n + (Array.isArray(p.fotos) ? p.fotos.length : 0), 0);
-  document.getElementById('ok-docs').textContent = docsData.length + _fotosPartes;
-  document.getElementById('ok-notas').textContent = notasData.length;
-  updateTareasKpi();
+  document.getElementById('ok-materiales').textContent = '—';
+  document.getElementById('ok-mensajes').textContent = '—';
+  document.getElementById('ok-historial').textContent = auditData.length + docsData.length + _fotosPartes;
 
   // ── WORKFLOW — Panel de estado del proyecto ──
   renderObraWorkflow(t, presupData, albData, factData, partesData);
@@ -421,8 +423,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   // Ordenar cronológicamente (más reciente primero)
   _timeline.sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
 
-  // KPI de registro — total de eventos en el timeline
-  document.getElementById('ok-registro').textContent = _timeline.length;
+  // (KPI de historial se actualiza arriba junto con los demás KPIs)
 
   const registroHtml = _timeline.length ? _timeline.map(e => `
     <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-100);align-items:flex-start">
@@ -443,13 +444,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     </div>
   `).join('') : '<div style="color:var(--gris-400);font-size:12.5px;padding:30px 0;text-align:center">Sin actividad registrada</div>';
 
-  document.getElementById('obra-hist-registro').innerHTML = `
-    <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:11px;color:var(--gris-400)">${_timeline.length} eventos registrados</span>
-      ${_isSuperadmin ? '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Modo superadmin</span>' : '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Solo lectura</span>'}
-    </div>
-    ${registroHtml}
-  `;
+  // (Registro se renderiza dentro de Historial más abajo)
 
   // ── Helpers para barras resumen ──
   function resumenBar(items) {
@@ -460,7 +455,10 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   }
 
   // ── PRESUPUESTOS ── (con botones inteligentes de conversión)
-  const presupHtml = presupData.length ?
+  const _presupHeader = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoPresupObraActual()">+ Nuevo presupuesto</button>
+  </div>`;
+  const presupHtml = _presupHeader + (presupData.length ?
     resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)'), resumenItem('Docs', presupData.length+'')]) +
     presupData.map(p=>{
       const noAnulado = p.estado !== 'eliminado' && p.estado !== 'anulado';
@@ -498,7 +496,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         </div>
       </div>`;
     }).join('') :
-    '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos vinculados</p></div>';
+    '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos vinculados</p></div>');
   document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
 
   // ── ALBARANES ── (con botones inteligentes de conversión)
@@ -522,8 +520,6 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       </div>`;
     }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">📄</div><p>Sin albaranes vinculados</p></div>';
-  document.getElementById('obra-hist-albaranes').innerHTML = albHtml;
-
   // ── FACTURAS ──
   const factResumen = [resumenItem('Total facturado', fmtE(totalFact), 'var(--verde)')];
   if (pendienteCobro > 0) factResumen.push(resumenItem('Pte. cobro', fmtE(pendienteCobro), 'var(--rojo)'));
@@ -535,7 +531,23 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas vinculadas</p></div>';
-  document.getElementById('obra-hist-facturas').innerHTML = factHtml;
+
+  // ── FACTURACIÓN (Albaranes + Facturas combinados) ──
+  const _facFilterBtns = `<div style="display:flex;gap:6px;margin-bottom:10px;justify-content:space-between;align-items:center;flex-wrap:wrap" id="facturacionFiltros">
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" style="font-size:10.5px" onclick="filtrarFacturacion('todos')" data-filt="todos">Todos</button>
+      <button class="btn btn-sm" style="font-size:10.5px" onclick="filtrarFacturacion('albaranes')" data-filt="albaranes">📄 Albaranes (${albData.length})</button>
+      <button class="btn btn-sm" style="font-size:10.5px" onclick="filtrarFacturacion('facturas')" data-filt="facturas">🧾 Facturas (${factData.length})</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoAlbaranObraActual()">+ Albarán</button>
+      <button class="btn btn-sm" style="font-size:11px;background:var(--verde);color:#fff;border:none" onclick="nuevaFacturaObraActual()">+ Factura</button>
+    </div>
+  </div>`;
+  document.getElementById('obra-hist-facturacion').innerHTML = _facFilterBtns +
+    `<div id="_fac_alb">${albHtml}</div>` +
+    `<div id="_fac_fact" style="margin-top:${albData.length && factData.length ? '16px' : '0'}">${factHtml}</div>`;
+  aplicarFiltroFacturacion();
 
   // ── PARTES DE TRABAJO ──
   const ESTADOS_PARTE = {borrador:'Borrador',programado:'Programado',en_curso:'En curso',completado:'Completado',revisado:'Revisado',facturado:'Facturado'};
@@ -561,8 +573,11 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         <div style="height:100%;width:${partesPorcent}%;background:${partesPorcent===100?'linear-gradient(90deg,#34D399,#059669)':'linear-gradient(90deg,#60A5FA,#2563EB)'};border-radius:4px;transition:width .5s"></div>
       </div>
     </div>`;
+    // Horas programadas (todos los partes) vs realizadas (solo completados/revisados/facturados)
+    const horasRealizadas = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).reduce((s,p)=>s+(parseFloat(p.horas)||0),0);
     partesHtml += resumenBar([
-      resumenItem('Total horas', horasPartes.toFixed(1)+' h', 'var(--acento)'),
+      resumenItem('Horas programadas', horasPartes.toFixed(1)+' h', 'var(--azul)'),
+      resumenItem('Horas realizadas', horasRealizadas.toFixed(1)+' h', 'var(--acento)'),
       resumenItem('Coste', fmtE(costePartes), 'var(--gris-700)'),
       resumenItem('Partes', partesData.length+'')
     ]);
@@ -675,13 +690,10 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   }
   document.getElementById('obra-hist-partes').innerHTML = partesHtml;
 
-  // ── TAREAS ──
-  renderObraTareas();
+  // ── SEGUIMIENTO (Tareas + Notas) ──
+  renderObraTareas(); // renderiza en variable _tareasHtml
+  const _tareasEl = document.getElementById('obra-hist-seguimiento');
 
-  // ── DOCUMENTOS (organizado por categorías) ──
-  renderObraDocumentos(docsData, partesData, presupData, albData, factData);
-
-  // ── NOTAS ──
   const NOTA_ICO = {nota:'📝',llamada:'📞',visita:'🚗',incidencia:'⚠️',material:'📦'};
   const notaForm = `
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:end">
@@ -699,10 +711,55 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNotaObra(${n.id})">🗑️</button>
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
-  document.getElementById('obra-hist-notas').innerHTML = notaForm + notaList;
 
-  // Activar pestaña recordada (o presupuestos si es la primera vez)
-  obraTab(obraTabActual || 'presupuestos');
+  // Seguimiento: tareas arriba, separator, notas abajo
+  if (_tareasEl) {
+    // renderObraTareas ya puso su contenido; lo capturamos y añadimos notas debajo
+    const tareasContent = _tareasEl.innerHTML;
+    _tareasEl.innerHTML = tareasContent +
+      `<div style="margin-top:20px;padding-top:14px;border-top:2px solid var(--gris-100)">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">💬 Notas</h4>
+        ${notaForm}${notaList}
+      </div>`;
+  }
+
+  // ── DOCUMENTOS + REGISTRO → HISTORIAL ──
+  renderObraDocumentos(docsData, partesData, presupData, albData, factData);
+  const _docsContent = document.getElementById('obra-hist-historial');
+  if (_docsContent) {
+    // renderObraDocumentos escribió en obra-hist-documentos que ya no existe en HTML;
+    // lo reconstruimos directamente aquí
+    const _docsHtmlCapture = _docsContent.innerHTML; // puede estar vacío si renderObraDocumentos no encontró target
+    // Construir historial: docs arriba + registro abajo
+    const _regHtml = `<div style="margin-top:20px;padding-top:14px;border-top:2px solid var(--gris-100)">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--gris-700)">🕐 Registro de actividad</h4>
+      <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:var(--gris-400)">${_timeline.length} eventos registrados</span>
+        ${_isSuperadmin ? '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Modo superadmin</span>' : '<span style="font-size:10px;color:var(--gris-400);background:var(--gris-50);padding:2px 8px;border-radius:4px">Solo lectura</span>'}
+      </div>
+      ${registroHtml}
+    </div>`;
+    _docsContent.innerHTML = _docsHtmlCapture + _regHtml;
+  }
+
+  // ── MATERIALES (placeholder) ──
+  document.getElementById('obra-hist-materiales').innerHTML = `
+    <div class="empty" style="padding:40px 0">
+      <div class="ei">📦</div>
+      <h3>Materiales</h3>
+      <p style="color:var(--gris-400)">Gestión de pedidos a proveedores y salidas de almacén.<br>Próximamente disponible.</p>
+    </div>`;
+
+  // ── MENSAJES (placeholder) ──
+  document.getElementById('obra-hist-mensajes').innerHTML = `
+    <div class="empty" style="padding:40px 0">
+      <div class="ei">💬</div>
+      <h3>Mensajes</h3>
+      <p style="color:var(--gris-400)">Comunicación interna y correos vinculados a la obra.<br>Próximamente disponible.</p>
+    </div>`;
+
+  // Activar pestaña recordada (o seguimiento si es la primera vez)
+  obraTab(obraTabActual || 'seguimiento');
 }
 
 // ═══════════════════════════════════════════════
@@ -711,7 +768,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 let _obraDocFilter = 'todos';
 
 function renderObraDocumentos(docsData, partesData, presupData, albData, factData) {
-  const container = document.getElementById('obra-hist-documentos');
+  const container = document.getElementById('obra-hist-historial');
   if (!container) return;
 
   // ── 1. Recopilar TODAS las fotos de partes ──
@@ -883,18 +940,43 @@ function filtrarObraDocs(cat) {
 // ═══════════════════════════════════════════════
 // PESTAÑAS DE LA FICHA
 // ═══════════════════════════════════════════════
-const OBRA_TAB_TITLES = {presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'🧾 Facturas',partes:'📝 Partes de trabajo',tareas:'✅ Tareas',documentos:'📎 Documentos',notas:'💬 Notas',registro:'🕐 Registro de actividad'};
+const OBRA_TAB_TITLES = {seguimiento:'✅ Seguimiento',partes:'📝 Partes de trabajo',presupuestos:'📋 Presupuestos',facturacion:'📄 Facturación',materiales:'📦 Materiales',mensajes:'💬 Mensajes',historial:'🕐 Historial'};
+const OBRA_TABS = ['seguimiento','partes','presupuestos','facturacion','materiales','mensajes','historial'];
+// Mapeo de KPIs a la pestaña de contenido que abren (albaranes y facturas → facturacion)
+const OBRA_KPI_TO_TAB = {seguimiento:'seguimiento',partes:'partes',presupuestos:'presupuestos',albaranes:'facturacion',facturas:'facturacion',materiales:'materiales',mensajes:'mensajes',historial:'historial'};
+const OBRA_ALL_KPIS = ['seguimiento','partes','presupuestos','albaranes','facturas','materiales','mensajes','historial'];
 
-function obraTab(tab) {
-  obraTabActual = tab; // recordar pestaña activa
-  ['presupuestos','albaranes','facturas','partes','tareas','documentos','notas','registro'].forEach(t => {
+let _facturacionFiltro = 'todos'; // 'todos','albaranes','facturas'
+
+function obraTab(tab, filtro) {
+  // Si se llama con un tab que es KPI (albaranes/facturas), resolver al tab real
+  const tabReal = OBRA_KPI_TO_TAB[tab] || tab;
+  obraTabActual = tabReal;
+
+  // Mostrar/ocultar secciones de contenido
+  OBRA_TABS.forEach(t => {
     const el = document.getElementById('obra-hist-'+t);
-    if (el) el.style.display = t===tab?'block':'none';
-    const kpi = document.getElementById('okpi-'+t);
-    if (kpi) kpi.classList.toggle('ficha-kpi-active', t===tab);
+    if (el) el.style.display = t===tabReal?'block':'none';
   });
+
+  // Activar KPI correcto
+  OBRA_ALL_KPIS.forEach(k => {
+    const kpi = document.getElementById('okpi-'+k);
+    if (kpi) {
+      const kpiTab = OBRA_KPI_TO_TAB[k] || k;
+      kpi.classList.toggle('ficha-kpi-active', kpiTab===tabReal);
+    }
+  });
+
+  // Título del panel
   const titulo = document.getElementById('fichaObraHistTitulo');
-  if (titulo) titulo.textContent = OBRA_TAB_TITLES[tab] || tab;
+  if (titulo) titulo.textContent = OBRA_TAB_TITLES[tabReal] || tabReal;
+
+  // Filtro interno de facturación
+  if (tabReal === 'facturacion' && filtro) {
+    _facturacionFiltro = filtro;
+    aplicarFiltroFacturacion();
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -931,7 +1013,7 @@ const TAREA_PLANTILLAS = [
 ];
 
 function renderObraTareas() {
-  const container = document.getElementById('obra-hist-tareas');
+  const container = document.getElementById('obra-hist-seguimiento');
   if (!container) return;
 
   // Separar por estado
@@ -1364,13 +1446,34 @@ async function guardarEdicionTarea(id) {
 }
 
 function updateTareasKpi() {
-  const el = document.getElementById('ok-tareas');
+  const el = document.getElementById('ok-seguimiento');
   if (el) {
     const sinRechazadas = obraTareasData.filter(t => t.estado !== 'rechazada');
     const completadas = sinRechazadas.filter(t => t.estado === 'completada').length;
     const total = sinRechazadas.length;
     el.textContent = total ? `${completadas}/${total}` : '0';
   }
+}
+
+// Filtro interno de la pestaña Facturación
+function filtrarFacturacion(filtro) {
+  _facturacionFiltro = filtro;
+  aplicarFiltroFacturacion();
+}
+
+function aplicarFiltroFacturacion() {
+  const albEl = document.getElementById('_fac_alb');
+  const factEl = document.getElementById('_fac_fact');
+  if (!albEl || !factEl) return;
+  albEl.style.display = (_facturacionFiltro === 'facturas') ? 'none' : '';
+  factEl.style.display = (_facturacionFiltro === 'albaranes') ? 'none' : '';
+  // Actualizar botones activos
+  document.querySelectorAll('#facturacionFiltros button').forEach(b => {
+    const isActive = b.dataset.filt === _facturacionFiltro;
+    b.style.background = isActive ? 'var(--azul)' : 'var(--gris-100)';
+    b.style.color = isActive ? '#fff' : 'var(--gris-600)';
+    b.style.fontWeight = isActive ? '700' : '500';
+  });
 }
 
 // ═══════════════════════════════════════════════
@@ -1758,6 +1861,23 @@ function nuevoAlbaranObraActual() {
   }
 }
 
+function nuevaFacturaObraActual() {
+  if (!obraActualId) return;
+  const t = trabajos.find(x=>x.id===obraActualId);
+  if (!t) return;
+  if (typeof abrirNuevaFactura === 'function') {
+    abrirNuevaFactura();
+    setTimeout(() => {
+      if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
+      const sel = document.getElementById('de_cliente');
+      if (sel && t.cliente_id) {
+        sel.value = t.cliente_id;
+        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      }
+    }, 300);
+  }
+}
+
 function nuevoParteObraActual() {
   if (!obraActualId) return;
   nuevoParteDesdeObra(obraActualId);
@@ -2048,7 +2168,7 @@ async function guardarNotaObra() {
   await registrarActividadObra(obraActualId, 'Nota añadida', `📝 ${tipo}: ${texto.substring(0,80)}${texto.length>80?'…':''}`);
   document.getElementById('obraNotaTexto').value = '';
   await abrirFichaObra(obraActualId, false);
-  obraTab('notas');
+  obraTab('seguimiento');
   toast('Nota guardada ✓','success');
 }
 
@@ -2057,7 +2177,7 @@ async function eliminarNotaObra(id) {
   await sb.from('notas_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Nota eliminada', `🗑️ Nota #${id} eliminada`);
   await abrirFichaObra(obraActualId, false);
-  obraTab('notas');
+  obraTab('seguimiento');
   toast('Nota eliminada','info');
 }
 
@@ -2087,7 +2207,7 @@ async function subirDocObra(input) {
   input.value = '';
   document.getElementById('obraDocNombre').value = '';
   await abrirFichaObra(obraActualId, false);
-  obraTab('documentos');
+  obraTab('historial');
   toast('Documento subido ✓','success');
 }
 
@@ -2096,7 +2216,7 @@ async function eliminarDocObra(id) {
   await sb.from('documentos_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Documento eliminado', `🗑️ Documento #${id} eliminado`);
   await abrirFichaObra(obraActualId, false);
-  obraTab('documentos');
+  obraTab('historial');
   toast('Documento eliminado','info');
 }
 
@@ -2105,7 +2225,7 @@ async function eliminarAuditEntry(id) {
   if (!confirm('¿Eliminar esta entrada del registro?')) return;
   await sb.from('audit_log').delete().eq('id', id);
   await abrirFichaObra(obraActualId, false);
-  obraTab('registro');
+  obraTab('historial');
   toast('Entrada eliminada del registro','info');
 }
 

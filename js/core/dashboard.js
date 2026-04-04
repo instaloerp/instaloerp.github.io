@@ -127,7 +127,7 @@ async function loadDashboardTareas() {
     const obra = obrasMap[t.trabajo_id];
     const obraLabel = obra ? obra.numero + ' · ' + (obra.titulo || '').substring(0, 30) : '';
     const onclick = obra
-      ? `goPage('trabajos');abrirFichaObra(${obra.id});setTimeout(()=>obraTab('tareas'),300)`
+      ? `goPage('trabajos');abrirFichaObra(${obra.id});setTimeout(()=>obraTab('seguimiento'),300)`
       : '';
     const fechaLimite = t.fecha_limite
       ? `<span style="font-size:10px;color:${new Date(t.fecha_limite) < new Date() ? 'var(--rojo)' : 'var(--gris-400)'}">${t.fecha_limite}</span>`

@@ -514,37 +514,34 @@
             <div id="fichaObraEstado"></div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn btn-secondary btn-sm" onclick="editarObraActual()">✏️ Editar</button>
-              <button class="btn btn-ghost btn-sm" onclick="nuevoPresupObraActual()">📋 Presupuesto</button>
-              <button class="btn btn-ghost btn-sm" onclick="nuevoAlbaranObraActual()">📄 Albarán</button>
-              <button class="btn btn-ghost btn-sm" onclick="nuevoParteObraActual()">📝 Parte</button>
               <span id="fichaObraCerrarBtn"></span>
             </div>
           </div>
           <!-- KPIs clicables como pestañas -->
           <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px" id="fichaObraKpiBar">
-            <div class="sc ficha-kpi ficha-kpi-active" onclick="obraTab('presupuestos')" id="okpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📋</span><div><div class="sv" id="ok-presup" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Presupuestos</div></div></div>
+            <div class="sc ficha-kpi ficha-kpi-active" onclick="obraTab('seguimiento')" id="okpi-seguimiento" style="--c:#059669;--bg:#ECFDF5;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">✅</span><div><div class="sv" id="ok-seguimiento" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Seguimiento</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('albaranes')" id="okpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📄</span><div><div class="sv" id="ok-albaranes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Albaranes</div></div></div>
-            </div>
-            <div class="sc ficha-kpi" onclick="obraTab('facturas')" id="okpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🧾</span><div><div class="sv" id="ok-facturas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Facturas</div></div></div>
-            </div>
-            <div class="sc ficha-kpi" onclick="obraTab('partes')" id="okpi-partes" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:7px 8px;transition:all .15s">
+            <div class="sc ficha-kpi" onclick="obraTab('partes')" id="okpi-partes" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📝</span><div><div class="sv" id="ok-partes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Partes</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('tareas')" id="okpi-tareas" style="--c:#7C3AED;--bg:#F5F3FF;cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">✅</span><div><div class="sv" id="ok-tareas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Tareas</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('presupuestos')" id="okpi-presupuestos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📋</span><div><div class="sv" id="ok-presup" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Presupuestos</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('documentos')" id="okpi-documentos" style="--c:var(--violeta);--bg:var(--violeta-light);cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📎</span><div><div class="sv" id="ok-docs" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Documentos</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('facturacion','albaranes')" id="okpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📄</span><div><div class="sv" id="ok-albaranes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Albaranes</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('notas')" id="okpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">💬</span><div><div class="sv" id="ok-notas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Notas</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('facturacion','facturas')" id="okpi-facturas" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🧾</span><div><div class="sv" id="ok-facturas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Facturas</div></div></div>
             </div>
-            <div class="sc ficha-kpi" onclick="obraTab('registro')" id="okpi-registro" style="--c:#6B7280;--bg:#F3F4F6;cursor:pointer;padding:7px 8px;transition:all .15s">
-              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🕐</span><div><div class="sv" id="ok-registro" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Registro</div></div></div>
+            <div class="sc ficha-kpi" onclick="obraTab('materiales')" id="okpi-materiales" style="--c:#D97706;--bg:#FFFBEB;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📦</span><div><div class="sv" id="ok-materiales" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Materiales</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('mensajes')" id="okpi-mensajes" style="--c:#2563EB;--bg:#EFF6FF;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">💬</span><div><div class="sv" id="ok-mensajes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Mensajes</div></div></div>
+            </div>
+            <div class="sc ficha-kpi" onclick="obraTab('historial')" id="okpi-historial" style="--c:#6B7280;--bg:#F3F4F6;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🕐</span><div><div class="sv" id="ok-historial" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Historial</div></div></div>
             </div>
           </div>
           <!-- Panel de Workflow / Estado del proyecto -->
@@ -576,18 +573,17 @@
             <!-- Panel derecho: contenido dinámico -->
             <div class="card" style="min-height:300px">
               <div class="card-h" style="padding:10px 14px">
-                <h3 id="fichaObraHistTitulo" style="font-size:12.5px">📋 Presupuestos</h3>
+                <h3 id="fichaObraHistTitulo" style="font-size:12.5px">✅ Seguimiento</h3>
                 <div class="card-ha" id="fichaObraHistActions"></div>
               </div>
               <div class="card-b" style="padding:10px 14px">
-                <div id="obra-hist-presupuestos"></div>
-                <div id="obra-hist-albaranes" style="display:none"></div>
-                <div id="obra-hist-facturas" style="display:none"></div>
+                <div id="obra-hist-seguimiento"></div>
                 <div id="obra-hist-partes" style="display:none"></div>
-                <div id="obra-hist-tareas" style="display:none"></div>
-                <div id="obra-hist-documentos" style="display:none"></div>
-                <div id="obra-hist-notas" style="display:none"></div>
-                <div id="obra-hist-registro" style="display:none"></div>
+                <div id="obra-hist-presupuestos" style="display:none"></div>
+                <div id="obra-hist-facturacion" style="display:none"></div>
+                <div id="obra-hist-materiales" style="display:none"></div>
+                <div id="obra-hist-mensajes" style="display:none"></div>
+                <div id="obra-hist-historial" style="display:none"></div>
               </div>
             </div>
           </div>
