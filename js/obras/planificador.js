@@ -433,10 +433,8 @@ function renderGrid() { renderGridTo('planGrid'); }
 function renderGridTo(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  container.innerHTML = '';
 
   const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO;
-  container.style.gridTemplateRows = `repeat(${totalRows}, ${planHoraHeight}px)`;
 
   // Filtrar por operario
   let partesFiltrados = planPartesData;
@@ -452,7 +450,9 @@ function renderGridTo(containerId) {
 
   const hoyStr = fechaLocalStr(new Date());
 
-  // ── Generar celdas de la rejilla ──
+  // ── Construir todo en un DocumentFragment (un solo DOM insert) ──
+  const frag = document.createDocumentFragment();
+
   for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
     const dayDate = new Date(planCurrentDate);
     dayDate.setDate(dayDate.getDate() + dayIdx);
@@ -471,59 +471,30 @@ function renderGridTo(containerId) {
       if (esFinde || esFestivo) cls += ' plan-cell-finde';
       cell.className = cls;
 
-      cell.style.gridColumn = dayIdx + 1;
-      cell.style.gridRow = (hourIdx - PLAN_HORAS_INICIO) + 1;
+      cell.style.cssText = `grid-column:${dayIdx+1};grid-row:${(hourIdx-PLAN_HORAS_INICIO)+1}`;
 
-      // Data attributes para event delegation
       cell.dataset.fecha = dayStr;
       cell.dataset.hora = String(hourIdx).padStart(2,'0') + ':00:00';
       cell.dataset.hourIdx = hourIdx;
       cell.dataset.nolab = (!esLaboral || esFinde || esFestivo) ? '1' : '';
       cell.dataset.motivo = esFestivo ? 'festivo' : esFinde ? 'fin de semana' : (!esLaboral ? 'fuera del horario laboral' : '');
 
-      container.appendChild(cell);
+      frag.appendChild(cell);
     }
   }
 
-  // ── Event delegation para click, dragover, dragleave, drop ──
-  container.onclick = (e) => {
-    const cell = e.target.closest('.plan-grid-cell');
-    if (!cell || e.target.closest('.plan-parte')) return;
-    const nolab = cell.dataset.nolab;
-    if (nolab) toast(`⚠️ Atención: esta hora es ${cell.dataset.motivo}`, 'info');
-    abrirCrearParteRapido(cell.dataset.fecha, parseInt(cell.dataset.hourIdx));
-  };
-  container.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    const cell = e.target.closest('.plan-grid-cell');
-    if (cell) cell.classList.add('plan-cell-dragover');
-  });
-  container.addEventListener('dragleave', (e) => {
-    const cell = e.target.closest('.plan-grid-cell');
-    if (cell) cell.classList.remove('plan-cell-dragover');
-  });
-  container.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const cell = e.target.closest('.plan-grid-cell');
-    if (!cell) return;
-    cell.classList.remove('plan-cell-dragover');
-    const parteId = e.dataTransfer.getData('text/plain');
-    if (parteId) confirmarMoverParte(parseInt(parteId), cell.dataset.fecha, parseInt(cell.dataset.hourIdx), cell.dataset.nolab === '1');
-  });
-
-  // ── Colocar partes en la rejilla (posición absoluta, span múltiple) ──
+  // ── Colocar partes en la rejilla (posición absoluta) ──
+  const colWidth = 100 / 7;
   partesParaRejilla.forEach(parte => {
     if (!parte.fecha) return;
     const dayIdx = getDayIndex(parte.fecha);
     if (dayIdx < 0 || dayIdx > 6) return;
 
-    const [hIni, mIni] = parte.hora_inicio.split(':').map(Number);
-    let hFin = hIni + 1;
-    let mFin = 0;
+    const [hIni] = parte.hora_inicio.split(':').map(Number);
+    let hFin = hIni + 1, mFin = 0;
     if (parte.hora_fin) {
-      const parts = parte.hora_fin.split(':').map(Number);
-      hFin = parts[0];
-      mFin = parts[1] || 0;
+      const pts = parte.hora_fin.split(':').map(Number);
+      hFin = pts[0]; mFin = pts[1] || 0;
     }
 
     const rowStart = hIni - PLAN_HORAS_INICIO;
@@ -534,27 +505,50 @@ function renderGridTo(containerId) {
     const heightPx = Math.max((rowEnd - rowStart) * planHoraHeight, planHoraHeight);
 
     const el = crearElementoParte(parte, heightPx);
-    el.style.position = 'absolute';
-    el.style.top = topPx + 'px';
-    el.style.height = heightPx + 'px';
-    const colWidth = 100 / 7;
-    el.style.left = (dayIdx * colWidth) + '%';
-    el.style.width = 'calc(' + colWidth + '% - 4px)';
-    el.style.marginLeft = '2px';
-
-    container.appendChild(el);
+    el.style.cssText += `;position:absolute;top:${topPx}px;height:${heightPx}px;left:${dayIdx*colWidth}%;width:calc(${colWidth}% - 4px);margin-left:2px`;
+    frag.appendChild(el);
   });
-
-  // ── Sección extra: borradores + sin hora ──
-  renderPartesSinCita(partesExtra);
 
   // Mensaje vacío
   if (partesFiltrados.length === 0) {
     const emptyEl = document.createElement('div');
     emptyEl.className = 'plan-empty';
     emptyEl.innerHTML = '<div style="padding:40px 20px"><div style="font-size:20px;margin-bottom:10px">📋</div><p>No hay partes de trabajo para este operario esta semana</p></div>';
-    container.appendChild(emptyEl);
+    frag.appendChild(emptyEl);
   }
+
+  // ── UN solo DOM write: limpiar + insertar todo ──
+  container.style.gridTemplateRows = `repeat(${totalRows}, ${planHoraHeight}px)`;
+  container.innerHTML = '';
+  container.appendChild(frag);
+
+  // ── Event delegation (usar asignación directa, NO addEventListener) ──
+  container.onclick = (e) => {
+    const cell = e.target.closest('.plan-grid-cell');
+    if (!cell || e.target.closest('.plan-parte')) return;
+    if (cell.dataset.nolab) toast(`⚠️ Atención: esta hora es ${cell.dataset.motivo}`, 'info');
+    abrirCrearParteRapido(cell.dataset.fecha, parseInt(cell.dataset.hourIdx));
+  };
+  container.ondragover = (e) => {
+    e.preventDefault();
+    const cell = e.target.closest('.plan-grid-cell');
+    if (cell) cell.classList.add('plan-cell-dragover');
+  };
+  container.ondragleave = (e) => {
+    const cell = e.target.closest('.plan-grid-cell');
+    if (cell) cell.classList.remove('plan-cell-dragover');
+  };
+  container.ondrop = (e) => {
+    e.preventDefault();
+    const cell = e.target.closest('.plan-grid-cell');
+    if (!cell) return;
+    cell.classList.remove('plan-cell-dragover');
+    const parteId = e.dataTransfer.getData('text/plain');
+    if (parteId) confirmarMoverParte(parseInt(parteId), cell.dataset.fecha, parseInt(cell.dataset.hourIdx), cell.dataset.nolab === '1');
+  };
+
+  // ── Sección extra: borradores + sin hora ──
+  renderPartesSinCita(partesExtra);
 }
 
 function renderPartesSinCita(partesExtra) {
