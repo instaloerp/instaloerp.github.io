@@ -132,6 +132,20 @@ window.addEventListener('beforeunload', () => {
 let inviteToken = null; // Token de invitación activo
 
 async function init() {
+  // ── Detectar recovery token en la URL (Supabase lo pone en el hash) ──
+  const hashParams = new URLSearchParams(window.location.hash.replace('#','?'));
+  if (hashParams.get('type') === 'recovery' || hashParams.get('type') === 'password_recovery') {
+    // Supabase ya procesó el token y creó sesión temporal — mostrar pantalla de nueva contraseña
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      CU = session.user;
+      showScreen('s-nueva-pass');
+      // Limpiar hash de la URL
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      return;
+    }
+  }
+
   // Detectar token de invitación en la URL: ?invite=XXXXX
   const urlParams = new URLSearchParams(window.location.search);
   const tokenParam = urlParams.get('invite');
@@ -203,6 +217,56 @@ async function cargarPerfil() {
 async function cargarEmpresa(id) {
   const { data } = await sb.from('empresas').select('*').eq('id', id).single();
   EMPRESA = data;
+}
+
+// ═══════════════════════════════════════════════
+//  RECUPERACIÓN DE CONTRASEÑA
+// ═══════════════════════════════════════════════
+async function enviarRecuperacion() {
+  const email = document.getElementById('recEmail').value.trim();
+  document.getElementById('recErr').style.display = 'none';
+  document.getElementById('recOk').style.display = 'none';
+  if (!email) { showErr('recErr','Introduce tu email'); return; }
+
+  // URL de retorno: la misma página (Supabase añadirá el token en el hash)
+  const redirectTo = window.location.origin + window.location.pathname;
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) {
+    showErr('recErr', 'Error al enviar: ' + error.message);
+    return;
+  }
+  const ok = document.getElementById('recOk');
+  ok.textContent = '✅ Enlace enviado. Revisa tu bandeja de entrada (y la carpeta de spam).';
+  ok.style.display = 'block';
+}
+
+async function cambiarPassword() {
+  const pass1 = document.getElementById('newPass1').value;
+  const pass2 = document.getElementById('newPass2').value;
+  document.getElementById('npErr').style.display = 'none';
+  document.getElementById('npOk').style.display = 'none';
+
+  if (!pass1 || !pass2) { showErr('npErr','Completa ambos campos'); return; }
+  if (pass1.length < 8) { showErr('npErr','La contraseña debe tener al menos 8 caracteres'); return; }
+  if (pass1 !== pass2) { showErr('npErr','Las contraseñas no coinciden'); return; }
+
+  const { error } = await sb.auth.updateUser({ password: pass1 });
+  if (error) {
+    showErr('npErr', 'Error: ' + error.message);
+    return;
+  }
+  const ok = document.getElementById('npOk');
+  ok.textContent = '✅ Contraseña actualizada correctamente. Redirigiendo...';
+  ok.style.display = 'block';
+
+  // Cerrar sesión temporal de recovery y redirigir al login
+  setTimeout(async () => {
+    await sb.auth.signOut();
+    CU = null;
+    showScreen('s-login');
+    toast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.', 'success');
+  }, 2000);
 }
 
 // ═══════════════════════════════════════════════

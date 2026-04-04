@@ -38,8 +38,49 @@
       <div class="auth-field"><label>Contraseña</label><input id="lPass" type="password" name="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button type="submit" class="auth-btn">Entrar →</button>
     </form>
-    <div class="auth-link">
+    <div class="auth-link" style="display:flex;flex-direction:column;gap:6px">
+      <a onclick="showScreen('s-recuperar')" style="cursor:pointer">¿Has olvidado tu contraseña?</a>
       <a onclick="showScreen('s-solicitar')" style="cursor:pointer">¿Quieres probar el ERP? Solicita acceso</a>
+    </div>
+  </div>
+</div>
+
+<!-- RECUPERAR CONTRASEÑA -->
+<div id="s-recuperar" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:420px">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Recuperar contraseña</h2>
+      <p>Introduce tu email y te enviaremos un enlace para crear una nueva contraseña</p>
+    </div>
+    <div id="recErr" class="auth-err"></div>
+    <div id="recOk" class="auth-ok"></div>
+    <div class="auth-form">
+      <div class="auth-field"><label>Email</label><input id="recEmail" type="email" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')enviarRecuperacion()"></div>
+      <button type="button" class="auth-btn" onclick="enviarRecuperacion()">Enviar enlace de recuperación →</button>
+    </div>
+    <div class="auth-link">
+      <a onclick="showScreen('s-login')" style="cursor:pointer">← Volver al inicio de sesión</a>
+    </div>
+  </div>
+</div>
+
+<!-- NUEVA CONTRASEÑA (tras clic en enlace de recuperación) -->
+<div id="s-nueva-pass" class="screen">
+  <div class="auth-bg"></div>
+  <div class="auth-box" style="max-width:420px">
+    <div class="auth-logo">
+      <img src="logo.svg" alt="Instalo ERP" style="height:48px;margin-bottom:8px">
+      <h2 style="font-size:20px;font-weight:800;margin-top:8px">Nueva contraseña</h2>
+      <p>Introduce tu nueva contraseña (mínimo 8 caracteres)</p>
+    </div>
+    <div id="npErr" class="auth-err"></div>
+    <div id="npOk" class="auth-ok"></div>
+    <div class="auth-form">
+      <div class="auth-field"><label>Nueva contraseña</label><input id="newPass1" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"></div>
+      <div class="auth-field"><label>Repetir contraseña</label><input id="newPass2" type="password" placeholder="Repite la contraseña" autocomplete="new-password" onkeydown="if(event.key==='Enter')cambiarPassword()"></div>
+      <button type="button" class="auth-btn" onclick="cambiarPassword()">Guardar nueva contraseña →</button>
     </div>
   </div>
 </div>
