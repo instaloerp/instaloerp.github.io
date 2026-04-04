@@ -369,8 +369,12 @@ body.sb-collapsed #sidebar *,
 body.sb-collapsed #main{transition:none!important}
 
 /* ══ FICHA OBRA — filas de docs y partes ══ */
-.parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100);transition:box-shadow .12s,filter .12s}
-.parte-row:hover{box-shadow:0 2px 8px rgba(0,0,0,.08);filter:brightness(.97)}
+/* parte-row: hover sin reflow — pseudo-elemento para sombra (solo compositing GPU) */
+.parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100);position:relative;z-index:0}
+.parte-row::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:0 2px 8px rgba(0,0,0,.08);opacity:0;transition:opacity .12s;pointer-events:none;z-index:-1}
+.parte-row:hover::after{opacity:1}
+.parte-row:hover{background:rgba(0,0,0,.015)}
+/* ficha-doc-row: hover ligero solo con background (sin reflow) */
 .ficha-doc-row{transition:background .12s}
 .ficha-doc-row:hover{background:var(--gris-50)}
 

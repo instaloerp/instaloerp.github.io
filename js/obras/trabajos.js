@@ -323,7 +323,9 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   // Partes KPI: completados/total (como tareas)
   const _partesComp = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
   document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
-  document.getElementById('ok-docs').textContent = docsData.length;
+  // Docs KPI: documentos adjuntos + fotos de partes
+  const _fotosPartes = partesData.reduce((n,p) => n + (Array.isArray(p.fotos) ? p.fotos.length : 0), 0);
+  document.getElementById('ok-docs').textContent = docsData.length + _fotosPartes;
   document.getElementById('ok-notas').textContent = notasData.length;
   updateTareasKpi();
 
@@ -673,29 +675,8 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   // ── TAREAS ──
   renderObraTareas();
 
-  // ── DOCUMENTOS ──
-  const TIPO_ICO = {manual:'📖',garantia:'🛡️',certificado:'📜',foto:'📷',contrato:'📋',plano:'📐',otro:'📄'};
-  document.getElementById('obra-hist-documentos').innerHTML = `
-    <div>
-      <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
-        <select id="obraDocTipo" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
-          <option value="foto">📷 Foto</option><option value="plano">📐 Plano</option><option value="certificado">📜 Certificado</option>
-          <option value="manual">📖 Manual</option><option value="garantia">🛡️ Garantía</option><option value="contrato">📋 Contrato</option><option value="otro">📄 Otro</option>
-        </select>
-        <input id="obraDocNombre" placeholder="Nombre..." style="flex:1;min-width:120px;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
-        <label class="btn btn-primary btn-sm" for="obraDocFile" style="cursor:pointer;font-size:11px">📎 Subir</label>
-        <input type="file" id="obraDocFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocObra(this)">
-      </div>
-      ${docsData.length ? docsData.map(d => `
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
-          <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
-          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
-          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
-          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarDocObra(${d.id})">🗑️</button>
-        </div>`).join('') :
-        '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>'
-      }
-    </div>`;
+  // ── DOCUMENTOS (organizado por categorías) ──
+  renderObraDocumentos(docsData, partesData, presupData, albData, factData);
 
   // ── NOTAS ──
   const NOTA_ICO = {nota:'📝',llamada:'📞',visita:'🚗',incidencia:'⚠️',material:'📦'};
@@ -719,6 +700,181 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 
   // Activar pestaña recordada (o presupuestos si es la primera vez)
   obraTab(obraTabActual || 'presupuestos');
+}
+
+// ═══════════════════════════════════════════════
+// DOCUMENTOS — Vista organizada por categorías
+// ═══════════════════════════════════════════════
+let _obraDocFilter = 'todos';
+
+function renderObraDocumentos(docsData, partesData, presupData, albData, factData) {
+  const container = document.getElementById('obra-hist-documentos');
+  if (!container) return;
+
+  // ── 1. Recopilar TODAS las fotos de partes ──
+  const fotosPartes = [];
+  partesData.forEach(p => {
+    if (Array.isArray(p.fotos)) {
+      p.fotos.forEach((url, idx) => {
+        fotosPartes.push({
+          _cat: 'fotos',
+          _source: 'parte',
+          url,
+          nombre: `Foto ${idx+1} — ${p.numero || 'Parte'}`,
+          subtitulo: `${p.usuario_nombre || '—'} · ${p.fecha || '—'}`,
+          fecha: p.fecha || p.created_at || '',
+          parteId: p.id,
+          isImage: true,
+        });
+      });
+    }
+  });
+
+  // ── 2. Documentos adjuntos (tabla documentos_trabajo) clasificados ──
+  const TIPO_ICO = {manual:'📖',garantia:'🛡️',certificado:'📜',foto:'📷',contrato:'📋',plano:'📐',otro:'📄'};
+  const IMG_EXTS = ['jpg','jpeg','png','gif','webp','bmp'];
+  const docsClasificados = docsData.map(d => {
+    const ext = (d.url||'').split('.').pop().toLowerCase();
+    const isImg = IMG_EXTS.includes(ext) || d.tipo === 'foto';
+    let cat = 'otros';
+    if (d.tipo === 'foto' || isImg) cat = 'fotos';
+    else if (['plano','certificado','manual','garantia','contrato'].includes(d.tipo)) cat = 'otros';
+    return {
+      _cat: cat,
+      _source: 'doc',
+      id: d.id,
+      url: d.url,
+      nombre: d.nombre || 'Documento',
+      subtitulo: `${d.tipo || 'otro'} · ${new Date(d.created_at).toLocaleDateString('es-ES')}`,
+      fecha: d.created_at || '',
+      tipo: d.tipo,
+      ico: TIPO_ICO[d.tipo] || '📄',
+      isImage: isImg,
+    };
+  });
+
+  // ── 3. Presupuestos con firma/documento adjunto ──
+  const docsPresup = presupData.filter(p => p.firma_url).map(p => ({
+    _cat: 'presupuestos',
+    _source: 'presupuesto',
+    url: p.firma_url,
+    nombre: `${p.numero || 'Presupuesto'} — Doc. firmado`,
+    subtitulo: `${p.cliente_nombre || '—'} · ${p.fecha || '—'} · ${fmtE(p.total||0)}`,
+    fecha: p.fecha || p.created_at || '',
+    ico: '📋',
+    isImage: false,
+  }));
+
+  // ── 4. Combinar todo ──
+  const todosItems = [...fotosPartes, ...docsClasificados, ...docsPresup];
+
+  // Contadores por categoría
+  const counts = { todos: todosItems.length, fotos: 0, presupuestos: 0, albaranes: 0, facturas: 0, otros: 0 };
+  todosItems.forEach(d => { if (counts[d._cat] !== undefined) counts[d._cat]++; });
+  // Reclasificar docs que no son fotos ni presupuestos
+  docsClasificados.filter(d => d._cat === 'otros').forEach(() => counts.otros++);
+
+  // ── 5. Tabs de filtro ──
+  const tabs = [
+    { key:'todos',        label:'Todos',        ico:'📁' },
+    { key:'fotos',        label:'Fotos',        ico:'📷' },
+    { key:'presupuestos', label:'Presupuestos', ico:'📋' },
+    { key:'albaranes',    label:'Albaranes',    ico:'📄' },
+    { key:'facturas',     label:'Facturas',     ico:'🧾' },
+    { key:'otros',        label:'Otros',        ico:'📎' },
+  ];
+
+  const tabsHtml = tabs.map(t => {
+    const cnt = counts[t.key] || 0;
+    return `<button class="btn btn-sm" id="docTab-${t.key}" onclick="filtrarObraDocs('${t.key}')"
+      style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:${_obraDocFilter===t.key?'var(--azul)':'#fff'};color:${_obraDocFilter===t.key?'#fff':'var(--gris-600)'};font-weight:600;cursor:pointer;transition:none">
+      ${t.ico} ${t.label} <span style="opacity:.7;font-size:10px">${cnt}</span>
+    </button>`;
+  }).join('');
+
+  // ── 6. Formulario de subida ──
+  const uploadForm = `
+    <div style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <select id="obraDocTipo" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+        <option value="foto">📷 Foto</option><option value="plano">📐 Plano</option><option value="certificado">📜 Certificado</option>
+        <option value="manual">📖 Manual</option><option value="garantia">🛡️ Garantía</option><option value="contrato">📋 Contrato</option><option value="otro">📄 Otro</option>
+      </select>
+      <input id="obraDocNombre" placeholder="Nombre..." style="flex:1;min-width:120px;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;outline:none">
+      <label class="btn btn-primary btn-sm" for="obraDocFile" style="cursor:pointer;font-size:11px">📎 Subir documento</label>
+      <input type="file" id="obraDocFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocObra(this)">
+    </div>`;
+
+  // ── 7. Renderizar items filtrados ──
+  const filtrados = _obraDocFilter === 'todos' ? todosItems : todosItems.filter(d => d._cat === _obraDocFilter);
+
+  let itemsHtml = '';
+  if (filtrados.length === 0) {
+    itemsHtml = '<div style="color:var(--gris-400);font-size:12.5px;padding:30px 0;text-align:center">Sin documentos en esta categoría</div>';
+  } else {
+    // ¿Es vista de fotos? → galería tipo grid
+    const vistaFotos = (_obraDocFilter === 'fotos' || (_obraDocFilter === 'todos' && filtrados.every(d => d.isImage)));
+    const soloFotos = filtrados.filter(d => d.isImage);
+    const noFotos = filtrados.filter(d => !d.isImage);
+
+    // Galería de fotos
+    if (soloFotos.length > 0) {
+      itemsHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">`;
+      soloFotos.forEach(f => {
+        const deleteBtn = f._source === 'doc' && f.id
+          ? `<button onclick="event.stopPropagation();eliminarDocObra(${f.id})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:none" class="doc-del-btn">✕</button>`
+          : '';
+        itemsHtml += `
+          <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--gris-200);cursor:pointer;aspect-ratio:1"
+               onclick="window.open('${f.url}','_blank')"
+               onmouseenter="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')"
+               onmouseleave="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
+            <img src="${f.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--gris-50);color:var(--gris-400);font-size:28px;position:absolute;inset:0">📷</div>
+            ${deleteBtn}
+            <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:6px 8px 5px;color:#fff;font-size:10px;line-height:1.3">
+              <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.nombre}</div>
+              <div style="opacity:.8">${f.subtitulo}</div>
+            </div>
+          </div>`;
+      });
+      itemsHtml += '</div>';
+    }
+
+    // Lista de documentos no-imagen
+    if (noFotos.length > 0) {
+      noFotos.forEach(d => {
+        const deleteBtn = d._source === 'doc' && d.id
+          ? `<button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="event.stopPropagation();eliminarDocObra(${d.id})">🗑️</button>`
+          : '';
+        itemsHtml += `
+          <div class="ficha-doc-row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px" onclick="window.open('${d.url}','_blank')">
+            <span style="font-size:18px">${d.ico || '📄'}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div>
+              <div style="font-size:10.5px;color:var(--gris-400)">${d.subtitulo}</div>
+            </div>
+            <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" onclick="event.stopPropagation()">👁️</a>
+            ${deleteBtn}
+          </div>`;
+      });
+    }
+  }
+
+  container.innerHTML = `
+    <div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tabsHtml}</div>
+      ${uploadForm}
+      <div id="obraDocsContent">${itemsHtml}</div>
+    </div>`;
+}
+
+function filtrarObraDocs(cat) {
+  _obraDocFilter = cat;
+  // Re-renderizar documentos con el filtro actualizado
+  // Los datos están ya cargados en la ficha — forzar refresh
+  if (typeof obraActualId !== 'undefined' && obraActualId) {
+    abrirFichaObra(obraActualId, false);
+  }
 }
 
 // ═══════════════════════════════════════════════
