@@ -136,9 +136,20 @@ function openModal(id, skipReset){
   const modalEl = document.getElementById(id);
   if(!modalEl){ console.error('Modal not found:',id); toast('Error: modal no encontrado','error'); return; }
   modalEl.classList.add('open');
+  // Bloquear scroll del body y compensar scrollbar para evitar salto de layout
+  const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
+  document.body.style.overflow='hidden';
+  if(scrollbarW > 0) document.body.style.paddingRight = scrollbarW + 'px';
 }
 
-function closeModal(id){document.getElementById(id)?.classList.remove('open');}
+function closeModal(id){
+  document.getElementById(id)?.classList.remove('open');
+  // Restaurar scroll solo si no hay más modales abiertos
+  if(!document.querySelector('.overlay.open')){
+    document.body.style.overflow='';
+    document.body.style.paddingRight='';
+  }
+}
 
 // Close modal when clicking overlay
 document.addEventListener('click',e=>{if(e.target.classList.contains('overlay'))closeModal(e.target.id);});
