@@ -698,7 +698,7 @@ function initRealtimePartes() {
 
     const notifs = {
       en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
-      completado: { ico:'✅', titulo:'Parte completado',  msg:`${operario} ha completado ${numero}`, color:'var(--verde)' },
+      completado: { ico:'✅', titulo:'Parte cumplimentado',  msg:`${operario} ha cumplimentado ${numero}`, color:'var(--verde)' },
     };
     const n = notifs[nuevo.estado];
     if (!n) return;

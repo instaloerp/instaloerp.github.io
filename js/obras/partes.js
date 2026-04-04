@@ -50,7 +50,7 @@ async function loadPartes() {
 const PT_ESTADOS = {
   programado:  { label:'Programado',  color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
   en_curso:    { label:'En curso',    color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
-  completado:  { label:'Completado',  color:'#059669', bg:'#ECFDF5',  ico:'✅' },
+  completado:  { label:'Cumplimentado', color:'#059669', bg:'#ECFDF5',  ico:'✅' },
   revisado:    { label:'Revisado',    color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
   facturado:   { label:'Facturado',   color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
   borrador:    { label:'Borrador',    color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
@@ -546,27 +546,77 @@ function pt_seleccionarArticulo(i, art_id, nombre, precio) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// GESTIÓN DE FOTOS
+// GESTIÓN DE FOTOS (con compresión automática)
 // ═══════════════════════════════════════════════════════════════════════
+
+const FOTO_MAX_PX = 1600;   // Máximo ancho o alto en píxeles
+const FOTO_QUALITY = 0.80;  // Calidad JPEG (0-1)
+
+/**
+ * Comprime/redimensiona una imagen antes de almacenarla.
+ * Devuelve { data: base64, tamanioOriginal, tamanioFinal }
+ */
+function comprimirImagen(file) {
+  return new Promise((resolve) => {
+    // Si no es imagen, devolver tal cual sin comprimir
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => resolve({ data: e.target.result, tamanioOriginal: file.size, tamanioFinal: file.size });
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      // Redimensionar si excede el máximo
+      if (w > FOTO_MAX_PX || h > FOTO_MAX_PX) {
+        if (w > h) { h = Math.round(h * FOTO_MAX_PX / w); w = FOTO_MAX_PX; }
+        else { w = Math.round(w * FOTO_MAX_PX / h); h = FOTO_MAX_PX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', FOTO_QUALITY);
+      // Calcular tamaño aproximado del resultado
+      const tamanioFinal = Math.round((dataUrl.length - 'data:image/jpeg;base64,'.length) * 3 / 4);
+      resolve({ data: dataUrl, tamanioOriginal: file.size, tamanioFinal });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      // Fallback: leer sin comprimir
+      const reader = new FileReader();
+      reader.onload = e => resolve({ data: e.target.result, tamanioOriginal: file.size, tamanioFinal: file.size });
+      reader.readAsDataURL(file);
+    };
+    img.src = url;
+  });
+}
+
+// fmtBytes() definida globalmente en ui.js
 
 function pt_addFoto(inputElement) {
   const files = inputElement.files;
   if (!files || files.length === 0) return;
 
-  Array.from(files).forEach(f => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
+  const promises = Array.from(files).map(f => {
+    return comprimirImagen(f).then(result => {
       pt_fotos.push({
         nombre: f.name,
-        data: e.target.result,
-        tamanio: f.size
+        data: result.data,
+        tamanioOriginal: result.tamanioOriginal,
+        tamanioFinal: result.tamanioFinal
       });
-      pt_renderFotos();
-    };
-    reader.readAsDataURL(f);
+    });
   });
 
-  inputElement.value = '';
+  Promise.all(promises).then(() => {
+    pt_renderFotos();
+    inputElement.value = '';
+  });
 }
 
 function pt_removeFoto(i) {
@@ -583,13 +633,16 @@ function pt_renderFotos() {
     return;
   }
 
-  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px">
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px">
     ${pt_fotos.map((f, i) => `
       <div style="position:relative;border:1px solid var(--gris-200);border-radius:6px;overflow:hidden;background:var(--gris-50)">
-        <img src="${f.data}" style="width:100%;height:100px;object-fit:cover" />
+        <img src="${f.data || f}" style="width:100%;height:100px;object-fit:cover" />
         <button onclick="pt_removeFoto(${i})"
           style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);color:white;border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">✕</button>
-        <div style="font-size:10px;color:var(--gris-500);padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.nombre}</div>
+        <div style="padding:3px 4px">
+          <div style="font-size:10px;color:var(--gris-600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${f.nombre||''}">${f.nombre||'foto'}</div>
+          <div style="font-size:9px;color:var(--gris-400)">${f.tamanioOriginal ? fmtBytes(f.tamanioFinal) + (f.tamanioOriginal !== f.tamanioFinal ? ' <span style="text-decoration:line-through">' + fmtBytes(f.tamanioOriginal) + '</span>' : '') : ''}</div>
+        </div>
       </div>
     `).join('')}
   </div>`;
@@ -734,7 +787,8 @@ async function guardarParte(estado = 'borrador') {
         // Es una foto nueva en base64
         try {
           const blob = await (await fetch(foto.data)).blob();
-          const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.png`;
+          const ext = foto.data.startsWith('data:image/jpeg') ? 'jpg' : 'png';
+          const filename = `${EMPRESA.id}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
           const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
           if (!error) {
             const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
@@ -894,7 +948,7 @@ async function cambiarEstadoParte(id, estado) {
         await sb.from('tareas_obra').insert({
           empresa_id: EMPRESA.id,
           trabajo_id: parte.trabajo_id || null,
-          texto: `📝 Parte ${parte.numero} completado por ${parte.usuario_nombre||'operario'} el ${fechaCorta} — Pendiente de revisión`,
+          texto: `📝 Parte ${parte.numero} cumplimentado por ${parte.usuario_nombre||'operario'} el ${fechaCorta} — Pendiente de revisión`,
           estado: 'pendiente',
           prioridad: 'alta',
           responsable_id: responsableId,
@@ -916,14 +970,14 @@ async function cambiarEstadoParte(id, estado) {
             responsable_id: responsableId,
             responsable_nombre: responsableNombre,
             creado_por: null,
-            creado_por_nombre: 'Sistema — Parte completado',
+            creado_por_nombre: 'Sistema — Parte cumplimentado',
           });
         } catch(e) { console.error('Error creando tarea pendientes:', e); }
       }
 
       // Registro en audit_log de la obra
       if (parte.trabajo_id) {
-        registrarActividadObra(parte.trabajo_id, 'Parte completado', `✅ ${parte.numero} completado por ${parte.usuario_nombre||'—'} · ${parseFloat(parte.horas||0).toFixed(1)}h${parte.trabajos_pendientes ? ' ⚠️ Con trabajos pendientes' : ''}`);
+        registrarActividadObra(parte.trabajo_id, 'Parte cumplimentado', `✅ ${parte.numero} cumplimentado por ${parte.usuario_nombre||'—'} · ${parseFloat(parte.horas||0).toFixed(1)}h${parte.trabajos_pendientes ? ' ⚠️ Con trabajos pendientes' : ''}`);
       }
     }
 
@@ -1140,7 +1194,7 @@ async function verDetalleParte(id) {
   const nextAction = {
     borrador:   {label:'📅 Programar cita', estado:'programado', color:'#3B82F6'},
     programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', color:'var(--acento)'},
-    en_curso:   {label:'✅ Marcar completado', estado:'completado', color:'var(--verde)'},
+    en_curso:   {label:'✅ Cumplimentar', estado:'completado', color:'var(--verde)'},
     completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
     revisado:   {label:'🧾 Marcar facturado', estado:'facturado', color:'#8B5CF6'},
   };

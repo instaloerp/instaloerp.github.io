@@ -570,7 +570,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   aplicarFiltroFacturacion();
 
   // ── PARTES DE TRABAJO ──
-  const ESTADOS_PARTE = {borrador:'Borrador',programado:'Programado',en_curso:'En curso',completado:'Completado',revisado:'Revisado',facturado:'Facturado'};
+  const ESTADOS_PARTE = {borrador:'Borrador',programado:'Programado',en_curso:'En curso',completado:'Cumplimentado',revisado:'Revisado',facturado:'Facturado'};
   const EST_PARTE_ICO = {borrador:'📝',programado:'📅',en_curso:'🔧',completado:'✅',revisado:'👁️',facturado:'🧾'};
   const EST_PARTE_COL = {borrador:'#9CA3AF',programado:'#3B82F6',en_curso:'#F59E0B',completado:'#10B981',revisado:'#059669',facturado:'#8B5CF6'};
   const EST_PARTE_BG  = {borrador:'#F3F4F6',programado:'#EFF6FF',en_curso:'#FFFBEB',completado:'#ECFDF5',revisado:'#D1FAE5',facturado:'#F5F3FF'};
@@ -582,7 +582,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const partesPorcent = partesTotal ? Math.round((partesCompletados / partesTotal) * 100) : 0;
 
   let partesHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <span style="font-size:13px;font-weight:700;color:var(--gris-700)">${EST_PARTE_ICO.completado} ${partesCompletados}/${partesTotal} completados</span>
+    <span style="font-size:13px;font-weight:700;color:var(--gris-700)">${EST_PARTE_ICO.completado} ${partesCompletados}/${partesTotal} cumplimentados</span>
     <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoParteDesdeObra(${id})">+ Nuevo parte</button>
   </div>`;
 
@@ -642,7 +642,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
                style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--gris-50);border-radius:8px;margin-bottom:6px">
             <span style="font-size:18px">👷</span>
             <span style="font-weight:700;font-size:13px;flex:1">${group.nombre}</span>
-            <span style="font-size:11px;color:var(--gris-400)">${completadosGrp}/${group.partes.length} completados</span>
+            <span style="font-size:11px;color:var(--gris-400)">${completadosGrp}/${group.partes.length} cumplimentados</span>
             <span class="grp-arrow" style="font-size:10px;color:var(--gris-400)">▼</span>
           </div>
           <div id="${groupId}">`;
@@ -682,7 +682,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         const nextActions = {
           borrador:   {label:'📅 Programar', fn:`avanzarEstadoParte(${p.id},'programado')`, bg:'#3B82F6'},
           programado: {label:'🔧 Iniciar', fn:`avanzarEstadoParte(${p.id},'en_curso')`, bg:'var(--acento)'},
-          en_curso:   {label:'✅ Completar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
+          en_curso:   {label:'✅ Cumplimentar', fn:`avanzarEstadoParte(${p.id},'completado')`, bg:'var(--verde)'},
           completado: {label:'👁️ Revisar', fn:`avanzarEstadoParte(${p.id},'revisado')`, bg:'#10B981'},
           revisado:   {label:'🧾 Facturar', fn:`avanzarEstadoParte(${p.id},'facturado')`, bg:'#8B5CF6'},
         };
@@ -886,11 +886,12 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
       id: d.id,
       url: d.url,
       nombre: d.nombre || 'Documento',
-      subtitulo: `${d.tipo || 'otro'} · ${new Date(d.created_at).toLocaleDateString('es-ES')}`,
+      subtitulo: `${d.tipo || 'otro'} · ${new Date(d.created_at).toLocaleDateString('es-ES')}${d.tamanyo ? ' · ' + fmtBytes(d.tamanyo) : ''}`,
       fecha: d.created_at || '',
       tipo: d.tipo,
       ico: TIPO_ICO[d.tipo] || '📄',
       isImage: isImg,
+      tamanyo: d.tamanyo || 0,
     };
   });
 
@@ -977,7 +978,7 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
             ${deleteBtn}
             <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:6px 8px 5px;color:#fff;font-size:10px;line-height:1.3">
               <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.nombre}</div>
-              <div style="opacity:.8">${f.subtitulo}</div>
+              <div style="opacity:.8">${f.subtitulo}${f.tamanyo ? ' · ' + fmtBytes(f.tamanyo) : ''}</div>
             </div>
           </div>`;
       });
@@ -997,6 +998,7 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
               <div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div>
               <div style="font-size:10.5px;color:var(--gris-400)">${d.subtitulo}</div>
             </div>
+            ${d.tamanyo ? '<span style="font-size:10px;color:var(--gris-400);white-space:nowrap">' + fmtBytes(d.tamanyo) + '</span>' : ''}
             <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" onclick="event.stopPropagation()">👁️</a>
             ${deleteBtn}
           </div>`;
@@ -1029,7 +1031,7 @@ function _renderDocsItems(filtrados, cat) {
         ${deleteBtn}
         <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:6px 8px 5px;color:#fff;font-size:10px;line-height:1.3">
           <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.nombre}</div>
-          <div style="opacity:.8">${f.subtitulo}</div>
+          <div style="opacity:.8">${f.subtitulo}${f.tamanyo ? ' · ' + fmtBytes(f.tamanyo) : ''}</div>
         </div>
       </div>`;
     });
@@ -1043,6 +1045,7 @@ function _renderDocsItems(filtrados, cat) {
       html += `<div class="ficha-doc-row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px" onclick="window.open('${d.url}','_blank')">
         <span style="font-size:18px">${d.ico || '📄'}</span>
         <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.subtitulo}</div></div>
+        ${d.tamanyo ? '<span style="font-size:10px;color:var(--gris-400);white-space:nowrap">' + fmtBytes(d.tamanyo) + '</span>' : ''}
         <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" onclick="event.stopPropagation()">👁️</a>
         ${deleteBtn}
       </div>`;

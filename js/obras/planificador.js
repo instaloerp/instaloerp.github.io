@@ -35,7 +35,7 @@ let planObraFija = null; // { id, titulo } si se abre desde una obra
 const PT_ESTADOS_PLAN = {
   programado:  { label:'Programado',  color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
   en_curso:    { label:'En curso',    color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
-  completado:  { label:'Completado',  color:'#059669', bg:'#ECFDF5',  ico:'✅' },
+  completado:  { label:'Cumplimentado', color:'#059669', bg:'#ECFDF5',  ico:'✅' },
   revisado:    { label:'Revisado',    color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
   facturado:   { label:'Facturado',   color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
   borrador:    { label:'Borrador',    color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
@@ -987,6 +987,12 @@ async function crearParteDesdeplanificador(fecha, hora, estado) {
     }
 
     toast(`✅ Parte ${numero} creado como ${estado}`, 'success');
+
+    // Si estamos en fullscreen (abierto desde ficha de obra), cerrar y volver a la ficha
+    if (planFullscreen) {
+      cerrarPlanificadorFullscreen();
+      return;
+    }
 
     // Recargar
     await cargarPartesParaPlanificador();
