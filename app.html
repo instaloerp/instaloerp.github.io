@@ -64,6 +64,9 @@ a{color:var(--azul);text-decoration:none}
 .app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
 .app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
+.hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:#ECFDF5;border:1px solid #A7F3D0;font-size:10px;font-weight:700;color:#059669;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
+.hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
 .app-body{flex:1;padding:12px 16px;padding-bottom:calc(80px + var(--safe-bottom))}
 
@@ -242,9 +245,9 @@ input[type=number]{-moz-appearance:textfield}
       <h2 id="hdrNombre">—</h2>
       <span id="hdrRol">—</span>
     </div>
-    <button id="btnModo" class="hdr-btn" onclick="toggleModo()" title="Cambiar modo" style="font-size:14px"></button>
-    <button class="hdr-btn" onclick="doRefresh()" title="Actualizar datos" style="color:var(--verde);font-size:18px">⟳</button>
-    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión" style="background:var(--rojo);color:#fff;font-size:14px;font-weight:700;width:38px;height:38px">✕</button>
+    <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
+    <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> LIVE</div>
+    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión" style="background:var(--rojo);color:#fff;font-size:15px;font-weight:700;width:36px;height:36px">✕</button>
   </div>
 
   <!-- Body (content rendered by JS) -->
@@ -399,10 +402,17 @@ async function showApp() {
   const btnModo = document.getElementById('btnModo');
   if (CP?.es_superadmin) {
     btnModo.style.display = '';
-    btnModo.textContent = esJefe ? '👷' : '⚙️';
-    btnModo.style.background = esJefe ? '#F59E0B' : '#3B82F6';
-    btnModo.style.color = '#fff';
-    btnModo.title = esJefe ? 'Cambiar a modo Operario' : 'Cambiar a modo Administrador';
+    if (esJefe) {
+      btnModo.innerHTML = '⚙️ ADMIN';
+      btnModo.style.background = '#3B82F6';
+      btnModo.style.color = '#fff';
+      btnModo.title = 'Cambiar a modo Operario';
+    } else {
+      btnModo.innerHTML = '👷 OPERARIO';
+      btnModo.style.background = '#F59E0B';
+      btnModo.style.color = '#fff';
+      btnModo.title = 'Cambiar a modo Administrador';
+    }
   } else {
     btnModo.style.display = 'none';
   }
@@ -413,6 +423,9 @@ async function showApp() {
   // Load data
   await loadAllData();
   navigateTo('inicio');
+
+  // ── Auto-refresh cada 10 min + al abrir la app ──
+  initAutoRefresh();
 }
 
 function renderBottomNav() {
@@ -504,11 +517,72 @@ async function loadAllData() {
 }
 
 async function doRefresh() {
-  toast('Actualizando...', '');
+  const liveEl = document.getElementById('hdrLive');
+  if (liveEl) liveEl.innerHTML = '<span class="live-dot"></span> …';
   await loadAllData();
   navigateTo(currentTab);
+  _lastRefresh = Date.now();
+  _updateSyncIndicator();
   toast('Actualizado ✓', 'success');
 }
+
+// ═══════════════════════════════════════════════
+// AUTO-REFRESH: polling cada 10 min + al abrir app
+// ═══════════════════════════════════════════════
+let _pollInterval = null;
+const POLL_MS = 10 * 60 * 1000; // 10 minutos
+let _lastRefresh = Date.now();
+
+function initAutoRefresh() {
+  // Polling silencioso cada 10 minutos
+  if (_pollInterval) clearInterval(_pollInterval);
+  _pollInterval = setInterval(() => _silentRefresh(), POLL_MS);
+  _updateSyncIndicator();
+}
+
+async function _silentRefresh() {
+  // No refrescar si el wizard está abierto (podría perder datos)
+  if (_wiz?.parteId && document.querySelector('.wiz-overlay')) {
+    console.log('[AutoRefresh] Wizard abierto, skip');
+    return;
+  }
+  console.log('[AutoRefresh] Polling...');
+  try {
+    await loadAllData();
+    navigateTo(currentTab);
+    _lastRefresh = Date.now();
+    _updateSyncIndicator();
+  } catch(e) {
+    console.error('[AutoRefresh] Error:', e);
+  }
+}
+
+function _updateSyncIndicator() {
+  const el = document.getElementById('hdrLive');
+  if (!el) return;
+  const ago = Math.round((Date.now() - _lastRefresh) / 60000);
+  if (ago < 1) {
+    el.className = 'hdr-live';
+    el.innerHTML = '<span class="live-dot"></span> OK';
+  } else {
+    el.className = 'hdr-live';
+    el.innerHTML = '<span class="live-dot"></span> ' + ago + ' min';
+  }
+}
+
+// Al volver a primer plano → refresh inmediato
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && EMPRESA) {
+    const elapsed = Date.now() - _lastRefresh;
+    // Refrescar si han pasado más de 2 min desde el último
+    if (elapsed > 2 * 60 * 1000) {
+      _silentRefresh();
+    }
+  }
+});
+
+// Actualizar indicador cada minuto
+setInterval(() => _updateSyncIndicator(), 60000);
 
 function forceCacheClear() {
   if (!confirm('Se va a borrar la caché y recargar la aplicación.\n\n¿Continuar?')) return;
@@ -1094,9 +1168,21 @@ function renderJefeMas(el) {
       <span style="font-size:24px">🖥️</span>
       <div><div style="font-weight:700;font-size:14px">Abrir ERP completo</div><div style="font-size:12px;color:var(--gris-400)">Versión de escritorio con todas las funciones</div></div>
     </div>
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">📡</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">Actualización automática</div>
+        <div style="font-size:12px;color:var(--gris-400)">Se actualizan los partes cada 10 min y al abrir la app</div>
+      </div>
+      <span style="width:10px;height:10px;border-radius:50%;background:#10B981"></span>
+    </div>
     <div class="card" onclick="doRefresh()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🔄</span>
-      <div><div style="font-weight:700;font-size:14px">Actualizar datos</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y equipo</div></div>
+      <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y equipo manualmente</div></div>
+    </div>
+    <div class="card" onclick="forceCacheClear()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🗑️</span>
+      <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar datos guardados y recargar</div></div>
     </div>
     <div class="card" onclick="doLogout()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🚪</span>
