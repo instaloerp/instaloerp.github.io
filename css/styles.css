@@ -298,3 +298,55 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .hov-bg-azul:hover{background:var(--azul-light);border-color:var(--azul)}
 .hov-bright{transition:opacity .15s}
 .hov-bright:hover{opacity:.88}
+
+/* ══ PLANIFICADOR SEMANAL ══ */
+.plan-container{display:flex;flex-direction:column;height:calc(100vh - 250px);min-height:500px;background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);box-shadow:var(--sh);overflow:hidden}
+.plan-header{display:flex;border-bottom:1.5px solid var(--gris-200);flex-shrink:0}
+.plan-hours-header{width:70px;min-width:70px;border-right:1.5px solid var(--gris-200)}
+.plan-days-header{display:grid;grid-template-columns:repeat(7,1fr);flex:1}
+.plan-day-header{padding:12px 8px;text-align:center;border-right:1px solid var(--gris-100);font-weight:700;font-size:13px}
+.plan-day-header:last-child{border-right:none}
+.plan-day-name{display:block;color:var(--gris-600);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.plan-day-date{display:block;color:var(--gris-800);font-size:13px;font-weight:700;margin-top:4px}
+.plan-body{display:flex;flex:1;overflow:hidden}
+.plan-hours-column{width:70px;min-width:70px;border-right:1.5px solid var(--gris-200);overflow-y:auto;background:var(--gris-50)}
+.plan-hour{height:60px;padding:4px 4px;text-align:right;font-size:11px;color:var(--gris-500);border-bottom:1px solid var(--gris-100);font-weight:500}
+.plan-grid-container{flex:1;overflow:auto}
+.plan-grid{display:grid;grid-template-columns:repeat(7,minmax(140px,1fr));grid-template-rows:repeat(13,60px);gap:0;position:relative;background:#fff}
+.plan-grid-cell{position:relative;border-right:1px solid var(--gris-200);border-bottom:1px solid var(--gris-100)}
+.plan-grid-cell:nth-child(7n){border-right:none}
+.plan-parte{position:absolute;left:2px;right:2px;background:var(--azul);color:#fff;border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:box-shadow .15s}
+.plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.plan-parte.estado-programado{background:#3B82F6}
+.plan-parte.estado-en_curso{background:#D97706}
+.plan-parte.estado-completado{background:#059669}
+.plan-parte.estado-revisado{background:#10B981}
+.plan-parte.estado-facturado{background:#8B5CF6}
+.plan-parte.estado-borrador{background:#9CA3AF}
+.plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
+
+/* ══ SIDEBAR COLAPSABLE ══ */
+.sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 8px;padding:8px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;font-size:13px}
+.sb-toggle:hover{background:rgba(255,255,255,.12);color:#fff}
+.sb-toggle-ico{font-size:12px;display:inline-block}
+body.sb-collapsed .sb-toggle-ico{transform:rotate(180deg)}
+body.sb-collapsed #sidebar{width:60px}
+body.sb-collapsed #main{margin-left:60px}
+body.sb-collapsed .sb-logo .brand,
+body.sb-collapsed .sb-emp-selector .emp-info,
+body.sb-collapsed .sb-emp-selector .chev,
+body.sb-collapsed .sb-item span:not(.ico),
+body.sb-collapsed .sb-item .sb-beta,
+body.sb-collapsed .sb-sec,
+body.sb-collapsed .sb-hide-collapsed,
+body.sb-collapsed .sb-user strong,
+body.sb-collapsed .sb-user small,
+body.sb-collapsed .sb-user .logout,
+body.sb-collapsed #sbFavSection .sb-fav-titulo{display:none}
+body.sb-collapsed .sb-logo{justify-content:center;padding:16px 8px 13px}
+body.sb-collapsed .sb-emp-selector{justify-content:center;padding:9px}
+body.sb-collapsed .sb-item{justify-content:center;padding:9px}
+body.sb-collapsed .sb-item .ico{margin:0}
+body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 16px)}
+body.sb-collapsed .sb-user{justify-content:center;padding:10px}
+body.sb-collapsed .sb-nav{padding:6px 4px}
