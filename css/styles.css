@@ -200,38 +200,6 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .ti.error{border-left:3px solid var(--rojo)}
 .ti.info{border-left:3px solid var(--azul)}
 
-/* ══ PLANIFICADOR SEMANAL ══ */
-.plan-header{display:grid;grid-template-columns:80px repeat(7,1fr);gap:0;background:var(--gris-200);border-bottom:1px solid var(--gris-200);height:90px;position:sticky;top:0;z-index:10;border:1px solid var(--gris-200);border-radius:10px 10px 0 0}
-.plan-day-header{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:8px;text-align:center;border-right:1px solid var(--gris-200)}
-.plan-day-header:last-child{border-right:none}
-.plan-day-header.is-today{background:var(--azul-light)}
-.plan-day-name{font-weight:700;font-size:13px;color:var(--gris-700)}
-.plan-day-num{font-size:12px;color:var(--gris-500);margin-top:2px}
-.plan-body{display:flex;flex:1;overflow-y:auto;background:#fff;border:1px solid var(--gris-200);border-top:none;border-radius:0 0 10px 10px}
-.plan-hours-col{flex-shrink:0;width:80px;padding:0;background:#fff;border-right:1px solid var(--gris-200)}
-.plan-hour-label{height:60px;display:flex;align-items:flex-start;justify-content:center;padding-top:4px;font-size:11px;color:var(--gris-500);font-weight:600;border-bottom:1px solid var(--gris-100)}
-.plan-grid{display:flex;flex:1;overflow-x:auto}
-.plan-operario-container{display:flex;flex-direction:column;flex:1;position:relative;border-right:1px solid var(--gris-200)}
-.plan-operario-container:last-child{border-right:none}
-.plan-horas-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;flex:1;background:#fff;position:relative}
-.plan-day-column{position:relative;background:#fff;border-right:1px solid var(--gris-200);min-height:calc(13 * 60px)}
-.plan-day-column:last-child{border-right:none}
-.plan-hour-slot{height:60px;border-bottom:1px solid var(--gris-100);cursor:pointer;transition:background .1s;position:relative;background:#fff}
-.plan-hour-slot:hover{background:var(--azul-light)}
-.plan-hour-slot.blocked{background:repeating-linear-gradient(45deg,var(--gris-100),var(--gris-100) 10px,var(--gris-50) 10px,var(--gris-50) 20px)}
-.plan-parte{position:absolute;left:2px;right:2px;overflow:hidden;border-radius:6px;padding:6px;cursor:pointer;transition:box-shadow .15s;box-shadow:0 2px 6px rgba(0,0,0,.1);z-index:1}
-.plan-parte:hover{box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.plan-parte-content{font-size:11px;line-height:1.3;color:var(--gris-800);overflow:hidden}
-.plan-parte-titulo{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
-.plan-parte-hora{font-size:10px;color:var(--gris-600);font-weight:600}
-.plan-parte-desc{font-size:9.5px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.plan-parte-resize{position:absolute;bottom:0;left:0;right:0;height:6px;cursor:row-resize;background:rgba(0,0,0,.2);opacity:0;transition:opacity .15s}
-.plan-parte:hover .plan-parte-resize{opacity:1}
-.plan-detalle-header{padding:12px 16px;border-bottom:1px solid var(--gris-100)}
-.plan-detalle-header h3{margin:0;font-size:14px;color:var(--gris-900);font-weight:700}
-.plan-detalle-header p{margin:4px 0 0;font-size:12px;color:var(--gris-500)}
-.plan-detalle-info{padding:16px}
-
 /* ══ CONFIG PAGE ══ */
 .cfg-grid{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
 .cfg-menu{background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);overflow:hidden;box-shadow:var(--sh)}
