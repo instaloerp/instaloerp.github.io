@@ -653,6 +653,58 @@ function ini(n){return(n||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').t
 
 const AVC=['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777','#0F766E'];
 
+// ═══════════════════════════════════════════════
+// PREVIEW HOVER DE IMÁGENES (zoom al pasar ratón)
+// ═══════════════════════════════════════════════
+let _hoverPreview = null;
+
+function showImgPreview(url, e) {
+  if (!url) return;
+  // Crear overlay si no existe
+  if (!_hoverPreview) {
+    _hoverPreview = document.createElement('div');
+    _hoverPreview.id = 'imgHoverPreview';
+    _hoverPreview.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#000;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:4px;transition:opacity .15s;opacity:0;max-width:70vw;max-height:70vh;display:flex;align-items:center;justify-content:center';
+    _hoverPreview.innerHTML = '<img style="max-width:100%;max-height:100%;border-radius:8px;display:block">';
+    document.body.appendChild(_hoverPreview);
+  }
+  const img = _hoverPreview.querySelector('img');
+  img.src = url;
+  _hoverPreview.style.opacity = '0';
+  _hoverPreview.style.display = 'flex';
+  // Posicionar cerca del ratón
+  _positionPreview(e);
+  // Mostrar con fade cuando cargue
+  if (img.complete) { _hoverPreview.style.opacity = '1'; }
+  else { img.onload = () => { _hoverPreview.style.opacity = '1'; }; }
+}
+
+function moveImgPreview(e) {
+  if (_hoverPreview && _hoverPreview.style.display !== 'none') _positionPreview(e);
+}
+
+function hideImgPreview() {
+  if (_hoverPreview) { _hoverPreview.style.opacity = '0'; setTimeout(() => { if (_hoverPreview) _hoverPreview.style.display = 'none'; }, 150); }
+}
+
+function _positionPreview(e) {
+  if (!_hoverPreview) return;
+  const pad = 16;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const pw = _hoverPreview.offsetWidth || 400, ph = _hoverPreview.offsetHeight || 300;
+  // Intentar poner a la derecha del cursor; si no cabe, a la izquierda
+  let left = e.clientX + pad;
+  if (left + pw > vw - pad) left = e.clientX - pw - pad;
+  if (left < pad) left = pad;
+  // Intentar centrar verticalmente con el cursor
+  let top = e.clientY - ph / 2;
+  if (top < pad) top = pad;
+  if (top + ph > vh - pad) top = vh - ph - pad;
+  if (top < pad) top = pad;
+  _hoverPreview.style.left = left + 'px';
+  _hoverPreview.style.top = top + 'px';
+}
+
 function avC(n){return AVC[(n||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%AVC.length];}
 
 function catIco(c){return{Fontanería:'🚿',Calefacción:'🔥','Aire Acondicionado':'❄️','Energías Renovables':'☀️',Reforma:'🛁',Electricidad:'⚡'}[c]||'🔧';}

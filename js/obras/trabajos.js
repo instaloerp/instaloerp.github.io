@@ -971,8 +971,9 @@ function renderObraDocumentos(docsData, partesData, presupData, albData, factDat
         itemsHtml += `
           <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--gris-200);cursor:pointer;aspect-ratio:1"
                onclick="window.open('${f.url}','_blank')"
-               onmouseenter="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')"
-               onmouseleave="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
+               onmouseenter="showImgPreview('${f.url}',event);this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')"
+               onmousemove="moveImgPreview(event)"
+               onmouseleave="hideImgPreview();this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
             <img src="${f.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
             <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--gris-50);color:var(--gris-400);font-size:28px;position:absolute;inset:0">📷</div>
             ${deleteBtn}
@@ -1025,7 +1026,7 @@ function _renderDocsItems(filtrados, cat) {
       const deleteBtn = f._source === 'doc' && f.id
         ? `<button onclick="event.stopPropagation();eliminarDocObra(${f.id})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:none" class="doc-del-btn">✕</button>`
         : '';
-      html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--gris-200);cursor:pointer;aspect-ratio:1" onclick="window.open('${f.url}','_blank')" onmouseenter="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')" onmouseleave="this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
+      html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--gris-200);cursor:pointer;aspect-ratio:1" onclick="window.open('${f.url}','_blank')" onmouseenter="showImgPreview('${f.url}',event);this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='block')" onmousemove="moveImgPreview(event)" onmouseleave="hideImgPreview();this.querySelector('.doc-del-btn')&&(this.querySelector('.doc-del-btn').style.display='none')">
         <img src="${f.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--gris-50);color:var(--gris-400);font-size:28px;position:absolute;inset:0">📷</div>
         ${deleteBtn}

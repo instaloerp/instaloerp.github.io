@@ -1093,7 +1093,7 @@ async function verDetalleParte(id) {
     fotosHTML = `<div style="margin:16px 0">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">Fotos</h4>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px">
-        ${parte.fotos.map(f => `<img src="${f}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open('${f}')" title="Clic para ampliar" />`).join('')}
+        ${parte.fotos.map(f => `<img src="${f}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open('${f}')" onmouseenter="showImgPreview('${f}',event)" onmousemove="moveImgPreview(event)" onmouseleave="hideImgPreview()" />`).join('')}
       </div>
     </div>`;
   }
