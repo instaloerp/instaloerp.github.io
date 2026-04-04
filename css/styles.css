@@ -319,8 +319,8 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-cell-nolab{background:rgba(15,23,42,.06)}
 .plan-cell-finde{background:rgba(100,116,139,.10)}
 .plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.15)}
-.plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;transition:box-shadow .15s;box-sizing:border-box;line-height:1.3}
-.plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:5}
+.plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;box-sizing:border-box;line-height:1.3;will-change:transform;transform:translateZ(0)}
+.plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
 .plan-day-header.plan-today{background:var(--azul-light)}
 .plan-day-header.plan-today .plan-day-name,.plan-day-header.plan-today .plan-day-date{color:var(--azul)}
@@ -356,6 +356,11 @@ body.sb-collapsed .sb-emp-selector{justify-content:center;padding:9px}
 body.sb-collapsed .sb-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0;height:36px;box-sizing:border-box}
 body.sb-collapsed .sb-item:hover{font-size:0}
 body.sb-collapsed .sb-item .ico{margin:0;font-size:18px;line-height:36px}
+body.sb-collapsed .sb-fav-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0;height:36px;box-sizing:border-box}
+body.sb-collapsed .sb-fav-item:hover{font-size:0}
+body.sb-collapsed .sb-fav-item span:first-child{font-size:18px!important;line-height:36px;margin:0}
+body.sb-collapsed .sb-fav-item span:not(:first-child){display:none}
+body.sb-collapsed .sb-favoritos{padding:2px 4px}
 body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 16px)}
 body.sb-collapsed .sb-user{justify-content:center;padding:10px}
 body.sb-collapsed .sb-nav{padding:6px 4px}

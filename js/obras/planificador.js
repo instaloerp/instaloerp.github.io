@@ -45,6 +45,7 @@ const PT_ESTADOS_PLAN = {
 // INICIALIZACIÓN
 // ═══════════════════════════════════════════════════════════════════════
 
+let _planResizeTimer = null;
 async function initPlanificador() {
   planCurrentDate = getMonday(new Date());
   await cargarConfigPlanificador();
@@ -53,10 +54,10 @@ async function initPlanificador() {
   calcularAlturaFilas();
   renderPlanificador();
   sincronizarScrollHoras();
-  // Recalcular al redimensionar ventana
+  // Recalcular al redimensionar ventana (con debounce)
   window.addEventListener('resize', () => {
-    calcularAlturaFilas();
-    renderPlanificador();
+    clearTimeout(_planResizeTimer);
+    _planResizeTimer = setTimeout(() => { calcularAlturaFilas(); renderPlanificador(); }, 150);
   });
 }
 
@@ -198,7 +199,11 @@ function sincronizarScrollHorasFS() {
   const gc = document.getElementById('planGridContainerFS');
   const hc = document.getElementById('planHoursColumnFS');
   if (!gc || !hc) return;
-  gc.addEventListener('scroll', () => { hc.scrollTop = gc.scrollTop; });
+  let _rafFS = 0;
+  gc.addEventListener('scroll', () => {
+    cancelAnimationFrame(_rafFS);
+    _rafFS = requestAnimationFrame(() => { hc.scrollTop = gc.scrollTop; });
+  }, { passive: true });
 }
 
 function getMonday(d) {
@@ -297,9 +302,11 @@ function sincronizarScrollHoras() {
   const gridContainer = document.getElementById('planGridContainer');
   const hoursCol = document.getElementById('planHoursColumn');
   if (!gridContainer || !hoursCol) return;
+  let _rafScroll = 0;
   gridContainer.addEventListener('scroll', function() {
-    hoursCol.scrollTop = gridContainer.scrollTop;
-  });
+    cancelAnimationFrame(_rafScroll);
+    _rafScroll = requestAnimationFrame(() => { hoursCol.scrollTop = gridContainer.scrollTop; });
+  }, { passive: true });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -467,30 +474,42 @@ function renderGridTo(containerId) {
       cell.style.gridColumn = dayIdx + 1;
       cell.style.gridRow = (hourIdx - PLAN_HORAS_INICIO) + 1;
 
-      // ── Click en celda vacía → crear nuevo parte ──
-      cell.onclick = () => {
-        if (!esLaboral || esFinde || esFestivo) {
-          const motivo = esFestivo ? 'festivo' : esFinde ? 'fin de semana' : 'fuera del horario laboral';
-          toast(`⚠️ Atención: esta hora es ${motivo}`, 'info');
-        }
-        abrirCrearParteRapido(dayStr, hourIdx);
-      };
-
-      // ── Drop target (drag & drop) ──
+      // Data attributes para event delegation
       cell.dataset.fecha = dayStr;
       cell.dataset.hora = String(hourIdx).padStart(2,'0') + ':00:00';
-      cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('plan-cell-dragover'); });
-      cell.addEventListener('dragleave', () => cell.classList.remove('plan-cell-dragover'));
-      cell.addEventListener('drop', e => {
-        e.preventDefault();
-        cell.classList.remove('plan-cell-dragover');
-        const parteId = e.dataTransfer.getData('text/plain');
-        if (parteId) confirmarMoverParte(parseInt(parteId), dayStr, hourIdx, !esLaboral || esFinde || esFestivo);
-      });
+      cell.dataset.hourIdx = hourIdx;
+      cell.dataset.nolab = (!esLaboral || esFinde || esFestivo) ? '1' : '';
+      cell.dataset.motivo = esFestivo ? 'festivo' : esFinde ? 'fin de semana' : (!esLaboral ? 'fuera del horario laboral' : '');
 
       container.appendChild(cell);
     }
   }
+
+  // ── Event delegation para click, dragover, dragleave, drop ──
+  container.onclick = (e) => {
+    const cell = e.target.closest('.plan-grid-cell');
+    if (!cell || e.target.closest('.plan-parte')) return;
+    const nolab = cell.dataset.nolab;
+    if (nolab) toast(`⚠️ Atención: esta hora es ${cell.dataset.motivo}`, 'info');
+    abrirCrearParteRapido(cell.dataset.fecha, parseInt(cell.dataset.hourIdx));
+  };
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const cell = e.target.closest('.plan-grid-cell');
+    if (cell) cell.classList.add('plan-cell-dragover');
+  });
+  container.addEventListener('dragleave', (e) => {
+    const cell = e.target.closest('.plan-grid-cell');
+    if (cell) cell.classList.remove('plan-cell-dragover');
+  });
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const cell = e.target.closest('.plan-grid-cell');
+    if (!cell) return;
+    cell.classList.remove('plan-cell-dragover');
+    const parteId = e.dataTransfer.getData('text/plain');
+    if (parteId) confirmarMoverParte(parseInt(parteId), cell.dataset.fecha, parseInt(cell.dataset.hourIdx), cell.dataset.nolab === '1');
+  });
 
   // ── Colocar partes en la rejilla (posición absoluta, span múltiple) ──
   partesParaRejilla.forEach(parte => {
@@ -593,14 +612,6 @@ function crearElementoParte(parte, alturaTotal) {
   el.className = 'plan-parte';
   el.style.background = estadoInfo.color;
   el.style.color = '#fff';
-  el.style.borderRadius = '5px';
-  el.style.padding = '2px 5px';
-  el.style.fontSize = '10px';
-  el.style.fontWeight = '600';
-  el.style.overflow = 'hidden';
-  el.style.cursor = 'grab';
-  el.style.zIndex = '2';
-  el.style.boxSizing = 'border-box';
   el.style.borderLeft = '3px solid rgba(0,0,0,.2)';
 
   const titulo = parte.trabajo_titulo || 'Sin título';
