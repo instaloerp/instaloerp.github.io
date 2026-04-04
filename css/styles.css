@@ -55,7 +55,7 @@ a{text-decoration:none;color:inherit}
 
 /* ══ APP LAYOUT ══ */
 #s-app{flex-direction:row}
-#sidebar{width:var(--sidebar-w);flex-shrink:0;background:#1e2540;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s;contain:layout style}
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:#1e2540;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:width .25s}
 .sb-logo{padding:16px 14px 13px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:9px;cursor:pointer}
 .sb-logo .mark{width:42px;height:42px;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--azul);flex-shrink:0;overflow:hidden;border:1px solid rgba(255,255,255,.15)}
 .sb-logo .brand strong{color:#fff;font-size:16px;display:block;line-height:1.3;font-weight:800}
@@ -86,7 +86,7 @@ a{text-decoration:none;color:inherit}
 .sb-user .logout{margin-left:auto;background:none;border:none;color:var(--gris-600);cursor:pointer;padding:4px;font-size:15px;border-radius:5px}
 .sb-user .logout:hover{color:#fff}
 
-#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;contain:style}
+#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin-left .25s}
 #topbar{height:56px;background:#fff;border-bottom:1px solid var(--gris-200);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:50}
 .tb-title{font-size:16px;font-weight:800;color:var(--gris-900)}
 .tb-sub{font-size:11px;color:var(--gris-400);margin-top:1px}
@@ -312,14 +312,14 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-hours-column{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200);overflow:hidden;background:var(--gris-50)}
 .plan-hour{padding:2px 6px 0 0;text-align:right;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-200);font-weight:600;display:flex;align-items:flex-start;justify-content:flex-end}
 .plan-hour-nolab{color:var(--gris-300);background:rgba(15,23,42,.05)}
-.plan-grid-container{flex:1;overflow:auto;contain:paint;will-change:transform}
-.plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff;overflow:visible;contain:layout style}
+.plan-grid-container{flex:1;overflow:auto}
+.plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff;overflow:visible}
 .plan-grid-cell{position:relative;border-right:1px solid var(--gris-300);border-bottom:1px solid var(--gris-200);cursor:pointer;min-height:21px}
 .plan-grid-cell:nth-child(7n){border-right:none}
 .plan-cell-nolab{background:rgba(15,23,42,.06)}
 .plan-cell-finde{background:rgba(100,116,139,.10)}
 .plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.15)}
-.plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;box-sizing:border-box;line-height:1.3;will-change:transform;transform:translateZ(0)}
+.plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;box-sizing:border-box;line-height:1.3}
 .plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
 .plan-day-header.plan-today{background:var(--azul-light)}
@@ -330,8 +330,7 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-cell-dragover{background:rgba(59,130,246,.18)!important;outline:2px dashed var(--azul);outline-offset:-2px}
 .plan-grid-cell.plan-today-col{background:rgba(59,130,246,.08)}
 .plan-grid-cell.plan-today-col.plan-cell-nolab{background:rgba(59,130,246,.12)}
-#page-planificador{transform:translateZ(0);will-change:auto}
-#page-planificador *{-webkit-backface-visibility:hidden}
+/* GPU layers eliminados — causaban bug de compositing en sidebar */
 
 /* ══ SIDEBAR COLAPSABLE ══ */
 .sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 8px;padding:8px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;font-size:13px}
@@ -365,7 +364,9 @@ body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100%
 body.sb-collapsed .sb-user{justify-content:center;padding:10px}
 body.sb-collapsed .sb-nav{padding:6px 4px}
 body.sb-collapsed .sb-section-items{display:block!important;overflow:visible!important}
-body.sb-collapsed *{transition:none!important}
+body.sb-collapsed #sidebar,
+body.sb-collapsed #sidebar *,
+body.sb-collapsed #main{transition:none!important}
 
 /* ══ FICHA OBRA — filas de docs y partes ══ */
 .parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100);transition:box-shadow .12s,filter .12s}

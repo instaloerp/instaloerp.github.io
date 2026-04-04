@@ -46,6 +46,9 @@ const PT_ESTADOS_PLAN = {
 // ═══════════════════════════════════════════════════════════════════════
 
 let _planResizeTimer = null;
+let _planResizeHandler = null;   // ← referencia para poder eliminar el listener
+let _planScrollCleanup = null;   // ← cleanup del scroll listener
+
 async function initPlanificador() {
   planCurrentDate = getMonday(new Date());
   await cargarConfigPlanificador();
@@ -54,11 +57,22 @@ async function initPlanificador() {
   calcularAlturaFilas();
   renderPlanificador();
   sincronizarScrollHoras();
+
   // Recalcular al redimensionar ventana (con debounce)
-  window.addEventListener('resize', () => {
+  // ► CRITICAL: eliminar handler anterior para no acumular listeners
+  if (_planResizeHandler) window.removeEventListener('resize', _planResizeHandler);
+  _planResizeHandler = () => {
     clearTimeout(_planResizeTimer);
-    _planResizeTimer = setTimeout(() => { calcularAlturaFilas(); renderPlanificador(); }, 150);
-  });
+    _planResizeTimer = setTimeout(() => {
+      // Solo re-renderizar si la página del planificador está visible
+      const page = document.getElementById('page-planificador');
+      if (page && page.classList.contains('active')) {
+        calcularAlturaFilas();
+        renderPlanificador();
+      }
+    }, 150);
+  };
+  window.addEventListener('resize', _planResizeHandler);
 }
 
 // Versión fullscreen para abrir desde ficha de obra
@@ -299,14 +313,22 @@ async function cargarPartesParaPlanificador() {
 // ═══════════════════════════════════════════════════════════════════════
 
 function sincronizarScrollHoras() {
+  // ► Limpiar listener anterior para no acumular
+  if (_planScrollCleanup) _planScrollCleanup();
+
   const gridContainer = document.getElementById('planGridContainer');
   const hoursCol = document.getElementById('planHoursColumn');
   if (!gridContainer || !hoursCol) return;
   let _rafScroll = 0;
-  gridContainer.addEventListener('scroll', function() {
+  const handler = () => {
     cancelAnimationFrame(_rafScroll);
     _rafScroll = requestAnimationFrame(() => { hoursCol.scrollTop = gridContainer.scrollTop; });
-  }, { passive: true });
+  };
+  gridContainer.addEventListener('scroll', handler, { passive: true });
+  _planScrollCleanup = () => {
+    gridContainer.removeEventListener('scroll', handler);
+    _planScrollCleanup = null;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
