@@ -362,6 +362,11 @@ function planificadorHoyEnSemana() {
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderPlanificador() {
+  // Limpiar modales huérfanos que puedan haber quedado
+  ['planConfirmModal','planCrearParteModal'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) m.remove();
+  });
   // Si estamos en fullscreen, usar las funciones FS
   if (planFullscreen && document.getElementById('planFullscreenOverlay')) {
     renderPlanificadorFS();
@@ -707,7 +712,8 @@ function mostrarConfirmacionPlan(mensaje, onConfirm) {
   document.getElementById('planConfirmNo').onclick = () => overlay.remove();
   document.getElementById('planConfirmSi').onclick = () => {
     overlay.remove();
-    onConfirm();
+    // Separar eliminación del overlay del callback para dar tiempo a Chrome a repintar
+    requestAnimationFrame(() => onConfirm());
   };
 }
 
@@ -909,8 +915,12 @@ async function crearParteDesdeplanificador(fecha, hora, estado) {
   const trabajo_id = parseInt(document.getElementById('planNuevoObraId')?.value);
   if (!trabajo_id) {
     toast('Busca y selecciona una obra', 'error');
-    return;
+    return; // Modal sigue abierto para que el usuario seleccione obra
   }
+
+  // Cerrar modal ANTES de cualquier operación async
+  const modal = document.getElementById('planCrearParteModal');
+  if (modal) modal.remove();
 
   let trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
 
@@ -953,10 +963,6 @@ async function crearParteDesdeplanificador(fecha, hora, estado) {
       toast('❌ Error: ' + error.message, 'error');
       return;
     }
-
-    // Cerrar modal
-    const modal = document.getElementById('planCrearParteModal');
-    if (modal) modal.remove();
 
     toast(`✅ Parte ${numero} creado como ${estado}`, 'success');
 
