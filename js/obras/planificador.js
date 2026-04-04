@@ -11,7 +11,7 @@ let planUsuarios = [];
 // Horario visible (6:00 a 00:00 = 18 filas)
 const PLAN_HORAS_INICIO = 6;
 const PLAN_HORAS_FIN = 24;
-const PLAN_HORA_HEIGHT = 50; // pixels por fila
+const PLAN_HORA_HEIGHT = 28; // pixels por fila (cabe todo sin scroll)
 
 // Horario laboral por defecto (se puede cambiar desde admin)
 let PLAN_HORA_LABORAL_INI = 7;
@@ -91,7 +91,8 @@ async function cargarPartesParaPlanificador() {
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
 
-    const { data } = await sb.from('partes_trabajo')
+    // 1) Partes de la semana (todos los estados excepto eliminado)
+    const { data: semanales } = await sb.from('partes_trabajo')
       .select('*')
       .eq('empresa_id', EMPRESA.id)
       .gte('fecha', startStr)
@@ -99,7 +100,17 @@ async function cargarPartesParaPlanificador() {
       .neq('estado', 'eliminado')
       .order('fecha', { ascending: true });
 
-    planPartesData = data || [];
+    // 2) TODOS los borradores (sin filtro de fecha, siempre visibles)
+    const { data: borradores } = await sb.from('partes_trabajo')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('estado', 'borrador')
+      .order('created_at', { ascending: false });
+
+    // Combinar sin duplicados (un borrador de esta semana ya sale en semanales)
+    const idsSemanales = new Set((semanales || []).map(p => p.id));
+    const borradoresExtra = (borradores || []).filter(p => !idsSemanales.has(p.id));
+    planPartesData = [...(semanales || []), ...borradoresExtra];
   } catch (e) {
     console.error('Error cargando partes:', e);
     toast('Error al cargar partes de trabajo', 'error');
@@ -128,11 +139,18 @@ function renderFiltroOperarios() {
   if (!sel) return;
   sel.innerHTML = '<option value="">Todos los operarios</option>' +
     planUsuarios.map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+  // Restaurar última selección
+  const ultimo = localStorage.getItem('plan-filtro-operario');
+  if (ultimo && sel.querySelector(`option[value="${ultimo}"]`)) {
+    sel.value = ultimo;
+    planOperarioFilter = ultimo;
+  }
 }
 
 function filtrarPlanificador() {
   const sel = document.getElementById('plan-filtro-operario');
   planOperarioFilter = sel ? sel.value : '';
+  localStorage.setItem('plan-filtro-operario', planOperarioFilter);
   renderPlanificador();
 }
 
@@ -271,6 +289,18 @@ function renderGrid() {
         }
       };
 
+      // ── Drop target (drag & drop) ──
+      cell.dataset.fecha = dayStr;
+      cell.dataset.hora = String(hourIdx).padStart(2,'0') + ':00:00';
+      cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('plan-cell-dragover'); });
+      cell.addEventListener('dragleave', () => cell.classList.remove('plan-cell-dragover'));
+      cell.addEventListener('drop', e => {
+        e.preventDefault();
+        cell.classList.remove('plan-cell-dragover');
+        const parteId = e.dataTransfer.getData('text/plain');
+        if (parteId) moverParte(parseInt(parteId), dayStr, hourIdx, !esLaboral || esFinde || esFestivo);
+      });
+
       // Partes en este slot
       const partesEnSlot = partesParaRejilla.filter(p => {
         if (p.fecha !== dayStr) return false;
@@ -294,7 +324,7 @@ function renderGrid() {
       sinHoraContainer.style.display = 'block';
       const titulo = document.createElement('h4');
       titulo.style.cssText = 'margin:0 0 10px;font-size:14px;color:#6B7280;font-weight:600';
-      titulo.textContent = `✏️ Borradores y partes sin hora (${partesExtra.length})`;
+      titulo.textContent = `📋 Partes sin cita (${partesExtra.length})`;
       sinHoraContainer.appendChild(titulo);
 
       const grid = document.createElement('div');
@@ -304,11 +334,17 @@ function renderGrid() {
         const card = document.createElement('div');
         const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
         const horaStr = parte.hora_inicio ? parte.hora_inicio.substring(0,5) : 'Sin hora';
-        card.style.cssText = `background:${estadoInfo.bg};border:1px solid ${estadoInfo.color}30;border-left:3px solid ${estadoInfo.color};border-radius:6px;padding:8px 10px;cursor:pointer;font-size:12px`;
+        card.draggable = true;
+        card.style.cssText = `background:${estadoInfo.bg};border:1px solid ${estadoInfo.color}30;border-left:3px solid ${estadoInfo.color};border-radius:6px;padding:8px 10px;cursor:grab;font-size:12px`;
         card.innerHTML = `
           <div style="font-weight:600;margin-bottom:3px">${estadoInfo.ico} ${parte.trabajo_titulo || 'Sin título'}</div>
           <div style="color:#6B7280">${parte.fecha || ''} · ${horaStr} · ${parte.usuario_nombre || '—'}</div>
           <div style="margin-top:3px"><span style="background:${estadoInfo.color};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px">${estadoInfo.label}</span></div>`;
+        card.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/plain', String(parte.id));
+          card.style.opacity = '0.5';
+        });
+        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
         card.onclick = () => { if (typeof verDetalleParte === 'function') verDetalleParte(parte.id); };
         grid.appendChild(card);
       });
@@ -338,13 +374,81 @@ function crearElementoParte(parte) {
   const usuario = parte.usuario_nombre || '—';
   const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
 
+  // Drag & drop
+  el.draggable = true;
+  el.style.cursor = 'grab';
+  el.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    e.dataTransfer.setData('text/plain', String(parte.id));
+    el.style.opacity = '0.4';
+  });
+  el.addEventListener('dragend', () => { el.style.opacity = '1'; });
+
   el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${titulo}<br><small>${usuario}</small>`;
-  el.style.cursor = 'pointer';
-  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}\n${estadoInfo.label}`;
+  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}\n${estadoInfo.label}\n\n↕ Arrastra para mover`;
 
   el.onclick = (e) => {
     e.stopPropagation();
     if (typeof verDetalleParte === 'function') verDetalleParte(parte.id);
   };
   return el;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DRAG & DROP — MOVER PARTE
+// ═══════════════════════════════════════════════════════════════════════
+
+async function moverParte(parteId, nuevaFecha, nuevaHora, esNoLaboral) {
+  if (!sb) return;
+
+  // Aviso si se mueve a horario no laboral
+  if (esNoLaboral) {
+    toast('⚠️ Parte movido a horario no laboral', 'info');
+  }
+
+  const horaStr = String(nuevaHora).padStart(2, '0') + ':00:00';
+
+  // Calcular hora_fin (+1h por defecto, o mantener duración original)
+  const parte = planPartesData.find(p => p.id === parteId);
+  let horaFinStr = String(nuevaHora + 1).padStart(2, '0') + ':00:00';
+  if (parte && parte.hora_inicio && parte.hora_fin) {
+    const [hIni] = parte.hora_inicio.split(':').map(Number);
+    const [hFin] = parte.hora_fin.split(':').map(Number);
+    const duracion = hFin - hIni;
+    if (duracion > 0) {
+      horaFinStr = String(Math.min(nuevaHora + duracion, 23)).padStart(2, '0') + ':00:00';
+    }
+  }
+
+  // Preparar update
+  const updateData = {
+    fecha: nuevaFecha,
+    hora_inicio: horaStr,
+    hora_fin: horaFinStr,
+  };
+
+  // Si era borrador, pasar a programado al arrastrarlo
+  if (parte && parte.estado === 'borrador') {
+    updateData.estado = 'programado';
+  }
+
+  try {
+    const { error } = await sb.from('partes_trabajo')
+      .update(updateData)
+      .eq('id', parteId);
+
+    if (error) {
+      toast('❌ Error al mover parte: ' + error.message, 'error');
+      return;
+    }
+
+    toast('✅ Parte movido correctamente', 'success');
+
+    // Recargar y re-render
+    await cargarPartesParaPlanificador();
+    renderPlanificador();
+  } catch (e) {
+    console.error('Error moviendo parte:', e);
+    toast('❌ Error al mover parte', 'error');
+  }
 }

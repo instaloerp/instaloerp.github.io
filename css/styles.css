@@ -311,14 +311,14 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-body{display:flex;flex:1;overflow:hidden}
 .plan-hours-column{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200);overflow:hidden;background:var(--gris-50)}
 .plan-hour{padding:2px 6px 0 0;text-align:right;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-100);font-weight:600;display:flex;align-items:flex-start;justify-content:flex-end}
-.plan-hour-nolab{color:var(--gris-300);background:rgba(0,0,0,.02)}
+.plan-hour-nolab{color:var(--gris-300);background:rgba(15,23,42,.05)}
 .plan-grid-container{flex:1;overflow:auto}
 .plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff}
-.plan-grid-cell{position:relative;border-right:1px solid var(--gris-200);border-bottom:1px solid var(--gris-100);cursor:pointer;min-height:50px}
+.plan-grid-cell{position:relative;border-right:1px solid var(--gris-200);border-bottom:1px solid var(--gris-100);cursor:pointer;min-height:28px}
 .plan-grid-cell:nth-child(7n){border-right:none}
-.plan-cell-nolab{background:rgba(0,0,0,.025)}
-.plan-cell-finde{background:rgba(100,116,139,.06)}
-.plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.09)}
+.plan-cell-nolab{background:rgba(15,23,42,.06)}
+.plan-cell-finde{background:rgba(100,116,139,.10)}
+.plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.15)}
 .plan-parte{position:absolute;left:2px;right:2px;top:2px;background:var(--azul);color:#fff;border-radius:5px;padding:3px 5px;font-size:10px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;z-index:2;transition:box-shadow .15s}
 .plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5}
 .plan-parte.estado-programado{background:#3B82F6}
@@ -330,11 +330,12 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
 .plan-day-header.plan-today{background:var(--azul-light)}
 .plan-day-header.plan-today .plan-day-name,.plan-day-header.plan-today .plan-day-date{color:var(--azul)}
-.plan-day-header.plan-nolab-day{background:rgba(100,116,139,.08)}
+.plan-day-header.plan-nolab-day{background:rgba(100,116,139,.14)}
 .plan-day-header.plan-nolab-day .plan-day-name{color:var(--gris-400)}
 .plan-festivo-badge{display:inline-block;font-size:8px;background:#EF4444;color:#fff;padding:1px 5px;border-radius:3px;margin-top:3px;font-weight:600}
-.plan-grid-cell.plan-today-col{background:rgba(59,130,246,.04)}
-.plan-grid-cell.plan-today-col.plan-cell-nolab{background:rgba(59,130,246,.06)}
+.plan-cell-dragover{background:rgba(59,130,246,.18)!important;outline:2px dashed var(--azul);outline-offset:-2px}
+.plan-grid-cell.plan-today-col{background:rgba(59,130,246,.08)}
+.plan-grid-cell.plan-today-col.plan-cell-nolab{background:rgba(59,130,246,.12)}
 #page-planificador{transform:translateZ(0);will-change:auto}
 #page-planificador *{-webkit-backface-visibility:hidden}
 
