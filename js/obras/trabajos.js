@@ -1935,7 +1935,8 @@ function derivarEstadoObra(etapas) {
   if (etapas.albaran) return 'en_curso';
   if (etapas.ejecucion) return 'en_curso';
   if (etapas.programado) return 'planificado';
-  if (etapas.aprobado) return 'planificado';
+  // Aprobado sin partes programados = sigue pendiente (no planificado)
+  if (etapas.aprobado) return 'pendiente';
   if (etapas.presupuesto) return 'pendiente';
   return 'pendiente';
 }
@@ -2149,16 +2150,10 @@ function nuevoParteObraActual() {
 
 function programarCitaObraActual() {
   if (!obraActualId) return;
-  // Navegar al planificador semanal con la obra preseleccionada
-  goPage('planificador');
-  // Esperar a que el planificador cargue y luego abrir modal de nuevo parte con obra pre-rellenada
-  setTimeout(() => {
-    const obra = trabajos.find(t => t.id === obraActualId);
-    const presup = obraActualPresupuestos?.find(p => p.estado === 'aceptado') || null;
-    const cli = obra?.cliente_id ? clientes.find(c => c.id === obra.cliente_id) : null;
-    const dir = cli ? [cli.direccion_fiscal||cli.direccion||'', cli.cp_fiscal||cli.cp||'', cli.municipio_fiscal||cli.municipio||'', cli.provincia_fiscal||cli.provincia||''].filter(Boolean).join(', ') : (obra?.direccion_obra_texto || '');
-    programarCitaDesdeObra(obraActualId, presup?.id || null, presup?.numero || null, dir);
-  }, 400);
+  const obra = trabajos.find(t => t.id === obraActualId);
+  const titulo = obra ? (obra.numero ? obra.numero + ' – ' : '') + (obra.titulo || obra.descripcion || 'Obra') : 'Obra';
+  // Abrir planificador fullscreen con la obra preseleccionada — el usuario elige operario y hueco
+  abrirPlanificadorDesdeObra(obraActualId, titulo);
 }
 
 // ═══════════════════════════════════════════════
