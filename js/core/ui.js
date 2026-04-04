@@ -166,8 +166,32 @@ function closeModal(id){
 // Close modal when clicking overlay
 document.addEventListener('click',e=>{if(e.target.classList.contains('overlay'))closeModal(e.target.id);});
 
+// Descripciones de páginas en desarrollo
+const PAGE_DEV_DESC = {
+  'facturas': 'Gestión completa de facturas de venta: emisión, envío, cobro y seguimiento de pagos.',
+  'proveedores': 'Directorio de proveedores con datos de contacto, condiciones y documentos asociados.',
+  'presupuestos-compra': 'Solicitar y comparar presupuestos de proveedores para tus compras.',
+  'pedidos-compra': 'Crear pedidos de compra, seguimiento de entregas y recepción de materiales.',
+  'albaranes-proveedor': 'Registro de albaranes recibidos de proveedores y control de mercancía.',
+  'facturas-proveedor': 'Facturas recibidas de proveedores, control de vencimientos y pagos.',
+  'almacenes': 'Gestión multi-almacén: ubicaciones, capacidad y configuración de cada almacén.',
+  'stock': 'Control de inventario en tiempo real, mínimos, máximos y alertas de stock.',
+  'traspasos': 'Movimientos de material entre almacenes con trazabilidad completa.',
+  'activos': 'Registro de herramientas, vehículos y equipos: mantenimiento, asignación y caducidades.',
+  'mantenimientos': 'Gestión de contratos de mantenimiento recurrente con clientes.',
+  'correo': 'Envía y recibe correos directamente desde el ERP, vinculados a obras y clientes.',
+  'fichajes': 'Control de entradas/salidas de empleados, horarios y horas trabajadas.',
+  'etiquetas-qr': 'Genera etiquetas QR para artículos, almacenes y activos. Escanea para acceso rápido.',
+};
+
 function goPage(id, opts){
   opts = opts || {};
+  // Si la página no tiene contenido propio y es "en desarrollo", mostrar info
+  const pageEl = document.getElementById('page-'+id);
+  if (!pageEl && PAGE_DEV_DESC[id]) {
+    toast(`🚧 ${id}: ${PAGE_DEV_DESC[id]}`, 'info', 4000);
+    return;
+  }
   // Guardar estado actual en la pila (salvo si es navegación "atrás")
   if (!opts._isBack) {
     const prev = _captureNavState();

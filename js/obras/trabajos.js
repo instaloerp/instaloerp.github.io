@@ -500,9 +500,18 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
 
   // ── ALBARANES ── (con checkboxes para selección múltiple)
+  // Calcular total real de cada albarán desde líneas si total es 0
+  albData.forEach(a => {
+    if (!a.total && Array.isArray(a.lineas) && a.lineas.length) {
+      a._totalCalc = a.lineas.reduce((s,l) => s + ((l.cant||0)*(l.precio||0)), 0);
+    } else {
+      a._totalCalc = a.total || 0;
+    }
+  });
+  const totalAlbReal = albData.reduce((s,a) => s + a._totalCalc, 0);
   const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
   const albHtml = albData.length ?
-    resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
+    resumenBar([resumenItem('Total albaranes', fmtE(totalAlbReal), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
     (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" id="btnFacturarSeleccionados" onclick="obraFacturarAlbSeleccionados()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px;opacity:.5;pointer-events:none">🧾 Facturar albaranes seleccionados</button></div>` : '') +
     albData.map(a=>{
       const tieneFac = factData.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && factData.some(f=>f.presupuesto_id===a.presupuesto_id));
@@ -516,21 +525,30 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
           <div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
+          <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a._totalCalc)}</div>${estadoBadgeA(a.estado)}</div>
           <div onclick="event.stopPropagation()">${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (a.estado!=='anulado' ? `<button class="btn btn-ghost btn-sm" onclick="obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : '')}</div>
         </div>
       </div>`;
     }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">📄</div><p>Sin albaranes vinculados</p></div>';
   // ── FACTURAS ──
-  const factResumen = [resumenItem('Total facturado', fmtE(totalFact), 'var(--verde)')];
+  // Calcular total real de cada factura desde líneas si total es 0
+  factData.forEach(f => {
+    if (!f.total && Array.isArray(f.lineas) && f.lineas.length) {
+      f._totalCalc = f.lineas.filter(l=>!l._separator).reduce((s,l) => s + ((l.cant||0)*(l.precio||0)), 0);
+    } else {
+      f._totalCalc = f.total || 0;
+    }
+  });
+  const totalFactReal = factData.reduce((s,f) => s + f._totalCalc, 0);
+  const factResumen = [resumenItem('Total facturado', fmtE(totalFactReal), 'var(--verde)')];
   if (pendienteCobro > 0) factResumen.push(resumenItem('Pte. cobro', fmtE(pendienteCobro), 'var(--rojo)'));
   const factHtml = factData.length ?
     resumenBar(factResumen) +
     factData.map(f=>`
       <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="abrirEditor('factura',${f.id})">
         <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
-        <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
+        <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f._totalCalc)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas vinculadas</p></div>';
 
@@ -543,7 +561,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevoAlbaranObraActual()">+ Albarán</button>
-      <button class="btn btn-sm" style="font-size:11px;background:var(--verde);color:#fff;border:none" onclick="nuevaFacturaObraActual()">+ Factura</button>
+      <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="nuevaFacturaObraActual()">+ Factura</button>
     </div>
   </div>`;
   document.getElementById('obra-hist-facturacion').innerHTML = _facFilterBtns +
