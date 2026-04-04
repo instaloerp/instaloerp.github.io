@@ -361,3 +361,7 @@ body.sb-collapsed .sb-nav{padding:6px 4px}
 body.sb-collapsed .sb-section-items{max-height:500px!important;opacity:1!important}
 body.sb-collapsed .sb-item .ico{font-size:18px}
 body.sb-collapsed .sb-item{min-height:36px}
+
+/* ══ PLANIFICADOR FULLSCREEN ══ */
+.plan-fullscreen{position:fixed!important;inset:0;z-index:900;background:#fff;margin:0!important;padding:16px;overflow:auto}
+.plan-fullscreen .plan-container{height:calc(100vh - 120px)!important;min-height:auto}

@@ -3,24 +3,35 @@
 ===============================================================
 
 ---------------------------------------------------------------
- v1.2.1 (2026-04-04)
- Planificador: partes multi-hora + filtro operario individual
+ v1.2.2 (2026-04-04)
+ Planificador interactivo completo
 ---------------------------------------------------------------
+NUEVO:
+- Crear parte desde planificador: click en celda vacia abre
+  modal para seleccionar obra e instrucciones, crear como
+  borrador o programado directamente
+- Confirmacion antes de mover: al arrastrar un parte se pide
+  confirmacion con modal (evita movimientos accidentales)
+- Modo fullscreen: funcion abrirPlanificadorDesdeObra() para
+  abrir el planificador a pantalla completa desde ficha de obra
+
 CORREGIDO/MEJORADO:
-- Planificador: partes ocupan su rango real de horas
+- Altura dinamica: las filas se calculan automaticamente para
+  llenar todo el espacio disponible (sin hueco blanco abajo)
+- Partes ocupan su rango real de horas completo
   (ej: 3:00-10:00 ocupa 7 filas, no solo la primera)
-- Planificador: horario completo 0:00-23:00 (24 filas)
-  con altura ajustada (21px) para que quepa sin scroll
-- Planificador: filtro muestra UN operario a la vez
-  (sin opcion "Todos", por defecto el primero de la lista)
-- Planificador: colores de estado iguales a partes.js
-  (azul=programado, amarillo=en_curso, verde=completado, etc.)
-- Planificador: drag & drop actualiza fecha correctamente
-- Planificador: duracion se preserva al arrastrar (con minutos)
+- Huecos pequenos: muestran numero de parte/obra en vez de la
+  hora (la hora ya se sabe por la posicion en la rejilla)
+- Partes completados/revisados/facturados NO se pueden arrastrar
+  (solo programados y en_curso son arrastrables)
+- Filtro muestra UN operario a la vez (sin opcion "Todos")
+- Colores de estado iguales a partes.js
+- Drag & drop actualiza fecha + preserva duracion con minutos
+- Borradores: al arrastrar al grid pasan a programado
 
 ARCHIVOS MODIFICADOS (respecto a v1.2.0):
-- js/obras/planificador.js (partes multi-fila, filtro operario)
-- css/styles.css (altura 21px, bordes mas marcados, grid relative)
+- js/obras/planificador.js (reescritura completa)
+- css/styles.css (fullscreen, bordes, grid relative)
 - index.html (version bump a v1.2.1)
 - app.html (version bump a v1.2.1)
 
