@@ -171,7 +171,7 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .empty p{font-size:12.5px;max-width:280px;margin:0 auto}
 
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:20px}
-.sc{background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);padding:12px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:box-shadow .15s,border-color .15s}
+.sc{background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);padding:12px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:box-shadow .15s,opacity .15s,border-color .15s}
 .sc.kpi-filter:hover{box-shadow:var(--sh-lg)}
 .ac-dropdown{position:absolute;top:100%;left:10px;right:10px;background:#fff;border:1.5px solid var(--gris-200);border-radius:8px;box-shadow:var(--sh-lg);max-height:220px;overflow-y:auto;z-index:999}
 .ac-dropdown .ac-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--gris-100);transition:background .1s}
@@ -190,7 +190,7 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 /* ─── Ficha cliente: KPIs clicables ─── */
 .ficha-kpi{opacity:.65;border-color:var(--gris-200)}
 .ficha-kpi:hover{opacity:.85;box-shadow:var(--sh-md)}
-.ficha-kpi.ficha-kpi-active{opacity:1;border-color:var(--c,var(--azul));box-shadow:0 0 0 2px color-mix(in srgb,var(--c,var(--azul)) 25%,transparent),var(--sh-md)}
+.ficha-kpi.ficha-kpi-active{opacity:1;border-color:var(--c,var(--azul));box-shadow:0 0 0 2px color-mix(in srgb,var(--c,var(--azul)) 25%,transparent),var(--sh-md);transform:scale(1)}
 .ficha-kpi.ficha-kpi-active::before{height:4px}
 
 #toast{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px}
@@ -320,8 +320,13 @@ body.ocultar-sensibles .kpi-sensible .sv{visibility:hidden!important}
 body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:italic;color:var(--gris-400)}
 
 /* ─── Hover utilities (CSS puro, sin JS) ─── */
+.hov-shadow{transition:box-shadow .15s;contain:layout style}
 .hov-shadow:hover{box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.hov-bg{transition:background .12s}
 .hov-bg:hover{background:var(--gris-50)}
+.hov-bg-white{transition:background .12s}
 .hov-bg-white:hover{background:var(--gris-50)}
+.hov-bg-azul{transition:background .12s,border-color .12s}
 .hov-bg-azul:hover{background:var(--azul-light);border-color:var(--azul)}
+.hov-bright{transition:opacity .15s}
 .hov-bright:hover{opacity:.88}
