@@ -8,10 +8,10 @@ let planCurrentDate = new Date();
 let planOperarioFilter = '';
 let planUsuarios = [];
 
-// Horario visible (6:00 a 00:00 = 18 filas)
-const PLAN_HORAS_INICIO = 6;
+// Horario visible (0:00 a 23:00 = 24 filas)
+const PLAN_HORAS_INICIO = 0;
 const PLAN_HORAS_FIN = 24;
-const PLAN_HORA_HEIGHT = 28; // pixels por fila (cabe todo sin scroll)
+const PLAN_HORA_HEIGHT = 21; // pixels por fila (24h sin scroll)
 
 // Horario laboral por defecto (se puede cambiar desde admin)
 let PLAN_HORA_LABORAL_INI = 7;
@@ -131,19 +131,26 @@ function sincronizarScrollHoras() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// FILTRADO
+// FILTRADO — UN SOLO OPERARIO
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderFiltroOperarios() {
   const sel = document.getElementById('plan-filtro-operario');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Todos los operarios</option>' +
-    planUsuarios.map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
-  // Restaurar última selección
+  // Sin opción "Todos" — solo operarios individuales
+  sel.innerHTML = planUsuarios.map(u =>
+    `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`
+  ).join('');
+
+  // Restaurar última selección o usar el primero
   const ultimo = localStorage.getItem('plan-filtro-operario');
   if (ultimo && sel.querySelector(`option[value="${ultimo}"]`)) {
     sel.value = ultimo;
     planOperarioFilter = ultimo;
+  } else if (planUsuarios.length > 0) {
+    sel.value = planUsuarios[0].id;
+    planOperarioFilter = planUsuarios[0].id;
+    localStorage.setItem('plan-filtro-operario', planOperarioFilter);
   }
 }
 
@@ -245,14 +252,14 @@ function renderGrid() {
   const totalRows = PLAN_HORAS_FIN - PLAN_HORAS_INICIO;
   container.style.gridTemplateRows = `repeat(${totalRows}, ${PLAN_HORA_HEIGHT}px)`;
 
-  // Filtrar por operario
+  // Filtrar por operario (siempre hay uno seleccionado)
   let partesFiltrados = planPartesData;
   if (planOperarioFilter) {
     partesFiltrados = planPartesData.filter(p => p.usuario_id === planOperarioFilter);
   }
 
-  // TODOS en rejilla excepto borradores sin hora
-  // Borradores van abajo (sección extra)
+  // Partes con hora → rejilla (excepto borradores)
+  // Borradores + sin hora → sección extra abajo
   const partesParaRejilla = partesFiltrados.filter(p => p.hora_inicio && p.estado !== 'borrador');
   const partesBorradores = partesFiltrados.filter(p => p.estado === 'borrador');
   const partesSinHora = partesFiltrados.filter(p => !p.hora_inicio && p.estado !== 'borrador');
@@ -301,20 +308,48 @@ function renderGrid() {
         if (parteId) moverParte(parseInt(parteId), dayStr, hourIdx, !esLaboral || esFinde || esFestivo);
       });
 
-      // Partes en este slot
-      const partesEnSlot = partesParaRejilla.filter(p => {
-        if (p.fecha !== dayStr) return false;
-        const [hStart] = p.hora_inicio.split(':').map(Number);
-        return hStart === hourIdx;
-      });
-
-      partesEnSlot.forEach(parte => {
-        cell.appendChild(crearElementoParte(parte));
-      });
-
       container.appendChild(cell);
     }
   }
+
+  // ── Colocar partes en la rejilla (posición absoluta, span múltiple) ──
+  partesParaRejilla.forEach(parte => {
+    if (!parte.fecha) return;
+    // Buscar en qué día cae
+    const dayIdx = getDayIndex(parte.fecha);
+    if (dayIdx < 0 || dayIdx > 6) return;
+
+    const [hIni, mIni] = parte.hora_inicio.split(':').map(Number);
+    let hFin = hIni + 1; // default 1h
+    let mFin = 0;
+    if (parte.hora_fin) {
+      const parts = parte.hora_fin.split(':').map(Number);
+      hFin = parts[0];
+      mFin = parts[1] || 0;
+    }
+
+    // Posición en filas (con fracciones para minutos)
+    const rowStart = hIni - PLAN_HORAS_INICIO;
+    const rowEnd = hFin - PLAN_HORAS_INICIO + (mFin > 0 ? mFin / 60 : 0);
+    if (rowStart < 0 || rowStart >= totalRows) return;
+
+    const topPx = rowStart * PLAN_HORA_HEIGHT;
+    const heightPx = Math.max((rowEnd - rowStart) * PLAN_HORA_HEIGHT, PLAN_HORA_HEIGHT); // mínimo 1 fila
+
+    const el = crearElementoParte(parte, heightPx);
+    // Posicionar absoluto dentro del grid container
+    // Necesitamos calcular left basándonos en la columna
+    el.style.position = 'absolute';
+    el.style.top = topPx + 'px';
+    el.style.height = heightPx + 'px';
+    // Columna: usamos porcentajes (cada columna = 100/7 %)
+    const colWidth = 100 / 7;
+    el.style.left = (dayIdx * colWidth) + '%';
+    el.style.width = 'calc(' + colWidth + '% - 4px)';
+    el.style.marginLeft = '2px';
+
+    container.appendChild(el);
+  });
 
   // ── Sección extra: borradores + sin hora ──
   const sinHoraContainer = document.getElementById('planSinHora');
@@ -358,34 +393,59 @@ function renderGrid() {
   if (partesFiltrados.length === 0) {
     const emptyEl = document.createElement('div');
     emptyEl.className = 'plan-empty';
-    emptyEl.innerHTML = '<div style="padding:40px 20px"><div style="font-size:20px;margin-bottom:10px">📋</div><p>No hay partes de trabajo para esta semana</p></div>';
+    emptyEl.innerHTML = '<div style="padding:40px 20px"><div style="font-size:20px;margin-bottom:10px">📋</div><p>No hay partes de trabajo para este operario esta semana</p></div>';
     container.appendChild(emptyEl);
   }
 }
 
-function crearElementoParte(parte) {
+// Calcular índice del día (0=lunes, 6=domingo)
+function getDayIndex(fechaStr) {
+  const parteDate = new Date(fechaStr + 'T00:00:00');
+  const mondayTime = new Date(planCurrentDate).getTime();
+  const diffMs = parteDate.getTime() - mondayTime;
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+function crearElementoParte(parte, alturaTotal) {
   const el = document.createElement('div');
-  const estadoClass = `estado-${parte.estado || 'borrador'}`;
-  el.className = `plan-parte ${estadoClass}`;
+  const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
+
+  // Usar background del estado (como en partes.js)
+  el.className = 'plan-parte';
+  el.style.background = estadoInfo.color;
+  el.style.color = '#fff';
+  el.style.borderRadius = '5px';
+  el.style.padding = '2px 5px';
+  el.style.fontSize = '10px';
+  el.style.fontWeight = '600';
+  el.style.overflow = 'hidden';
+  el.style.cursor = 'grab';
+  el.style.zIndex = '2';
+  el.style.boxSizing = 'border-box';
+  el.style.borderLeft = '3px solid rgba(0,0,0,.2)';
 
   const horaInicio = parte.hora_inicio ? parte.hora_inicio.substring(0, 5) : '—';
   const horaFin = parte.hora_fin ? parte.hora_fin.substring(0, 5) : '—';
   const titulo = parte.trabajo_titulo || 'Sin título';
   const usuario = parte.usuario_nombre || '—';
-  const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
+
+  // Contenido adaptable a la altura
+  if (alturaTotal && alturaTotal > 40) {
+    el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${titulo}<br><small>${usuario}</small>`;
+  } else {
+    el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico} ${titulo}`;
+  }
+  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}\n${estadoInfo.label}\n\n↕ Arrastra para mover`;
 
   // Drag & drop
   el.draggable = true;
-  el.style.cursor = 'grab';
   el.addEventListener('dragstart', e => {
     e.stopPropagation();
     e.dataTransfer.setData('text/plain', String(parte.id));
     el.style.opacity = '0.4';
   });
   el.addEventListener('dragend', () => { el.style.opacity = '1'; });
-
-  el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${titulo}<br><small>${usuario}</small>`;
-  el.title = `${titulo}\n${horaInicio}-${horaFin}\n${usuario}\n${estadoInfo.label}\n\n↕ Arrastra para mover`;
 
   el.onclick = (e) => {
     e.stopPropagation();
@@ -408,15 +468,18 @@ async function moverParte(parteId, nuevaFecha, nuevaHora, esNoLaboral) {
 
   const horaStr = String(nuevaHora).padStart(2, '0') + ':00:00';
 
-  // Calcular hora_fin (+1h por defecto, o mantener duración original)
+  // Calcular hora_fin manteniendo la duración original
   const parte = planPartesData.find(p => p.id === parteId);
   let horaFinStr = String(nuevaHora + 1).padStart(2, '0') + ':00:00';
   if (parte && parte.hora_inicio && parte.hora_fin) {
-    const [hIni] = parte.hora_inicio.split(':').map(Number);
-    const [hFin] = parte.hora_fin.split(':').map(Number);
-    const duracion = hFin - hIni;
-    if (duracion > 0) {
-      horaFinStr = String(Math.min(nuevaHora + duracion, 23)).padStart(2, '0') + ':00:00';
+    const [hIni, mIni] = parte.hora_inicio.split(':').map(Number);
+    const [hFin, mFin] = parte.hora_fin.split(':').map(Number);
+    const duracionMin = (hFin * 60 + mFin) - (hIni * 60 + mIni);
+    if (duracionMin > 0) {
+      const nuevoFinMin = nuevaHora * 60 + duracionMin;
+      const nuevoFinH = Math.min(Math.floor(nuevoFinMin / 60), 23);
+      const nuevoFinM = nuevoFinMin % 60;
+      horaFinStr = String(nuevoFinH).padStart(2, '0') + ':' + String(nuevoFinM).padStart(2, '0') + ':00';
     }
   }
 

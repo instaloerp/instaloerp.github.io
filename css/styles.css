@@ -304,29 +304,23 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-header{display:flex;border-bottom:1.5px solid var(--gris-200);flex-shrink:0}
 .plan-hours-header{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200)}
 .plan-days-header{display:grid;grid-template-columns:repeat(7,1fr);flex:1}
-.plan-day-header{padding:10px 6px;text-align:center;border-right:1px solid var(--gris-100);font-weight:700;font-size:12px;position:relative}
+.plan-day-header{padding:10px 6px;text-align:center;border-right:1px solid var(--gris-300);font-weight:700;font-size:12px;position:relative}
 .plan-day-header:last-child{border-right:none}
 .plan-day-name{display:block;color:var(--gris-600);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
 .plan-day-date{display:block;color:var(--gris-800);font-size:13px;font-weight:700;margin-top:3px}
 .plan-body{display:flex;flex:1;overflow:hidden}
 .plan-hours-column{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200);overflow:hidden;background:var(--gris-50)}
-.plan-hour{padding:2px 6px 0 0;text-align:right;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-100);font-weight:600;display:flex;align-items:flex-start;justify-content:flex-end}
+.plan-hour{padding:2px 6px 0 0;text-align:right;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-200);font-weight:600;display:flex;align-items:flex-start;justify-content:flex-end}
 .plan-hour-nolab{color:var(--gris-300);background:rgba(15,23,42,.05)}
 .plan-grid-container{flex:1;overflow:auto}
-.plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff}
-.plan-grid-cell{position:relative;border-right:1px solid var(--gris-200);border-bottom:1px solid var(--gris-100);cursor:pointer;min-height:28px}
+.plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff;overflow:visible}
+.plan-grid-cell{position:relative;border-right:1px solid var(--gris-300);border-bottom:1px solid var(--gris-200);cursor:pointer;min-height:21px}
 .plan-grid-cell:nth-child(7n){border-right:none}
 .plan-cell-nolab{background:rgba(15,23,42,.06)}
 .plan-cell-finde{background:rgba(100,116,139,.10)}
 .plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.15)}
-.plan-parte{position:absolute;left:2px;right:2px;top:2px;background:var(--azul);color:#fff;border-radius:5px;padding:3px 5px;font-size:10px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;z-index:2;transition:box-shadow .15s}
-.plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5}
-.plan-parte.estado-programado{background:#3B82F6}
-.plan-parte.estado-en_curso{background:#D97706}
-.plan-parte.estado-completado{background:#059669}
-.plan-parte.estado-revisado{background:#10B981}
-.plan-parte.estado-facturado{background:#8B5CF6}
-.plan-parte.estado-borrador{background:#9CA3AF}
+.plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;transition:box-shadow .15s;box-sizing:border-box;line-height:1.3}
+.plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:5}
 .plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
 .plan-day-header.plan-today{background:var(--azul-light)}
 .plan-day-header.plan-today .plan-day-name,.plan-day-header.plan-today .plan-day-date{color:var(--azul)}

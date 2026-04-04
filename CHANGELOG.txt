@@ -3,6 +3,28 @@
 ===============================================================
 
 ---------------------------------------------------------------
+ v1.2.1 (2026-04-04)
+ Planificador: partes multi-hora + filtro operario individual
+---------------------------------------------------------------
+CORREGIDO/MEJORADO:
+- Planificador: partes ocupan su rango real de horas
+  (ej: 3:00-10:00 ocupa 7 filas, no solo la primera)
+- Planificador: horario completo 0:00-23:00 (24 filas)
+  con altura ajustada (21px) para que quepa sin scroll
+- Planificador: filtro muestra UN operario a la vez
+  (sin opcion "Todos", por defecto el primero de la lista)
+- Planificador: colores de estado iguales a partes.js
+  (azul=programado, amarillo=en_curso, verde=completado, etc.)
+- Planificador: drag & drop actualiza fecha correctamente
+- Planificador: duracion se preserva al arrastrar (con minutos)
+
+ARCHIVOS MODIFICADOS (respecto a v1.2.0):
+- js/obras/planificador.js (partes multi-fila, filtro operario)
+- css/styles.css (altura 21px, bordes mas marcados, grid relative)
+- index.html (version bump a v1.2.1)
+- app.html (version bump a v1.2.1)
+
+---------------------------------------------------------------
  v1.2.0 (2026-04-04)
  Planificador profesional + horario laboral + festivos
 ---------------------------------------------------------------
