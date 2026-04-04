@@ -823,7 +823,7 @@ function abrirCrearParteRapido(fecha, hora) {
   if (prev) prev.remove();
 
   const horaStr = String(hora).padStart(2, '0') + ':00';
-  const horaFinDefault = String(Math.min(hora + 1, 23)).padStart(2, '0') + ':00';
+  const horaFinDefault = String(Math.min(hora + 2, 23)).padStart(2, '0') + ':00'; // mínimo 2h
   const fechaObj = new Date(fecha + 'T00:00:00');
   const fechaLegible = fechaObj.toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' });
 
@@ -853,19 +853,27 @@ function abrirCrearParteRapido(fecha, hora) {
            <div id="planObraResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow:auto;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>`}
     </div>
 
-    <!-- Fechas e Horarios -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div>
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha inicio *</label>
+    <!-- Fecha y check multi-día -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="flex:1">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha *</label>
         <input type="date" id="planNuevoFechaIni" value="${fecha}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
       </div>
-      <div>
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha fin <span style="font-size:10px;color:#9CA3AF">(varios días)</span></label>
-        <input type="date" id="planNuevoFechaFin" value="${fecha}" min="${fecha}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      <div style="padding-top:18px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:#374151;white-space:nowrap">
+          <input type="checkbox" id="planMultiDiaCheck" style="width:16px;height:16px;cursor:pointer"> Varios días
+        </label>
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+    <!-- Fecha fin (solo visible en multi-día) -->
+    <div id="planFechaFinWrap" style="display:none;margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Fecha fin</label>
+      <input type="date" id="planNuevoFechaFin" value="${fecha}" min="${fecha}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+    </div>
+
+    <!-- Horarios (editables en día normal, bloqueados en multi-día) -->
+    <div id="planHorasWrap" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
       <div>
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Hora inicio</label>
         <input type="time" id="planNuevoHoraIni" value="${horaStr}" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
@@ -897,23 +905,55 @@ function abrirCrearParteRapido(fecha, hora) {
   document.getElementById('planCrearBorrador').onclick = () => crearPartesDesdeModal('borrador');
   document.getElementById('planCrearProgramar').onclick = () => crearPartesDesdeModal('programado');
 
-  // ── Multi-día info ──
+  // ── Multi-día toggle ──
+  const multiCheck = document.getElementById('planMultiDiaCheck');
+  const fechaFinWrap = document.getElementById('planFechaFinWrap');
   const fechaIniEl = document.getElementById('planNuevoFechaIni');
   const fechaFinEl = document.getElementById('planNuevoFechaFin');
+  const horaIniEl = document.getElementById('planNuevoHoraIni');
+  const horaFinEl = document.getElementById('planNuevoHoraFin');
   const infoEl = document.getElementById('planMultiDiaInfo');
+
+  function toggleMultiDia() {
+    const multi = multiCheck.checked;
+    fechaFinWrap.style.display = multi ? 'block' : 'none';
+    if (multi) {
+      // Fijar jornada completa y bloquear horas
+      horaIniEl.value = '08:30';
+      horaFinEl.value = '16:30';
+      horaIniEl.readOnly = true;
+      horaFinEl.readOnly = true;
+      horaIniEl.style.background = '#F3F4F6';
+      horaFinEl.style.background = '#F3F4F6';
+      // Fecha fin mínimo = día siguiente
+      const nextDay = new Date(fechaIniEl.value + 'T00:00:00');
+      nextDay.setDate(nextDay.getDate() + 1);
+      fechaFinEl.min = nextDay.toISOString().split('T')[0];
+      if (fechaFinEl.value <= fechaIniEl.value) {
+        fechaFinEl.value = fechaFinEl.min;
+      }
+    } else {
+      horaIniEl.readOnly = false;
+      horaFinEl.readOnly = false;
+      horaIniEl.style.background = '';
+      horaFinEl.style.background = '';
+      fechaFinEl.value = fechaIniEl.value;
+    }
+    actualizarInfoMultiDia();
+  }
+
   function actualizarInfoMultiDia() {
+    if (!multiCheck.checked) { infoEl.style.display = 'none'; return; }
     const fi = fechaIniEl.value, ff = fechaFinEl.value;
     if (!fi || !ff || ff <= fi) { infoEl.style.display = 'none'; return; }
     const dias = _contarDiasLaborables(fi, ff);
-    const hi = document.getElementById('planNuevoHoraIni').value || '08:30';
-    const hf = document.getElementById('planNuevoHoraFin').value || '16:30';
-    infoEl.innerHTML = `📋 Se crearán <strong>${dias} partes</strong> (1 por día laborable, L-V) del ${new Date(fi+'T00:00:00').toLocaleDateString('es-ES')} al ${new Date(ff+'T00:00:00').toLocaleDateString('es-ES')}, horario ${hi}-${hf}`;
+    infoEl.innerHTML = `📋 Se crearán <strong>${dias} partes</strong> (1 por día laborable, L-V) del ${new Date(fi+'T00:00:00').toLocaleDateString('es-ES')} al ${new Date(ff+'T00:00:00').toLocaleDateString('es-ES')}, jornada completa 08:30-16:30`;
     infoEl.style.display = 'block';
   }
-  fechaIniEl.addEventListener('change', () => { fechaFinEl.min = fechaIniEl.value; actualizarInfoMultiDia(); });
+
+  multiCheck.addEventListener('change', toggleMultiDia);
+  fechaIniEl.addEventListener('change', () => { if (multiCheck.checked) { fechaFinEl.min = fechaIniEl.value; } actualizarInfoMultiDia(); });
   fechaFinEl.addEventListener('change', actualizarInfoMultiDia);
-  document.getElementById('planNuevoHoraIni').addEventListener('change', actualizarInfoMultiDia);
-  document.getElementById('planNuevoHoraFin').addEventListener('change', actualizarInfoMultiDia);
 
   // ── Buscador de obras ──
   _initBuscadorObrasModal();
@@ -1011,13 +1051,22 @@ async function crearPartesDesdeModal(estado) {
   }
 
   const fechaIni = document.getElementById('planNuevoFechaIni')?.value;
-  const fechaFin = document.getElementById('planNuevoFechaFin')?.value || fechaIni;
-  const horaIni = (document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00';
-  const horaFin = (document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00';
+  const esMultiDia = document.getElementById('planMultiDiaCheck')?.checked || false;
+  const fechaFin = esMultiDia ? (document.getElementById('planNuevoFechaFin')?.value || fechaIni) : fechaIni;
+  const horaIni = esMultiDia ? '08:30:00' : ((document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00');
+  const horaFin = esMultiDia ? '16:30:00' : ((document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00');
   const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
   const trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
 
   if (!fechaIni) { toast('Selecciona una fecha', 'error'); return; }
+
+  // Validar duración mínima 2h en día normal
+  if (!esMultiDia) {
+    const [hiH,hiM] = horaIni.split(':').map(Number);
+    const [hfH,hfM] = horaFin.split(':').map(Number);
+    const diffMins = (hfH*60+hfM) - (hiH*60+hiM);
+    if (diffMins < 120) { toast('La duración mínima es de 2 horas', 'error'); return; }
+  }
 
   // Calcular horas de la jornada
   const [hiH, hiM] = horaIni.split(':').map(Number);
@@ -1036,7 +1085,7 @@ async function crearPartesDesdeModal(estado) {
   const usuario_nombre = operario ? `${operario.nombre || ''} ${operario.apellidos || ''}`.trim() : '';
 
   // Determinar días: si multi-día, solo laborables (L-V)
-  const dias = (fechaFin > fechaIni) ? _obtenerDiasLaborables(fechaIni, fechaFin) : [fechaIni];
+  const dias = esMultiDia ? _obtenerDiasLaborables(fechaIni, fechaFin) : [fechaIni];
 
   const yearStr = new Date().getFullYear();
   let creados = 0;
