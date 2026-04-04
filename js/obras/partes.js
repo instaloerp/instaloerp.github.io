@@ -850,6 +850,16 @@ async function cambiarEstadoParte(id, estado) {
     } catch(e) {}
   }
 
+  // Verificar que no hay otro parte en curso del mismo operario
+  if (estado === 'en_curso' && parte) {
+    const operarioId = parte.usuario_id;
+    const otroEnCurso = partesData.find(p => p.estado === 'en_curso' && p.id !== id && p.usuario_id === operarioId);
+    if (otroEnCurso) {
+      toast(`⚠️ ${parte.usuario_nombre || 'El operario'} ya tiene un parte en curso (${otroEnCurso.numero || ''}). Debe completarlo antes de iniciar otro.`, 'error');
+      return;
+    }
+  }
+
   // Si se marca como revisado, guardar quién revisó
   if (estado === 'revisado') {
     updateObj.revisado_por = CU?.id || null;

@@ -3236,6 +3236,13 @@ function openOperarioDetail(uid) {
 
 // ── INICIAR PARTE CON GPS ──
 async function iniciarParteConGPS(id) {
+  // Verificar que no hay otro parte en curso del mismo operario
+  const enCurso = misPartes.find(p => p.estado === 'en_curso' && p.id !== id);
+  if (enCurso) {
+    toast(`⚠️ Ya tienes un parte en curso (${enCurso.numero || 'sin número'}). Debes completarlo antes de iniciar otro.`, 'error');
+    return;
+  }
+
   // Mostrar confirmación con aviso de GPS
   const confirmed = confirm('📍 Se registrará tu ubicación GPS.\n\n¿Iniciar el trabajo?');
   if (!confirmed) return;
@@ -3399,6 +3406,17 @@ async function cambiarEstado(id, nuevoEstado) {
     closeModal();
     setTimeout(() => openInformarWizard(id), 300);
     return;
+  }
+
+  // Verificar que no hay otro parte en curso del mismo operario
+  if (nuevoEstado === 'en_curso') {
+    const parte = misPartes.find(x => x.id === id);
+    const operarioId = parte?.usuario_id || CU?.id;
+    const otroEnCurso = misPartes.find(p => p.estado === 'en_curso' && p.id !== id && p.usuario_id === operarioId);
+    if (otroEnCurso) {
+      toast(`⚠️ Ya hay un parte en curso (${otroEnCurso.numero || ''}). Debe completarse antes de iniciar otro.`, 'error');
+      return;
+    }
   }
 
   const updateObj = { estado: nuevoEstado };
