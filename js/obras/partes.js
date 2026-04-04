@@ -86,7 +86,7 @@ function renderPartes(list) {
     const horas = (parseFloat(p.horas) || 0).toFixed(1);
     const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
 
-    return `<tr class="hov-bg" style="cursor:pointer" onclick="verDetalleParte(${p.id})">
+    return `<tr style="cursor:pointer" onclick="verDetalleParte(${p.id})">
       <td style="font-family:monospace;font-weight:700;font-size:12.5px;color:var(--azul)">${p.numero || '—'}</td>
       <td>${p.trabajo_titulo || '—'}</td>
       <td>${p.usuario_nombre || '—'}</td>

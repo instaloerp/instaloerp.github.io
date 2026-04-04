@@ -58,7 +58,7 @@ function renderClientes(list) {
   // Vista tarjetas
   document.getElementById('cliGridTarjetas').innerHTML = list.length ?
     list.map(c => `
-      <div class="card hov-shadow" style="padding:0;overflow:hidden;cursor:pointer" onclick="abrirFicha(${c.id})">
+      <div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="abrirFicha(${c.id})">
         <div style="background:linear-gradient(135deg,${avC(c.nombre)},${avC(c.nombre)}cc);padding:20px;display:flex;align-items:center;gap:13px">
           <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${ini(c.nombre)}</div>
           <div style="flex:1;min-width:0">

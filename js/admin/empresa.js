@@ -4,7 +4,7 @@
 
 function renderEmpresasList() {
   document.getElementById('empresasList').innerHTML = empresas.map(e=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;border:2px solid ${e.id===EMPRESA.id?'var(--azul)':'var(--gris-200)'};background:${e.id===EMPRESA.id?'var(--azul-light)':'#fff'};margin-bottom:7px;transition:all .12s" onclick="cambiarEmpresa('${e.id}')">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;border:2px solid ${e.id===EMPRESA.id?'var(--azul)':'var(--gris-200)'};background:${e.id===EMPRESA.id?'var(--azul-light)':'#fff'};margin-bottom:7px;transition:border-color .12s,background .12s" onclick="cambiarEmpresa('${e.id}')">
       <div style="width:32px;height:32px;border-radius:7px;background:var(--azul);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0">${e.nombre[0]}</div>
       <div style="flex:1"><div style="font-weight:700;font-size:13px">${e.nombre}</div></div>
       ${e.id===EMPRESA.id?'<span style="color:var(--azul);font-size:12px;font-weight:700">✓ Activa</span>':''}

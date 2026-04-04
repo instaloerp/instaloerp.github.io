@@ -59,7 +59,7 @@ a{color:var(--azul);text-decoration:none}
 /* ── APP SHELL ── */
 #s-app{background:var(--gris-50)}
 .app-header{position:sticky;top:0;z-index:100;background:#fff;padding:calc(var(--safe-top) + 8px) 16px 8px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px}
-.app-header .avatar{width:36px;height:36px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
+.app-header .avatar{width:42px;height:42px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
 .app-header .info{flex:1;min-width:0}
 .app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
@@ -243,7 +243,8 @@ input[type=number]{-moz-appearance:textfield}
     <div class="avatar" id="hdrAvatar">J</div>
     <div class="info">
       <h2 id="hdrNombre">—</h2>
-      <span id="hdrRol">—</span> <span style="font-size:9px;color:var(--gris-300);font-weight:600" id="appBuildVersion">v1.0.2</span>
+      <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600"></span>
+      <span style="font-size:9px;color:var(--gris-300);font-weight:600" id="appBuildVersion">v1.0.3</span>
     </div>
     <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
     <div style="position:relative;display:inline-flex">
@@ -405,7 +406,47 @@ async function processSyncQueue() {
   for (const op of ops) {
     try {
       let result;
-      if (op.action === 'update') {
+      if (op.action === 'update_with_files') {
+        // Subir fotos/firmas base64 antes de actualizar
+        const data = { ...op.data };
+        const eid = EMPRESA?.id || 'default';
+
+        // Subir firma cliente si es base64
+        if (data.firma_url && data.firma_url.startsWith('data:')) {
+          try {
+            const blob = await (await fetch(data.firma_url)).blob();
+            const fn = `${eid}/${Date.now()}_firma_cli_sync.png`;
+            const { error: ue } = await sb.storage.from('fotos-partes').upload(fn, blob);
+            if (!ue) { data.firma_url = sb.storage.from('fotos-partes').getPublicUrl(fn).data.publicUrl; }
+            else { data.firma_url = null; }
+          } catch(e) { data.firma_url = null; console.warn('Sync: firma cli upload error', e); }
+        }
+        // Subir firma operario si es base64
+        if (data.firma_operario_url && data.firma_operario_url.startsWith('data:')) {
+          try {
+            const blob = await (await fetch(data.firma_operario_url)).blob();
+            const fn = `${eid}/${Date.now()}_firma_op_sync.png`;
+            const { error: ue } = await sb.storage.from('fotos-partes').upload(fn, blob);
+            if (!ue) { data.firma_operario_url = sb.storage.from('fotos-partes').getPublicUrl(fn).data.publicUrl; }
+            else { data.firma_operario_url = null; }
+          } catch(e) { data.firma_operario_url = null; console.warn('Sync: firma op upload error', e); }
+        }
+        // Subir fotos nuevas si había
+        if (op.fotosNuevas && op.fotosNuevas.length) {
+          const fotosUrls = data.fotos || [];
+          for (const foto of op.fotosNuevas) {
+            try {
+              const blob = await (await fetch(foto.data)).blob();
+              const fn = `${eid}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
+              const { error: ue } = await sb.storage.from('fotos-partes').upload(fn, blob);
+              if (!ue) fotosUrls.push(sb.storage.from('fotos-partes').getPublicUrl(fn).data.publicUrl);
+            } catch(e) { console.warn('Sync: foto upload error', e); }
+          }
+          data.fotos = fotosUrls.length > 0 ? fotosUrls : null;
+        }
+
+        result = await sb.from(op.table).update(data).match(op.match);
+      } else if (op.action === 'update') {
         result = await sb.from(op.table).update(op.data).match(op.match);
       } else if (op.action === 'insert') {
         result = await sb.from(op.table).insert(op.data);
@@ -524,6 +565,12 @@ function _updateConnIndicator() {
     el.className = 'hdr-live';
     const ago = Math.round((Date.now() - _lastRefresh) / 60000);
     el.innerHTML = '<span class="live-dot"></span> ' + (ago < 1 ? 'OK' : ago + ' min');
+    // Actualizar hora en header
+    const syncEl = document.getElementById('hdrLastSync');
+    if (syncEl) {
+      const lastTime = new Date(_lastRefresh);
+      syncEl.textContent = '🔄 ' + lastTime.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    }
   } else {
     el.className = 'hdr-live';
     el.style.background = '#FEF3C7';
@@ -663,7 +710,6 @@ async function showApp() {
   // Header
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
-  document.getElementById('hdrRol').textContent = esJefe ? '⚙️ Administrador · ' + (EMPRESA?.nombre||'') : '👷 Operario · ' + (EMPRESA?.nombre||'');
 
   // Botón cambio de modo (solo visible si es superadmin real)
   const btnModo = document.getElementById('btnModo');
@@ -823,14 +869,14 @@ async function doRefresh() {
 }
 
 // ═══════════════════════════════════════════════
-// AUTO-REFRESH: polling cada 10 min + al abrir app
+// AUTO-REFRESH: polling cada 5 min + al abrir app
 // ═══════════════════════════════════════════════
 let _pollInterval = null;
-const POLL_MS = 10 * 60 * 1000; // 10 minutos
+const POLL_MS = 5 * 60 * 1000; // 5 minutos
 let _lastRefresh = Date.now();
 
 function initAutoRefresh() {
-  // Polling silencioso cada 10 minutos
+  // Polling silencioso cada 5 minutos
   if (_pollInterval) clearInterval(_pollInterval);
   _pollInterval = setInterval(() => _silentRefresh(), POLL_MS);
   _updateSyncIndicator();
@@ -1162,16 +1208,38 @@ function filtrarPartesHistorico() {
 }
 
 function renderOperarioPartes(el) {
-  const activos = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado));
+  const _ahora = new Date();
+  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
+
+  // Separar por estado
+  const activos = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado) && (p.fecha >= hoy || !p.fecha));
+  const caducados = misPartes.filter(p => ['programado','en_curso','borrador'].includes(p.estado) && p.fecha && p.fecha < hoy);
   const completados = misPartes.filter(p => ['completado','revisado','facturado'].includes(p.estado));
+
+  // Ordenar por fecha (desc) y luego por número (desc)
+  const sortFechaNum = (a, b) => {
+    const fa = a.fecha || '9999-99-99', fb = b.fecha || '9999-99-99';
+    if (fa !== fb) return fb.localeCompare(fa);
+    const na = a.numero || 0, nb = b.numero || 0;
+    return nb - na;
+  };
+  activos.sort(sortFechaNum);
+  caducados.sort(sortFechaNum);
+  completados.sort(sortFechaNum);
 
   el.innerHTML = `
     <div class="section-title">📝 Partes activos (${activos.length})</div>
     ${activos.length ? activos.map(p => renderParteCard(p, true)).join('') : '<div class="empty-state"><div class="ico">✨</div><p>Sin partes activos</p></div>'}
 
+    ${caducados.length ? `
+      <div class="section-title" style="margin-top:24px;color:var(--rojo)">⏰ Caducados (${caducados.length})</div>
+      <div style="background:var(--rojo-light);border-radius:10px;padding:8px;margin-bottom:4px;font-size:11px;color:var(--rojo);font-weight:600">Partes con fecha pasada sin completar</div>
+      ${caducados.map(p => renderParteCard(p, true)).join('')}
+    ` : ''}
+
     ${completados.length ? `
       <div class="section-title" style="margin-top:24px">✅ Completados (${completados.length})</div>
-      ${completados.slice(0,10).map(p => renderParteCard(p)).join('')}
+      ${completados.slice(0,20).map(p => renderParteCard(p)).join('')}
     ` : ''}
   `;
 }
@@ -1182,6 +1250,28 @@ function renderOperarioTareas(el) {
   const total = misTareas.length;
   const porcent = total ? Math.round((hechas.length / total) * 100) : 0;
 
+  // Agrupar pendientes por prioridad
+  const prioConfig = [
+    { key:'urgente', label:'Urgentes', ico:'🔺', color:'var(--rojo)', bg:'var(--rojo-light)' },
+    { key:'alta',    label:'Alta prioridad', ico:'▲', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
+    { key:'normal',  label:'Normal', ico:'◆', color:'var(--azul)', bg:'var(--azul-light)' },
+    { key:'baja',    label:'Baja prioridad', ico:'▽', color:'var(--gris-500)', bg:'var(--gris-100)' },
+  ];
+
+  let gruposHtml = '';
+  prioConfig.forEach(cfg => {
+    const items = pendientes.filter(t => (t.prioridad || 'normal') === cfg.key);
+    if (!items.length) return;
+    gruposHtml += `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:6px 10px;background:${cfg.bg};border-radius:8px">
+          <span style="font-size:14px">${cfg.ico}</span>
+          <span style="font-size:12px;font-weight:800;color:${cfg.color};text-transform:uppercase;letter-spacing:.3px">${cfg.label} (${items.length})</span>
+        </div>
+        <div class="card" style="margin-bottom:0">${items.map(t => renderTareaItem(t)).join('')}</div>
+      </div>`;
+  });
+
   el.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px">
@@ -1191,10 +1281,7 @@ function renderOperarioTareas(el) {
       <div class="progress-bar"><div class="progress-fill" style="width:${porcent}%;background:${porcent===100?'var(--verde)':'var(--azul)'}"></div></div>
     </div>
 
-    ${pendientes.length ? `
-      <div class="section-title">📋 Pendientes</div>
-      <div class="card">${pendientes.map(t => renderTareaItem(t)).join('')}</div>
-    ` : ''}
+    ${gruposHtml || (pendientes.length ? `<div class="section-title">📋 Pendientes</div><div class="card">${pendientes.map(t => renderTareaItem(t)).join('')}</div>` : '')}
 
     ${hechas.length ? `
       <div class="section-title" style="opacity:.6">✅ Completadas</div>
@@ -1205,45 +1292,191 @@ function renderOperarioTareas(el) {
   `;
 }
 
+let _agendaView = 'dia'; // dia | semana | mes
+let _agendaDate = new Date();
+
 function renderOperarioAgenda(el) {
-  // Usar fecha local (no UTC) para evitar desfase horario
   const _ahora = new Date();
   const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
-  // Próximos 7 días
-  const dias = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().split('T')[0];
-    const partesDia = misPartes.filter(p => p.fecha === key && p.estado !== 'eliminado');
-    if (partesDia.length || i === 0) {
-      dias.push({ fecha: d, key, partes: partesDia });
-    }
-  }
+
+  // Tabs de vista
+  const tabs = [
+    { key:'dia', label:'Día', ico:'📋' },
+    { key:'semana', label:'Semana', ico:'📅' },
+    { key:'mes', label:'Mes', ico:'🗓️' },
+  ];
+
+  let contenido = '';
+  if (_agendaView === 'dia') contenido = _agendaVistaDia(hoy);
+  else if (_agendaView === 'semana') contenido = _agendaVistaSemana(hoy);
+  else contenido = _agendaVistaMes(hoy);
 
   el.innerHTML = `
-    <div class="section-title">📅 Mi agenda — próximos 7 días</div>
-    ${dias.map(d => `
-      <div class="card">
-        <div style="font-size:13px;font-weight:800;color:${d.key===hoy?'var(--azul)':'var(--gris-700)'};margin-bottom:8px">
-          ${d.key === hoy ? '🔵 HOY' : ''} ${d.fecha.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'})}
-        </div>
-        ${d.partes.length ? d.partes.map(p => {
+    <div style="display:flex;gap:4px;margin-bottom:12px">
+      ${tabs.map(t => `<button onclick="_agendaView='${t.key}';navigateTo('agenda')" style="flex:1;padding:8px 4px;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);background:${_agendaView===t.key?'var(--azul)':'var(--gris-100)'};color:${_agendaView===t.key?'#fff':'var(--gris-500)'}">${t.ico} ${t.label}</button>`).join('')}
+    </div>
+    ${contenido}
+  `;
+}
+
+function _agendaVistaDia(hoy) {
+  const dateKey = _agendaDate.getFullYear() + '-' + String(_agendaDate.getMonth()+1).padStart(2,'0') + '-' + String(_agendaDate.getDate()).padStart(2,'0');
+  const isHoy = dateKey === hoy;
+  const partesDia = misPartes.filter(p => p.fecha === dateKey && p.estado !== 'eliminado');
+  partesDia.sort((a,b) => (a.hora_inicio||'23:59').localeCompare(b.hora_inicio||'23:59'));
+
+  // Navegación día anterior/siguiente
+  const navHtml = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <button onclick="_agendaNav(-1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">◀</button>
+    <div style="text-align:center">
+      <div style="font-size:15px;font-weight:800;color:${isHoy?'var(--azul)':'var(--gris-800)'}">${isHoy?'HOY — ':''}${_agendaDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</div>
+    </div>
+    <button onclick="_agendaNav(1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">▶</button>
+  </div>`;
+
+  if (!partesDia.length) {
+    return navHtml + '<div class="card" style="text-align:center;padding:32px 16px;color:var(--gris-400)"><div style="font-size:36px;margin-bottom:8px">📭</div><div style="font-size:13px">Sin trabajos programados</div></div>';
+  }
+
+  // Franjas horarias: de 7:00 a 20:00
+  let franjas = '';
+  for (let h = 7; h <= 20; h++) {
+    const hStr = String(h).padStart(2,'0');
+    const partesHora = partesDia.filter(p => {
+      const hi = p.hora_inicio ? p.hora_inicio.substring(0,2) : null;
+      return hi === hStr;
+    });
+
+    franjas += `<div style="display:flex;min-height:${partesHora.length?'auto':'28px'};border-bottom:1px solid var(--gris-100)">
+      <div style="width:48px;padding:4px 4px 4px 0;text-align:right;font-size:11px;font-weight:700;color:var(--gris-400);flex-shrink:0">${hStr}:00</div>
+      <div style="flex:1;padding:2px 0 2px 8px;border-left:2px solid var(--gris-200)">
+        ${partesHora.map(p => {
+          const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
           const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
           const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
-          const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
-          return `<div class="agenda-item" onclick="openParteDetail(${p.id})">
-            <div class="agenda-time">${hi}</div>
-            <div class="agenda-content">
-              <div class="agenda-title">${p.trabajo_titulo || 'Sin obra'}</div>
-              <div class="agenda-sub">${hi}-${hf} · ${est.ico} ${est.label}</div>
-              ${p.direccion ? `<div class="agenda-sub">📍 ${p.direccion}</div>` : ''}
-            </div>
+          return `<div onclick="openParteDetail(${p.id})" style="background:${est.bg};border-left:3px solid ${est.color};border-radius:6px;padding:8px 10px;margin:2px 0;cursor:pointer">
+            <div style="font-size:12.5px;font-weight:700;color:var(--gris-800)">${p.trabajo_titulo || 'Sin obra'}</div>
+            <div style="font-size:11px;color:var(--gris-500);margin-top:2px">${hi}-${hf} · ${est.ico} ${est.label}</div>
+            ${p.direccion ? `<div style="font-size:10.5px;color:var(--gris-400);margin-top:1px">📍 ${p.direccion}</div>` : ''}
           </div>`;
-        }).join('') : '<div style="padding:8px 0;font-size:12.5px;color:var(--gris-400)">Sin trabajos programados</div>'}
+        }).join('')}
       </div>
-    `).join('')}
-  `;
+    </div>`;
+  }
+
+  // Partes sin hora asignada
+  const sinHora = partesDia.filter(p => !p.hora_inicio);
+  let sinHoraHtml = '';
+  if (sinHora.length) {
+    sinHoraHtml = `<div style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--gris-400);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">Sin hora asignada</div>
+      ${sinHora.map(p => {
+        const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+        return `<div onclick="openParteDetail(${p.id})" style="background:${est.bg};border-left:3px solid ${est.color};border-radius:6px;padding:8px 10px;margin:4px 0;cursor:pointer">
+          <div style="font-size:12.5px;font-weight:700;color:var(--gris-800)">${p.trabajo_titulo || 'Sin obra'}</div>
+          <div style="font-size:11px;color:var(--gris-500);margin-top:2px">${est.ico} ${est.label}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  return navHtml + `<div class="card" style="padding:8px 12px">${franjas}</div>` + sinHoraHtml;
+}
+
+function _agendaVistaSemana(hoy) {
+  // Calcular lunes de la semana actual de _agendaDate
+  const d = new Date(_agendaDate);
+  const dayOfWeek = d.getDay() || 7; // domingo=7
+  d.setDate(d.getDate() - dayOfWeek + 1); // lunes
+
+  const navHtml = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <button onclick="_agendaNavWeek(-1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">◀</button>
+    <div style="font-size:14px;font-weight:800;color:var(--gris-800)">Semana ${_getWeekNum(d)}</div>
+    <button onclick="_agendaNavWeek(1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">▶</button>
+  </div>`;
+
+  let diasHtml = '';
+  for (let i = 0; i < 7; i++) {
+    const dia = new Date(d);
+    dia.setDate(d.getDate() + i);
+    const key = dia.getFullYear() + '-' + String(dia.getMonth()+1).padStart(2,'0') + '-' + String(dia.getDate()).padStart(2,'0');
+    const isHoy = key === hoy;
+    const partesDia = misPartes.filter(p => p.fecha === key && p.estado !== 'eliminado');
+    partesDia.sort((a,b) => (a.hora_inicio||'23:59').localeCompare(b.hora_inicio||'23:59'));
+    const dayName = dia.toLocaleDateString('es-ES',{weekday:'short',day:'numeric'});
+
+    diasHtml += `<div style="margin-bottom:8px">
+      <div onclick="_agendaDate=new Date('${key}T12:00:00');_agendaView='dia';navigateTo('agenda')" style="font-size:12px;font-weight:800;padding:6px 10px;border-radius:8px;cursor:pointer;background:${isHoy?'var(--azul)':'var(--gris-100)'};color:${isHoy?'#fff':'var(--gris-600)'};display:inline-block;margin-bottom:4px;text-transform:capitalize">${dayName}</div>
+      ${partesDia.length ? partesDia.map(p => {
+        const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+        const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+        return `<div onclick="openParteDetail(${p.id})" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-left:3px solid ${est.color};background:${est.bg};border-radius:0 6px 6px 0;margin:3px 0;cursor:pointer">
+          <span style="font-size:11px;font-weight:700;color:var(--gris-500);width:36px">${hi}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--gris-800);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.trabajo_titulo || 'Sin obra'}</span>
+          <span style="font-size:10px">${est.ico}</span>
+        </div>`;
+      }).join('') : `<div style="padding:4px 10px;font-size:11px;color:var(--gris-300)">—</div>`}
+    </div>`;
+  }
+
+  return navHtml + `<div class="card" style="padding:10px 12px">${diasHtml}</div>`;
+}
+
+function _agendaVistaMes(hoy) {
+  const year = _agendaDate.getFullYear();
+  const month = _agendaDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDow = firstDay.getDay() || 7; // lun=1
+
+  const navHtml = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <button onclick="_agendaNavMonth(-1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">◀</button>
+    <div style="font-size:14px;font-weight:800;color:var(--gris-800);text-transform:capitalize">${firstDay.toLocaleDateString('es-ES',{month:'long',year:'numeric'})}</div>
+    <button onclick="_agendaNavMonth(1)" style="border:none;background:var(--gris-100);border-radius:8px;padding:8px 12px;font-size:16px;cursor:pointer">▶</button>
+  </div>`;
+
+  // Header días
+  const dayNames = ['L','M','X','J','V','S','D'];
+  let grid = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center">`;
+  grid += dayNames.map(d => `<div style="font-size:10px;font-weight:700;color:var(--gris-400);padding:4px">${d}</div>`).join('');
+
+  // Espacios vacíos antes del día 1
+  for (let i = 1; i < startDow; i++) {
+    grid += `<div></div>`;
+  }
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const key = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isHoy = key === hoy;
+    const partesDia = misPartes.filter(p => p.fecha === key && p.estado !== 'eliminado');
+    const numPartes = partesDia.length;
+    const dotColor = numPartes > 0 ? (partesDia.some(p => p.estado === 'en_curso') ? 'var(--acento)' : 'var(--azul)') : 'transparent';
+
+    grid += `<div onclick="_agendaDate=new Date('${key}T12:00:00');_agendaView='dia';navigateTo('agenda')" style="padding:6px 2px;border-radius:8px;cursor:pointer;background:${isHoy?'var(--azul)':'transparent'};color:${isHoy?'#fff':'var(--gris-700)'}">
+      <div style="font-size:13px;font-weight:${isHoy?'800':'600'}">${d}</div>
+      <div style="width:6px;height:6px;border-radius:50%;background:${dotColor};margin:2px auto 0"></div>
+    </div>`;
+  }
+  grid += '</div>';
+
+  return navHtml + `<div class="card" style="padding:10px 12px">${grid}</div>`;
+}
+
+function _agendaNav(offset) {
+  _agendaDate.setDate(_agendaDate.getDate() + offset);
+  navigateTo('agenda');
+}
+function _agendaNavWeek(offset) {
+  _agendaDate.setDate(_agendaDate.getDate() + (offset * 7));
+  navigateTo('agenda');
+}
+function _agendaNavMonth(offset) {
+  _agendaDate.setMonth(_agendaDate.getMonth() + offset);
+  navigateTo('agenda');
+}
+function _getWeekNum(d) {
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
 }
 
 // ═══════════════════════════════════════════════
@@ -2955,25 +3188,28 @@ async function wizFinish() {
 
     const id = _wiz.parteId;
     const eid = EMPRESA?.id || 'default';
+    const _isOffline = !navigator.onLine;
 
-    // 0. Capturar ubicación final (GPS) — OBLIGATORIO
+    // 0. Capturar ubicación final (GPS)
+    // ONLINE: obligatorio | OFFLINE: opcional (usa caché de hasta 5 min)
     let ubicacionFin = null;
-    if (navigator.geolocation) {
-      try {
+    try {
+      if (navigator.geolocation) {
         ubicacionFin = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-            (err) => { reject(err); },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            (err) => reject(err),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: _isOffline ? 300000 : 0 }
           );
         });
-      } catch(e) {
+      }
+    } catch(e) {
+      console.warn('GPS final error:', e.message);
+      if (!_isOffline) {
         toast('⚠️ Debes permitir el acceso a la ubicación para completar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
         return;
       }
-    } else {
-      toast('⚠️ Tu dispositivo no tiene GPS. No se puede completar el parte sin ubicación.', 'error');
-      return;
+      toast('⚠️ Sin GPS. Se guardará sin ubicación final.', 'warning');
     }
 
     toast('Enviando informe...', '');
@@ -3090,9 +3326,35 @@ async function wizFinish() {
     if (ubicacionFin) updateObj.ubicacion_fin = ubicacionFin;
 
     console.log('[wizFinish] Saving:', JSON.stringify(Object.keys(updateObj)));
+
+    // Si estamos offline → guardar localmente y encolar
+    if (!navigator.onLine) {
+      const p = misPartes.find(x => x.id === id);
+      if (p) Object.assign(p, updateObj);
+      await cacheDataOffline();
+      // Guardar el updateObj completo en la cola de sync (incluye firmas base64)
+      await syncQueueAdd({ table:'partes_trabajo', action:'update_with_files', data: updateObj, match:{ id }, fotosNuevas: _wiz.fotosNuevas || [], timestamp: Date.now() });
+      _wizClearAutoSave(id);
+      document.removeEventListener('click', _closeMaterialSearch);
+      toast('✅ Parte guardado localmente. Se enviará automáticamente al recuperar conexión.', 'success');
+      closeModal();
+      navigateTo(currentTab);
+      return;
+    }
+
     const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
     if (error) {
-      toast('Error: ' + error.message, 'error');
+      // Si falla (posible pérdida de red durante envío) → guardar offline
+      console.error('[wizFinish] Error Supabase:', error);
+      const p = misPartes.find(x => x.id === id);
+      if (p) Object.assign(p, updateObj);
+      await cacheDataOffline();
+      await syncQueueAdd({ table:'partes_trabajo', action:'update_with_files', data: updateObj, match:{ id }, fotosNuevas: _wiz.fotosNuevas || [], timestamp: Date.now() });
+      _wizClearAutoSave(id);
+      document.removeEventListener('click', _closeMaterialSearch);
+      toast('✅ Parte guardado localmente (error de red). Se sincronizará al volver la conexión.', 'warning');
+      closeModal();
+      navigateTo(currentTab);
       return;
     }
 
@@ -3120,7 +3382,19 @@ async function wizFinish() {
     mostrarModalEnvio(id, parteNum, cliTel, cliEmail);
   } catch(err) {
     console.error('[wizFinish] Error:', err);
-    toast('Error: ' + (err.message || 'desconocido'), 'error');
+    // Último recurso: guardar offline si hay cualquier error
+    try {
+      const p = misPartes.find(x => x.id === _wiz.parteId);
+      if (p) {
+        p.estado = 'completado';
+        p.completado_at = new Date().toISOString();
+        await cacheDataOffline();
+        await syncQueueAdd({ table:'partes_trabajo', action:'update', data:{ estado:'completado', completado_at: p.completado_at }, match:{ id: _wiz.parteId }, timestamp: Date.now() });
+      }
+    } catch(e2) { console.error('Error guardando offline:', e2); }
+    toast('⚠️ Error: ' + (err.message || 'Sin conexión') + '. Datos guardados localmente.', 'warning');
+    closeModal();
+    navigateTo(currentTab);
   }
 }
 
@@ -3390,7 +3664,7 @@ async function wizFinishEdit() {
     console.log('[wizFinishEdit] Saving:', JSON.stringify(Object.keys(updateObj)));
     const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
     if (error) {
-      toast('Error al guardar: ' + error.message, 'error');
+      toast('Error al guardar: ' + (error.message || 'Sin conexión'), 'error');
       return;
     }
 
@@ -3468,39 +3742,68 @@ async function iniciarParteConGPS(id) {
 
   toast('📍 Obteniendo ubicación...', '');
 
-  const doStart = async (ubicacion) => {
-    const updateObj = {
-      estado: 'en_curso',
-      inicio_at: new Date().toISOString(),
-    };
-    if (ubicacion) {
-      updateObj.ubicacion_inicio = ubicacion;
-    }
+  const isOffline = !navigator.onLine;
 
+  // Intentar obtener GPS
+  let ubicacion = null;
+  try {
+    ubicacion = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('GPS no disponible')); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: isOffline ? 300000 : 0 }
+      );
+    });
+  } catch(e) {
+    console.warn('GPS error:', e.message);
+    // ONLINE: GPS obligatorio → bloquear
+    if (!isOffline) {
+      toast('⚠️ Debes permitir el acceso a la ubicación para iniciar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
+      return;
+    }
+    // OFFLINE: GPS opcional → continuar sin él
+    toast('⚠️ Sin GPS. Se guardará sin ubicación.', 'warning');
+  }
+
+  const updateObj = {
+    estado: 'en_curso',
+    inicio_at: new Date().toISOString(),
+  };
+  if (ubicacion) updateObj.ubicacion_inicio = ubicacion;
+
+  // Si estamos offline → guardar localmente y encolar
+  if (isOffline) {
+    const p = misPartes.find(x => x.id === id);
+    if (p) Object.assign(p, updateObj);
+    await cacheDataOffline();
+    await syncQueueAdd({ table:'partes_trabajo', action:'update', data: updateObj, match:{ id }, timestamp: Date.now() });
+    toast('🔧 Trabajo iniciado (se sincronizará al recuperar conexión)', 'success');
+    closeModal();
+    navigateTo(currentTab);
+    return;
+  }
+
+  try {
     const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
-    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    if (error) { toast('Error: ' + (error.message || 'Sin conexión'), 'error'); return; }
 
     const p = misPartes.find(x => x.id === id);
     if (p) Object.assign(p, updateObj);
 
-    toast('🔧 Trabajo iniciado' + (ubicacion ? ' · GPS guardado' : ''), 'success');
+    toast('🔧 Trabajo iniciado · GPS guardado', 'success');
     closeModal();
     navigateTo(currentTab);
-  };
-
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        doStart({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-      },
-      (err) => {
-        console.warn('GPS error:', err.message);
-        toast('⚠️ Debes permitir el acceso a la ubicación para iniciar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  } else {
-    toast('⚠️ Tu dispositivo no tiene GPS. No se puede iniciar el parte sin ubicación.', 'error');
+  } catch(e) {
+    console.error('Error iniciar parte:', e);
+    // Falló la red durante el intento → guardar offline
+    const p = misPartes.find(x => x.id === id);
+    if (p) Object.assign(p, updateObj);
+    await cacheDataOffline();
+    await syncQueueAdd({ table:'partes_trabajo', action:'update', data: updateObj, match:{ id }, timestamp: Date.now() });
+    toast('🔧 Trabajo iniciado offline (se sincronizará)', 'success');
+    closeModal();
+    navigateTo(currentTab);
   }
 }
 
@@ -3648,7 +3951,7 @@ async function cambiarEstado(id, nuevoEstado) {
   }
 
   const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (error) { toast('Error: ' + (error.message || 'Sin conexión'), 'error'); return; }
 
   const p = misPartes.find(x => x.id === id);
   if (p) Object.assign(p, updateObj);

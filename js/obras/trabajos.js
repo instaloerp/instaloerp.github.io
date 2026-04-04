@@ -639,7 +639,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         };
         const nextAct = nextActions[p.estado];
 
-        partesHtml += `<div class="hov-shadow" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px" onclick="verDetalleParte(${p.id})">
+        partesHtml += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;background:${_cardBg};border-left:3px solid ${_cardBorder};border-radius:6px;margin-bottom:4px" onclick="verDetalleParte(${p.id})">
           <div style="min-width:60px;text-align:center">
             <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hi || '—'}</div>
             <div style="font-size:10px;color:var(--gris-400)">${hf ? hi + '-' + hf : ''}</div>
@@ -873,9 +873,9 @@ function renderTareaItem(t) {
   const hoy = t.fecha_limite && new Date(t.fecha_limite).toDateString() === new Date().toDateString();
   const fechaCreacion = t.created_at ? new Date(t.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short'}) : '';
 
-  return `<div class="hov-bg" style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);${isCerrada?'text-decoration:line-through;opacity:0.6':''}">
+  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-100);${isCerrada?'text-decoration:line-through;opacity:0.6':''}">
     <!-- Checkbox -->
-    <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'};background:${t.estado==='completada'?'#ECFDF5':t.estado==='rechazada'?'#FAF5FF':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:all .2s" onmouseover="this.style.borderColor='${t.estado==='completada'?'#059669':'var(--azul)'}'" onmouseout="this.style.borderColor='${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'}'">${t.estado==='completada'?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':t.estado==='rechazada'?'<span style="color:#9333EA;font-size:13px;font-weight:800">✕</span>':''}</div>
+    <div onclick="toggleTareaObra(${t.id})" style="cursor:pointer;width:22px;height:22px;border-radius:6px;border:2px solid ${t.estado==='completada'?'#059669':t.estado==='rechazada'?'#9333EA':'var(--gris-300)'};background:${t.estado==='completada'?'#ECFDF5':t.estado==='rechazada'?'#FAF5FF':'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${t.estado==='completada'?'<span style="color:#059669;font-size:13px;font-weight:800">✓</span>':t.estado==='rechazada'?'<span style="color:#9333EA;font-size:13px;font-weight:800">✕</span>':''}</div>
     <!-- Contenido -->
     <div style="flex:1;min-width:0">
       <div style="font-size:12.5px;font-weight:600;line-height:1.4;color:${isCerrada?'var(--gris-400)':'var(--gris-800)'}">${t.texto}</div>

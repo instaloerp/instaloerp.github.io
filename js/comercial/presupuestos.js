@@ -897,7 +897,7 @@ function imprimirPresupuesto(id) {
       .footer{position:fixed;bottom:8mm;left:14mm;right:14mm}
     }
     .btn-bar{text-align:center;padding:16px;background:#f5f5f5}
-    .btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px;transition:all .2s}
+    .btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px;transition:background .2s,color .2s}
     .btn-print{background:#1e40af;color:#fff}
     .btn-print:hover{background:#1d4ed8}
     .btn-close{background:#e2e8f0;color:#475569}
