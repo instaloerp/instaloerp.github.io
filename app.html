@@ -255,7 +255,7 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 <!-- ═══════════ MODALS ═══════════ -->
-<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this){if(document.getElementById('btnCerrarEnvio')&&!_envioRealizado){toast('⚠️ Debes enviar el parte al cliente','error');return;}closeModal()}">
   <div class="modal-sheet" id="modalSheet">
     <div class="modal-handle"></div>
     <div id="modalContent"></div>
@@ -1616,11 +1616,14 @@ function renderWizStep() {
 
   // Canvas firma se inicializa al abrir cada panel (toggleFirmaPanel)
 
-  // Cerrar búsqueda materiales al hacer click fuera
+  // Cerrar búsqueda materiales al hacer click fuera + fix iOS focus
   if (step === 2) {
     setTimeout(() => {
       document.addEventListener('click', _closeMaterialSearch);
-    }, 100);
+      // Fix iOS: scroll al input de búsqueda para que el cursor entre bien
+      const matInput = document.getElementById('wz_mat_buscar');
+      if (matInput) matInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
   }
 }
 
@@ -2505,68 +2508,107 @@ async function enviarEmailParte(parteId, email) {
 }
 
 // ── MODAL ENVÍO PARTE (WhatsApp / SMS / Cerrar) ──
+let _envioRealizado = false; // Track si se envió por al menos 1 vía
+
 function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente) {
+  _envioRealizado = false;
   const baseUrl = window.location.origin;
   const enlace = `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
-  const mensaje = `Hola, le enviamos el parte de trabajo nº ${parteNum} de ${empresa}. Puede consultarlo aquí: ${enlace}`;
-  const mensajeEncoded = encodeURIComponent(mensaje);
 
-  // Limpiar teléfono
+  // Limpiar teléfono pre-rellenado
   let tel = (telefonoCliente || '').replace(/[\s\-\.\(\)]/g, '');
-  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
-  if (tel.startsWith('0034')) tel = tel.substring(2);
-  const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
 
   const content = `
-    <div style="text-align:center;padding:16px 0">
-      <div style="font-size:48px;margin-bottom:8px">✅</div>
-      <h2 style="margin:0 0 4px;color:var(--verde)">Parte completado</h2>
-      <p style="color:var(--gris-500);margin:0 0 16px;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
-
-      <div style="background:var(--gris-50);border-radius:10px;padding:10px;margin-bottom:12px;text-align:left">
-        <label style="font-size:11px;font-weight:700;color:var(--gris-500)">ENLACE DEL PARTE</label>
-        <div style="display:flex;gap:6px;margin-top:4px">
-          <input id="enlaceParteInput" type="text" value="${enlace}" readonly
-            style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:11px;font-family:var(--font);background:#fff">
-          <button onclick="copiarEnlaceParte()" style="padding:8px 10px;border:none;background:var(--azul);color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px">📋 Copiar</button>
-        </div>
+    <div style="padding:16px 0">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:48px;margin-bottom:8px">✅</div>
+        <h2 style="margin:0 0 4px;color:var(--verde)">Parte completado</h2>
+        <p style="color:var(--gris-500);margin:0;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-        <!-- Email -->
-        <div style="background:var(--gris-50);border-radius:10px;padding:10px;text-align:left">
-          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">📧 ENVIAR POR EMAIL</label>
-          <div style="display:flex;gap:6px;margin-top:4px">
-            <input id="envioEmailInput" type="email" placeholder="email@ejemplo.com" value="${emailCliente || ''}"
-              inputmode="email" autocomplete="off"
-              style="flex:1;padding:8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;font-family:var(--font)">
-            <button onclick="enviarEmailDesdModal(${parteId})" style="padding:8px 12px;border:none;background:#EA580C;color:#fff;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap">📧 Enviar</button>
-          </div>
-        </div>
-
-        ${tel ? `
-        <!-- WhatsApp -->
-        <a href="https://wa.me/${telWA}?text=${mensajeEncoded}" target="_blank" rel="noopener"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none">
-          📱 Enviar por WhatsApp
-        </a>
-        <!-- SMS -->
-        <a href="sms:${tel}?body=${mensajeEncoded}"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--azul);color:#fff;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none">
-          💬 Enviar por SMS
-        </a>
-        ` : `
-        <p style="color:var(--gris-400);font-size:12px;font-style:italic;margin:4px 0">Sin teléfono del cliente. Puedes enviar por email o copiar el enlace.</p>
-        `}
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">TELÉFONO DE CONTACTO</label>
+        <input id="envioTelInput" type="tel" placeholder="Ej: 666123456" value="${tel}"
+          inputmode="tel" autocomplete="off"
+          style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-family:var(--font)">
       </div>
 
-      <button onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-600)">Cerrar</button>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="envioWhatsApp(${parteId},'${parteNum}','${empresa}','${enlace}')" style="flex:1;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
+          📱 WhatsApp
+        </button>
+        <button onclick="envioSMS(${parteId},'${parteNum}','${empresa}','${enlace}')" style="flex:1;padding:12px;background:var(--azul);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
+          💬 SMS
+        </button>
+      </div>
+
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">📧 ENVIAR POR EMAIL</label>
+        <div style="display:flex;gap:6px">
+          <input id="envioEmailInput" type="email" placeholder="email@ejemplo.com" value="${emailCliente || ''}"
+            inputmode="email" autocomplete="off"
+            style="flex:1;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
+          <button onclick="enviarEmailDesdModal(${parteId})" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Enviar</button>
+        </div>
+        <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía desde el ERP directamente al cliente.</p>
+      </div>
+
+      <button id="btnCerrarEnvio" onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400)" disabled>
+        Envía el parte al cliente para poder cerrar
+      </button>
     </div>
   `;
 
   document.getElementById('modalContent').innerHTML = content;
   openModal();
+}
+
+function _limpiarTelEnvio() {
+  let tel = (document.getElementById('envioTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
+  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+  if (tel.startsWith('0034')) tel = tel.substring(2);
+  return tel;
+}
+
+function _getMensajeEnvio(parteNum, empresa, enlace) {
+  return `Estimado/a cliente, desde ${empresa} le informamos que se ha completado el parte de trabajo nº ${parteNum}. Puede consultar los detalles en el siguiente enlace:\n\n${enlace}\n\nGracias por confiar en nosotros.`;
+}
+
+function envioWhatsApp(parteId, parteNum, empresa, enlace) {
+  const tel = _limpiarTelEnvio();
+  if (!tel || tel.length < 9) {
+    toast('⚠️ Introduce un teléfono válido', 'error');
+    document.getElementById('envioTelInput')?.focus();
+    return;
+  }
+  const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
+  const msg = encodeURIComponent(_getMensajeEnvio(parteNum, empresa, enlace));
+  window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
+  _marcarEnvioRealizado();
+}
+
+function envioSMS(parteId, parteNum, empresa, enlace) {
+  const tel = _limpiarTelEnvio();
+  if (!tel || tel.length < 9) {
+    toast('⚠️ Introduce un teléfono válido', 'error');
+    document.getElementById('envioTelInput')?.focus();
+    return;
+  }
+  const msg = encodeURIComponent(_getMensajeEnvio(parteNum, empresa, enlace));
+  window.location.href = `sms:${tel}?body=${msg}`;
+  _marcarEnvioRealizado();
+}
+
+function _marcarEnvioRealizado() {
+  _envioRealizado = true;
+  const btn = document.getElementById('btnCerrarEnvio');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Cerrar';
+    btn.style.background = 'var(--gris-600)';
+    btn.style.color = '#fff';
+  }
 }
 
 function copiarEnlaceParte() {
@@ -2584,7 +2626,7 @@ function copiarEnlaceParte() {
 
 function enviarEmailDesdModal(parteId) {
   const email = document.getElementById('envioEmailInput')?.value?.trim();
-  if (!email || !email.includes('@')) {
+  if (!email || !email.includes('@') || !email.includes('.')) {
     toast('⚠️ Introduce un email válido', 'error');
     document.getElementById('envioEmailInput')?.focus();
     return;
@@ -2595,9 +2637,14 @@ function enviarEmailDesdModal(parteId) {
     if (p) p.cliente_email = email;
   });
   enviarEmailParte(parteId, email);
+  _marcarEnvioRealizado();
 }
 
 function cerrarModalEnvio() {
+  if (!_envioRealizado) {
+    toast('⚠️ Debes enviar el parte al cliente por al menos una vía', 'error');
+    return;
+  }
   closeModal();
   navigateTo(currentTab);
 }
