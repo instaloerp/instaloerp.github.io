@@ -295,7 +295,7 @@ let clientes = [];
 let articulos = [];
 
 // Wizard state
-let _wiz = { parteId:null, step:0, fotos:[], materiales:[], firmaData:null };
+let _wiz = { parteId:null, step:0, fotos:[], materiales:[], albaranes_compra:[], firmaData:null };
 
 // ═══════════════════════════════════════════════
 // OFFLINE — IndexedDB + Sync Queue
@@ -532,6 +532,21 @@ function _updateConnIndicator() {
     el.innerHTML = '<span class="live-dot" style="background:#F59E0B"></span> OFFLINE';
   }
 }
+
+// ─── Gremios para trabajos pendientes ───
+const GREMIOS = [
+  { id: 'fontaneria',    label: 'Fontanería',     ico: '🔧' },
+  { id: 'electricidad',  label: 'Electricidad',   ico: '⚡' },
+  { id: 'albanileria',   label: 'Albañilería',    ico: '🧱' },
+  { id: 'pintura',       label: 'Pintura',        ico: '🎨' },
+  { id: 'carpinteria',   label: 'Carpintería',    ico: '🪚' },
+  { id: 'climatizacion', label: 'Climatización',  ico: '❄️' },
+  { id: 'calefaccion',   label: 'Calefacción',    ico: '🔥' },
+  { id: 'cerrajeria',    label: 'Cerrajería',     ico: '🔑' },
+  { id: 'cristaleria',   label: 'Cristalería',    ico: '🪟' },
+  { id: 'limpieza',      label: 'Limpieza',       ico: '🧹' },
+  { id: 'otro',          label: 'Otro',           ico: '📋' },
+];
 
 // ─── Estados de partes ───
 const PT_ESTADOS = {
@@ -1732,9 +1747,19 @@ function openParteDetail(id) {
       <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.descripcion}</div>
     </div>` : ''}
 
-    ${p.trabajos_pendientes ? `<div style="margin-bottom:12px;padding:12px;background:var(--amarillo-light);border-left:3px solid var(--amarillo);border-radius:6px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:4px">⚠️ Trabajos pendientes</div>
-      <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.trabajos_pendientes}</div>
+    ${p.trabajos_pendientes ? `<div style="margin-bottom:12px;padding:12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:6px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:6px">⚠️ Trabajos pendientes</div>
+      ${p.gremios_pendientes ? Object.keys(p.gremios_pendientes).map(gid => {
+        const gremio = GREMIOS.find(g => g.id === gid) || { ico:'📋', label: gid };
+        const desc = p.gremios_pendientes[gid]?.descripcion || '';
+        return `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #FDE68A">
+          <span style="font-size:16px">${gremio.ico}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px;color:#92400E">${gremio.label}</div>
+            ${desc ? `<div style="font-size:12px;color:var(--gris-600);margin-top:2px">${desc}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('') : `<div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${p.trabajos_pendientes}</div>`}
     </div>` : ''}
 
     ${p.observaciones ? `<div style="margin-bottom:12px;padding:12px;background:var(--gris-50);border-left:3px solid var(--gris-400);border-radius:6px">
@@ -1750,7 +1775,7 @@ function openParteDetail(id) {
     </div>` : ''}
 
     ${p.materiales && p.materiales.length ? `<div style="margin-bottom:12px;padding:12px;background:var(--gris-50);border-radius:8px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:8px">🔧 Materiales</div>
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px">🚐 Materiales de furgoneta</div>
       ${p.materiales.map(m => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;border-bottom:1px solid var(--gris-100)">
         <span>${m.nombre||'—'} × ${m.cantidad||0}</span>
         <span style="font-weight:700">${(parseFloat(m.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
@@ -1759,6 +1784,14 @@ function openParteDetail(id) {
         <span>Total:</span>
         <span>${p.materiales.reduce((s,m) => s+(parseFloat(m.total)||0), 0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>
+    </div>` : ''}
+
+    ${p.albaranes_compra && p.albaranes_compra.length ? `<div style="margin-bottom:12px;padding:12px;background:#FFF7ED;border-radius:8px;border:1px solid #FDBA74">
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#92400E">🛒 Compras externas (${p.albaranes_compra.length} albarán(es))</div>
+      ${p.albaranes_compra.map(a => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #FDE68A">
+        <span style="font-size:12px;font-weight:600">${a.numero || 'Sin número'}</span>
+        ${a.foto ? '<a href="' + a.foto + '" target="_blank" style="font-size:11px;color:#1D4ED8">📸 Ver foto</a>' : '<span style="font-size:10px;color:var(--rojo)">Sin foto</span>'}
+      </div>`).join('')}
     </div>` : ''}
 
     ${p.mano_obra && p.mano_obra.length ? `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
@@ -1855,10 +1888,26 @@ function renderWizStep() {
       </div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-weight:600;font-size:14px;cursor:pointer">
-          <input id="wz_pend_check" type="checkbox" style="width:20px;height:20px;flex-shrink:0" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="wizSaveCurrentStep();_wiz.pendientes_checked=this.checked;document.getElementById('wz_pend_textarea').style.display=this.checked?'block':'none';">
+          <input id="wz_pend_check" type="checkbox" style="width:20px;height:20px;flex-shrink:0" ${_wiz.pendientes_checked ? 'checked' : ''} onchange="wizSaveCurrentStep();_wiz.pendientes_checked=this.checked;document.getElementById('wz_pend_gremios').style.display=this.checked?'block':'none';">
           <span>Quedan trabajos pendientes</span>
         </label>
-        <textarea id="wz_pend_textarea" rows="2" placeholder="Describe los trabajos pendientes..." style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);resize:vertical;display:${_wiz.pendientes_checked?'block':'none'}">${_wiz.pendientes}</textarea>
+        <div id="wz_pend_gremios" style="display:${_wiz.pendientes_checked?'block':'none'};margin-top:8px">
+          <div style="font-size:12px;color:var(--gris-500);margin-bottom:8px">Selecciona los gremios necesarios y describe el trabajo pendiente:</div>
+          ${GREMIOS.map(g => {
+            const checked = _wiz.gremios_pendientes && _wiz.gremios_pendientes[g.id];
+            const desc = (checked && checked.descripcion) || '';
+            return `<div style="margin-bottom:8px;border:1.5px solid ${checked?'var(--azul)':'var(--gris-200)'};border-radius:10px;overflow:hidden;transition:border-color .2s" id="wz_gremio_wrap_${g.id}">
+              <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:${checked?'#EFF6FF':'#fff'}" onclick="event.stopPropagation()">
+                <input type="checkbox" class="wz_gremio_chk" data-gremio="${g.id}" style="width:18px;height:18px;flex-shrink:0" ${checked?'checked':''} onchange="wizToggleGremio('${g.id}',this.checked)">
+                <span style="font-size:18px">${g.ico}</span>
+                <span style="font-weight:600;font-size:13px">${g.label}</span>
+              </label>
+              <div id="wz_gremio_desc_${g.id}" style="display:${checked?'block':'none'};padding:0 12px 10px">
+                <textarea rows="2" placeholder="¿Qué queda pendiente de ${g.label.toLowerCase()}?" data-gremio="${g.id}" class="wz_gremio_txt" style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);resize:vertical">${desc}</textarea>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
       </div>
       <div class="field">
         <label>📝 Notas internas</label>
@@ -1915,6 +1964,15 @@ function renderWizStep() {
         <span style="font-weight:700;font-size:12px">Total materiales:</span>
         <span style="font-weight:800;font-size:13px">${totalMat.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>` : ''}
+
+      <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--gris-200)">
+        <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:#92400E">🛒 Compras externas</div>
+        <p style="font-size:11px;color:var(--gris-500);margin-bottom:8px">Si has comprado material, añade cada albarán con su número y foto.</p>
+        <div id="wz_albaranes_list">
+          ${(_wiz.albaranes_compra||[]).length ? _wiz.albaranes_compra.map((alb, i) => renderWizAlbaranRow(alb, i)).join('') : '<div style="text-align:center;padding:8px;color:var(--gris-400);font-size:12px">Sin compras externas</div>'}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="wizAddAlbaran()" style="margin-top:8px;width:100%">➕ Añadir albarán de compra</button>
+      </div>
 
       ${esJefe ? `<div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
         <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--violeta)">👷 Mano de obra</div>
@@ -2066,12 +2124,52 @@ function _closeMaterialSearch(e) {
   }
 }
 
+function wizToggleGremio(gremioId, checked) {
+  const wrap = document.getElementById('wz_gremio_wrap_' + gremioId);
+  const descDiv = document.getElementById('wz_gremio_desc_' + gremioId);
+  if (wrap) {
+    wrap.style.borderColor = checked ? 'var(--azul)' : 'var(--gris-200)';
+    wrap.querySelector('label').style.background = checked ? '#EFF6FF' : '#fff';
+  }
+  if (descDiv) descDiv.style.display = checked ? 'block' : 'none';
+  // Focus en textarea si se activa
+  if (checked && descDiv) {
+    const ta = descDiv.querySelector('textarea');
+    if (ta) setTimeout(() => ta.focus(), 100);
+  }
+  wizSaveCurrentStep();
+}
+
+function _buildPendientesText() {
+  if (!_wiz.gremios_pendientes) return '';
+  const lines = [];
+  GREMIOS.forEach(g => {
+    const data = _wiz.gremios_pendientes[g.id];
+    if (data) {
+      lines.push(`${g.ico} ${g.label}: ${data.descripcion || '(sin descripción)'}`);
+    }
+  });
+  return lines.join('\n');
+}
+
 function wizSaveCurrentStep() {
   if (_wiz.step === 0) {
     _wiz.desc = document.getElementById('wz_desc')?.value || '';
     _wiz.pendientes_checked = document.getElementById('wz_pend_check')?.checked || false;
-    _wiz.pendientes = document.getElementById('wz_pend_textarea')?.value || '';
     _wiz.observaciones = document.getElementById('wz_obs')?.value || '';
+    // Guardar gremios seleccionados con sus descripciones
+    if (!_wiz.gremios_pendientes) _wiz.gremios_pendientes = {};
+    document.querySelectorAll('.wz_gremio_chk').forEach(chk => {
+      const gid = chk.dataset.gremio;
+      if (chk.checked) {
+        const txt = document.querySelector(`.wz_gremio_txt[data-gremio="${gid}"]`)?.value || '';
+        _wiz.gremios_pendientes[gid] = { descripcion: txt };
+      } else {
+        delete _wiz.gremios_pendientes[gid];
+      }
+    });
+    // Generar texto plano de pendientes para compatibilidad
+    _wiz.pendientes = _buildPendientesText();
   }
   if (_wiz.step === 3) {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
@@ -2194,7 +2292,7 @@ function wizSearchMat(q) {
     </div>
   `).join('');
 
-  // Opción de añadir manualmente
+  // Siempre mostrar opción de añadir manualmente (se bloqueará cuando STOCK_ENABLED = true)
   html += `<div class="mat-search-item" style="background:var(--azul-light);font-weight:700;color:var(--azul)" onclick="wizAddMatManual()">
     ➕ Añadir "${q}" manualmente
   </div>`;
@@ -2221,6 +2319,7 @@ function wizAddMatFromCatalog(artId) {
 }
 
 function wizAddMatManual() {
+  // TODO: cuando STOCK_ENABLED = true, bloquear esto y obligar a usar catálogo
   const input = document.getElementById('wz_mat_buscar');
   const nombre = input?.value?.trim() || 'Material';
   _wiz.materiales.push({
@@ -2238,6 +2337,15 @@ function wizAddMatManual() {
 }
 
 function renderWizMatRow(m, idx) {
+  // STOCK CHECK — preparado pero desactivado hasta implementar multialmacén
+  const STOCK_ENABLED = false;
+  let stockWarning = '';
+  if (STOCK_ENABLED && m.articulo_id) {
+    // TODO: comprobar stock en furgoneta del operario
+    // const stockDisponible = getStockFurgoneta(m.articulo_id);
+    // if (m.cantidad > stockDisponible) stockWarning = `<div style="font-size:10px;color:#DC2626;padding:4px 10px">⚠️ Stock insuficiente en furgoneta (disponible: ${stockDisponible})</div>`;
+  }
+
   return `<div class="mat-row">
     <div class="mat-name">${m.nombre}${m.codigo ? ` <span style="color:var(--gris-400);font-size:10px">(${m.codigo})</span>` : ''}</div>
     <input type="number" value="${m.cantidad}" min="0.01" step="0.01"
@@ -2250,7 +2358,8 @@ function renderWizMatRow(m, idx) {
     <span style="font-size:11px;color:var(--gris-400)">€</span>
     <span class="mat-qty">${(parseFloat(m.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
     <button class="mat-del" onclick="wizRemoveMat(${idx})">🗑️</button>
-  </div>`;
+  </div>
+  ${stockWarning}`;
 }
 
 function wizUpdateMatQty(idx, val) {
@@ -2272,6 +2381,78 @@ function wizUpdateMatPrice(idx, val) {
 function wizRemoveMat(idx) {
   _wiz.materiales.splice(idx, 1);
   renderWizStep();
+}
+
+// ── ALBARANES DE COMPRA EXTERNA ──
+function renderWizAlbaranRow(alb, idx) {
+  const fotoThumb = alb.foto
+    ? `<div style="position:relative;display:inline-block">
+        <img src="${alb.foto}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--gris-200)">
+        <button onclick="wizRemoveAlbaranFoto(${idx})" style="position:absolute;top:-4px;right:-4px;background:var(--rojo);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;line-height:1">✕</button>
+      </div>`
+    : `<button onclick="wizCaptureAlbaranFoto(${idx})" style="padding:8px 12px;border:2px dashed #FDBA74;border-radius:8px;background:#fff;color:#92400E;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📷 Foto</button>`;
+
+  return `<div style="border:1px solid #FDBA74;border-radius:10px;padding:10px;margin-bottom:8px;background:#FFFBF5;display:flex;align-items:center;gap:10px">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:10px;color:#92400E;font-weight:700;margin-bottom:4px">Albarán ${idx + 1}</div>
+      <input type="text" value="${alb.numero || ''}" placeholder="N.º albarán / tienda..."
+        style="width:100%;padding:8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;font-family:var(--font)"
+        onchange="wizUpdateAlbaranNum(${idx},this.value)">
+    </div>
+    ${fotoThumb}
+    <button onclick="wizRemoveAlbaran(${idx})" style="background:none;border:none;font-size:16px;cursor:pointer;padding:4px">🗑️</button>
+  </div>`;
+}
+
+function wizAddAlbaran() {
+  if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
+  _wiz.albaranes_compra.push({ numero: '', foto: null });
+  renderWizStep();
+}
+
+function wizUpdateAlbaranNum(idx, val) {
+  if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
+    _wiz.albaranes_compra[idx].numero = val.trim();
+  }
+}
+
+function wizCaptureAlbaranFoto(idx) {
+  const old = document.getElementById('wz_alb_foto_inp');
+  if (old) old.remove();
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.id = 'wz_alb_foto_inp';
+  inp.accept = 'image/*';
+  inp.capture = 'environment';
+  inp.style.display = 'none';
+  inp.onchange = function() {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
+        _wiz.albaranes_compra[idx].foto = e.target.result;
+        renderWizStep();
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  document.body.appendChild(inp);
+  inp.click();
+}
+
+function wizRemoveAlbaranFoto(idx) {
+  if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
+    _wiz.albaranes_compra[idx].foto = null;
+    renderWizStep();
+  }
+}
+
+function wizRemoveAlbaran(idx) {
+  if (_wiz.albaranes_compra) {
+    _wiz.albaranes_compra.splice(idx, 1);
+    renderWizStep();
+  }
 }
 
 // ── MANO DE OBRA ──
@@ -2837,6 +3018,22 @@ async function wizFinish() {
       } catch(e) { console.error('Error subiendo foto:', e); }
     }
 
+    // 1b. Subir fotos de albaranes de compra
+    const albaranesCompra = _wiz.albaranes_compra || [];
+    for (const alb of albaranesCompra) {
+      if (alb.foto && alb.foto.startsWith('data:')) {
+        try {
+          const blob = await (await fetch(alb.foto)).blob();
+          const filename = `${eid}/${Date.now()}_alb_${Math.random().toString(36).substr(2,6)}.jpg`;
+          const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+          if (!error) {
+            const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+            alb.foto = data.publicUrl;
+          } else { console.warn('Upload foto albarán error:', error.message); }
+        } catch(e) { console.error('Error subiendo foto albarán:', e); }
+      }
+    }
+
     // 2. Subir firma cliente
     let firmaUrl = null;
     if (_wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
@@ -2875,9 +3072,11 @@ async function wizFinish() {
       completado_at: new Date().toISOString(),
       descripcion: _wiz.desc || null,
       trabajos_pendientes: _wiz.pendientes || null,
+      gremios_pendientes: (_wiz.gremios_pendientes && Object.keys(_wiz.gremios_pendientes).length > 0) ? _wiz.gremios_pendientes : null,
       observaciones: _wiz.observaciones || null,
       fotos: fotosUrls.length > 0 ? fotosUrls : null,
       materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
+      albaranes_compra: albaranesCompra.length > 0 ? albaranesCompra : null,
       mano_obra: (_wiz.manoObra && _wiz.manoObra.length > 0) ? _wiz.manoObra : null,
       firma_url: firmaUrl && !firmaUrl.startsWith('data:') ? firmaUrl : null,
       firma_operario_url: firmaOpUrl && !firmaOpUrl.startsWith('data:') ? firmaOpUrl : null,
@@ -3096,6 +3295,7 @@ function openAddWorkInfo(id) {
     fotos: p.fotos ? [...p.fotos] : [],
     fotosNuevas: [],
     materiales: p.materiales ? [...p.materiales] : [],
+    albaranes_compra: p.albaranes_compra ? [...p.albaranes_compra] : [],
     manoObra: p.mano_obra ? [...p.mano_obra] : [],
     firmaData: p.firma_url || null,
     firmaOperario: p.firma_operario_url || null,
@@ -3134,6 +3334,22 @@ async function wizFinishEdit() {
       } catch(e) { console.error('Error subiendo foto:', e); }
     }
 
+    // 1b. Subir fotos de albaranes de compra
+    const albaranesCompra = _wiz.albaranes_compra || [];
+    for (const alb of albaranesCompra) {
+      if (alb.foto && alb.foto.startsWith('data:')) {
+        try {
+          const blob = await (await fetch(alb.foto)).blob();
+          const filename = `${eid}/${Date.now()}_alb_${Math.random().toString(36).substr(2,6)}.jpg`;
+          const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+          if (!error) {
+            const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+            alb.foto = data.publicUrl;
+          } else { console.warn('Upload foto albarán error:', error.message); }
+        } catch(e) { console.error('Error subiendo foto albarán:', e); }
+      }
+    }
+
     // 2. Subir firma si hay nueva (data: URL → storage)
     let firmaUrl = null;
     if (_wiz.firmaData && !_wiz.firmaData.startsWith('data:')) {
@@ -3157,11 +3373,14 @@ async function wizFinishEdit() {
     const updateObj = {
       descripcion: _wiz.desc || null,
       trabajos_pendientes: _wiz.pendientes || null,
+      gremios_pendientes: (_wiz.gremios_pendientes && Object.keys(_wiz.gremios_pendientes).length > 0) ? _wiz.gremios_pendientes : null,
       observaciones: _wiz.observaciones || null,
     };
     // Solo incluir fotos/materiales/mano_obra si hay datos
     if (fotosUrls.length > 0) updateObj.fotos = fotosUrls;
     if (_wiz.materiales && _wiz.materiales.length > 0) updateObj.materiales = _wiz.materiales;
+    if (albaranesCompra.length > 0) updateObj.albaranes_compra = albaranesCompra;
+    else updateObj.albaranes_compra = null;
     if (_wiz.manoObra && _wiz.manoObra.length > 0) updateObj.mano_obra = _wiz.manoObra;
     // Solo incluir firma si es URL válida (no data:)
     if (firmaUrl && !firmaUrl.startsWith('data:')) updateObj.firma_url = firmaUrl;
@@ -3382,10 +3601,12 @@ function openInformarWizard(id) {
       desc: p.descripcion || '',
       pendientes_checked: !!p.trabajos_pendientes,
       pendientes: p.trabajos_pendientes || '',
+      gremios_pendientes: p.gremios_pendientes || {},
       observaciones: p.observaciones || '',
       fotos: p.fotos ? [...p.fotos] : [],
       fotosNuevas: [],
       materiales: p.materiales ? [...p.materiales] : [],
+      albaranes_compra: p.albaranes_compra ? [...p.albaranes_compra] : [],
       manoObra: autoManoObra,
       firmaData: null,
       firmaOperario: null,

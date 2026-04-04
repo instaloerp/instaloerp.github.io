@@ -82,6 +82,9 @@ async function loadDashboard() {
 
   // ── MIS TAREAS (todas las tareas asignadas al usuario actual) ──
   await loadDashboardTareas();
+
+  // ── PARTES AUTO-GENERADOS POR GREMIO ──
+  await loadDashboardPartesGremio();
 }
 
 async function loadDashboardTareas() {
@@ -142,4 +145,56 @@ async function loadDashboardTareas() {
       <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${t.estado==='en_progreso'?'#DBEAFE':'var(--gris-50)'};color:${t.estado==='en_progreso'?'var(--azul)':'var(--gris-500)'};font-weight:700;white-space:nowrap">${(t.estado||'pendiente').replace('_',' ')}</span>
     </div>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// PARTES AUTO-GENERADOS POR GREMIO — KPI
+// ═══════════════════════════════════════════════
+
+async function loadDashboardPartesGremio() {
+  const el = document.getElementById('d-partes-gremio');
+  const countEl = document.getElementById('d-partes-gremio-count');
+  if (!el) return; // El widget no existe en el HTML aún → skip silencioso
+
+  const { data } = await sb.from('partes_trabajo')
+    .select('id,numero,gremio,gremio_label,estado,trabajo_titulo,trabajo_id,parte_origen_num')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('auto_generado', true)
+    .in('estado', ['borrador', 'programado'])
+    .order('created_at', { ascending: false });
+
+  const partesGremio = data || [];
+  if (countEl) countEl.textContent = partesGremio.length || '0';
+
+  if (!partesGremio.length) {
+    el.innerHTML = '<div class="empty" style="padding:16px 0"><div class="ei">✅</div><p>Todos los partes de gremio gestionados</p></div>';
+    return;
+  }
+
+  // Agrupar por gremio
+  const _GREMIO_ICO = {fontaneria:'🔧',electricidad:'⚡',albanileria:'🧱',pintura:'🎨',carpinteria:'🪚',climatizacion:'❄️',calefaccion:'🔥',cerrajeria:'🔑',cristaleria:'🪟',limpieza:'🧹',otro:'📋'};
+  const grupos = {};
+  partesGremio.forEach(p => {
+    const gid = p.gremio || 'otro';
+    if (!grupos[gid]) grupos[gid] = { label: p.gremio_label || gid, ico: _GREMIO_ICO[gid] || '📋', partes: [] };
+    grupos[gid].partes.push(p);
+  });
+
+  let html = '';
+  Object.values(grupos).forEach(g => {
+    html += `<div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:16px">${g.ico}</span>
+        <span style="font-weight:700;font-size:12px">${g.label}</span>
+        <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">${g.partes.length}</span>
+      </div>
+      ${g.partes.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:4px 0 4px 24px;border-bottom:1px solid var(--gris-100);cursor:pointer;font-size:11.5px" onclick="goPage('partes');setTimeout(()=>verDetalleParte(${p.id}),400)">
+        <span style="font-family:monospace;font-weight:600;color:var(--azul)">${p.numero}</span>
+        <span style="color:var(--gris-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.trabajo_titulo || '—'}</span>
+        <span style="font-size:10px;color:var(--gris-400)">de ${p.parte_origen_num || '—'}</span>
+      </div>`).join('')}
+    </div>`;
+  });
+
+  el.innerHTML = html;
 }

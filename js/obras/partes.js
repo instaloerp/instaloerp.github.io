@@ -996,7 +996,7 @@ async function verDetalleParte(id) {
         </thead>
         <tbody>
           ${parte.materiales.map(m => `<tr style="border-bottom:1px solid var(--gris-100)">
-            <td style="padding:8px">${m.nombre || '—'}</td>
+            <td style="padding:8px">${m.nombre || '—'}${m.codigo ? ' <span style="color:var(--gris-400);font-size:11px">(' + m.codigo + ')</span>' : ''}</td>
             <td style="padding:8px;text-align:center">${(parseFloat(m.cantidad) || 0).toFixed(2)}</td>
             <td style="padding:8px;text-align:right">${fmtE(m.precio || 0)}</td>
             <td style="padding:8px;text-align:right;font-weight:700">${fmtE(m.total || 0)}</td>
@@ -1009,6 +1009,19 @@ async function verDetalleParte(id) {
           </tr>
         </tfoot>
       </table>
+    </div>`;
+  }
+
+  // Albaranes de compra
+  let albaranesHTML = '';
+  if (parte.albaranes_compra && Array.isArray(parte.albaranes_compra) && parte.albaranes_compra.length > 0) {
+    albaranesHTML = `<div style="margin:16px 0;padding:12px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:8px">
+      <h4 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#92400E">🛒 Albaranes de compra (${parte.albaranes_compra.length})</h4>
+      ${parte.albaranes_compra.map((a, i) => `<div style="display:flex;align-items:center;gap:12px;padding:6px 0;${i > 0 ? 'border-top:1px solid #FDE68A' : ''}">
+        <span style="font-size:13px;font-weight:600">${a.numero || 'Sin número'}</span>
+        ${a.foto ? `<a href="${a.foto}" target="_blank" style="color:#1D4ED8;font-size:12px;font-weight:600">📸 Ver foto</a>
+        <img src="${a.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid var(--gris-200)" onclick="window.open('${a.foto}')">` : '<span style="font-size:11px;color:#DC2626">⚠️ Sin foto</span>'}
+      </div>`).join('')}
     </div>`;
   }
 
@@ -1179,13 +1192,22 @@ async function verDetalleParte(id) {
 
     ${matHTML}
     ${moHTML}
+    ${albaranesHTML}
     ${fotosHTML}
     ${firmaHTML}
     ${gpsHTML}
 
     ${parte.trabajos_pendientes ? `<div style="margin:16px 0;padding:12px;background:#FFF8DC;border-left:3px solid var(--acento);border-radius:4px">
       <h4 style="margin:0 0 8px;font-size:13px;font-weight:700">⚠️ Trabajos pendientes</h4>
-      <p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.trabajos_pendientes}</p>
+      ${parte.gremios_pendientes ? Object.keys(parte.gremios_pendientes).map(gid => {
+        const _GREMIOS = [{id:'fontaneria',label:'Fontanería',ico:'🔧'},{id:'electricidad',label:'Electricidad',ico:'⚡'},{id:'albanileria',label:'Albañilería',ico:'🧱'},{id:'pintura',label:'Pintura',ico:'🎨'},{id:'carpinteria',label:'Carpintería',ico:'🪚'},{id:'climatizacion',label:'Climatización',ico:'❄️'},{id:'calefaccion',label:'Calefacción',ico:'🔥'},{id:'cerrajeria',label:'Cerrajería',ico:'🔑'},{id:'cristaleria',label:'Cristalería',ico:'🪟'},{id:'limpieza',label:'Limpieza',ico:'🧹'},{id:'otro',label:'Otro',ico:'📋'}];
+        const gr = _GREMIOS.find(g => g.id === gid) || {ico:'📋',label:gid};
+        const desc = parte.gremios_pendientes[gid]?.descripcion || '';
+        return `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:8px;background:#fff;border-radius:6px;border:1px solid #FDE68A">
+          <span style="font-size:16px">${gr.ico}</span>
+          <div><span style="font-weight:700;font-size:12px;color:#92400E">${gr.label}</span>${desc ? `<div style="font-size:12px;color:var(--gris-600);margin-top:2px">${desc}</div>`:''}</div>
+        </div>`;
+      }).join('') : `<p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap">${parte.trabajos_pendientes}</p>`}
     </div>` : ''}
 
     ${parte.observaciones ? `<div style="margin:16px 0;padding:12px;background:var(--gris-50);border-left:3px solid var(--gris-400);border-radius:4px">
@@ -1199,13 +1221,51 @@ async function verDetalleParte(id) {
       ${parte.revisado_por_nombre ? `<div style="font-size:10.5px;color:var(--gris-400);margin-top:6px">Revisado por ${parte.revisado_por_nombre} · ${parte.revisado_at ? new Date(parte.revisado_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>` : ''}
     </div>` : ''}
 
+    ${parte.estado === 'completado' ? `
+    <div style="margin:20px 0;padding:16px;background:#F0FDF4;border:2px solid #BBF7D0;border-radius:10px">
+      <h4 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#065F46">👁️ Checklist de revisión</h4>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" onclick="checkRevisionStatus(${parte.id})">
+          <input type="checkbox" class="rev-check" style="width:18px;height:18px" onchange="checkRevisionStatus(${parte.id})"> Descripción del trabajo correcta
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" onclick="checkRevisionStatus(${parte.id})">
+          <input type="checkbox" class="rev-check" style="width:18px;height:18px" onchange="checkRevisionStatus(${parte.id})"> Materiales y cantidades verificados
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" onclick="checkRevisionStatus(${parte.id})">
+          <input type="checkbox" class="rev-check" style="width:18px;height:18px" onchange="checkRevisionStatus(${parte.id})"> Horas trabajadas correctas
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" onclick="checkRevisionStatus(${parte.id})">
+          <input type="checkbox" class="rev-check" style="width:18px;height:18px" onchange="checkRevisionStatus(${parte.id})"> Fotos revisadas
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" onclick="checkRevisionStatus(${parte.id})">
+          <input type="checkbox" class="rev-check" style="width:18px;height:18px" onchange="checkRevisionStatus(${parte.id})"> Firma del cliente presente
+        </label>
+      </div>
+      ${parte.materiales && parte.materiales.length ? `<div style="margin-bottom:10px;padding:8px 10px;background:#DBEAFE;border-radius:8px;font-size:12px">
+        <span style="font-weight:700">🚐 Materiales furgoneta:</span> ${parte.materiales.length} artículo(s) — se generará traspaso almacén→furgoneta
+      </div>` : ''}
+      ${parte.albaranes_compra && parte.albaranes_compra.length ? `<div style="margin-bottom:10px;padding:8px 10px;background:#FEF3C7;border-radius:8px;font-size:12px">
+        <span style="font-weight:700">🛒 Compras externas:</span> ${parte.albaranes_compra.length} albarán(es)
+        ${parte.albaranes_compra.map(a => '<div style="margin-top:4px;padding-left:8px">' +
+          '<span style="font-weight:600">' + (a.numero || 'Sin número') + '</span>' +
+          (a.foto ? ' — <a href="' + a.foto + '" target="_blank" style="color:#1D4ED8">📸 Ver foto</a>' : ' — <span style="color:#DC2626">⚠️ Sin foto</span>') +
+        '</div>').join('')}
+      </div>` : ''}
+      <textarea id="rev_notas_${parte.id}" rows="2" placeholder="Notas de revisión (opcional)..." style="width:100%;padding:8px 10px;border:1px solid #BBF7D0;border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:10px"></textarea>
+      <button id="btnValidar_${parte.id}" disabled onclick="validarParteCompleto(${parte.id})"
+              class="btn" style="background:#059669;color:#fff;font-weight:700;font-size:13px;padding:10px 20px;border-radius:8px;opacity:.5;width:100%">
+        ✅ Validar y generar albarán
+      </button>
+      <div id="revStatus_${parte.id}" style="text-align:center;font-size:11px;color:var(--gris-400);margin-top:6px">Marca todos los checks para validar</div>
+    </div>` : ''}
+
     <div style="margin:20px 0;padding-top:20px;border-top:1px solid var(--gris-200);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      ${next ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
+      ${next && parte.estado !== 'completado' ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
       <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-secondary btn-sm">✏️ Editar</button>
       <button onclick="exportarPartePDF(${parte.id})" class="btn btn-ghost btn-sm">📄 PDF</button>
       <button onclick="eliminarParte(${parte.id})" class="btn btn-sm" style="background:#EF4444;color:#fff;font-weight:700">🗑️ Eliminar</button>
 
-      ${parte.estado !== 'facturado' ? `
+      ${parte.estado !== 'facturado' && parte.estado !== 'completado' ? `
         <select onchange="if(this.value)cambiarEstadoParte(${parte.id},this.value);closeModal('dtlPartes')" style="padding:6px 10px;border:1px solid var(--gris-300);border-radius:6px;font-size:12px;cursor:pointer;margin-left:auto">
           <option value="">Estado...</option>
           ${Object.keys(PT_ESTADOS).filter(e => e !== parte.estado).map(e => `<option value="${e}">${PT_ESTADOS[e].ico} ${PT_ESTADOS[e].label}</option>`).join('')}
@@ -1216,6 +1276,257 @@ async function verDetalleParte(id) {
 
   document.getElementById('dtlPartesContent').innerHTML = html;
   openModal('dtlPartes');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ELIMINAR
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// REVISIÓN Y VALIDACIÓN DE PARTES
+// ═══════════════════════════════════════════════════════════════════════
+
+function checkRevisionStatus(parteId) {
+  setTimeout(() => {
+    const checks = document.querySelectorAll('.rev-check');
+    const allChecked = Array.from(checks).every(c => c.checked);
+    const btn = document.getElementById('btnValidar_' + parteId);
+    const status = document.getElementById('revStatus_' + parteId);
+    if (btn) {
+      btn.disabled = !allChecked;
+      btn.style.opacity = allChecked ? '1' : '.5';
+    }
+    if (status) {
+      const count = Array.from(checks).filter(c => c.checked).length;
+      status.textContent = allChecked ? '✅ Listo para validar' : `${count}/${checks.length} verificados`;
+    }
+  }, 50);
+}
+
+async function validarParteCompleto(parteId) {
+  const parte = partesData.find(p => p.id === parteId);
+  if (!parte) { toast('Parte no encontrado', 'error'); return; }
+
+  const notas = document.getElementById('rev_notas_' + parteId)?.value || '';
+
+  // Materiales de furgoneta (todos los materiales ahora son de catálogo/furgoneta)
+  const matsFurgoneta = parte.materiales || [];
+  const albaranesCompra = parte.albaranes_compra || [];
+
+  let confirmMsg = '¿Validar este parte?\n\nSe generará:\n• Albarán automático\n';
+  if (parte.gremios_pendientes && Object.keys(parte.gremios_pendientes).length) confirmMsg += '• Nuevos partes para gremios pendientes\n';
+  if (matsFurgoneta.length) confirmMsg += `• Traspaso almacén → furgoneta (${matsFurgoneta.length} artículos)\n`;
+  if (albaranesCompra.length) confirmMsg += `• ${albaranesCompra.length} albarán(es) de compra externa registrado(s)\n`;
+  confirmMsg += '\n¿Continuar?';
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    // 1. Cambiar estado a revisado
+    const updateObj = {
+      estado: 'revisado',
+      revisado_por: CU?.id || null,
+      revisado_por_nombre: CP?.nombre || '',
+      revisado_at: new Date().toISOString(),
+      revision_notas: notas || null,
+    };
+    const { error } = await sb.from('partes_trabajo').update(updateObj).eq('id', parteId);
+    if (error) throw error;
+    Object.assign(parte, updateObj);
+
+    // 2. Generar albarán automático
+    await generarAlbaranDesdeParte(parte);
+
+    // 3. Generar partes de seguimiento por gremio
+    if (parte.gremios_pendientes && Object.keys(parte.gremios_pendientes).length > 0) {
+      await generarPartesGremios(parte);
+    }
+
+    // 4. Traspaso almacén → furgoneta (para reponer materiales de furgoneta usados)
+    if (matsFurgoneta.length > 0) {
+      await generarTraspasoAlmacen(parte, matsFurgoneta);
+    }
+
+    toast('✅ Parte validado — albarán y partes generados', 'success');
+    closeModal('dtlPartes');
+
+    // Refrescar datos
+    if (typeof loadPartes === 'function') await loadPartes();
+    if (typeof abrirFichaObra === 'function' && parte.trabajo_id) {
+      try { abrirFichaObra(obraActualId || parte.trabajo_id, false); } catch(e) {}
+    }
+
+  } catch(e) {
+    console.error('[Validar] Error:', e);
+    toast('Error al validar: ' + (e.message || e), 'error');
+  }
+}
+
+// ── Generar albarán desde parte validado ──
+async function generarAlbaranDesdeParte(parte) {
+  // Buscar trabajo para obtener datos del cliente
+  let trabajo = null;
+  if (parte.trabajo_id) {
+    try {
+      const { data } = await sb.from('trabajos').select('*').eq('id', parte.trabajo_id).single();
+      trabajo = data;
+    } catch(e) {}
+  }
+  let cliente = null;
+  if (trabajo?.cliente_id) {
+    try {
+      const { data } = await sb.from('clientes').select('*').eq('id', trabajo.cliente_id).single();
+      cliente = data;
+    } catch(e) {}
+  }
+
+  // Generar número de albarán
+  const year = new Date().getFullYear();
+  const { count } = await sb.from('albaranes').select('id', { count: 'exact', head: true }).eq('empresa_id', EMPRESA.id);
+  const num = `ALB-${year}-${String((count||0)+1).padStart(4,'0')}`;
+
+  // Líneas del albarán: materiales + mano de obra
+  const lineas = [];
+  if (parte.materiales && Array.isArray(parte.materiales)) {
+    parte.materiales.forEach(m => {
+      lineas.push({
+        tipo: 'material',
+        descripcion: m.nombre || 'Material',
+        cantidad: parseFloat(m.cantidad) || 1,
+        precio_unitario: parseFloat(m.precio) || 0,
+        total: parseFloat(m.total) || 0,
+      });
+    });
+  }
+  if (parte.mano_obra && Array.isArray(parte.mano_obra)) {
+    parte.mano_obra.forEach(mo => {
+      lineas.push({
+        tipo: mo.es_desplazamiento ? 'desplazamiento' : 'mano_obra',
+        descripcion: mo.descripcion || (mo.es_desplazamiento ? 'Desplazamiento' : 'Mano de obra'),
+        cantidad: mo.es_desplazamiento ? (parseFloat(mo.km) || 0) : (parseFloat(mo.minutos || mo.horas) || 0),
+        unidad: mo.es_desplazamiento ? 'km' : (mo.minutos !== undefined ? 'min' : 'h'),
+        precio_unitario: parseFloat(mo.precio_hora) || 0,
+        total: parseFloat(mo.total) || 0,
+      });
+    });
+  }
+
+  const totalAlbaran = lineas.reduce((s, l) => s + (l.total || 0), 0);
+
+  const albaran = {
+    empresa_id: EMPRESA.id,
+    numero: num,
+    fecha: new Date().toISOString().split('T')[0],
+    trabajo_id: parte.trabajo_id || null,
+    parte_id: parte.id,
+    cliente_id: trabajo?.cliente_id || null,
+    cliente_nombre: cliente?.nombre || parte.cliente_nombre_firma || '',
+    direccion: parte.direccion || trabajo?.direccion || '',
+    descripcion: parte.descripcion || '',
+    lineas: lineas,
+    total: totalAlbaran,
+    estado: 'pendiente',
+    operario_nombre: parte.usuario_nombre || '',
+    firma_url: parte.firma_url || null,
+  };
+
+  const { error } = await sb.from('albaranes').insert(albaran);
+  if (error) {
+    console.error('[Albarán] Error:', error);
+    toast('⚠️ Error generando albarán: ' + error.message, 'error');
+  } else {
+    console.log('[Albarán] Generado:', num);
+  }
+}
+
+// ── Generar partes de trabajo por gremio pendiente ──
+async function generarPartesGremios(parteOrigen) {
+  const _GREMIOS = [
+    {id:'fontaneria',label:'Fontanería',ico:'🔧'},{id:'electricidad',label:'Electricidad',ico:'⚡'},
+    {id:'albanileria',label:'Albañilería',ico:'🧱'},{id:'pintura',label:'Pintura',ico:'🎨'},
+    {id:'carpinteria',label:'Carpintería',ico:'🪚'},{id:'climatizacion',label:'Climatización',ico:'❄️'},
+    {id:'calefaccion',label:'Calefacción',ico:'🔥'},{id:'cerrajeria',label:'Cerrajería',ico:'🔑'},
+    {id:'cristaleria',label:'Cristalería',ico:'🪟'},{id:'limpieza',label:'Limpieza',ico:'🧹'},
+    {id:'otro',label:'Otro',ico:'📋'},
+  ];
+
+  const gremios = parteOrigen.gremios_pendientes;
+  if (!gremios) return;
+
+  const year = new Date().getFullYear();
+  // Obtener el último número de parte
+  const { data: lastParte } = await sb.from('partes_trabajo')
+    .select('numero')
+    .eq('empresa_id', EMPRESA.id)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  let nextNum = 1;
+  if (lastParte && lastParte.length > 0) {
+    const match = lastParte[0].numero?.match(/(\d+)$/);
+    if (match) nextNum = parseInt(match[1]) + 1;
+  }
+
+  for (const gremioId of Object.keys(gremios)) {
+    const gr = _GREMIOS.find(g => g.id === gremioId) || {label: gremioId, ico: '📋'};
+    const desc = gremios[gremioId]?.descripcion || '';
+    const numero = `PRT-${year}-${String(nextNum).padStart(4, '0')}`;
+
+    const nuevoParte = {
+      empresa_id: EMPRESA.id,
+      numero: numero,
+      trabajo_id: parteOrigen.trabajo_id || null,
+      trabajo_titulo: parteOrigen.trabajo_titulo || null,
+      fecha: null, // Sin programar aún
+      hora_inicio: null,
+      hora_fin: null,
+      estado: 'borrador',
+      descripcion: null,
+      instrucciones: `${gr.ico} ${gr.label}: ${desc}`,
+      direccion: parteOrigen.direccion || null,
+      gremio: gremioId,
+      gremio_label: gr.label,
+      parte_origen_id: parteOrigen.id,
+      parte_origen_num: parteOrigen.numero,
+      auto_generado: true,
+    };
+
+    const { error } = await sb.from('partes_trabajo').insert(nuevoParte);
+    if (error) {
+      console.error(`[Gremio] Error creando parte ${gr.label}:`, error);
+    } else {
+      console.log(`[Gremio] Parte ${numero} creado para ${gr.label}`);
+    }
+    nextNum++;
+  }
+}
+
+// ── Generar pedido al almacén ──
+// ── Traspaso almacén → furgoneta (reponer material gastado de furgoneta) ──
+async function generarTraspasoAlmacen(parte, materialesFurgoneta) {
+  const traspaso = {
+    empresa_id: EMPRESA.id,
+    tipo: 'traspaso_almacen_furgoneta',
+    estado: 'pendiente',
+    parte_id: parte.id,
+    parte_numero: parte.numero,
+    trabajo_id: parte.trabajo_id || null,
+    fecha: new Date().toISOString().split('T')[0],
+    lineas: materialesFurgoneta.map(m => ({
+      articulo_nombre: m.nombre,
+      articulo_id: m.articulo_id || null,
+      cantidad: parseFloat(m.cantidad) || 0,
+      notas: 'Reponer furgoneta — usado en parte ' + (parte.numero || ''),
+    })),
+    notas: `Reponer furgoneta: materiales usados en parte ${parte.numero} por ${parte.usuario_nombre || 'operario'}`,
+    solicitado_por: CP?.nombre || '',
+  };
+
+  const { error } = await sb.from('pedidos_almacen').insert(traspaso);
+  if (error) {
+    console.warn('[Almacén] Tabla pedidos_almacen no disponible:', error.message);
+    toast('ℹ️ Traspaso almacén registrado como nota', 'info');
+  } else {
+    console.log('[Almacén] Traspaso almacén→furgoneta generado');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
