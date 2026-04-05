@@ -3987,10 +3987,10 @@
            ondrop="event.preventDefault();this.style.borderColor='var(--gris-300)';this.style.background='var(--gris-50)';iaHandleFile(event.dataTransfer.files[0])">
         <div style="font-size:48px;margin-bottom:12px">📄</div>
         <div style="font-weight:600;font-size:15px;margin-bottom:6px">Arrastra aqui tu documento</div>
-        <div style="color:var(--gris-400);font-size:12px">o haz clic para seleccionar — JPG, PNG o PDF</div>
+        <div style="color:var(--gris-400);font-size:12px">o haz clic para seleccionar — JPG, PNG, HEIC o PDF</div>
         <div id="iaFileName" style="margin-top:12px;font-weight:700;color:var(--azul);display:none"></div>
       </div>
-      <input type="file" id="iaFileInput" accept="image/*,.pdf" style="display:none" onchange="iaHandleFile(this.files[0])">
+      <input type="file" id="iaFileInput" accept="image/*,.pdf,.heic,.heif" style="display:none" onchange="iaHandleFile(this.files[0])">
       <div id="iaProgress" style="display:none;margin-top:20px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div class="spinner" style="width:20px;height:20px;border-width:2px"></div>

@@ -515,29 +515,80 @@ function importarConIA(tipo) {
 
 function iaHandleFile(file) {
   if (!file) return;
-  const valid = ['image/jpeg','image/png','image/jpg','image/webp','application/pdf'];
-  if (!valid.includes(file.type)) {
-    toast('Formato no soportado. Usa JPG, PNG o PDF.', 'error');
+  const valid = ['image/jpeg','image/png','image/jpg','image/webp','application/pdf','image/heic','image/heif',''];
+  const ext = (file.name || '').split('.').pop().toLowerCase();
+  const esHeic = ext === 'heic' || ext === 'heif' || file.type === 'image/heic' || file.type === 'image/heif';
+
+  // HEIC: algunos navegadores no ponen mime type, detectamos por extensión
+  if (!esHeic && !valid.includes(file.type)) {
+    toast('Formato no soportado. Usa JPG, PNG, PDF o HEIC.', 'error');
     return;
   }
   if (file.size > 20 * 1024 * 1024) {
     toast('Archivo demasiado grande (max 20MB)', 'error');
     return;
   }
+
   _iaFileName = file.name;
-  _iaFileMime = file.type || 'application/octet-stream';
   const fn = document.getElementById('iaFileName');
-  fn.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
   fn.style.display = 'block';
   document.getElementById('iaDropZone').style.borderColor = 'var(--azul)';
 
+  // Si es HEIC/HEIF → convertir a JPEG usando Canvas
+  if (esHeic) {
+    fn.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB) — convirtiendo HEIC...';
+    _iaConvertirHeicAJpeg(file).then(({ base64, blob }) => {
+      _iaFileBase64 = base64;
+      _iaFileMime = 'image/jpeg';
+      fn.textContent = file.name + ' (' + (blob.size / 1024).toFixed(0) + ' KB) ✓ convertido a JPEG';
+      document.getElementById('iaBtnProcesar').disabled = false;
+    }).catch(err => {
+      toast('No se pudo convertir HEIC: ' + err.message + '. Prueba a convertirlo a JPG antes.', 'error');
+      fn.textContent = '';
+      fn.style.display = 'none';
+    });
+    return;
+  }
+
+  // Resto de formatos: lectura directa
+  _iaFileMime = file.type || 'application/octet-stream';
+  fn.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+
   const reader = new FileReader();
   reader.onload = function(e) {
-    // Remove data:xxx;base64, prefix
     _iaFileBase64 = e.target.result.split(',')[1];
     document.getElementById('iaBtnProcesar').disabled = false;
   };
   reader.readAsDataURL(file);
+}
+
+// Convertir HEIC a JPEG usando createImageBitmap + Canvas
+async function _iaConvertirHeicAJpeg(file) {
+  // Intentar con createImageBitmap (funciona en Safari 17+ y Chrome)
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error('Canvas toBlob falló'));
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          base64: reader.result.split(',')[1],
+          blob
+        });
+        reader.onerror = () => reject(new Error('Error leyendo blob'));
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.92);
+    });
+  } catch(e) {
+    throw new Error('Tu navegador no soporta HEIC directamente. ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1142,10 +1193,22 @@ async function iaRellenarAlbaran(data, provId) {
   rcLineas = [];
   rcEditId = null;
   rcProveedorActual = provId;
+  // Almacén por defecto: el principal (primero de la lista)
+  rcAlmacenDestino = (typeof almacenes !== 'undefined' && almacenes.length) ? almacenes[0].id : null;
 
+  // Poblar proveedor
   const sel = document.getElementById('rc_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+
+  // Poblar selector de almacén
+  const almSel = document.getElementById('rc_almacen');
+  if (almSel) {
+    const alms = typeof almacenes !== 'undefined' ? almacenes : [];
+    almSel.innerHTML = alms.length
+      ? alms.map(a => `<option value="${a.id}" ${a.id === rcAlmacenDestino ? 'selected' : ''}>${a.nombre}</option>`).join('')
+      : '<option value="">— Sin almacenes —</option>';
+  }
 
   document.getElementById('rc_numero').value = data.numero_documento || '';
   document.getElementById('rc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
