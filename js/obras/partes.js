@@ -1750,7 +1750,7 @@ async function exportarPartePDF(id) {
       const entidadId = parte.trabajo_id || parte.cliente_id || '';
       const entidadNombre = parte.trabajo_titulo || '';
       const pdfData=doc.output('arraybuffer');
-      firmarYGuardarPDF(pdfData,{tipo_documento:'parte_trabajo',documento_id:parte.id,numero:parte.numero,entidad_tipo:entidadTipo,entidad_id:entidadId,entidad_nombre:entidadNombre}).catch(e=>console.error('Error firmando parte:',e));
+      firmarYGuardarPDF(pdfData,{tipo_documento:'parte_trabajo',documento_id:parte.id,numero:parte.numero,entidad_tipo:entidadTipo,entidad_id:entidadId,entidad_nombre:entidadNombre}).then(r=>{if(r&&r.success&&r.firma_info)toast('🔏 Parte firmado digitalmente ✓','success');else if(r&&!r.firmado)toast('📄 Parte guardado (sin firma digital)','info');}).catch(e=>{console.error('Error firmando parte:',e);toast('⚠️ Error al firmar parte','error');});
     }
   } catch (e) {
     toast('Error al exportar', 'error');

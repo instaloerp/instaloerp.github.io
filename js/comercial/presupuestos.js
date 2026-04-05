@@ -1263,7 +1263,8 @@ async function generarPdfPresupuesto(p) {
   }
 
   // ─── PIE DE PÁGINA ───
-  const footY = H-12;
+  const footYCalc = Math.max(y + 15, H - 12);
+  const footY = footYCalc > H - 8 ? H - 12 : footYCalc;
   doc.setFontSize(7.5);
   doc.setTextColor(...gris);
   doc.setDrawColor(226,232,240);
@@ -1289,6 +1290,9 @@ async function generarPdfPresupuesto(p) {
       entidad_tipo: 'cliente',
       entidad_id: p.cliente_id,
       entidad_nombre: p.cliente_nombre || cli?.nombre || ''
-    }).catch(e => console.error('Error firmando presupuesto:', e));
+    }).then(r => {
+      if (r && r.success && r.firma_info) toast('🔏 Presupuesto firmado digitalmente ✓', 'success');
+      else if (r && !r.firmado) toast('📄 Presupuesto guardado (sin firma digital)', 'info');
+    }).catch(e => { console.error('Error firmando presupuesto:', e); toast('⚠️ Error al firmar presupuesto', 'error'); });
   }
 }

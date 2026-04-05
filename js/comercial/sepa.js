@@ -272,7 +272,7 @@ table.datos td{padding:8px 12px;border:1px solid #e2e8f0;font-size:12px}
         entidad_tipo:tipo,
         entidad_id:entityId,
         entidad_nombre:entity.nombre||''
-      }).catch(e=>console.error('Error firmando mandato SEPA:',e));
+      }).then(r=>{if(r&&r.success&&r.firma_info)toast('🔏 Mandato SEPA firmado digitalmente ✓','success');else if(r&&!r.firmado)toast('📄 Mandato SEPA guardado (sin firma digital)','info');}).catch(e=>{console.error('Error firmando mandato SEPA:',e);toast('⚠️ Error al firmar mandato SEPA','error');});
     } catch(e) { console.error('Error generando PDF mandato SEPA:',e); }
   }
 }

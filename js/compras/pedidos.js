@@ -433,7 +433,7 @@ async function imprimirPedidoCompra(id) {
       doc.text('TOTAL: '+(p.total||0).toFixed(2)+' €',W-MR,y,{align:'right'});
       if(p.observaciones){y+=8;doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);doc.text('Observaciones:',ML,y);y+=4;doc.setTextColor(0,0,0);const ol=doc.splitTextToSize(p.observaciones,W-ML-MR);doc.text(ol,ML,y);}
       const pdfData=doc.output('arraybuffer');
-      firmarYGuardarPDF(pdfData,{tipo_documento:'pedido_compra',documento_id:p.id,numero:p.numero,entidad_tipo:'proveedor',entidad_id:p.proveedor_id,entidad_nombre:p.proveedor_nombre||prov?.nombre||''}).catch(e=>console.error('Error firmando pedido compra:',e));
+      firmarYGuardarPDF(pdfData,{tipo_documento:'pedido_compra',documento_id:p.id,numero:p.numero,entidad_tipo:'proveedor',entidad_id:p.proveedor_id,entidad_nombre:p.proveedor_nombre||prov?.nombre||''}).then(r=>{if(r&&r.success&&r.firma_info)toast('🔏 Pedido firmado digitalmente ✓','success');else if(r&&!r.firmado)toast('📄 Pedido guardado (sin firma digital)','info');}).catch(e=>{console.error('Error firmando pedido:',e);toast('⚠️ Error al firmar pedido','error');});
     } catch(e) { console.error('Error generando PDF pedido:', e); }
   }
 }

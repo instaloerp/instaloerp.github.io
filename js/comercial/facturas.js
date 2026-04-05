@@ -732,10 +732,16 @@ async function _generarPdfFactura(f) {
   doc.setFontSize(13);doc.setTextColor(...azul);doc.setFont(undefined,'bold');
   doc.text('TOTAL',totX,y);doc.text(fmtE(f.total||0),W-MR,y,{align:'right'});
   doc.setFont(undefined,'normal');y+=10;
-  if(f.observaciones){doc.setFontSize(8);doc.setTextColor(...gris);doc.text('OBSERVACIONES',ML,y);y+=4;doc.setFontSize(8.5);doc.setTextColor(...negro);const ol=doc.splitTextToSize(f.observaciones,W-ML-MR);doc.text(ol,ML,y);}
-  // Pie
-  const footY=H-12;doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);doc.line(ML,footY-4,W-MR,footY-4);
-  doc.text(EMPRESA?.nombre||'',ML,footY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,footY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,footY);
+  if(f.observaciones){doc.setFontSize(8);doc.setTextColor(...gris);doc.text('OBSERVACIONES',ML,y);y+=4;doc.setFontSize(8.5);doc.setTextColor(...negro);const ol=doc.splitTextToSize(f.observaciones,W-ML-MR);doc.text(ol,ML,y);y+=ol.length*4+4;}
+  // Pie — siempre al final de la página, asegurando que no se superpone con el contenido
+  const footY = Math.max(y + 15, H - 12);
+  // Si el contenido empuja el pie fuera de la página, usamos H-12
+  const finalFootY = footY > H - 8 ? H - 12 : footY;
+  doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);
+  doc.line(ML, finalFootY - 4, W - MR, finalFootY - 4);
+  doc.text(EMPRESA?.nombre||'',ML,finalFootY);
+  if(EMPRESA?.telefono) doc.text('Tel: '+EMPRESA.telefono, ML+50, finalFootY);
+  if(EMPRESA?.email) doc.text(EMPRESA.email, ML+100, finalFootY);
   doc.save('Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF factura descargado ✓','success');
 
@@ -750,6 +756,12 @@ async function _generarPdfFactura(f) {
       entidad_tipo: 'cliente',
       entidad_id: f.cliente_id,
       entidad_nombre: f.cliente_nombre || cli?.nombre || ''
-    }).catch(e => console.error('Error firmando factura:', e));
+    }).then(r => {
+      if (r && r.success && r.firma_info) {
+        toast('🔏 Factura firmada digitalmente ✓', 'success');
+      } else if (r && !r.firmado) {
+        toast('📄 Factura guardada (sin firma digital)', 'info');
+      }
+    }).catch(e => { console.error('Error firmando factura:', e); toast('⚠️ Error al firmar factura: ' + e.message, 'error'); });
   }
 }

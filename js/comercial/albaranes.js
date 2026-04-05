@@ -598,8 +598,9 @@ function generarPdfAlbaran(idOrObj) {
   doc.setFontSize(8);doc.setTextColor(...gris);
   doc.text('Recibí conforme: ____________________________     Fecha: ___/___/___',ML,y+10);
   // Pie
-  const footY=H-12;doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);doc.line(ML,footY-4,W-MR,footY-4);
-  doc.text(EMPRESA?.nombre||'',ML,footY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,footY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,footY);
+  const footYCalc=Math.max(y+20, H-12);const finalFootY=footYCalc>H-8?H-12:footYCalc;
+  doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);doc.line(ML,finalFootY-4,W-MR,finalFootY-4);
+  doc.text(EMPRESA?.nombre||'',ML,finalFootY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,finalFootY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,finalFootY);
   doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF albarán descargado ✓','success');
 
@@ -614,6 +615,9 @@ function generarPdfAlbaran(idOrObj) {
       entidad_tipo: 'cliente',
       entidad_id: a.cliente_id,
       entidad_nombre: a.cliente_nombre || cli?.nombre || ''
-    }).catch(e => console.error('Error firmando albarán:', e));
+    }).then(r => {
+      if (r && r.success && r.firma_info) toast('🔏 Albarán firmado digitalmente ✓', 'success');
+      else if (r && !r.firmado) toast('📄 Albarán guardado (sin firma digital)', 'info');
+    }).catch(e => { console.error('Error firmando albarán:', e); toast('⚠️ Error al firmar albarán', 'error'); });
   }
 }
