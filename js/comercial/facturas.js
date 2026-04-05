@@ -1,14 +1,307 @@
 /**
- * MÓDULO FACTURA RÁPIDA
- * Gestión rápida de facturas con líneas editables en tiempo real
- * Interfaz simplificada para emisión rápida de facturas
+ * MÓDULO FACTURAS
+ * Gestión completa de facturas: listado, filtrado, estados, detalle,
+ * creación rápida, impresión, PDF, email y exportación Excel
  */
 
 // ═══════════════════════════════════════════════
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════
+let facLocalData = [];
+let facFiltrados = [];
 let frLineas = [];
 let frClienteActual = null;
+
+// ═══════════════════════════════════════════════
+//  CARGA Y RENDERIZADO
+// ═══════════════════════════════════════════════
+async function loadFacturas() {
+  const { data } = await sb.from('facturas')
+    .select('*').eq('empresa_id', EMPRESA.id)
+    .neq('estado', 'eliminado')
+    .order('created_at', { ascending: false });
+  facLocalData = data || [];
+  window.facturasData = facLocalData;
+  // Filtro por defecto: año en curso
+  const y = new Date().getFullYear();
+  const dEl = document.getElementById('fDesde');
+  const hEl = document.getElementById('fHasta');
+  if (dEl && !dEl.value) dEl.value = y + '-01-01';
+  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  facFiltrados = [...facLocalData];
+  filtrarFacturas();
+}
+
+function renderFacturas(list) {
+  const ESTADOS = {
+    borrador:  { label:'Borrador',  ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
+    pendiente: { label:'Pendiente', ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
+    pagada:    { label:'Pagada',    ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+    vencida:   { label:'Vencida',   ico:'⚠️', color:'var(--rojo)',       bg:'var(--rojo-light)' },
+    anulada:   { label:'Anulada',   ico:'🚫', color:'var(--gris-400)',   bg:'var(--gris-100)' },
+  };
+
+  // Auto-vencer facturas pendientes cuya fecha_vencimiento ha pasado
+  const hoy = new Date().toISOString().split('T')[0];
+  facLocalData.forEach(f => {
+    if (f.estado === 'pendiente' && f.fecha_vencimiento && f.fecha_vencimiento < hoy) {
+      f.estado = 'vencida';
+      sb.from('facturas').update({ estado: 'vencida' }).eq('id', f.id)
+        .then(r => { if (r.error) console.error('Error auto-vencer', f.numero, r.error.message); });
+    }
+  });
+
+  // KPIs — siempre sobre el total (facLocalData), no sobre filtrados
+  const kTotal   = document.getElementById('fk-total');
+  const kPend    = document.getElementById('fk-pendientes');
+  const kVenc    = document.getElementById('fk-vencidas');
+  const kPag     = document.getElementById('fk-pagadas');
+  const kImpPend = document.getElementById('fk-imp-pend');
+  const kImpCobr = document.getElementById('fk-imp-cobr');
+  const noAnuladas = facLocalData.filter(f => f.estado !== 'anulada');
+  const pends = facLocalData.filter(f => f.estado === 'pendiente');
+  const vencidas = facLocalData.filter(f => f.estado === 'vencida');
+  const pagadas = facLocalData.filter(f => f.estado === 'pagada');
+  if (kTotal)   kTotal.textContent   = noAnuladas.length;
+  if (kPend)    kPend.textContent    = pends.length;
+  if (kVenc)    kVenc.textContent    = vencidas.length;
+  if (kPag)     kPag.textContent     = pagadas.length;
+  if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas).reduce((s, f) => s + (f.total || 0), 0));
+  if (kImpCobr) kImpCobr.textContent = fmtE(pagadas.reduce((s, f) => s + (f.total || 0), 0));
+
+  const tbody = document.getElementById('fTable');
+  if (!tbody) return;
+
+  tbody.innerHTML = list.length ? list.map(f => {
+    const est = ESTADOS[f.estado] || { label: f.estado || '—', ico:'❔', color:'var(--gris-400)', bg:'var(--gris-100)' };
+    return `<tr style="cursor:pointer" onclick="verDetalleFactura(${f.id})">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (f.numero || '—')}</td>
+      <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
+      <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
+      <td style="font-size:12px">${f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
+      <td style="text-align:right;font-size:12.5px">${fmtE(f.base_imponible || 0)}</td>
+      <td style="text-align:right;font-size:12.5px">${fmtE(f.total_iva || 0)}</td>
+      <td style="text-align:right;font-weight:700">${fmtE(f.total || 0)}</td>
+      <td onclick="event.stopPropagation()">
+        <span onclick="cambiarEstadoFacMenu(event,${f.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
+          <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
+          <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
+          <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
+          ${f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarPagada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Marcar como pagada">💰 Cobrada</button>` : ''}
+          ${(()=>{
+            const _tP = !!f.presupuesto_id;
+            const _tA = !!f.albaran_id;
+            const _tO = !!f.trabajo_id;
+            const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
+            let refs = '';
+            if (_tP) refs += '<a onclick="event.stopPropagation();verDetallePresupuesto('+f.presupuesto_id+')" style="'+_bOK+'" title="Ver presupuesto origen">📋</a> ';
+            if (_tA) refs += '<a onclick="event.stopPropagation();verDetalleAlbaran('+f.albaran_id+')" style="'+_bOK+'" title="Ver albarán origen">📄</a> ';
+            if (_tO) refs += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+f.trabajo_id+')" style="'+_bOK+'" title="Ver obra">🏗️</a> ';
+            return refs;
+          })()}
+        </div>
+      </td>
+    </tr>`;
+  }).join('') :
+  '<tr><td colspan="9"><div class="empty"><div class="ei">🧾</div><h3>Sin facturas</h3><p>Crea la primera con el botón "+ Nueva factura"</p></div></td></tr>';
+}
+
+// ═══════════════════════════════════════════════
+//  FILTRADO Y BÚSQUEDA
+// ═══════════════════════════════════════════════
+function filtrarFacturas() {
+  const q   = (document.getElementById('fSearch')?.value || '').toLowerCase();
+  const est = document.getElementById('fEstado')?.value || '';
+  const des = document.getElementById('fDesde')?.value || '';
+  const has = document.getElementById('fHasta')?.value || '';
+  facFiltrados = facLocalData.filter(f =>
+    (!q   || (f.numero || '').toLowerCase().includes(q) || (f.cliente_nombre || '').toLowerCase().includes(q)) &&
+    (!est || f.estado === est) &&
+    (!des || (f.fecha && f.fecha >= des)) &&
+    (!has || (f.fecha && f.fecha <= has))
+  );
+  const _numSort = (n) => { const m = (n || '').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
+  facFiltrados.sort((a, b) => _numSort(b.numero) - _numSort(a.numero));
+  renderFacturas(facFiltrados);
+}
+
+// ═══════════════════════════════════════════════
+//  GESTIÓN DE ESTADOS
+// ═══════════════════════════════════════════════
+async function cambiarEstadoFac(id, estado) {
+  const { error } = await sb.from('facturas').update({ estado }).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  const f = facLocalData.find(x => x.id === id);
+  if (f) f.estado = estado;
+  window.facturasData = facLocalData;
+  toast('Estado actualizado ✓', 'success');
+  filtrarFacturas();
+  loadDashboard();
+}
+
+function cambiarEstadoFacMenu(event, id) {
+  event.stopPropagation();
+  document.querySelectorAll('.est-menu-popup').forEach(m => m.remove());
+  const ESTADOS = [
+    { key: 'borrador',  ico: '✏️', label: 'Borrador' },
+    { key: 'pendiente', ico: '⏳', label: 'Pendiente' },
+    { key: 'pagada',    ico: '✅', label: 'Pagada' },
+    { key: 'vencida',   ico: '⚠️', label: 'Vencida' },
+    { key: 'anulada',   ico: '🚫', label: 'Anulada' },
+  ];
+  const menu = document.createElement('div');
+  menu.className = 'est-menu-popup';
+  menu.style.cssText = 'position:absolute;z-index:9999;background:#fff;border:1.5px solid var(--gris-200);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:4px;min-width:160px';
+  const rect = event.target.getBoundingClientRect();
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = (rect.left + window.scrollX) + 'px';
+  menu.innerHTML = ESTADOS.map(e =>
+    `<div onclick="cambiarEstadoFac(${id},'${e.key}');this.parentElement.remove()" style="padding:7px 12px;cursor:pointer;font-size:13px;border-radius:7px;display:flex;align-items:center;gap:6px;font-weight:600" onmouseenter="this.style.background='var(--gris-50)'" onmouseleave="this.style.background='transparent'">${e.ico} ${e.label}</div>`
+  ).join('');
+  document.body.appendChild(menu);
+  const _close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', _close); } };
+  setTimeout(() => document.addEventListener('click', _close), 10);
+}
+
+async function marcarPagada(id) {
+  if (!confirm('¿Marcar esta factura como cobrada/pagada?')) return;
+  await cambiarEstadoFac(id, 'pagada');
+}
+
+// ═══════════════════════════════════════════════
+//  VER DETALLE FACTURA
+// ═══════════════════════════════════════════════
+function verDetalleFactura(id) {
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('facDetId').value = id;
+  document.getElementById('facDetNro').textContent = f.numero || '—';
+  document.getElementById('facDetCli').textContent = f.cliente_nombre || '—';
+  document.getElementById('facDetFecha').textContent = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
+  document.getElementById('facDetVence').textContent = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
+
+  const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', pagada: 'Pagada', vencida: 'Vencida', anulada: 'Anulada' };
+  const COLORES = { pendiente: 'var(--amarillo)', pagada: 'var(--verde)', vencida: 'var(--rojo)', anulada: 'var(--gris-400)' };
+  document.getElementById('facDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[f.estado] || 'var(--gris-400)'}">${ESTADOS[f.estado] || f.estado || '—'}</span>`;
+
+  // Forma de pago
+  const fpEl = document.getElementById('facDetFpago');
+  if (fpEl) {
+    const fp = (typeof formasPago !== 'undefined' ? formasPago : []).find(x => x.id === f.forma_pago_id);
+    fpEl.textContent = fp ? fp.nombre : '—';
+  }
+
+  // Líneas
+  const lineas = f.lineas || [];
+  let base = 0, ivaTotal = 0;
+  document.getElementById('facDetLineas').innerHTML = lineas.map(l => {
+    if (l._separator) {
+      return `<tr><td colspan="6" style="padding:6px 10px;background:var(--gris-50);font-weight:700;font-size:11px;color:var(--gris-500);border-bottom:1px solid var(--gris-100)">${l.desc || ''}</td></tr>`;
+    }
+    const dto = l.dto || 0;
+    const sub = (l.cant || 0) * (l.precio || 0) * (1 - dto / 100);
+    const iv = sub * ((l.iva || 0) / 100);
+    base += sub;
+    ivaTotal += iv;
+    return `<tr style="border-top:1px solid var(--gris-100)">
+      <td style="padding:8px 10px;font-size:13px">${l.desc || '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.cant || 0}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${fmtE(l.precio || 0)}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${dto ? dto + '%' : '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.iva != null ? l.iva + '%' : '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(sub + iv)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('facDetBase').textContent = fmtE(f.base_imponible || base);
+  document.getElementById('facDetIva').textContent = fmtE(f.total_iva || ivaTotal);
+  document.getElementById('facDetTotal').textContent = fmtE(f.total || 0);
+
+  // Observaciones
+  const obsWrap = document.getElementById('facDetObsWrap');
+  const obsDiv = document.getElementById('facDetObs');
+  if (f.observaciones) {
+    obsWrap.style.display = 'block';
+    obsDiv.textContent = f.observaciones;
+  } else {
+    obsWrap.style.display = 'none';
+  }
+
+  // Referencias cruzadas
+  const refsEl = document.getElementById('facDetRefs');
+  let refsHtml = '';
+  const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:3px';
+  if (f.presupuesto_id) {
+    const pres = (typeof presupuestos !== 'undefined' ? presupuestos : []).find(p => p.id === f.presupuesto_id);
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetallePresupuesto(${f.presupuesto_id})" style="${_bOK}">📋 Presupuesto ${pres ? pres.numero : ''}</a> `;
+  }
+  if (f.albaran_id) {
+    const alb = (typeof albaranesData !== 'undefined' ? albaranesData : []).find(a => a.id === f.albaran_id);
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetalleAlbaran(${f.albaran_id})" style="${_bOK}">📄 Albarán ${alb ? alb.numero : ''}</a> `;
+  }
+  if (f.trabajo_id) {
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');goPage('trabajos');abrirFichaObra(${f.trabajo_id})" style="${_bOK}">🏗️ Obra</a> `;
+  }
+  if (refsHtml) {
+    refsEl.style.display = 'flex';
+    refsEl.innerHTML = '<span style="font-size:11px;color:var(--gris-400);margin-right:6px">Origen:</span>' + refsHtml;
+  } else {
+    refsEl.style.display = 'none';
+  }
+
+  // Footer buttons — hide cobrar if already paid/anulada
+  const footerBtns = document.getElementById('facDetFooterBtns');
+  if (footerBtns) {
+    if (f.estado === 'pagada' || f.estado === 'anulada') {
+      footerBtns.innerHTML = '';
+    } else {
+      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="marcarPagada(${f.id});closeModal('mFacturaDetalle')">💰 Marcar como cobrada</button>`;
+    }
+  }
+
+  openModal('mFacturaDetalle', true);
+}
+
+// ═══════════════════════════════════════════════
+//  ELIMINAR FACTURA
+// ═══════════════════════════════════════════════
+async function delFactura(id) {
+  if (!confirm('¿Eliminar esta factura?')) return;
+  await sb.from('facturas').delete().eq('id', id);
+  facLocalData = facLocalData.filter(x => x.id !== id);
+  facFiltrados = facFiltrados.filter(x => x.id !== id);
+  window.facturasData = facLocalData;
+  filtrarFacturas();
+  toast('Eliminada', 'info');
+  loadDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR A EXCEL
+// ═══════════════════════════════════════════════
+function exportarFacturas() {
+  if (!window.XLSX) { toast('Cargando librería Excel...', 'info'); return; }
+  const lista = facFiltrados.length ? facFiltrados : facLocalData;
+  if (!confirm('¿Exportar ' + lista.length + ' facturas a Excel?')) return;
+  const wb = XLSX.utils.book_new();
+  const data = [
+    ['Número', 'Cliente', 'Fecha', 'Vencimiento', 'Base imponible', 'IVA', 'Total', 'Estado'],
+    ...lista.map(f => [
+      f.numero || '', f.cliente_nombre || '',
+      f.fecha || '', f.fecha_vencimiento || '',
+      f.base_imponible || 0, f.total_iva || 0, f.total || 0,
+      f.estado || ''
+    ])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+  XLSX.writeFile(wb, 'facturas_' + new Date().toISOString().split('T')[0] + '.xlsx');
+  toast('Exportado ✓', 'success');
+}
 
 // ═══════════════════════════════════════════════
 //  INICIALIZACIÓN Y APERTURA
@@ -212,6 +505,8 @@ async function guardarFacturaRapida(estado) {
     closeModal('mFacturaRapida');
     toast(estado === 'pendiente' ? '🧾 Factura emitida ✓' : '💾 Borrador guardado ✓', 'success');
 
+    // Refrescar listado de facturas
+    await loadFacturas();
     if (cliActualId) await abrirFicha(cliActualId);
     await loadPresupuestos();
     loadDashboard();

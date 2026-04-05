@@ -754,7 +754,56 @@
           </div>
         </div>
       </div>
-      <div class="page" id="page-facturas"><div class="empty" style="margin-top:40px"><div class="ei">🧾</div><h3>Facturas</h3><p>Módulo en construcción</p></div></div>
+      <div class="page" id="page-facturas">
+        <!-- Filtros y búsqueda -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="fSearch" placeholder="🔍 Buscar por número, cliente..." oninput="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+            <select id="fEstado" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Todos los estados</option>
+              <option value="borrador">Borrador</option>
+              <option value="pendiente" selected>Pendiente</option>
+              <option value="pagada">Pagada</option>
+              <option value="vencida">Vencida</option>
+              <option value="anulada">Anulada</option>
+            </select>
+            <input type="date" id="fDesde" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <input type="date" id="fHasta" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <button class="btn btn-ghost btn-sm" onclick="exportarFacturas()">📤 Exportar</button>
+            <button class="btn btn-primary btn-sm" onclick="nuevaFacturaRapida()">+ Nueva factura</button>
+          </div>
+        </div>
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--gris-500);--bg:var(--gris-100)"><div class="si">🧾</div><div class="sv" id="fk-total">—</div><div class="sl">Total</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">⏳</div><div class="sv" id="fk-pendientes">—</div><div class="sl">Pendientes</div></div>
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="fk-vencidas">—</div><div class="sl">Vencidas</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv" id="fk-pagadas">—</div><div class="sl">Pagadas</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="fk-imp-pend">—</div><div class="sl">Importe pendiente</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💰</div><div class="sv" id="fk-imp-cobr">—</div><div class="sl">Importe cobrado</div></div>
+        </div>
+        <!-- Tabla -->
+        <div class="card">
+          <div class="tw">
+            <table class="dt">
+              <thead>
+                <tr>
+                  <th data-sort="numero">Número</th>
+                  <th data-sort="cliente">Cliente</th>
+                  <th data-sort="fecha" data-sort-type="date">Fecha</th>
+                  <th data-sort="vencimiento" data-sort-type="date">Vencimiento</th>
+                  <th data-sort="base" data-sort-type="num">Base</th>
+                  <th data-sort="iva" data-sort-type="num">IVA</th>
+                  <th data-sort="total" data-sort-type="num">Total</th>
+                  <th data-sort="estado">Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="fTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <!-- PRESUPUESTOS DE COMPRA -->
       <div class="page" id="page-presupuestos-compra">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -2617,6 +2666,71 @@
           <button class="btn btn-primary" onclick="albaranToFactura(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')">🧾 Facturar</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DETALLE FACTURA ═══ -->
+<div class="overlay" id="mFacturaDetalle">
+  <div class="modal modal-lg">
+    <div class="modal-h">
+      <span>🧾</span>
+      <div>
+        <h2 id="facDetNro" style="font-size:16px;font-weight:800">—</h2>
+        <div id="facDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
+        <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
+        <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
+        <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="delFactura(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
+      </div>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaDetalle')">✕</button>
+    </div>
+    <div class="modal-b">
+      <input type="hidden" id="facDetId">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+        <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="facDetFecha" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Vencimiento</span><div id="facDetVence" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Forma de pago</span><div id="facDetFpago" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Estado</span><div id="facDetEstado">—</div></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-weight:700;font-size:13px;display:block;margin-bottom:8px">Líneas de la factura</label>
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:60px;text-align:right">Cant.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:90px;text-align:right">Precio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:60px;text-align:right">Dto.</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:60px;text-align:right">IVA</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:90px;text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="facDetLineas"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div style="width:260px;background:var(--gris-50);border-radius:9px;padding:14px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gris-500);margin-bottom:4px"><span>Base imponible</span><span id="facDetBase" style="font-weight:700;color:var(--gris-700)">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gris-500);margin-bottom:6px"><span>IVA</span><span id="facDetIva" style="font-weight:700;color:var(--gris-700)">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1.5px solid var(--gris-200);padding-top:8px">
+            <span>TOTAL</span><span id="facDetTotal" style="color:var(--azul)">0,00 €</span>
+          </div>
+        </div>
+      </div>
+      <div id="facDetObsWrap" style="margin-top:12px;display:none">
+        <span style="font-size:11px;color:var(--gris-400)">Observaciones</span>
+        <div id="facDetObs" style="font-size:13px;color:var(--gris-600);margin-top:4px;padding:8px 10px;background:var(--gris-50);border-radius:8px"></div>
+      </div>
+      <div id="facDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
+      <button class="btn btn-secondary" onclick="closeModal('mFacturaDetalle')">Cerrar</button>
+      <div id="facDetFooterBtns" style="display:flex;gap:8px"></div>
     </div>
   </div>
 </div>

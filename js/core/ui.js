@@ -267,6 +267,7 @@ function goPage(id, opts){
   if(id==='papelera') loadPapelera();
   if(id==='presupuestos') loadPresupuestos();
   if(id==='albaranes') loadAlbaranes();
+  if(id==='facturas') loadFacturas();
   if(id==='fichajes') loadFichajes();
   if(id==='partes') loadPartes();
   if(id==='planificador' && typeof initPlanificador==='function') initPlanificador();
