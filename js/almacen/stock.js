@@ -29,12 +29,10 @@ async function loadStock() {
 
 // Renderizar tabla de stock
 function renderStock(list) {
-  const container = _listContainer('stock-table');
-  if (!container) return;
+  const tbody = document.querySelector('#stock-table tbody');
+  if (!tbody) return;
 
-  const borderColors = { ok: '#16A34A', bajo: '#FCD34D', agotado: '#DC2626' };
-
-  container.innerHTML = list.map(row => {
+  tbody.innerHTML = list.map(row => {
     const art = articulos.find(a => a.id === row.articulo_id);
     const fam = familias.find(f => f.id === art?.familia_id);
     const alm = almacenes.find(a => a.id === row.almacen_id);
@@ -42,31 +40,24 @@ function renderStock(list) {
     const cost = (art?.costo || 0) * row.cantidad;
 
     return `
-      <div class="list-row" style="border-left-color:${borderColors[status]}">
-        <div class="lr-left">
-          <div class="lr-num" style="font-family:monospace;font-weight:700">${art?.codigo || 'N/A'}</div>
-        </div>
-        <div class="lr-center">
-          <div class="lr-title">${art?.nombre || 'N/A'}</div>
-          <div class="lr-meta">
-            <span class="lr-badge" style="background:var(--gris-100);color:var(--gris-600)">${fam?.nombre || 'N/A'}</span>
-            <span class="lr-sub">${alm?.nombre || 'N/A'}</span>
-            <span class="lr-badge" style="background:${status === 'ok' ? '#DCFCE7' : status === 'bajo' ? '#FEF3C7' : '#FEE2E2'};color:${status === 'ok' ? '#166534' : status === 'bajo' ? '#B45309' : '#991B1B'}">
-              ${status === 'ok' ? 'OK' : status === 'bajo' ? 'Bajo' : 'Agotado'}
-            </span>
-          </div>
-        </div>
-        <div class="lr-right">
-          <div style="text-align:right">
-            <div style="font-weight:700">${row.cantidad}</div>
-            <div style="font-size:11px;color:var(--gris-600)">Mín: ${row.stock_minimo}</div>
-          </div>
-          <div class="lr-actions" onclick="event.stopPropagation()">
-            <button class="btn-sm" onclick="ajustarStock(${row.articulo_id}, ${row.almacen_id})">Ajustar</button>
-            <button class="btn-sm" onclick="verMovimientos(${row.articulo_id}, ${row.almacen_id})">Ver</button>
-          </div>
-        </div>
-      </div>
+      <tr class="status-${status}">
+        <td>${art?.nombre || 'N/A'}</td>
+        <td>${art?.codigo || 'N/A'}</td>
+        <td>${fam?.nombre || 'N/A'}</td>
+        <td>${alm?.nombre || 'N/A'}</td>
+        <td class="text-right">${row.cantidad}</td>
+        <td class="text-right">${row.stock_minimo}</td>
+        <td>
+          <span class="badge badge-${status}">
+            ${status === 'ok' ? 'OK' : status === 'bajo' ? 'Bajo' : 'Agotado'}
+          </span>
+        </td>
+        <td class="text-right">${fmtE(cost)}</td>
+        <td class="text-center">
+          <button class="btn-sm" onclick="ajustarStock(${row.articulo_id}, ${row.almacen_id})">Ajustar</button>
+          <button class="btn-sm" onclick="verMovimientos(${row.articulo_id}, ${row.almacen_id})">Ver</button>
+        </td>
+      </tr>
     `;
   }).join('');
 }

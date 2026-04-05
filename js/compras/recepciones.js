@@ -49,41 +49,27 @@ function rcCheckChanged() {
 function renderRecepciones(list) {
   const btnMulti = document.getElementById('rcFacturarMulti');
   if (btnMulti) btnMulti.style.display = 'none';
-  const container = _listContainer('rcTable');
-  if (!container) return;
   const html = list.length ? list.map(r => {
     const estado = {pendiente:'⏳', verificada:'✓', almacenada:'📦'}[r.estado]||'?';
-    const statusColor = {pendiente:'#f59e0b', verificada:'#3b82f6', almacenada:'#10b981'}[r.estado] || '#9ca3af';
-    return `<div class="list-row" style="border-left-color:${statusColor}" onclick="editarRecepcion(${r.id})">
-      <div style="display:flex;align-items:center;padding-right:12px">
-        ${r.exportado_bloqueado ? '' : `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">`}
-      </div>
-      <div class="lr-left">
-        <div class="lr-num">${r.numero}</div>
-        <div style="font-size:10px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div>
-      </div>
-      <div class="lr-center">
-        <div class="lr-title">${r.proveedor_nombre}</div>
-        <div class="lr-meta">
-          <span class="lr-badge" style="background:${statusColor};color:#fff">${estado} ${r.estado}</span>
-          <span class="lr-sub">${r.usuario_nombre||'—'}</span>
-        </div>
-      </div>
-      <div class="lr-right">
-        <div class="lr-amount">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</div>
-        <div class="lr-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="imprimirRecepcion(${r.id})" title="Imprimir">🖨️</button>
-          <button class="btn btn-ghost btn-sm" onclick="enviarRecepcionEmail(${r.id})" title="Enviar por email">📧</button>
-          <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
-          ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
-          ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
-          ${r.exportado_bloqueado ? '<span title="Exportado a factura" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
-        </div>
-      </div>
-    </div>`;
-  }).join('') : '<div class="empty"><div class="ei">📥</div><h3>Sin recepciones</h3></div>';
-  container.innerHTML = html;
+    return `<tr>
+      <td style="text-align:center;width:30px">${r.exportado_bloqueado ? '' : `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">`}</td>
+      <td><div style="font-weight:700">${r.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div></td>
+      <td><div style="font-weight:600">${r.proveedor_nombre}</div></td>
+      <td>${r.usuario_nombre||'—'}</td>
+      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${r.estado}</span></td>
+      <td style="text-align:right;font-weight:600">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirRecepcion(${r.id})" title="Imprimir">🖨️</button>
+        <button class="btn btn-ghost btn-sm" onclick="enviarRecepcionEmail(${r.id})" title="Enviar por email">📧</button>
+        <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
+        ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
+        ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
+        ${r.exportado_bloqueado ? '<span title="Exportado a factura" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
+        <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
+      </div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin recepciones</h3></div></td></tr>';
+  document.getElementById('rcTable').innerHTML = html;
 }
 
 function actualizarKpisRecepciones() {

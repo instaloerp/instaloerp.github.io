@@ -43,36 +43,26 @@ function filtrarMantenimientos() {
 function renderMantenimientos(list) {
   if (!list) list = mantenimientos;
   const hoy = new Date().toISOString().slice(0,10);
-  const container = _listContainer('mtTable');
-  if (!container) return;
-  container.innerHTML = list.length ? list.map(m => {
+  const tb = document.getElementById('mtTable');
+  if (!tb) return;
+  tb.innerHTML = list.length ? list.map(m => {
     const vencido = m.proxima_revision && m.proxima_revision < hoy && m.estado === 'activo';
     const proximo = m.proxima_revision && !vencido && m.proxima_revision <= sumarDias(hoy, 15);
-    const bgColor = vencido ? '#FEE2E2' : proximo ? '#FEF3C7' : 'var(--gris-100)';
-    const textColor = vencido ? '#991B1B' : proximo ? '#B45309' : 'var(--gris-600)';
-    const icon = vencido ? '⚠️' : proximo ? '⏰' : '';
-    return `<div class="list-row" onclick="abrirFichaMant(${m.id})">
-      <div class="lr-left">
-        <div class="lr-num" style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${m.numero||'—'}</div>
-      </div>
-      <div class="lr-center">
-        <div class="lr-title">${m.cliente_nombre||'—'}</div>
-        <div class="lr-meta">
-          <span class="lr-sub">${m.equipo||'—'}${m.categoria ? ' · ' + m.categoria : ''}</span>
-          ${periodoBadge(m.periodicidad)}
-          <span class="lr-badge" style="background:${bgColor};color:${textColor}">${m.proxima_revision||'—'} ${icon}</span>
-        </div>
-      </div>
-      <div class="lr-right">
-        <div class="lr-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="abrirFichaMant(${m.id})" title="Ver ficha">👁️</button>
-          <button class="btn btn-ghost btn-sm" onclick="generarParteDesdeLista(${m.id})" title="Generar parte">📝</button>
-          <button class="btn btn-ghost btn-sm" onclick="delMantenimiento(${m.id})" title="Eliminar">🗑️</button>
-        </div>
-      </div>
-    </div>`;
+    return `<tr style="cursor:pointer" onclick="abrirFichaMant(${m.id})">
+      <td style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${m.numero||'—'}</td>
+      <td style="font-weight:600">${m.cliente_nombre||'—'}</td>
+      <td>${m.equipo||'—'}<br><span style="font-size:10.5px;color:var(--gris-400)">${m.categoria||''}</span></td>
+      <td>${periodoBadge(m.periodicidad)}</td>
+      <td style="font-weight:700;color:${vencido?'var(--rojo)':proximo?'var(--naranja)':'var(--gris-700)'}">${m.proxima_revision||'—'} ${vencido?'⚠️':proximo?'⏰':''}</td>
+      <td>${estadoMantBadge(m.estado)}</td>
+      <td><div style="display:flex;gap:4px" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="abrirFichaMant(${m.id})" title="Ver ficha">👁️</button>
+        <button class="btn btn-ghost btn-sm" onclick="generarParteDesdeLista(${m.id})" title="Generar parte">📝</button>
+        <button class="btn btn-ghost btn-sm" onclick="delMantenimiento(${m.id})" title="Eliminar">🗑️</button>
+      </div></td>
+    </tr>`;
   }).join('') :
-  '<div class="empty"><div class="ei">🔧</div><h3>Sin mantenimientos</h3><p>Crea tu primer contrato de mantenimiento</p></div>';
+  '<tr><td colspan="7"><div class="empty"><div class="ei">🔧</div><h3>Sin mantenimientos</h3><p>Crea tu primer contrato de mantenimiento</p></div></td></tr>';
 }
 
 // ═══════════════════════════════════════════════

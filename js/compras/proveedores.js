@@ -4,25 +4,19 @@
 
 function renderProveedores(list) {
   document.getElementById('provCount').textContent=`${proveedores.length} proveedores`;
-  _listContainer('provTable').innerHTML = list.length ?
-    list.map(p=>`<div class="list-row" onclick="abrirFichaProveedor(${p.id})">
-      <div class="lr-left">
-        <div style="width:36px;height:36px;border-radius:50%;background:${avC(p.nombre)};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff">${ini(p.nombre)}</div>
-      </div>
-      <div class="lr-center">
-        <div class="lr-title">${p.nombre}</div>
-        <div class="lr-meta">
-          <span class="lr-sub">${p.cif||'—'} · ${p.telefono||'—'} · ${p.email_pedidos||p.email||'—'} · ${p.municipio||'—'}</span>
-        </div>
-      </div>
-      <div class="lr-right">
-        <div class="lr-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="editProv(${p.id})">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="delProv(${p.id})">🗑️</button>
-        </div>
-      </div>
-    </div>`).join('') :
-    '<div class="empty"><div class="ei">🏭</div><h3>Sin proveedores</h3></div>';
+  document.getElementById('provTable').innerHTML = list.length ?
+    list.map(p=>`<tr>
+      <td><div style="font-weight:700">${p.nombre}</div><div style="font-size:11px;color:var(--gris-400)">${p.web||''}</div></td>
+      <td style="font-family:monospace;font-size:12px">${p.cif||'—'}</td>
+      <td>${p.telefono||'—'}</td>
+      <td>${p.email_pedidos||p.email||'—'}</td>
+      <td>${p.municipio||'—'}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="editProv(${p.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="delProv(${p.id})">🗑️</button>
+      </div></td>
+    </tr>`).join('') :
+    '<tr><td colspan="6"><div class="empty"><div class="ei">🏭</div><h3>Sin proveedores</h3></div></td></tr>';
 }
 
 function editProv(id) {

@@ -29,45 +29,40 @@ async function loadTraspasos() {
 
 // Renderizar tabla de traspasos
 function renderTraspasos(list) {
-  const container = _listContainer('traspasos-table');
-  if (!container) return;
+  const tbody = document.querySelector('#traspasos-table tbody');
+  if (!tbody) return;
 
-  const badgeColors = {
-    'pendiente': { bg: '#FEF3C7', color: '#B45309' },
-    'en_transito': { bg: '#DBEAFE', color: '#1E40AF' },
-    'completado': { bg: '#DCFCE7', color: '#166534' },
-    'anulado': { bg: '#FEE2E2', color: '#991B1B' }
-  };
+  tbody.innerHTML = list.map(row => {
+    const badgeClass = {
+      'pendiente': 'badge-warning',
+      'en_transito': 'badge-info',
+      'completado': 'badge-success',
+      'anulado': 'badge-danger'
+    }[row.estado] || 'badge-secondary';
 
-  container.innerHTML = list.map(row => {
     const lineCount = (row.lineas || []).length;
     const totalQty = (row.lineas || []).reduce((sum, l) => sum + (l.cantidad || 0), 0);
-    const colors = badgeColors[row.estado] || { bg: 'var(--gris-100)', color: 'var(--gris-600)' };
 
     return `
-      <div class="list-row" onclick="editTraspaso(${row.id})">
-        <div class="lr-left">
-          <div class="lr-num" style="font-weight:700">${row.numero}</div>
-        </div>
-        <div class="lr-center">
-          <div class="lr-title">${new Date(row.fecha).toLocaleDateString()}</div>
-          <div class="lr-meta">
-            <span class="lr-sub">${row.almacen_origen_nombre} → ${row.almacen_destino_nombre}</span>
-            <span class="lr-badge" style="background:var(--gris-100);color:var(--gris-600)">${lineCount} línea${lineCount !== 1 ? 's' : ''} / ${totalQty} item${totalQty !== 1 ? 's' : ''}</span>
-            <span class="lr-badge" style="background:${colors.bg};color:${colors.color}">
-              ${row.estado.charAt(0).toUpperCase() + row.estado.slice(1)}
-            </span>
-          </div>
-        </div>
-        <div class="lr-right">
-          <div class="lr-actions" onclick="event.stopPropagation()">
-            <button class="btn-sm" onclick="editTraspaso(${row.id})" title="Ver detalle">Detalle</button>
-            ${row.estado === 'pendiente' ? `<button class="btn-sm btn-success" onclick="completarTraspaso(${row.id})">Completar</button>` : ''}
-            ${row.estado !== 'completado' && row.estado !== 'anulado' ? `<button class="btn-sm btn-danger" onclick="anularTraspaso(${row.id})">Anular</button>` : ''}
-            <button class="btn-sm btn-outline" onclick="delTraspaso(${row.id})">Borrar</button>
-          </div>
-        </div>
-      </div>
+      <tr>
+        <td><strong>${row.numero}</strong></td>
+        <td>${new Date(row.fecha).toLocaleDateString()}</td>
+        <td>${row.almacen_origen_nombre}</td>
+        <td>→</td>
+        <td>${row.almacen_destino_nombre}</td>
+        <td class="text-right">${lineCount} líneas / ${totalQty} items</td>
+        <td>
+          <span class="badge ${badgeClass}">
+            ${row.estado.charAt(0).toUpperCase() + row.estado.slice(1)}
+          </span>
+        </td>
+        <td class="text-center">
+          <button class="btn-sm" onclick="editTraspaso(${row.id})" title="Ver detalle">Detalle</button>
+          ${row.estado === 'pendiente' ? `<button class="btn-sm btn-success" onclick="completarTraspaso(${row.id})">Completar</button>` : ''}
+          ${row.estado !== 'completado' && row.estado !== 'anulado' ? `<button class="btn-sm btn-danger" onclick="anularTraspaso(${row.id})">Anular</button>` : ''}
+          <button class="btn-sm btn-outline" onclick="delTraspaso(${row.id})">Borrar</button>
+        </td>
+      </tr>
     `;
   }).join('');
 }

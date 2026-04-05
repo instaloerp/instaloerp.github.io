@@ -646,30 +646,6 @@ function showErr(id,msg){const el=document.getElementById(id);el.textContent=msg
 
 function fmtE(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
 
-// ═══════════════════════════════════════════════
-// HELPER: Convertir tabla en contenedor de tarjetas
-// ═══════════════════════════════════════════════
-/**
- * Dado un ID de tbody, oculta la tabla y devuelve un div contenedor
- * para renderizar tarjetas .list-row en lugar de filas <tr>.
- * Si el contenedor ya existe, lo reutiliza.
- */
-function _listContainer(tbodyId) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return null;
-  const table = tbody.closest('table');
-  if (!table) return null;
-  const wrapper = table.closest('.tw') || table.parentElement;
-  table.style.display = 'none';
-  let container = wrapper.querySelector('.list-cards');
-  if (!container) {
-    container = document.createElement('div');
-    container.className = 'list-cards';
-    wrapper.appendChild(container);
-  }
-  return container;
-}
-
 /** Formatea bytes a texto legible (KB, MB) */
 function fmtBytes(bytes){if(!bytes||bytes===0)return'';if(bytes<1024)return bytes+' B';if(bytes<1048576)return(bytes/1024).toFixed(1)+' KB';return(bytes/1048576).toFixed(1)+' MB';}
 

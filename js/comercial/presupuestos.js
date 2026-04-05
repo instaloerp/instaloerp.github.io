@@ -76,78 +76,83 @@ function renderPresupuestos(list) {
   if (kImpPend) kImpPend.textContent = fmtE(pends.reduce((s,p)=>s+(p.total||0),0));
   if (kImpAcep) kImpAcep.textContent = fmtE(aceps.reduce((s,p)=>s+(p.total||0),0));
 
-  const container = _listContainer('presTable');
-  if (!container) return;
+  const tbody = document.getElementById('presTable');
+  if (!tbody) return;
 
   const fmtDT = (d) => { if(!d) return '—'; const dt=new Date(d); return dt.toLocaleDateString('es-ES')+' '+dt.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}); };
 
-  container.innerHTML = list.length ? list.map(p => {
+  tbody.innerHTML = list.length ? list.map(p => {
     const estado = getEstadoPres(p);
     const est = ESTADOS[estado] || { label: estado||'—', ico:'❔', color:'var(--gris-400)', bg:'var(--gris-100)' };
     const hasVer = (p.version||1) > 1;
     const verBadge = hasVer ? `<button onclick="event.stopPropagation();togglePresVersiones(${p.id},this)" style="font-size:10px;background:var(--azul-light);color:var(--azul);padding:2px 8px;border-radius:10px;font-weight:700;border:1.5px solid var(--azul);cursor:pointer;margin-left:4px" title="Ver versiones anteriores">v${p.version} ▾</button>` : '';
     const fechaCreado = fmtDT(p.created_at);
+    const fechaModif = p.updated_at ? fmtDT(p.updated_at) : '';
+    const fechaInfo = fechaModif && fechaModif !== fechaCreado ? `<div style="font-size:10px;color:var(--gris-400)" title="Modificado: ${fechaModif}">mod. ${fechaModif}</div>` : '';
     const _esBorr = p.estado==='borrador' || (p.numero||'').startsWith('BORR-');
-    const _onclick = _esBorr ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`;
-
-    // Firma info compacta
-    let firmaHtml = '';
-    if (p.estado==='aceptado') {
-      if (p.firma_ip && p.firma_dispositivo) firmaHtml = '<span style="font-size:9px;color:#059669" title="Firma digital">🖊️</span>';
-      else if (p.firma_url) firmaHtml = '<a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="font-size:9px;color:var(--azul);text-decoration:none" title="Doc firmado">📎</a>';
-      else if (p.firma_fecha) firmaHtml = '<span style="font-size:9px;color:#D97706" title="Sin documento">⚠️</span>';
-    }
-
-    // Acciones
-    let actionsHtml = '';
-    if (p.estado === 'borrador') { actionsHtml = ''; }
-    else if (p.estado === 'caducado') { actionsHtml = '<button onclick="event.stopPropagation();reactivarPresupuesto('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #F59E0B;background:#FFFBEB;cursor:pointer;font-size:10px;font-weight:600;color:#92400E">🔄</button>'; }
-    else if (p.estado === 'anulado') { actionsHtml = ''; }
-    else if (p.estado === 'pendiente') {
-      const _tO2 = trabajos.some(t=>t.presupuesto_id===p.id);
-      const _obraEnviar = _tO2 ? trabajos.find(t=>t.presupuesto_id===p.id) : null;
-      actionsHtml += '<button onclick="event.stopPropagation();enviarPresupuestoCliente('+p.id+','+(_obraEnviar?_obraEnviar.id:'null')+')" style="padding:3px 8px;border-radius:6px;border:none;background:#3b82f6;cursor:pointer;font-size:10px;font-weight:700;color:#fff" title="Enviar">📩</button> ';
-      actionsHtml += '<button onclick="event.stopPropagation();abrirModalAprobar('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:10px;font-weight:700;color:#065F46" title="Aprobar">✅</button> ';
-      if (_tO2) { const _ob2=trabajos.find(t=>t.presupuesto_id===p.id); actionsHtml += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob2.id+')" style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none">🏗️</a>'; }
-      else actionsHtml += '<button onclick="event.stopPropagation();presToObra('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:10px;font-weight:600;color:#374151" title="Crear obra">🏗️</button>';
-    } else if (p.estado === 'aceptado') {
-      const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
-      const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
-      const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
-      const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
-      const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none';
-      if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); actionsHtml += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'" title="Ver obra">🏗️</a> '; }
-      else if (!_tF) actionsHtml += '<button onclick="event.stopPropagation();presToObra('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:10px;font-weight:600;color:#374151" title="Crear obra">🏗️</button> ';
-      if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); actionsHtml += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'" title="Ver albarán">📄</a> '; }
-      else if (!_tF) actionsHtml += '<button onclick="event.stopPropagation();presToAlbaran('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:10px;font-weight:600;color:#374151" title="Albaranar">📄</button> ';
-      if (_tF) actionsHtml += '<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700">🧾</span>';
-      else actionsHtml += '<button onclick="event.stopPropagation();presToFactura('+p.id+')" style="padding:3px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:10px;font-weight:600;color:#374151" title="Facturar">🧾</button>';
-    }
-
-    return `<div class="list-row" style="border-left-color:${est.color}" onclick="${_onclick}">
-      <div class="lr-left">
-        <div class="lr-num">${(p.numero||'').startsWith('BORR-') ? '✏️' : (p.numero||'—')}</div>
-        <div style="font-size:10px;color:var(--gris-400)">${p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : ''}</div>
-      </div>
-      <div class="lr-center">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span class="lr-title">${p.cliente_nombre||'—'}</span>
-          ${verBadge}
+    return `<tr style="cursor:pointer" onclick="${_esBorr ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">
+        <div style="display:flex;align-items:center;gap:2px">${(p.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">(borrador)</span>' : (p.numero||'—')}${verBadge}</div>
+        <div style="font-size:10px;color:var(--gris-400);font-weight:400;font-family:var(--font)">${fechaCreado}</div>
+        ${fechaInfo}
+      </td>
+      <td><div style="font-weight:600">${p.cliente_nombre||'—'}</div></td>
+      <td style="color:var(--gris-600);font-size:12.5px">${p.titulo||'—'}</td>
+      <td style="font-size:12px">${p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—'}</td>
+      <td style="font-size:12px">${p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—'}</td>
+      <td style="font-weight:700">${fmtE(p.total||0)}</td>
+      <td onclick="event.stopPropagation()">
+        <span onclick="cambiarEstadoPresMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
+        ${(()=>{
+          if (p.estado!=='aceptado') return '';
+          let _h = '';
+          if (p.firma_fecha) _h += '<div style="font-size:9px;color:var(--gris-400);margin-top:2px;text-align:center">'+new Date(p.firma_fecha).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>';
+          if (p.firma_ip && p.firma_dispositivo) {
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado digitalmente por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+' — DNI: '+((p.firma_dispositivo||{}).dni||'N/A')+'">🖊️ Firma digital</span></div>';
+          } else if (p.firma_url) {
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--azul);text-decoration:none" title="Ver documento firmado adjunto">📎 Doc. firmado</a></div>';
+          } else if (p.firma_fecha) {
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#D97706" title="Aprobado por '+(p.firma_nombre||'operario')+' sin documento">⚠️ Sin documento</span></div>';
+          } else {
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:var(--gris-400)" title="Sin datos de aprobación">— sin datos —</span></div>';
+          }
+          return _h;
+        })()}
+      </td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
+          ${(()=>{
+            if (p.estado === 'borrador') return '';
+            if (p.estado === 'caducado') return '<button onclick="event.stopPropagation();reactivarPresupuesto('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #F59E0B;background:#FFFBEB;cursor:pointer;font-size:11px;font-weight:600;color:#92400E" title="Reactivar">🔄 Reactivar</button>';
+            if (p.estado === 'anulado') return '<span style="font-size:10px;color:var(--gris-400)">Anulado</span>';
+            if (p.estado === 'pendiente') {
+              const _tO2 = trabajos.some(t=>t.presupuesto_id===p.id);
+              const _obraEnviar = _tO2 ? trabajos.find(t=>t.presupuesto_id===p.id) : null;
+              let _pBtns = '<button onclick="event.stopPropagation();enviarPresupuestoCliente('+p.id+','+(_obraEnviar?_obraEnviar.id:'null')+')" style="padding:4px 10px;border-radius:6px;border:none;background:#3b82f6;cursor:pointer;font-size:11px;font-weight:700;color:#fff" title="Enviar enlace de firma al cliente">📩 Enviar</button> ';
+              _pBtns += '<button onclick="event.stopPropagation();abrirModalAprobar('+p.id+')" style="padding:4px 10px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Aprobar presupuesto">✅ Aprobar</button> ';
+              if (_tO2) { const _ob2=trabajos.find(t=>t.presupuesto_id===p.id); _pBtns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob2.id+')" style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none">✅ Obra</a>'; }
+              else _pBtns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button>';
+              return _pBtns;
+            }
+            const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
+            const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
+            const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
+            const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
+            const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
+            let btns = '';
+            if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'">✅ Obra</a> '; }
+            else if (!_tF) btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button> ';
+            if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
+            else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
+            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
+            else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
+            return btns;
+          })()}
         </div>
-        <div class="lr-meta">
-          <span class="lr-badge" style="background:${est.bg};color:${est.color}" onclick="event.stopPropagation();cambiarEstadoPresMenu(event,${p.id})">${est.ico} ${est.label}</span>
-          ${firmaHtml}
-          ${p.titulo ? '<span class="lr-sub">'+p.titulo+'</span>' : ''}
-          ${p.fecha_validez ? '<span style="font-size:10px;color:var(--gris-400)">Válido: '+new Date(p.fecha_validez).toLocaleDateString('es-ES')+'</span>' : ''}
-        </div>
-      </div>
-      <div class="lr-right">
-        <div class="lr-amount">${fmtE(p.total||0)}</div>
-        <div class="lr-actions" onclick="event.stopPropagation()">${actionsHtml}</div>
-      </div>
-    </div>`;
+      </td>
+    </tr>`;
   }).join('') :
-  '<div class="empty"><div class="ei">📋</div><h3>Sin presupuestos</h3><p>Crea el primero con el botón "+ Nuevo presupuesto"</p></div>';
+  '<tr><td colspan="8"><div class="empty"><div class="ei">📋</div><h3>Sin presupuestos</h3><p>Crea el primero con el botón "+ Nuevo presupuesto"</p></div></td></tr>';
 }
 
 // ═══════════════════════════════════════════════
