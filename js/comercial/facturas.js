@@ -672,7 +672,7 @@ function generarPdfFactura(f) {
   _generarPdfFactura(f);
 }
 
-function _generarPdfFactura(f) {
+async function _generarPdfFactura(f) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p','mm','a4');
   const W=210, ML=15, MR=15, H=297;
@@ -738,4 +738,18 @@ function _generarPdfFactura(f) {
   doc.text(EMPRESA?.nombre||'',ML,footY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,footY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,footY);
   doc.save('Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF factura descargado ✓','success');
+
+  // Firmar y guardar copia en documentos_generados
+  if (typeof firmarYGuardarPDF === 'function') {
+    const pdfData = doc.output('arraybuffer');
+    const cli = clientes.find(c => c.id === f.cliente_id);
+    firmarYGuardarPDF(pdfData, {
+      tipo_documento: 'factura',
+      documento_id: f.id,
+      numero: f.numero,
+      entidad_tipo: 'cliente',
+      entidad_id: f.cliente_id,
+      entidad_nombre: f.cliente_nombre || cli?.nombre || ''
+    }).catch(e => console.error('Error firmando factura:', e));
+  }
 }

@@ -640,6 +640,81 @@ function cancelarCertificado() {
   if (addBtn) addBtn.style.display = '';
 }
 
+// ── Leer metadatos del certificado .pfx/.p12 automáticamente ──
+async function leerMetadatosCert() {
+  const fileInput = document.getElementById('cert_archivo');
+  const password = document.getElementById('cert_password').value;
+  const file = fileInput?.files[0];
+  if (!file || !password) return;
+
+  try {
+    toast('Leyendo certificado...', 'info');
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    // Usar forge para parsear el PKCS12
+    const p12Asn1 = forge.asn1.fromDer(forge.util.createBuffer(bytes));
+    const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
+
+    // Extraer certificado
+    const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+    const certObj = certBags[forge.pki.oids.certBag]?.[0]?.cert;
+
+    if (!certObj) {
+      toast('No se pudo extraer el certificado del archivo', 'error');
+      return;
+    }
+
+    // Extraer datos del Subject (titular)
+    const subjectAttrs = certObj.subject.attributes;
+    const getAttr = (shortName) => {
+      const a = subjectAttrs.find(a => a.shortName === shortName);
+      return a ? a.value : '';
+    };
+    const cn = getAttr('CN');  // Common Name
+    const serialNumber = getAttr('serialNumber') || getAttr('SERIALNUMBER');  // NIF/CIF
+    const o = getAttr('O');   // Organization
+
+    // Extraer datos del Issuer (emisor)
+    const issuerAttrs = certObj.issuer.attributes;
+    const getIssuerAttr = (shortName) => {
+      const a = issuerAttrs.find(a => a.shortName === shortName);
+      return a ? a.value : '';
+    };
+    const issuerCN = getIssuerAttr('CN');
+    const issuerO = getIssuerAttr('O');
+    const emisor = issuerO || issuerCN || '';
+
+    // Fecha de caducidad
+    const notAfter = certObj.validity.notAfter;
+    const caducidad = notAfter ? notAfter.toISOString().split('T')[0] : '';
+
+    // Rellenar campos
+    const titular = cn || o || '';
+    document.getElementById('cert_titular').value = titular;
+    if (serialNumber) document.getElementById('cert_nif').value = serialNumber;
+    document.getElementById('cert_emisor').value = emisor;
+    if (caducidad) document.getElementById('cert_caducidad').value = caducidad;
+
+    // Auto-rellenar nombre si está vacío
+    const nombreEl = document.getElementById('cert_nombre');
+    if (!nombreEl.value.trim()) {
+      const year = new Date().getFullYear();
+      nombreEl.value = `Certificado ${titular || EMPRESA?.nombre || ''} ${year}`;
+    }
+
+    toast('✅ Datos del certificado leídos correctamente', 'success');
+
+  } catch (e) {
+    console.error('Error leyendo certificado:', e);
+    if (e.message && e.message.includes('Invalid password')) {
+      toast('❌ Contraseña incorrecta para este certificado', 'error');
+    } else {
+      toast('⚠️ No se pudieron leer los metadatos. Rellena los campos manualmente.', 'warning');
+    }
+  }
+}
+
 async function guardarCertificado() {
   const nombre = document.getElementById('cert_nombre').value.trim();
   const titular = document.getElementById('cert_titular').value.trim();

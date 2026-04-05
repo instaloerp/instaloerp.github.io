@@ -602,4 +602,18 @@ function generarPdfAlbaran(idOrObj) {
   doc.text(EMPRESA?.nombre||'',ML,footY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,footY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,footY);
   doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF albarán descargado ✓','success');
+
+  // Firmar y guardar copia en documentos_generados
+  if (typeof firmarYGuardarPDF === 'function') {
+    const pdfData = doc.output('arraybuffer');
+    const cli = clientes.find(c => c.id === a.cliente_id);
+    firmarYGuardarPDF(pdfData, {
+      tipo_documento: 'albaran',
+      documento_id: a.id,
+      numero: a.numero,
+      entidad_tipo: 'cliente',
+      entidad_id: a.cliente_id,
+      entidad_nombre: a.cliente_nombre || cli?.nombre || ''
+    }).catch(e => console.error('Error firmando albarán:', e));
+  }
 }

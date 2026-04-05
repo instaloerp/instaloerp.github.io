@@ -1719,6 +1719,39 @@ async function exportarPartePDF(id) {
     `);
     ventana.document.close();
     ventana.print();
+
+    // Generar PDF con jsPDF y firmar
+    if (typeof firmarYGuardarPDF === 'function' && window.jspdf) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p','mm','a4');
+      const ML=15,MR=15,W=210;
+      let y=20;
+      doc.setFontSize(16);doc.setFont(undefined,'bold');doc.setTextColor(0,123,255);
+      doc.text('Parte de Trabajo: '+(parte.numero||''),ML,y);y+=8;
+      doc.setFontSize(11);doc.setFont(undefined,'normal');doc.setTextColor(51,51,51);
+      doc.text('Obra: '+(parte.trabajo_titulo||'—'),ML,y);y+=6;
+      doc.text('Usuario: '+(parte.usuario_nombre||'—'),ML,y);y+=6;
+      doc.text('Fecha: '+(parte.fecha||'—'),ML,y);y+=6;
+      doc.text('Horas: '+(parte.horas||0),ML,y);y+=8;
+      if(parte.descripcion){
+        doc.setFontSize(10);
+        const descLines=doc.splitTextToSize(parte.descripcion,W-ML-MR);
+        doc.text(descLines,ML,y);y+=descLines.length*5+4;
+      }
+      if(parte.materiales_usados&&parte.materiales_usados.length){
+        doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('Materiales:',ML,y);y+=5;
+        const matHeaders=[['Material','Cantidad']];
+        const matRows=parte.materiales_usados.map(m=>[m.nombre||m.articulo_nombre||'',String(m.cantidad||0)]);
+        doc.autoTable({startY:y,head:matHeaders,body:matRows,styles:{fontSize:9},margin:{left:ML,right:MR}});
+        y=doc.lastAutoTable.finalY+6;
+      }
+      // Determinar entidad (obra o cliente)
+      const entidadTipo = parte.trabajo_id ? 'obra' : 'cliente';
+      const entidadId = parte.trabajo_id || parte.cliente_id || '';
+      const entidadNombre = parte.trabajo_titulo || '';
+      const pdfData=doc.output('arraybuffer');
+      firmarYGuardarPDF(pdfData,{tipo_documento:'parte_trabajo',documento_id:parte.id,numero:parte.numero,entidad_tipo:entidadTipo,entidad_id:entidadId,entidad_nombre:entidadNombre}).catch(e=>console.error('Error firmando parte:',e));
+    }
   } catch (e) {
     toast('Error al exportar', 'error');
   }

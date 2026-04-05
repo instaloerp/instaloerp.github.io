@@ -1277,4 +1277,18 @@ async function generarPdfPresupuesto(p) {
   // ─── DESCARGAR ───
   doc.save('Presupuesto_'+(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF descargado ✓','success');
+
+  // Firmar y guardar copia en documentos_generados
+  if (typeof firmarYGuardarPDF === 'function') {
+    const pdfData = doc.output('arraybuffer');
+    const cli = clientes.find(c => c.id === p.cliente_id);
+    firmarYGuardarPDF(pdfData, {
+      tipo_documento: 'presupuesto',
+      documento_id: p.id,
+      numero: p.numero,
+      entidad_tipo: 'cliente',
+      entidad_id: p.cliente_id,
+      entidad_nombre: p.cliente_nombre || cli?.nombre || ''
+    }).catch(e => console.error('Error firmando presupuesto:', e));
+  }
 }

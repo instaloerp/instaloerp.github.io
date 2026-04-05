@@ -464,7 +464,7 @@ async function prcToFacturaProv(id) {
 // ═══════════════════════════════════════════════
 //  IMPRIMIR / PDF / EMAIL PRESUPUESTO COMPRA
 // ═══════════════════════════════════════════════
-function imprimirPresupuestoCompra(id) {
+async function imprimirPresupuestoCompra(id) {
   const p = presupuestosCompra.find(x=>x.id===id);
   if (!p) { toast('No encontrado','error'); return; }
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
@@ -486,6 +486,44 @@ function imprimirPresupuestoCompra(id) {
   const win=window.open('','_blank','width=850,height=800');
   win.document.write(`<!DOCTYPE html><html><head><title>Pres. Compra ${p.numero}</title><style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}.btn-bar{text-align:center;padding:16px;background:#f5f5f5}.btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px}@media print{body{background:#fff}.page{padding:0;min-height:auto}.no-print{display:none!important}}</style></head><body><div class="no-print btn-bar"><button style="background:#1e40af;color:#fff" onclick="window.print()">🖨️ Imprimir</button><button style="background:#e2e8f0;color:#475569" onclick="window.close()">✕ Cerrar</button></div><div class="page"><div style="display:flex;gap:24px;margin-bottom:16px"><div style="flex:1"><div style="display:flex;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div><div style="font-size:11px;color:#475569">${dirEmpresa}<br>CIF: ${EMPRESA?.cif||''}</div></div></div></div><div style="flex:1"><div style="background:#fef3c7;border-radius:8px;padding:12px 16px;border-left:4px solid #f59e0b"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#92400e;margin-bottom:4px">PROVEEDOR</div><div style="font-size:15px;font-weight:700">${p.proveedor_nombre||'—'}</div><div style="font-size:11px;color:#475569">${prov?.direccion||''} ${prov?.cif?'<br>CIF: '+prov.cif:''}</div></div></div></div><div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px"><div style="color:#1e40af"><span style="font-size:14px;font-weight:800">PRESUPUESTO COMPRA</span> <span style="font-size:11px;color:#475569">${p.numero||''}</span></div><div style="font-size:11px;color:#64748b">Fecha: <b>${p.fecha?new Date(p.fecha).toLocaleDateString('es-ES'):'—'}</b>${p.validez?' · Válido hasta: <b>'+new Date(p.validez).toLocaleDateString('es-ES')+'</b>':''}</div></div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:60px">Cant.</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:90px">Precio</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:50px">IVA</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Total</th></tr></thead><tbody>${htmlLineas}</tbody></table><div style="display:flex;justify-content:flex-end"><div style="width:240px;background:#fef3c7;border-radius:8px;padding:12px 16px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#92400e;margin-bottom:4px"><span>Base imponible</span><span>${(p.base_imponible||baseCalc).toFixed(2)} €</span></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#92400e;margin-bottom:6px"><span>IVA</span><span>${(p.total_iva||ivaCalc).toFixed(2)} €</span></div><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1.5px solid #d97706;padding-top:6px"><span>TOTAL</span><span style="color:#92400e">${totalFinal.toFixed(2)} €</span></div></div></div>${p.observaciones?`<div style="margin-top:14px;padding:10px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Observaciones</div><div style="font-size:11px;color:#475569">${p.observaciones}</div></div>`:''}</div></body></html>`);
   win.document.close();
+
+  // Generar PDF con jsPDF y firmar
+  if (typeof firmarYGuardarPDF === 'function' && window.jspdf) {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p','mm','a4');
+      const ML=15,MR=15,W=210;
+      let y=20;
+      doc.setFontSize(16);doc.setFont(undefined,'bold');doc.setTextColor(30,64,175);
+      doc.text(EMPRESA?.nombre||'',ML,y);y+=6;
+      doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+      doc.text(`CIF: ${EMPRESA?.cif||''} · ${EMPRESA?.direccion||''} ${EMPRESA?.cp||''} ${EMPRESA?.municipio||''}`,ML,y);y+=10;
+      doc.setFontSize(14);doc.setFont(undefined,'bold');doc.setTextColor(30,64,175);
+      doc.text('PRESUPUESTO COMPRA',ML,y);
+      doc.setFontSize(11);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+      doc.text(p.numero||'',ML+75,y);y+=6;
+      doc.setFontSize(10);doc.text('Fecha: '+(p.fecha?new Date(p.fecha).toLocaleDateString('es-ES'):'—'),ML,y);
+      if(p.validez)doc.text(' · Válido hasta: '+new Date(p.validez).toLocaleDateString('es-ES'),ML+60,y);
+      y+=8;
+      doc.setFontSize(11);doc.setFont(undefined,'bold');doc.setTextColor(146,64,14);
+      doc.text('PROVEEDOR',ML,y);y+=5;
+      doc.setFontSize(12);doc.setTextColor(0,0,0);doc.text(p.proveedor_nombre||'—',ML,y);y+=5;
+      if(prov?.cif){doc.setFontSize(9);doc.setTextColor(71,85,105);doc.text('CIF: '+prov.cif,ML,y);y+=4;}
+      if(prov?.direccion){doc.text(prov.direccion,ML,y);y+=6;}else{y+=4;}
+      y+=4;
+      const headers=[['Descripción','Cant.','Precio','IVA','Total']];
+      const rows=lineas.map(l=>{const cant=l.cantidad||l.cant||0;const precio=l.precio||0;const iva=l.iva!==undefined?l.iva:21;const sub=cant*precio;const total=sub+sub*(iva/100);return[l.nombre||l.desc||l.descripcion||'',String(cant),precio.toFixed(2)+' €',iva+'%',total.toFixed(2)+' €'];});
+      doc.autoTable({startY:y,head:headers,body:rows,styles:{fontSize:9},headStyles:{fillColor:[146,64,14]},margin:{left:ML,right:MR}});
+      y=doc.lastAutoTable.finalY+8;
+      doc.setFontSize(10);doc.setFont(undefined,'normal');doc.setTextColor(146,64,14);
+      doc.text('Base: '+(p.base_imponible||baseCalc).toFixed(2)+' € · IVA: '+(p.total_iva||ivaCalc).toFixed(2)+' €',ML,y);y+=6;
+      doc.setFontSize(13);doc.setFont(undefined,'bold');
+      doc.text('TOTAL: '+totalFinal.toFixed(2)+' €',W-MR,y,{align:'right'});
+      if(p.observaciones){y+=8;doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);doc.text('Observaciones:',ML,y);y+=4;doc.setTextColor(0,0,0);const ol=doc.splitTextToSize(p.observaciones,W-ML-MR);doc.text(ol,ML,y);}
+      const pdfData=doc.output('arraybuffer');
+      firmarYGuardarPDF(pdfData,{tipo_documento:'presupuesto_compra',documento_id:p.id,numero:p.numero,entidad_tipo:'proveedor',entidad_id:p.proveedor_id,entidad_nombre:p.proveedor_nombre||prov?.nombre||''}).catch(e=>console.error('Error firmando pres. compra:',e));
+    } catch(e) { console.error('Error generando PDF pres. compra:', e); }
+  }
 }
 
 function enviarPresupuestoCompraEmail(id) {
