@@ -1,5 +1,5 @@
 // Instalo App — Service Worker v2 (Offline-capable)
-const CACHE_NAME = 'instalo-app-v2';
+const CACHE_NAME = 'instalo-app-v3';
 const STATIC_ASSETS = [
   '/app.html',
   '/icon.svg',
@@ -27,6 +27,11 @@ self.addEventListener('activate', event => {
 // Fetch: network-first for API (with offline fallback), cache-first for assets
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+
+  // Edge Functions → NO interceptar (dejar pasar directo)
+  if (url.hostname.includes('supabase') && url.pathname.includes('/functions/')) {
+    return; // No llamar event.respondWith — el navegador gestiona la peticion directamente
+  }
 
   // API calls → network first, notify app if offline
   if (url.hostname.includes('supabase')) {

@@ -430,3 +430,293 @@ function enviarFacturaProvEmail(id) {
     toast('Abriendo correo...', 'info');
   }
 }
+
+// ═══════════════════════════════════════════════
+// IMPORTAR CON IA — OCR INTELIGENTE
+// ═══════════════════════════════════════════════
+let _iaFileBase64 = null;
+let _iaFileName = '';
+
+function importarConIA(tipo) {
+  // Verificar que hay API key configurada
+  if (!EMPRESA?.anthropic_api_key) {
+    toast('Configura primero la API Key de Anthropic en Configuracion > Inteligencia Artificial', 'warning');
+    return;
+  }
+  _iaFileBase64 = null;
+  _iaFileName = '';
+  document.getElementById('ia_tipo_doc').value = tipo || 'factura';
+  document.getElementById('iaFileName').style.display = 'none';
+  document.getElementById('iaProgress').style.display = 'none';
+  document.getElementById('iaError').style.display = 'none';
+  document.getElementById('iaBtnProcesar').disabled = true;
+  const fi = document.getElementById('iaFileInput');
+  if (fi) fi.value = '';
+  // Reset drop zone visual
+  const dz = document.getElementById('iaDropZone');
+  if (dz) { dz.style.borderColor = 'var(--gris-300)'; dz.style.background = 'var(--gris-50)'; }
+  openModal('mImportarIA');
+}
+
+function iaHandleFile(file) {
+  if (!file) return;
+  const valid = ['image/jpeg','image/png','image/jpg','image/webp','application/pdf'];
+  if (!valid.includes(file.type)) {
+    toast('Formato no soportado. Usa JPG, PNG o PDF.', 'error');
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    toast('Archivo demasiado grande (max 20MB)', 'error');
+    return;
+  }
+  _iaFileName = file.name;
+  const fn = document.getElementById('iaFileName');
+  fn.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+  fn.style.display = 'block';
+  document.getElementById('iaDropZone').style.borderColor = 'var(--azul)';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    // Remove data:xxx;base64, prefix
+    _iaFileBase64 = e.target.result.split(',')[1];
+    document.getElementById('iaBtnProcesar').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function iaProcesarDocumento() {
+  if (!_iaFileBase64) { toast('Selecciona un archivo primero', 'warning'); return; }
+
+  const prog = document.getElementById('iaProgress');
+  const bar = document.getElementById('iaProgressBar');
+  const txt = document.getElementById('iaProgressText');
+  const errDiv = document.getElementById('iaError');
+  const btn = document.getElementById('iaBtnProcesar');
+
+  prog.style.display = 'block';
+  errDiv.style.display = 'none';
+  btn.disabled = true;
+
+  // Animate progress bar
+  bar.style.width = '10%';
+  txt.textContent = 'Enviando documento a la IA...';
+
+  try {
+    // Decode API key
+    let apiKey;
+    try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { apiKey = EMPRESA.anthropic_api_key; }
+
+    const tipo = document.getElementById('ia_tipo_doc').value || 'factura';
+
+    bar.style.width = '30%';
+    txt.textContent = 'Analizando documento con Claude Vision...';
+
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'x-anthropic-key': apiKey
+      },
+      body: JSON.stringify({
+        imagen_base64: _iaFileBase64,
+        tipo: tipo,
+        empresa_id: EMPRESA.id
+      })
+    });
+
+    bar.style.width = '70%';
+    txt.textContent = 'Procesando resultados...';
+
+    const result = await resp.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Error procesando documento');
+    }
+
+    bar.style.width = '85%';
+    txt.textContent = 'Creando proveedor y articulos si es necesario...';
+
+    const data = result.data;
+
+    // --- Auto-crear proveedor si no existe ---
+    let provId = null;
+    if (data.proveedor) {
+      provId = await iaResolverProveedor(data.proveedor);
+    }
+
+    bar.style.width = '95%';
+    txt.textContent = 'Rellenando formulario...';
+
+    // --- Auto-crear articulos si no existen y rellenar formulario ---
+    await iaRellenarFactura(data, provId);
+
+    bar.style.width = '100%';
+    txt.textContent = 'Completado!';
+
+    closeModal('mImportarIA');
+    toast('Documento importado con IA. Revisa los datos antes de guardar.', 'success');
+
+  } catch(e) {
+    errDiv.textContent = 'Error: ' + e.message;
+    errDiv.style.display = 'block';
+    bar.style.width = '0%';
+    prog.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+// Buscar proveedor existente por CIF o nombre, o crear uno nuevo
+async function iaResolverProveedor(provData) {
+  // Buscar por CIF
+  if (provData.cif) {
+    const existente = (proveedores || []).find(p =>
+      p.cif && p.cif.replace(/[\s\-\.]/g,'').toUpperCase() === provData.cif.replace(/[\s\-\.]/g,'').toUpperCase()
+    );
+    if (existente) {
+      toast('Proveedor encontrado: ' + existente.nombre, 'info');
+      return existente.id;
+    }
+  }
+
+  // Buscar por nombre (coincidencia parcial)
+  if (provData.nombre) {
+    const nombreNorm = provData.nombre.toLowerCase().trim();
+    const existente = (proveedores || []).find(p =>
+      p.nombre && p.nombre.toLowerCase().trim() === nombreNorm
+    );
+    if (existente) {
+      toast('Proveedor encontrado: ' + existente.nombre, 'info');
+      return existente.id;
+    }
+  }
+
+  // No existe — crear nuevo
+  const nuevo = {
+    empresa_id: EMPRESA.id,
+    nombre: provData.nombre || 'Proveedor sin nombre',
+    cif: provData.cif || null,
+    direccion: provData.direccion || null,
+    telefono: provData.telefono || null,
+    email: provData.email || null,
+    activo: true,
+    usuario_id: CU.id
+  };
+
+  const { data, error } = await sb.from('proveedores').insert(nuevo).select().single();
+  if (error) {
+    toast('No se pudo crear el proveedor: ' + error.message, 'warning');
+    return null;
+  }
+
+  // Añadir al array global
+  proveedores.push(data);
+  toast('Nuevo proveedor creado: ' + data.nombre, 'success');
+  return data.id;
+}
+
+// Buscar articulo por nombre/descripcion, o crear nuevo
+async function iaResolverArticulo(lineaOCR) {
+  const desc = (lineaOCR.descripcion || '').trim();
+  if (!desc) return null;
+
+  // Buscar por nombre exacto o similar
+  const descNorm = desc.toLowerCase();
+  let art = (articulos || []).find(a =>
+    a.nombre && a.nombre.toLowerCase() === descNorm
+  );
+
+  if (!art) {
+    // Buscar coincidencia parcial (contiene)
+    art = (articulos || []).find(a =>
+      a.nombre && (a.nombre.toLowerCase().includes(descNorm) || descNorm.includes(a.nombre.toLowerCase()))
+    );
+  }
+
+  if (art) return art;
+
+  // Crear articulo nuevo
+  const nuevo = {
+    empresa_id: EMPRESA.id,
+    nombre: desc,
+    codigo: '',
+    precio_coste: lineaOCR.precio_unitario || 0,
+    precio_venta: (lineaOCR.precio_unitario || 0) * 1.3, // Margen 30% por defecto
+    tipo_iva_id: _iaGetTipoIvaId(lineaOCR.iva_pct || 21),
+    activo: true,
+    usuario_id: CU.id
+  };
+
+  const { data, error } = await sb.from('articulos').insert(nuevo).select().single();
+  if (error) {
+    toast('No se pudo crear articulo: ' + desc, 'warning');
+    return null;
+  }
+
+  articulos.push(data);
+  toast('Nuevo articulo creado: ' + desc, 'info');
+  return data;
+}
+
+function _iaGetTipoIvaId(porcentaje) {
+  if (typeof tiposIva === 'undefined') return null;
+  const t = tiposIva.find(x => x.porcentaje === porcentaje);
+  return t ? t.id : (tiposIva[0]?.id || null);
+}
+
+// Rellenar el formulario de factura con los datos OCR
+async function iaRellenarFactura(data, provId) {
+  // Inicializar formulario
+  fpLineas = [];
+  fpEditId = null;
+  fpProveedorActual = provId;
+
+  // Poblar selector proveedor
+  const sel = document.getElementById('fp_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+  sel.onchange = function() { fp_aplicarReglaProveedor(this.value); };
+
+  // Poblar formas de pago y bancos
+  const fpSel = document.getElementById('fp_formapago');
+  fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
+    (formasPago || []).map(f => `<option value="${f.id}">${f.nombre}</option>`).join('');
+  fp_poblarBancos();
+
+  // Numero factura
+  document.getElementById('fp_numero').value = data.numero_documento || await generarNumeroDoc('factura_proveedor');
+  // Fechas
+  document.getElementById('fp_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
+  document.getElementById('fp_vencimiento').value = data.fecha_vencimiento || (() => {
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  })();
+  // Observaciones
+  document.getElementById('fp_observaciones').value = data.notas || '';
+
+  // Aplicar reglas del proveedor (forma pago, banco, vencimiento)
+  if (provId) fp_aplicarReglaProveedor(provId);
+
+  // Procesar lineas
+  if (data.lineas && data.lineas.length > 0) {
+    for (const linea of data.lineas) {
+      const art = await iaResolverArticulo(linea);
+      fpLineas.push({
+        articulo_id: art ? art.id : null,
+        codigo: art ? (art.codigo || '') : '',
+        nombre: linea.descripcion || (art ? art.nombre : ''),
+        cantidad: linea.cantidad || 1,
+        precio: linea.precio_unitario || 0,
+        iva: linea.iva_pct || 21
+      });
+    }
+  } else {
+    // Al menos una linea vacia
+    fpLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+  }
+
+  document.getElementById('mFPTit').textContent = 'Factura de Proveedor (importada con IA)';
+  fp_renderLineas();
+  openModal('mFacturaProv');
+}

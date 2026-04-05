@@ -3952,6 +3952,42 @@
 })();
 </script>
 
+<!-- Modal Importar con IA -->
+<div class="overlay" id="mImportarIA" style="display:none">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-h"><span>🤖</span><h2>Importar documento con IA</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarIA')">✕</button></div>
+    <div class="modal-b" style="padding:24px">
+      <p style="margin-bottom:16px;color:var(--gris-500);font-size:13px">Sube una foto o PDF de una factura, albaran o presupuesto de proveedor. La IA extraera automaticamente todos los datos.</p>
+      <input type="hidden" id="ia_tipo_doc">
+      <div id="iaDropZone" style="border:2px dashed var(--gris-300);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gris-50)"
+           onclick="document.getElementById('iaFileInput').click()"
+           ondragover="event.preventDefault();this.style.borderColor='var(--azul)';this.style.background='rgba(99,102,241,0.05)'"
+           ondragleave="this.style.borderColor='var(--gris-300)';this.style.background='var(--gris-50)'"
+           ondrop="event.preventDefault();this.style.borderColor='var(--gris-300)';this.style.background='var(--gris-50)';iaHandleFile(event.dataTransfer.files[0])">
+        <div style="font-size:48px;margin-bottom:12px">📄</div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:6px">Arrastra aqui tu documento</div>
+        <div style="color:var(--gris-400);font-size:12px">o haz clic para seleccionar — JPG, PNG o PDF</div>
+        <div id="iaFileName" style="margin-top:12px;font-weight:700;color:var(--azul);display:none"></div>
+      </div>
+      <input type="file" id="iaFileInput" accept="image/*,.pdf" style="display:none" onchange="iaHandleFile(this.files[0])">
+      <div id="iaProgress" style="display:none;margin-top:20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="spinner" style="width:20px;height:20px;border-width:2px"></div>
+          <span id="iaProgressText" style="font-weight:600;font-size:13px">Analizando documento...</span>
+        </div>
+        <div style="background:var(--gris-100);border-radius:8px;height:6px;overflow:hidden">
+          <div id="iaProgressBar" style="background:linear-gradient(90deg,#8b5cf6,#6366f1);height:100%;width:0%;transition:width .5s ease;border-radius:8px"></div>
+        </div>
+      </div>
+      <div id="iaError" style="display:none;margin-top:16px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:13px"></div>
+    </div>
+    <div class="modal-f" style="justify-content:flex-end;gap:8px">
+      <button class="btn btn-secondary" onclick="closeModal('mImportarIA')">Cancelar</button>
+      <button class="btn btn-primary" id="iaBtnProcesar" onclick="iaProcesarDocumento()" disabled style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none">🤖 Procesar con IA</button>
+    </div>
+  </div>
+</div>
+
 <!-- Inicialización -->
 <script>init();</script>
 
