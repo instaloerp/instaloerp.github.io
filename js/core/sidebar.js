@@ -40,18 +40,68 @@ const PAGES_PRONTO = new Set([
   'traspasos','activos','mantenimientos','fichajes','etiquetas-qr'
 ]);
 
-// Páginas en modo BETA — funcionan pero se marca con badge
-const PAGES_BETA = new Set([
-  'facturas','proveedores','presupuestos-compra','pedidos-compra',
-  'albaranes-proveedor','facturas-proveedor','calendario-pagos','correo'
-]);
+// Páginas en modo BETA — vacío, todo es estable en v1.0
+const PAGES_BETA = new Set([]);
 
 let sbCollapsed = JSON.parse(localStorage.getItem('sb_collapsed')||'{}');
-let sbFavoritos = JSON.parse(localStorage.getItem('sb_favoritos')||'["clientes","trabajos","presupuestos"]');
+let sbFavoritos = JSON.parse(localStorage.getItem('sb_favoritos')||'["dashboard","correo","mistareas","clientes"]');
 let sbHidden = JSON.parse(localStorage.getItem('sb_hidden')||'[]');
 let sbShown = JSON.parse(localStorage.getItem('sb_shown')||'[]');
 if (!sbFavoritos.includes('dashboard')) { sbFavoritos.unshift('dashboard'); localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos)); }
 let favEditMode = false;
+
+// ── Supabase persistence for sidebar preferences ──
+let _sbSyncBusy = false;
+let _sbSyncTimer = null;
+
+// Save sidebar prefs to Supabase (debounced 1s)
+function _sbSaveToSupabase() {
+  clearTimeout(_sbSyncTimer);
+  _sbSyncTimer = setTimeout(async () => {
+    if (_sbSyncBusy || typeof sb === 'undefined' || typeof CU === 'undefined' || !CU) return;
+    _sbSyncBusy = true;
+    try {
+      const prefs = {
+        favoritos: sbFavoritos,
+        hidden: sbHidden,
+        shown: sbShown,
+        collapsed: sbCollapsed
+      };
+      await sb.from('perfiles').update({ preferencias_sidebar: prefs }).eq('id', CU.id);
+    } catch (e) { console.warn('sidebar: no se pudo guardar prefs en Supabase', e); }
+    _sbSyncBusy = false;
+  }, 1000);
+}
+
+// Load sidebar prefs from Supabase (called after login)
+async function sbCargarPrefsSupabase() {
+  try {
+    if (typeof sb === 'undefined' || typeof CU === 'undefined' || !CU) return;
+    const { data } = await sb.from('perfiles').select('preferencias_sidebar').eq('id', CU.id).single();
+    if (data && data.preferencias_sidebar) {
+      const p = data.preferencias_sidebar;
+      if (Array.isArray(p.favoritos) && p.favoritos.length) {
+        sbFavoritos = p.favoritos;
+        if (!sbFavoritos.includes('dashboard')) sbFavoritos.unshift('dashboard');
+        localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
+      }
+      if (Array.isArray(p.hidden)) {
+        sbHidden = p.hidden;
+        localStorage.setItem('sb_hidden', JSON.stringify(sbHidden));
+      }
+      if (Array.isArray(p.shown)) {
+        sbShown = p.shown;
+        localStorage.setItem('sb_shown', JSON.stringify(sbShown));
+      }
+      if (p.collapsed && typeof p.collapsed === 'object') {
+        sbCollapsed = p.collapsed;
+        localStorage.setItem('sb_collapsed', JSON.stringify(sbCollapsed));
+      }
+      renderFavoritos();
+      applySbCollapsed();
+    }
+  } catch (e) { console.warn('sidebar: no se pudieron cargar prefs de Supabase', e); }
+}
 
 function toggleSbSection(id, el) {
   // Cuando el sidebar está en modo hover-expanded, el hover de secciones lo gestiona ui.js
@@ -63,6 +113,7 @@ function toggleSbSection(id, el) {
   el.classList.toggle('collapsed', isCollapsed);
   sbCollapsed[id] = isCollapsed;
   localStorage.setItem('sb_collapsed', JSON.stringify(sbCollapsed));
+  _sbSaveToSupabase();
 }
 
 function applySbCollapsed() {
@@ -246,6 +297,7 @@ function favDrop(e, idx) {
   const item = sbFavoritos.splice(favDragIdx, 1)[0];
   sbFavoritos.splice(idx, 0, item);
   localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
+  _sbSaveToSupabase();
   favDragIdx = null;
   renderFavoritos();
 }
@@ -265,6 +317,7 @@ function toggleFavItem(id) {
     sbFavoritos.push(id);
   }
   localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
+  _sbSaveToSupabase();
   renderFavoritos();
 }
 
@@ -282,6 +335,7 @@ function toggleHideItem(id) {
     }
   }
   localStorage.setItem('sb_hidden', JSON.stringify(sbHidden));
+  _sbSaveToSupabase();
   renderFavoritos();
 }
 
@@ -296,5 +350,6 @@ function toggleShowProonto(id) {
     sbShown.push(id);
   }
   localStorage.setItem('sb_shown', JSON.stringify(sbShown));
+  _sbSaveToSupabase();
   renderFavoritos();
 }

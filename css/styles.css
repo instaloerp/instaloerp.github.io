@@ -431,8 +431,8 @@ body.sb-hover-expanded .sb-user .logout{padding:6px;font-size:16px}
 body.sb-hover-expanded .sb-nav{padding:6px 8px}
 
 /* Transición suave del sidebar */
-#sidebar{transition:width .2s ease,box-shadow .2s ease}
-#main{transition:margin-left .2s ease}
+#sidebar{transition:width .3s cubic-bezier(.4,0,.2,1),box-shadow .3s ease}
+#main{transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
 
 /* ══ FICHA OBRA — filas de docs y partes ══ */
 /* parte-row: hover INSTANTÁNEO — cero transiciones, cero reflow */

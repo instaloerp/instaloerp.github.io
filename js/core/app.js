@@ -631,10 +631,12 @@ async function mostrarApp() {
   applySbCollapsed();
   // Set default favorites if first time
   if (!localStorage.getItem('sb_favoritos')) {
-    sbFavoritos = ['clientes','trabajos','presupuestos'];
+    sbFavoritos = ['dashboard','correo','mistareas','clientes'];
     localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
   }
   renderFavoritos();
+  // Cargar preferencias sidebar desde Supabase (sobreescribe localStorage si hay datos guardados)
+  if (typeof sbCargarPrefsSupabase === 'function') sbCargarPrefsSupabase();
   document.getElementById('pgTitle').textContent = '🏠 Panel';
   document.getElementById('pgSub').textContent = _fechaHoraActual();
   document.getElementById('tr_fecha').value = new Date().toISOString().split('T')[0];
