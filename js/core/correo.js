@@ -51,8 +51,7 @@ async function loadCorreos() {
     const { data } = await sb.from('correos')
       .select('*')
       .eq('empresa_id', EMPRESA.id)
-      .order('fecha', { ascending: false })
-      .limit(200);
+      .order('fecha', { ascending: false });
     correos = data || [];
   } catch(e) {
     correos = [];
@@ -121,36 +120,37 @@ async function sincronizarCorreo(silencioso = false) {
     syncBtn.innerHTML = '⏳ Sincronizando...';
   }
 
+  // Sincronizar múltiples carpetas IMAP
+  const carpetasIMAP = ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash'];
+  let totalNuevos = 0;
+
   try {
-    const { data, error } = await sb.functions.invoke('sync-correo', {
-      body: {
-        empresa_id: EMPRESA.id,
-        cuenta_correo_id: _correoCuentaActiva.id,
-        folder: 'INBOX',
-        max_mensajes: 50
-      }
-    });
+    for (const folder of carpetasIMAP) {
+      try {
+        const { data, error } = await sb.functions.invoke('sync-correo', {
+          body: {
+            empresa_id: EMPRESA.id,
+            cuenta_correo_id: _correoCuentaActiva.id,
+            folder,
+            max_mensajes: 50
+          }
+        });
+        if (!error && data?.success && data.nuevos > 0) totalNuevos += data.nuevos;
+      } catch (_) {} // Carpeta puede no existir en el servidor
+    }
 
-    if (error) throw error;
-
-    if (data?.success) {
-      if (data.nuevos > 0) {
-        toast(`📬 ${data.nuevos} correo${data.nuevos > 1 ? 's' : ''} nuevo${data.nuevos > 1 ? 's' : ''}`, 'success');
-        // Recargar lista
-        const { data: nuevos } = await sb.from('correos')
-          .select('*')
-          .eq('empresa_id', EMPRESA.id)
-          .order('fecha', { ascending: false })
-          .limit(200);
-        correos = nuevos || [];
-        filtrarCorreos();
-        actualizarBadgeCorreo();
-      } else if (!silencioso) {
-        toast('📭 No hay correos nuevos', 'info');
-      }
-    } else if (data?.error) {
-      if (!silencioso) toast('Error sincronizando: ' + data.error, 'error');
-      console.error('Sync error:', data.error);
+    if (totalNuevos > 0) {
+      if (!silencioso) toast(`📬 ${totalNuevos} correo${totalNuevos > 1 ? 's' : ''} nuevo${totalNuevos > 1 ? 's' : ''}`, 'success');
+      // Recargar lista completa
+      const { data: nuevos } = await sb.from('correos')
+        .select('*')
+        .eq('empresa_id', EMPRESA.id)
+        .order('fecha', { ascending: false });
+      correos = nuevos || [];
+      filtrarCorreos();
+      actualizarBadgeCorreo();
+    } else if (!silencioso) {
+      toast('📭 No hay correos nuevos', 'info');
     }
   } catch(e) {
     if (!silencioso) toast('⚠️ Error de sincronización: ' + (e.message || 'Error desconocido'), 'error');
@@ -181,13 +181,21 @@ function cambiarCarpeta(folder) {
 // ═══════════════════════════════════════════════
 //  FILTRADO Y RENDERIZADO
 // ═══════════════════════════════════════════════
+// Mapeo de carpeta IMAP a carpeta local del sidebar
+function _carpetaLocal(c) {
+  const folder = (c.carpeta || '').toLowerCase();
+  if (c.tipo === 'enviado' || folder === 'sent' || folder === 'enviados') return 'sent';
+  if (c.tipo === 'borrador' || folder === 'drafts' || folder === 'borradores') return 'drafts';
+  if (folder === 'spam' || folder === 'junk') return 'spam';
+  if (folder === 'trash' || folder === 'papelera' || folder === 'deleted') return 'trash';
+  return 'inbox';
+}
+
 function filtrarCorreos() {
   const q = (document.getElementById('mailSearch')?.value || '').toLowerCase();
 
   correosFiltrados = correos.filter(c => {
-    if (carpetaActual === 'inbox' && c.tipo !== 'recibido') return false;
-    if (carpetaActual === 'sent' && c.tipo !== 'enviado') return false;
-    if (carpetaActual === 'drafts' && c.tipo !== 'borrador') return false;
+    if (_carpetaLocal(c) !== carpetaActual) return false;
     if (q) {
       const txt = [c.asunto, c.de, c.de_nombre, c.para, c.cuerpo_texto].filter(Boolean).join(' ').toLowerCase();
       if (!txt.includes(q)) return false;
@@ -197,16 +205,23 @@ function filtrarCorreos() {
 
   renderListaCorreos(correosFiltrados);
 
-  // Badge de no leídos
-  const noLeidos = correos.filter(c => c.tipo === 'recibido' && !c.leido).length;
-  const badge = document.getElementById('mailBadgeInbox');
-  if (badge) {
-    if (noLeidos > 0) {
-      badge.style.display = 'inline-block';
-      badge.textContent = noLeidos;
-    } else {
-      badge.style.display = 'none';
-    }
+  // Contadores por carpeta
+  const conteos = { inbox: 0, drafts: 0, sent: 0, spam: 0, trash: 0 };
+  correos.forEach(c => { const f = _carpetaLocal(c); if (conteos[f] !== undefined) conteos[f]++; });
+  const mapIds = { inbox: 'mailCntInbox', drafts: 'mailCntDrafts', sent: 'mailCntSent', spam: 'mailCntSpam', trash: 'mailCntTrash' };
+  Object.keys(mapIds).forEach(k => {
+    const el = document.getElementById(mapIds[k]);
+    if (el) el.textContent = conteos[k] > 0 ? conteos[k] : '';
+  });
+
+  // Barra de estado
+  const statusBar = document.getElementById('mailStatusBar');
+  if (statusBar) {
+    const total = correosFiltrados.length;
+    const nombres = { inbox: 'Entrada', drafts: 'Borradores', sent: 'Enviados', spam: 'SPAM', trash: 'Papelera' };
+    statusBar.textContent = total > 0
+      ? `${nombres[carpetaActual] || carpetaActual} — ${total} mensaje${total !== 1 ? 's' : ''}`
+      : `${nombres[carpetaActual] || carpetaActual} — Buzón vacío`;
   }
 }
 

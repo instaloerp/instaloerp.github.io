@@ -1320,13 +1320,19 @@
             <!-- Carpetas -->
             <div style="padding:0 12px 8px;display:flex;flex-direction:column;gap:2px">
               <div class="mail-folder active" data-folder="inbox" onclick="cambiarCarpeta('inbox')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;background:var(--azul-light);color:var(--azul)">
-                <span>📥</span> Entrada <span id="mailBadgeInbox" style="margin-left:auto;background:var(--azul);color:#fff;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;display:none">0</span>
-              </div>
-              <div class="mail-folder" data-folder="sent" onclick="cambiarCarpeta('sent')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>📤</span> Enviados
+                <span>📥</span> Entrada <span class="mail-count" id="mailCntInbox" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
               </div>
               <div class="mail-folder" data-folder="drafts" onclick="cambiarCarpeta('drafts')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>📝</span> Borradores
+                <span>📝</span> Borradores <span class="mail-count" id="mailCntDrafts" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              </div>
+              <div class="mail-folder" data-folder="sent" onclick="cambiarCarpeta('sent')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
+                <span>📤</span> Enviados <span class="mail-count" id="mailCntSent" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              </div>
+              <div class="mail-folder" data-folder="spam" onclick="cambiarCarpeta('spam')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
+                <span>⚠️</span> SPAM <span class="mail-count" id="mailCntSpam" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              </div>
+              <div class="mail-folder" data-folder="trash" onclick="cambiarCarpeta('trash')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
+                <span>🗑️</span> Papelera <span class="mail-count" id="mailCntTrash" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
               </div>
             </div>
             <div style="border-top:1px solid var(--gris-200)"></div>
@@ -1341,6 +1347,8 @@
                 Configura tu cuenta de correo en<br>Configuración → Correo
               </div>
             </div>
+            <!-- Barra de estado -->
+            <div id="mailStatusBar" style="padding:5px 12px;border-top:1px solid var(--gris-200);font-size:11px;color:var(--gris-400);text-align:center;flex-shrink:0"></div>
           </div>
           <!-- Panel derecho: vista del correo -->
           <div id="mailView" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
