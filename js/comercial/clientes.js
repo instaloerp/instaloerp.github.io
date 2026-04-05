@@ -168,13 +168,11 @@ async function abrirFicha(id) {
       ${datoFicha('Dir. fiscal',c.direccion_fiscal||'—')}
       ${datoFicha('Forma pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
       ${datoFicha('Tarifa',tarifa)}
-      ${c.iban?`<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.5px">🏦 Datos bancarios</div>`:''}
-      ${datoFicha('IBAN',c.iban?c.iban.replace(/(.{4})/g,'$1 ').trim():'—')}
-      ${c.iban?datoFicha('BIC',c.bic||'—'):''}
-      ${c.iban?datoFicha('Entidad',c.banco_entidad||'—'):''}
       ${c.mandato_sepa_estado?datoFicha('Mandato SEPA',c.mandato_sepa_estado==='firmado'?'✅ Firmado':'⏳ '+c.mandato_sepa_estado):''}
       ${c.observaciones?`<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
-    </div>`;
+    </div>
+    <div id="fichaCliBanco"></div>`;
+  _renderFichaCliBanco(c);
 
   // Cargar todo en paralelo (incluye albaranes)
   const [dirs, conts, trabs, presups, albs, facts, docs, notas] = await Promise.all([
@@ -343,6 +341,108 @@ async function abrirFicha(id) {
 // Navegación a trabajo/obra — abre la ficha de la obra
 function navTrabajo(id) {
   abrirFichaObra(id);
+}
+
+// ═══════════════════════════════════════════════
+//  IBAN INLINE EN FICHA CLIENTE
+// ═══════════════════════════════════════════════
+function _renderFichaCliBanco(c) {
+  const el = document.getElementById('fichaCliBanco');
+  if (!el) return;
+  const ibanFmt = c.iban ? c.iban.replace(/(.{4})/g,'$1 ').trim() : '';
+  if (c.iban) {
+    // Vista lectura con botón editar
+    el.innerHTML = `
+      <div style="margin-top:10px;padding:10px 12px;background:var(--gris-50);border-radius:8px;border:1px solid var(--gris-100)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.5px">🏦 Datos bancarios</span>
+          <button onclick="_editarIBANFicha()" style="font-size:10px;color:var(--azul);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px" onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background='none'">✏️ Editar</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">IBAN</span><span style="font-weight:600;font-family:monospace;font-size:11px;letter-spacing:0.5px">${ibanFmt}</span></div>
+          ${c.bic?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">BIC</span><span style="font-weight:600">${c.bic}</span></div>`:''}
+          ${c.banco_entidad?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">Entidad</span><span style="font-weight:600">${c.banco_entidad}</span></div>`:''}
+          ${c.banco_titular?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">Titular</span><span style="font-weight:600">${c.banco_titular}</span></div>`:''}
+        </div>
+      </div>`;
+  } else {
+    // Sin IBAN: botón para añadir
+    el.innerHTML = `
+      <div style="margin-top:10px;text-align:center">
+        <button onclick="_editarIBANFicha()" style="font-size:11px;color:var(--azul);background:var(--azul-light,#e8f0fe);border:1px dashed var(--azul);cursor:pointer;padding:8px 16px;border-radius:8px;width:100%">
+          🏦 Añadir cuenta bancaria / IBAN
+        </button>
+      </div>`;
+  }
+}
+
+function _editarIBANFicha() {
+  const c = clientes.find(x => x.id === cliActualId);
+  if (!c) return;
+  const el = document.getElementById('fichaCliBanco');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin-top:10px;padding:12px;background:var(--gris-50);border-radius:8px;border:1px solid var(--azul,#4285f4)">
+      <div style="font-size:10px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏦 Datos bancarios</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div>
+          <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">IBAN</label>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input id="fi_iban" type="text" value="${c.iban?c.iban.replace(/(.{4})/g,'$1 ').trim():''}" placeholder="ES00 0000 0000 0000 0000 0000" oninput="validarIBANLive(this)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-family:monospace;letter-spacing:0.5px">
+            <span id="fi_iban_status" style="font-size:14px;min-width:18px;text-align:center"></span>
+          </div>
+          <div id="fi_iban_msg" style="font-size:10px;margin-top:2px;min-height:14px"></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">BIC/SWIFT</label>
+            <input id="fi_bic" type="text" value="${c.bic||''}" placeholder="BSCHESMMXXX" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">Entidad bancaria</label>
+            <input id="fi_banco_entidad" type="text" value="${c.banco_entidad||''}" placeholder="Nombre del banco" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">Titular de la cuenta</label>
+          <input id="fi_banco_titular" type="text" value="${c.banco_titular||''}" placeholder="Nombre del titular" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end">
+        <button onclick="_cancelarIBANFicha()" style="font-size:11px;padding:6px 14px;border:1px solid var(--gris-200);background:white;border-radius:6px;cursor:pointer;color:var(--gris-600)">Cancelar</button>
+        <button onclick="_guardarIBANFicha()" style="font-size:11px;padding:6px 14px;border:none;background:var(--azul);color:white;border-radius:6px;cursor:pointer;font-weight:600">💾 Guardar</button>
+      </div>
+    </div>`;
+  // Trigger validation if IBAN already present
+  const ibanEl = document.getElementById('fi_iban');
+  if (ibanEl && ibanEl.value.trim()) validarIBANLive(ibanEl);
+}
+
+function _cancelarIBANFicha() {
+  const c = clientes.find(x => x.id === cliActualId);
+  if (c) _renderFichaCliBanco(c);
+}
+
+async function _guardarIBANFicha() {
+  const iban = document.getElementById('fi_iban').value.replace(/\s/g,'').toUpperCase() || null;
+  const bic = document.getElementById('fi_bic').value.trim().toUpperCase() || null;
+  const banco_entidad = document.getElementById('fi_banco_entidad').value.trim() || null;
+  const banco_titular = document.getElementById('fi_banco_titular').value.trim() || null;
+
+  // Validate IBAN if provided
+  if (iban && typeof _validarIBAN === 'function' && !_validarIBAN(iban)) {
+    if (!confirm('El IBAN no parece válido. ¿Guardar igualmente?')) return;
+  }
+
+  const { error } = await sb.from('clientes').update({ iban, bic, banco_entidad, banco_titular }).eq('id', cliActualId);
+  if (error) { toast('Error al guardar IBAN: ' + error.message, 'error'); return; }
+
+  // Update local data
+  const idx = clientes.findIndex(x => x.id === cliActualId);
+  if (idx >= 0) { clientes[idx].iban = iban; clientes[idx].bic = bic; clientes[idx].banco_entidad = banco_entidad; clientes[idx].banco_titular = banco_titular; }
+
+  toast('Datos bancarios guardados ✓', 'success');
+  _renderFichaCliBanco(clientes[idx >= 0 ? idx : 0]);
 }
 
 function datoFicha(label, val) {

@@ -84,6 +84,98 @@ async function delProv(id) {
 }
 
 // ═══════════════════════════════════════════════
+//  IBAN INLINE EN FICHA PROVEEDOR
+// ═══════════════════════════════════════════════
+function _renderFichaProvBanco(p) {
+  const el = document.getElementById('fichaProvBanco');
+  if (!el) return;
+  const ibanFmt = p.iban ? p.iban.replace(/(.{4})/g,'$1 ').trim() : '';
+  if (p.iban) {
+    el.innerHTML = `
+      <div style="margin-top:10px;padding:10px 12px;background:var(--gris-50);border-radius:8px;border:1px solid var(--gris-100)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.5px">🏦 Datos bancarios</span>
+          <button onclick="_editarIBANFichaProv()" style="font-size:10px;color:var(--azul);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px" onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background='none'">✏️ Editar</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">IBAN</span><span style="font-weight:600;font-family:monospace;font-size:11px;letter-spacing:0.5px">${ibanFmt}</span></div>
+          ${p.bic?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">BIC</span><span style="font-weight:600">${p.bic}</span></div>`:''}
+          ${p.banco_entidad?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">Entidad</span><span style="font-weight:600">${p.banco_entidad}</span></div>`:''}
+          ${p.mandato_sepa_estado?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px"><span style="color:var(--gris-500)">Mandato SEPA</span><span style="font-weight:600">${p.mandato_sepa_estado==='firmado'?'✅ Firmado':'⏳ '+p.mandato_sepa_estado}</span></div>`:''}
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div style="margin-top:10px;text-align:center">
+        <button onclick="_editarIBANFichaProv()" style="font-size:11px;color:var(--azul);background:var(--azul-light,#e8f0fe);border:1px dashed var(--azul);cursor:pointer;padding:8px 16px;border-radius:8px;width:100%">
+          🏦 Añadir cuenta bancaria / IBAN
+        </button>
+      </div>`;
+  }
+}
+
+function _editarIBANFichaProv() {
+  const p = proveedores.find(x => x.id === provActualId);
+  if (!p) return;
+  const el = document.getElementById('fichaProvBanco');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin-top:10px;padding:12px;background:var(--gris-50);border-radius:8px;border:1px solid var(--azul,#4285f4)">
+      <div style="font-size:10px;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏦 Datos bancarios</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div>
+          <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">IBAN</label>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input id="fip_iban" type="text" value="${p.iban?p.iban.replace(/(.{4})/g,'$1 ').trim():''}" placeholder="ES00 0000 0000 0000 0000 0000" oninput="validarIBANLive(this)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-family:monospace;letter-spacing:0.5px">
+            <span id="fip_iban_status" style="font-size:14px;min-width:18px;text-align:center"></span>
+          </div>
+          <div id="fip_iban_msg" style="font-size:10px;margin-top:2px;min-height:14px"></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">BIC/SWIFT</label>
+            <input id="fip_bic" type="text" value="${p.bic||''}" placeholder="BSCHESMMXXX" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--gris-500);display:block;margin-bottom:2px">Entidad bancaria</label>
+            <input id="fip_banco_entidad" type="text" value="${p.banco_entidad||''}" placeholder="Nombre del banco" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end">
+        <button onclick="_cancelarIBANFichaProv()" style="font-size:11px;padding:6px 14px;border:1px solid var(--gris-200);background:white;border-radius:6px;cursor:pointer;color:var(--gris-600)">Cancelar</button>
+        <button onclick="_guardarIBANFichaProv()" style="font-size:11px;padding:6px 14px;border:none;background:var(--azul);color:white;border-radius:6px;cursor:pointer;font-weight:600">💾 Guardar</button>
+      </div>
+    </div>`;
+  const ibanEl = document.getElementById('fip_iban');
+  if (ibanEl && ibanEl.value.trim()) validarIBANLive(ibanEl);
+}
+
+function _cancelarIBANFichaProv() {
+  const p = proveedores.find(x => x.id === provActualId);
+  if (p) _renderFichaProvBanco(p);
+}
+
+async function _guardarIBANFichaProv() {
+  const iban = document.getElementById('fip_iban').value.replace(/\s/g,'').toUpperCase() || null;
+  const bic = document.getElementById('fip_bic').value.trim().toUpperCase() || null;
+  const banco_entidad = document.getElementById('fip_banco_entidad').value.trim() || null;
+
+  if (iban && typeof _validarIBAN === 'function' && !_validarIBAN(iban)) {
+    if (!confirm('El IBAN no parece válido. ¿Guardar igualmente?')) return;
+  }
+
+  const { error } = await sb.from('proveedores').update({ iban, bic, banco_entidad }).eq('id', provActualId);
+  if (error) { toast('Error al guardar IBAN: ' + error.message, 'error'); return; }
+
+  const idx = proveedores.findIndex(x => x.id === provActualId);
+  if (idx >= 0) { proveedores[idx].iban = iban; proveedores[idx].bic = bic; proveedores[idx].banco_entidad = banco_entidad; }
+
+  toast('Datos bancarios guardados ✓', 'success');
+  _renderFichaProvBanco(proveedores[idx >= 0 ? idx : 0]);
+}
+
+// ═══════════════════════════════════════════════
 //  FICHA DE PROVEEDOR
 // ═══════════════════════════════════════════════
 function datoFichaProv(label, val) {
@@ -123,7 +215,9 @@ async function abrirFichaProveedor(id) {
       ${datoFichaProv('Forma de pago', fpName)}
       ${datoFichaProv('Días de pago', p.dias_pago || 30)}
       ${p.observaciones ? `<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${p.observaciones}</div>` : ''}
-    </div>`;
+    </div>
+    <div id="fichaProvBanco"></div>`;
+  _renderFichaProvBanco(p);
 
   // Regla de pago
   const bancoNombre = p.banco_predeterminado_nombre || '—';

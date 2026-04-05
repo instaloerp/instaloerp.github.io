@@ -352,8 +352,59 @@ async function guardarCuentaBancaria() {
   cargarBancosConfig();
 }
 
-// ─── Validación IBAN en vivo ─────────────────
-// Genérica: busca _status y _msg por convención del ID del input
+// ─── Directorio de bancos españoles (código entidad → nombre + BIC) ───
+const _BANCOS_ES = {
+  '0049':{ n:'Banco Santander',           bic:'BSCHESMMXXX' },
+  '0182':{ n:'BBVA',                       bic:'BBVAESMMXXX' },
+  '2100':{ n:'CaixaBank',                  bic:'CAIXESBBXXX' },
+  '0081':{ n:'Banco Sabadell',             bic:'BSABESBBXXX' },
+  '0019':{ n:'Deutsche Bank',              bic:'ABORESMM' },
+  '2038':{ n:'Bankia (CaixaBank)',         bic:'CAABORESMM' },
+  '0128':{ n:'Bankinter',                  bic:'BKBKESMMXXX' },
+  '2085':{ n:'Ibercaja',                   bic:'CAZABORESMM' },
+  '2095':{ n:'Kutxabank',                  bic:'BASKES2BXXX' },
+  '2103':{ n:'Unicaja Banco',              bic:'UCJAES2MXXX' },
+  '0073':{ n:'Open Bank (Santander)',      bic:'OPENESMMXXX' },
+  '0075':{ n:'Banco Popular (Santander)',  bic:'POPUESMMXXX' },
+  '0487':{ n:'Banco Mare Nostrum',         bic:'GBMNESMMXXX' },
+  '0030':{ n:'Banco Español de Crédito',   bic:'ESPCESMMXXX' },
+  '0065':{ n:'Barclays Bank',              bic:'BARCESMMXXX' },
+  '2048':{ n:'Liberbank (Unicaja)',        bic:'CECAESMM048' },
+  '2080':{ n:'Abanca',                     bic:'CAABORESMM' },
+  '3058':{ n:'Cajamar',                    bic:'CCABORESMM' },
+  '3085':{ n:'Caja Rural del Sur',         bic:'BCOEESMM085' },
+  '3025':{ n:'Caixa Ontinyent',            bic:'CCONESMMXXX' },
+  '3035':{ n:'Caja Laboral (Laboral Kutxa)',bic:'CLPEES2MXXX' },
+  '3081':{ n:'Caja Rural Castilla-La Mancha',bic:'BCOEESMM081' },
+  '0186':{ n:'Banco Mediolanum',           bic:'BSABESBB' },
+  '0239':{ n:'EVO Banco',                  bic:'ABORESMM' },
+  '1465':{ n:'ING',                        bic:'INGDESMMXXX' },
+  '0057':{ n:'BNP Paribas',               bic:'BNPAESMMXXX' },
+  '2013':{ n:'Catalana Occidente',         bic:'CAOLESMMXXX' },
+  '0061':{ n:'Banca March',               bic:'BMABORESMM' },
+  '0078':{ n:'Banca Pueyo',               bic:'BAPUES22XXX' },
+  '0083':{ n:'Renta 4 Banco',             bic:'RENTEESMMXXX' },
+  '0184':{ n:'Banco Europeo de Finanzas',  bic:'BFILESMMXXX' },
+  '0198':{ n:'Banco Cooperativo Español',  bic:'BCOEESMMXXX' },
+  '0234':{ n:'Banco Caminos',              bic:'CABORESMM' },
+  '3183':{ n:'Caja Rural de Aragón',       bic:'BCOEESMM183' },
+  '3191':{ n:'Caja Rural de Navarra',      bic:'BCOEESMM191' },
+  '0487':{ n:'Banco Mare Nostrum',         bic:'GBMNESMMXXX' },
+  '2045':{ n:'Caja de Ahorros de Ontinyent',bic:'CECAESMM045' },
+  '0031':{ n:'Banco Etcheverría',          bic:'ETCHES2GXXX' },
+  '0138':{ n:'Bankoa (Abanca)',            bic:'BKOAES22XXX' },
+  '0229':{ n:'Banco Popular-e (Santander)',bic:'POPLESMMXXX' },
+  '0237':{ n:'Cajasur (Kutxabank)',        bic:'CSABORESMM' },
+  '3007':{ n:'Caixa Guissona',             bic:'BCOEESMM007' },
+  '3008':{ n:'Caja Rural de Almería',      bic:'BCOEESMM008' },
+  '3159':{ n:'Caixa Popular',              bic:'BCOEESMM159' },
+  '3187':{ n:'Caja Rural de Soria',        bic:'BCOEESMM187' },
+  '0225':{ n:'Banco Cetelem',              bic:'FABORESMM' },
+  '0131':{ n:'Banco Espirito Santo',       bic:'BESMESMMXXX' },
+};
+
+// ─── Validación IBAN en vivo + autocompletado banco ─────────────────
+// Genérica: busca _status, _msg, _bic, _entidad por convención del ID del input
 function validarIBANLive(input) {
   const raw = input.value.replace(/\s/g, '').toUpperCase();
   const prefix = input.id.replace('_iban','');
@@ -377,20 +428,57 @@ function validarIBANLive(input) {
   const formatted = raw.replace(/(.{4})/g, '$1 ').trim();
   input.value = formatted;
 
+  // Autocompletar banco desde posiciones 5-8 del IBAN español
+  if (raw.substring(0,2) === 'ES' && raw.length >= 8) {
+    const codEntidad = raw.substring(4, 8);
+    const banco = _BANCOS_ES[codEntidad];
+    if (banco) {
+      _autocompletarBanco(prefix, banco);
+      if (msg && raw.length < 24) {
+        msg.innerHTML = `${raw.length}/24 · <strong>${banco.n}</strong>`;
+        msg.style.color = 'var(--azul)';
+      }
+    }
+  }
+
   if (raw.length < 24) {
     if (st) st.textContent = '⏳';
-    if (msg) { msg.textContent = `${raw.length}/24 caracteres` + (raw.substring(0,2) === 'ES' ? ' (España)' : ''); msg.style.color = 'var(--gris-400)'; }
+    if (msg && !msg.innerHTML.includes('<strong>')) {
+      msg.textContent = `${raw.length}/24 caracteres` + (raw.substring(0,2) === 'ES' ? ' (España)' : '');
+      msg.style.color = 'var(--gris-400)';
+    }
     return;
   }
 
   // Validar IBAN completo
   if (_validarIBAN(raw)) {
     if (st) st.textContent = '✅';
-    if (msg) { msg.textContent = 'IBAN válido'; msg.style.color = 'var(--verde)'; }
+    // Autocompletar al validar
+    if (raw.substring(0,2) === 'ES') {
+      const codEntidad = raw.substring(4, 8);
+      const banco = _BANCOS_ES[codEntidad];
+      if (banco) {
+        _autocompletarBanco(prefix, banco);
+        if (msg) { msg.innerHTML = `IBAN válido · <strong>${banco.n}</strong>`; msg.style.color = 'var(--verde)'; }
+      } else {
+        if (msg) { msg.textContent = 'IBAN válido'; msg.style.color = 'var(--verde)'; }
+      }
+    } else {
+      if (msg) { msg.textContent = 'IBAN válido'; msg.style.color = 'var(--verde)'; }
+    }
   } else {
     if (st) st.textContent = '❌';
     if (msg) { msg.textContent = 'IBAN no válido — revisa los dígitos'; msg.style.color = 'var(--rojo)'; }
   }
+}
+
+// Autocompletar BIC y entidad — busca campos hermanos por convención de prefijo
+function _autocompletarBanco(prefix, banco) {
+  // Buscar campo BIC: bco_bic, c_bic, etc.
+  const bicEl = document.getElementById(prefix + '_bic');
+  const entEl = document.getElementById(prefix + '_entidad') || document.getElementById(prefix + '_banco_entidad');
+  if (bicEl && !bicEl.value) bicEl.value = banco.bic;
+  if (entEl && !entEl.value) entEl.value = banco.n;
 }
 
 // Algoritmo MOD-97 (ISO 13616)
