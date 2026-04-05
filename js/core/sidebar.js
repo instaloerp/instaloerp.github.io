@@ -54,8 +54,6 @@ if (!sbFavoritos.includes('dashboard')) { sbFavoritos.unshift('dashboard'); loca
 let favEditMode = false;
 
 function toggleSbSection(id, el) {
-  // Si sidebar está colapsado, no hacer nada (el flyout se gestiona por hover)
-  if (document.body.classList.contains('sb-collapsed')) return;
   const sec = document.getElementById(id);
   if (!sec) return;
   const isCollapsed = sec.classList.toggle('collapsed');

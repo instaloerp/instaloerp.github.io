@@ -436,6 +436,7 @@ function enviarFacturaProvEmail(id) {
 // ═══════════════════════════════════════════════
 let _iaFileBase64 = null;
 let _iaFileName = '';
+let _iaFileMime = '';
 
 function importarConIA(tipo) {
   // Verificar que hay API key configurada
@@ -470,6 +471,7 @@ function iaHandleFile(file) {
     return;
   }
   _iaFileName = file.name;
+  _iaFileMime = file.type || 'application/octet-stream';
   const fn = document.getElementById('iaFileName');
   fn.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
   fn.style.display = 'block';
@@ -520,6 +522,7 @@ async function iaProcesarDocumento() {
       },
       body: JSON.stringify({
         imagen_base64: _iaFileBase64,
+        media_type: _iaFileMime,
         tipo: tipo,
         empresa_id: EMPRESA.id
       })
@@ -548,8 +551,18 @@ async function iaProcesarDocumento() {
     bar.style.width = '95%';
     txt.textContent = 'Rellenando formulario...';
 
-    // --- Auto-crear articulos si no existen y rellenar formulario ---
-    await iaRellenarFactura(data, provId);
+    // --- Rellenar formulario según tipo de documento ---
+    const tipoDoc = tipo || data.tipo_documento || 'factura';
+
+    if (tipoDoc === 'albaran') {
+      await iaRellenarAlbaran(data, provId);
+    } else if (tipoDoc === 'pedido') {
+      await iaRellenarPedido(data, provId);
+    } else if (tipoDoc === 'presupuesto' || tipoDoc === 'presupuesto_compra') {
+      await iaRellenarPresupuestoCompra(data, provId);
+    } else {
+      await iaRellenarFactura(data, provId);
+    }
 
     bar.style.width = '100%';
     txt.textContent = 'Completado!';
@@ -718,4 +731,132 @@ async function iaRellenarFactura(data, provId) {
   document.getElementById('mFPTit').textContent = 'Factura de Proveedor (importada con IA)';
   fp_renderLineas();
   openModal('mFacturaProv');
+}
+
+// ── Rellenar Albarán de proveedor (recepción) con datos OCR ──
+async function iaRellenarAlbaran(data, provId) {
+  rcLineas = [];
+  rcEditId = null;
+  rcProveedorActual = provId;
+
+  // Poblar selector proveedor
+  const sel = document.getElementById('rc_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+
+  // Numero y fecha
+  document.getElementById('rc_numero').value = data.numero_documento || '';
+  document.getElementById('rc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
+  document.getElementById('rc_observaciones').value = data.notas || '';
+
+  // Procesar lineas
+  if (data.lineas && data.lineas.length > 0) {
+    for (const linea of data.lineas) {
+      const art = await iaResolverArticulo(linea);
+      rcLineas.push({
+        articulo_id: art ? art.id : null,
+        codigo: art ? (art.codigo || '') : '',
+        nombre: linea.descripcion || (art ? art.nombre : ''),
+        cantidad_pedida: linea.cantidad || 1,
+        cantidad_recibida: linea.cantidad || 1,
+        precio: linea.precio_unitario || 0
+      });
+    }
+  } else {
+    rcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad_pedida: 1, cantidad_recibida: 1, precio: 0 });
+  }
+
+  document.getElementById('mRCTit').textContent = 'Albarán de Proveedor (importado con IA)';
+  rc_renderLineas();
+  openModal('mRecepcion');
+}
+
+// ── Rellenar Pedido de compra con datos OCR ──
+async function iaRellenarPedido(data, provId) {
+  pcLineas = [];
+  pcEditId = null;
+  pcProveedorActual = provId;
+
+  // Poblar selector proveedor
+  const sel = document.getElementById('pc_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+
+  // Numero, fecha, entrega
+  document.getElementById('pc_numero').value = data.numero_documento || '';
+  document.getElementById('pc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
+  const entrega = document.getElementById('pc_entrega');
+  if (entrega) {
+    entrega.value = data.fecha_vencimiento || (() => {
+      const d = new Date(); d.setDate(d.getDate() + 15);
+      return d.toISOString().split('T')[0];
+    })();
+  }
+  document.getElementById('pc_observaciones').value = data.notas || '';
+
+  // Procesar lineas
+  if (data.lineas && data.lineas.length > 0) {
+    for (const linea of data.lineas) {
+      const art = await iaResolverArticulo(linea);
+      pcLineas.push({
+        articulo_id: art ? art.id : null,
+        codigo: art ? (art.codigo || '') : '',
+        nombre: linea.descripcion || (art ? art.nombre : ''),
+        cantidad: linea.cantidad || 1,
+        precio: linea.precio_unitario || 0,
+        iva: linea.iva_pct || 21
+      });
+    }
+  } else {
+    pcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+  }
+
+  document.getElementById('mPCTit').textContent = 'Pedido de Compra (importado con IA)';
+  pc_renderLineas();
+  openModal('mPedidoCompra');
+}
+
+// ── Rellenar Presupuesto de compra con datos OCR ──
+async function iaRellenarPresupuestoCompra(data, provId) {
+  prcLineas = [];
+  prcEditId = null;
+  prcProveedorActual = provId;
+
+  // Poblar selector proveedor
+  const sel = document.getElementById('prc_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+
+  // Numero, fecha, validez
+  document.getElementById('prc_numero').value = data.numero_documento || '';
+  document.getElementById('prc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
+  const validez = document.getElementById('prc_validez');
+  if (validez) {
+    validez.value = data.fecha_vencimiento || (() => {
+      const d = new Date(); d.setDate(d.getDate() + 30);
+      return d.toISOString().split('T')[0];
+    })();
+  }
+  document.getElementById('prc_observaciones').value = data.notas || '';
+
+  // Procesar lineas
+  if (data.lineas && data.lineas.length > 0) {
+    for (const linea of data.lineas) {
+      const art = await iaResolverArticulo(linea);
+      prcLineas.push({
+        articulo_id: art ? art.id : null,
+        codigo: art ? (art.codigo || '') : '',
+        nombre: linea.descripcion || (art ? art.nombre : ''),
+        cantidad: linea.cantidad || 1,
+        precio: linea.precio_unitario || 0,
+        iva: linea.iva_pct || 21
+      });
+    }
+  } else {
+    prcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+  }
+
+  document.getElementById('mPRCTit').textContent = 'Presupuesto de Compra (importado con IA)';
+  prc_renderLineas();
+  openModal('mPresupuestoCompra');
 }
