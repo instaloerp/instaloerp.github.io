@@ -643,55 +643,64 @@ async function mostrarApp() {
 }
 
 // ═══════════════════════════════════════════════
-// REALTIME — Notificaciones de partes de trabajo
+// REALTIME — Notificaciones en tiempo real
+// Escucha cambios externos: partes, presupuestos,
+// documentos generados, etc.
 // ═══════════════════════════════════════════════
 let _rtChannel = null;
 // Cache local de estados: parteId → estado (payload.old no incluye campos por defecto en Supabase)
 const _partesEstadoCache = new Map();
+// Cache presupuestos para evitar duplicados
+const _presEstadoCache = new Map();
 
 // Poblar cache cuando se cargan partes
 function _populateEstadoCache(partes) {
   if (!partes) return;
   partes.forEach(p => { if (p.id && p.estado) _partesEstadoCache.set(p.id, p.estado); });
 }
+// Poblar cache presupuestos
+function _populatePresCache(lista) {
+  if (!lista) return;
+  lista.forEach(p => { if (p.id) _presEstadoCache.set(p.id, { estado: p.estado, firmado: !!p.pdf_firmado_url }); });
+}
 
 function initRealtimePartes() {
   if (!EMPRESA || !CP?.es_superadmin) return;
   if (_rtChannel) { sb.removeChannel(_rtChannel); _rtChannel = null; }
 
-  // Poblar cache inicial
+  // Poblar caches iniciales
   if (typeof partesData !== 'undefined' && Array.isArray(partesData)) {
     _populateEstadoCache(partesData);
   }
+  if (typeof presupuestos !== 'undefined' && Array.isArray(presupuestos)) {
+    _populatePresCache(presupuestos);
+  }
 
-  console.log('[Realtime] Iniciando suscripción para empresa:', EMPRESA.id);
+  console.log('[Realtime] Iniciando suscripción general para empresa:', EMPRESA.id);
 
+  // ─── Handler: Partes de trabajo ───
   function _handleParteChange(payload) {
     const nuevo = payload.new;
     if (!nuevo) { console.log('[Realtime] Payload sin .new:', payload); return; }
 
-    console.log('[Realtime] Evento recibido:', payload.eventType || payload.type, 'parte:', nuevo.numero, 'estado:', nuevo.estado);
+    console.log('[Realtime] Parte:', payload.eventType || payload.type, nuevo.numero, 'estado:', nuevo.estado);
 
     // Solo notificar en_curso y completado
     if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') {
-      console.log('[Realtime] Estado ignorado:', nuevo.estado);
+      console.log('[Realtime] Estado parte ignorado:', nuevo.estado);
       return;
     }
 
     // Comparar con cache local para evitar duplicados
     const estadoPrevio = _partesEstadoCache.get(nuevo.id);
     if (estadoPrevio && estadoPrevio === nuevo.estado) {
-      console.log('[Realtime] Mismo estado que cache, ignorando. estado:', nuevo.estado);
+      console.log('[Realtime] Mismo estado parte que cache, ignorando');
       return;
     }
     _partesEstadoCache.set(nuevo.id, nuevo.estado);
 
     // TODO: Reactivar cuando haya operarios reales
-    // Ignorar cambios del propio usuario (por usuario_id, no revisado_por)
-    // if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) {
-    //   console.log('[Realtime] Cambio propio, ignorando');
-    //   return;
-    // }
+    // if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) return;
 
     const operario = nuevo.usuario_nombre || 'Un operario';
     const numero = nuevo.numero || '';
@@ -705,15 +714,14 @@ function initRealtimePartes() {
     const n = notifs[nuevo.estado];
     if (!n) return;
 
-    console.log('[Realtime] ✅ Mostrando notificación:', n.titulo);
+    console.log('[Realtime] Mostrando notificación parte:', n.titulo);
     showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
 
-    // Notificación del sistema
     if (Notification.permission === 'granted') {
       try { new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' }); } catch(e) {}
     }
 
-    // Auto-refrescar
+    // Auto-refrescar partes
     if (typeof loadPartes === 'function') { try { loadPartes(); } catch(e) {} }
     if (obraId && typeof obraActualId !== 'undefined' && obraActualId && obraActualId === obraId) {
       try { abrirFichaObra(obraActualId, false); } catch(e) {}
@@ -721,7 +729,66 @@ function initRealtimePartes() {
     if (typeof loadDashboard === 'function') { try { loadDashboard(); } catch(e) {} }
   }
 
-  _rtChannel = sb.channel('partes-realtime')
+  // ─── Handler: Presupuestos (firma cliente, cambio estado externo) ───
+  function _handlePresupuestoChange(payload) {
+    const nuevo = payload.new;
+    if (!nuevo) return;
+
+    console.log('[Realtime] Presupuesto:', payload.eventType || payload.type, nuevo.numero, 'estado:', nuevo.estado, 'firmado:', !!nuevo.pdf_firmado_url);
+
+    const cached = _presEstadoCache.get(nuevo.id);
+    const tieneFirma = !!nuevo.pdf_firmado_url;
+    const cambioEstado = !cached || cached.estado !== nuevo.estado;
+    const cambioFirma = !cached || cached.firmado !== tieneFirma;
+
+    if (!cambioEstado && !cambioFirma) {
+      console.log('[Realtime] Sin cambios relevantes en presupuesto, ignorando');
+      return;
+    }
+    _presEstadoCache.set(nuevo.id, { estado: nuevo.estado, firmado: tieneFirma });
+
+    // Notificación cuando un cliente firma
+    if (cambioFirma && tieneFirma) {
+      const cliente = nuevo.cliente_nombre || '';
+      const num = nuevo.numero || '';
+      showRealtimeNotif('🔏', 'Presupuesto firmado', `${cliente} ha firmado ${num}`, 'var(--verde)', nuevo.id);
+      if (Notification.permission === 'granted') {
+        try { new Notification('🔏 Presupuesto firmado', { body: `${cliente} ha firmado ${num}`, icon: 'icon.svg' }); } catch(e) {}
+      }
+    }
+
+    // Notificación cuando cambia estado (aceptado externamente)
+    if (cambioEstado && nuevo.estado === 'aceptado' && !cambioFirma) {
+      const num = nuevo.numero || '';
+      showRealtimeNotif('✅', 'Presupuesto aceptado', `${num} ha sido aceptado`, 'var(--verde)', nuevo.id);
+    }
+
+    // Auto-refrescar presupuestos
+    if (typeof loadPresupuestos === 'function') { try { loadPresupuestos(); } catch(e) {} }
+    if (typeof loadDashboard === 'function') { try { loadDashboard(); } catch(e) {} }
+  }
+
+  // ─── Handler: Documentos generados (nuevos docs firmados, etc.) ───
+  function _handleDocumentoGenerado(payload) {
+    const nuevo = payload.new;
+    if (!nuevo) return;
+
+    console.log('[Realtime] Documento generado:', nuevo.tipo_documento, nuevo.numero, 'firmado:', nuevo.firmado);
+
+    // Refrescar presupuestos si el doc es de presupuesto
+    if (nuevo.tipo_documento === 'presupuesto' && typeof loadPresupuestos === 'function') {
+      try { loadPresupuestos(); } catch(e) {}
+    }
+
+    // Si estamos en ficha de cliente y es su documento, refrescar
+    if (nuevo.entidad_tipo === 'cliente' && nuevo.entidad_id && typeof clienteActualId !== 'undefined' && clienteActualId == nuevo.entidad_id) {
+      if (typeof abrirFichaCliente === 'function') { try { abrirFichaCliente(clienteActualId, false); } catch(e) {} }
+    }
+  }
+
+  // ─── Canal unificado con todas las tablas ───
+  _rtChannel = sb.channel('erp-realtime')
+    // Partes de trabajo
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
       _handleParteChange
@@ -730,12 +797,26 @@ function initRealtimePartes() {
       { event: 'INSERT', schema: 'public', table: 'partes_trabajo', filter: `empresa_id=eq.${EMPRESA.id}` },
       _handleParteChange
     )
+    // Presupuestos
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'presupuestos', filter: `empresa_id=eq.${EMPRESA.id}` },
+      _handlePresupuestoChange
+    )
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'presupuestos', filter: `empresa_id=eq.${EMPRESA.id}` },
+      _handlePresupuestoChange
+    )
+    // Documentos generados
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'documentos_generados', filter: `empresa_id=eq.${EMPRESA.id}` },
+      _handleDocumentoGenerado
+    )
     .subscribe((status, err) => {
       console.log('[Realtime] Status:', status, err ? 'Error: ' + err.message : '');
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] ✅ Suscripción activa — escuchando cambios en partes_trabajo');
+        console.log('[Realtime] ✅ Suscripción activa — escuchando: partes_trabajo, presupuestos, documentos_generados');
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error('[Realtime] ❌ Error de conexión. Verifica que partes_trabajo está en la publicación supabase_realtime');
+        console.error('[Realtime] ❌ Error de conexión. Verifica que las tablas están en la publicación supabase_realtime');
       }
     });
 
