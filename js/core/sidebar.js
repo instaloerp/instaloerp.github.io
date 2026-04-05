@@ -13,6 +13,7 @@ const ALL_PAGES = [
   {id:'pedidos-compra',ico:'🛒',label:'Pedidos'},
   {id:'albaranes-proveedor',ico:'📥',label:'Albaranes prov.'},
   {id:'facturas-proveedor',ico:'📑',label:'Facturas prov.'},
+  {id:'calendario-pagos',ico:'📅',label:'Calendario pagos'},
   {id:'articulos',ico:'📦',label:'Artículos'},
   {id:'almacenes',ico:'🏪',label:'Almacenes'},
   {id:'stock',ico:'📊',label:'Stock'},
@@ -35,9 +36,14 @@ const ALL_PAGES = [
 
 // Páginas marcadas como "pronto" — se ocultan automáticamente del sidebar
 const PAGES_PRONTO = new Set([
+  'almacenes','stock',
+  'traspasos','activos','mantenimientos','fichajes','etiquetas-qr'
+]);
+
+// Páginas en modo BETA — funcionan pero se marca con badge
+const PAGES_BETA = new Set([
   'facturas','proveedores','presupuestos-compra','pedidos-compra',
-  'albaranes-proveedor','facturas-proveedor','almacenes','stock',
-  'traspasos','activos','mantenimientos','correo','fichajes','etiquetas-qr'
+  'albaranes-proveedor','facturas-proveedor','calendario-pagos','correo'
 ]);
 
 let sbCollapsed = JSON.parse(localStorage.getItem('sb_collapsed')||'{}');
@@ -93,7 +99,7 @@ function renderFavoritos() {
         style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;${esFijo?'opacity:.6;cursor:default':'cursor:grab'};transition:background .12s;user-select:none;border-left:3px solid rgba(255,200,0,.6)">
         <span style="opacity:.4;font-size:12px;flex-shrink:0;width:14px">${esFijo?'📌':'⠿'}</span>
         <span style="font-size:17px;width:20px;text-align:center;flex-shrink:0">${p.ico}</span>
-        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.5;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':''}</span>
+        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.5;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':(typeof PAGES_BETA!=='undefined'&&PAGES_BETA.has(id))?' <span style="font-size:9px;background:rgba(59,130,246,.35);color:#93c5fd;padding:1px 5px;border-radius:3px">beta</span>':''}</span>
         ${esFijo?'':`<button onclick="toggleFavItem('${id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0" title="Quitar de favoritos">⭐</button>`}
         ${esFijo?'':`<button onclick="toggleHideItem('${id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${isHidden?'Mostrar':'Ocultar'}">${isHidden?'🙈':'🙈'}</button>`}
       </div>`;
@@ -113,7 +119,7 @@ function renderFavoritos() {
       return `<div style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;opacity:${opacity};transition:opacity .15s">
         <span style="width:14px;flex-shrink:0"></span>
         <span style="font-size:17px;width:20px;text-align:center;flex-shrink:0">${p.ico}</span>
-        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.6;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':''}</span>
+        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.6;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':(typeof PAGES_BETA!=='undefined'&&PAGES_BETA.has(p.id))?' <span style="font-size:9px;background:rgba(59,130,246,.35);color:#93c5fd;padding:1px 5px;border-radius:3px">beta</span>':''}</span>
         <button onclick="toggleFavItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:.3" title="Añadir a favoritos">⭐</button>
         <button onclick="toggleHideItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${isHidden?'Mostrar':'Ocultar'}">${isHidden?'🙈':'🙈'}</button>
       </div>`;

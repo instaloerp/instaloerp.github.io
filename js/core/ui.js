@@ -174,6 +174,7 @@ const PAGE_PRONTO_INFO = {
   'pedidos-compra':      {ico:'🛒', titulo:'Pedidos de compra', desc:'Crea pedidos, haz seguimiento de entregas y controla la recepción de materiales.', features:['Pedidos desde presupuestos aprobados','Seguimiento de estado y entregas','Recepción parcial de mercancía','Vinculación automática con obras']},
   'albaranes-proveedor': {ico:'📥', titulo:'Albaranes de proveedor', desc:'Registro de albaranes recibidos y control de mercancía entrante.', features:['Registro de entradas por proveedor','Control de cantidades recibidas','Vinculación con pedidos','Actualización automática de stock']},
   'facturas-proveedor':  {ico:'📑', titulo:'Facturas de proveedor', desc:'Control de facturas recibidas, vencimientos y pagos a proveedores.', features:['Registro de facturas de compra','Control de vencimientos','Programación de pagos','Conciliación con albaranes']},
+  'calendario-pagos':    {ico:'📅', titulo:'Calendario de pagos', desc:'Vista de todos los pagos pendientes con fecha de vencimiento y banco asignado.', features:['Vista de pagos pendientes por fecha','Asignación de banco','Detección de vencidos','Exportación a Excel']},
   'almacenes':           {ico:'🏪', titulo:'Almacenes', desc:'Gestión multi-almacén: ubicaciones, capacidad y configuración.', features:['Múltiples almacenes y ubicaciones','Configuración de capacidad','Asignación a obras','Inventario por almacén']},
   'stock':               {ico:'📊', titulo:'Stock', desc:'Control de inventario en tiempo real con mínimos, máximos y alertas.', features:['Inventario en tiempo real','Alertas de stock mínimo','Valoración de existencias','Movimientos y trazabilidad']},
   'traspasos':           {ico:'🔄', titulo:'Traspasos', desc:'Movimientos de material entre almacenes con trazabilidad completa.', features:['Transferencia entre almacenes','Trazabilidad de cada movimiento','Aprobación de traspasos','Historial completo']},
@@ -213,6 +214,11 @@ function goPage(id, opts){
       }
     }
   }
+  // Badge BETA en el subtítulo para páginas beta
+  if (typeof PAGES_BETA !== 'undefined' && PAGES_BETA.has(id)) {
+    const subEl = document.getElementById('pgSub');
+    if (subEl) subEl.innerHTML = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:#DBEAFE;color:#1D4ED8;letter-spacing:.5px;margin-left:4px">BETA</span>';
+  }
   // Guardar estado actual en la pila (salvo si es navegación "atrás")
   if (!opts._isBack) {
     const prev = _captureNavState();
@@ -224,7 +230,7 @@ function goPage(id, opts){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',mantenimientos:'Mantenimientos',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',planificador:'Planificador Semanal',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
+  const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',mantenimientos:'Mantenimientos',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor','calendario-pagos':'Calendario de Pagos',correo:'Correo',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',planificador:'Planificador Semanal',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = '';
   // Topbar buttons por página
@@ -280,6 +286,8 @@ function goPage(id, opts){
   if(id==='pedidos-compra') loadPedidosCompra();
   if(id==='albaranes-proveedor') loadRecepciones();
   if(id==='facturas-proveedor') loadFacturasProv();
+  if(id==='calendario-pagos') loadCalendarioPagos();
+  if(id==='correo') loadCorreos();
   if(id==='trabajos'){
     // Solo cerrar ficha si NO es navegación "atrás" (goBack restaurará la ficha)
     if(!opts._isBack && typeof cerrarFichaObra==='function') cerrarFichaObra();
