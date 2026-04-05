@@ -277,6 +277,9 @@ function goPage(id, opts){
     // Limitar pila a 20 entradas
     if (navStack.length > 20) navStack.shift();
   }
+  // Detener auto-sync de correo al salir de esa sección
+  if(id!=='correo' && typeof detenerAutoSyncCorreo==='function') detenerAutoSyncCorreo();
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');

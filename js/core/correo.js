@@ -14,6 +14,8 @@ let carpetaActual = 'inbox';
 let correoActual = null;
 let _correoSyncing = false;
 let _correoCuentaActiva = null; // Cuenta predeterminada cargada
+let _correoAutoSyncInterval = null; // Intervalo de auto-sync
+const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
 
 // ═══════════════════════════════════════════════
 //  CARGA INICIAL
@@ -60,6 +62,24 @@ async function loadCorreos() {
   // Auto-sincronizar si tiene sync habilitada
   if (_correoCuentaActiva.sync_habilitada) {
     sincronizarCorreo(true); // silencioso
+  }
+
+  // Iniciar auto-sync cada 2 minutos
+  iniciarAutoSyncCorreo();
+}
+
+function iniciarAutoSyncCorreo() {
+  detenerAutoSyncCorreo();
+  if (!_correoCuentaActiva || !_correoCuentaActiva.sync_habilitada) return;
+  _correoAutoSyncInterval = setInterval(() => {
+    sincronizarCorreo(true); // silencioso en background
+  }, CORREO_SYNC_INTERVALO_MS);
+}
+
+function detenerAutoSyncCorreo() {
+  if (_correoAutoSyncInterval) {
+    clearInterval(_correoAutoSyncInterval);
+    _correoAutoSyncInterval = null;
   }
 }
 
