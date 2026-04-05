@@ -52,23 +52,36 @@ function renderFacturas(list) {
     }
   });
 
-  // KPIs — siempre sobre el total (facLocalData), no sobre filtrados
+  // KPIs — dinámicos sobre la lista filtrada visible
+  const noAnuladas = list.filter(f => f.estado !== 'anulada');
+  const borradores = list.filter(f => f.estado === 'borrador');
+  const pends = list.filter(f => f.estado === 'pendiente');
+  const vencidas = list.filter(f => f.estado === 'vencida');
+  const cobradas = list.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
+
   const kTotal   = document.getElementById('fk-total');
+  const kBorr    = document.getElementById('fk-borradores');
   const kPend    = document.getElementById('fk-pendientes');
   const kVenc    = document.getElementById('fk-vencidas');
-  const kPag     = document.getElementById('fk-pagadas');
+  const kCobr    = document.getElementById('fk-cobradas');
   const kImpPend = document.getElementById('fk-imp-pend');
   const kImpCobr = document.getElementById('fk-imp-cobr');
-  const noAnuladas = facLocalData.filter(f => f.estado !== 'anulada');
-  const pends = facLocalData.filter(f => f.estado === 'pendiente');
-  const vencidas = facLocalData.filter(f => f.estado === 'vencida');
-  const pagadas = facLocalData.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
   if (kTotal)   kTotal.textContent   = noAnuladas.length;
+  if (kBorr)    kBorr.textContent    = borradores.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kVenc)    kVenc.textContent    = vencidas.length;
-  if (kPag)     kPag.textContent     = pagadas.length;
+  if (kCobr)    kCobr.textContent    = cobradas.length;
   if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas).reduce((s, f) => s + (f.total || 0), 0));
-  if (kImpCobr) kImpCobr.textContent = fmtE(pagadas.reduce((s, f) => s + (f.total || 0), 0));
+  if (kImpCobr) kImpCobr.textContent = fmtE(cobradas.reduce((s, f) => s + (f.total || 0), 0));
+
+  // Resaltar KPI activo
+  const estActivo = document.getElementById('fEstado')?.value || '_todas';
+  document.querySelectorAll('.fk-click').forEach(el => {
+    const isActive = el.dataset.fk === estActivo;
+    el.style.outline = isActive ? '2.5px solid var(--azul)' : 'none';
+    el.style.outlineOffset = isActive ? '-1px' : '0';
+    el.style.transform = isActive ? 'scale(1.03)' : '';
+  });
 
   const tbody = document.getElementById('fTable');
   if (!tbody) return;
@@ -118,15 +131,34 @@ function filtrarFacturas() {
   const est = document.getElementById('fEstado')?.value || '';
   const des = document.getElementById('fDesde')?.value || '';
   const has = document.getElementById('fHasta')?.value || '';
-  facFiltrados = facLocalData.filter(f =>
-    (!q   || (f.numero || '').toLowerCase().includes(q) || (f.cliente_nombre || '').toLowerCase().includes(q)) &&
-    (!est || f.estado === est) &&
-    (!des || (f.fecha && f.fecha >= des)) &&
-    (!has || (f.fecha && f.fecha <= has))
-  );
+  facFiltrados = facLocalData.filter(f => {
+    // Filtro de estado
+    if (est === '_todas') {
+      if (f.estado === 'anulada') return false; // Excluir anuladas
+    } else if (est === 'cobrada') {
+      if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false; // Compat legacy
+    } else if (est) {
+      if (f.estado !== est) return false;
+    }
+    // Filtro de búsqueda
+    if (q && !(f.numero || '').toLowerCase().includes(q) && !(f.cliente_nombre || '').toLowerCase().includes(q)) return false;
+    // Filtro de fechas
+    if (des && (!f.fecha || f.fecha < des)) return false;
+    if (has && (!f.fecha || f.fecha > has)) return false;
+    return true;
+  });
   const _numSort = (n) => { const m = (n || '').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
   facFiltrados.sort((a, b) => _numSort(b.numero) - _numSort(a.numero));
   renderFacturas(facFiltrados);
+}
+
+// Filtrar al hacer clic en un KPI
+function filtrarFacturasPorKpi(estado) {
+  const sel = document.getElementById('fEstado');
+  if (sel) {
+    sel.value = estado;
+    filtrarFacturas();
+  }
 }
 
 // ═══════════════════════════════════════════════

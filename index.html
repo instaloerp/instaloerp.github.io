@@ -241,7 +241,7 @@
       <!-- COMUNICACIÓN -->
       <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)">Comunicación</div>
       <div class="sb-section-items" id="sec-comunicacion">
-        <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span class="sb-beta">beta</span></button>
+        <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span id="correo-badge" style="display:none;background:var(--rojo);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px"></span></button>
       </div>
 
       <!-- PERSONAL -->
@@ -955,10 +955,11 @@
           <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
             <input type="text" id="fSearch" placeholder="🔍 Buscar por número, cliente..." oninput="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
             <select id="fEstado" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="_todas" selected>Todas (sin anuladas)</option>
               <option value="">Todos los estados</option>
               <option value="borrador">Borrador</option>
-              <option value="pendiente" selected>Pendiente</option>
-              <option value="pagada">Pagada</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="cobrada">Cobrada</option>
               <option value="vencida">Vencida</option>
               <option value="anulada">Anulada</option>
             </select>
@@ -970,11 +971,12 @@
           </div>
         </div>
         <!-- KPIs -->
-        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px">
-          <div class="sc" style="--c:var(--gris-500);--bg:var(--gris-100)"><div class="si">🧾</div><div class="sv" id="fk-total">—</div><div class="sl">Total</div></div>
-          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">⏳</div><div class="sv" id="fk-pendientes">—</div><div class="sl">Pendientes</div></div>
-          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="fk-vencidas">—</div><div class="sl">Vencidas</div></div>
-          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv" id="fk-pagadas">—</div><div class="sl">Pagadas</div></div>
+        <div id="fk-row" style="display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc fk-click" data-fk="_todas" onclick="filtrarFacturasPorKpi('_todas')" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer"><div class="si">🧾</div><div class="sv" id="fk-total">—</div><div class="sl">Todas</div></div>
+          <div class="sc fk-click" data-fk="borrador" onclick="filtrarFacturasPorKpi('borrador')" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer"><div class="si">✏️</div><div class="sv" id="fk-borradores">—</div><div class="sl">Borradores</div></div>
+          <div class="sc fk-click" data-fk="pendiente" onclick="filtrarFacturasPorKpi('pendiente')" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer"><div class="si">⏳</div><div class="sv" id="fk-pendientes">—</div><div class="sl">Pendientes</div></div>
+          <div class="sc fk-click" data-fk="vencida" onclick="filtrarFacturasPorKpi('vencida')" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer"><div class="si">⚠️</div><div class="sv" id="fk-vencidas">—</div><div class="sl">Vencidas</div></div>
+          <div class="sc fk-click" data-fk="cobrada" onclick="filtrarFacturasPorKpi('cobrada')" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer"><div class="si">✅</div><div class="sv" id="fk-cobradas">—</div><div class="sl">Cobradas</div></div>
           <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="fk-imp-pend">—</div><div class="sl">Importe pendiente</div></div>
           <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💰</div><div class="sv" id="fk-imp-cobr">—</div><div class="sl">Importe cobrado</div></div>
         </div>

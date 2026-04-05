@@ -90,6 +90,9 @@ async function loadDashboard() {
 
   // ── PARTES AUTO-GENERADOS POR GREMIO ──
   await loadDashboardPartesGremio();
+
+  // ── BADGE CORREO NO LEÍDO ──
+  if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
 }
 
 async function loadDashboardTareas() {

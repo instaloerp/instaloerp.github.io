@@ -58,6 +58,7 @@ async function loadCorreos() {
     correos = [];
   }
   filtrarCorreos();
+  actualizarBadgeCorreo();
 
   // Auto-sincronizar si tiene sync habilitada
   if (_correoCuentaActiva.sync_habilitada) {
@@ -66,6 +67,26 @@ async function loadCorreos() {
 
   // Iniciar auto-sync cada 2 minutos
   iniciarAutoSyncCorreo();
+}
+
+// Actualizar badge de correos no leídos en el sidebar
+async function actualizarBadgeCorreo() {
+  try {
+    const { count, error } = await sb.from('correos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', EMPRESA.id)
+      .eq('leido', false)
+      .eq('tipo', 'recibido');
+    const badge = document.getElementById('correo-badge');
+    if (!badge) return;
+    const n = count || 0;
+    if (n > 0) {
+      badge.textContent = n > 99 ? '99+' : n;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(_) {}
 }
 
 function iniciarAutoSyncCorreo() {
@@ -123,6 +144,7 @@ async function sincronizarCorreo(silencioso = false) {
           .limit(200);
         correos = nuevos || [];
         filtrarCorreos();
+        actualizarBadgeCorreo();
       } else if (!silencioso) {
         toast('📭 No hay correos nuevos', 'info');
       }
