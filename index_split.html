@@ -1814,8 +1814,10 @@
                   </div>
                   <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Obtén tu clave en <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--azul)">console.anthropic.com</a>. Se almacena cifrada. Coste estimado: ~0,03€ por documento.</small>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <button class="btn btn-secondary btn-sm" onclick="testApiKeyIA()">🧪 Probar conexión</button>
+                  <a href="https://console.anthropic.com/settings/billing" target="_blank" class="btn btn-sm" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;text-decoration:none;font-weight:600">💰 Añadir saldo</a>
+                  <a href="https://console.anthropic.com/settings/billing" target="_blank" class="btn btn-sm" style="background:var(--gris-100);color:var(--gris-600);border:none;text-decoration:none">📊 Ver uso y saldo</a>
                   <span id="iaTestResult" style="font-size:12px"></span>
                 </div>
                 <div style="padding:14px;background:var(--gris-50);border-radius:8px;font-size:11px;color:var(--gris-500);line-height:1.7;margin-top:20px">
