@@ -428,46 +428,88 @@ function vincularCorreo(id) {
   const c = correos.find(x => x.id === id);
   if (!c) return;
 
-  // Construir selector de entidades
-  const obrasOpts = (typeof trabajos !== 'undefined' ? trabajos : [])
-    .map(t => `<option value="obra|${t.id}|${t.numero || ''}">${t.numero || ''} — ${t.titulo || t.nombre || ''}</option>`)
-    .join('');
-  const clienteOpts = (typeof clientes !== 'undefined' ? clientes : [])
-    .map(cl => `<option value="cliente|${cl.id}|${cl.nombre || ''}">${cl.nombre || ''}</option>`)
-    .join('');
-  const provOpts = (typeof proveedores !== 'undefined' ? proveedores : [])
-    .map(p => `<option value="proveedor|${p.id}|${p.nombre || ''}">${p.nombre || ''}</option>`)
-    .join('');
+  // Preparar datos para buscador
+  const _vincItems = [];
+  (typeof trabajos !== 'undefined' ? trabajos : []).forEach(t => {
+    _vincItems.push({ tipo: 'obra', id: t.id, ref: t.numero || '', label: `🏗️ ${t.numero || ''} — ${t.titulo || t.nombre || ''}` });
+  });
+  (typeof clientes !== 'undefined' ? clientes : []).forEach(cl => {
+    _vincItems.push({ tipo: 'cliente', id: cl.id, ref: cl.nombre || '', label: `👤 ${cl.nombre || ''}` });
+  });
+  (typeof proveedores !== 'undefined' ? proveedores : []).forEach(p => {
+    _vincItems.push({ tipo: 'proveedor', id: p.id, ref: p.nombre || '', label: `🏭 ${p.nombre || ''}` });
+  });
+  window._vincItems = _vincItems;
+  window._vincSeleccion = null;
 
   const view = document.getElementById('mailView');
   const bodyEl = document.getElementById('mailBody');
   if (!bodyEl && !view) return;
 
   const target = bodyEl || view;
-  const originalHtml = target.innerHTML;
 
   target.innerHTML = `
     <div style="padding:20px;text-align:center">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🔗 Vincular correo a...</h3>
-      <select id="vincCorreoSel" style="width:100%;max-width:400px;padding:8px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;margin-bottom:16px">
-        <option value="">— Selecciona —</option>
-        <optgroup label="Obras">${obrasOpts}</optgroup>
-        <optgroup label="Clientes">${clienteOpts}</optgroup>
-        <optgroup label="Proveedores">${provOpts}</optgroup>
-      </select>
+      <div style="position:relative;max-width:460px;margin:0 auto 16px">
+        <input id="vincBuscador" type="text" placeholder="🔍 Buscar obra, cliente o proveedor..." oninput="_filtrarVinc()" onfocus="_filtrarVinc()" autocomplete="off"
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+        <div id="vincResultados" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:white;border:1.5px solid var(--gris-200);border-top:none;border-radius:0 0 8px 8px;z-index:100;text-align:left"></div>
+      </div>
+      <div id="vincSelLabel" style="margin-bottom:14px;font-size:13px;color:var(--gris-400)">Ninguna selección</div>
       <div style="display:flex;justify-content:center;gap:8px">
         <button class="btn btn-ghost" onclick="abrirCorreo(${id})">Cancelar</button>
         <button class="btn btn-primary" onclick="_guardarVinculacion(${id})">✅ Vincular</button>
         ${c.vinculado_tipo ? `<button class="btn btn-secondary" onclick="_desvincularCorreo(${id})">❌ Desvincular</button>` : ''}
       </div>
     </div>`;
+
+  // Cerrar resultados al hacer clic fuera
+  setTimeout(() => {
+    document.addEventListener('click', _cerrarVincResultados, { once: false });
+  }, 100);
+}
+
+function _filtrarVinc() {
+  const q = (document.getElementById('vincBuscador')?.value || '').toLowerCase();
+  const items = window._vincItems || [];
+  const filtrados = q ? items.filter(i => i.label.toLowerCase().includes(q) || i.ref.toLowerCase().includes(q)) : items.slice(0, 20);
+  const cont = document.getElementById('vincResultados');
+  if (!cont) return;
+  if (filtrados.length === 0) {
+    cont.style.display = 'none';
+    return;
+  }
+  cont.style.display = 'block';
+  cont.innerHTML = filtrados.slice(0, 30).map((item, idx) =>
+    `<div onclick="_seleccionarVinc(${idx}, '${item.tipo}', '${item.id}', '${(item.ref || '').replace(/'/g, "\\'")}')" style="padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gris-100);transition:background 0.15s" onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background=''">${item.label}</div>`
+  ).join('');
+}
+
+function _seleccionarVinc(idx, tipo, id, ref) {
+  const items = window._vincItems || [];
+  const item = items.find(i => i.tipo === tipo && String(i.id) === String(id));
+  window._vincSeleccion = { tipo, id, ref };
+  const label = document.getElementById('vincSelLabel');
+  if (label) label.innerHTML = `<span style="color:var(--azul);font-weight:600">${item ? item.label : tipo + ' ' + ref}</span>`;
+  const input = document.getElementById('vincBuscador');
+  if (input) input.value = item ? item.label.replace(/^[^ ]+ /, '') : ref;
+  document.getElementById('vincResultados').style.display = 'none';
+}
+
+function _cerrarVincResultados(e) {
+  const cont = document.getElementById('vincResultados');
+  const input = document.getElementById('vincBuscador');
+  if (cont && !cont.contains(e.target) && e.target !== input) {
+    cont.style.display = 'none';
+  }
 }
 
 async function _guardarVinculacion(correoId) {
-  const sel = document.getElementById('vincCorreoSel');
-  if (!sel || !sel.value) { toast('Selecciona una entidad', 'error'); return; }
+  const selData = window._vincSeleccion;
+  if (!selData) { toast('Selecciona una entidad', 'error'); return; }
 
-  const [tipo, id, ref] = sel.value.split('|');
+  const { tipo, id, ref } = selData;
   const { error } = await sb.from('correos')
     .update({ vinculado_tipo: tipo, vinculado_id: id, vinculado_ref: ref })
     .eq('id', correoId);

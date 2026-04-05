@@ -831,16 +831,61 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     _matEl.innerHTML = _matBtns + _matList;
   }
 
-  // ── MENSAJES (placeholder) ──
-  document.getElementById('obra-hist-mensajes').innerHTML = `
-    <div class="empty" style="padding:40px 0">
-      <div class="ei">💬</div>
-      <h3>Mensajes</h3>
-      <p style="color:var(--gris-400)">Comunicación interna y correos vinculados a la obra.<br>Próximamente disponible.</p>
-    </div>`;
+  // ── MENSAJES (correos vinculados a la obra) ──
+  cargarMensajesObra(obra.id);
 
   // Activar pestaña recordada (o seguimiento si es la primera vez)
   obraTab(obraTabActual || 'seguimiento');
+}
+
+// ═══════════════════════════════════════════════
+// MENSAJES — Correos vinculados a la obra
+// ═══════════════════════════════════════════════
+async function cargarMensajesObra(obraId) {
+  const container = document.getElementById('obra-hist-mensajes');
+  if (!container) return;
+
+  container.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>';
+
+  try {
+    const { data, error } = await sb.from('correos')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('vinculado_tipo', 'obra')
+      .eq('vinculado_id', obraId)
+      .order('fecha', { ascending: false });
+
+    if (error) throw error;
+
+    const msgs = data || [];
+
+    if (msgs.length === 0) {
+      container.innerHTML = `
+        <div class="empty" style="padding:40px 0">
+          <div class="ei">💬</div>
+          <h3>Sin mensajes</h3>
+          <p style="color:var(--gris-400)">No hay correos vinculados a esta obra.<br>Puedes vincular correos desde la sección de Correo.</p>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="margin-bottom:12px;font-size:12px;color:var(--gris-400)">${msgs.length} correo${msgs.length > 1 ? 's' : ''} vinculado${msgs.length > 1 ? 's' : ''}</div>
+      ${msgs.map(m => {
+        const fecha = m.fecha ? new Date(m.fecha).toLocaleString('es-ES', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+        const tipoIcon = m.tipo === 'enviado' ? '📤' : '📥';
+        const adjIcon = m.tiene_adjuntos ? ' 📎' : '';
+        return `<div onclick="goPage('correo');setTimeout(()=>abrirCorreo(${m.id}),400)" style="padding:10px 14px;border:1px solid var(--gris-100);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-weight:600;font-size:12.5px">${tipoIcon} ${m.de_nombre || m.de || '—'}</span>
+            <span style="font-size:11px;color:var(--gris-400)">${fecha}</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--gris-600)">${m.asunto || '(sin asunto)'}${adjIcon}</div>
+        </div>`;
+      }).join('')}`;
+  } catch (e) {
+    container.innerHTML = `<div class="empty" style="padding:20px"><p style="color:var(--rojo)">Error cargando mensajes: ${e.message}</p></div>`;
+  }
 }
 
 // ═══════════════════════════════════════════════
