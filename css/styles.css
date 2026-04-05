@@ -288,7 +288,7 @@ input[type="text"],input:not([type]),textarea,
 .dt td,.ac-item strong,
 .card-b,.card-b *,
 .sec .dt td{text-transform:uppercase}
-input::placeholder,textarea::placeholder{text-transform:none}
+input,textarea,select,input::placeholder,textarea::placeholder{text-transform:none}
 /* Tarjetas grid: todo el contenido en mayúsculas */
 [id$="GridTarjetas"] .card,[id$="GridTarjetas"] .card *,
 [id$="Table"] td{text-transform:uppercase}

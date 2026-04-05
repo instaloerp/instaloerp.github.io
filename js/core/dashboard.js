@@ -9,9 +9,10 @@ async function loadDashboard() {
   const inicioAno = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0];
 
   // Cargar datos en paralelo
-  const [facts, presups] = await Promise.all([
+  const [facts, presups, presupAcep] = await Promise.all([
     sb.from('facturas').select('*').eq('empresa_id', eid).neq('estado','eliminado'),
     sb.from('presupuestos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5),
+    sb.from('presupuestos').select('id', {count:'exact',head:true}).eq('empresa_id', eid).eq('estado','aceptado'),
   ]);
 
   const todasFacturas = facts.data || [];
@@ -28,12 +29,16 @@ async function loadDashboard() {
   const { data: factsProv } = await sb.from('facturas_proveedor').select('total,estado').eq('empresa_id', eid).eq('estado','pendiente');
   const pendPago = (factsProv||[]).reduce((s,f) => s + (f.total||0), 0);
 
+  // KPI presupuestos aceptados (count)
+  const numAceptados = presupAcep.count || 0;
+
   // Actualizar KPIs
   document.getElementById('d-fact-mes').textContent = fmtE(factMes);
   document.getElementById('d-fact-ano').textContent = fmtE(factAno);
   document.getElementById('d-pend-cobro').textContent = fmtE(pendCobro);
   document.getElementById('d-pend-pago').textContent = fmtE(pendPago);
   document.getElementById('d-presup-mes').textContent = presupPend;
+  document.getElementById('d-presup-acep').textContent = numAceptados;
   document.getElementById('d-vencidas').textContent = vencidas;
   document.getElementById('d-cli').textContent = clientes.length;
   document.getElementById('d-trab').textContent = trabajos.filter(t=>t.estado==='en_curso'||t.estado==='planificado'||t.estado==='pendiente').length;
