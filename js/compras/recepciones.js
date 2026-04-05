@@ -199,7 +199,8 @@ function _rc_onSelectArt(lineaIdx, art) {
   rcLineas[lineaIdx].codigo = art.codigo || '';
   rcLineas[lineaIdx].nombre = art.nombre || '';
   rcLineas[lineaIdx].precio = art.precio_coste || art.precio_venta || 0;
-  rc_renderLineas();
+  // Defer render to avoid blur/innerHTML race condition
+  setTimeout(() => { rc_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
 }
 

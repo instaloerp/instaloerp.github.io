@@ -227,7 +227,8 @@ function _fp_onSelectArt(lineaIdx, art) {
     const t = tiposIva.find(x=>x.id===art.tipo_iva_id);
     if (t) fpLineas[lineaIdx].iva = t.porcentaje;
   }
-  fp_renderLineas();
+  // Defer render to avoid blur/innerHTML race condition
+  setTimeout(() => { fp_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
 }
 

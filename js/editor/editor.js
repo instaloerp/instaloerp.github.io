@@ -457,8 +457,8 @@ function _de_onSelectArt(lineaIdx, a) {
   }
   const inp = document.querySelector(`input[data-linea="${lineaIdx}"]`);
   if (inp) inp.value = a.nombre || '';
-  de_renderLineas();
-  de_autoguardar();
+  // Defer render to avoid blur/innerHTML race condition
+  setTimeout(() => { de_renderLineas(); de_autoguardar(); }, 0);
   toast(`📦 ${a.codigo} — ${a.nombre}`,'info');
   setTimeout(() => { _artSelecting = false; }, 300);
 }

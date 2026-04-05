@@ -1002,26 +1002,32 @@ function acBuscarArticulo(input, onSelect, priceField) {
   }, 100);
 }
 
+let _acSelecting = false;
 function _acSelIdx(ri) {
   const a = _AC.results[ri];
   if (!a || !_AC.input || !_AC.onSelect) return;
+  _acSelecting = true;
   const lineaIdx = parseInt(_AC.input.dataset.lineaIdx);
-  _AC.onSelect(lineaIdx, a);
+  // Update input value BEFORE blur fires so blur handler gets the correct name
+  _AC.input.value = a.nombre || '';
   const drop = document.getElementById('acArticulos');
   if (drop) drop.style.display = 'none';
   _AC.results = [];
-  // Mover foco al siguiente campo (cantidad)
+  _AC.onSelect(lineaIdx, a);
+  // After render completes (deferred), move focus to quantity field
   setTimeout(()=>{
-    const row = _AC.input.closest('tr');
+    _acSelecting = false;
+    // Find the row by looking for the description input with this lineaIdx (DOM was recreated)
+    const descInput = document.querySelector(`[data-linea-idx="${lineaIdx}"]`);
+    const row = descInput ? descInput.closest('tr') : null;
     if (!row) return;
-    const fields = Array.from(row.querySelectorAll('input:not([type="hidden"]):not([style*="display:none"]), select'));
-    const idx = fields.indexOf(_AC.input);
-    if (idx >= 0 && idx < fields.length - 1) {
-      const next = fields[idx + 1];
-      next.focus();
-      if (next.select) next.select();
+    // Get all editable fields in this row; skip the description input and focus the next one (quantity)
+    const fields = Array.from(row.querySelectorAll('input[type="number"], select'));
+    if (fields.length > 0) {
+      fields[0].focus();
+      fields[0].select();
     }
-  }, 50);
+  }, 60);
 }
 
 function acKeydown(event) {
