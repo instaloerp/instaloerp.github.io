@@ -319,8 +319,7 @@ async function guardarFacturaProv(estado) {
       total: base + ivaTotal,
       estado,
       lineas: fpLineas,
-      observaciones: v('fp_observaciones'),
-      usuario_id: CU.id
+      observaciones: v('fp_observaciones')
     };
 
     let facturaId = fpEditId;
@@ -413,8 +412,7 @@ async function pagarFacturaProv(id) {
       factura_id: id,
       proveedor_id: fp.proveedor_id,
       importe: fp.total,
-      fecha_pago: new Date().toISOString().split('T')[0],
-      usuario_id: CU.id
+      fecha_pago: new Date().toISOString().split('T')[0]
     });
 
     await cambiarEstadoFP(id, 'pagada');
@@ -542,6 +540,13 @@ function iaHandleFile(file) {
   reader.readAsDataURL(file);
 }
 
+// ═══════════════════════════════════════════════
+// PREVIEW DATA — datos temporales para previsualización
+// ═══════════════════════════════════════════════
+let _iaPreviewData = null;    // Datos OCR crudos
+let _iaPreviewTipo = '';      // Tipo documento (factura, albaran, pedido, presupuesto)
+let _iaPreviewProvMatch = null; // Proveedor existente encontrado o null
+
 async function iaProcesarDocumento() {
   if (!_iaFileBase64) { toast('Selecciona un archivo primero', 'warning'); return; }
 
@@ -555,12 +560,10 @@ async function iaProcesarDocumento() {
   errDiv.style.display = 'none';
   btn.disabled = true;
 
-  // Animate progress bar
   bar.style.width = '10%';
   txt.textContent = 'Enviando documento a la IA...';
 
   try {
-    // Decode API key
     let apiKey;
     try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
     catch(_) { apiKey = EMPRESA.anthropic_api_key; }
@@ -572,59 +575,39 @@ async function iaProcesarDocumento() {
 
     const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-anthropic-key': apiKey
-      },
-      body: JSON.stringify({
-        imagen_base64: _iaFileBase64,
-        media_type: _iaFileMime,
-        tipo: tipo,
-        empresa_id: EMPRESA.id
-      })
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
+      body: JSON.stringify({ imagen_base64: _iaFileBase64, media_type: _iaFileMime, tipo, empresa_id: EMPRESA.id })
     });
 
     bar.style.width = '70%';
     txt.textContent = 'Procesando resultados...';
 
     const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Error procesando documento');
 
-    if (!result.success) {
-      throw new Error(result.error || 'Error procesando documento');
-    }
-
-    bar.style.width = '85%';
-    txt.textContent = 'Creando proveedor y articulos si es necesario...';
+    bar.style.width = '90%';
+    txt.textContent = 'Preparando previsualización...';
 
     const data = result.data;
+    _iaPreviewData = data;
+    _iaPreviewTipo = tipo || data.tipo_documento || 'factura';
 
-    // --- Auto-crear proveedor si no existe ---
-    let provId = null;
-    if (data.proveedor) {
-      provId = await iaResolverProveedor(data.proveedor);
-    }
+    // Buscar proveedor existente (sin crear)
+    _iaPreviewProvMatch = _iaBuscarProveedorExistente(data.proveedor);
 
-    bar.style.width = '95%';
-    txt.textContent = 'Rellenando formulario...';
-
-    // --- Rellenar formulario según tipo de documento ---
-    const tipoDoc = tipo || data.tipo_documento || 'factura';
-
-    if (tipoDoc === 'albaran') {
-      await iaRellenarAlbaran(data, provId);
-    } else if (tipoDoc === 'pedido') {
-      await iaRellenarPedido(data, provId);
-    } else if (tipoDoc === 'presupuesto' || tipoDoc === 'presupuesto_compra') {
-      await iaRellenarPresupuestoCompra(data, provId);
-    } else {
-      await iaRellenarFactura(data, provId);
+    // Buscar artículos existentes para cada línea (sin crear)
+    if (data.lineas) {
+      for (const linea of data.lineas) {
+        linea._artMatch = _iaBuscarArticuloExistente(linea);
+      }
     }
 
     bar.style.width = '100%';
-    txt.textContent = 'Completado!';
+    txt.textContent = 'Listo!';
 
+    // Cerrar modal de importación y abrir preview
     closeModal('mImportarIA');
-    toast('Documento importado con IA. Revisa los datos antes de guardar.', 'success');
+    iaPreviewMostrar();
 
   } catch(e) {
     errDiv.textContent = 'Error: ' + e.message;
@@ -635,32 +618,360 @@ async function iaProcesarDocumento() {
   }
 }
 
-// Buscar proveedor existente por CIF o nombre, o crear uno nuevo
-async function iaResolverProveedor(provData) {
-  // Buscar por CIF
+// ═══════════════════════════════════════════════
+// BUSCAR SIN CREAR — solo lectura
+// ═══════════════════════════════════════════════
+function _iaBuscarProveedorExistente(provData) {
+  if (!provData) return null;
   if (provData.cif) {
-    const existente = (proveedores || []).find(p =>
+    const e = (proveedores || []).find(p =>
       p.cif && p.cif.replace(/[\s\-\.]/g,'').toUpperCase() === provData.cif.replace(/[\s\-\.]/g,'').toUpperCase()
     );
-    if (existente) {
-      toast('Proveedor encontrado: ' + existente.nombre, 'info');
-      return existente.id;
-    }
+    if (e) return e;
   }
-
-  // Buscar por nombre (coincidencia parcial)
   if (provData.nombre) {
-    const nombreNorm = provData.nombre.toLowerCase().trim();
-    const existente = (proveedores || []).find(p =>
-      p.nombre && p.nombre.toLowerCase().trim() === nombreNorm
-    );
-    if (existente) {
-      toast('Proveedor encontrado: ' + existente.nombre, 'info');
-      return existente.id;
-    }
+    const n = provData.nombre.toLowerCase().trim();
+    const e = (proveedores || []).find(p => p.nombre && p.nombre.toLowerCase().trim() === n);
+    if (e) return e;
+  }
+  return null;
+}
+
+function _iaBuscarArticuloExistente(lineaOCR) {
+  const desc = (lineaOCR.descripcion || '').trim();
+  const codigo = (lineaOCR.codigo || '').trim();
+  if (!desc && !codigo) return null;
+
+  let art = null;
+  if (codigo) {
+    art = (articulos || []).find(a => a.codigo && a.codigo.trim().toLowerCase() === codigo.toLowerCase());
+  }
+  if (!art && desc) {
+    const dn = desc.toLowerCase();
+    art = (articulos || []).find(a => a.nombre && a.nombre.toLowerCase() === dn);
+    if (!art) art = (articulos || []).find(a => a.nombre && (a.nombre.toLowerCase().includes(dn) || dn.includes(a.nombre.toLowerCase())));
+  }
+  return art;
+}
+
+function _iaGetTipoIvaId(porcentaje) {
+  if (typeof tiposIva === 'undefined') return null;
+  const t = tiposIva.find(x => x.porcentaje === porcentaje);
+  return t ? t.id : (tiposIva[0]?.id || null);
+}
+
+// ═══════════════════════════════════════════════
+// PREVIEW — Mostrar datos detectados
+// ═══════════════════════════════════════════════
+function iaPreviewMostrar() {
+  const data = _iaPreviewData;
+  if (!data) return;
+
+  const docEl = document.getElementById('iaPreviewDoc');
+  const dataEl = document.getElementById('iaPreviewData');
+
+  // --- Izquierda: mostrar documento original ---
+  if (_iaFileMime === 'application/pdf') {
+    docEl.innerHTML = `<iframe src="data:application/pdf;base64,${_iaFileBase64}" style="width:100%;height:100%;border:none"></iframe>`;
+  } else {
+    docEl.innerHTML = `<img src="data:${_iaFileMime};base64,${_iaFileBase64}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">`;
   }
 
-  // No existe — crear nuevo con todos los datos disponibles
+  // --- Derecha: datos detectados editables ---
+  const tipoLabel = {factura:'Factura',albaran:'Albarán',pedido:'Pedido',presupuesto:'Presupuesto',presupuesto_compra:'Presupuesto'}[_iaPreviewTipo]||'Documento';
+  const prov = data.proveedor || {};
+  const provExiste = _iaPreviewProvMatch;
+  const provBadge = provExiste
+    ? `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✓ Existe: ${provExiste.nombre}</span>`
+    : `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">+ Nuevo proveedor</span>`;
+
+  let html = '';
+
+  // SECCIÓN 1: Info del documento
+  html += `<div style="margin-bottom:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      📋 ${tipoLabel} de Proveedor
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Número
+        <input type="text" id="iap_numero" value="${data.numero_documento||''}" class="input" style="margin-top:2px;font-size:13px">
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Fecha
+        <input type="date" id="iap_fecha" value="${data.fecha||new Date().toISOString().split('T')[0]}" class="input" style="margin-top:2px;font-size:13px">
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Vencimiento
+        <input type="date" id="iap_vencimiento" value="${data.fecha_vencimiento||''}" class="input" style="margin-top:2px;font-size:13px">
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Forma de pago
+        <input type="text" id="iap_formapago" value="${data.forma_pago||''}" class="input" style="margin-top:2px;font-size:13px" readonly>
+      </label>
+    </div>
+    <label style="font-size:11px;color:var(--gris-500);font-weight:600;display:block;margin-top:8px">Observaciones
+      <textarea id="iap_notas" class="input" style="margin-top:2px;font-size:12px;min-height:40px;resize:vertical">${data.notas||''}</textarea>
+    </label>
+  </div>`;
+
+  // SECCIÓN 2: Proveedor
+  html += `<div style="margin-bottom:20px;padding:14px;background:${provExiste?'#f0fdf4':'#fffbeb'};border:1px solid ${provExiste?'#bbf7d0':'#fde68a'};border-radius:10px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      🏢 Proveedor ${provBadge}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Nombre
+        <input type="text" id="iap_prov_nombre" value="${prov.nombre||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">CIF/NIF
+        <input type="text" id="iap_prov_cif" value="${prov.cif||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Dirección
+        <input type="text" id="iap_prov_dir" value="${prov.direccion||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Municipio
+        <input type="text" id="iap_prov_mun" value="${prov.municipio||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">CP
+        <input type="text" id="iap_prov_cp" value="${prov.cp||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Provincia
+        <input type="text" id="iap_prov_prov" value="${prov.provincia||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Teléfono
+        <input type="text" id="iap_prov_tel" value="${prov.telefono||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Email
+        <input type="text" id="iap_prov_email" value="${prov.email||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Web
+        <input type="text" id="iap_prov_web" value="${prov.web||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">IBAN
+        <input type="text" id="iap_prov_iban" value="${prov.iban||''}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+      <label style="font-size:11px;color:var(--gris-500);font-weight:600">Días pago
+        <input type="number" id="iap_prov_dias" value="${prov.dias_pago||30}" class="input" style="margin-top:2px;font-size:13px" ${provExiste?'readonly':''}>
+      </label>
+    </div>
+  </div>`;
+
+  // SECCIÓN 3: Líneas / Artículos
+  const lineas = data.lineas || [];
+  html += `<div style="margin-bottom:12px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">📦 Líneas del documento (${lineas.length})</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--gris-100)">
+            <th style="padding:6px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--gris-500)">Estado</th>
+            <th style="padding:6px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--gris-500)">Código</th>
+            <th style="padding:6px 8px;text-align:left;font-weight:700;font-size:11px;color:var(--gris-500);min-width:200px">Descripción</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Cant.</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Precio</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Dto1%</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Dto2%</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Dto3%</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">IVA%</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700;font-size:11px;color:var(--gris-500)">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  let totalBase = 0;
+  let totalIva = 0;
+  lineas.forEach((l, i) => {
+    const artMatch = l._artMatch;
+    const esNuevo = !artMatch;
+    const badge = esNuevo
+      ? '<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px;font-size:10px;white-space:nowrap">+ Nuevo</span>'
+      : '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:8px;font-size:10px;white-space:nowrap">✓ Existe</span>';
+
+    const cant = l.cantidad || 1;
+    const precio = l.precio_unitario || 0;
+    const d1 = l.dto1_pct || 0, d2 = l.dto2_pct || 0, d3 = l.dto3_pct || 0;
+    const iva = l.iva_pct || 21;
+    const bruto = cant * precio;
+    const subtotal = bruto * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
+    totalBase += subtotal;
+    totalIva += subtotal * (iva / 100);
+
+    const bg = i % 2 === 0 ? '#fff' : '#fafafa';
+    html += `<tr style="background:${bg};border-bottom:1px solid var(--gris-100)">
+      <td style="padding:6px 8px">${badge}</td>
+      <td style="padding:6px 8px">
+        <input type="text" value="${l.codigo||''}" class="input" style="font-size:12px;padding:3px 6px;width:80px" data-iap="codigo" data-idx="${i}">
+      </td>
+      <td style="padding:6px 8px;position:relative">
+        <input type="text" value="${(l.descripcion||'').replace(/"/g,'&quot;')}" class="input" style="font-size:12px;padding:3px 6px;width:100%" data-iap="descripcion" data-idx="${i}"
+          oninput="_iaPreviewBuscarArt(this)" onfocus="_iaPreviewBuscarArt(this)" autocomplete="off">
+        <div id="iap_sug_${i}" class="iap-sugerencias" style="display:none;position:absolute;top:100%;left:8px;right:8px;z-index:999;background:#fff;border:1px solid var(--gris-300);border-radius:6px;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${cant}" class="input" style="font-size:12px;padding:3px 6px;width:60px;text-align:right" data-iap="cantidad" data-idx="${i}" step="any">
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${precio}" class="input" style="font-size:12px;padding:3px 6px;width:80px;text-align:right" data-iap="precio_unitario" data-idx="${i}" step="any">
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${d1}" class="input" style="font-size:12px;padding:3px 6px;width:55px;text-align:right" data-iap="dto1_pct" data-idx="${i}" min="0" max="100" step="0.5">
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${d2}" class="input" style="font-size:12px;padding:3px 6px;width:55px;text-align:right" data-iap="dto2_pct" data-idx="${i}" min="0" max="100" step="0.5">
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${d3}" class="input" style="font-size:12px;padding:3px 6px;width:55px;text-align:right" data-iap="dto3_pct" data-idx="${i}" min="0" max="100" step="0.5">
+      </td>
+      <td style="padding:6px 8px;text-align:right">
+        <input type="number" value="${iva}" class="input" style="font-size:12px;padding:3px 6px;width:55px;text-align:right" data-iap="iva_pct" data-idx="${i}">
+      </td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;white-space:nowrap">${subtotal.toFixed(2)} €</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+
+  // Totales
+  html += `<div style="display:flex;justify-content:flex-end;margin-top:10px">
+    <div style="width:220px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Base imponible</span><b>${totalBase.toFixed(2)} €</b></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>IVA</span><b>${totalIva.toFixed(2)} €</b></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--azul);color:#fff;border-radius:8px;font-size:15px;font-weight:800;margin-top:4px">
+        <span>TOTAL</span><b>${(totalBase + totalIva).toFixed(2)} €</b>
+      </div>
+    </div>
+  </div>`;
+
+  html += `</div>`;
+
+  // Contadores para el status
+  const artNuevos = lineas.filter(l => !l._artMatch).length;
+  const artExistentes = lineas.length - artNuevos;
+  let statusTxt = `${lineas.length} líneas`;
+  if (artExistentes > 0) statusTxt += ` · ${artExistentes} artículos existentes`;
+  if (artNuevos > 0) statusTxt += ` · ${artNuevos} artículos nuevos a crear`;
+  if (!provExiste && prov.nombre) statusTxt += ` · 1 proveedor nuevo a crear`;
+
+  dataEl.innerHTML = html;
+  document.getElementById('iaPreviewStatus').textContent = statusTxt;
+  openModal('mIAPreview');
+}
+
+// ═══════════════════════════════════════════════
+// PREVIEW — Cerrar
+// ═══════════════════════════════════════════════
+function iaPreviewCerrar() {
+  closeModal('mIAPreview');
+  _iaPreviewData = null;
+  _iaPreviewProvMatch = null;
+}
+
+// ═══════════════════════════════════════════════
+// PREVIEW — Leer valores editados del preview
+// ═══════════════════════════════════════════════
+function _iaPreviewLeerDatos() {
+  const data = JSON.parse(JSON.stringify(_iaPreviewData)); // copia profunda
+
+  // Documento
+  data.numero_documento = document.getElementById('iap_numero')?.value || data.numero_documento;
+  data.fecha = document.getElementById('iap_fecha')?.value || data.fecha;
+  data.fecha_vencimiento = document.getElementById('iap_vencimiento')?.value || data.fecha_vencimiento;
+  data.notas = document.getElementById('iap_notas')?.value || '';
+
+  // Proveedor (solo si nuevo)
+  if (!_iaPreviewProvMatch) {
+    data.proveedor = data.proveedor || {};
+    data.proveedor.nombre = document.getElementById('iap_prov_nombre')?.value || '';
+    data.proveedor.cif = document.getElementById('iap_prov_cif')?.value || '';
+    data.proveedor.direccion = document.getElementById('iap_prov_dir')?.value || '';
+    data.proveedor.municipio = document.getElementById('iap_prov_mun')?.value || '';
+    data.proveedor.cp = document.getElementById('iap_prov_cp')?.value || '';
+    data.proveedor.provincia = document.getElementById('iap_prov_prov')?.value || '';
+    data.proveedor.telefono = document.getElementById('iap_prov_tel')?.value || '';
+    data.proveedor.email = document.getElementById('iap_prov_email')?.value || '';
+    data.proveedor.web = document.getElementById('iap_prov_web')?.value || '';
+    data.proveedor.iban = document.getElementById('iap_prov_iban')?.value || '';
+    data.proveedor.dias_pago = parseInt(document.getElementById('iap_prov_dias')?.value) || 30;
+  }
+
+  // Líneas — leer de los inputs editables
+  const inputs = document.querySelectorAll('[data-iap]');
+  inputs.forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    const campo = inp.dataset.iap;
+    if (data.lineas && data.lineas[idx]) {
+      if (['cantidad','precio_unitario','dto1_pct','dto2_pct','dto3_pct','iva_pct'].includes(campo)) {
+        data.lineas[idx][campo] = parseFloat(inp.value) || 0;
+      } else {
+        data.lineas[idx][campo] = inp.value;
+      }
+    }
+  });
+
+  return data;
+}
+
+// ═══════════════════════════════════════════════
+// VALIDAR Y CREAR — Ejecutar todo
+// ═══════════════════════════════════════════════
+async function iaPreviewValidar() {
+  const btn = document.getElementById('iaBtnValidar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Creando...';
+
+  try {
+    // 1. Leer datos editados del preview
+    const data = _iaPreviewLeerDatos();
+    const tipo = _iaPreviewTipo;
+
+    // 2. Resolver/crear proveedor
+    let provId = null;
+    if (_iaPreviewProvMatch) {
+      provId = _iaPreviewProvMatch.id;
+      toast('Proveedor existente: ' + _iaPreviewProvMatch.nombre, 'info');
+    } else if (data.proveedor && data.proveedor.nombre) {
+      provId = await iaCrearProveedor(data.proveedor);
+    }
+
+    // 3. Resolver/crear artículos para cada línea + vincular con proveedor
+    if (data.lineas) {
+      for (const linea of data.lineas) {
+        const artExiste = _iaBuscarArticuloExistente(linea);
+        if (artExiste) {
+          linea._artId = artExiste.id;
+          linea._artCodigo = artExiste.codigo || '';
+          // Vincular artículo existente con este proveedor (si no está ya)
+          if (provId) await _iaVincularArticuloProveedor(artExiste.id, provId, linea);
+        } else {
+          const nuevoArt = await iaCrearArticulo(linea, provId);
+          linea._artId = nuevoArt ? nuevoArt.id : null;
+          linea._artCodigo = nuevoArt ? (nuevoArt.codigo || '') : '';
+        }
+      }
+    }
+
+    // 4. Rellenar el formulario correspondiente
+    if (tipo === 'albaran') {
+      await iaRellenarAlbaran(data, provId);
+    } else if (tipo === 'pedido') {
+      await iaRellenarPedido(data, provId);
+    } else if (tipo === 'presupuesto' || tipo === 'presupuesto_compra') {
+      await iaRellenarPresupuestoCompra(data, provId);
+    } else {
+      await iaRellenarFactura(data, provId);
+    }
+
+    closeModal('mIAPreview');
+    toast('Documento importado. Revisa y guarda cuando estés listo.', 'success');
+
+  } catch(e) {
+    toast('Error al validar: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '✅ Validar y crear';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CREAR PROVEEDOR (solo cuando se confirma)
+// ═══════════════════════════════════════════════
+async function iaCrearProveedor(provData) {
   const nuevo = {
     empresa_id: EMPRESA.id,
     nombre: provData.nombre || 'Proveedor sin nombre',
@@ -682,114 +993,134 @@ async function iaResolverProveedor(provData) {
     toast('No se pudo crear el proveedor: ' + error.message, 'warning');
     return null;
   }
-
-  // Añadir al array global
   proveedores.push(data);
   toast('Nuevo proveedor creado: ' + data.nombre, 'success');
   return data.id;
 }
 
-// Buscar articulo por código, nombre/descripcion, o crear nuevo
-async function iaResolverArticulo(lineaOCR) {
+// ═══════════════════════════════════════════════
+// CREAR ARTÍCULO (solo cuando se confirma)
+// Lógica de precios:
+//   - precio_unitario del documento = PVP (precio bruto del proveedor)
+//   - precio_coste = PVP * (1-dto1/100) * (1-dto2/100) * (1-dto3/100)  (neto)
+//   - precio_venta = precio_coste * 1.3 (margen 30% por defecto)
+// ═══════════════════════════════════════════════
+async function iaCrearArticulo(lineaOCR, provId) {
   const desc = (lineaOCR.descripcion || '').trim();
   const codigo = (lineaOCR.codigo || '').trim();
   if (!desc && !codigo) return null;
 
-  // 1. Buscar por código exacto (si viene código)
-  let art = null;
-  if (codigo) {
-    art = (articulos || []).find(a =>
-      a.codigo && a.codigo.trim().toLowerCase() === codigo.toLowerCase()
-    );
-  }
+  const pvp = lineaOCR.precio_unitario || 0;
+  const d1 = lineaOCR.dto1_pct || 0;
+  const d2 = lineaOCR.dto2_pct || 0;
+  const d3 = lineaOCR.dto3_pct || 0;
+  const precioCoste = pvp * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
 
-  // 2. Buscar por nombre exacto
-  if (!art && desc) {
-    const descNorm = desc.toLowerCase();
-    art = (articulos || []).find(a =>
-      a.nombre && a.nombre.toLowerCase() === descNorm
-    );
-
-    // 3. Buscar coincidencia parcial (contiene)
-    if (!art) {
-      art = (articulos || []).find(a =>
-        a.nombre && (a.nombre.toLowerCase().includes(descNorm) || descNorm.includes(a.nombre.toLowerCase()))
-      );
-    }
-  }
-
-  if (art) return art;
-
-  // Crear articulo nuevo con todos los datos disponibles
-  const precioCoste = lineaOCR.precio_unitario || 0;
   const nuevo = {
     empresa_id: EMPRESA.id,
     nombre: desc || codigo,
-    codigo: codigo,
-    precio_coste: precioCoste,
-    precio_venta: precioCoste * 1.3, // Margen 30% por defecto
+    codigo: codigo || null,
+    precio_coste: Math.round(precioCoste * 100) / 100,
+    precio_venta: Math.round(pvp * 100) / 100,
+    descuento: 0,
     tipo_iva_id: _iaGetTipoIvaId(lineaOCR.iva_pct || 21),
     activo: true
   };
 
   const { data, error } = await sb.from('articulos').insert(nuevo).select().single();
   if (error) {
-    toast('No se pudo crear articulo: ' + desc, 'warning');
+    toast('No se pudo crear artículo: ' + (desc || codigo), 'warning');
     return null;
   }
-
   articulos.push(data);
-  toast('Nuevo articulo creado: ' + desc, 'info');
+
+  // Vincular artículo al proveedor en tabla articulos_proveedores
+  if (provId && data.id) {
+    await _iaVincularArticuloProveedor(data.id, provId, lineaOCR);
+  }
+
+  toast('Nuevo artículo: ' + data.nombre, 'info');
   return data;
 }
 
-function _iaGetTipoIvaId(porcentaje) {
-  if (typeof tiposIva === 'undefined') return null;
-  const t = tiposIva.find(x => x.porcentaje === porcentaje);
-  return t ? t.id : (tiposIva[0]?.id || null);
+// ═══════════════════════════════════════════════
+// VINCULAR ARTÍCULO ↔ PROVEEDOR
+// Se usa tanto para artículos nuevos como existentes
+// ═══════════════════════════════════════════════
+async function _iaVincularArticuloProveedor(articuloId, provId, lineaOCR) {
+  if (!articuloId || !provId) return;
+
+  // Verificar si ya existe esta relación
+  const yaExiste = await sb.from('articulos_proveedores')
+    .select('id')
+    .eq('articulo_id', articuloId)
+    .eq('proveedor_id', provId)
+    .eq('empresa_id', EMPRESA.id)
+    .maybeSingle();
+
+  if (yaExiste?.data) return; // Ya vinculado, no duplicar
+
+  const pvp = lineaOCR.precio_unitario || 0;
+  const d1 = lineaOCR.dto1_pct || 0;
+  const d2 = lineaOCR.dto2_pct || 0;
+  const d3 = lineaOCR.dto3_pct || 0;
+  const neto = pvp * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
+
+  // Construir texto de descuento compuesto (ej: "40+5+5")
+  let dtoTexto = '';
+  if (d1) dtoTexto = String(d1);
+  if (d2) dtoTexto += '+' + d2;
+  if (d3) dtoTexto += '+' + d3;
+
+  const obj = {
+    empresa_id: EMPRESA.id,
+    articulo_id: articuloId,
+    proveedor_id: provId,
+    ref_proveedor: lineaOCR.codigo || null,
+    precio_proveedor: Math.round(neto * 100) / 100,
+    descuento: d1 || 0,
+    es_principal: true,
+    observaciones: dtoTexto ? ('Dto: ' + dtoTexto + '% sobre PVP ' + pvp.toFixed(2) + ' €') : null
+  };
+
+  const { error } = await sb.from('articulos_proveedores').insert(obj);
+  if (error) {
+    console.warn('No se pudo vincular artículo-proveedor:', error.message);
+  }
 }
 
-// Rellenar el formulario de factura con los datos OCR
+// ═══════════════════════════════════════════════
+// RELLENAR FORMULARIOS (después de validar)
+// ═══════════════════════════════════════════════
 async function iaRellenarFactura(data, provId) {
-  // Inicializar formulario
   fpLineas = [];
   fpEditId = null;
   fpProveedorActual = provId;
 
-  // Poblar selector proveedor
   const sel = document.getElementById('fp_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
   sel.onchange = function() { fp_aplicarReglaProveedor(this.value); };
 
-  // Poblar formas de pago y bancos
   const fpSel = document.getElementById('fp_formapago');
   fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
     (formasPago || []).map(f => `<option value="${f.id}">${f.nombre}</option>`).join('');
   fp_poblarBancos();
 
-  // Numero factura
   document.getElementById('fp_numero').value = data.numero_documento || await generarNumeroDoc('factura_proveedor');
-  // Fechas
   document.getElementById('fp_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
   document.getElementById('fp_vencimiento').value = data.fecha_vencimiento || (() => {
-    const d = new Date(); d.setDate(d.getDate() + 30);
-    return d.toISOString().split('T')[0];
+    const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0];
   })();
-  // Observaciones
   document.getElementById('fp_observaciones').value = data.notas || '';
-
-  // Aplicar reglas del proveedor (forma pago, banco, vencimiento)
   if (provId) fp_aplicarReglaProveedor(provId);
 
-  // Procesar lineas
   if (data.lineas && data.lineas.length > 0) {
     for (const linea of data.lineas) {
-      const art = await iaResolverArticulo(linea);
       fpLineas.push({
-        articulo_id: art ? art.id : null,
-        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
-        nombre: linea.descripcion || (art ? art.nombre : ''),
+        articulo_id: linea._artId || null,
+        codigo: linea.codigo || linea._artCodigo || '',
+        nombre: linea.descripcion || '',
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
         dto1: linea.dto1_pct || 0,
@@ -799,7 +1130,6 @@ async function iaRellenarFactura(data, provId) {
       });
     }
   } else {
-    // Al menos una linea vacia
     fpLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, dto1:0, dto2:0, dto3:0, iva: 21 });
   }
 
@@ -808,30 +1138,25 @@ async function iaRellenarFactura(data, provId) {
   openModal('mFacturaProv');
 }
 
-// ── Rellenar Albarán de proveedor (recepción) con datos OCR ──
 async function iaRellenarAlbaran(data, provId) {
   rcLineas = [];
   rcEditId = null;
   rcProveedorActual = provId;
 
-  // Poblar selector proveedor
   const sel = document.getElementById('rc_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
 
-  // Numero y fecha
   document.getElementById('rc_numero').value = data.numero_documento || '';
   document.getElementById('rc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
   document.getElementById('rc_observaciones').value = data.notas || '';
 
-  // Procesar lineas
   if (data.lineas && data.lineas.length > 0) {
     for (const linea of data.lineas) {
-      const art = await iaResolverArticulo(linea);
       rcLineas.push({
-        articulo_id: art ? art.id : null,
-        codigo: art ? (art.codigo || '') : '',
-        nombre: linea.descripcion || (art ? art.nombre : ''),
+        articulo_id: linea._artId || null,
+        codigo: linea._artCodigo || '',
+        nombre: linea.descripcion || '',
         cantidad_pedida: linea.cantidad || 1,
         cantidad_recibida: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
@@ -849,37 +1174,31 @@ async function iaRellenarAlbaran(data, provId) {
   openModal('mRecepcion');
 }
 
-// ── Rellenar Pedido de compra con datos OCR ──
 async function iaRellenarPedido(data, provId) {
   pcLineas = [];
   pcEditId = null;
   pcProveedorActual = provId;
 
-  // Poblar selector proveedor
   const sel = document.getElementById('pc_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
 
-  // Numero, fecha, entrega
   document.getElementById('pc_numero').value = data.numero_documento || '';
   document.getElementById('pc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
   const entrega = document.getElementById('pc_entrega');
   if (entrega) {
     entrega.value = data.fecha_vencimiento || (() => {
-      const d = new Date(); d.setDate(d.getDate() + 15);
-      return d.toISOString().split('T')[0];
+      const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0];
     })();
   }
   document.getElementById('pc_observaciones').value = data.notas || '';
 
-  // Procesar lineas
   if (data.lineas && data.lineas.length > 0) {
     for (const linea of data.lineas) {
-      const art = await iaResolverArticulo(linea);
       pcLineas.push({
-        articulo_id: art ? art.id : null,
-        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
-        nombre: linea.descripcion || (art ? art.nombre : ''),
+        articulo_id: linea._artId || null,
+        codigo: linea.codigo || linea._artCodigo || '',
+        nombre: linea.descripcion || '',
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
         dto1: linea.dto1_pct || 0,
@@ -897,37 +1216,31 @@ async function iaRellenarPedido(data, provId) {
   openModal('mPedidoCompra');
 }
 
-// ── Rellenar Presupuesto de compra con datos OCR ──
 async function iaRellenarPresupuestoCompra(data, provId) {
   prcLineas = [];
   prcEditId = null;
   prcProveedorActual = provId;
 
-  // Poblar selector proveedor
   const sel = document.getElementById('prc_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores || []).map(p => `<option value="${p.id}" ${p.id == provId ? 'selected' : ''}>${p.nombre}</option>`).join('');
 
-  // Numero, fecha, validez
   document.getElementById('prc_numero').value = data.numero_documento || '';
   document.getElementById('prc_fecha').value = data.fecha || new Date().toISOString().split('T')[0];
   const validez = document.getElementById('prc_validez');
   if (validez) {
     validez.value = data.fecha_vencimiento || (() => {
-      const d = new Date(); d.setDate(d.getDate() + 30);
-      return d.toISOString().split('T')[0];
+      const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0];
     })();
   }
   document.getElementById('prc_observaciones').value = data.notas || '';
 
-  // Procesar lineas
   if (data.lineas && data.lineas.length > 0) {
     for (const linea of data.lineas) {
-      const art = await iaResolverArticulo(linea);
       prcLineas.push({
-        articulo_id: art ? art.id : null,
-        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
-        nombre: linea.descripcion || (art ? art.nombre : ''),
+        articulo_id: linea._artId || null,
+        codigo: linea.codigo || linea._artCodigo || '',
+        nombre: linea.descripcion || '',
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
         dto1: linea.dto1_pct || 0,
@@ -944,3 +1257,84 @@ async function iaRellenarPresupuestoCompra(data, provId) {
   prc_renderLineas();
   openModal('mPresupuestoCompra');
 }
+
+// ═══════════════════════════════════════════════
+// BUSCADOR DE ARTÍCULOS EN PREVIEW
+// ═══════════════════════════════════════════════
+let _iapSugTimer = null;
+
+function _iaPreviewBuscarArt(input) {
+  const idx = input.dataset.idx;
+  const query = input.value.trim().toLowerCase();
+  const sugDiv = document.getElementById('iap_sug_' + idx);
+  if (!sugDiv) return;
+
+  clearTimeout(_iapSugTimer);
+  if (query.length < 2) { sugDiv.style.display = 'none'; return; }
+
+  _iapSugTimer = setTimeout(() => {
+    const resultados = (articulos || []).filter(a => {
+      const nombre = (a.nombre || '').toLowerCase();
+      const codigo = (a.codigo || '').toLowerCase();
+      return nombre.includes(query) || query.includes(nombre) || codigo.includes(query);
+    }).slice(0, 8);
+
+    if (!resultados.length) {
+      sugDiv.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--gris-400)">Sin coincidencias — se creará nuevo</div>';
+      sugDiv.style.display = 'block';
+      return;
+    }
+
+    sugDiv.innerHTML = resultados.map(a =>
+      `<div class="iap-sug-item" style="padding:6px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center"
+           onmousedown="_iaPreviewSeleccionarArt(${idx}, ${a.id})"
+           onmouseover="this.style.background='var(--gris-50)'"
+           onmouseout="this.style.background='#fff'">
+        <div>
+          <span style="font-weight:600">${a.nombre||''}</span>
+          ${a.codigo ? '<span style="color:var(--gris-400);margin-left:6px;font-size:10px">['+a.codigo+']</span>' : ''}
+        </div>
+        <span style="color:var(--azul);font-size:10px;font-weight:600">✓ Usar este</span>
+      </div>`
+    ).join('');
+    sugDiv.style.display = 'block';
+  }, 200);
+}
+
+function _iaPreviewSeleccionarArt(idx, artId) {
+  const art = (articulos || []).find(a => a.id === artId);
+  if (!art) return;
+
+  // Actualizar el input de descripción
+  const descInput = document.querySelector(`[data-iap="descripcion"][data-idx="${idx}"]`);
+  if (descInput) descInput.value = art.nombre;
+
+  // Actualizar el input de código
+  const codInput = document.querySelector(`[data-iap="codigo"][data-idx="${idx}"]`);
+  if (codInput) codInput.value = art.codigo || '';
+
+  // Actualizar badge a "Existe"
+  const tr = descInput?.closest('tr');
+  if (tr) {
+    const badgeTd = tr.querySelector('td:first-child');
+    if (badgeTd) badgeTd.innerHTML = '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:8px;font-size:10px;white-space:nowrap">✓ ' + (art.codigo||'Existe') + '</span>';
+  }
+
+  // Guardar artículo seleccionado en datos del preview
+  if (_iaPreviewData && _iaPreviewData.lineas && _iaPreviewData.lineas[idx]) {
+    _iaPreviewData.lineas[idx]._artMatch = art;
+    _iaPreviewData.lineas[idx].descripcion = art.nombre;
+    _iaPreviewData.lineas[idx].codigo = art.codigo || '';
+  }
+
+  // Cerrar sugerencias
+  const sugDiv = document.getElementById('iap_sug_' + idx);
+  if (sugDiv) sugDiv.style.display = 'none';
+}
+
+// Cerrar sugerencias cuando se hace clic fuera
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.iap-sugerencias') && !e.target.matches('[data-iap="descripcion"]')) {
+    document.querySelectorAll('.iap-sugerencias').forEach(s => s.style.display = 'none');
+  }
+});

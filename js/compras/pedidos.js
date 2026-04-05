@@ -259,8 +259,7 @@ async function guardarPedidoCompra(estado) {
       total_iva: ivaTotal,
       total: base + ivaTotal,
       lineas: pcLineas,
-      observaciones: v('pc_observaciones'),
-      usuario_id: CU.id
+      observaciones: v('pc_observaciones')
     };
 
     if (pcEditId) {
@@ -316,7 +315,6 @@ async function pedidoToRecepcion(id) {
       estado: 'pendiente',
       lineas,
       observaciones: '',
-      usuario_id: CU.id,
       usuario_nombre: CP?.nombre || CU.email
     };
 

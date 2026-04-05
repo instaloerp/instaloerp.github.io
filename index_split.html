@@ -3643,7 +3643,7 @@
 
 <!-- Modal Importar con IA -->
 <div class="overlay" id="mImportarIA">
-  <div class="modal-box" style="max-width:600px">
+  <div class="modal" style="max-width:600px">
     <div class="modal-h"><span>🤖</span><h2>Importar documento con IA</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarIA')">✕</button></div>
     <div class="modal-b" style="padding:24px">
       <p style="margin-bottom:16px;color:var(--gris-500);font-size:13px">Sube una foto o PDF de una factura, albaran o presupuesto de proveedor. La IA extraera automaticamente todos los datos.</p>
@@ -3673,6 +3673,43 @@
     <div class="modal-f" style="justify-content:flex-end;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mImportarIA')">Cancelar</button>
       <button class="btn btn-primary" id="iaBtnProcesar" onclick="iaProcesarDocumento()" disabled style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none">🤖 Procesar con IA</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Preview IA — Validación antes de crear -->
+<div class="overlay" id="mIAPreview" style="z-index:10001">
+  <div class="modal" style="max-width:95vw;width:1400px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-h" style="flex-shrink:0">
+      <span>🔍</span><h2>Revisar datos detectados por IA</h2>
+      <button class="btn btn-ghost btn-icon" onclick="iaPreviewCerrar()">✕</button>
+    </div>
+    <div style="flex:1;display:flex;overflow:hidden;min-height:0">
+      <!-- Izquierda: Documento original -->
+      <div style="flex:1;border-right:1px solid var(--gris-200);display:flex;flex-direction:column;min-width:0">
+        <div style="padding:10px 16px;background:var(--gris-50);font-weight:700;font-size:12px;color:var(--gris-500);text-transform:uppercase;border-bottom:1px solid var(--gris-200);flex-shrink:0">
+          📄 Documento original
+        </div>
+        <div id="iaPreviewDoc" style="flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:#f8f9fa"></div>
+      </div>
+      <!-- Derecha: Datos detectados -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div style="padding:10px 16px;background:var(--gris-50);font-weight:700;font-size:12px;color:var(--gris-500);text-transform:uppercase;border-bottom:1px solid var(--gris-200);flex-shrink:0">
+          📋 Datos detectados — revisa y edita antes de validar
+        </div>
+        <div id="iaPreviewData" style="flex:1;overflow-y:auto;padding:16px"></div>
+      </div>
+    </div>
+    <div class="modal-f" style="flex-shrink:0;justify-content:space-between;gap:8px">
+      <div style="font-size:12px;color:var(--gris-400)">
+        <span id="iaPreviewStatus"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="iaPreviewCerrar()">Cancelar</button>
+        <button class="btn btn-primary" id="iaBtnValidar" onclick="iaPreviewValidar()" style="background:linear-gradient(135deg,#059669,#10b981);border:none;font-weight:700">
+          ✅ Validar y crear
+        </button>
+      </div>
     </div>
   </div>
 </div>

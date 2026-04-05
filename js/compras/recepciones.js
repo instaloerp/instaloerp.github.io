@@ -266,7 +266,6 @@ async function guardarRecepcion() {
       estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : 'pendiente',
       lineas: rcLineas,
       observaciones: v('rc_observaciones'),
-      usuario_id: CU.id,
       usuario_nombre: CP?.nombre || CU.email
     };
 

@@ -249,8 +249,7 @@ async function registrarPagoCalendario(facturaId) {
     factura_id: facturaId,
     proveedor_id: fp.entidad_id,
     importe: fp.importe,
-    fecha_pago: new Date().toISOString().split('T')[0],
-    usuario_id: CU.id
+    fecha_pago: new Date().toISOString().split('T')[0]
   });
 
   await sb.from('facturas_proveedor').update({
