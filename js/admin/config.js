@@ -353,23 +353,23 @@ async function guardarCuentaBancaria() {
 }
 
 // ─── Validación IBAN en vivo ─────────────────
+// Genérica: busca _status y _msg por convención del ID del input
 function validarIBANLive(input) {
   const raw = input.value.replace(/\s/g, '').toUpperCase();
-  const st = document.getElementById('bco_iban_status');
-  const msg = document.getElementById('bco_iban_msg');
+  const prefix = input.id.replace('_iban','');
+  const st = document.getElementById(prefix + '_iban_status');
+  const msg = document.getElementById(prefix + '_iban_msg');
 
   if (!raw) {
-    st.textContent = '';
-    msg.textContent = '';
-    msg.style.color = '';
+    if (st) st.textContent = '';
+    if (msg) { msg.textContent = ''; msg.style.color = ''; }
     return;
   }
 
   // Formato parcial: mostrar progreso
   if (raw.length < 4) {
-    st.textContent = '⏳';
-    msg.textContent = 'Introduce el IBAN completo...';
-    msg.style.color = 'var(--gris-400)';
+    if (st) st.textContent = '⏳';
+    if (msg) { msg.textContent = 'Introduce el IBAN completo...'; msg.style.color = 'var(--gris-400)'; }
     return;
   }
 
@@ -378,21 +378,18 @@ function validarIBANLive(input) {
   input.value = formatted;
 
   if (raw.length < 24) {
-    st.textContent = '⏳';
-    msg.textContent = `${raw.length}/24 caracteres` + (raw.substring(0,2) === 'ES' ? ' (España)' : '');
-    msg.style.color = 'var(--gris-400)';
+    if (st) st.textContent = '⏳';
+    if (msg) { msg.textContent = `${raw.length}/24 caracteres` + (raw.substring(0,2) === 'ES' ? ' (España)' : ''); msg.style.color = 'var(--gris-400)'; }
     return;
   }
 
   // Validar IBAN completo
   if (_validarIBAN(raw)) {
-    st.textContent = '✅';
-    msg.textContent = 'IBAN válido';
-    msg.style.color = 'var(--verde)';
+    if (st) st.textContent = '✅';
+    if (msg) { msg.textContent = 'IBAN válido'; msg.style.color = 'var(--verde)'; }
   } else {
-    st.textContent = '❌';
-    msg.textContent = 'IBAN no válido — revisa los dígitos';
-    msg.style.color = 'var(--rojo)';
+    if (st) st.textContent = '❌';
+    if (msg) { msg.textContent = 'IBAN no válido — revisa los dígitos'; msg.style.color = 'var(--rojo)'; }
   }
 }
 

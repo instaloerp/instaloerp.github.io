@@ -10,6 +10,7 @@ let presupuestosCompra = [];
 let prcFiltrados = [];
 let prcLineas = [];
 let prcEditId = null;
+let prcProveedorActual = null;
 
 // ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
@@ -105,16 +106,201 @@ function actualizarKpisPrc() {
 }
 
 // ═══════════════════════════════════════════════
-// CRUD
+// CREAR NUEVO PRESUPUESTO
 // ═══════════════════════════════════════════════
-function nuevoPresupuestoCompra() {
-  toast('Módulo de presupuestos de compra en desarrollo', 'info');
+async function nuevoPresupuestoCompra() {
+  prcLineas = [];
+  prcEditId = null;
+  prcProveedorActual = null;
+
+  const sel = document.getElementById('prc_proveedor');
+  sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
+    (proveedores||[]).map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('prc_fecha').value = hoy;
+  // Validez: 30 días por defecto
+  const val = new Date(); val.setDate(val.getDate() + 30);
+  document.getElementById('prc_validez').value = val.toISOString().split('T')[0];
+
+  document.getElementById('prc_numero').value = await generarNumeroDoc('presupuesto_compra');
+  document.getElementById('prc_observaciones').value = '';
+  document.getElementById('mPRCTit').textContent = 'Nuevo Presupuesto de Compra';
+
+  prc_addLinea();
+  openModal('mPresupuestoCompra');
 }
 
-function editarPresupuestoCompra(id) {
-  toast('Edición de presupuesto de compra en desarrollo', 'info');
+// ═══════════════════════════════════════════════
+// EDITAR PRESUPUESTO
+// ═══════════════════════════════════════════════
+async function editarPresupuestoCompra(id) {
+  const p = presupuestosCompra.find(x => x.id === id);
+  if (!p) return;
+
+  prcEditId = id;
+  prcProveedorActual = p.proveedor_id;
+  prcLineas = (p.lineas || []).map(l => ({
+    articulo_id: l.articulo_id || null,
+    codigo: l.codigo || '',
+    nombre: l.nombre || l.desc || l.descripcion || '',
+    cantidad: l.cantidad || l.cant || 0,
+    precio: l.precio || 0,
+    iva: l.iva !== undefined ? l.iva : 21
+  }));
+
+  const sel = document.getElementById('prc_proveedor');
+  sel.innerHTML = (proveedores||[]).map(pr => `<option value="${pr.id}" ${pr.id===p.proveedor_id?'selected':''}>${pr.nombre}</option>`).join('');
+
+  document.getElementById('prc_numero').value = p.numero || '';
+  document.getElementById('prc_fecha').value = p.fecha || '';
+  document.getElementById('prc_validez').value = p.validez || '';
+  document.getElementById('prc_observaciones').value = p.observaciones || '';
+
+  document.getElementById('mPRCTit').textContent = 'Editar Presupuesto de Compra';
+
+  if (prcLineas.length === 0) prc_addLinea();
+  prc_renderLineas();
+  openModal('mPresupuestoCompra');
 }
 
+// ═══════════════════════════════════════════════
+// GESTIÓN DE LÍNEAS
+// ═══════════════════════════════════════════════
+function prc_addLinea() {
+  prcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, iva:21});
+  prc_renderLineas();
+}
+
+function prc_removeLinea(idx) {
+  prcLineas.splice(idx, 1);
+  prc_renderLineas();
+}
+
+function prc_updateLinea(idx, field, val) {
+  if (field === 'articulo_id') {
+    const art = (articulos||[]).find(a => a.id == val);
+    if (art) {
+      prcLineas[idx].articulo_id = art.id;
+      prcLineas[idx].codigo = art.codigo;
+      prcLineas[idx].nombre = art.nombre;
+      prcLineas[idx].precio = art.precio_coste || 0;
+      prcLineas[idx].iva = art.iva_default || 21;
+    }
+  } else if (['cantidad','precio','iva'].includes(field)) {
+    prcLineas[idx][field] = parseFloat(val) || 0;
+  } else {
+    prcLineas[idx][field] = val;
+  }
+  prc_renderLineas();
+}
+
+function prc_renderLineas() {
+  let base = 0, ivaTotal = 0;
+  const html = prcLineas.map((l, i) => {
+    const subtotal = l.cantidad * l.precio;
+    const ivaAmt = subtotal * (l.iva / 100);
+    base += subtotal;
+    ivaTotal += ivaAmt;
+    return `<tr style="border-top:1px solid var(--gris-100)">
+      <td style="padding:7px 6px">
+        <select onchange="prc_updateLinea(${i},'articulo_id',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
+          <option value="">${l.nombre||'— Seleccionar —'}</option>
+          ${(articulos||[]).map(a => `<option value="${a.id}" ${a.id===l.articulo_id?'selected':''}>${a.codigo?a.codigo+' - ':''}${a.nombre}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 6px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" onchange="prc_updateLinea(${i},'cantidad',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="prc_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px">
+        <select onchange="prc_updateLinea(${i},'iva',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
+          ${(tiposIva||[]).map(t => `<option value="${t.porcentaje}" ${t.porcentaje===l.iva?'selected':''}>${t.porcentaje}%</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal+ivaAmt)}</td>
+      <td style="padding:7px 4px"><button onclick="prc_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:16px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('prc_lineas').innerHTML = html;
+  document.getElementById('prc_base').textContent = fmtE(base);
+  document.getElementById('prc_iva_total').textContent = fmtE(ivaTotal);
+  document.getElementById('prc_total').textContent = fmtE(base + ivaTotal);
+}
+
+// ═══════════════════════════════════════════════
+// GUARDAR PRESUPUESTO
+// ═══════════════════════════════════════════════
+async function guardarPresupuestoCompra(estado) {
+  if (_creando) return;
+  _creando = true;
+  try {
+    const numero = v('prc_numero').trim();
+    const provId = parseInt(document.getElementById('prc_proveedor').value);
+    const fecha = v('prc_fecha');
+    const validez = v('prc_validez');
+
+    if (!numero) { toast('Introduce número de presupuesto', 'error'); return; }
+    if (!provId) { toast('Selecciona proveedor', 'error'); return; }
+    if (prcLineas.length === 0) { toast('Agrega al menos una línea', 'error'); return; }
+
+    const prov = (proveedores||[]).find(p => p.id === provId);
+    let base = 0, ivaTotal = 0;
+    prcLineas.forEach(l => {
+      const subtotal = l.cantidad * l.precio;
+      base += subtotal;
+      ivaTotal += subtotal * (l.iva / 100);
+    });
+
+    const obj = {
+      empresa_id: EMPRESA.id,
+      numero,
+      proveedor_id: provId,
+      proveedor_nombre: prov?.nombre || '',
+      fecha,
+      validez,
+      estado,
+      base_imponible: base,
+      total_iva: ivaTotal,
+      total: base + ivaTotal,
+      lineas: prcLineas,
+      observaciones: v('prc_observaciones'),
+      usuario_id: CU.id
+    };
+
+    let err;
+    if (prcEditId) {
+      const r = await sb.from('presupuestos_compra').update(obj).eq('id', prcEditId);
+      err = r.error;
+    } else {
+      const r = await sb.from('presupuestos_compra').insert(obj);
+      err = r.error;
+    }
+
+    if (err) { toast('Error: ' + err.message, 'error'); return; }
+
+    closeModal('mPresupuestoCompra');
+    await loadPresupuestosCompra();
+    toast(prcEditId ? 'Presupuesto actualizado ✓' : 'Presupuesto creado ✓', 'success');
+  } finally {
+    _creando = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CAMBIAR ESTADO
+// ═══════════════════════════════════════════════
+async function cambiarEstadoPrc(id, nuevoEstado) {
+  await sb.from('presupuestos_compra').update({estado: nuevoEstado}).eq('id', id);
+  const p = presupuestosCompra.find(x => x.id === id);
+  if (p) p.estado = nuevoEstado;
+  filtrarPresupuestosCompra();
+  actualizarKpisPrc();
+  toast('Estado actualizado', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// ELIMINAR
+// ═══════════════════════════════════════════════
 async function eliminarPresupuestoCompra(id) {
   if (!confirm('¿Eliminar presupuesto de compra?')) return;
   await sb.from('presupuestos_compra').delete().eq('id', id);
@@ -137,6 +323,8 @@ function exportPresupuestosCompra() {
     'Proveedor': p.proveedor_nombre,
     'Estado': p.estado,
     'Validez': p.validez,
+    'Base': parseFloat(p.base_imponible||0),
+    'IVA': parseFloat(p.total_iva||0),
     'Total': parseFloat(p.total||0)
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -166,6 +354,8 @@ async function prcToPedido(id) {
       estado: 'borrador',
       observaciones: p.observaciones,
       lineas: p.lineas,
+      base_imponible: p.base_imponible || p.total,
+      total_iva: p.total_iva || 0,
       total: p.total,
       presupuesto_compra_id: p.id,
     });
@@ -221,13 +411,15 @@ async function prcToFacturaProv(id) {
     if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
     if (!confirm(`¿Crear factura de proveedor desde ${p.numero}?`)) return;
     const numero = await generarNumeroDoc('factura_proveedor');
-    const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
+    const hoy = new Date(); const venc = new Date(); venc.setDate(venc.getDate() + 30);
     const { error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: p.proveedor_id, proveedor_nombre: p.proveedor_nombre,
       fecha: hoy.toISOString().split('T')[0],
-      fecha_vencimiento: v.toISOString().split('T')[0],
-      base_imponible: p.total || 0, total_iva: 0, total: p.total || 0,
+      fecha_vencimiento: venc.toISOString().split('T')[0],
+      base_imponible: p.base_imponible || p.total || 0,
+      total_iva: p.total_iva || 0,
+      total: p.total || 0,
       estado: 'pendiente',
       observaciones: p.observaciones,
       lineas: p.lineas,
@@ -252,12 +444,22 @@ function imprimirPresupuestoCompra(id) {
   if (!p) { toast('No encontrado','error'); return; }
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
   const lineas = p.lineas||[];
-  let htmlLineas='', total=0;
-  lineas.forEach(l=>{const sub=(l.cantidad||l.cant||0)*(l.precio||0);total+=sub;htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||l.descripcion||''}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cantidad||l.cant||0}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${(l.precio||0).toFixed(2)} €</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${sub.toFixed(2)} €</td></tr>`;});
+  let htmlLineas='', baseCalc=0, ivaCalc=0;
+  lineas.forEach(l=>{
+    const cant = l.cantidad||l.cant||0;
+    const precio = l.precio||0;
+    const iva = l.iva !== undefined ? l.iva : 21;
+    const sub = cant * precio;
+    const ivaAmt = sub * (iva/100);
+    baseCalc += sub;
+    ivaCalc += ivaAmt;
+    htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.nombre||l.desc||l.descripcion||''}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${cant}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${precio.toFixed(2)} €</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${iva}%</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${(sub+ivaAmt).toFixed(2)} €</td></tr>`;
+  });
   const dirEmpresa=[EMPRESA?.direccion,[EMPRESA?.cp,EMPRESA?.municipio].filter(Boolean).join(' '),EMPRESA?.provincia].filter(Boolean).join(', ');
   const logoHtml=EMPRESA?.logo_url?`<img src="${EMPRESA.logo_url}" style="width:50px;height:50px;object-fit:contain;border-radius:8px">`:`<div style="width:50px;height:50px;background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff">${(EMPRESA?.nombre||'E').substring(0,2).toUpperCase()}</div>`;
+  const totalFinal = p.total || (baseCalc + ivaCalc);
   const win=window.open('','_blank','width=850,height=800');
-  win.document.write(`<!DOCTYPE html><html><head><title>Pres. Compra ${p.numero}</title><style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}.btn-bar{text-align:center;padding:16px;background:#f5f5f5}.btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px}@media print{body{background:#fff}.page{padding:0;min-height:auto}.no-print{display:none!important}}</style></head><body><div class="no-print btn-bar"><button style="background:#1e40af;color:#fff" onclick="window.print()">🖨️ Imprimir</button><button style="background:#e2e8f0;color:#475569" onclick="window.close()">✕ Cerrar</button></div><div class="page"><div style="display:flex;gap:24px;margin-bottom:16px"><div style="flex:1"><div style="display:flex;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div><div style="font-size:11px;color:#475569">${dirEmpresa}<br>CIF: ${EMPRESA?.cif||''}</div></div></div></div><div style="flex:1"><div style="background:#fef3c7;border-radius:8px;padding:12px 16px;border-left:4px solid #f59e0b"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#92400e;margin-bottom:4px">PROVEEDOR</div><div style="font-size:15px;font-weight:700">${p.proveedor_nombre||'—'}</div><div style="font-size:11px;color:#475569">${prov?.direccion||''} ${prov?.cif?'<br>CIF: '+prov.cif:''}</div></div></div></div><div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px"><div style="color:#1e40af"><span style="font-size:14px;font-weight:800">PRESUPUESTO COMPRA</span> <span style="font-size:11px;color:#475569">${p.numero||''}</span></div><div style="font-size:11px;color:#64748b">Fecha: <b>${p.fecha?new Date(p.fecha).toLocaleDateString('es-ES'):'—'}</b></div></div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:70px">Cant.</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Precio</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Total</th></tr></thead><tbody>${htmlLineas}</tbody></table><div style="display:flex;justify-content:flex-end"><div style="width:220px;background:#fef3c7;border-radius:8px;padding:12px 16px"><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800"><span>TOTAL</span><span style="color:#92400e">${(p.total||total).toFixed(2)} €</span></div></div></div>${p.observaciones?`<div style="margin-top:14px;padding:10px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Observaciones</div><div style="font-size:11px;color:#475569">${p.observaciones}</div></div>`:''}</div></body></html>`);
+  win.document.write(`<!DOCTYPE html><html><head><title>Pres. Compra ${p.numero}</title><style>*{margin:0;padding:0;box-sizing:border-box}@page{size:A4;margin:12mm}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1a1a2e;background:#f5f5f5}.page{max-width:210mm;margin:0 auto;background:#fff;padding:28px 36px;min-height:297mm}.btn-bar{text-align:center;padding:16px;background:#f5f5f5}.btn-bar button{padding:10px 24px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:0 6px}@media print{body{background:#fff}.page{padding:0;min-height:auto}.no-print{display:none!important}}</style></head><body><div class="no-print btn-bar"><button style="background:#1e40af;color:#fff" onclick="window.print()">🖨️ Imprimir</button><button style="background:#e2e8f0;color:#475569" onclick="window.close()">✕ Cerrar</button></div><div class="page"><div style="display:flex;gap:24px;margin-bottom:16px"><div style="flex:1"><div style="display:flex;gap:14px">${logoHtml}<div><div style="font-size:16px;font-weight:700;color:#1e40af">${EMPRESA?.nombre||''}</div><div style="font-size:11px;color:#475569">${dirEmpresa}<br>CIF: ${EMPRESA?.cif||''}</div></div></div></div><div style="flex:1"><div style="background:#fef3c7;border-radius:8px;padding:12px 16px;border-left:4px solid #f59e0b"><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#92400e;margin-bottom:4px">PROVEEDOR</div><div style="font-size:15px;font-weight:700">${p.proveedor_nombre||'—'}</div><div style="font-size:11px;color:#475569">${prov?.direccion||''} ${prov?.cif?'<br>CIF: '+prov.cif:''}</div></div></div></div><div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 16px;margin-bottom:14px"><div style="color:#1e40af"><span style="font-size:14px;font-weight:800">PRESUPUESTO COMPRA</span> <span style="font-size:11px;color:#475569">${p.numero||''}</span></div><div style="font-size:11px;color:#64748b">Fecha: <b>${p.fecha?new Date(p.fecha).toLocaleDateString('es-ES'):'—'}</b>${p.validez?' · Válido hasta: <b>'+new Date(p.validez).toLocaleDateString('es-ES')+'</b>':''}</div></div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;font-weight:600;text-transform:uppercase;text-align:left">Descripción</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:60px">Cant.</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:90px">Precio</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:50px">IVA</th><th style="background:#92400e;color:#fff;padding:7px 10px;font-size:9px;text-align:right;width:100px">Total</th></tr></thead><tbody>${htmlLineas}</tbody></table><div style="display:flex;justify-content:flex-end"><div style="width:240px;background:#fef3c7;border-radius:8px;padding:12px 16px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#92400e;margin-bottom:4px"><span>Base imponible</span><span>${(p.base_imponible||baseCalc).toFixed(2)} €</span></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#92400e;margin-bottom:6px"><span>IVA</span><span>${(p.total_iva||ivaCalc).toFixed(2)} €</span></div><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1.5px solid #d97706;padding-top:6px"><span>TOTAL</span><span style="color:#92400e">${totalFinal.toFixed(2)} €</span></div></div></div>${p.observaciones?`<div style="margin-top:14px;padding:10px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Observaciones</div><div style="font-size:11px;color:#475569">${p.observaciones}</div></div>`:''}</div></body></html>`);
   win.document.close();
 }
 

@@ -168,6 +168,11 @@ async function abrirFicha(id) {
       ${datoFicha('Dir. fiscal',c.direccion_fiscal||'—')}
       ${datoFicha('Forma pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
       ${datoFicha('Tarifa',tarifa)}
+      ${c.iban?`<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.5px">🏦 Datos bancarios</div>`:''}
+      ${datoFicha('IBAN',c.iban?c.iban.replace(/(.{4})/g,'$1 ').trim():'—')}
+      ${c.iban?datoFicha('BIC',c.bic||'—'):''}
+      ${c.iban?datoFicha('Entidad',c.banco_entidad||'—'):''}
+      ${c.mandato_sepa_estado?datoFicha('Mandato SEPA',c.mandato_sepa_estado==='firmado'?'✅ Firmado':'⏳ '+c.mandato_sepa_estado):''}
       ${c.observaciones?`<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
     </div>`;
 
@@ -484,8 +489,8 @@ function abrirNuevoPresupuesto() {
 //  GENERADOR DE NÚMERO AUTOMÁTICO
 // ═══════════════════════════════════════════════
 async function generarNumeroDoc(tipo) {
-  const prefijos = {presupuesto:'PRE-', albaran:'ALB-', factura:'FAC-'};
-  const tablas  = {presupuesto:'presupuestos', albaran:'albaranes', factura:'facturas'};
+  const prefijos = {presupuesto:'PRE-', albaran:'ALB-', factura:'FAC-', presupuesto_compra:'PRC-', pedido_compra:'PED-', recepcion:'REC-', factura_proveedor:'FPR-'};
+  const tablas  = {presupuesto:'presupuestos', albaran:'albaranes', factura:'facturas', presupuesto_compra:'presupuestos_compra', pedido_compra:'pedidos_compra', recepcion:'recepciones', factura_proveedor:'facturas_proveedor'};
   const allSeries = series||[];
 
   let s = allSeries.find(x => x.tipo === tipo);
@@ -857,9 +862,12 @@ async function delContacto(id) {
 function editCliente(id) {
   const c = clientes.find(x=>x.id===id); if(!c) return;
   document.getElementById('c_id').value = c.id;
-  setVal({c_nombre:c.nombre,c_nif:c.nif||'',c_tel:c.telefono||'',c_movil:c.movil||'',c_email:c.email||'',c_dir:c.direccion_fiscal||'',c_muni:c.municipio_fiscal||'',c_cp:c.cp_fiscal||'',c_prov:c.provincia_fiscal||'',c_descuento:c.descuento_habitual||0,c_notas:c.observaciones||''});
+  setVal({c_nombre:c.nombre,c_nif:c.nif||'',c_tel:c.telefono||'',c_movil:c.movil||'',c_email:c.email||'',c_dir:c.direccion_fiscal||'',c_muni:c.municipio_fiscal||'',c_cp:c.cp_fiscal||'',c_prov:c.provincia_fiscal||'',c_descuento:c.descuento_habitual||0,c_notas:c.observaciones||'',c_iban:c.iban||'',c_bic:c.bic||'',c_banco_entidad:c.banco_entidad||'',c_banco_titular:c.banco_titular||''});
   document.getElementById('c_tipo').value = c.tipo||'Particular';
   document.getElementById('mCliTit').textContent = 'Editar Cliente';
+  // Validar IBAN si existe
+  const ibanEl = document.getElementById('c_iban');
+  if (ibanEl && ibanEl.value) validarIBANLive(ibanEl);
   openModal('mCliente', true);
 }
 
@@ -881,7 +889,11 @@ async function saveCliente() {
     direccion_fiscal: v('c_dir'), municipio_fiscal: v('c_muni'),
     cp_fiscal: v('c_cp'), provincia_fiscal: v('c_prov'),
     descuento_habitual: parseFloat(v('c_descuento'))||0,
-    observaciones: v('c_notas')
+    observaciones: v('c_notas'),
+    iban: v('c_iban').replace(/\s/g,'').toUpperCase() || null,
+    bic: v('c_bic').toUpperCase() || null,
+    banco_entidad: v('c_banco_entidad') || null,
+    banco_titular: v('c_banco_titular') || null
   };
   const fpId = parseInt(document.getElementById('c_fpago').value);
   if (fpId) obj.forma_pago_id = fpId;

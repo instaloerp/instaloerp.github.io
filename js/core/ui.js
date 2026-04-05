@@ -747,9 +747,10 @@ function toast(msg,type='info'){const c=document.getElementById('toast');const t
 //  Al final de la fila, Enter crea nueva línea automáticamente.
 //  Funciona en: editor, pedidos, recepciones, facturas prov, factura rápida
 // ═══════════════════════════════════════════════
-const _LINE_TABLES = '#de_lineas, #pc_lineas, #rc_lineas, #fp_lineas, #fr_lineas';
+const _LINE_TABLES = '#de_lineas, #prc_lineas, #pc_lineas, #rc_lineas, #fp_lineas, #fr_lineas';
 const _ADD_LINE_FNS = {
   de_lineas:  () => typeof de_addLinea==='function' && de_addLinea(),
+  prc_lineas: () => typeof prc_addLinea==='function' && prc_addLinea(),
   pc_lineas:  () => typeof pc_addLinea==='function' && pc_addLinea(),
   rc_lineas:  () => typeof rc_addLinea==='function' && rc_addLinea(),
   fp_lineas:  () => typeof fp_addLinea==='function' && fp_addLinea(),
