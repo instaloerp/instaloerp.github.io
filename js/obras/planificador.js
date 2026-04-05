@@ -677,9 +677,9 @@ function crearElementoParte(parte, alturaTotal) {
   const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
 
   el.className = 'plan-parte';
-  el.style.background = estadoInfo.color;
-  el.style.color = '#fff';
-  el.style.borderLeft = '3px solid rgba(0,0,0,.2)';
+  el.style.background = estadoInfo.bg;
+  el.style.color = estadoInfo.color;
+  el.style.borderLeft = '3px solid ' + estadoInfo.color;
 
   const titulo = parte.trabajo_titulo || 'Sin título';
   const numero = parte.numero || '';
