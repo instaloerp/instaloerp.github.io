@@ -1313,7 +1313,6 @@ async function testApiKeyIA() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + SUPA_KEY,
         'x-anthropic-key': key
       },
       body: JSON.stringify({ test: true })

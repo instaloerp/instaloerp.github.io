@@ -516,7 +516,6 @@ async function iaProcesarDocumento() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + SUPA_KEY,
         'x-anthropic-key': apiKey
       },
       body: JSON.stringify({
