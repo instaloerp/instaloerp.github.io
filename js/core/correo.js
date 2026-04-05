@@ -13,6 +13,7 @@ let correosFiltrados = [];
 let carpetaActual = 'inbox';
 let correoActual = null;
 let _correoSyncing = false;
+let _correosSeleccionados = new Set(); // IDs de correos seleccionados
 let _correoCuentaActiva = null; // Cuenta predeterminada cargada
 let _correoAutoSyncInterval = null; // Intervalo de auto-sync
 const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
@@ -76,15 +77,14 @@ async function actualizarBadgeCorreo() {
       .eq('empresa_id', EMPRESA.id)
       .eq('leido', false)
       .eq('tipo', 'recibido');
-    const badge = document.getElementById('correo-badge');
-    if (!badge) return;
     const n = count || 0;
-    if (n > 0) {
-      badge.textContent = n > 99 ? '99+' : n;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    const txt = n > 99 ? '99+' : String(n);
+    // Actualizar badge sidebar principal
+    const badge = document.getElementById('correo-badge');
+    if (badge) { badge.textContent = txt; badge.style.display = n > 0 ? 'inline' : 'none'; }
+    // Actualizar badge favorito
+    const favBadge = document.getElementById('fav-correo-badge');
+    if (favBadge) { favBadge.textContent = txt; favBadge.style.display = n > 0 ? 'inline-flex' : 'none'; }
   } catch(_) {}
 }
 
@@ -215,26 +215,18 @@ function filtrarCorreos() {
   });
 
   // Badge no leídos en Entrada (dentro del buzón)
-  const noLeidos = correos.filter(c => _carpetaLocal(c) === 'inbox' && !c.leido).length;
+  // Badge no leídos: solo correos RECIBIDOS no leídos
+  const noLeidos = correos.filter(c => c.tipo === 'recibido' && !c.leido).length;
+  const txtBadge = noLeidos > 99 ? '99+' : String(noLeidos);
+  // Badge dentro del buzón (Entrada)
   const badgeUnread = document.getElementById('mailBadgeUnread');
-  if (badgeUnread) {
-    if (noLeidos > 0) {
-      badgeUnread.textContent = noLeidos;
-      badgeUnread.style.display = 'inline';
-    } else {
-      badgeUnread.style.display = 'none';
-    }
-  }
-  // Badge no leídos en sidebar principal
+  if (badgeUnread) { badgeUnread.textContent = txtBadge; badgeUnread.style.display = noLeidos > 0 ? 'inline' : 'none'; }
+  // Badge sidebar principal
   const badgeSidebar = document.getElementById('correo-badge');
-  if (badgeSidebar) {
-    if (noLeidos > 0) {
-      badgeSidebar.textContent = noLeidos > 99 ? '99+' : noLeidos;
-      badgeSidebar.style.display = 'inline';
-    } else {
-      badgeSidebar.style.display = 'none';
-    }
-  }
+  if (badgeSidebar) { badgeSidebar.textContent = txtBadge; badgeSidebar.style.display = noLeidos > 0 ? 'inline' : 'none'; }
+  // Badge favorito
+  const favBadge = document.getElementById('fav-correo-badge');
+  if (favBadge) { favBadge.textContent = txtBadge; favBadge.style.display = noLeidos > 0 ? 'inline-flex' : 'none'; }
 
   // Barra de estado
   const statusBar = document.getElementById('mailStatusBar');
@@ -265,9 +257,20 @@ function renderListaCorreos(list) {
     return;
   }
 
-  container.innerHTML = list.map(c => {
+  // Barra de acciones masivas
+  const barraSeleccion = `<div id="mailSelBar" style="display:none;padding:6px 10px;background:var(--azul-light);border-radius:8px;margin-bottom:6px;align-items:center;gap:8px;font-size:12px">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--gris-600)"><input type="checkbox" onchange="_toggleSelectAll(this.checked)" style="cursor:pointer"> Todos</label>
+    <span id="mailSelCount" style="color:var(--azul);font-weight:600">0 seleccionados</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(true)" title="Marcar como leídos">✉️ Leídos</button>
+    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(false)" title="Marcar como no leídos">📩 No leídos</button>
+    <button class="btn btn-ghost btn-sm" onclick="_limpiarSeleccion()" style="color:var(--gris-500)">✕</button>
+  </div>`;
+
+  container.innerHTML = barraSeleccion + list.map(c => {
     const esNoLeido = c.tipo === 'recibido' && !c.leido;
     const esActivo = correoActual && correoActual.id === c.id;
+    const esSel = _correosSeleccionados.has(c.id);
     const fecha = c.fecha ? new Date(c.fecha) : null;
     const fechaStr = fecha ? (
       fecha.toDateString() === new Date().toDateString()
@@ -278,19 +281,25 @@ function renderListaCorreos(list) {
       ? 'Para: ' + (c.para || '—').split(',')[0].split('<')[0].trim()
       : (c.de_nombre || c.de || '—');
 
-    return `<div onclick="abrirCorreo(${c.id})" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'};background:${esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'};transition:background .12s" onmouseenter="if(!${esActivo})this.style.background='var(--gris-50)'" onmouseleave="this.style.background='${esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'}'">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
-        <span style="font-size:12.5px;font-weight:${esNoLeido ? '700' : '500'};color:var(--gris-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${remitente}</span>
-        <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:8px">${fechaStr}</span>
+    return `<div style="display:flex;align-items:stretch;margin-bottom:2px;border-radius:8px;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'};background:${esSel ? 'var(--azul-light)' : esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'};transition:background .12s" onmouseenter="if(!${esActivo}&&!${esSel})this.style.background='var(--gris-50)'" onmouseleave="this.style.background='${esSel ? 'var(--azul-light)' : esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'}'">
+      <label style="display:flex;align-items:center;padding:0 4px 0 8px;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="cursor:pointer;accent-color:var(--azul)"></label>
+      <div onclick="abrirCorreo(${c.id})" style="flex:1;padding:10px 12px 10px 6px;cursor:pointer;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
+          <span style="font-size:12.5px;font-weight:${esNoLeido ? '700' : '500'};color:var(--gris-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${remitente}</span>
+          <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:8px">${fechaStr}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          ${esNoLeido ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--azul);flex-shrink:0" title="No leído"></span>' : ''}
+          ${c.tiene_adjuntos ? '<span style="font-size:11px" title="Tiene adjuntos">📎</span>' : ''}
+          <span style="font-size:12px;font-weight:${esNoLeido ? '600' : '400'};color:var(--gris-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
+        </div>
+        <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${(c.cuerpo_texto || '').substring(0, 80)}</div>
+        ${c.vinculado_tipo ? `<span style="font-size:9px;background:var(--azul-light);color:var(--azul);padding:1px 5px;border-radius:3px;margin-top:3px;display:inline-block">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:4px">
-        ${c.tiene_adjuntos ? '<span style="font-size:11px" title="Tiene adjuntos">📎</span>' : ''}
-        <span style="font-size:12px;font-weight:${esNoLeido ? '600' : '400'};color:var(--gris-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
-      </div>
-      <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${(c.cuerpo_texto || '').substring(0, 80)}</div>
-      ${c.vinculado_tipo ? `<span style="font-size:9px;background:var(--azul-light);color:var(--azul);padding:1px 5px;border-radius:3px;margin-top:3px;display:inline-block">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
     </div>`;
   }).join('');
+
+  _actualizarBarraSeleccion();
 }
 
 // ═══════════════════════════════════════════════
@@ -850,4 +859,49 @@ async function enviarDocumentoPorEmail(opts) {
     toast('❌ Error enviando email: ' + (e.message || ''), 'error');
     console.error('enviarDocumentoPorEmail error:', e);
   }
+}
+
+// ═══════════════════════════════════════════════
+//  SELECCIÓN MÚLTIPLE DE CORREOS
+// ═══════════════════════════════════════════════
+function _toggleCorreoSel(id, checked) {
+  if (checked) _correosSeleccionados.add(id);
+  else _correosSeleccionados.delete(id);
+  _actualizarBarraSeleccion();
+  renderListaCorreos(correosFiltrados);
+}
+
+function _toggleSelectAll(checked) {
+  _correosSeleccionados.clear();
+  if (checked) correosFiltrados.forEach(c => _correosSeleccionados.add(c.id));
+  _actualizarBarraSeleccion();
+  renderListaCorreos(correosFiltrados);
+}
+
+function _limpiarSeleccion() {
+  _correosSeleccionados.clear();
+  _actualizarBarraSeleccion();
+  renderListaCorreos(correosFiltrados);
+}
+
+function _actualizarBarraSeleccion() {
+  const bar = document.getElementById('mailSelBar');
+  const cnt = document.getElementById('mailSelCount');
+  if (!bar) return;
+  const n = _correosSeleccionados.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  if (cnt) cnt.textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+
+async function _marcarSeleccionados(comoLeido) {
+  if (_correosSeleccionados.size === 0) return;
+  const ids = [..._correosSeleccionados];
+  // Actualizar en BD
+  const { error } = await sb.from('correos').update({ leido: comoLeido }).in('id', ids);
+  if (error) { toast('❌ Error actualizando correos', 'error'); return; }
+  // Actualizar en memoria
+  correos.forEach(c => { if (ids.includes(c.id)) c.leido = comoLeido; });
+  _correosSeleccionados.clear();
+  filtrarCorreos();
+  toast(`✅ ${ids.length} correo${ids.length !== 1 ? 's' : ''} marcado${ids.length !== 1 ? 's' : ''} como ${comoLeido ? 'leídos' : 'no leídos'}`, 'success');
 }

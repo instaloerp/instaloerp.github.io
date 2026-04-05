@@ -1543,6 +1543,7 @@
             <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
             <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
             <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
+            <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -1788,6 +1789,44 @@
                 </div>
               </div>
             </div>
+
+            <!-- INTELIGENCIA ARTIFICIAL -->
+            <div class="cfg-panel card" id="cfg-ia">
+              <div class="card-h">
+                <h3>🤖 Inteligencia Artificial</h3>
+                <div class="card-ha">
+                  <button class="btn btn-primary btn-sm" onclick="guardarConfigIA()">💾 Guardar</button>
+                </div>
+              </div>
+              <div class="card-b" style="padding:20px">
+                <div style="background:linear-gradient(135deg,rgba(139,92,246,.08),rgba(59,130,246,.08));border-radius:10px;padding:16px;margin-bottom:20px">
+                  <div style="font-weight:700;font-size:14px;color:var(--violeta);margin-bottom:6px">OCR inteligente con Claude Vision</div>
+                  <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                    Sube una foto o PDF de una factura, albarán o presupuesto de proveedor y la IA extraerá automáticamente todos los datos: proveedor, líneas, importes, IVA... Si el proveedor o los artículos no existen, se crearán automáticamente.
+                  </div>
+                </div>
+                <div class="fg" style="margin-bottom:16px">
+                  <label>API Key de Anthropic</label>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input id="ia_api_key" type="password" placeholder="sk-ant-api03-..." style="flex:1;font-family:monospace;font-size:12px">
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ia_api_key').type=document.getElementById('ia_api_key').type==='password'?'text':'password'" title="Mostrar/ocultar">👁️</button>
+                  </div>
+                  <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Obtén tu clave en <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--azul)">console.anthropic.com</a>. Se almacena cifrada. Coste estimado: ~0,03€ por documento.</small>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="btn btn-secondary btn-sm" onclick="testApiKeyIA()">🧪 Probar conexión</button>
+                  <span id="iaTestResult" style="font-size:12px"></span>
+                </div>
+                <div style="padding:14px;background:var(--gris-50);border-radius:8px;font-size:11px;color:var(--gris-500);line-height:1.7;margin-top:20px">
+                  <strong>Funciones disponibles:</strong><br>
+                  📄 Importar facturas de proveedor desde foto/PDF<br>
+                  📦 Importar albaranes de proveedor desde foto/PDF<br>
+                  📋 Importar presupuestos de compra desde foto/PDF<br>
+                  📧 Detección automática de documentos en emails (próximamente)
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

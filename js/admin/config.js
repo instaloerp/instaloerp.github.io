@@ -246,6 +246,7 @@ function cfgTab(id,el){
   if (id === 'facturacion') cargarCfgFacturacion();
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
   if (id === 'correo') cargarCuentasCorreoConfig();
+  if (id === 'ia') loadConfigIA();
 }
 
 // ═══════════════════════════════════════════════
@@ -1273,4 +1274,61 @@ async function testConexionCorreo() {
 
   btn.disabled = false;
   btn.textContent = '🔌 Probar conexión';
+}
+
+// ═══════════════════════════════════════════════
+//  CONFIGURACIÓN IA (Anthropic API Key)
+// ═══════════════════════════════════════════════
+function loadConfigIA() {
+  const campo = document.getElementById('ia_api_key');
+  if (!campo) return;
+  // Leer key cifrada de EMPRESA
+  if (EMPRESA?.anthropic_api_key) {
+    try { campo.value = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { campo.value = EMPRESA.anthropic_api_key; }
+  } else {
+    campo.value = '';
+  }
+}
+
+async function guardarConfigIA() {
+  const key = (document.getElementById('ia_api_key')?.value || '').trim();
+  if (!key) { toast('⚠️ Introduce tu API Key de Anthropic', 'warning'); return; }
+  if (!key.startsWith('sk-ant-')) { toast('⚠️ La clave debe empezar por sk-ant-...', 'warning'); return; }
+  // Cifrar con btoa
+  const cifrada = btoa(unescape(encodeURIComponent(key)));
+  const { error } = await sb.from('empresas').update({ anthropic_api_key: cifrada }).eq('id', EMPRESA.id);
+  if (error) { toast('❌ Error guardando: ' + error.message, 'error'); return; }
+  EMPRESA.anthropic_api_key = cifrada;
+  toast('✅ API Key guardada correctamente', 'success');
+}
+
+async function testApiKeyIA() {
+  const key = (document.getElementById('ia_api_key')?.value || '').trim();
+  const result = document.getElementById('iaTestResult');
+  if (!key) { if(result) result.textContent = '⚠️ Introduce la clave primero'; return; }
+  if(result) result.textContent = '⏳ Probando...';
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Responde solo OK' }]
+      })
+    });
+    if (resp.ok) {
+      if(result) { result.textContent = '✅ Conexión exitosa — API Key válida'; result.style.color = 'var(--verde)'; }
+    } else {
+      const err = await resp.json();
+      if(result) { result.textContent = '❌ ' + (err?.error?.message || 'Error ' + resp.status); result.style.color = 'var(--rojo)'; }
+    }
+  } catch(e) {
+    if(result) { result.textContent = '❌ Error de conexión: ' + e.message; result.style.color = 'var(--rojo)'; }
+  }
 }

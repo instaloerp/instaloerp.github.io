@@ -134,15 +134,18 @@ function renderFavoritos() {
 
     list.innerHTML = html;
   } else {
-    // Modo normal — solo los favoritos como botones
+    // Modo normal — solo los favoritos como botones (con badges si aplica)
     list.innerHTML = sbFavoritos.map(id => {
       const p = ALL_PAGES.find(x => x.id === id);
       if (!p) return '';
-      // Hide favorite if user doesn't have permission
       if (!userCanAccess(p.id)) return '';
+      let badge = '';
+      if (id === 'correo') badge = '<span id="fav-correo-badge" style="display:none;margin-left:auto;background:var(--rojo);color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700"></span>';
+      if (id === 'mistareas') badge = '<span id="fav-tareas-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span>';
       return `<button class="sb-fav-item" onclick="goPage('${p.id}')">
         <span style="font-size:18px;width:21px;text-align:center;flex-shrink:0">${p.ico}</span>
         <span>${p.label}</span>
+        ${badge}
       </button>`;
     }).join('');
   }

@@ -366,50 +366,59 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 body.sb-collapsed .sb-toggle-ico{transform:rotate(180deg)}
 body.sb-collapsed #sidebar{width:60px;overflow:hidden}
 body.sb-collapsed #main{margin-left:60px}
+/* Colapsado: ocultar TODAS las secciones, solo mostrar favoritos */
 body.sb-collapsed .sb-logo .brand,
-body.sb-collapsed .sb-item span:not(.ico),
-body.sb-collapsed .sb-item .sb-beta,
 body.sb-collapsed .sb-sec,
+body.sb-collapsed .sb-section-items,
 body.sb-collapsed .sb-hide-collapsed,
 body.sb-collapsed .sb-user .sb-user-info,
-body.sb-collapsed #sbFavSection .sb-fav-titulo{display:none}
-body.sb-collapsed .sb-logo{justify-content:center;padding:16px 8px 13px}
-body.sb-collapsed .sb-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0;height:36px;box-sizing:border-box}
-body.sb-collapsed .sb-item:hover{font-size:0}
-body.sb-collapsed .sb-item .ico{margin:0;font-size:18px;line-height:36px}
-body.sb-collapsed .sb-fav-item{justify-content:center;padding:9px;overflow:hidden;white-space:nowrap;font-size:0;line-height:0;height:36px;box-sizing:border-box}
-body.sb-collapsed .sb-fav-item:hover{font-size:0}
-body.sb-collapsed .sb-fav-item span:first-child{font-size:18px!important;line-height:36px;margin:0}
-body.sb-collapsed .sb-fav-item span:not(:first-child){display:none}
-body.sb-collapsed .sb-favoritos{padding:2px 4px}
-body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 16px)}
-body.sb-collapsed .sb-user{flex-direction:column;justify-content:center;align-items:center;padding:8px 4px;gap:4px;min-height:auto}
-body.sb-collapsed .sb-user .logout{padding:4px;font-size:14px}
-body.sb-collapsed .sb-nav{padding:6px 4px}
-body.sb-collapsed .sb-section-items{display:block!important;overflow:visible!important}
+body.sb-collapsed #sbFavSection .sb-fav-titulo,
+body.sb-collapsed .sb-toggle{display:none!important}
+body.sb-collapsed .sb-logo{justify-content:center;padding:14px 8px 10px}
+body.sb-collapsed .sb-logo .mark{width:36px;height:36px}
+/* Favoritos como iconos centrados */
+body.sb-collapsed .sb-favoritos{padding:4px 0}
+body.sb-collapsed .sb-fav-item{position:relative;justify-content:center;padding:10px 0;font-size:0;line-height:0;height:42px;box-sizing:border-box;border-radius:8px;margin:1px 6px}
+body.sb-collapsed .sb-fav-item:hover{background:rgba(255,255,255,.12);font-size:0}
+body.sb-collapsed .sb-fav-item span:first-child{font-size:20px!important;line-height:42px;margin:0}
+body.sb-collapsed .sb-fav-item span:not(:first-child):not([id]){display:none}
+/* Badges en favoritos colapsados: punto en esquina superior derecha */
+body.sb-collapsed .sb-fav-item [id$="-badge"]{position:absolute!important;top:4px;right:2px;min-width:16px;height:16px;padding:0 4px!important;font-size:9px!important;border-radius:8px;display:inline-flex!important;align-items:center;justify-content:center;line-height:1}
+body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display: none"],
+body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display:none"]{display:none!important}
+/* Claude y usuario compactos */
+body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 12px);margin:4px 6px}
+body.sb-collapsed .sb-user{flex-direction:column;justify-content:center;align-items:center;padding:8px 4px;gap:6px;min-height:auto}
+body.sb-collapsed .sb-user .logout{padding:5px;font-size:14px}
+body.sb-collapsed .sb-nav{padding:2px 0}
 
 /* Hover expand: sidebar se superpone al contenido sin empujar el main */
-body.sb-hover-expanded #sidebar{width:var(--sidebar-w);overflow:visible;z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.25)}
+body.sb-hover-expanded #sidebar{width:var(--sidebar-w);overflow-y:auto;overflow-x:hidden;z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.35)}
 body.sb-hover-expanded #main{margin-left:60px}
+/* Restaurar TODO al estado expandido */
 body.sb-hover-expanded .sb-logo .brand,
-body.sb-hover-expanded .sb-item span:not(.ico),
-body.sb-hover-expanded .sb-item .sb-beta,
 body.sb-hover-expanded .sb-sec,
 body.sb-hover-expanded .sb-hide-collapsed,
 body.sb-hover-expanded .sb-user .sb-user-info,
-body.sb-hover-expanded #sbFavSection .sb-fav-titulo{display:revert}
+body.sb-hover-expanded #sbFavSection .sb-fav-titulo,
+body.sb-hover-expanded .sb-toggle{display:revert!important}
+body.sb-hover-expanded .sb-section-items{display:block!important}
+body.sb-hover-expanded .sb-section-items.collapsed{display:none!important}
+body.sb-hover-expanded .sb-item span:not(.ico),
+body.sb-hover-expanded .sb-item .sb-beta{display:revert}
 body.sb-hover-expanded .sb-logo{justify-content:initial;padding:16px 14px 13px}
+body.sb-hover-expanded .sb-logo .mark{width:42px;height:42px}
 body.sb-hover-expanded .sb-item{justify-content:initial;padding:9px 11px;font-size:15px;line-height:normal;height:auto}
-body.sb-hover-expanded .sb-item .ico{margin:0 0 0 0;font-size:16px;line-height:normal}
-body.sb-hover-expanded .sb-fav-item{justify-content:initial;padding:9px 11px;font-size:15px;line-height:normal;height:auto}
+body.sb-hover-expanded .sb-item .ico{margin:0;font-size:16px;line-height:normal}
+body.sb-hover-expanded .sb-fav-item{position:relative;justify-content:initial;padding:9px 11px;font-size:15px;line-height:normal;height:auto;margin:0}
 body.sb-hover-expanded .sb-fav-item span:first-child{font-size:16px!important;line-height:normal}
 body.sb-hover-expanded .sb-fav-item span:not(:first-child){display:revert}
+body.sb-hover-expanded .sb-fav-item [id$="-badge"]{position:static!important;top:auto;right:auto;min-width:18px;height:18px;padding:0 5px!important;font-size:10px!important;border-radius:9px}
 body.sb-hover-expanded .sb-favoritos{padding:6px 8px}
-body.sb-hover-expanded .sb-claude{justify-content:initial;padding:10px 11px}
+body.sb-hover-expanded .sb-claude{justify-content:initial;padding:10px 11px;margin:7px 8px;width:calc(100% - 16px)}
 body.sb-hover-expanded .sb-user{flex-direction:row;padding:10px 12px;gap:8px;min-height:54px}
 body.sb-hover-expanded .sb-user .logout{padding:6px;font-size:16px}
 body.sb-hover-expanded .sb-nav{padding:6px 8px}
-body.sb-hover-expanded .sb-section-items{display:block!important}
 
 /* Transición suave del sidebar */
 #sidebar{transition:width .2s ease,box-shadow .2s ease}

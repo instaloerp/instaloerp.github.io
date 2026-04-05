@@ -122,12 +122,15 @@ async function loadDashboardTareas() {
 
   // Badge en sidebar con nº de tareas pendientes
   const sbBadge = document.getElementById('sbBadgeTareas');
+  const favBadgeTareas = document.getElementById('fav-tareas-badge');
   if (sbBadge) {
     if (misTareas.length > 0) {
       sbBadge.textContent = misTareas.length;
       sbBadge.style.display = 'inline-flex';
+      if (favBadgeTareas) { favBadgeTareas.textContent = misTareas.length; favBadgeTareas.style.display = 'inline-flex'; }
     } else {
       sbBadge.style.display = 'none';
+      if (favBadgeTareas) favBadgeTareas.style.display = 'none';
     }
   }
 
