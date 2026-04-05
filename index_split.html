@@ -151,7 +151,7 @@
       </div>
 
       <!-- COMERCIAL -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)">Comercial</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)"><span class="sb-sec-ico">💼</span><span class="sb-sec-label">Comercial</span></div>
       <div class="sb-section-items" id="sec-comercial">
         <button class="sb-item" onclick="goPage('clientes')"><span class="ico">👥</span> Clientes</button>
         <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
@@ -160,7 +160,7 @@
       </div>
 
       <!-- COMPRAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)">Compras</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)"><span class="sb-sec-ico">🛒</span><span class="sb-sec-label">Compras</span></div>
       <div class="sb-section-items" id="sec-compras">
         <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores<span class="sb-beta">beta</span></button>
         <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos<span class="sb-beta">beta</span></button>
@@ -171,7 +171,7 @@
       </div>
 
       <!-- ALMACÉN -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)">Almacén</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)"><span class="sb-sec-ico">📦</span><span class="sb-sec-label">Almacén</span></div>
       <div class="sb-section-items" id="sec-almacen">
         <button class="sb-item" onclick="goPage('articulos')"><span class="ico">📦</span> Artículos</button>
         <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes<span class="sb-beta">pronto</span></button>
@@ -181,7 +181,7 @@
       </div>
 
       <!-- GESTIÓN DE OBRAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)">Gestión de obras</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)"><span class="sb-sec-ico">🏗️</span><span class="sb-sec-label">Gestión de obras</span></div>
       <div class="sb-section-items" id="sec-obras">
         <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
         <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">pronto</span></button>
@@ -192,20 +192,20 @@
       </div>
 
       <!-- COMUNICACIÓN -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)">Comunicación</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)"><span class="sb-sec-ico">💬</span><span class="sb-sec-label">Comunicación</span></div>
       <div class="sb-section-items" id="sec-comunicacion">
         <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span id="correo-badge" style="display:none;background:var(--rojo);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px"></span></button>
       </div>
 
       <!-- PERSONAL -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)">Personal</div>
+      <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)"><span class="sb-sec-ico">👷</span><span class="sb-sec-label">Personal</span></div>
       <div class="sb-section-items" id="sec-personal">
         <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes<span class="sb-beta">pronto</span></button>
       </div>
 
       <!-- ADMINISTRACIÓN -->
       <div id="adminSection" style="display:none">
-        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)">Administración</div>
+        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)"><span class="sb-sec-ico">⚙️</span><span class="sb-sec-label">Administración</span></div>
         <div class="sb-section-items" id="sec-admin">
           <button class="sb-item" onclick="openModal('mEmpresas')"><span class="ico">🏢</span> Empresas</button>
           <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios<span class="sb-beta">beta</span></button>

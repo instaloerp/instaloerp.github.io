@@ -40,7 +40,45 @@ function toggleSidebar() {
   _sbApply();
 }
 
-// Hover: expandir temporalmente si está colapsado
+// Sidebar colapsado: flyout de secciones al hacer hover en icono
+let _sbFlyoutTimer = null;
+let _sbActiveFlyout = null;
+
+function _sbShowFlyout(secEl) {
+  const items = secEl.nextElementSibling;
+  if (!items || !items.classList.contains('sb-section-items')) return;
+  // Cerrar flyout anterior
+  _sbHideFlyout();
+  // Calcular posición vertical alineada con el icono de sección
+  const rect = secEl.getBoundingClientRect();
+  items.style.position = 'fixed';
+  items.style.left = '60px';
+  items.style.top = rect.top + 'px';
+  items.style.display = 'block';
+  items.classList.add('sb-flyout-open');
+  _sbActiveFlyout = items;
+}
+
+function _sbHideFlyout() {
+  if (_sbActiveFlyout) {
+    _sbActiveFlyout.style.display = '';
+    _sbActiveFlyout.style.position = '';
+    _sbActiveFlyout.style.left = '';
+    _sbActiveFlyout.style.top = '';
+    _sbActiveFlyout.classList.remove('sb-flyout-open');
+    _sbActiveFlyout = null;
+  }
+}
+
+function _sbScheduleHide() {
+  clearTimeout(_sbFlyoutTimer);
+  _sbFlyoutTimer = setTimeout(_sbHideFlyout, 200);
+}
+
+function _sbCancelHide() {
+  clearTimeout(_sbFlyoutTimer);
+}
+
 (function initSmartSidebar() {
   // Estado inicial
   const saved = localStorage.getItem('sb-manual');
@@ -51,31 +89,37 @@ function toggleSidebar() {
 
   // Responsive: al cambiar tamaño, volver a auto
   window.addEventListener('resize', () => {
-    // Si la pantalla es grande, resetear manual
     if (window.innerWidth >= SB_BREAKPOINT) {
       _sbManual = null;
       localStorage.removeItem('sb-manual');
     }
     _sbApply();
+    _sbHideFlyout();
   });
 
-  // Hover en sidebar
+  // Flyout: hover en iconos de sección cuando colapsado
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
-  sidebar.addEventListener('mouseenter', () => {
-    if (!document.body.classList.contains('sb-collapsed')) return;
-    clearTimeout(_sbHoverTimer);
-    document.body.classList.add('sb-hover-expanded');
-    document.body.classList.remove('sb-collapsed');
+  sidebar.querySelectorAll('.sb-sec').forEach(sec => {
+    sec.addEventListener('mouseenter', () => {
+      if (!document.body.classList.contains('sb-collapsed')) return;
+      _sbCancelHide();
+      _sbShowFlyout(sec);
+    });
+    sec.addEventListener('mouseleave', () => {
+      _sbScheduleHide();
+    });
   });
 
-  sidebar.addEventListener('mouseleave', () => {
-    if (!document.body.classList.contains('sb-hover-expanded')) return;
-    _sbHoverTimer = setTimeout(() => {
-      document.body.classList.remove('sb-hover-expanded');
-      _sbApply();
-    }, 300); // pequeño delay para que no parpadee
+  sidebar.querySelectorAll('.sb-section-items').forEach(items => {
+    items.addEventListener('mouseenter', () => {
+      if (!document.body.classList.contains('sb-collapsed')) return;
+      _sbCancelHide();
+    });
+    items.addEventListener('mouseleave', () => {
+      _sbScheduleHide();
+    });
   });
 })();
 
@@ -335,11 +379,8 @@ function goPage(id, opts){
   // Detener auto-sync de correo al salir de esa sección
   if(id!=='correo' && typeof detenerAutoSyncCorreo==='function') detenerAutoSyncCorreo();
 
-  // Si sidebar estaba expandido por hover, contraer tras navegar
-  if (document.body.classList.contains('sb-hover-expanded')) {
-    document.body.classList.remove('sb-hover-expanded');
-    _sbApply();
-  }
+  // Cerrar flyout del sidebar al navegar
+  if (typeof _sbHideFlyout === 'function') _sbHideFlyout();
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
