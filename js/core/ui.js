@@ -17,12 +17,67 @@ setInterval(() => {
   }
 }, 60000);
 
-// ── Sidebar colapsable ──
-function toggleSidebar(){
-  document.body.classList.toggle('sb-collapsed');
-  localStorage.setItem('sb-collapsed',document.body.classList.contains('sb-collapsed')?'1':'0');
+// ── Sidebar inteligente ──
+const SB_BREAKPOINT = 1400; // px — por encima de esto, siempre expandido
+let _sbManual = null;       // null = auto, true = forzado abierto, false = forzado cerrado
+let _sbHoverTimer = null;
+
+function _sbShouldCollapse() {
+  if (_sbManual !== null) return _sbManual === false;
+  return window.innerWidth < SB_BREAKPOINT;
 }
-(function(){const v=localStorage.getItem('sb-collapsed');if(v==='1')document.body.classList.add('sb-collapsed')})();
+
+function _sbApply() {
+  const collapse = _sbShouldCollapse();
+  document.body.classList.toggle('sb-collapsed', collapse);
+}
+
+function toggleSidebar() {
+  // Click manual: alterna el estado forzado
+  const isCollapsed = document.body.classList.contains('sb-collapsed');
+  _sbManual = isCollapsed ? true : false; // fuerza el estado contrario
+  localStorage.setItem('sb-manual', _sbManual ? '1' : '0');
+  _sbApply();
+}
+
+// Hover: expandir temporalmente si está colapsado
+(function initSmartSidebar() {
+  // Estado inicial
+  const saved = localStorage.getItem('sb-manual');
+  if (saved === '1') _sbManual = true;
+  else if (saved === '0') _sbManual = false;
+  else _sbManual = null;
+  _sbApply();
+
+  // Responsive: al cambiar tamaño, volver a auto
+  window.addEventListener('resize', () => {
+    // Si la pantalla es grande, resetear manual
+    if (window.innerWidth >= SB_BREAKPOINT) {
+      _sbManual = null;
+      localStorage.removeItem('sb-manual');
+    }
+    _sbApply();
+  });
+
+  // Hover en sidebar
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+
+  sidebar.addEventListener('mouseenter', () => {
+    if (!document.body.classList.contains('sb-collapsed')) return;
+    clearTimeout(_sbHoverTimer);
+    document.body.classList.add('sb-hover-expanded');
+    document.body.classList.remove('sb-collapsed');
+  });
+
+  sidebar.addEventListener('mouseleave', () => {
+    if (!document.body.classList.contains('sb-hover-expanded')) return;
+    _sbHoverTimer = setTimeout(() => {
+      document.body.classList.remove('sb-hover-expanded');
+      _sbApply();
+    }, 300); // pequeño delay para que no parpadee
+  });
+})();
 
 // ═══════════════════════════════════════════════
 //  ORDENACIÓN GENÉRICA DE TABLAS
@@ -279,6 +334,12 @@ function goPage(id, opts){
   }
   // Detener auto-sync de correo al salir de esa sección
   if(id!=='correo' && typeof detenerAutoSyncCorreo==='function') detenerAutoSyncCorreo();
+
+  // Si sidebar estaba expandido por hover, contraer tras navegar
+  if (document.body.classList.contains('sb-hover-expanded')) {
+    document.body.classList.remove('sb-hover-expanded');
+    _sbApply();
+  }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
