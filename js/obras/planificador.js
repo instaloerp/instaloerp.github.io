@@ -481,11 +481,11 @@ function _renderNowLine(container, hoyStr) {
   if (nowHour < PLAN_HORAS_INICIO || nowHour >= PLAN_HORAS_FIN) return;
 
   const topPx = ((nowHour - PLAN_HORAS_INICIO) + nowMin / 60) * planHoraHeight;
-  const colWidth = 100 / 7;
 
+  // Línea cruza TODO el calendario horizontalmente
   const line = document.createElement('div');
   line.className = 'plan-now-line';
-  line.style.cssText = `position:absolute;top:${topPx}px;left:${todayCol * colWidth}%;width:${colWidth}%`;
+  line.style.cssText = `position:absolute;top:${topPx}px;left:0;width:100%`;
   container.appendChild(line);
 
   // Auto-scroll para que la hora actual quede visible
@@ -868,8 +868,40 @@ function abrirCrearParteRapido(fecha, hora) {
   const prev = document.getElementById('planCrearParteModal');
   if (prev) prev.remove();
 
-  const horaStr = String(hora).padStart(2, '0') + ':00';
-  const horaFinDefault = String(Math.min(hora + 2, 23)).padStart(2, '0') + ':00'; // mínimo 2h
+  // ── Calcular hora inicio adaptada al hueco del operario ──
+  // Hora base según la celda clicada
+  let iniMin = hora * 60; // minutos desde medianoche
+  // Si la celda es la de las 8 (inicio jornada), ajustar a 8:30
+  if (hora === PLAN_HORA_LABORAL_INI) iniMin = hora * 60 + 30;
+
+  // Buscar partes del operario en esta fecha para evitar solapamientos
+  const _partesOp = planPartesData.filter(p =>
+    p.fecha === fecha &&
+    p.usuario_id === planOperarioFilter &&
+    p.estado !== 'borrador' &&
+    p.hora_inicio
+  );
+  // Si hay algún parte que ocupa esta hora, empezar donde acaba
+  _partesOp.forEach(p => {
+    const [ph, pm] = p.hora_inicio.split(':').map(Number);
+    const pIniMin = ph * 60 + (pm || 0);
+    let pFinMin = pIniMin + 60; // default 1h
+    if (p.hora_fin) {
+      const [fh, fm] = p.hora_fin.split(':').map(Number);
+      pFinMin = fh * 60 + (fm || 0);
+    }
+    // Si el parte ocupa la hora donde pinchamos, empezar al final de ese parte
+    if (pIniMin < iniMin + 120 && pFinMin > iniMin) {
+      iniMin = Math.max(iniMin, pFinMin);
+    }
+  });
+
+  const horaStr = String(Math.floor(iniMin / 60)).padStart(2, '0') + ':' + String(iniMin % 60).padStart(2, '0');
+  // Hora fin = inicio + 2h (duración mínima)
+  const _finMin = iniMin + 120;
+  const _finH = Math.min(Math.floor(_finMin / 60), 23);
+  const _finM = _finMin % 60;
+  const horaFinDefault = String(_finH).padStart(2, '0') + ':' + String(_finM).padStart(2, '0');
   const fechaObj = new Date(fecha + 'T00:00:00');
   const fechaLegible = fechaObj.toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' });
 
@@ -1115,6 +1147,19 @@ async function crearPartesDesdeModal(estado) {
     const [hfH,hfM] = horaFin.split(':').map(Number);
     const diffMins = (hfH*60+hfM) - (hiH*60+hiM);
     if (diffMins < 120) { toast('La duración mínima es de 2 horas', 'error'); return; }
+    // Validar solapamiento con partes existentes del mismo operario
+    const _iniM = hiH * 60 + hiM, _finM = hfH * 60 + hfM;
+    const _solape = planPartesData.find(p =>
+      p.fecha === fechaIni && p.usuario_id === planOperarioFilter &&
+      p.estado !== 'borrador' && p.hora_inicio && (() => {
+        const [a,b] = p.hora_inicio.split(':').map(Number);
+        const pIni = a*60+(b||0);
+        let pFin = pIni + 60;
+        if (p.hora_fin) { const [c,d] = p.hora_fin.split(':').map(Number); pFin = c*60+(d||0); }
+        return _iniM < pFin && _finM > pIni;
+      })()
+    );
+    if (_solape) { toast('⚠️ Se solapa con otro parte del mismo operario (' + (_solape.hora_inicio||'').substring(0,5) + '-' + (_solape.hora_fin||'').substring(0,5) + ')', 'error'); return; }
   }
 
   // Calcular horas de la jornada

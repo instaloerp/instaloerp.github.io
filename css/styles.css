@@ -310,18 +310,18 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-body{display:flex;flex:1;overflow:hidden}
 .plan-hours-column{width:60px;min-width:60px;border-right:1.5px solid var(--gris-200);overflow:hidden;background:var(--gris-50)}
 .plan-hour{padding:2px 6px 0 0;text-align:right;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-200);font-weight:600;display:flex;align-items:flex-start;justify-content:flex-end}
-.plan-hour-nolab{color:var(--gris-300);background:rgba(15,23,42,.05)}
-.plan-hour-halfnolab-top{background:linear-gradient(to bottom,rgba(15,23,42,.05) 50%,transparent 50%)}
-.plan-hour-halfnolab-bot{background:linear-gradient(to bottom,transparent 50%,rgba(15,23,42,.05) 50%)}
+.plan-hour-nolab{color:var(--gris-300);background:rgba(100,116,139,.14)}
+.plan-hour-halfnolab-top{background:linear-gradient(to bottom,rgba(100,116,139,.14) 50%,transparent 50%)}
+.plan-hour-halfnolab-bot{background:linear-gradient(to bottom,transparent 50%,rgba(100,116,139,.14) 50%)}
 .plan-grid-container{flex:1;overflow:auto}
 .plan-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;position:relative;background:#fff;overflow:visible}
-.plan-grid-cell{position:relative;border-right:1px solid var(--gris-300);border-bottom:1px solid var(--gris-200);cursor:pointer;min-height:21px}
+.plan-grid-cell{position:relative;border-right:1px solid var(--gris-300);border-bottom:1.5px solid var(--gris-300);cursor:pointer;min-height:21px}
 .plan-grid-cell:nth-child(7n){border-right:none}
-.plan-cell-nolab{background:rgba(15,23,42,.08);cursor:default}
+.plan-cell-nolab{background:rgba(100,116,139,.14);cursor:default}
 .plan-cell-finde{background:rgba(100,116,139,.14);cursor:default}
 .plan-cell-nolab.plan-cell-finde{background:rgba(100,116,139,.18)}
-.plan-cell-halfnolab-top{background:linear-gradient(to bottom,rgba(15,23,42,.08) 50%,transparent 50%)}
-.plan-cell-halfnolab-bot{background:linear-gradient(to bottom,transparent 50%,rgba(15,23,42,.08) 50%)}
+.plan-cell-halfnolab-top{background:linear-gradient(to bottom,rgba(100,116,139,.14) 50%,transparent 50%)}
+.plan-cell-halfnolab-bot{background:linear-gradient(to bottom,transparent 50%,rgba(100,116,139,.14) 50%)}
 .plan-cell-halfnolab-top.plan-today-col{background:linear-gradient(to bottom,rgba(59,130,246,.10) 50%,rgba(59,130,246,.04) 50%)}
 .plan-cell-halfnolab-bot.plan-today-col{background:linear-gradient(to bottom,rgba(59,130,246,.04) 50%,rgba(59,130,246,.10) 50%)}
 .plan-cell-halfnolab-top.plan-cell-finde{background:linear-gradient(to bottom,rgba(100,116,139,.18) 50%,rgba(100,116,139,.14) 50%)}
