@@ -1307,28 +1307,23 @@ async function testApiKeyIA() {
   const key = (document.getElementById('ia_api_key')?.value || '').trim();
   const result = document.getElementById('iaTestResult');
   if (!key) { if(result) result.textContent = '⚠️ Introduce la clave primero'; return; }
-  if(result) result.textContent = '⏳ Probando...';
+  if(result) { result.textContent = '⏳ Probando...'; result.style.color = ''; }
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01'
+        'x-anthropic-key': key
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'Responde solo OK' }]
-      })
+      body: JSON.stringify({ test: true })
     });
-    if (resp.ok) {
+    const data = await resp.json();
+    if (data.success) {
       if(result) { result.textContent = '✅ Conexión exitosa — API Key válida'; result.style.color = 'var(--verde)'; }
     } else {
-      const err = await resp.json();
-      if(result) { result.textContent = '❌ ' + (err?.error?.message || 'Error ' + resp.status); result.style.color = 'var(--rojo)'; }
+      if(result) { result.textContent = '❌ ' + (data.error || 'Error desconocido'); result.style.color = 'var(--rojo)'; }
     }
   } catch(e) {
-    if(result) { result.textContent = '❌ Error de conexión: ' + e.message; result.style.color = 'var(--rojo)'; }
+    if(result) { result.textContent = '❌ Error de conexión: ' + e.message + '. ¿Está desplegada la Edge Function ocr-documento?'; result.style.color = 'var(--rojo)'; }
   }
 }
