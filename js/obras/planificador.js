@@ -962,8 +962,8 @@ function abrirCrearParteRapido(fecha, hora) {
 /** Cuenta días laborables (L-V) entre dos fechas inclusive */
 function _contarDiasLaborables(fechaIni, fechaFin) {
   let count = 0;
-  const d = new Date(fechaIni + 'T00:00:00');
-  const end = new Date(fechaFin + 'T00:00:00');
+  const d = new Date(fechaIni + 'T12:00:00'); // mediodía para evitar timezone
+  const end = new Date(fechaFin + 'T12:00:00');
   while (d <= end) {
     const dow = d.getDay();
     if (dow >= 1 && dow <= 5) count++; // L=1 ... V=5
@@ -975,12 +975,15 @@ function _contarDiasLaborables(fechaIni, fechaFin) {
 /** Devuelve array de fechas laborables (YYYY-MM-DD) entre ini y fin inclusive */
 function _obtenerDiasLaborables(fechaIni, fechaFin) {
   const dias = [];
-  const d = new Date(fechaIni + 'T00:00:00');
-  const end = new Date(fechaFin + 'T00:00:00');
+  const d = new Date(fechaIni + 'T12:00:00'); // mediodía para evitar problemas de timezone
+  const end = new Date(fechaFin + 'T12:00:00');
   while (d <= end) {
     const dow = d.getDay();
-    if (dow >= 1 && dow <= 5) {
-      dias.push(d.toISOString().split('T')[0]);
+    if (dow >= 1 && dow <= 5) { // L=1 ... V=5, excluye S=6 y D=0
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dias.push(`${yyyy}-${mm}-${dd}`);
     }
     d.setDate(d.getDate() + 1);
   }

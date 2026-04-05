@@ -2159,14 +2159,15 @@ function programarCitaObraActual() {
   abrirPlanificadorDesdeObra(obraActualId, titulo);
 }
 
-/** Programar un parte en borrador: abre el planificador fullscreen con la obra del parte */
+/** Programar un parte en borrador: abre el detalle para que el admin revise y programe */
 function programarParteBorrador(parteId) {
-  const parte = (typeof partesData !== 'undefined') ? partesData.find(p => p.id === parteId) : null;
-  if (!parte) { toast('Parte no encontrado', 'error'); return; }
-  const obraId = parte.trabajo_id;
-  const obra = trabajos.find(t => t.id === obraId);
-  const titulo = obra ? (obra.numero ? obra.numero + ' – ' : '') + (obra.titulo || obra.descripcion || 'Obra') : (parte.trabajo_titulo || 'Obra');
-  abrirPlanificadorDesdeObra(obraId, titulo);
+  // Abrir detalle del parte — desde ahí el admin puede cambiar fecha/hora y avanzar estado
+  if (typeof verDetalleParte === 'function') {
+    verDetalleParte(parteId);
+  } else {
+    // Fallback: cambiar estado directamente
+    avanzarEstadoParte(parteId, 'programado');
+  }
 }
 
 // ═══════════════════════════════════════════════
