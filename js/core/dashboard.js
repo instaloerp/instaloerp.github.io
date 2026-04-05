@@ -107,6 +107,17 @@ async function loadDashboardTareas() {
 
   if (countEl) countEl.textContent = misTareas.length ? misTareas.length + ' pendiente' + (misTareas.length > 1 ? 's' : '') : '';
 
+  // Badge en sidebar con nº de tareas pendientes
+  const sbBadge = document.getElementById('sbBadgeTareas');
+  if (sbBadge) {
+    if (misTareas.length > 0) {
+      sbBadge.textContent = misTareas.length;
+      sbBadge.style.display = 'inline-flex';
+    } else {
+      sbBadge.style.display = 'none';
+    }
+  }
+
   if (!misTareas.length) {
     el.innerHTML = '<div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div>';
     return;

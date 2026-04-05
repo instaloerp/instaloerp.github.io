@@ -301,6 +301,14 @@ function renderMisTareas() {
   if (el('mt-kpi-done')) el('mt-kpi-done').textContent = completadas;
   if (el('mt-kpi-venc')) el('mt-kpi-venc').textContent = vencidas;
 
+  // Actualizar badge sidebar con pendientes globales (sin filtros)
+  const pendGlobal = mtTareasCache.filter(t => t.estado !== 'completada').length;
+  const sbBadge = document.getElementById('sbBadgeTareas');
+  if (sbBadge) {
+    if (pendGlobal > 0) { sbBadge.textContent = pendGlobal; sbBadge.style.display = 'inline-flex'; }
+    else { sbBadge.style.display = 'none'; }
+  }
+
   if (!tareas.length) {
     container.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--gris-400)">
       <div style="font-size:36px;margin-bottom:10px">✅</div>

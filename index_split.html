@@ -193,7 +193,7 @@
         <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes<span class="sb-beta">beta</span></button>
         <button class="sb-item" onclick="goPage('planificador')"><span class="ico">⏱️</span> Planificador Semanal<span class="sb-beta">beta</span></button>
         <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('mistareas')"><span class="ico">✅</span> Mis Tareas<span class="sb-beta">beta</span></button>
+        <button class="sb-item" onclick="goPage('mistareas')" id="sb-mistareas"><span class="ico">✅</span> Tareas<span id="sbBadgeTareas" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span><span class="sb-beta">beta</span></button>
       </div>
 
       <!-- COMUNICACIÓN -->
@@ -267,7 +267,7 @@
         <!-- FILA 3: Mis Tareas + Tablas -->
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
           <div class="card">
-            <div class="card-h"><h3>✅ Mis Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
+            <div class="card-h"><h3>✅ Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
             <div class="card-b" id="d-tareas-list" style="max-height:320px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
           </div>
           <div class="card">
@@ -403,12 +403,10 @@
       <div class="page" id="page-proveedores">
         <!-- Vista lista -->
         <div id="provVista-lista">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <div><h2 style="font-size:17px;font-weight:800">Proveedores</h2><p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p></div>
-            <div style="display:flex;gap:8px">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
+            <p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p>
               <button class="btn btn-secondary" onclick="openModal('mImportarProveedores')">📥 Importar Excel</button>
               <button class="btn btn-primary" onclick="openModal('mProveedor')">+ Nuevo proveedor</button>
-            </div>
           </div>
           <div class="card">
             <div class="tw"><table class="dt"><thead><tr><th data-sort="proveedor">Proveedor</th><th data-sort="cif">CIF</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email pedidos</th><th data-sort="municipio">Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
@@ -497,13 +495,11 @@
           <div class="sc kpi-sensible" style="--c:var(--verde);--bg:var(--verde-light)">
             <div class="si">💰</div><div class="sv" id="art_kpi_valor">0 €</div><div class="sl">Valor stock (coste)</div></div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800">Catálogo de artículos</h2><p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p></div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
+          <p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p>
             <button class="btn btn-secondary" onclick="exportarArticulosExcel()">📤 Exportar</button>
             <button class="btn btn-secondary" onclick="openModal('mImportarArticulos')">📥 Importar</button>
             <button class="btn btn-primary" onclick="nuevoArticulo()">+ Nuevo artículo</button>
-          </div>
         </div>
         <div class="card">
           <div class="card-h" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -876,15 +872,9 @@
       </div>
       <!-- PRESUPUESTOS DE COMPRA -->
       <div class="page" id="page-presupuestos-compra">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Presupuestos de Compra</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Solicitudes de presupuesto a proveedores</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
             <button class="btn btn-secondary btn-sm" onclick="exportPresupuestosCompra()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -927,15 +917,9 @@
 
       <!-- PEDIDOS DE COMPRA -->
       <div class="page" id="page-pedidos-compra">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Pedidos de Compra</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Gestión de compras y pedidos a proveedores</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevoPedidoCompra()">+ Nuevo Pedido</button>
             <button class="btn btn-secondary btn-sm" onclick="exportPedidosCompra()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -978,15 +962,9 @@
 
       <!-- ALBARANES DE PROVEEDOR -->
       <div class="page" id="page-albaranes-proveedor">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Albaranes de Proveedor</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Recepción y control de albaranes de proveedores</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nuevo Albarán</button>
             <button class="btn btn-secondary btn-sm" onclick="exportRecepciones()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -1028,15 +1006,9 @@
 
       <!-- FACTURAS PROVEEDOR -->
       <div class="page" id="page-facturas-proveedor">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Facturas de Proveedor</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Control de facturas de compra y pagos</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevaFacturaProv()">+ Nueva Factura</button>
             <button class="btn btn-secondary btn-sm" onclick="exportFacturasProv()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -1132,14 +1104,8 @@
 
       <!-- STOCK -->
       <div class="page" id="page-stock">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Stock</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Gestión de inventario por almacén</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-secondary btn-sm" onclick="exportStock()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -1183,15 +1149,9 @@
 
       <!-- TRASPASOS -->
       <div class="page" id="page-traspasos">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Traspasos</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Transferencias entre almacenes</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo Traspaso</button>
             <button class="btn btn-secondary btn-sm" onclick="exportTraspasos()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -1236,15 +1196,9 @@
 
       <!-- PARTES DE TRABAJO -->
       <div class="page" id="page-partes">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">Partes de Trabajo</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Registro de trabajos realizados en obras</p>
-          </div>
-          <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo Parte</button>
             <button class="btn btn-secondary btn-sm" onclick="exportPartes()">📊 Excel</button>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
           <div class="card" style="padding:14px;text-align:center">
@@ -1310,16 +1264,10 @@
 
       <!-- MIS TAREAS -->
       <div class="page" id="page-mistareas">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <h2 style="font-size:17px;font-weight:800">✅ Mis Tareas</h2>
-            <p style="font-size:11.5px;color:var(--gris-400)">Todas las tareas asignadas a ti o a tu equipo</p>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <select id="mt-filtro-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todos</option><option value="pendiente" selected>Pendientes</option><option value="en_curso">En curso</option><option value="completada">Completadas</option><option value="bloqueada">Bloqueadas</option></select>
             <select id="mt-filtro-usuario" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todos</option></select>
             <select id="mt-filtro-prioridad" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none"><option value="">Todas prioridades</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baja">Baja</option></select>
-          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px">
           <div class="card" style="padding:12px;text-align:center"><div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:700;margin-bottom:4px">Total</div><div id="mt-kpi-total" style="font-size:22px;font-weight:800;color:var(--azul)">0</div></div>
@@ -1540,8 +1488,8 @@
 
       <!-- USUARIOS -->
       <div class="page" id="page-usuarios">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800">Usuarios</h2><p style="font-size:11.5px;color:var(--gris-400)" id="usrCount">—</p></div>
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
+          <p style="font-size:11.5px;color:var(--gris-400)" id="usrCount">—</p>
           <button class="btn btn-primary" onclick="nuevoUsuarioModal()">+ Nuevo usuario</button>
         </div>
         <div id="usuariosGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>

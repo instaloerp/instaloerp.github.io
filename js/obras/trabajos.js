@@ -210,7 +210,7 @@ function setObraVista(vista) {
 function cerrarFichaObra() {
   obraActualId = null;
   setObraVista('lista');
-  document.getElementById('pgTitle').textContent = 'Obras';
+  document.getElementById('pgTitle').textContent = '🏗️ Obras';
   document.getElementById('pgSub').textContent = _fechaHoraActual();
 }
 

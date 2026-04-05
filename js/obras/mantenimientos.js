@@ -141,7 +141,7 @@ function setMantVista(vista) {
 function cerrarFichaMant() {
   mantActualId = null;
   setMantVista('lista');
-  document.getElementById('pgTitle').textContent = 'Mantenimientos';
+  document.getElementById('pgTitle').textContent = '🔧 Mantenimientos';
   document.getElementById('pgSub').textContent = _fechaHoraActual();
 }
 

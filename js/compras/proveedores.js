@@ -10,7 +10,7 @@ function setProvVista(v) {
   document.getElementById('provVista-lista').style.display = v === 'ficha' ? 'none' : 'block';
   document.getElementById('provVista-ficha').style.display = v === 'ficha' ? 'block' : 'none';
   if (v === 'lista') {
-    document.getElementById('pgTitle').textContent = 'Proveedores';
+    document.getElementById('pgTitle').textContent = '🏭 Proveedores';
     document.getElementById('pgSub').textContent = _fechaHoraActual();
     const tb = document.getElementById('topbarBtns');
     if (tb) tb.innerHTML = '';

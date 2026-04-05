@@ -24,7 +24,7 @@ const ALL_PAGES = [
   {id:'partes',ico:'📝',label:'Partes'},
   {id:'planificador',ico:'⏱️',label:'Planificador Semanal'},
   {id:'calendario',ico:'📅',label:'Calendario'},
-  {id:'mistareas',ico:'✅',label:'Mis Tareas'},
+  {id:'mistareas',ico:'✅',label:'Tareas'},
   {id:'correo',ico:'📧',label:'Correo'},
   {id:'fichajes',ico:'⏱️',label:'Fichajes'},
   {id:'usuarios',ico:'👷',label:'Usuarios'},

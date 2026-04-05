@@ -25,7 +25,7 @@ function setCliVista(v) {
     if (v !== 'lista') renderClientes(cliFiltroList.length ? cliFiltroList : clientes);
     else renderClientes(clientes); // si viene de ficha, renderizar todos
     // Resetear topbar al volver a la lista
-    document.getElementById('pgTitle').textContent = 'Clientes';
+    document.getElementById('pgTitle').textContent = '👥 Clientes';
     document.getElementById('pgSub').textContent = _fechaHoraActual();
     const tb = document.getElementById('topbarBtns');
     if (tb) tb.innerHTML = '';
