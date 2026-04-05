@@ -197,12 +197,19 @@ async function abrirFicha(id) {
     });
   }
 
+  // Cargar documentos generados (PDFs firmados, etc.)
+  let docsGenerados = [];
+  try {
+    const { data: dgData } = await sb.from('documentos_generados').select('*').eq('entidad_tipo','cliente').eq('entidad_id',id).order('created_at',{ascending:false});
+    docsGenerados = dgData || [];
+  } catch(e) {}
+
   // KPIs — solo cantidades
   document.getElementById('fk-trabajos').textContent = trabs.data?.length||0;
   document.getElementById('fk-presup').textContent = presups.data?.length||0;
   document.getElementById('fk-albaranes').textContent = (albs.data||[]).length;
   document.getElementById('fk-facturas').textContent = (facts.data||[]).length;
-  document.getElementById('fk-docs').textContent = (docs.data||[]).length + docsObras.length;
+  document.getElementById('fk-docs').textContent = (docs.data||[]).length + docsObras.length + docsGenerados.length;
   document.getElementById('fk-notas').textContent = (notas.data||[]).length;
 
   // Totales para resúmenes dentro de cada panel
@@ -246,7 +253,13 @@ async function abrirFicha(id) {
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')} · <span style="color:var(--azul)">🏗️ ${d._obraNumero}${d._obraTitulo ? ' — '+d._obraTitulo : ''}</span></div></div>
           <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
         </div>`).join('') : ''}
-      ${!(docs.data||[]).length && !docsObras.length ? '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>' : ''}
+      ${docsGenerados.length ? '<div style="font-size:10px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos firmados</div>' + docsGenerados.map(d => `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
+          <span style="font-size:18px">${d.firmado ? '🔏' : '📄'}</span>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.numero||d.tipo_documento} ${d.firmado?'(firmado)':''}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo_documento} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
+          <a href="${d.archivo_url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
+        </div>`).join('') : ''}
+      ${!(docs.data||[]).length && !docsObras.length && !docsGenerados.length ? '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>' : ''}
     </div>`;
 
   // Notas — formulario integrado + listado
