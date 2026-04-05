@@ -94,10 +94,14 @@ async function nuevaFacturaProv() {
   const sel = document.getElementById('fp_proveedor');
   sel.innerHTML = '<option value="">— Selecciona proveedor —</option>' +
     (proveedores||[]).map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+  sel.onchange = function() { fp_aplicarReglaProveedor(this.value); };
 
   const fpSel = document.getElementById('fp_formapago');
   fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
     (formasPago||[]).map(f => `<option value="${f.id}">${f.nombre}</option>`).join('');
+
+  // Poblar selector de bancos
+  fp_poblarBancos();
 
   document.getElementById('fp_numero').value = await generarNumeroDoc('factura_proveedor');
   const hoy = new Date().toISOString().split('T')[0];
@@ -109,6 +113,44 @@ async function nuevaFacturaProv() {
 
   fp_addLinea();
   openModal('mFacturaProv');
+}
+
+// ═══════════════════════════════════════════════
+// REGLAS AUTOMÁTICAS POR PROVEEDOR
+// ═══════════════════════════════════════════════
+function fp_poblarBancos(selectedId) {
+  const bSel = document.getElementById('fp_banco_pago');
+  if (!bSel) return;
+  const bancos = typeof cuentasBancarias !== 'undefined' ? cuentasBancarias : [];
+  bSel.innerHTML = '<option value="">— Sin asignar —</option>' +
+    bancos.map(b => `<option value="${b.id}" ${b.id == selectedId ? 'selected' : ''}>${b.nombre}${b.iban ? ' — ' + b.iban.slice(-8) : ''}</option>`).join('');
+}
+
+function fp_aplicarReglaProveedor(provId) {
+  if (!provId) return;
+  const prov = (proveedores || []).find(p => p.id == provId);
+  if (!prov) return;
+  fpProveedorActual = prov.id;
+
+  // Aplicar días de vencimiento
+  const dias = prov.dias_pago || 30;
+  const fecha = document.getElementById('fp_fecha').value;
+  if (fecha) {
+    const d = new Date(fecha);
+    d.setDate(d.getDate() + dias);
+    document.getElementById('fp_vencimiento').value = d.toISOString().split('T')[0];
+  }
+
+  // Aplicar forma de pago
+  if (prov.forma_pago_id) {
+    const fpSel = document.getElementById('fp_formapago');
+    if (fpSel) fpSel.value = prov.forma_pago_id;
+  }
+
+  // Aplicar banco predeterminado
+  if (prov.banco_predeterminado_id) {
+    fp_poblarBancos(prov.banco_predeterminado_id);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -228,6 +270,9 @@ async function guardarFacturaProv(estado) {
       ivaTotal += subtotal * (l.iva / 100);
     });
 
+    const bancoId = document.getElementById('fp_banco_pago')?.value || null;
+    const banco = (typeof cuentasBancarias !== 'undefined' ? cuentasBancarias : []).find(b => b.id == bancoId);
+
     const obj = {
       empresa_id: EMPRESA.id,
       numero,
@@ -236,6 +281,8 @@ async function guardarFacturaProv(estado) {
       fecha,
       fecha_vencimiento: vencimiento,
       forma_pago_id: fpId ? parseInt(fpId) : null,
+      banco_id: bancoId ? parseInt(bancoId) : null,
+      banco_nombre: banco ? banco.nombre : null,
       base_imponible: base,
       total_iva: ivaTotal,
       total: base + ivaTotal,

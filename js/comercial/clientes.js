@@ -473,8 +473,7 @@ function abrirNuevoAlbaran() {
 }
 
 function abrirNuevaFactura() {
-  cliActualId = null;
-  nuevaFacturaRapida();
+  abrirEditor('factura');
 }
 
 function abrirNuevoPresupuesto() {

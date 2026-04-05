@@ -138,10 +138,23 @@ body.editor-open #content{margin-top:0}
 .overlay.open{opacity:1;pointer-events:all}
 .modal{background:#fff;border-radius:14px;box-shadow:var(--sh-lg);width:100%;max-height:92vh;overflow-y:auto}
 .modal-sm{max-width:420px}.modal-md{max-width:600px}.modal-lg{max-width:800px}
+.modal-fullscreen{max-width:100%;width:100%;height:100vh;max-height:100vh;border-radius:0;display:flex;flex-direction:column}
+.modal-fullscreen .modal-b{flex:1;overflow-y:auto;padding:20px 28px}
+.modal-fullscreen .modal-h{position:sticky;top:0;z-index:10;background:#fff;padding:12px 24px;border-bottom:1.5px solid var(--gris-100)}
+.modal-fullscreen .modal-h h2{font-size:16px}
+.modal-fullscreen .modal-f{position:sticky;bottom:0;background:#fff;padding:12px 24px;border-top:1.5px solid var(--gris-100)}
 .modal-h{padding:15px 19px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:8px}
 .modal-h h2{font-size:14.5px;font-weight:700;flex:1;color:var(--gris-900)}
 .modal-b{padding:19px}
 .modal-f{padding:13px 19px;border-top:1px solid var(--gris-100);display:flex;justify-content:flex-end;gap:8px}
+
+/* Toggle switch */
+.toggle-switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--gris-300);border-radius:24px;transition:.2s}
+.toggle-slider::before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle-switch input:checked+.toggle-slider{background:var(--azul)}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(20px)}
 
 /* Pestañas ficha artículo */
 .art-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}

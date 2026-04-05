@@ -241,5 +241,92 @@ function cfgTab(id,el){
   document.querySelectorAll('.cfg-menu-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('cfg-'+id).classList.add('active');
   el.classList.add('active');
+  // Cargar datos según pestaña
+  if (id === 'bancos') cargarBancosConfig();
+  if (id === 'facturacion') cargarCfgFacturacion();
+}
+
+// ═══════════════════════════════════════════════
+//  CUENTAS BANCARIAS (config)
+// ═══════════════════════════════════════════════
+async function cargarBancosConfig() {
+  try {
+    const { data } = await sb.from('cuentas_bancarias').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
+    cuentasBancarias = data || [];
+  } catch(e) { cuentasBancarias = []; }
+
+  const el = document.getElementById('bancosConfigList');
+  if (!el) return;
+  el.innerHTML = cuentasBancarias.length ?
+    cuentasBancarias.map(b => `<div class="cfg-row">
+      <div class="cr-main"><strong>${b.nombre}</strong><small>${b.iban || '—'} · ${b.entidad || ''}</small></div>
+      <div class="cr-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editCuentaBancaria(${b.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="delCuentaBancaria(${b.id})">🗑️</button>
+      </div>
+    </div>`).join('') :
+    '<div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Sin cuentas bancarias — crea la primera</div>';
+}
+
+function nuevaCuentaBancaria() {
+  const nombre = prompt('Nombre de la cuenta (ej: CaixaBank Principal):');
+  if (!nombre) return;
+  const iban = prompt('IBAN (opcional):') || '';
+  const entidad = prompt('Entidad bancaria (opcional):') || '';
+  sb.from('cuentas_bancarias').insert({
+    empresa_id: EMPRESA.id, nombre, iban, entidad, activa: true
+  }).then(r => {
+    if (r.error) { toast('Error: ' + r.error.message, 'error'); return; }
+    toast('Cuenta creada ✓', 'success');
+    cargarBancosConfig();
+  });
+}
+
+function editCuentaBancaria(id) {
+  const b = cuentasBancarias.find(x => x.id === id);
+  if (!b) return;
+  const nombre = prompt('Nombre:', b.nombre);
+  if (!nombre) return;
+  const iban = prompt('IBAN:', b.iban || '') || '';
+  const entidad = prompt('Entidad:', b.entidad || '') || '';
+  sb.from('cuentas_bancarias').update({ nombre, iban, entidad }).eq('id', id).then(r => {
+    if (r.error) { toast('Error: ' + r.error.message, 'error'); return; }
+    toast('Cuenta actualizada ✓', 'success');
+    cargarBancosConfig();
+  });
+}
+
+async function delCuentaBancaria(id) {
+  if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+  const { error } = await sb.from('cuentas_bancarias').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast('Cuenta eliminada', 'info');
+  cargarBancosConfig();
+}
+
+// ═══════════════════════════════════════════════
+//  FACTURACIÓN ELECTRÓNICA (config)
+// ═══════════════════════════════════════════════
+async function cargarCfgFacturacion() {
+  // Leer config de la empresa
+  const cfg = EMPRESA.facturacion_electronica || {};
+  const vf = document.getElementById('cfg_verifactu');
+  const fe = document.getElementById('cfg_factura_electronica');
+  const sii = document.getElementById('cfg_sii');
+  if (vf) vf.checked = !!cfg.verifactu;
+  if (fe) fe.checked = !!cfg.factura_electronica;
+  if (sii) sii.checked = !!cfg.sii;
+}
+
+async function guardarCfgFacturacion() {
+  const cfg = {
+    verifactu: document.getElementById('cfg_verifactu')?.checked || false,
+    factura_electronica: document.getElementById('cfg_factura_electronica')?.checked || false,
+    sii: document.getElementById('cfg_sii')?.checked || false,
+  };
+  const { error } = await sb.from('empresas').update({ facturacion_electronica: cfg }).eq('id', EMPRESA.id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  EMPRESA.facturacion_electronica = cfg;
+  toast('Configuración de facturación guardada ✓', 'success');
 }
 

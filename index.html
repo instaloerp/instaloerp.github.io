@@ -452,15 +452,81 @@
 
       <!-- PROVEEDORES -->
       <div class="page" id="page-proveedores">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800">Proveedores</h2><p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p></div>
-          <div style="display:flex;gap:8px">
+        <!-- Vista lista -->
+        <div id="provVista-lista">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div><h2 style="font-size:17px;font-weight:800">Proveedores</h2><p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p></div>
+            <div style="display:flex;gap:8px">
               <button class="btn btn-secondary" onclick="openModal('mImportarProveedores')">📥 Importar Excel</button>
               <button class="btn btn-primary" onclick="openModal('mProveedor')">+ Nuevo proveedor</button>
             </div>
+          </div>
+          <div class="card">
+            <div class="tw"><table class="dt"><thead><tr><th data-sort="proveedor">Proveedor</th><th data-sort="cif">CIF</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email pedidos</th><th data-sort="municipio">Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="tw"><table class="dt"><thead><tr><th data-sort="proveedor">Proveedor</th><th data-sort="cif">CIF</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email pedidos</th><th data-sort="municipio">Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
+        <!-- Vista ficha proveedor -->
+        <div id="provVista-ficha" style="display:none">
+          <!-- Cabecera compacta -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="setProvVista('lista')" style="padding:4px 10px">← Volver</button>
+            <div id="fichaProvAvatar" style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <h2 style="font-size:17px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="fichaProvNombre">—</h2>
+              <div style="font-size:11.5px;color:var(--gris-400)" id="fichaProvSub"></div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="editProvActual()">✏️ Editar</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevoPedidoCompraDesdeProveedor()">🛒 Pedido</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevaRecepcionDesdeProveedor()">📥 Albarán</button>
+              <button class="btn btn-ghost btn-sm" onclick="nuevaFacturaProvDesdeProveedor()">📑 Factura</button>
+            </div>
+          </div>
+          <!-- KPIs clicables: pestañas -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px" id="fichaProvKpiBar">
+            <div class="sc ficha-prov-kpi ficha-prov-kpi-active" onclick="fichaProvTab('pedidos')" id="fpkpi-pedidos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🛒</span><div><div class="sv" id="fpk-pedidos" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Pedidos</div></div></div>
+            </div>
+            <div class="sc ficha-prov-kpi" onclick="fichaProvTab('albaranes')" id="fpkpi-albaranes" style="--c:var(--gris-600);--bg:var(--gris-100);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📥</span><div><div class="sv" id="fpk-albaranes" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Albaranes</div></div></div>
+            </div>
+            <div class="sc ficha-prov-kpi" onclick="fichaProvTab('facturas')" id="fpkpi-facturas" style="--c:var(--acento);--bg:#FFF4ED;cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📑</span><div><div class="sv" id="fpk-facturas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Facturas</div></div></div>
+            </div>
+            <div class="sc ficha-prov-kpi" onclick="fichaProvTab('calendario')" id="fpkpi-calendario" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📅</span><div><div class="sv" id="fpk-pagospend" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Pagos pend.</div></div></div>
+            </div>
+            <div class="sc ficha-prov-kpi" onclick="fichaProvTab('notas')" id="fpkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📝</span><div><div class="sv" id="fpk-notas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Notas</div></div></div>
+            </div>
+          </div>
+          <!-- Contenido principal: 2 columnas -->
+          <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start">
+            <!-- Panel izquierdo: datos -->
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">🏭 Datos del proveedor</h3></div>
+                <div class="card-b" id="fichaProvDatos" style="padding:10px 14px"></div>
+              </div>
+              <div class="card">
+                <div class="card-h" style="padding:10px 14px"><h3 style="font-size:12.5px">🏦 Regla de pago</h3></div>
+                <div class="card-b" id="fichaProvRegla" style="padding:10px 14px"></div>
+              </div>
+            </div>
+            <!-- Panel derecho: contenido dinámico -->
+            <div class="card" style="min-height:300px">
+              <div class="card-h" style="padding:10px 14px">
+                <h3 id="fichaProvHistTitulo" style="font-size:12.5px">🛒 Pedidos</h3>
+              </div>
+              <div class="card-b" style="padding:10px 14px">
+                <div id="ficha-prov-pedidos"></div>
+                <div id="ficha-prov-albaranes" style="display:none"></div>
+                <div id="ficha-prov-facturas" style="display:none"></div>
+                <div id="ficha-prov-calendario" style="display:none"></div>
+                <div id="ficha-prov-notas" style="display:none"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -895,7 +961,7 @@
             <input type="date" id="fDesde" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <input type="date" id="fHasta" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportarFacturas()">📤 Exportar</button>
-            <button class="btn btn-primary btn-sm" onclick="nuevaFacturaRapida()">+ Nueva factura</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>
           </div>
         </div>
         <!-- KPIs -->
@@ -1759,6 +1825,8 @@
             <button class="cfg-menu-item" onclick="cfgTab('unidades',this)"><span class="ico">📏</span> Unidades medida</button>
             <button class="cfg-menu-item" onclick="cfgTab('formas-pago',this)"><span class="ico">💳</span> Formas de pago</button>
             <button class="cfg-menu-item" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
+            <button class="cfg-menu-item" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
+            <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -1835,6 +1903,66 @@
                   <div class="card-h"><h3 id="subfamTitulo">📁 Subfamilias</h3><div class="card-ha"><button class="btn btn-primary btn-sm" id="btnNuevaSubfam" onclick="nuevaSubfamiliaConfig()">+ Nueva subfamilia</button></div></div>
                   <div class="cfg-list" id="familiasListHijos">
                     <div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Selecciona una familia para ver sus subfamilias</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CUENTAS BANCARIAS -->
+            <div class="cfg-panel" id="cfg-bancos">
+              <div class="card">
+                <div class="card-h"><h3>🏦 Cuentas bancarias</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="nuevaCuentaBancaria()">+ Nueva cuenta</button></div></div>
+                <div class="cfg-list" id="bancosConfigList">
+                  <div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Cargando...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- FACTURACIÓN ELECTRÓNICA -->
+            <div class="cfg-panel" id="cfg-facturacion">
+              <div class="card">
+                <div class="card-h"><h3>📜 Facturación electrónica</h3></div>
+                <div class="card-b" style="padding:20px">
+                  <div style="background:var(--azul-light);border-radius:10px;padding:16px;margin-bottom:16px">
+                    <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">Verifactu & Factura Electrónica</div>
+                    <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                      Prepara tu empresa para la facturación electrónica obligatoria. Al activar estas opciones, las facturas generarán los datos necesarios para cumplir con la normativa española.
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:14px">
+                    <div class="fg-row" style="align-items:center;gap:12px">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="cfg_verifactu" onchange="guardarCfgFacturacion()">
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <div>
+                        <div style="font-weight:700;font-size:13px">Verifactu</div>
+                        <div style="font-size:11.5px;color:var(--gris-400)">Sistema de verificación de facturas de la AEAT. Genera hash encadenado y registra cada factura.</div>
+                      </div>
+                    </div>
+                    <div class="fg-row" style="align-items:center;gap:12px">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="cfg_factura_electronica" onchange="guardarCfgFacturacion()">
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <div>
+                        <div style="font-weight:700;font-size:13px">Factura electrónica (Facturae)</div>
+                        <div style="font-size:11.5px;color:var(--gris-400)">Genera facturas en formato Facturae 3.2.2 para envío electrónico a administraciones públicas y empresas.</div>
+                      </div>
+                    </div>
+                    <div class="fg-row" style="align-items:center;gap:12px">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="cfg_sii" onchange="guardarCfgFacturacion()">
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <div>
+                        <div style="font-weight:700;font-size:13px">SII (Suministro Inmediato de Información)</div>
+                        <div style="font-size:11.5px;color:var(--gris-400)">Envío automático de registros de facturación a la AEAT. Obligatorio para grandes empresas, opcional para el resto.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top:18px;padding:14px;background:var(--gris-50);border-radius:8px;font-size:12px;color:var(--gris-500)">
+                    <strong>Estado:</strong> Estas opciones están preparadas para su activación futura. Cuando se implementen, las facturas incluirán automáticamente los campos y formatos requeridos por la normativa.
                   </div>
                 </div>
               </div>
@@ -1962,6 +2090,9 @@
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Forma de pago</label><select id="pv_fpago"></select></div>
         <div class="fg"><label>Días de pago</label><input id="pv_dias" type="number" value="30"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Banco predeterminado</label><select id="pv_banco"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div class="fg"><label>Observaciones</label><textarea id="pv_notas"></textarea></div>
     </div>
@@ -2700,7 +2831,7 @@
 
 <!-- ═══ MODAL PEDIDO DE COMPRA ═══ -->
 <div class="overlay" id="mPedidoCompra">
-  <div class="modal modal-lg">
+  <div class="modal modal-fullscreen">
     <div class="modal-h"><span>🛒</span><h2 id="mPCTit">Nuevo Pedido de Compra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPedidoCompra')">✕</button></div>
     <div class="modal-b">
       <div class="fg-row" style="margin-bottom:12px">
@@ -2751,7 +2882,7 @@
 
 <!-- ═══ MODAL RECEPCIÓN (ALBARÁN PROVEEDOR) ═══ -->
 <div class="overlay" id="mRecepcion">
-  <div class="modal modal-lg">
+  <div class="modal modal-fullscreen">
     <div class="modal-h"><span>📥</span><h2 id="mRCTit">Nueva Recepción</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mRecepcion')">✕</button></div>
     <div class="modal-b">
       <div class="fg-row" style="margin-bottom:12px">
@@ -2799,7 +2930,7 @@
 
 <!-- ═══ MODAL FACTURA PROVEEDOR ═══ -->
 <div class="overlay" id="mFacturaProv">
-  <div class="modal modal-lg">
+  <div class="modal modal-fullscreen">
     <div class="modal-h"><span>📑</span><h2 id="mFPTit">Nueva Factura de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaProv')">✕</button></div>
     <div class="modal-b">
       <div class="fg-row" style="margin-bottom:12px">
@@ -2810,6 +2941,7 @@
         <div class="fg"><label>Fecha</label><input type="date" id="fp_fecha"></div>
         <div class="fg"><label>Vencimiento</label><input type="date" id="fp_vencimiento"></div>
         <div class="fg"><label>Forma de pago</label><select id="fp_formapago" style="width:100%"><option value="">— Sin especificar —</option></select></div>
+        <div class="fg"><label>Banco para pago</label><select id="fp_banco_pago" style="width:100%"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">

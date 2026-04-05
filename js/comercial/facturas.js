@@ -36,7 +36,8 @@ function renderFacturas(list) {
   const ESTADOS = {
     borrador:  { label:'Borrador',  ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
     pendiente: { label:'Pendiente', ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
-    pagada:    { label:'Pagada',    ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+    cobrada:   { label:'Cobrada',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+    pagada:    { label:'Cobrada',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' }, // compat legacy
     vencida:   { label:'Vencida',   ico:'⚠️', color:'var(--rojo)',       bg:'var(--rojo-light)' },
     anulada:   { label:'Anulada',   ico:'🚫', color:'var(--gris-400)',   bg:'var(--gris-100)' },
   };
@@ -61,7 +62,7 @@ function renderFacturas(list) {
   const noAnuladas = facLocalData.filter(f => f.estado !== 'anulada');
   const pends = facLocalData.filter(f => f.estado === 'pendiente');
   const vencidas = facLocalData.filter(f => f.estado === 'vencida');
-  const pagadas = facLocalData.filter(f => f.estado === 'pagada');
+  const pagadas = facLocalData.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
   if (kTotal)   kTotal.textContent   = noAnuladas.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kVenc)    kVenc.textContent    = vencidas.length;
@@ -90,7 +91,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarPagada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Marcar como pagada">💰 Cobrada</button>` : ''}
+          ${f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Marcar como cobrada">💰 Cobrada</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
             const _tA = !!f.albaran_id;
@@ -148,7 +149,7 @@ function cambiarEstadoFacMenu(event, id) {
   const ESTADOS = [
     { key: 'borrador',  ico: '✏️', label: 'Borrador' },
     { key: 'pendiente', ico: '⏳', label: 'Pendiente' },
-    { key: 'pagada',    ico: '✅', label: 'Pagada' },
+    { key: 'cobrada',   ico: '✅', label: 'Cobrada' },
     { key: 'vencida',   ico: '⚠️', label: 'Vencida' },
     { key: 'anulada',   ico: '🚫', label: 'Anulada' },
   ];
@@ -166,10 +167,12 @@ function cambiarEstadoFacMenu(event, id) {
   setTimeout(() => document.addEventListener('click', _close), 10);
 }
 
-async function marcarPagada(id) {
-  if (!confirm('¿Marcar esta factura como cobrada/pagada?')) return;
-  await cambiarEstadoFac(id, 'pagada');
+async function marcarCobrada(id) {
+  if (!confirm('¿Marcar esta factura como cobrada?')) return;
+  await cambiarEstadoFac(id, 'cobrada');
 }
+// Compat legacy
+async function marcarPagada(id) { return marcarCobrada(id); }
 
 // ═══════════════════════════════════════════════
 //  VER DETALLE FACTURA
@@ -183,8 +186,8 @@ function verDetalleFactura(id) {
   document.getElementById('facDetFecha').textContent = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
   document.getElementById('facDetVence').textContent = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
 
-  const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', pagada: 'Pagada', vencida: 'Vencida', anulada: 'Anulada' };
-  const COLORES = { pendiente: 'var(--amarillo)', pagada: 'var(--verde)', vencida: 'var(--rojo)', anulada: 'var(--gris-400)' };
+  const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', cobrada: 'Cobrada', pagada: 'Cobrada', vencida: 'Vencida', anulada: 'Anulada' };
+  const COLORES = { pendiente: 'var(--amarillo)', cobrada: 'var(--verde)', pagada: 'var(--verde)', vencida: 'var(--rojo)', anulada: 'var(--gris-400)' };
   document.getElementById('facDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[f.estado] || 'var(--gris-400)'}">${ESTADOS[f.estado] || f.estado || '—'}</span>`;
 
   // Forma de pago
@@ -255,10 +258,10 @@ function verDetalleFactura(id) {
   // Footer buttons — hide cobrar if already paid/anulada
   const footerBtns = document.getElementById('facDetFooterBtns');
   if (footerBtns) {
-    if (f.estado === 'pagada' || f.estado === 'anulada') {
+    if (f.estado === 'cobrada' || f.estado === 'pagada' || f.estado === 'anulada') {
       footerBtns.innerHTML = '';
     } else {
-      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="marcarPagada(${f.id});closeModal('mFacturaDetalle')">💰 Marcar como cobrada</button>`;
+      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="marcarCobrada(${f.id});closeModal('mFacturaDetalle')">💰 Marcar como cobrada</button>`;
     }
   }
 
