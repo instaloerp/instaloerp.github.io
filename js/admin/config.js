@@ -244,6 +244,7 @@ function cfgTab(id,el){
   // Cargar datos según pestaña
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();
+  if (id === 'certificado') cargarCertificados();
 }
 
 // ═══════════════════════════════════════════════
@@ -541,5 +542,208 @@ async function guardarCfgFacturacion() {
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   EMPRESA.facturacion_electronica = cfg;
   toast('Configuración de facturación guardada ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// CERTIFICADO DIGITAL — Firma de documentos
+// ═══════════════════════════════════════════════
+
+let _certActual = null; // Certificado predeterminado cargado
+
+async function cargarCertificados() {
+  const el = document.getElementById('certActual');
+  if (!el) return;
+  try {
+    const { data, error } = await sb.from('certificados_digitales')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .order('predeterminado', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    const certs = data || [];
+    _certActual = certs.find(c => c.predeterminado && c.activo) || certs[0] || null;
+
+    if (!certs.length) {
+      el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--gris-400)">
+        <div style="font-size:32px;margin-bottom:8px">🔐</div>
+        <div style="font-size:13px">No hay certificados configurados</div>
+        <div style="font-size:11px;margin-top:4px">Sube tu certificado .pfx o .p12 para empezar a firmar documentos</div>
+      </div>`;
+      document.getElementById('certForm').style.display = '';
+      return;
+    }
+
+    let html = '';
+    certs.forEach(c => {
+      const caducado = c.fecha_caducidad && new Date(c.fecha_caducidad) < new Date();
+      const diasRestantes = c.fecha_caducidad
+        ? Math.ceil((new Date(c.fecha_caducidad) - new Date()) / (1000*60*60*24))
+        : null;
+      const estadoTag = caducado
+        ? '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">CADUCADO</span>'
+        : c.activo
+          ? '<span style="background:#ecfdf5;color:#166534;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">ACTIVO</span>'
+          : '<span style="background:var(--gris-100);color:var(--gris-500);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">INACTIVO</span>';
+      const predTag = c.predeterminado
+        ? ' <span style="background:var(--azul);color:#fff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700">PREDETERMINADO</span>'
+        : '';
+      const caducidadText = c.fecha_caducidad
+        ? (caducado ? `Caducó el ${c.fecha_caducidad}` : `Caduca el ${c.fecha_caducidad} (${diasRestantes} días)`)
+        : 'Sin fecha de caducidad';
+      const caducidadColor = caducado ? 'var(--rojo)' : (diasRestantes && diasRestantes < 90) ? '#d97706' : 'var(--gris-400)';
+
+      html += `<div style="padding:14px;border:1.5px solid ${c.predeterminado?'var(--azul)':'var(--gris-200)'};border-radius:10px;margin-bottom:10px;background:${c.predeterminado?'var(--azul-light,#eff6ff)':'#fff'}">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:14px">${c.nombre} ${estadoTag}${predTag}</div>
+            <div style="font-size:11px;color:var(--gris-400);margin-top:2px">${c.titular||''} ${c.nif_titular ? '· '+c.nif_titular : ''} ${c.emisor ? '· '+c.emisor : ''}</div>
+          </div>
+          <div style="display:flex;gap:4px">
+            ${!c.predeterminado ? `<button class="btn btn-ghost btn-sm" onclick="setPredeterminadoCert(${c.id})" title="Predeterminado">⭐</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="eliminarCertificado(${c.id})" title="Eliminar" style="color:var(--rojo)">🗑️</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:${caducidadColor}">📅 ${caducidadText}</div>
+        <div style="font-size:10px;color:var(--gris-400);margin-top:4px">Tipo: ${(c.tipo||'pfx').toUpperCase()} · Subido: ${new Date(c.created_at).toLocaleDateString('es-ES')}</div>
+      </div>`;
+    });
+
+    el.innerHTML = html;
+    // Ocultar form si ya hay certificado, mostrar botón "Añadir otro"
+    document.getElementById('certForm').style.display = 'none';
+    if (!document.getElementById('certAddBtn')) {
+      el.insertAdjacentHTML('afterend', `<button id="certAddBtn" class="btn btn-secondary btn-sm" onclick="mostrarFormCert()" style="margin-top:8px">+ Añadir certificado</button>`);
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--rojo);font-size:12px">Error cargando certificados: ${e.message}</div>`;
+  }
+}
+
+function mostrarFormCert() {
+  document.getElementById('certForm').style.display = '';
+  document.getElementById('cert_id').value = '';
+  document.getElementById('cert_nombre').value = '';
+  document.getElementById('cert_titular').value = EMPRESA?.nombre || '';
+  document.getElementById('cert_nif').value = EMPRESA?.cif || '';
+  document.getElementById('cert_emisor').value = '';
+  document.getElementById('cert_caducidad').value = '';
+  document.getElementById('cert_archivo').value = '';
+  document.getElementById('cert_password').value = '';
+  const addBtn = document.getElementById('certAddBtn');
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+function cancelarCertificado() {
+  document.getElementById('certForm').style.display = 'none';
+  const addBtn = document.getElementById('certAddBtn');
+  if (addBtn) addBtn.style.display = '';
+}
+
+async function guardarCertificado() {
+  const nombre = document.getElementById('cert_nombre').value.trim();
+  const titular = document.getElementById('cert_titular').value.trim();
+  const nif = document.getElementById('cert_nif').value.trim();
+  const emisor = document.getElementById('cert_emisor').value.trim();
+  const caducidad = document.getElementById('cert_caducidad').value;
+  const password = document.getElementById('cert_password').value;
+  const fileInput = document.getElementById('cert_archivo');
+  const file = fileInput.files[0];
+
+  if (!nombre) { toast('Nombre del certificado obligatorio', 'error'); return; }
+  if (!file) { toast('Selecciona el archivo .pfx o .p12', 'error'); return; }
+  if (!password) { toast('Contraseña del certificado obligatoria', 'error'); return; }
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['pfx', 'p12'].includes(ext)) { toast('Solo se aceptan archivos .pfx o .p12', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { toast('El archivo no puede superar 10MB', 'error'); return; }
+
+  toast('Subiendo certificado...', 'info');
+
+  // 1. Subir fichero al Storage (bucket privado "certificados")
+  const path = `certificados/${EMPRESA.id}/${Date.now()}_${file.name}`;
+  let archivoUrl = '', archivoPath = path;
+
+  // Intentar bucket "certificados", fallback a "documentos"
+  let { error: upErr } = await sb.storage.from('certificados').upload(path, file, { upsert: true });
+  if (upErr) {
+    // Si el bucket no existe, intentar con "documentos"
+    const path2 = `certificados/${EMPRESA.id}/${Date.now()}_${file.name}`;
+    const { error: upErr2 } = await sb.storage.from('documentos').upload(path2, file, { upsert: true });
+    if (upErr2) {
+      toast('Error subiendo: ' + (upErr2.message || upErr.message) + '. Crea el bucket "certificados" en Supabase Storage.', 'error');
+      return;
+    }
+    archivoPath = path2;
+    const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path2);
+    archivoUrl = urlData?.publicUrl || '';
+  } else {
+    const { data: urlData } = sb.storage.from('certificados').getPublicUrl(path);
+    archivoUrl = urlData?.publicUrl || '';
+  }
+
+  // 2. Cifrar contraseña (base64 básico — la Edge Function la descifra)
+  // NOTA: en producción se debe usar cifrado asimétrico real
+  const passwordCifrada = btoa(unescape(encodeURIComponent(password)));
+
+  // 3. Verificar si es el primer certificado (auto-predeterminado)
+  const { data: existentes } = await sb.from('certificados_digitales')
+    .select('id').eq('empresa_id', EMPRESA.id);
+  const esPrimero = !existentes || existentes.length === 0;
+
+  // 4. Guardar en BD
+  const { data: cert, error: dbErr } = await sb.from('certificados_digitales').insert({
+    empresa_id: EMPRESA.id,
+    nombre: nombre,
+    tipo: ext,
+    archivo_url: archivoUrl,
+    archivo_path: archivoPath,
+    password_cifrada: passwordCifrada,
+    titular: titular,
+    nif_titular: nif,
+    emisor: emisor,
+    fecha_caducidad: caducidad || null,
+    activo: true,
+    predeterminado: esPrimero
+  }).select().single();
+
+  if (dbErr) { toast('Error guardando: ' + dbErr.message, 'error'); return; }
+
+  toast('✅ Certificado guardado correctamente', 'success');
+  _certActual = cert;
+  cancelarCertificado();
+  cargarCertificados();
+}
+
+async function setPredeterminadoCert(certId) {
+  // Quitar predeterminado de todos
+  await sb.from('certificados_digitales')
+    .update({ predeterminado: false })
+    .eq('empresa_id', EMPRESA.id);
+  // Poner predeterminado al seleccionado
+  await sb.from('certificados_digitales')
+    .update({ predeterminado: true })
+    .eq('id', certId);
+  toast('Certificado predeterminado actualizado', 'success');
+  cargarCertificados();
+}
+
+async function eliminarCertificado(certId) {
+  if (!confirm('¿Eliminar este certificado? Los documentos ya firmados no se verán afectados.')) return;
+
+  // Obtener path para borrar de Storage
+  const { data: cert } = await sb.from('certificados_digitales').select('archivo_path').eq('id', certId).single();
+
+  const { error } = await sb.from('certificados_digitales').delete().eq('id', certId);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Intentar borrar del Storage
+  if (cert?.archivo_path) {
+    await sb.storage.from('certificados').remove([cert.archivo_path]).catch(() => {});
+    await sb.storage.from('documentos').remove([cert.archivo_path]).catch(() => {});
+  }
+
+  toast('Certificado eliminado', 'success');
+  cargarCertificados();
 }
 

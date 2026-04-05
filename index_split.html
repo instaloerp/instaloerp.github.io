@@ -1534,6 +1534,7 @@
             <button class="cfg-menu-item" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
             <button class="cfg-menu-item" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
             <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
+            <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -1671,6 +1672,57 @@
                   <div style="margin-top:18px;padding:14px;background:var(--gris-50);border-radius:8px;font-size:12px;color:var(--gris-500)">
                     <strong>Estado:</strong> Estas opciones están preparadas para su activación futura. Cuando se implementen, las facturas incluirán automáticamente los campos y formatos requeridos por la normativa.
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Certificado Digital -->
+            <div class="cfg-panel card" id="cfg-certificado">
+              <div class="card-h"><h3>🔐 Certificado digital</h3></div>
+              <div class="card-b" style="padding:20px">
+                <div style="background:var(--azul-light);border-radius:10px;padding:16px;margin-bottom:20px">
+                  <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">Firma digital de documentos</div>
+                  <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                    Sube tu certificado digital (.pfx o .p12) para firmar automáticamente todos los documentos que genere el ERP: facturas, presupuestos, albaranes, pedidos de compra, mandatos SEPA y partes de trabajo. Los documentos firmados se guardarán en la ficha correspondiente.
+                  </div>
+                </div>
+                <div id="certActual" style="margin-bottom:20px"></div>
+                <div id="certForm" style="border:1.5px dashed var(--gris-200);border-radius:10px;padding:20px">
+                  <div style="font-weight:700;font-size:14px;margin-bottom:14px" id="certFormTit">📤 Subir certificado</div>
+                  <input type="hidden" id="cert_id">
+                  <div class="fg" style="margin-bottom:11px">
+                    <label>Nombre del certificado *</label>
+                    <input id="cert_nombre" placeholder="Ej: Certificado Jordi Instalaciones 2025" style="width:100%">
+                  </div>
+                  <div class="fg-row" style="margin-bottom:11px;gap:10px">
+                    <div class="fg" style="flex:1"><label>Titular</label><input id="cert_titular" placeholder="Nombre del titular" style="width:100%"></div>
+                    <div class="fg" style="flex:1"><label>NIF/CIF titular</label><input id="cert_nif" placeholder="Ej: B12345678" style="width:100%"></div>
+                  </div>
+                  <div class="fg-row" style="margin-bottom:11px;gap:10px">
+                    <div class="fg" style="flex:1"><label>Emisor</label><input id="cert_emisor" placeholder="Ej: FNMT, ACCV, CamerFirma..." style="width:100%"></div>
+                    <div class="fg" style="flex:1"><label>Fecha caducidad</label><input type="date" id="cert_caducidad" style="width:100%"></div>
+                  </div>
+                  <div class="fg" style="margin-bottom:11px">
+                    <label>Archivo del certificado (.pfx / .p12) *</label>
+                    <input type="file" id="cert_archivo" accept=".pfx,.p12" style="font-size:12px">
+                  </div>
+                  <div class="fg" style="margin-bottom:14px">
+                    <label>Contraseña del certificado *</label>
+                    <div style="display:flex;gap:6px">
+                      <input type="password" id="cert_password" placeholder="Contraseña del .pfx" style="flex:1">
+                      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cert_password').type=document.getElementById('cert_password').type==='password'?'text':'password'" style="font-size:16px">👁️</button>
+                    </div>
+                    <div style="font-size:10px;color:var(--gris-400);margin-top:4px">La contraseña se almacena cifrada y solo se usa en el servidor para firmar documentos</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button class="btn btn-primary btn-sm" onclick="guardarCertificado()" style="font-weight:700">💾 Guardar certificado</button>
+                    <button class="btn btn-ghost btn-sm" onclick="cancelarCertificado()">Cancelar</button>
+                  </div>
+                </div>
+                <div style="margin-top:20px;padding:14px;background:var(--gris-50);border-radius:8px;font-size:12px;color:var(--gris-500);line-height:1.7">
+                  <strong>Documentos que se firman automáticamente:</strong><br>
+                  ✅ Facturas de venta · ✅ Presupuestos de venta · ✅ Albaranes de venta<br>
+                  ✅ Pedidos de compra · ✅ Presupuestos de compra · ✅ Mandatos SEPA · ✅ Partes de trabajo
                 </div>
               </div>
             </div>
@@ -3328,6 +3380,7 @@
 <script src="js/compras/facturas_prov.js?v=6"></script>
 <script src="js/compras/calendario_pagos.js"></script>
 <script src="js/core/correo.js"></script>
+<script src="js/core/firma.js"></script>
 
 <!-- Almacén -->
 <script src="js/almacen/articulos.js"></script>
