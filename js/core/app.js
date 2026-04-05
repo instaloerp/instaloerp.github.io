@@ -33,6 +33,7 @@ let CU = null, CP = null, EMPRESA = null;
 let clientes=[], proveedores=[], articulos=[], almacenes=[], trabajos=[];
 let tiposIva=[], unidades=[], formasPago=[], familias=[], series=[];
 let empresas=[];
+let cuentasBancariasEntidad = []; // Cuentas bancarias de clientes y proveedores
 let prIvaDefault = null;
 
 // ═══════════════════════════════════════════════
@@ -815,7 +816,7 @@ function showRealtimeNotif(ico, titulo, msg, color, parteId) {
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
-  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres] = await Promise.all([
+  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe] = await Promise.all([
     sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo'),
@@ -831,8 +832,10 @@ async function cargarTodos() {
     sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
     sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
+    safeQuery(sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false})),
   ]);
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
+  cuentasBancariasEntidad = (cbe&&cbe.data) ? cbe.data : [];
   almacenes=alm.data||[]; trabajos=tr.data||[];
   tiposIva=iva.data||[]; unidades=ud.data||[]; formasPago=fp.data||[];
   familias=fam.data||[]; series=ser.data||[]; empresas=emp.data||[];

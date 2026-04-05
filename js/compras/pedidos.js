@@ -135,6 +135,11 @@ async function editarPedidoCompra(id) {
 function pc_addLinea() {
   pcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, iva:21});
   pc_renderLineas();
+  setTimeout(()=>{
+    const all = document.querySelectorAll('#pc_lineas input[data-ac="articulos"]');
+    const last = all[all.length-1];
+    if (last) last.focus();
+  },50);
 }
 
 function pc_removeLinea(idx) {
@@ -160,6 +165,19 @@ function pc_updateLinea(idx, field, val) {
   pc_renderLineas();
 }
 
+function _pc_onSelectArt(lineaIdx, art) {
+  pcLineas[lineaIdx].articulo_id = art.id;
+  pcLineas[lineaIdx].codigo = art.codigo || '';
+  pcLineas[lineaIdx].nombre = art.nombre || '';
+  pcLineas[lineaIdx].precio = art.precio_coste || art.precio_venta || 0;
+  if (art.tipo_iva_id && typeof tiposIva!=='undefined') {
+    const t = tiposIva.find(x=>x.id===art.tipo_iva_id);
+    if (t) pcLineas[lineaIdx].iva = t.porcentaje;
+  }
+  pc_renderLineas();
+  toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+}
+
 function pc_renderLineas() {
   let base = 0, ivaTotal = 0;
   const html = pcLineas.map((l, i) => {
@@ -167,18 +185,24 @@ function pc_renderLineas() {
     const ivaAmt = subtotal * (l.iva / 100);
     base += subtotal;
     ivaTotal += ivaAmt;
+    const descVal = l.nombre || '';
+    const ivaOpts = (tiposIva||[]).map(t => `<option value="${t.porcentaje}" ${t.porcentaje===l.iva?'selected':''}>${t.porcentaje}%</option>`).join('');
     return `<tr style="border-top:1px solid var(--gris-100)">
       <td style="padding:7px 6px">
-        <select onchange="pc_updateLinea(${i},'articulo_id',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
-          <option value="">${l.nombre||'—'}</option>
-          ${(articulos||[]).map(a => `<option value="${a.id}" ${a.id===l.articulo_id?'selected':''}>${a.codigo} - ${a.nombre}</option>`).join('')}
-        </select>
+        <input value="${descVal}" placeholder="Código o descripción del artículo..."
+          data-ac="articulos" data-linea-idx="${i}"
+          oninput="acBuscarArticulo(this, _pc_onSelectArt, 'precio_coste')"
+          onkeydown="acKeydown(event)"
+          onfocus="if(this.value.length>=1)acBuscarArticulo(this, _pc_onSelectArt, 'precio_coste')"
+          onblur="setTimeout(()=>{const d=document.getElementById('acArticulos');if(d)d.style.display='none'},200);pc_updateLinea(${i},'nombre',this.value)"
+          autocomplete="off"
+          style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent">
       </td>
       <td style="padding:7px 6px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" onchange="pc_updateLinea(${i},'cantidad',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
       <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="pc_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
       <td style="padding:7px 6px">
         <select onchange="pc_updateLinea(${i},'iva',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
-          ${(tiposIva||[]).map(t => `<option value="${t.porcentaje}" ${t.porcentaje===l.iva?'selected':''}>${t.porcentaje}%</option>`).join('')}
+          ${ivaOpts}
         </select>
       </td>
       <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal+ivaAmt)}</td>

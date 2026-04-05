@@ -165,6 +165,11 @@ async function editarRecepcion(id) {
 function rc_addLinea() {
   rcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad_pedida:0, cantidad_recibida:0, precio:0});
   rc_renderLineas();
+  setTimeout(()=>{
+    const all = document.querySelectorAll('#rc_lineas input[data-ac="articulos"]');
+    const last = all[all.length-1];
+    if (last) last.focus();
+  },50);
 }
 
 function rc_removeLinea(idx) {
@@ -187,17 +192,31 @@ function rc_updateLinea(idx, field, val) {
   rc_renderLineas();
 }
 
+function _rc_onSelectArt(lineaIdx, art) {
+  rcLineas[lineaIdx].articulo_id = art.id;
+  rcLineas[lineaIdx].codigo = art.codigo || '';
+  rcLineas[lineaIdx].nombre = art.nombre || '';
+  rcLineas[lineaIdx].precio = art.precio_coste || art.precio_venta || 0;
+  rc_renderLineas();
+  toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+}
+
 function rc_renderLineas() {
   let total = 0;
   const html = rcLineas.map((l, i) => {
     const subtotal = l.cantidad_recibida * l.precio;
     total += subtotal;
+    const descVal = l.nombre || '';
     return `<tr style="border-top:1px solid var(--gris-100)">
       <td style="padding:7px 6px">
-        <select onchange="rc_updateLinea(${i},'articulo_id',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
-          <option value="">${l.nombre||'—'}</option>
-          ${(articulos||[]).map(a => `<option value="${a.id}" ${a.id===l.articulo_id?'selected':''}>${a.codigo} - ${a.nombre}</option>`).join('')}
-        </select>
+        <input value="${descVal}" placeholder="Código o descripción del artículo..."
+          data-ac="articulos" data-linea-idx="${i}"
+          oninput="acBuscarArticulo(this, _rc_onSelectArt, 'precio_coste')"
+          onkeydown="acKeydown(event)"
+          onfocus="if(this.value.length>=1)acBuscarArticulo(this, _rc_onSelectArt, 'precio_coste')"
+          onblur="setTimeout(()=>{const d=document.getElementById('acArticulos');if(d)d.style.display='none'},200);rc_updateLinea(${i},'nombre',this.value)"
+          autocomplete="off"
+          style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent">
       </td>
       <td style="padding:7px 6px;text-align:right"><input type="number" value="${l.cantidad_pedida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_pedida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" readonly></td>
       <td style="padding:7px 6px"><input type="number" value="${l.cantidad_recibida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_recibida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>

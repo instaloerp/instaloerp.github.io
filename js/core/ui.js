@@ -776,7 +776,7 @@ document.addEventListener('keydown', function(e) {
   const el = e.target;
   if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
 
-  // No interferir con el autocompletado de artículos
+  // No interferir con el autocompletado de artículos (dropdown abierto)
   const acDrop = document.getElementById('acArticulos');
   if (acDrop && acDrop.style.display !== 'none' && isEnter) return;
 
@@ -832,8 +832,129 @@ function setPermisosByRol(rol) {
 
 // Cerrar dropdown al hacer click fuera
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#acArticulos') && !e.target.matches('input[data-linea]')) {
+  if (!e.target.closest('#acArticulos') && !e.target.matches('[data-ac]')) {
     const d = document.getElementById('acArticulos');
     if (d) d.style.display='none';
   }
 });
+
+// ═══════════════════════════════════════════════
+//  AUTOCOMPLETE GENÉRICO — Para artículos en TODAS las tablas de líneas
+//  Reemplaza los <select> por <input> con búsqueda en vivo
+// ═══════════════════════════════════════════════
+const _AC = { timer:null, idx:-1, input:null, results:[], onSelect:null };
+
+/**
+ * Buscar artículos — se llama desde oninput de cualquier campo de línea
+ * @param {HTMLInputElement} input — el input con data-ac="articulos" y data-linea-idx
+ * @param {Function} onSelect — callback(lineaIdx, articulo) cuando se selecciona
+ * @param {string} priceField — 'precio_venta' o 'precio_coste' según contexto
+ */
+function acBuscarArticulo(input, onSelect, priceField) {
+  clearTimeout(_AC.timer);
+  const q = input.value.trim().toLowerCase();
+  const drop = document.getElementById('acArticulos');
+  if (!drop) return;
+  _AC.input = input;
+  _AC.onSelect = onSelect;
+  if (q.length < 1) { drop.style.display='none'; _AC.results=[]; return; }
+  _AC.timer = setTimeout(()=>{
+    const results = (typeof articulos!=='undefined'?articulos:[]).filter(a =>
+      (a.activo !== false) &&
+      ((a.codigo||'').toLowerCase().includes(q) ||
+       (a.nombre||'').toLowerCase().includes(q) ||
+       (a.referencia_fabricante||'').toLowerCase().includes(q) ||
+       (a.descripcion||'').toLowerCase().includes(q))
+    ).slice(0, 10);
+    _AC.idx = -1;
+    _AC.results = results;
+    const pf = priceField || 'precio_venta';
+    if (results.length === 0 && (typeof articulos==='undefined'||articulos.length===0)) {
+      drop.innerHTML = '<div class="ac-empty">No hay artículos en el catálogo</div>';
+    } else if (results.length === 0) {
+      drop.innerHTML = '<div class="ac-empty">Sin resultados — se usará como texto libre</div>';
+    } else {
+      drop.innerHTML = results.map((a, ri) =>
+        `<div class="ac-item${ri===0?' ac-sel':''}" data-ri="${ri}" onmousedown="_acSelIdx(${ri})">
+          <span class="ac-code">${a.codigo||''}</span>
+          <span class="ac-name">${a.nombre||''}</span>
+          <span class="ac-price">${((a[pf]||a.precio_venta||0)).toFixed(2)} €</span>
+        </div>`
+      ).join('');
+      // Pre-seleccionar el primero si solo hay uno
+      if (results.length === 1) _AC.idx = 0;
+    }
+    const rect = input.getBoundingClientRect();
+    drop.style.top = (rect.bottom + 2) + 'px';
+    drop.style.left = rect.left + 'px';
+    drop.style.width = Math.max(rect.width, 350) + 'px';
+    drop.style.display = 'block';
+  }, 100);
+}
+
+function _acSelIdx(ri) {
+  const a = _AC.results[ri];
+  if (!a || !_AC.input || !_AC.onSelect) return;
+  const lineaIdx = parseInt(_AC.input.dataset.lineaIdx);
+  _AC.onSelect(lineaIdx, a);
+  const drop = document.getElementById('acArticulos');
+  if (drop) drop.style.display = 'none';
+  _AC.results = [];
+  // Mover foco al siguiente campo (cantidad)
+  setTimeout(()=>{
+    const row = _AC.input.closest('tr');
+    if (!row) return;
+    const fields = Array.from(row.querySelectorAll('input:not([type="hidden"]):not([style*="display:none"]), select'));
+    const idx = fields.indexOf(_AC.input);
+    if (idx >= 0 && idx < fields.length - 1) {
+      const next = fields[idx + 1];
+      next.focus();
+      if (next.select) next.select();
+    }
+  }, 50);
+}
+
+function acKeydown(event) {
+  const drop = document.getElementById('acArticulos');
+  if (!drop || drop.style.display==='none') return;
+  const items = drop.querySelectorAll('.ac-item');
+  if (!items.length) return;
+
+  if (event.key==='ArrowDown') {
+    event.preventDefault(); event.stopPropagation();
+    _AC.idx = Math.min(_AC.idx+1, items.length-1);
+    _acHighlight();
+  } else if (event.key==='ArrowUp') {
+    event.preventDefault(); event.stopPropagation();
+    _AC.idx = Math.max(_AC.idx-1, 0);
+    _acHighlight();
+  } else if (event.key==='Enter') {
+    // Si hay resultados y uno está seleccionado (o solo queda 1) → seleccionar
+    if (_AC.results.length === 1) {
+      event.preventDefault(); event.stopPropagation();
+      _acSelIdx(0);
+    } else if (_AC.idx >= 0) {
+      event.preventDefault(); event.stopPropagation();
+      _acSelIdx(_AC.idx);
+    }
+    // Si no hay selección y hay múltiples → dejar que Enter haga su función normal
+  } else if (event.key==='Escape') {
+    drop.style.display='none';
+    _AC.results = [];
+  } else if (event.key==='Tab') {
+    // Tab cierra el dropdown y avanza (comportamiento normal)
+    drop.style.display='none';
+    _AC.results = [];
+  }
+}
+
+function _acHighlight() {
+  const drop = document.getElementById('acArticulos');
+  if (!drop) return;
+  drop.querySelectorAll('.ac-item').forEach((el,ri) => {
+    el.classList.toggle('ac-sel', ri === _AC.idx);
+  });
+  // Scroll into view
+  const sel = drop.querySelector('.ac-sel');
+  if (sel) sel.scrollIntoView({ block:'nearest' });
+}

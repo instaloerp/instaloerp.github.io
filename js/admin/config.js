@@ -277,7 +277,9 @@ function nuevaCuentaBancaria() {
   document.getElementById('bco_iban').value = '';
   document.getElementById('bco_bic').value = '';
   document.getElementById('bco_entidad').value = '';
-  document.getElementById('bco_titular').value = '';
+  // Auto-rellenar titular con el nombre de la empresa
+  const nombreEmpresa = EMPRESA?.nombre || (typeof empresas !== 'undefined' && empresas[0]?.nombre) || '';
+  document.getElementById('bco_titular').value = nombreEmpresa;
   document.getElementById('bco_observaciones').value = '';
   document.getElementById('bco_predeterminada').checked = false;
   document.getElementById('bco_iban_status').textContent = '';
@@ -294,7 +296,8 @@ function editCuentaBancaria(id) {
   document.getElementById('bco_iban').value = b.iban || '';
   document.getElementById('bco_bic').value = b.bic || '';
   document.getElementById('bco_entidad').value = b.entidad || '';
-  document.getElementById('bco_titular').value = b.titular || '';
+  const nombreEmpresa = EMPRESA?.nombre || (typeof empresas !== 'undefined' && empresas[0]?.nombre) || '';
+  document.getElementById('bco_titular').value = b.titular || nombreEmpresa;
   document.getElementById('bco_observaciones').value = b.observaciones || '';
   document.getElementById('bco_predeterminada').checked = !!b.predeterminada;
   document.getElementById('mBancoTit').textContent = 'Editar Cuenta Bancaria';

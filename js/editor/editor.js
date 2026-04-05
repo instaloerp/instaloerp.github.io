@@ -434,53 +434,18 @@ function de_addLinea() {
 
 function de_removeLinea(i) { deLineas.splice(i,1); de_renderLineas(); }
 
-// ═══ AUTOCOMPLETADO DE ARTÍCULOS ═══
-let _acTimer = null;
-let _acIdx = -1;
-let _acLineaActual = -1;
+// ═══ AUTOCOMPLETADO DE ARTÍCULOS (usa sistema genérico de ui.js) ═══
+let _artSelecting = false;
 
 function de_buscarArticulo(input, lineaIdx) {
-  clearTimeout(_acTimer);
-  const q = input.value.trim().toLowerCase();
-  const drop = document.getElementById('acArticulos');
-  if (!drop) return;
-  _acLineaActual = lineaIdx;
-  if (q.length < 1) { drop.style.display='none'; return; }
-  _acTimer = setTimeout(()=>{
-    console.log('🔍 Buscando artículos:', q, '| Total artículos cargados:', articulos.length);
-    const results = articulos.filter(a =>
-      (a.activo !== false) &&
-      ((a.codigo||'').toLowerCase().includes(q) ||
-       (a.nombre||'').toLowerCase().includes(q) ||
-       (a.referencia_fabricante||'').toLowerCase().includes(q))
-    ).slice(0, 8);
-    _acIdx = -1;
-    if (results.length === 0 && articulos.length === 0) {
-      drop.innerHTML = '<div class="ac-empty">No hay artículos creados en el sistema</div>';
-    } else if (results.length === 0) {
-      drop.innerHTML = '<div class="ac-empty">Sin resultados — se usará como texto libre</div>';
-    } else {
-      drop.innerHTML = results.map((a, ri) =>
-        `<div class="ac-item" data-ri="${ri}" onmousedown="de_seleccionarArticulo(${lineaIdx},${a.id})">
-          <span class="ac-code">${a.codigo||''}</span>
-          <span class="ac-name">${a.nombre||''}</span>
-          <span class="ac-price">${(a.precio_venta||0).toFixed(2)} €</span>
-        </div>`
-      ).join('');
-    }
-    // Posicionar debajo del input
-    const rect = input.getBoundingClientRect();
-    drop.style.top = (rect.bottom + 2) + 'px';
-    drop.style.left = rect.left + 'px';
-    drop.style.width = Math.max(rect.width, 350) + 'px';
-    drop.style.display = 'block';
-  }, 120);
+  // Usa el sistema genérico acBuscarArticulo de ui.js
+  input.dataset.lineaIdx = lineaIdx;
+  if (typeof acBuscarArticulo === 'function') {
+    acBuscarArticulo(input, _de_onSelectArt, 'precio_venta');
+  }
 }
 
-let _artSelecting = false; // Flag para evitar que onchange sobreescriba al seleccionar artículo
-function de_seleccionarArticulo(lineaIdx, artId) {
-  const a = articulos.find(x=>x.id===artId);
-  if (!a) return;
+function _de_onSelectArt(lineaIdx, a) {
   _artSelecting = true;
   deLineas[lineaIdx].desc = a.nombre || '';
   deLineas[lineaIdx].precio = a.precio_venta || 0;
@@ -490,9 +455,6 @@ function de_seleccionarArticulo(lineaIdx, artId) {
     const tipoIva = tiposIva.find(t=>t.id===a.tipo_iva_id);
     if (tipoIva) deLineas[lineaIdx].iva = tipoIva.porcentaje;
   }
-  const drop = document.getElementById('acArticulos');
-  if (drop) drop.style.display = 'none';
-  // Actualizar el input directamente ANTES de re-render para que onchange no lea el valor viejo
   const inp = document.querySelector(`input[data-linea="${lineaIdx}"]`);
   if (inp) inp.value = a.nombre || '';
   de_renderLineas();
@@ -501,38 +463,20 @@ function de_seleccionarArticulo(lineaIdx, artId) {
   setTimeout(() => { _artSelecting = false; }, 300);
 }
 
+function de_seleccionarArticulo(lineaIdx, artId) {
+  // Legacy: redirigir al nuevo sistema
+  const a = articulos.find(x=>x.id===artId);
+  if (a) _de_onSelectArt(lineaIdx, a);
+}
+
 function de_acKeydown(event, lineaIdx) {
-  const drop = document.getElementById('acArticulos');
-  if (!drop || drop.style.display==='none') return;
-  const items = drop.querySelectorAll('.ac-item');
-  if (!items.length) return;
-  if (event.key==='ArrowDown') {
-    event.preventDefault();
-    _acIdx = Math.min(_acIdx+1, items.length-1);
-    de_acHighlight();
-  } else if (event.key==='ArrowUp') {
-    event.preventDefault();
-    _acIdx = Math.max(_acIdx-1, 0);
-    de_acHighlight();
-  } else if (event.key==='Enter' && _acIdx>=0) {
-    event.preventDefault();
-    items[_acIdx]?.dispatchEvent(new Event('mousedown'));
-  } else if (event.key==='Escape') {
-    drop.style.display='none';
-  }
+  // Usa el sistema genérico acKeydown de ui.js
+  if (typeof acKeydown === 'function') acKeydown(event);
 }
 
-function de_acHighlight() {
-  const drop = document.getElementById('acArticulos');
-  if (!drop) return;
-  drop.querySelectorAll('.ac-item').forEach((el,ri)=>{
-    el.classList.toggle('ac-sel', ri===_acIdx);
-  });
-}
-
-// Cerrar dropdown al hacer click fuera
+// Cerrar dropdown al hacer click fuera (legacy, ahora gestionado por ui.js)
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#acArticulos') && !e.target.matches('input[data-linea]')) {
+  if (!e.target.closest('#acArticulos') && !e.target.matches('input[data-linea]') && !e.target.matches('[data-ac]')) {
     const d = document.getElementById('acArticulos');
     if (d) d.style.display='none';
   }

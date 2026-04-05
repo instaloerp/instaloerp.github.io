@@ -372,6 +372,11 @@ function fr_actualizarCliente(id) {
 function fr_addLinea() {
   frLineas.push({ desc:'', cant:1, precio:0, dto:0, iva:21 });
   fr_renderLineas();
+  setTimeout(()=>{
+    const all = document.querySelectorAll('#fr_lineas input[data-ac="articulos"]');
+    const last = all[all.length-1];
+    if (last) last.focus();
+  },50);
 }
 
 function fr_removeLinea(idx) {
@@ -423,6 +428,18 @@ function renderPPartidas(list) {
   document.getElementById('fr_total').textContent = fmtE(total);
 }
 
+function _fr_onSelectArt(lineaIdx, art) {
+  frLineas[lineaIdx].desc = art.nombre || '';
+  frLineas[lineaIdx].precio = art.precio_venta || 0;
+  frLineas[lineaIdx].articulo_id = art.id;
+  if (art.tipo_iva_id && typeof tiposIva!=='undefined') {
+    const t = tiposIva.find(x=>x.id===art.tipo_iva_id);
+    if (t) frLineas[lineaIdx].iva = t.porcentaje;
+  }
+  fr_renderLineas();
+  toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+}
+
 function fr_renderLineas() {
   let base = 0, ivaTotal = 0;
   document.getElementById('fr_lineas').innerHTML = frLineas.map((l, i) => {
@@ -431,8 +448,13 @@ function fr_renderLineas() {
     base += subtotal;
     ivaTotal += ivaAmt;
     return `<tr style="border-top:1px solid var(--gris-100)">
-      <td style="padding:7px 10px"><input value="${l.desc}" placeholder="Descripción del artículo o servicio..."
-        onchange="fr_updateLinea(${i},'desc',this.value)"
+      <td style="padding:7px 10px"><input value="${l.desc}" placeholder="Código o descripción del artículo..."
+        data-ac="articulos" data-linea-idx="${i}"
+        oninput="acBuscarArticulo(this, _fr_onSelectArt, 'precio_venta')"
+        onkeydown="acKeydown(event)"
+        onfocus="if(this.value.length>=1)acBuscarArticulo(this, _fr_onSelectArt, 'precio_venta')"
+        onblur="setTimeout(()=>{const d=document.getElementById('acArticulos');if(d)d.style.display='none'},200);fr_updateLinea(${i},'desc',this.value)"
+        autocomplete="off"
         style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent"></td>
       <td style="padding:7px 6px"><input type="number" value="${l.cant}" min="0.01" step="0.01"
         onchange="fr_updateLinea(${i},'cant',this.value)"
