@@ -29,10 +29,12 @@ function _sbExpand() {
   clearTimeout(_sbHoverTimer);
   document.body.classList.add('sb-hover-expanded');
   document.body.classList.remove('sb-collapsed');
+  // Al expandir, contraer todas las secciones
+  document.querySelectorAll('.sb-section-items').forEach(s => s.classList.add('collapsed'));
+  document.querySelectorAll('.sb-sec').forEach(s => s.classList.add('collapsed'));
 }
 
 function toggleSidebar() {
-  // Toggle manual por si acaso
   if (document.body.classList.contains('sb-hover-expanded') || !document.body.classList.contains('sb-collapsed')) {
     _sbCollapse();
   } else {
@@ -57,6 +59,51 @@ function toggleSidebar() {
   sidebar.addEventListener('mouseleave', () => {
     clearTimeout(_sbHoverTimer);
     _sbHoverTimer = setTimeout(_sbCollapse, 300);
+  });
+
+  // Secciones: hover para expandir/contraer items
+  sidebar.querySelectorAll('.sb-sec').forEach(sec => {
+    let secTimer = null;
+    const items = sec.nextElementSibling;
+    if (!items || !items.classList.contains('sb-section-items')) return;
+
+    // Hover en cabecera de sección → abrir
+    sec.addEventListener('mouseenter', () => {
+      if (!document.body.classList.contains('sb-hover-expanded')) return;
+      clearTimeout(secTimer);
+      // Cerrar otras secciones
+      sidebar.querySelectorAll('.sb-section-items').forEach(s => s.classList.add('collapsed'));
+      sidebar.querySelectorAll('.sb-sec').forEach(s => s.classList.add('collapsed'));
+      // Abrir esta
+      items.classList.remove('collapsed');
+      sec.classList.remove('collapsed');
+    });
+
+    // Hover en items → mantener abierto
+    items.addEventListener('mouseenter', () => {
+      clearTimeout(secTimer);
+    });
+
+    // Mouse sale de cabecera → cerrar con delay
+    sec.addEventListener('mouseleave', () => {
+      secTimer = setTimeout(() => {
+        items.classList.add('collapsed');
+        sec.classList.add('collapsed');
+      }, 200);
+    });
+
+    // Mouse sale de items → cerrar con delay
+    items.addEventListener('mouseleave', () => {
+      secTimer = setTimeout(() => {
+        items.classList.add('collapsed');
+        sec.classList.add('collapsed');
+      }, 200);
+    });
+
+    // Mouse entra en items cancela el cierre
+    items.addEventListener('mouseenter', () => {
+      clearTimeout(secTimer);
+    });
   });
 })();
 

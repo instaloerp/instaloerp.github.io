@@ -186,7 +186,7 @@ async function editarFacturaProv(id) {
 // GESTIÓN DE LÍNEAS
 // ═══════════════════════════════════════════════
 function fp_addLinea() {
-  fpLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, iva:21});
+  fpLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, dto1:0, dto2:0, dto3:0, iva:21});
   fp_renderLineas();
   setTimeout(()=>{
     const all = document.querySelectorAll('#fp_lineas input[data-ac="articulos"]');
@@ -210,7 +210,7 @@ function fp_updateLinea(idx, field, val) {
       fpLineas[idx].precio = art.precio_coste || 0;
       fpLineas[idx].iva = art.iva_default || 21;
     }
-  } else if (['cantidad','precio','iva'].includes(field)) {
+  } else if (['cantidad','precio','dto1','dto2','dto3','iva'].includes(field)) {
     fpLineas[idx][field] = parseFloat(val) || 0;
   } else {
     fpLineas[idx][field] = val;
@@ -233,12 +233,15 @@ function _fp_onSelectArt(lineaIdx, art) {
 
 function fp_renderLineas() {
   let base = 0, ivaTotal = 0;
+  const _n = (v) => `<input type="number" value="${v}" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"`;
   const html = fpLineas.map((l, i) => {
-    const subtotal = l.cantidad * l.precio;
+    const d1 = l.dto1 || 0, d2 = l.dto2 || 0, d3 = l.dto3 || 0;
+    const bruto = l.cantidad * l.precio;
+    const subtotal = bruto * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
     const ivaAmt = subtotal * (l.iva / 100);
     base += subtotal;
     ivaTotal += ivaAmt;
-    const descVal = l.nombre || '';
+    const descVal = (l.nombre || '').replace(/"/g,'&quot;');
     const ivaOpts = (tiposIva||[]).map(t => `<option value="${t.porcentaje}" ${t.porcentaje===l.iva?'selected':''}>${t.porcentaje}%</option>`).join('');
     return `<tr style="border-top:1px solid var(--gris-100)">
       <td style="padding:7px 6px">
@@ -251,14 +254,17 @@ function fp_renderLineas() {
           autocomplete="off"
           style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent">
       </td>
-      <td style="padding:7px 6px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" onchange="fp_updateLinea(${i},'cantidad',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="fp_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px">
+      <td style="padding:7px 4px">${_n(l.cantidad)} min="0.01" step="0.01" onchange="fp_updateLinea(${i},'cantidad',this.value)"></td>
+      <td style="padding:7px 4px">${_n(l.precio)} min="0" step="0.01" onchange="fp_updateLinea(${i},'precio',this.value)"></td>
+      <td style="padding:7px 2px">${_n(d1)} min="0" max="100" step="0.5" onchange="fp_updateLinea(${i},'dto1',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d2)} min="0" max="100" step="0.5" onchange="fp_updateLinea(${i},'dto2',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d3)} min="0" max="100" step="0.5" onchange="fp_updateLinea(${i},'dto3',this.value)" placeholder="%"></td>
+      <td style="padding:7px 4px">
         <select onchange="fp_updateLinea(${i},'iva',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
           ${ivaOpts}
         </select>
       </td>
-      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal+ivaAmt)}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;white-space:nowrap">${fmtE(subtotal+ivaAmt)}</td>
       <td style="padding:7px 4px"><button onclick="fp_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:16px;padding:2px 6px">✕</button></td>
     </tr>`;
   }).join('');
@@ -289,7 +295,8 @@ async function guardarFacturaProv(estado) {
     const prov = (proveedores||[]).find(p => p.id === provId);
     let base = 0, ivaTotal = 0;
     fpLineas.forEach(l => {
-      const subtotal = l.cantidad * l.precio;
+      const bruto = l.cantidad * l.precio;
+      const subtotal = bruto * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
       base += subtotal;
       ivaTotal += subtotal * (l.iva / 100);
     });
@@ -316,10 +323,59 @@ async function guardarFacturaProv(estado) {
       usuario_id: CU.id
     };
 
+    let facturaId = fpEditId;
     if (fpEditId) {
       await sb.from('facturas_proveedor').update(obj).eq('id', fpEditId);
     } else {
-      await sb.from('facturas_proveedor').insert(obj);
+      const { data: inserted, error: insErr } = await sb.from('facturas_proveedor').insert(obj).select().single();
+      if (insErr) throw new Error(insErr.message);
+      facturaId = inserted.id;
+    }
+
+    // --- Guardar documento adjunto en Supabase Storage ---
+    if (_iaFileBase64 && facturaId) {
+      try {
+        const ext = _iaFileName ? _iaFileName.split('.').pop().toLowerCase() : (_iaFileMime === 'application/pdf' ? 'pdf' : 'jpg');
+        const storagePath = `facturas_prov/${EMPRESA.id}/${facturaId}_${Date.now()}.${ext}`;
+
+        // Convertir base64 a Blob
+        const byteChars = atob(_iaFileBase64);
+        const byteArr = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([byteArr], { type: _iaFileMime || 'application/octet-stream' });
+
+        const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, {
+          contentType: _iaFileMime || 'application/octet-stream',
+          upsert: false
+        });
+
+        if (!upErr) {
+          // Obtener URL pública
+          const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+
+          // Insertar registro en tabla documentos_factura_prov
+          await sb.from('documentos_factura_prov').insert({
+            empresa_id: EMPRESA.id,
+            factura_prov_id: facturaId,
+            nombre_archivo: _iaFileName || ('factura.' + ext),
+            storage_path: storagePath,
+            url: urlData?.publicUrl || null,
+            mime_type: _iaFileMime || 'application/octet-stream',
+            tamano: blob.size
+          });
+
+          toast('Documento adjunto guardado ✓', 'info');
+        } else {
+          console.warn('Error subiendo documento:', upErr.message);
+        }
+
+        // Limpiar referencia del archivo IA
+        _iaFileBase64 = null;
+        _iaFileName = '';
+        _iaFileMime = '';
+      } catch (docErr) {
+        console.warn('No se pudo guardar documento adjunto:', docErr.message);
+      }
     }
 
     closeModal('mFacturaProv');
@@ -604,16 +660,21 @@ async function iaResolverProveedor(provData) {
     }
   }
 
-  // No existe — crear nuevo
+  // No existe — crear nuevo con todos los datos disponibles
   const nuevo = {
     empresa_id: EMPRESA.id,
     nombre: provData.nombre || 'Proveedor sin nombre',
     cif: provData.cif || null,
     direccion: provData.direccion || null,
+    municipio: provData.municipio || null,
+    cp: provData.cp || null,
+    provincia: provData.provincia || null,
     telefono: provData.telefono || null,
     email: provData.email || null,
-    activo: true,
-    usuario_id: CU.id
+    web: provData.web || null,
+    dias_pago: provData.dias_pago || 30,
+    observaciones: provData.iban ? ('IBAN: ' + provData.iban) : null,
+    activo: true
   };
 
   const { data, error } = await sb.from('proveedores').insert(nuevo).select().single();
@@ -628,36 +689,47 @@ async function iaResolverProveedor(provData) {
   return data.id;
 }
 
-// Buscar articulo por nombre/descripcion, o crear nuevo
+// Buscar articulo por código, nombre/descripcion, o crear nuevo
 async function iaResolverArticulo(lineaOCR) {
   const desc = (lineaOCR.descripcion || '').trim();
-  if (!desc) return null;
+  const codigo = (lineaOCR.codigo || '').trim();
+  if (!desc && !codigo) return null;
 
-  // Buscar por nombre exacto o similar
-  const descNorm = desc.toLowerCase();
-  let art = (articulos || []).find(a =>
-    a.nombre && a.nombre.toLowerCase() === descNorm
-  );
-
-  if (!art) {
-    // Buscar coincidencia parcial (contiene)
+  // 1. Buscar por código exacto (si viene código)
+  let art = null;
+  if (codigo) {
     art = (articulos || []).find(a =>
-      a.nombre && (a.nombre.toLowerCase().includes(descNorm) || descNorm.includes(a.nombre.toLowerCase()))
+      a.codigo && a.codigo.trim().toLowerCase() === codigo.toLowerCase()
     );
+  }
+
+  // 2. Buscar por nombre exacto
+  if (!art && desc) {
+    const descNorm = desc.toLowerCase();
+    art = (articulos || []).find(a =>
+      a.nombre && a.nombre.toLowerCase() === descNorm
+    );
+
+    // 3. Buscar coincidencia parcial (contiene)
+    if (!art) {
+      art = (articulos || []).find(a =>
+        a.nombre && (a.nombre.toLowerCase().includes(descNorm) || descNorm.includes(a.nombre.toLowerCase()))
+      );
+    }
   }
 
   if (art) return art;
 
-  // Crear articulo nuevo
+  // Crear articulo nuevo con todos los datos disponibles
+  const precioCoste = lineaOCR.precio_unitario || 0;
   const nuevo = {
     empresa_id: EMPRESA.id,
-    nombre: desc,
-    codigo: '',
-    precio_coste: lineaOCR.precio_unitario || 0,
-    precio_venta: (lineaOCR.precio_unitario || 0) * 1.3, // Margen 30% por defecto
+    nombre: desc || codigo,
+    codigo: codigo,
+    precio_coste: precioCoste,
+    precio_venta: precioCoste * 1.3, // Margen 30% por defecto
     tipo_iva_id: _iaGetTipoIvaId(lineaOCR.iva_pct || 21),
-    activo: true,
-    usuario_id: CU.id
+    activo: true
   };
 
   const { data, error } = await sb.from('articulos').insert(nuevo).select().single();
@@ -716,16 +788,19 @@ async function iaRellenarFactura(data, provId) {
       const art = await iaResolverArticulo(linea);
       fpLineas.push({
         articulo_id: art ? art.id : null,
-        codigo: art ? (art.codigo || '') : '',
+        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
         nombre: linea.descripcion || (art ? art.nombre : ''),
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
+        dto1: linea.dto1_pct || 0,
+        dto2: linea.dto2_pct || 0,
+        dto3: linea.dto3_pct || 0,
         iva: linea.iva_pct || 21
       });
     }
   } else {
     // Al menos una linea vacia
-    fpLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+    fpLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, dto1:0, dto2:0, dto3:0, iva: 21 });
   }
 
   document.getElementById('mFPTit').textContent = 'Factura de Proveedor (importada con IA)';
@@ -759,11 +834,14 @@ async function iaRellenarAlbaran(data, provId) {
         nombre: linea.descripcion || (art ? art.nombre : ''),
         cantidad_pedida: linea.cantidad || 1,
         cantidad_recibida: linea.cantidad || 1,
-        precio: linea.precio_unitario || 0
+        precio: linea.precio_unitario || 0,
+        dto1: linea.dto1_pct || 0,
+        dto2: linea.dto2_pct || 0,
+        dto3: linea.dto3_pct || 0
       });
     }
   } else {
-    rcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad_pedida: 1, cantidad_recibida: 1, precio: 0 });
+    rcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad_pedida: 1, cantidad_recibida: 1, precio: 0, dto1:0, dto2:0, dto3:0 });
   }
 
   document.getElementById('mRCTit').textContent = 'Albarán de Proveedor (importado con IA)';
@@ -800,15 +878,18 @@ async function iaRellenarPedido(data, provId) {
       const art = await iaResolverArticulo(linea);
       pcLineas.push({
         articulo_id: art ? art.id : null,
-        codigo: art ? (art.codigo || '') : '',
+        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
         nombre: linea.descripcion || (art ? art.nombre : ''),
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
+        dto1: linea.dto1_pct || 0,
+        dto2: linea.dto2_pct || 0,
+        dto3: linea.dto3_pct || 0,
         iva: linea.iva_pct || 21
       });
     }
   } else {
-    pcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+    pcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, dto1:0, dto2:0, dto3:0, iva: 21 });
   }
 
   document.getElementById('mPCTit').textContent = 'Pedido de Compra (importado con IA)';
@@ -845,15 +926,18 @@ async function iaRellenarPresupuestoCompra(data, provId) {
       const art = await iaResolverArticulo(linea);
       prcLineas.push({
         articulo_id: art ? art.id : null,
-        codigo: art ? (art.codigo || '') : '',
+        codigo: linea.codigo || (art ? (art.codigo || '') : ''),
         nombre: linea.descripcion || (art ? art.nombre : ''),
         cantidad: linea.cantidad || 1,
         precio: linea.precio_unitario || 0,
+        dto1: linea.dto1_pct || 0,
+        dto2: linea.dto2_pct || 0,
+        dto3: linea.dto3_pct || 0,
         iva: linea.iva_pct || 21
       });
     }
   } else {
-    prcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, iva: 21 });
+    prcLineas.push({ articulo_id: null, codigo: '', nombre: '', cantidad: 1, precio: 0, dto1:0, dto2:0, dto3:0, iva: 21 });
   }
 
   document.getElementById('mPRCTit').textContent = 'Presupuesto de Compra (importado con IA)';

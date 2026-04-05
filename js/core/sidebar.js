@@ -54,6 +54,9 @@ if (!sbFavoritos.includes('dashboard')) { sbFavoritos.unshift('dashboard'); loca
 let favEditMode = false;
 
 function toggleSbSection(id, el) {
+  // Cuando el sidebar está en modo hover-expanded, el hover de secciones lo gestiona ui.js
+  if (document.body.classList.contains('sb-hover-expanded')) return;
+  if (document.body.classList.contains('sb-collapsed')) return;
   const sec = document.getElementById(id);
   if (!sec) return;
   const isCollapsed = sec.classList.toggle('collapsed');

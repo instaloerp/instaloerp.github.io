@@ -133,7 +133,7 @@ async function editarPedidoCompra(id) {
 // GESTIÓN DE LÍNEAS
 // ═══════════════════════════════════════════════
 function pc_addLinea() {
-  pcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, iva:21});
+  pcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad:1, precio:0, dto1:0, dto2:0, dto3:0, iva:21});
   pc_renderLineas();
   setTimeout(()=>{
     const all = document.querySelectorAll('#pc_lineas input[data-ac="articulos"]');
@@ -157,7 +157,7 @@ function pc_updateLinea(idx, field, val) {
       pcLineas[idx].precio = art.precio_coste || 0;
       pcLineas[idx].iva = art.iva_default || 21;
     }
-  } else if (['cantidad','precio','iva'].includes(field)) {
+  } else if (['cantidad','precio','dto1','dto2','dto3','iva'].includes(field)) {
     pcLineas[idx][field] = parseFloat(val) || 0;
   } else {
     pcLineas[idx][field] = val;
@@ -180,8 +180,11 @@ function _pc_onSelectArt(lineaIdx, art) {
 
 function pc_renderLineas() {
   let base = 0, ivaTotal = 0;
+  const _n = (v) => `<input type="number" value="${v}" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"`;
   const html = pcLineas.map((l, i) => {
-    const subtotal = l.cantidad * l.precio;
+    const d1 = l.dto1 || 0, d2 = l.dto2 || 0, d3 = l.dto3 || 0;
+    const bruto = l.cantidad * l.precio;
+    const subtotal = bruto * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
     const ivaAmt = subtotal * (l.iva / 100);
     base += subtotal;
     ivaTotal += ivaAmt;
@@ -198,14 +201,17 @@ function pc_renderLineas() {
           autocomplete="off"
           style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent">
       </td>
-      <td style="padding:7px 6px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" onchange="pc_updateLinea(${i},'cantidad',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="pc_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px">${_n(l.cantidad)} min="0.01" step="0.01" onchange="pc_updateLinea(${i},'cantidad',this.value)"></td>
+      <td style="padding:7px 6px">${_n(l.precio)} min="0" step="0.01" onchange="pc_updateLinea(${i},'precio',this.value)"></td>
+      <td style="padding:7px 2px">${_n(d1)} min="0" max="100" step="0.5" onchange="pc_updateLinea(${i},'dto1',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d2)} min="0" max="100" step="0.5" onchange="pc_updateLinea(${i},'dto2',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d3)} min="0" max="100" step="0.5" onchange="pc_updateLinea(${i},'dto3',this.value)" placeholder="%"></td>
       <td style="padding:7px 6px">
         <select onchange="pc_updateLinea(${i},'iva',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
           ${ivaOpts}
         </select>
       </td>
-      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal+ivaAmt)}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;white-space:nowrap">${fmtE(subtotal+ivaAmt)}</td>
       <td style="padding:7px 4px"><button onclick="pc_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:16px;padding:2px 6px">✕</button></td>
     </tr>`;
   }).join('');
@@ -235,7 +241,8 @@ async function guardarPedidoCompra(estado) {
     const prov = (proveedores||[]).find(p => p.id === provId);
     let base = 0, ivaTotal = 0;
     pcLineas.forEach(l => {
-      const subtotal = l.cantidad * l.precio;
+      const bruto = l.cantidad * l.precio;
+      const subtotal = bruto * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
       base += subtotal;
       ivaTotal += subtotal * (l.iva / 100);
     });

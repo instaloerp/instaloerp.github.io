@@ -423,7 +423,7 @@ function de_addSubcapitulo() {
 
 function de_addLinea() {
   const iva = deConfig.conIva ? (prIvaDefault||21) : 0;
-  deLineas.push({tipo:'linea', desc:'', cant:1, precio:0, dto:0, iva});
+  deLineas.push({tipo:'linea', desc:'', cant:1, precio:0, dto1:0, dto2:0, dto3:0, iva});
   de_renderLineas();
   // Focus en la nueva línea de descripción
   setTimeout(()=>{
@@ -485,7 +485,11 @@ document.addEventListener('click', (e) => {
 function de_updateLinea(i,f,v) {
   // Si se acaba de seleccionar un artículo, no dejar que onchange sobreescriba desc con el texto parcial
   if (f === 'desc' && _artSelecting) return;
-  deLineas[i][f] = (f==='desc'||f==='titulo') ? v : parseFloat(v)||0;
+  if (f === 'dto1' || f === 'dto2' || f === 'dto3' || f === 'cant' || f === 'precio' || f === 'iva') {
+    deLineas[i][f] = parseFloat(v)||0;
+  } else {
+    deLineas[i][f] = (f==='desc'||f==='titulo') ? v : parseFloat(v)||0;
+  }
   de_renderLineas();
   de_autoguardar();
 }
@@ -657,8 +661,10 @@ function de_renderLineas() {
         <td style="text-align:center"><button onclick="de_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:14px">✕</button></td>
       </tr>`;
     } else {
-      const dto = showDto ? (l.dto||0) : 0;
-      const sub = l.cant*l.precio*(1-dto/100);
+      const dto1 = showDto ? (l.dto1||0) : 0;
+      const dto2 = showDto ? (l.dto2||0) : 0;
+      const dto3 = showDto ? (l.dto3||0) : 0;
+      const sub = l.cant*l.precio*(1-dto1/100)*(1-dto2/100)*(1-dto3/100);
       const iva = showIva ? (l.iva||0) : 0;
       const iv = sub*(iva/100);
       base+=sub; ivaT+=iv; secBase+=sub; secIva+=iv;
@@ -697,9 +703,17 @@ function de_renderLineas() {
             style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
         </td>
         ${showDto?`<td style="padding:6px 5px">
-          <input type="number" value="${l.dto||0}" min="0" max="100" step="0.1"
-            onchange="de_updateLinea(${i},'dto',this.value)"
-            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
+          <input type="number" value="${l.dto1||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto1',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 1">
+        </td><td style="padding:6px 5px">
+          <input type="number" value="${l.dto2||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto2',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 2">
+        </td><td style="padding:6px 5px">
+          <input type="number" value="${l.dto3||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto3',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 3">
         </td>`:''}
         ${showIva?`<td style="padding:6px 5px">
           <select onchange="de_updateLinea(${i},'iva',this.value)"
@@ -755,8 +769,10 @@ function de_buildDatos() {
   const c = clientes.find(x=>x.id===clienteId);
   let base=0, ivaT=0;
   lineas.filter(l=>!isChap(l.tipo)).forEach(l=>{
-    const dto = cfg.conDto?(l.dto||0):0;
-    const s = l.cant*l.precio*(1-dto/100);
+    const dto1 = cfg.conDto?(l.dto1||0):0;
+    const dto2 = cfg.conDto?(l.dto2||0):0;
+    const dto3 = cfg.conDto?(l.dto3||0):0;
+    const s = l.cant*l.precio*(1-dto1/100)*(1-dto2/100)*(1-dto3/100);
     base+=s;
     if (cfg.conIva) ivaT+=s*((l.iva||0)/100);
   });

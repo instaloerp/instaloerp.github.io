@@ -402,7 +402,7 @@ function fr_actualizarCliente(id) {
 //  GESTIÓN DE LÍNEAS
 // ═══════════════════════════════════════════════
 function fr_addLinea() {
-  frLineas.push({ desc:'', cant:1, precio:0, dto:0, iva:21 });
+  frLineas.push({ desc:'', cant:1, precio:0, dto1:0, dto2:0, dto3:0, iva:21 });
   fr_renderLineas();
   setTimeout(()=>{
     const all = document.querySelectorAll('#fr_lineas input[data-ac="articulos"]');
@@ -417,14 +417,18 @@ function fr_removeLinea(idx) {
 }
 
 function fr_updateLinea(idx, field, val) {
-  frLineas[idx][field] = field === 'desc' ? val : parseFloat(val)||0;
+  if (field === 'dto1' || field === 'dto2' || field === 'dto3' || field === 'cant' || field === 'precio' || field === 'iva') {
+    frLineas[idx][field] = parseFloat(val)||0;
+  } else {
+    frLineas[idx][field] = field === 'desc' ? val : parseFloat(val)||0;
+  }
   fr_renderLineas();
 }
 
 function renderPPartidas(list) {
   let base = 0, ivaTotal = 0;
   document.getElementById('fr_lineas').innerHTML = frLineas.map((l, i) => {
-    const subtotal = l.cant * l.precio * (1 - l.dto/100);
+    const subtotal = l.cant * l.precio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
     const ivaAmt = subtotal * (l.iva/100);
     base += subtotal;
     ivaTotal += ivaAmt;
@@ -438,9 +442,15 @@ function renderPPartidas(list) {
       <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01"
         onchange="fr_updateLinea(${i},'precio',this.value)"
         style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.dto}" min="0" max="100" step="0.1"
-        onchange="fr_updateLinea(${i},'dto',this.value)"
-        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto1||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto1',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 1"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto2||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto2',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 2"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto3||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto3',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 3"></td>
       <td style="padding:7px 6px">
         <select onchange="fr_updateLinea(${i},'iva',this.value)"
           style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
@@ -475,7 +485,7 @@ function _fr_onSelectArt(lineaIdx, art) {
 function fr_renderLineas() {
   let base = 0, ivaTotal = 0;
   document.getElementById('fr_lineas').innerHTML = frLineas.map((l, i) => {
-    const subtotal = l.cant * l.precio * (1 - l.dto/100);
+    const subtotal = l.cant * l.precio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
     const ivaAmt = subtotal * (l.iva/100);
     base += subtotal;
     ivaTotal += ivaAmt;
@@ -494,9 +504,15 @@ function fr_renderLineas() {
       <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01"
         onchange="fr_updateLinea(${i},'precio',this.value)"
         style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.dto}" min="0" max="100" step="0.1"
-        onchange="fr_updateLinea(${i},'dto',this.value)"
-        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto1||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto1',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 1"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto2||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto2',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 2"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.dto3||0}" min="0" max="100" step="0.1"
+        onchange="fr_updateLinea(${i},'dto3',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" title="Descuento 3"></td>
       <td style="padding:7px 6px">
         <select onchange="fr_updateLinea(${i},'iva',this.value)"
           style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
@@ -535,7 +551,7 @@ async function guardarFacturaRapida(estado) {
 
     let base = 0, ivaTotal = 0;
     lineasValidas.forEach(l => {
-      const sub = l.cant * l.precio * (1 - l.dto/100);
+      const sub = l.cant * l.precio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
       base += sub;
       ivaTotal += sub * (l.iva/100);
     });
@@ -608,7 +624,9 @@ function _imprimirFacturaHtml(f) {
       htmlLineas+=`<tr><td colspan="6" style="padding:6px 10px;background:#f1f5f9;font-weight:700;font-size:10px;color:#475569;border-bottom:1px solid #e2e8f0">${l.desc||''}</td></tr>`;
       return;
     }
-    const dto=l.dto||0, sub=(l.cant||1)*(l.precio||0)*(1-dto/100), iv=sub*((l.iva||0)/100);
+    const dto1=l.dto1||0, dto2=l.dto2||0, dto3=l.dto3||0;
+    const sub=(l.cant||1)*(l.precio||0)*(1-dto1/100)*(1-dto2/100)*(1-dto3/100);
+    const iv=sub*((l.iva||0)/100);
     base+=sub; ivaTotal+=iv;
     htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||''}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cant||0}</td>

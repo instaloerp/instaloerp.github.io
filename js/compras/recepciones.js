@@ -163,7 +163,7 @@ async function editarRecepcion(id) {
 // GESTIÓN DE LÍNEAS
 // ═══════════════════════════════════════════════
 function rc_addLinea() {
-  rcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad_pedida:0, cantidad_recibida:0, precio:0});
+  rcLineas.push({articulo_id:null, codigo:'', nombre:'', cantidad_pedida:0, cantidad_recibida:0, precio:0, dto1:0, dto2:0, dto3:0});
   rc_renderLineas();
   setTimeout(()=>{
     const all = document.querySelectorAll('#rc_lineas input[data-ac="articulos"]');
@@ -186,8 +186,10 @@ function rc_updateLinea(idx, field, val) {
       rcLineas[idx].nombre = art.nombre;
       rcLineas[idx].precio = art.precio_coste || 0;
     }
-  } else {
+  } else if (['cantidad_pedida','cantidad_recibida','precio','dto1','dto2','dto3'].includes(field)) {
     rcLineas[idx][field] = parseFloat(val) || 0;
+  } else {
+    rcLineas[idx][field] = val;
   }
   rc_renderLineas();
 }
@@ -203,8 +205,11 @@ function _rc_onSelectArt(lineaIdx, art) {
 
 function rc_renderLineas() {
   let total = 0;
+  const _n = (v) => `<input type="number" value="${v}" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"`;
   const html = rcLineas.map((l, i) => {
-    const subtotal = l.cantidad_recibida * l.precio;
+    const d1 = l.dto1 || 0, d2 = l.dto2 || 0, d3 = l.dto3 || 0;
+    const bruto = l.cantidad_recibida * l.precio;
+    const subtotal = bruto * (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
     total += subtotal;
     const descVal = l.nombre || '';
     return `<tr style="border-top:1px solid var(--gris-100)">
@@ -218,10 +223,13 @@ function rc_renderLineas() {
           autocomplete="off"
           style="width:100%;border:none;outline:none;font-size:12.5px;background:transparent">
       </td>
-      <td style="padding:7px 6px;text-align:right"><input type="number" value="${l.cantidad_pedida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_pedida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none" readonly></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.cantidad_recibida}" min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_recibida',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 6px"><input type="number" value="${l.precio}" min="0" step="0.01" onchange="rc_updateLinea(${i},'precio',this.value)" style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
-      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(subtotal)}</td>
+      <td style="padding:7px 6px;text-align:right">${_n(l.cantidad_pedida)} min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_pedida',this.value)" readonly></td>
+      <td style="padding:7px 6px">${_n(l.cantidad_recibida)} min="0" step="0.01" onchange="rc_updateLinea(${i},'cantidad_recibida',this.value)"></td>
+      <td style="padding:7px 6px">${_n(l.precio)} min="0" step="0.01" onchange="rc_updateLinea(${i},'precio',this.value)"></td>
+      <td style="padding:7px 2px">${_n(d1)} min="0" max="100" step="0.5" onchange="rc_updateLinea(${i},'dto1',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d2)} min="0" max="100" step="0.5" onchange="rc_updateLinea(${i},'dto2',this.value)" placeholder="%"></td>
+      <td style="padding:7px 2px">${_n(d3)} min="0" max="100" step="0.5" onchange="rc_updateLinea(${i},'dto3',this.value)" placeholder="%"></td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;white-space:nowrap">${fmtE(subtotal)}</td>
       <td style="padding:7px 4px"><button onclick="rc_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:16px;padding:2px 6px">✕</button></td>
     </tr>`;
   }).join('');

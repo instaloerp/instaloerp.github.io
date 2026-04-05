@@ -409,7 +409,8 @@ body.sb-hover-expanded .sb-hide-collapsed,
 body.sb-hover-expanded .sb-user .sb-user-info,
 body.sb-hover-expanded #sbFavSection .sb-fav-titulo,
 body.sb-hover-expanded .sb-toggle{display:revert!important}
-body.sb-hover-expanded .sb-sec{display:flex!important;justify-content:initial;padding:11px 14px;font-size:10px;margin:0}
+body.sb-hover-expanded .sb-sec{display:flex!important;justify-content:initial;padding:11px 14px;font-size:10px;margin:0;cursor:pointer;border-radius:6px}
+body.sb-hover-expanded .sb-sec:hover{background:rgba(255,255,255,.08)}
 body.sb-hover-expanded .sb-sec-ico{display:none!important}
 body.sb-hover-expanded .sb-section-items{display:block!important;position:static!important;background:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;min-width:auto!important}
 body.sb-hover-expanded .sb-section-items.collapsed{display:none!important}
