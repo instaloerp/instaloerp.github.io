@@ -1154,7 +1154,7 @@ async function guardarCuentaCorreo() {
   const display = document.getElementById('cor_display').value.trim();
   const host = document.getElementById('cor_smtp_host').value.trim();
   const port = parseInt(document.getElementById('cor_smtp_port').value) || 587;
-  const user = document.getElementById('cor_smtp_user').value.trim() || email;
+  const user = email; // Siempre usar la dirección email como usuario
   const pass = document.getElementById('cor_smtp_pass').value;
   const seguridad = document.getElementById('cor_seguridad').value;
   const imapHost = document.getElementById('cor_imap_host').value.trim();
@@ -1235,7 +1235,7 @@ async function setPredeterminadaCorreo(id) {
 async function testConexionCorreo() {
   const host = document.getElementById('cor_smtp_host').value.trim();
   const port = document.getElementById('cor_smtp_port').value;
-  const user = document.getElementById('cor_smtp_user').value.trim() || document.getElementById('cor_email').value.trim();
+  const user = document.getElementById('cor_email').value.trim(); // Siempre usar email como usuario
   const pass = document.getElementById('cor_smtp_pass').value;
   const seguridad = document.getElementById('cor_seguridad').value;
 
