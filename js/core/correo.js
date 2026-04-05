@@ -1,6 +1,7 @@
 /**
- * MÓDULO CORREO ELECTRÓNICO (BETA)
- * Envío y recepción de correo integrado en el ERP
+ * MÓDULO CORREO ELECTRÓNICO v2
+ * Sistema híbrido: cabeceras en BD + cuerpo bajo demanda vía IMAP
+ * Envío real por SMTP vía Edge Function
  * Vinculación con clientes, obras, presupuestos y facturas
  */
 
@@ -11,22 +12,114 @@ let correos = [];
 let correosFiltrados = [];
 let carpetaActual = 'inbox';
 let correoActual = null;
+let _correoSyncing = false;
+let _correoCuentaActiva = null; // Cuenta predeterminada cargada
 
 // ═══════════════════════════════════════════════
-//  CARGA
+//  CARGA INICIAL
 // ═══════════════════════════════════════════════
 async function loadCorreos() {
+  // Cargar cuenta predeterminada
+  try {
+    const { data: cuentas } = await sb.from('cuentas_correo')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('activa', true)
+      .order('predeterminada', { ascending: false })
+      .limit(1);
+    _correoCuentaActiva = cuentas?.[0] || null;
+  } catch(e) {
+    _correoCuentaActiva = null;
+  }
+
+  // Si no hay cuenta configurada, mostrar mensaje
+  if (!_correoCuentaActiva) {
+    const container = document.getElementById('mailList');
+    if (container) {
+      container.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--gris-400);font-size:13px">
+        <div style="font-size:32px;margin-bottom:8px">📧</div>
+        Configura tu cuenta de correo en<br><a href="#" onclick="goPage('configuracion');setTimeout(()=>cfgTab('correo'),300);return false" style="color:var(--azul);text-decoration:underline">Configuración → Correo</a>
+      </div>`;
+    }
+    return;
+  }
+
+  // Cargar correos desde BD
   try {
     const { data } = await sb.from('correos')
-      .select('*').eq('empresa_id', EMPRESA.id)
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
       .order('fecha', { ascending: false })
       .limit(200);
     correos = data || [];
   } catch(e) {
-    // Si la tabla no existe aún, cargar vacío
     correos = [];
   }
   filtrarCorreos();
+
+  // Auto-sincronizar si tiene sync habilitada
+  if (_correoCuentaActiva.sync_habilitada) {
+    sincronizarCorreo(true); // silencioso
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  SINCRONIZACIÓN IMAP
+// ═══════════════════════════════════════════════
+async function sincronizarCorreo(silencioso = false) {
+  if (_correoSyncing) return;
+  if (!_correoCuentaActiva) {
+    if (!silencioso) toast('No hay cuenta de correo configurada', 'error');
+    return;
+  }
+
+  _correoSyncing = true;
+  const syncBtn = document.getElementById('mailSyncBtn');
+  if (syncBtn) {
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '⏳ Sincronizando...';
+  }
+
+  try {
+    const { data, error } = await sb.functions.invoke('sync-correo', {
+      body: {
+        empresa_id: EMPRESA.id,
+        cuenta_correo_id: _correoCuentaActiva.id,
+        folder: 'INBOX',
+        max_mensajes: 50
+      }
+    });
+
+    if (error) throw error;
+
+    if (data?.success) {
+      if (data.nuevos > 0) {
+        toast(`📬 ${data.nuevos} correo${data.nuevos > 1 ? 's' : ''} nuevo${data.nuevos > 1 ? 's' : ''}`, 'success');
+        // Recargar lista
+        const { data: nuevos } = await sb.from('correos')
+          .select('*')
+          .eq('empresa_id', EMPRESA.id)
+          .order('fecha', { ascending: false })
+          .limit(200);
+        correos = nuevos || [];
+        filtrarCorreos();
+      } else if (!silencioso) {
+        toast('📭 No hay correos nuevos', 'info');
+      }
+    } else if (data?.error) {
+      if (!silencioso) toast('Error sincronizando: ' + data.error, 'error');
+      console.error('Sync error:', data.error);
+    }
+  } catch(e) {
+    if (!silencioso) toast('⚠️ Error de sincronización: ' + (e.message || 'Error desconocido'), 'error');
+    console.error('Error sync correo:', e);
+  }
+
+  _correoSyncing = false;
+  if (syncBtn) {
+    syncBtn.disabled = false;
+    syncBtn.innerHTML = '🔄 Sincronizar';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -34,7 +127,6 @@ async function loadCorreos() {
 // ═══════════════════════════════════════════════
 function cambiarCarpeta(folder) {
   carpetaActual = folder;
-  // UI: marcar carpeta activa
   document.querySelectorAll('.mail-folder').forEach(el => {
     const isActive = el.dataset.folder === folder;
     el.style.background = isActive ? 'var(--azul-light)' : 'transparent';
@@ -51,13 +143,11 @@ function filtrarCorreos() {
   const q = (document.getElementById('mailSearch')?.value || '').toLowerCase();
 
   correosFiltrados = correos.filter(c => {
-    // Filtrar por carpeta
     if (carpetaActual === 'inbox' && c.tipo !== 'recibido') return false;
     if (carpetaActual === 'sent' && c.tipo !== 'enviado') return false;
     if (carpetaActual === 'drafts' && c.tipo !== 'borrador') return false;
-    // Búsqueda
     if (q) {
-      const txt = [c.asunto, c.de, c.para, c.cuerpo_texto].filter(Boolean).join(' ').toLowerCase();
+      const txt = [c.asunto, c.de, c.de_nombre, c.para, c.cuerpo_texto].filter(Boolean).join(' ').toLowerCase();
       if (!txt.includes(q)) return false;
     }
     return true;
@@ -91,6 +181,7 @@ function renderListaCorreos(list) {
     container.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--gris-400);font-size:13px">
       <div style="font-size:32px;margin-bottom:8px">${carpetaActual === 'inbox' ? '📥' : carpetaActual === 'sent' ? '📤' : '📝'}</div>
       ${msgs[carpetaActual] || 'Sin correos'}
+      ${carpetaActual === 'inbox' && _correoCuentaActiva ? '<br><button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" style="margin-top:10px">🔄 Sincronizar ahora</button>' : ''}
     </div>`;
     return;
   }
@@ -104,21 +195,27 @@ function renderListaCorreos(list) {
         ? fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
         : fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
     ) : '';
+    const remitente = c.tipo === 'enviado'
+      ? 'Para: ' + (c.para || '—').split(',')[0].split('<')[0].trim()
+      : (c.de_nombre || c.de || '—');
 
-    return `<div onclick="abrirCorreo(${c.id})" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'};background:${esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'};transition:background .12s" onmouseenter="this.style.background=this.style.background||'var(--gris-50)'" onmouseleave="this.style.background=${esActivo ? "'var(--azul-light)'" : esNoLeido ? "'rgba(59,130,246,.04)'" : "'transparent'"}">
+    return `<div onclick="abrirCorreo(${c.id})" style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'};background:${esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'};transition:background .12s" onmouseenter="if(!${esActivo})this.style.background='var(--gris-50)'" onmouseleave="this.style.background='${esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'}'">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
-        <span style="font-size:12.5px;font-weight:${esNoLeido ? '700' : '500'};color:var(--gris-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${c.tipo === 'enviado' ? 'Para: ' + (c.para || '—') : (c.de || '—')}</span>
+        <span style="font-size:12.5px;font-weight:${esNoLeido ? '700' : '500'};color:var(--gris-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${remitente}</span>
         <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:8px">${fechaStr}</span>
       </div>
-      <div style="font-size:12px;font-weight:${esNoLeido ? '600' : '400'};color:var(--gris-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.asunto || '(sin asunto)'}</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        ${c.tiene_adjuntos ? '<span style="font-size:11px" title="Tiene adjuntos">📎</span>' : ''}
+        <span style="font-size:12px;font-weight:${esNoLeido ? '600' : '400'};color:var(--gris-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
+      </div>
       <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${(c.cuerpo_texto || '').substring(0, 80)}</div>
-      ${c.vinculado_tipo ? `<span style="font-size:9px;background:var(--azul-light);color:var(--azul);padding:1px 5px;border-radius:3px;margin-top:3px;display:inline-block">${c.vinculado_tipo}</span>` : ''}
+      ${c.vinculado_tipo ? `<span style="font-size:9px;background:var(--azul-light);color:var(--azul);padding:1px 5px;border-radius:3px;margin-top:3px;display:inline-block">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
     </div>`;
   }).join('');
 }
 
 // ═══════════════════════════════════════════════
-//  ABRIR CORREO
+//  ABRIR CORREO (con carga bajo demanda del cuerpo)
 // ═══════════════════════════════════════════════
 async function abrirCorreo(id) {
   const c = correos.find(x => x.id === id);
@@ -131,47 +228,248 @@ async function abrirCorreo(id) {
     sb.from('correos').update({ leido: true }).eq('id', id);
   }
 
-  // Re-renderizar lista para marcar activo
   renderListaCorreos(correosFiltrados);
 
-  // Renderizar vista del correo
   const view = document.getElementById('mailView');
   if (!view) return;
 
   const fecha = c.fecha ? new Date(c.fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
+  // Mostrar cabecera inmediatamente
   view.innerHTML = `
     <div style="padding:16px 20px;border-bottom:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
+      <div style="flex:1;min-width:0">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">${c.asunto || '(sin asunto)'}</h3>
         <div style="font-size:12px;color:var(--gris-500)">
-          ${c.tipo === 'enviado' ? '<b>Para:</b> ' + (c.para || '—') : '<b>De:</b> ' + (c.de || '—')}
+          ${c.tipo === 'enviado' ? '<b>Para:</b> ' + (c.para || '—') : '<b>De:</b> ' + (c.de_nombre ? c.de_nombre + ' &lt;' + c.de + '&gt;' : c.de || '—')}
           <span style="margin-left:12px">${fecha}</span>
         </div>
         ${c.para && c.tipo !== 'enviado' ? `<div style="font-size:12px;color:var(--gris-400)"><b>Para:</b> ${c.para}</div>` : ''}
+        ${c.cc ? `<div style="font-size:12px;color:var(--gris-400)"><b>CC:</b> ${c.cc}</div>` : ''}
       </div>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;flex-shrink:0">
         ${c.tipo === 'recibido' ? `<button class="btn btn-secondary btn-sm" onclick="responderCorreo(${c.id})">↩️ Responder</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="reenviarCorreo(${c.id})">↪️ Reenviar</button>
+        <button class="btn btn-ghost btn-sm" onclick="vincularCorreo(${c.id})" title="Vincular a obra/cliente">🔗</button>
         <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo)">🗑️</button>
       </div>
     </div>
-    <div style="flex:1;padding:20px;overflow-y:auto;font-size:13.5px;line-height:1.7;color:var(--gris-700)">
-      ${c.cuerpo_html || (c.cuerpo_texto || '').replace(/\n/g, '<br>')}
+    <div id="mailBody" style="flex:1;padding:20px;overflow-y:auto;font-size:13.5px;line-height:1.7;color:var(--gris-700)">
+      ${c.cuerpo_cacheado
+        ? (c.cuerpo_html || (c.cuerpo_texto || '').replace(/\n/g, '<br>') || '<span style="color:var(--gris-400)">(sin contenido)</span>')
+        : '<div style="text-align:center;padding:20px;color:var(--gris-400)"><div class="spinner" style="margin:0 auto 8px"></div>Cargando contenido del correo...</div>'
+      }
     </div>
+    ${_renderAdjuntosBar(c)}
     ${c.vinculado_tipo ? `<div style="padding:8px 20px;border-top:1px solid var(--gris-200);font-size:12px;color:var(--gris-400)">
-      Vinculado a: <b>${c.vinculado_tipo}</b> ${c.vinculado_ref || ''}
+      🔗 Vinculado a: <b>${c.vinculado_tipo}</b> ${c.vinculado_ref || ''}
     </div>` : ''}`;
+
+  // Si el cuerpo no está cacheado, descargarlo bajo demanda
+  if (!c.cuerpo_cacheado && c.tipo === 'recibido') {
+    try {
+      const { data, error } = await sb.functions.invoke('leer-correo', {
+        body: {
+          empresa_id: EMPRESA.id,
+          correo_id: c.id
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        c.cuerpo_html = data.cuerpo_html || '';
+        c.cuerpo_texto = data.cuerpo_texto || '';
+        c.cuerpo_cacheado = true;
+
+        const bodyEl = document.getElementById('mailBody');
+        if (bodyEl && correoActual?.id === c.id) {
+          bodyEl.innerHTML = c.cuerpo_html || (c.cuerpo_texto || '').replace(/\n/g, '<br>') || '<span style="color:var(--gris-400)">(sin contenido)</span>';
+        }
+      }
+    } catch(e) {
+      const bodyEl = document.getElementById('mailBody');
+      if (bodyEl && correoActual?.id === c.id) {
+        bodyEl.innerHTML = `<div style="color:var(--rojo);text-align:center;padding:20px">
+          ⚠️ No se pudo cargar el contenido del correo<br>
+          <span style="font-size:12px;color:var(--gris-400)">${e.message || 'Error de conexión IMAP'}</span><br>
+          <button class="btn btn-secondary btn-sm" onclick="abrirCorreo(${c.id})" style="margin-top:8px">🔄 Reintentar</button>
+        </div>`;
+      }
+    }
+  }
+}
+
+// ─── Barra de adjuntos ───
+function _renderAdjuntosBar(c) {
+  const adjuntos = c.adjuntos_meta || [];
+  if (!adjuntos.length) return '';
+
+  const items = adjuntos.map(a => {
+    const tamano = a.tamano > 1048576
+      ? (a.tamano / 1048576).toFixed(1) + ' MB'
+      : a.tamano > 1024
+        ? Math.round(a.tamano / 1024) + ' KB'
+        : (a.tamano || '?') + ' B';
+    const icono = _iconoAdjunto(a.tipo || a.nombre);
+    const descargado = a.descargado;
+
+    return `<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;cursor:pointer;background:${descargado ? '#f0fdf4' : '#fff'}" onclick="descargarAdjunto(${c.id},'${(a.nombre||'').replace(/'/g,"\\'")}')">
+      <span>${icono}</span>
+      <span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.nombre || 'adjunto'}</span>
+      <span style="color:var(--gris-400);font-size:10px">${tamano}</span>
+      ${descargado ? '<span style="color:#166534">✓</span>' : '<span style="color:var(--azul)">⬇️</span>'}
+    </div>`;
+  }).join(' ');
+
+  return `<div style="padding:10px 20px;border-top:1px solid var(--gris-200);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    <span style="font-size:11px;color:var(--gris-500);font-weight:600">📎 ${adjuntos.length} adjunto${adjuntos.length > 1 ? 's' : ''}:</span>
+    ${items}
+  </div>`;
+}
+
+function _iconoAdjunto(tipoONombre) {
+  const t = (tipoONombre || '').toLowerCase();
+  if (t.includes('pdf')) return '📄';
+  if (t.includes('image') || t.includes('.jpg') || t.includes('.png') || t.includes('.gif')) return '🖼️';
+  if (t.includes('word') || t.includes('.doc')) return '📝';
+  if (t.includes('excel') || t.includes('sheet') || t.includes('.xls')) return '📊';
+  if (t.includes('zip') || t.includes('rar') || t.includes('7z')) return '📦';
+  return '📎';
+}
+
+// ═══════════════════════════════════════════════
+//  DESCARGAR ADJUNTO
+// ═══════════════════════════════════════════════
+async function descargarAdjunto(correoId, nombre) {
+  toast('⬇️ Descargando adjunto...', 'info');
+
+  try {
+    const { data, error } = await sb.functions.invoke('leer-correo', {
+      body: {
+        empresa_id: EMPRESA.id,
+        correo_id: correoId,
+        descargar_adjunto: nombre
+      }
+    });
+
+    if (error) throw error;
+
+    if (data?.success && data?.adjunto?.url) {
+      // Abrir URL firmada
+      window.open(data.adjunto.url, '_blank');
+      toast('✅ Adjunto descargado: ' + nombre, 'success');
+
+      // Actualizar metadata local
+      const c = correos.find(x => x.id === correoId);
+      if (c && c.adjuntos_meta) {
+        c.adjuntos_meta = c.adjuntos_meta.map(a =>
+          a.nombre === nombre ? { ...a, descargado: true } : a
+        );
+        // Re-renderizar si sigue siendo el correo activo
+        if (correoActual?.id === correoId) {
+          abrirCorreo(correoId);
+        }
+      }
+    } else {
+      throw new Error(data?.error || 'No se pudo descargar');
+    }
+  } catch(e) {
+    toast('❌ Error descargando adjunto: ' + (e.message || ''), 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  VINCULAR CORREO A ENTIDAD
+// ═══════════════════════════════════════════════
+function vincularCorreo(id) {
+  const c = correos.find(x => x.id === id);
+  if (!c) return;
+
+  // Construir selector de entidades
+  const obrasOpts = (typeof trabajos !== 'undefined' ? trabajos : [])
+    .map(t => `<option value="obra|${t.id}|${t.numero || ''}">${t.numero || ''} — ${t.titulo || t.nombre || ''}</option>`)
+    .join('');
+  const clienteOpts = (typeof clientes !== 'undefined' ? clientes : [])
+    .map(cl => `<option value="cliente|${cl.id}|${cl.nombre || ''}">${cl.nombre || ''}</option>`)
+    .join('');
+  const provOpts = (typeof proveedores !== 'undefined' ? proveedores : [])
+    .map(p => `<option value="proveedor|${p.id}|${p.nombre || ''}">${p.nombre || ''}</option>`)
+    .join('');
+
+  const view = document.getElementById('mailView');
+  const bodyEl = document.getElementById('mailBody');
+  if (!bodyEl && !view) return;
+
+  const target = bodyEl || view;
+  const originalHtml = target.innerHTML;
+
+  target.innerHTML = `
+    <div style="padding:20px;text-align:center">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🔗 Vincular correo a...</h3>
+      <select id="vincCorreoSel" style="width:100%;max-width:400px;padding:8px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;margin-bottom:16px">
+        <option value="">— Selecciona —</option>
+        <optgroup label="Obras">${obrasOpts}</optgroup>
+        <optgroup label="Clientes">${clienteOpts}</optgroup>
+        <optgroup label="Proveedores">${provOpts}</optgroup>
+      </select>
+      <div style="display:flex;justify-content:center;gap:8px">
+        <button class="btn btn-ghost" onclick="abrirCorreo(${id})">Cancelar</button>
+        <button class="btn btn-primary" onclick="_guardarVinculacion(${id})">✅ Vincular</button>
+        ${c.vinculado_tipo ? `<button class="btn btn-secondary" onclick="_desvincularCorreo(${id})">❌ Desvincular</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function _guardarVinculacion(correoId) {
+  const sel = document.getElementById('vincCorreoSel');
+  if (!sel || !sel.value) { toast('Selecciona una entidad', 'error'); return; }
+
+  const [tipo, id, ref] = sel.value.split('|');
+  const { error } = await sb.from('correos')
+    .update({ vinculado_tipo: tipo, vinculado_id: id, vinculado_ref: ref })
+    .eq('id', correoId);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Actualizar local
+  const c = correos.find(x => x.id === correoId);
+  if (c) {
+    c.vinculado_tipo = tipo;
+    c.vinculado_id = id;
+    c.vinculado_ref = ref;
+  }
+
+  toast('🔗 Correo vinculado a ' + tipo + ' ' + ref, 'success');
+  abrirCorreo(correoId);
+}
+
+async function _desvincularCorreo(correoId) {
+  const { error } = await sb.from('correos')
+    .update({ vinculado_tipo: null, vinculado_id: null, vinculado_ref: null })
+    .eq('id', correoId);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const c = correos.find(x => x.id === correoId);
+  if (c) {
+    c.vinculado_tipo = null;
+    c.vinculado_id = null;
+    c.vinculado_ref = null;
+  }
+
+  toast('Vinculación eliminada', 'info');
+  abrirCorreo(correoId);
 }
 
 // ═══════════════════════════════════════════════
 //  NUEVO CORREO / RESPONDER / REENVIAR
 // ═══════════════════════════════════════════════
-function nuevoCorreo(para, asunto, cuerpo) {
+function nuevoCorreo(para, asunto, cuerpo, vinculacion) {
   const view = document.getElementById('mailView');
   if (!view) return;
 
-  // Poblar selector de clientes para autocompletar
+  // Poblar selector de contactos
   const clienteOpts = (typeof clientes !== 'undefined' ? clientes : [])
     .filter(c => c.email)
     .map(c => `<option value="${c.email}">${c.nombre} — ${c.email}</option>`)
@@ -181,13 +479,22 @@ function nuevoCorreo(para, asunto, cuerpo) {
     .map(p => `<option value="${p.email_pedidos || p.email}">${p.nombre} — ${p.email_pedidos || p.email}</option>`)
     .join('');
 
+  const cuentaInfo = _correoCuentaActiva
+    ? `<div style="font-size:11px;color:var(--gris-400);margin-bottom:12px">Enviando desde: <b>${_correoCuentaActiva.nombre_mostrado || _correoCuentaActiva.email}</b> (${_correoCuentaActiva.email})</div>`
+    : '<div style="font-size:11px;color:var(--rojo);margin-bottom:12px">⚠️ No hay cuenta SMTP configurada — el correo se abrirá en tu cliente de correo</div>';
+
   view.innerHTML = `
     <div style="padding:16px 20px;border-bottom:1px solid var(--gris-200)">
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">✉️ Nuevo correo</h3>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">✉️ Nuevo correo</h3>
+      ${cuentaInfo}
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <label style="width:50px;font-size:12px;font-weight:600;color:var(--gris-500)">Para:</label>
         <input id="mail_para" value="${para || ''}" list="mailContactos" placeholder="email@ejemplo.com" style="flex:1;padding:6px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none">
         <datalist id="mailContactos">${clienteOpts}${provOpts}</datalist>
+      </div>
+      <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <label style="width:50px;font-size:12px;font-weight:600;color:var(--gris-500)">CC:</label>
+        <input id="mail_cc" placeholder="(opcional)" style="flex:1;padding:6px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none">
       </div>
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <label style="width:50px;font-size:12px;font-weight:600;color:var(--gris-500)">Asunto:</label>
@@ -199,13 +506,18 @@ function nuevoCorreo(para, asunto, cuerpo) {
     </div>
     <div style="padding:12px 20px;border-top:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center">
       <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="guardarBorradorCorreo()">💾 Guardar borrador</button>
+        <button class="btn btn-ghost btn-sm" onclick="guardarBorradorCorreo()">💾 Borrador</button>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="cancelarCorreo()">Cancelar</button>
-        <button class="btn btn-primary" onclick="enviarCorreo()">📤 Enviar</button>
+        <button class="btn btn-primary" onclick="enviarCorreo()" id="btnEnviarCorreo">📤 Enviar</button>
       </div>
     </div>`;
+
+  // Guardar vinculación pendiente si viene de enviar documento
+  if (vinculacion) {
+    view.dataset.vinculacion = JSON.stringify(vinculacion);
+  }
 }
 
 function responderCorreo(id) {
@@ -235,42 +547,92 @@ function cancelarCorreo() {
 }
 
 // ═══════════════════════════════════════════════
-//  ENVIAR CORREO (vía mailto: o SMTP si configurado)
+//  ENVIAR CORREO (vía Edge Function SMTP)
 // ═══════════════════════════════════════════════
 async function enviarCorreo() {
   const para = document.getElementById('mail_para')?.value?.trim();
+  const cc = document.getElementById('mail_cc')?.value?.trim();
   const asunto = document.getElementById('mail_asunto')?.value?.trim();
   const cuerpo = document.getElementById('mail_cuerpo')?.value?.trim();
 
   if (!para) { toast('Introduce un destinatario', 'error'); return; }
   if (!asunto) { toast('Introduce un asunto', 'error'); return; }
 
-  // Guardar en base de datos
+  const btn = document.getElementById('btnEnviarCorreo');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Enviando...'; }
+
+  // Obtener vinculación pendiente si existe
+  const view = document.getElementById('mailView');
+  let vinculacion = null;
+  try { vinculacion = view?.dataset?.vinculacion ? JSON.parse(view.dataset.vinculacion) : null; } catch(e) {}
+
+  // Intentar enviar por SMTP vía Edge Function
+  if (_correoCuentaActiva) {
+    try {
+      const { data, error } = await sb.functions.invoke('enviar-correo', {
+        body: {
+          empresa_id: EMPRESA.id,
+          cuenta_correo_id: _correoCuentaActiva.id,
+          para,
+          cc: cc || undefined,
+          asunto,
+          cuerpo_texto: cuerpo,
+          cuerpo_html: '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">' + (cuerpo || '').replace(/\n/g, '<br>') + '</div>',
+          vinculado_tipo: vinculacion?.tipo || undefined,
+          vinculado_id: vinculacion?.id || undefined,
+          vinculado_ref: vinculacion?.ref || undefined
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast('📤 Correo enviado correctamente', 'success');
+        cancelarCorreo();
+        await loadCorreos();
+        return;
+      } else {
+        throw new Error(data?.error || 'Error desconocido');
+      }
+    } catch(e) {
+      console.error('Error SMTP:', e);
+      toast('⚠️ Error SMTP: ' + (e.message || '') + '. Abriendo cliente de correo...', 'warning');
+    }
+  }
+
+  // Fallback: guardar en BD + abrir mailto
   try {
     await sb.from('correos').insert({
       empresa_id: EMPRESA.id,
       tipo: 'enviado',
-      de: EMPRESA.email || CP.nombre,
+      carpeta: 'sent',
+      de: _correoCuentaActiva?.email || EMPRESA.email || CP.nombre,
       para,
+      cc: cc || null,
       asunto,
       cuerpo_texto: cuerpo,
+      cuerpo_cacheado: true,
       fecha: new Date().toISOString(),
       leido: true,
-      usuario_id: CU.id
+      usuario_id: CU.id,
+      vinculado_tipo: vinculacion?.tipo || null,
+      vinculado_id: vinculacion?.id || null,
+      vinculado_ref: vinculacion?.ref || null
     });
-  } catch(e) {
-    // Si la tabla no existe, continuar con mailto
-  }
+  } catch(e) { /* tabla puede no existir aún */ }
 
-  // Abrir cliente de correo nativo
   const mailtoUrl = `mailto:${para}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
   window.open(mailtoUrl);
 
   toast('📤 Correo preparado — se abrirá tu cliente de correo', 'info');
   cancelarCorreo();
+  if (btn) { btn.disabled = false; btn.innerHTML = '📤 Enviar'; }
   await loadCorreos();
 }
 
+// ═══════════════════════════════════════════════
+//  BORRADORES
+// ═══════════════════════════════════════════════
 async function guardarBorradorCorreo() {
   const para = document.getElementById('mail_para')?.value?.trim() || '';
   const asunto = document.getElementById('mail_asunto')?.value?.trim() || '';
@@ -280,10 +642,12 @@ async function guardarBorradorCorreo() {
     await sb.from('correos').insert({
       empresa_id: EMPRESA.id,
       tipo: 'borrador',
-      de: EMPRESA.email || CP.nombre,
+      carpeta: 'drafts',
+      de: _correoCuentaActiva?.email || EMPRESA.email || CP.nombre,
       para,
       asunto,
       cuerpo_texto: cuerpo,
+      cuerpo_cacheado: true,
       fecha: new Date().toISOString(),
       leido: true,
       usuario_id: CU.id
@@ -296,6 +660,9 @@ async function guardarBorradorCorreo() {
   }
 }
 
+// ═══════════════════════════════════════════════
+//  ELIMINAR CORREO
+// ═══════════════════════════════════════════════
 async function eliminarCorreo(id) {
   if (!confirm('¿Eliminar este correo?')) return;
   try {
@@ -307,5 +674,59 @@ async function eliminarCorreo(id) {
     toast('Correo eliminado', 'info');
   } catch(e) {
     toast('Error al eliminar', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  ENVIAR DOCUMENTO POR EMAIL (facturas, presupuestos, etc.)
+//  Llamar desde otros módulos:
+//  enviarDocumentoPorEmail({ para, asunto, cuerpo, adjunto: {nombre, base64, tipo_mime}, vinculacion: {tipo, id, ref} })
+// ═══════════════════════════════════════════════
+async function enviarDocumentoPorEmail(opts) {
+  if (!opts || !opts.para) {
+    // Si no hay destinatario, abrir composer con los datos pre-rellenados
+    nuevoCorreo(opts?.para || '', opts?.asunto || '', opts?.cuerpo || '', opts?.vinculacion || null);
+    // Ir a la página de correo
+    goPage('correo');
+    return;
+  }
+
+  if (!_correoCuentaActiva) {
+    toast('⚠️ No hay cuenta SMTP configurada. Configúrala en Configuración → Correo', 'error');
+    return;
+  }
+
+  toast('📤 Enviando ' + (opts.asunto || 'documento') + '...', 'info');
+
+  try {
+    const body = {
+      empresa_id: EMPRESA.id,
+      cuenta_correo_id: _correoCuentaActiva.id,
+      para: opts.para,
+      cc: opts.cc || undefined,
+      asunto: opts.asunto || 'Documento adjunto',
+      cuerpo_texto: opts.cuerpo || '',
+      cuerpo_html: opts.cuerpo_html || ('<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">' + (opts.cuerpo || '').replace(/\n/g, '<br>') + '</div>'),
+      vinculado_tipo: opts.vinculacion?.tipo || undefined,
+      vinculado_id: opts.vinculacion?.id || undefined,
+      vinculado_ref: opts.vinculacion?.ref || undefined
+    };
+
+    // Adjuntar documento
+    if (opts.adjunto) {
+      body.adjuntos = [opts.adjunto];
+    }
+
+    const { data, error } = await sb.functions.invoke('enviar-correo', { body });
+    if (error) throw error;
+
+    if (data?.success) {
+      toast('📤 Documento enviado por email a ' + opts.para, 'success');
+    } else {
+      throw new Error(data?.error || 'Error desconocido');
+    }
+  } catch(e) {
+    toast('❌ Error enviando email: ' + (e.message || ''), 'error');
+    console.error('enviarDocumentoPorEmail error:', e);
   }
 }

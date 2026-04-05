@@ -966,11 +966,11 @@ function enviarPresupuestoEmail(id) {
   if (!p) { toast('Presupuesto no encontrado','error'); return; }
   const c = clientes.find(x=>x.id===p.cliente_id);
   const email = c?.email || '';
-  const asunto = encodeURIComponent(`Presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`);
+  const asuntoTxt = `Presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`;
   const totalFmt = (p.total||0).toFixed(2).replace('.',',') + ' €';
   const fechaFmt = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
   const validezFmt = p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—';
-  const cuerpo = encodeURIComponent(
+  const cuerpoTxt =
 `Estimado/a ${p.cliente_nombre||'cliente'},
 
 Le adjuntamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
@@ -984,10 +984,15 @@ Un saludo cordial,
 ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
-${EMPRESA?.web||''}`
-  );
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`, '_self');
-  toast('📧 Abriendo cliente de correo...','info');
+${EMPRESA?.web||''}`;
+
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`, '_self');
+    toast('📧 Abriendo cliente de correo...','info');
+  }
 }
 
 // ═══════════════════════════════════════════════

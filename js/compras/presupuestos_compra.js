@@ -531,8 +531,13 @@ function enviarPresupuestoCompraEmail(id) {
   if (!p) return;
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
   const email = prov?.email||'';
-  const asunto = encodeURIComponent(`Solicitud presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`);
-  const cuerpo = encodeURIComponent(`Estimados,\n\nLes solicitamos presupuesto para los siguientes artículos/servicios:\n\nReferencia: ${p.numero||''}\nFecha: ${p.fecha||''}\n\nQuedamos a la espera de su oferta.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`);
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
-  toast('📧 Abriendo cliente de correo...','info');
+  const asuntoTxt = `Solicitud presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`;
+  const cuerpoTxt = `Estimados,\n\nLes solicitamos presupuesto para los siguientes artículos/servicios:\n\nReferencia: ${p.numero||''}\nFecha: ${p.fecha||''}\n\nQuedamos a la espera de su oferta.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto_compra', id: p.id, ref: p.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('📧 Abriendo cliente de correo...','info');
+  }
 }

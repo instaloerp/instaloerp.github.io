@@ -1310,9 +1310,10 @@
         <div style="display:flex;height:calc(100vh - 120px);gap:0;border:1px solid var(--gris-200);border-radius:10px;overflow:hidden;background:#fff">
           <!-- Panel izquierdo: carpetas + lista -->
           <div style="width:320px;border-right:1px solid var(--gris-200);display:flex;flex-direction:column;flex-shrink:0">
-            <!-- Botón nuevo correo -->
-            <div style="padding:12px">
-              <button class="btn btn-primary" onclick="nuevoCorreo()" style="width:100%">✉️ Nuevo correo</button>
+            <!-- Botón nuevo correo + sync -->
+            <div style="padding:12px;display:flex;gap:6px">
+              <button class="btn btn-primary" onclick="nuevoCorreo()" style="flex:1">✉️ Nuevo correo</button>
+              <button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" id="mailSyncBtn" title="Sincronizar bandeja de entrada" style="padding:6px 10px">🔄</button>
             </div>
             <!-- Carpetas -->
             <div style="padding:0 12px 8px;display:flex;flex-direction:column;gap:2px">

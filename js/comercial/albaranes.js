@@ -505,10 +505,10 @@ function enviarAlbaranEmail(id) {
   if (!a) { toast('Albarán no encontrado','error'); return; }
   const c = clientes.find(x=>x.id===a.cliente_id);
   const email = c?.email || '';
-  const asunto = encodeURIComponent(`Albarán ${a.numero||''} — ${EMPRESA?.nombre||''}`);
+  const asuntoTxt = `Albarán ${a.numero||''} — ${EMPRESA?.nombre||''}`;
   const totalFmt = (a.total||0).toFixed(2).replace('.',',') + ' €';
   const fechaFmt = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—';
-  const cuerpo = encodeURIComponent(
+  const cuerpoTxt =
 `Estimado/a ${a.cliente_nombre||'cliente'},
 
 Le adjuntamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
@@ -521,9 +521,15 @@ Quedamos a su disposición para cualquier consulta.
 Un saludo,
 ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
-${EMPRESA?.email || ''}`);
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
-  toast('📧 Abriendo cliente de correo...','info');
+${EMPRESA?.email || ''}`;
+
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('📧 Abriendo cliente de correo...','info');
+  }
 }
 
 // ═══════════════════════════════════════════════

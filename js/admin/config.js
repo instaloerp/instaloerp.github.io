@@ -932,8 +932,22 @@ const _emailProviders = {
   'orange.es':          { smtp:'smtp.orange.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.orange.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Orange' },
   'jazztel.es':         { smtp:'smtp.orange.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.orange.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Jazztel/Orange' },
   'ya.com':             { smtp:'smtp.ya.com', smtp_port:587, smtp_sec:'tls', imap:'imap.ya.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Ya.com' },
-  // Hosting genérico (cPanel, Plesk, etc.)
-  // Se usa la heurística de mail.dominio.com
+  // Arsys / serviciodecorreo.es (hosting español)
+  'jordiinstalacions.es': { smtp:'smtp.serviciodecorreo.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.serviciodecorreo.es', imap_port:993, imap_sec:'ssl', nota:'Hosting Arsys (serviciodecorreo.es). Usa tu email completo como usuario.', nombre:'Arsys' },
+};
+
+// ─── Patrones de hosting conocidos (para dominios que usan estos servidores) ───
+// Si el dominio no está en _emailProviders, se intenta buscar por MX o patrón
+const _hostingProviders = {
+  'serviciodecorreo.es': { smtp:'smtp.serviciodecorreo.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.serviciodecorreo.es', imap_port:993, imap_sec:'ssl', nota:'Hosting Arsys (serviciodecorreo.es). Usa tu email completo como usuario.', nombre:'Arsys' },
+  'arrakis.es':          { smtp:'smtp.arrakis.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.arrakis.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Arrakis/Arsys' },
+  'ionos.es':            { smtp:'smtp.ionos.es', smtp_port:587, smtp_sec:'tls', imap:'imap.ionos.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'IONOS' },
+  'ionos.com':           { smtp:'smtp.ionos.com', smtp_port:587, smtp_sec:'tls', imap:'imap.ionos.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'IONOS' },
+  'dinahosting.com':     { smtp:'smtp.dinahosting.com', smtp_port:587, smtp_sec:'tls', imap:'imap.dinahosting.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Dinahosting' },
+  'ovh.net':             { smtp:'ssl0.ovh.net', smtp_port:465, smtp_sec:'ssl', imap:'ssl0.ovh.net', imap_port:993, imap_sec:'ssl', nota:'', nombre:'OVH' },
+  'strato.de':           { smtp:'smtp.strato.de', smtp_port:465, smtp_sec:'ssl', imap:'imap.strato.de', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Strato' },
+  'cdmon.com':           { smtp:'smtp.cdmon.com', smtp_port:587, smtp_sec:'tls', imap:'imap.cdmon.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'cdmon' },
+  'hostalia.com':        { smtp:'smtp.hostalia.com', smtp_port:587, smtp_sec:'tls', imap:'imap.hostalia.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Hostalia' },
 };
 
 let _autoconfLastDomain = '';

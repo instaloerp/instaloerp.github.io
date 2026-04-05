@@ -635,11 +635,11 @@ function enviarFacturaEmail(f) {
 function _enviarFacturaEmail(f) {
   const c = clientes.find(x=>x.id===f.cliente_id);
   const email = c?.email || '';
-  const asunto = encodeURIComponent(`Factura ${f.numero||''} — ${EMPRESA?.nombre||''}`);
+  const asuntoTxt = `Factura ${f.numero||''} — ${EMPRESA?.nombre||''}`;
   const totalFmt = (f.total||0).toFixed(2).replace('.',',')+' €';
   const fechaFmt = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
   const vencFmt = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
-  const cuerpo = encodeURIComponent(
+  const cuerpoTxt =
 `Estimado/a ${f.cliente_nombre||'cliente'},
 
 Le adjuntamos la factura ${f.numero||''} con fecha ${fechaFmt}.
@@ -652,9 +652,18 @@ Para cualquier consulta, no dude en contactarnos.
 Un saludo cordial,
 ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
-${EMPRESA?.email||''}`);
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
-  toast('📧 Abriendo cliente de correo...','info');
+${EMPRESA?.email||''}`;
+
+  // Si hay cuenta SMTP y función de envío, usar Edge Function con PDF adjunto
+  if (typeof enviarDocumentoPorEmail === 'function' && _correoCuentaActiva) {
+    // Pre-rellenar composer de correo con datos
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura', id: f.id, ref: f.numero || '' });
+    goPage('correo');
+  } else {
+    // Fallback: mailto
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('📧 Abriendo cliente de correo...','info');
+  }
 }
 
 // ═══════════════════════════════════════════════

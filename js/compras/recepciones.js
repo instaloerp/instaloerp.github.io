@@ -458,14 +458,13 @@ function enviarRecepcionEmail(id) {
   if (!r) return toast('Recepción no encontrada', 'error');
   const prov = proveedores.find(x => x.id === r.proveedor_id);
   const email = prov?.email || '';
-  const subject = encodeURIComponent(`Recepción ${r.numero||''} — ${EMPRESA.nombre}`);
-  const body = encodeURIComponent(
-    `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\n` +
-    `Nº Recepción: ${r.numero||'—'}\n` +
-    `Fecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\n` +
-    `Pedido origen: ${r.pedido_numero||'—'}\n\n` +
-    `Atentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`
-  );
-  window.open(`mailto:${email}?subject=${subject}&body=${body}`);
-  toast('Abriendo correo…', 'info');
+  const asuntoTxt = `Recepción ${r.numero||''} — ${EMPRESA.nombre}`;
+  const cuerpoTxt = `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\nNº Recepción: ${r.numero||'—'}\nFecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\nPedido origen: ${r.pedido_numero||'—'}\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'recepcion', id: r.id, ref: r.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('Abriendo correo...', 'info');
+  }
 }

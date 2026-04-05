@@ -444,8 +444,13 @@ function enviarPedidoCompraEmail(id) {
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
   const email = prov?.email||'';
   const totalFmt = (p.total||0).toFixed(2).replace('.',',')+' €';
-  const asunto = encodeURIComponent(`Pedido ${p.numero||''} — ${EMPRESA?.nombre||''}`);
-  const cuerpo = encodeURIComponent(`Estimados,\n\nLes confirmamos el pedido ${p.numero||''} por importe de ${totalFmt}.\n\nFecha: ${p.fecha||''}\n${p.observaciones?'Obs: '+p.observaciones+'\n':''}\nRogamos confirmación de plazo de entrega.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`);
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`);
-  toast('📧 Abriendo cliente de correo...','info');
+  const asuntoTxt = `Pedido ${p.numero||''} — ${EMPRESA?.nombre||''}`;
+  const cuerpoTxt = `Estimados,\n\nLes confirmamos el pedido ${p.numero||''} por importe de ${totalFmt}.\n\nFecha: ${p.fecha||''}\n${p.observaciones?'Obs: '+p.observaciones+'\n':''}\nRogamos confirmación de plazo de entrega.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'pedido_compra', id: p.id, ref: p.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('📧 Abriendo cliente de correo...','info');
+  }
 }

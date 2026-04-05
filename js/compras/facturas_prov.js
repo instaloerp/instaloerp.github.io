@@ -420,14 +420,13 @@ function enviarFacturaProvEmail(id) {
   const prov = proveedores.find(x => x.id === f.proveedor_id);
   const email = prov?.email || '';
   const total = parseFloat(f.total||0).toFixed(2);
-  const subject = encodeURIComponent(`Factura proveedor ${f.numero_factura||f.numero||''} — ${EMPRESA.nombre}`);
-  const body = encodeURIComponent(
-    `Estimado proveedor,\n\nEn relación a la factura:\n\n` +
-    `Nº Factura: ${f.numero_factura||f.numero||'—'}\n` +
-    `Fecha: ${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}\n` +
-    `Total: ${total} €\n\n` +
-    `Atentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`
-  );
-  window.open(`mailto:${email}?subject=${subject}&body=${body}`);
-  toast('Abriendo correo…', 'info');
+  const asuntoTxt = `Factura proveedor ${f.numero_factura||f.numero||''} — ${EMPRESA.nombre}`;
+  const cuerpoTxt = `Estimado proveedor,\n\nEn relación a la factura:\n\nNº Factura: ${f.numero_factura||f.numero||'—'}\nFecha: ${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}\nTotal: ${total} €\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
+  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura_proveedor', id: f.id, ref: f.numero_factura || f.numero || '' });
+    goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
+    toast('Abriendo correo...', 'info');
+  }
 }
