@@ -146,6 +146,7 @@ function renderPresupuestos(list) {
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
             if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
+            if (p.pdf_firmado_url) btns += ' <a href="'+p.pdf_firmado_url+'" target="_blank" onclick="event.stopPropagation()" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;text-decoration:none;cursor:pointer" title="Descargar PDF firmado">📄 PDF</a>';
             return btns;
           })()}
         </div>
@@ -897,6 +898,7 @@ function imprimirPresupuesto(id) {
   </style></head><body>
   <div class="no-print btn-bar">
     <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    ${p.pdf_firmado_url ? '<button class="btn-print" onclick="window.open(\''+p.pdf_firmado_url+'\',\'_blank\')" style="background:#22c55e">📄 Ver PDF firmado</button>' : ''}
     <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
   </div>
   <div class="page">

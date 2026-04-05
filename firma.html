@@ -130,6 +130,7 @@ function renderPresupuesto(pres, emp, cli) {
       <div style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px">
         <input type="text" id="firmaNombre" placeholder="Nombre completo del firmante" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
         <input type="text" id="firmaDni" placeholder="DNI / NIF del firmante" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
+        <input type="email" id="firmaEmail" placeholder="Correo electrónico (para recibir copia firmada)" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
       </div>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
         <button class="btn btn-gray" onclick="limpiarFirma()">Limpiar</button>
@@ -263,73 +264,125 @@ async function enviarFirma() {
   const dni = document.getElementById('firmaDni').value.trim();
   if (!dni) { alert('Por favor, introduce tu DNI o NIF'); return; }
   if (!validarDniNif(dni)) { alert('El DNI/NIF/NIE introducido no es válido.\n\nFormatos aceptados:\n• DNI: 12345678A\n• NIE: X1234567A\n• CIF: B12345678'); return; }
+  const emailCliente = document.getElementById('firmaEmail').value.trim();
+  if (emailCliente && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCliente)) { alert('El correo electrónico no tiene un formato válido'); return; }
 
   // Deshabilitar botón mientras procesa
   const btn = event.target;
   btn.disabled = true;
-  btn.textContent = 'Procesando...';
+  btn.textContent = 'Procesando firma...';
 
-  // Generar PNG con fondo transparente (el canvas ya es transparente por defecto)
-  const [dispositivo, blob] = await Promise.all([
-    recogerDatosDispositivo(),
-    new Promise(r => document.getElementById('firmaCanvas').toBlob(r, 'image/png'))
-  ]);
+  try {
+    // Generar PNG con fondo transparente
+    const [dispositivo, blob] = await Promise.all([
+      recogerDatosDispositivo(),
+      new Promise(r => document.getElementById('firmaCanvas').toBlob(r, 'image/png'))
+    ]);
 
-  const path = `firmas/pres_${presData.id}_cliente_${Date.now()}.png`;
+    // Convertir firma PNG a base64
+    const firmaBase64 = await new Promise(r => {
+      const reader = new FileReader();
+      reader.onloadend = () => r(reader.result.split(',')[1]);
+      reader.readAsDataURL(blob);
+    });
 
-  // Subir firma
-  let firmaUrl = null;
-  const { error: upErr } = await sb.storage.from('documentos').upload(path, blob);
-  if (!upErr) {
-    const { data } = sb.storage.from('documentos').getPublicUrl(path);
-    firmaUrl = data?.publicUrl || null;
-  }
+    const path = `firmas/pres_${presData.id}_cliente_${Date.now()}.png`;
 
-  // Añadir DNI a los datos del dispositivo
-  dispositivo.dni = dni;
-
-  // Actualizar presupuesto con todos los datos
-  const updateData = {
-    estado: 'aceptado',
-    firma_fecha: new Date().toISOString(),
-    firma_nombre: nombre,
-    firma_ip: dispositivo.ip || '—',
-    firma_dispositivo: dispositivo,
-  };
-  if (firmaUrl) updateData.firma_url = firmaUrl;
-
-  const { error } = await sb.from('presupuestos').update(updateData).eq('id', presData.id).eq('firma_token', token);
-  if (error) {
-    // Fallback: intentar sin columnas nuevas
-    const { error: e2 } = await sb.from('presupuestos').update({ estado: 'aceptado', firma_fecha: new Date().toISOString(), firma_nombre: nombre }).eq('id', presData.id).eq('firma_token', token);
-    if (e2) {
-      await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presData.id).eq('firma_token', token);
+    // Subir imagen de firma
+    let firmaUrl = null;
+    const { error: upErr } = await sb.storage.from('documentos').upload(path, blob);
+    if (!upErr) {
+      const { data } = sb.storage.from('documentos').getPublicUrl(path);
+      firmaUrl = data?.publicUrl || null;
     }
-  }
 
-  // ── Post-firma: crear tarea + registro en obra ──
-  await postFirmaAcciones(nombre, dni, dispositivo);
+    // Añadir datos extra al dispositivo
+    dispositivo.dni = dni;
+    dispositivo.email = emailCliente || null;
 
-  const fechaStr = new Date().toLocaleString('es-ES');
-  document.getElementById('app').innerHTML = `
-    <div class="success">
-      <div style="font-size:48px;margin-bottom:12px">✅</div>
-      <h2>Presupuesto firmado correctamente</h2>
-      <p style="color:#64748b;margin-top:8px">Firmado por <b>${nombre}</b></p>
-      <div class="card" style="text-align:left;margin-top:20px;max-width:400px;display:inline-block">
-        <div style="font-weight:700;font-size:13px;margin-bottom:8px">Datos de la firma</div>
-        <div style="font-size:12px;color:#64748b;line-height:1.8">
-          <div><b>Fecha:</b> ${fechaStr}</div>
-          <div><b>DNI/NIF:</b> ${dni}</div>
-          <div><b>Dispositivo:</b> ${dispositivo.tipo} — ${dispositivo.browser}</div>
-          <div><b>Pantalla:</b> ${dispositivo.pantalla}</div>
-          <div><b>IP:</b> ${dispositivo.ip}</div>
-          <div><b>Ubicación:</b> ${dispositivo.ubicacion||'No disponible'}</div>
-          <div><b>Zona horaria:</b> ${dispositivo.zona_horaria}</div>
+    // Actualizar presupuesto con todos los datos
+    const updateData = {
+      estado: 'aceptado',
+      firma_fecha: new Date().toISOString(),
+      firma_nombre: nombre,
+      firma_ip: dispositivo.ip || '—',
+      firma_dispositivo: dispositivo,
+      firma_email: emailCliente || null,
+    };
+    if (firmaUrl) updateData.firma_url = firmaUrl;
+
+    const { error } = await sb.from('presupuestos').update(updateData).eq('id', presData.id).eq('firma_token', token);
+    if (error) {
+      const { error: e2 } = await sb.from('presupuestos').update({ estado: 'aceptado', firma_fecha: new Date().toISOString(), firma_nombre: nombre }).eq('id', presData.id).eq('firma_token', token);
+      if (e2) {
+        await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presData.id).eq('firma_token', token);
+      }
+    }
+
+    // ── Generar PDF firmado digitalmente ──
+    btn.textContent = 'Generando documento firmado...';
+    let pdfFirmadoUrl = null;
+    try {
+      const resp = await fetch(`${SUPA_URL}/functions/v1/firmar-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPA_KEY}`,
+        },
+        body: JSON.stringify({
+          presupuesto_id: presData.id,
+          empresa_id: presData.empresa_id,
+          firma_imagen_base64: firmaBase64,
+          firma_nombre: nombre,
+          firma_dni: dni,
+          firma_email: emailCliente || null,
+          firma_fecha: new Date().toISOString(),
+          firma_ip: dispositivo.ip || '—',
+          firma_dispositivo: dispositivo,
+          enviar_copia_email: !!emailCliente,
+        })
+      });
+      const resultado = await resp.json();
+      if (resultado?.success) {
+        pdfFirmadoUrl = resultado.pdf_url || null;
+      } else {
+        console.warn('No se pudo generar PDF firmado:', resultado?.error);
+      }
+    } catch(e) {
+      console.warn('Error llamando a firmar-pdf:', e.message);
+    }
+
+    // ── Post-firma: crear tarea + registro en obra ──
+    await postFirmaAcciones(nombre, dni, dispositivo);
+
+    const fechaStr = new Date().toLocaleString('es-ES');
+    document.getElementById('app').innerHTML = `
+      <div class="success">
+        <div style="font-size:48px;margin-bottom:12px">✅</div>
+        <h2>Presupuesto firmado correctamente</h2>
+        <p style="color:#64748b;margin-top:8px">Firmado por <b>${nombre}</b></p>
+        ${emailCliente ? `<p style="color:#22c55e;margin-top:4px;font-size:13px">📧 Se enviará una copia firmada a <b>${emailCliente}</b></p>` : ''}
+        ${pdfFirmadoUrl ? `<div style="margin-top:12px"><a href="${pdfFirmadoUrl}" target="_blank" class="btn btn-blue" style="text-decoration:none;display:inline-block">📄 Descargar PDF firmado</a></div>` : ''}
+        <div class="card" style="text-align:left;margin-top:20px;max-width:400px;display:inline-block">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px">Datos de la firma</div>
+          <div style="font-size:12px;color:#64748b;line-height:1.8">
+            <div><b>Fecha:</b> ${fechaStr}</div>
+            <div><b>DNI/NIF:</b> ${dni}</div>
+            <div><b>Dispositivo:</b> ${dispositivo.tipo} — ${dispositivo.browser}</div>
+            <div><b>Pantalla:</b> ${dispositivo.pantalla}</div>
+            <div><b>IP:</b> ${dispositivo.ip}</div>
+            <div><b>Ubicación:</b> ${dispositivo.ubicacion||'No disponible'}</div>
+            <div><b>Zona horaria:</b> ${dispositivo.zona_horaria}</div>
+          </div>
         </div>
-      </div>
-      <p style="color:#94a3b8;margin-top:16px;font-size:13px">Puedes cerrar esta página. La empresa recibirá tu aprobación.</p>
-    </div>`;
+        <p style="color:#94a3b8;margin-top:16px;font-size:13px">Puedes cerrar esta página. La empresa recibirá tu aprobación.</p>
+      </div>`;
+  } catch(e) {
+    console.error('Error en enviarFirma:', e);
+    alert('Ha ocurrido un error al procesar la firma. Por favor, inténtalo de nuevo.');
+    btn.disabled = false;
+    btn.textContent = '✅ Firmar y aprobar';
+  }
 }
 
 // ── Post-firma: generar tarea para el emisor + registro en la obra ──
