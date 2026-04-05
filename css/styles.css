@@ -1,4 +1,7 @@
 /* Jordi Instalacións ERP - Styles */
+/* Ocultar flechas arriba/abajo de inputs numéricos */
+input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield}
 :root {
   --azul:#1B4FD8;--azul-dark:#1339A8;--azul-light:#EEF3FF;--azul-mid:#3B6EF6;
   --verde:#16A34A;--verde-light:#DCFCE7;

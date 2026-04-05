@@ -258,42 +258,167 @@ async function cargarBancosConfig() {
   const el = document.getElementById('bancosConfigList');
   if (!el) return;
   el.innerHTML = cuentasBancarias.length ?
-    cuentasBancarias.map(b => `<div class="cfg-row">
-      <div class="cr-main"><strong>${b.nombre}</strong><small>${b.iban || '—'} · ${b.entidad || ''}</small></div>
+    cuentasBancarias.map(b => {
+      const defBadge = b.predeterminada ? '<span style="display:inline-flex;align-items:center;gap:3px;background:var(--azul-light);color:var(--azul);font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:6px">⭐ Predeterminada</span>' : '';
+      return `<div class="cfg-row">
+      <div class="cr-main"><strong>${b.nombre}${defBadge}</strong><small>${b.iban || '—'} · ${b.entidad || ''}</small></div>
       <div class="cr-actions">
         <button class="btn btn-ghost btn-sm" onclick="editCuentaBancaria(${b.id})">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="delCuentaBancaria(${b.id})">🗑️</button>
       </div>
-    </div>`).join('') :
+    </div>`;
+    }).join('') :
     '<div style="padding:24px;color:var(--gris-400);font-size:13px;text-align:center">Sin cuentas bancarias — crea la primera</div>';
 }
 
 function nuevaCuentaBancaria() {
-  const nombre = prompt('Nombre de la cuenta (ej: CaixaBank Principal):');
-  if (!nombre) return;
-  const iban = prompt('IBAN (opcional):') || '';
-  const entidad = prompt('Entidad bancaria (opcional):') || '';
-  sb.from('cuentas_bancarias').insert({
-    empresa_id: EMPRESA.id, nombre, iban, entidad, activa: true
-  }).then(r => {
-    if (r.error) { toast('Error: ' + r.error.message, 'error'); return; }
-    toast('Cuenta creada ✓', 'success');
-    cargarBancosConfig();
-  });
+  document.getElementById('bco_id').value = '';
+  document.getElementById('bco_nombre').value = '';
+  document.getElementById('bco_iban').value = '';
+  document.getElementById('bco_bic').value = '';
+  document.getElementById('bco_entidad').value = '';
+  document.getElementById('bco_titular').value = '';
+  document.getElementById('bco_observaciones').value = '';
+  document.getElementById('bco_predeterminada').checked = false;
+  document.getElementById('bco_iban_status').textContent = '';
+  document.getElementById('bco_iban_msg').textContent = '';
+  document.getElementById('mBancoTit').textContent = 'Nueva Cuenta Bancaria';
+  openModal('mCuentaBancaria');
 }
 
 function editCuentaBancaria(id) {
   const b = cuentasBancarias.find(x => x.id === id);
   if (!b) return;
-  const nombre = prompt('Nombre:', b.nombre);
-  if (!nombre) return;
-  const iban = prompt('IBAN:', b.iban || '') || '';
-  const entidad = prompt('Entidad:', b.entidad || '') || '';
-  sb.from('cuentas_bancarias').update({ nombre, iban, entidad }).eq('id', id).then(r => {
-    if (r.error) { toast('Error: ' + r.error.message, 'error'); return; }
-    toast('Cuenta actualizada ✓', 'success');
-    cargarBancosConfig();
-  });
+  document.getElementById('bco_id').value = b.id;
+  document.getElementById('bco_nombre').value = b.nombre || '';
+  document.getElementById('bco_iban').value = b.iban || '';
+  document.getElementById('bco_bic').value = b.bic || '';
+  document.getElementById('bco_entidad').value = b.entidad || '';
+  document.getElementById('bco_titular').value = b.titular || '';
+  document.getElementById('bco_observaciones').value = b.observaciones || '';
+  document.getElementById('bco_predeterminada').checked = !!b.predeterminada;
+  document.getElementById('mBancoTit').textContent = 'Editar Cuenta Bancaria';
+  // Validar IBAN actual al abrir
+  validarIBANLive(document.getElementById('bco_iban'));
+  openModal('mCuentaBancaria');
+}
+
+async function guardarCuentaBancaria() {
+  const nombre = v('bco_nombre');
+  if (!nombre) { toast('Introduce el nombre de la cuenta', 'error'); return; }
+
+  const ibanRaw = v('bco_iban').replace(/\s/g, '').toUpperCase();
+  if (ibanRaw && !_validarIBAN(ibanRaw)) {
+    toast('El IBAN introducido no es válido', 'error');
+    return;
+  }
+
+  const id = document.getElementById('bco_id').value;
+  const esPredeterminada = document.getElementById('bco_predeterminada').checked;
+
+  // Si se marca como predeterminada, desmarcar las demás
+  if (esPredeterminada) {
+    await sb.from('cuentas_bancarias')
+      .update({ predeterminada: false })
+      .eq('empresa_id', EMPRESA.id)
+      .eq('predeterminada', true);
+  }
+
+  const obj = {
+    empresa_id: EMPRESA.id,
+    nombre,
+    iban: ibanRaw || null,
+    bic: v('bco_bic') || null,
+    entidad: v('bco_entidad') || null,
+    titular: v('bco_titular') || null,
+    observaciones: v('bco_observaciones') || null,
+    predeterminada: esPredeterminada,
+    activa: true
+  };
+
+  let err;
+  if (id) {
+    const r = await sb.from('cuentas_bancarias').update(obj).eq('id', id);
+    err = r.error;
+  } else {
+    const r = await sb.from('cuentas_bancarias').insert(obj);
+    err = r.error;
+  }
+
+  if (err) { toast('Error: ' + err.message, 'error'); return; }
+
+  closeModal('mCuentaBancaria');
+  toast(id ? 'Cuenta actualizada ✓' : 'Cuenta creada ✓', 'success');
+  cargarBancosConfig();
+}
+
+// ─── Validación IBAN en vivo ─────────────────
+function validarIBANLive(input) {
+  const raw = input.value.replace(/\s/g, '').toUpperCase();
+  const st = document.getElementById('bco_iban_status');
+  const msg = document.getElementById('bco_iban_msg');
+
+  if (!raw) {
+    st.textContent = '';
+    msg.textContent = '';
+    msg.style.color = '';
+    return;
+  }
+
+  // Formato parcial: mostrar progreso
+  if (raw.length < 4) {
+    st.textContent = '⏳';
+    msg.textContent = 'Introduce el IBAN completo...';
+    msg.style.color = 'var(--gris-400)';
+    return;
+  }
+
+  // Formatear mientras escribe (cada 4 dígitos)
+  const formatted = raw.replace(/(.{4})/g, '$1 ').trim();
+  input.value = formatted;
+
+  if (raw.length < 24) {
+    st.textContent = '⏳';
+    msg.textContent = `${raw.length}/24 caracteres` + (raw.substring(0,2) === 'ES' ? ' (España)' : '');
+    msg.style.color = 'var(--gris-400)';
+    return;
+  }
+
+  // Validar IBAN completo
+  if (_validarIBAN(raw)) {
+    st.textContent = '✅';
+    msg.textContent = 'IBAN válido';
+    msg.style.color = 'var(--verde)';
+  } else {
+    st.textContent = '❌';
+    msg.textContent = 'IBAN no válido — revisa los dígitos';
+    msg.style.color = 'var(--rojo)';
+  }
+}
+
+// Algoritmo MOD-97 (ISO 13616)
+function _validarIBAN(iban) {
+  const s = iban.replace(/\s/g, '').toUpperCase();
+  // Longitud mínima y solo alfanumérico
+  if (s.length < 15 || s.length > 34 || !/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(s)) return false;
+  // España: exactamente 24 caracteres
+  if (s.substring(0,2) === 'ES' && s.length !== 24) return false;
+
+  // Mover 4 primeros al final
+  const reordered = s.substring(4) + s.substring(0, 4);
+  // Convertir letras a números (A=10, B=11, ..., Z=35)
+  let numStr = '';
+  for (let i = 0; i < reordered.length; i++) {
+    const c = reordered.charCodeAt(i);
+    if (c >= 65 && c <= 90) { numStr += (c - 55).toString(); }
+    else { numStr += reordered[i]; }
+  }
+  // MOD 97 en bloques (para evitar overflow)
+  let remainder = 0;
+  for (let i = 0; i < numStr.length; i++) {
+    remainder = (remainder * 10 + parseInt(numStr[i])) % 97;
+  }
+  return remainder === 1;
 }
 
 async function delCuentaBancaria(id) {

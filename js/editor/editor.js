@@ -27,7 +27,7 @@ const DE_TIPOS = {
   factura: {
     ico:'🧾', titulo:'Factura', tipoSerie:'factura', tabla:'facturas',
     conIva:true, conDto:true, conFecha2:true, fecha2Label:'Vencimiento', conFpago:true,
-    conVersiones:false, conBorrador:false,
+    conVersiones:false, conBorrador:true,
   },
 };
 

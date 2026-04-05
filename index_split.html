@@ -3204,6 +3204,45 @@
   </div>
 </div>
 
+<!-- ═══ MODAL CUENTA BANCARIA ═══ -->
+<div class="overlay" id="mCuentaBancaria">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>🏦</span><h2 id="mBancoTit">Nueva Cuenta Bancaria</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mCuentaBancaria')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="bco_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre de la cuenta *</label><input id="bco_nombre" placeholder="Ej: CaixaBank Principal" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>IBAN *</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="bco_iban" placeholder="ES00 0000 0000 0000 0000 0000" style="flex:1;font-family:monospace;letter-spacing:1px" oninput="validarIBANLive(this)" maxlength="34">
+          <span id="bco_iban_status" style="font-size:16px;flex-shrink:0"></span>
+        </div>
+        <div id="bco_iban_msg" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>BIC/SWIFT</label><input id="bco_bic" placeholder="CAIXESBB" style="font-family:monospace"></div>
+        <div class="fg"><label>Entidad bancaria</label><input id="bco_entidad" placeholder="CaixaBank, BBVA..."></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Titular</label><input id="bco_titular" placeholder="Nombre del titular de la cuenta" style="width:100%"></div>
+      <div class="fg" style="margin-bottom:14px"><label>Observaciones</label><textarea id="bco_observaciones" rows="2" style="width:100%"></textarea></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--gris-50);border-radius:8px">
+        <label class="toggle-switch">
+          <input type="checkbox" id="bco_predeterminada">
+          <span class="toggle-slider"></span>
+        </label>
+        <div>
+          <div style="font-weight:700;font-size:13px">Cuenta predeterminada</div>
+          <div style="font-size:11px;color:var(--gris-400)">Se usará por defecto en nuevas facturas y pagos</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mCuentaBancaria')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCuentaBancaria()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 

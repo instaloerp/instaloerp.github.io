@@ -741,6 +741,83 @@ function prioBadge(p){const m={Urgente:'<span class="badge bg-red">🔴</span>',
 
 function toast(msg,type='info'){const c=document.getElementById('toast');const t=document.createElement('div');t.className=`ti ${type}`;t.innerHTML=`<span>${{success:'✅',error:'❌',info:'ℹ️'}[type]}</span> ${msg}`;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3800);}
 
+// ═══════════════════════════════════════════════
+//  NAVEGACIÓN TAB / ENTER EN LÍNEAS DE DOCUMENTO
+//  Tab = avanza campo (sin confirmar). Enter = confirma y avanza.
+//  Al final de la fila, Enter crea nueva línea automáticamente.
+//  Funciona en: editor, pedidos, recepciones, facturas prov, factura rápida
+// ═══════════════════════════════════════════════
+const _LINE_TABLES = '#de_lineas, #pc_lineas, #rc_lineas, #fp_lineas, #fr_lineas';
+const _ADD_LINE_FNS = {
+  de_lineas:  () => typeof de_addLinea==='function' && de_addLinea(),
+  pc_lineas:  () => typeof pc_addLinea==='function' && pc_addLinea(),
+  rc_lineas:  () => typeof rc_addLinea==='function' && rc_addLinea(),
+  fp_lineas:  () => typeof fp_addLinea==='function' && fp_addLinea(),
+  fr_lineas:  () => typeof fr_addLinea==='function' && fr_addLinea(),
+};
+
+function _lineNavFocusNew(tbody) {
+  setTimeout(() => {
+    const rows = tbody.querySelectorAll('tr');
+    if (!rows.length) return;
+    const lastRow = rows[rows.length - 1];
+    const firstInput = lastRow.querySelector('input:not([type="hidden"]), select');
+    if (firstInput) { firstInput.focus(); if (firstInput.select) firstInput.select(); }
+  }, 50);
+}
+
+document.addEventListener('keydown', function(e) {
+  const isEnter = e.key === 'Enter';
+  const isTab = e.key === 'Tab' && !e.shiftKey;
+  if (!isEnter && !isTab) return;
+  if (e.defaultPrevented) return;
+
+  const el = e.target;
+  if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+
+  // No interferir con el autocompletado de artículos
+  const acDrop = document.getElementById('acArticulos');
+  if (acDrop && acDrop.style.display !== 'none' && isEnter) return;
+
+  // Solo actuar dentro de tablas de líneas
+  const tbody = el.closest(_LINE_TABLES);
+  if (!tbody) return;
+
+  const row = el.closest('tr');
+  if (!row) return;
+
+  // Buscar campos editables en la fila (excluir botones ✕)
+  const fields = Array.from(row.querySelectorAll('input:not([type="hidden"]):not([style*="display:none"]), select'));
+  const idx = fields.indexOf(el);
+  if (idx < 0) return;
+
+  e.preventDefault();
+
+  if (idx < fields.length - 1) {
+    // Avanzar al siguiente campo de esta fila
+    const next = fields[idx + 1];
+    next.focus();
+    if (next.select) next.select();
+  } else if (isEnter) {
+    // Enter en el último campo → confirmar y crear nueva línea
+    el.blur();
+    const tbodyId = tbody.id;
+    setTimeout(() => {
+      if (_ADD_LINE_FNS[tbodyId]) _ADD_LINE_FNS[tbodyId]();
+      _lineNavFocusNew(tbody);
+    }, 30);
+  } else {
+    // Tab en último campo → saltar a la primera celda de la siguiente fila (si existe)
+    const allRows = Array.from(tbody.querySelectorAll('tr'));
+    const rowIdx = allRows.indexOf(row);
+    if (rowIdx < allRows.length - 1) {
+      const nextRow = allRows[rowIdx + 1];
+      const first = nextRow.querySelector('input:not([type="hidden"]), select');
+      if (first) { first.focus(); if (first.select) first.select(); }
+    }
+  }
+});
+
 function setPermisosByRol(rol) {
   const presets = {
     operario:      {clientes:false, presupuestos:false, facturas:false, trabajos:true,  partes:true,  stock:false, config:false, usuarios:false},
