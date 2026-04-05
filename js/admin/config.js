@@ -244,7 +244,7 @@ function cfgTab(id,el){
   // Cargar datos según pestaña
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();
-  if (id === 'certificado') cargarCertificados();
+  if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
 }
 
 // ═══════════════════════════════════════════════
@@ -820,5 +820,69 @@ async function eliminarCertificado(certId) {
 
   toast('Certificado eliminado', 'success');
   cargarCertificados();
+}
+
+// ═══════════════════════════════════════════════
+//  CONFIGURACIÓN DE FIRMA POR TIPO DE DOCUMENTO
+// ═══════════════════════════════════════════════
+// Variable global con la config de qué documentos se firman
+let _cfgFirmaDocumentos = {
+  factura: true,
+  presupuesto: true,
+  albaran: true,
+  pedido_compra: true,
+  presupuesto_compra: true,
+  parte_trabajo: true
+};
+
+// Guardar config en la tabla empresas (campo config_firma JSON)
+async function guardarCfgFirmaDocumentos() {
+  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','parte_trabajo'];
+  const cfg = {};
+  tipos.forEach(t => {
+    const el = document.getElementById('cfgFirma_' + t);
+    cfg[t] = el ? el.checked : true;
+  });
+  _cfgFirmaDocumentos = cfg;
+
+  // Guardar en empresas.config_firma (JSONB)
+  const { error } = await sb.from('empresas')
+    .update({ config_firma: cfg })
+    .eq('id', EMPRESA.id);
+
+  if (error) {
+    // Si la columna no existe, guardar en localStorage como fallback
+    console.warn('No se pudo guardar config_firma en BD, usando localStorage:', error.message);
+    localStorage.setItem('cfgFirmaDocumentos_' + EMPRESA.id, JSON.stringify(cfg));
+  }
+  toast('Configuración de firma actualizada', 'success');
+}
+
+// Cargar config de firma al iniciar
+async function cargarCfgFirmaDocumentos() {
+  try {
+    const { data } = await sb.from('empresas').select('config_firma').eq('id', EMPRESA.id).single();
+    if (data?.config_firma) {
+      _cfgFirmaDocumentos = data.config_firma;
+    }
+  } catch(e) {
+    // Fallback localStorage
+    const stored = localStorage.getItem('cfgFirmaDocumentos_' + EMPRESA?.id);
+    if (stored) {
+      try { _cfgFirmaDocumentos = JSON.parse(stored); } catch(e2) {}
+    }
+  }
+
+  // Actualizar checkboxes en la UI si existen
+  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','parte_trabajo'];
+  tipos.forEach(t => {
+    const el = document.getElementById('cfgFirma_' + t);
+    if (el) el.checked = _cfgFirmaDocumentos[t] !== false;
+  });
+}
+
+// Función pública para consultar si un tipo de documento debe firmarse
+function debesFirmarDocumento(tipoDocumento) {
+  return _cfgFirmaDocumentos[tipoDocumento] !== false;
 }
 

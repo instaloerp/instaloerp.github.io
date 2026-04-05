@@ -17,6 +17,14 @@
  */
 async function firmarYGuardarPDF(pdfData, docInfo) {
   try {
+    // Comprobar si este tipo de documento está habilitado para firma
+    if (typeof debesFirmarDocumento === 'function' && docInfo?.tipo_documento) {
+      if (!debesFirmarDocumento(docInfo.tipo_documento)) {
+        console.info('ℹ️ Firma desactivada para tipo:', docInfo.tipo_documento);
+        return { success: true, firmado: false, mensaje: 'Firma desactivada para este tipo de documento' };
+      }
+    }
+
     // Verificar que hay certificado configurado
     if (typeof _certActual !== 'undefined' && !_certActual) {
       // Intentar cargar
