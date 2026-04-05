@@ -21,9 +21,9 @@ let planHoraHeight = 28; // se recalcula dinámicamente
 const PLAN_HORAS_INICIO = 0;
 const PLAN_HORAS_FIN = 24;
 
-// Horario laboral por defecto (se puede cambiar desde admin)
-let PLAN_HORA_LABORAL_INI = 7;
-let PLAN_HORA_LABORAL_FIN = 19;
+// Horario laboral por defecto (8:30-16:30 → filas 8-16 inclusive)
+let PLAN_HORA_LABORAL_INI = 8;
+let PLAN_HORA_LABORAL_FIN = 17;
 
 // Festivos (array de strings 'YYYY-MM-DD', se carga desde config)
 let planFestivos = [];
@@ -449,7 +449,14 @@ function renderHoursColumnTo(containerId) {
   for (let h = PLAN_HORAS_INICIO; h < PLAN_HORAS_FIN; h++) {
     const div = document.createElement('div');
     const esLaboral = (h >= PLAN_HORA_LABORAL_INI && h < PLAN_HORA_LABORAL_FIN);
-    div.className = 'plan-hour' + (esLaboral ? '' : ' plan-hour-nolab');
+    // Media-hora: h==8 → gris arriba (8:00-8:30 fuera), h==16 → gris abajo (16:30-16:59 fuera)
+    const halfTop = (h === PLAN_HORA_LABORAL_INI);
+    const halfBot = (h === PLAN_HORA_LABORAL_FIN - 1);
+    let hourCls = 'plan-hour';
+    if (!esLaboral) hourCls += ' plan-hour-nolab';
+    else if (halfTop) hourCls += ' plan-hour-halfnolab-top';
+    else if (halfBot) hourCls += ' plan-hour-halfnolab-bot';
+    div.className = hourCls;
     div.style.height = planHoraHeight + 'px';
     div.textContent = `${h}:00`;
     container.appendChild(div);
@@ -457,6 +464,38 @@ function renderHoursColumnTo(containerId) {
 }
 
 function renderGrid() { renderGridTo('planGrid'); }
+/** Pinta una línea roja horizontal en la posición de la hora actual */
+function _renderNowLine(container, hoyStr) {
+  // Buscar si hoy está en la semana visible
+  let todayCol = -1;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(planCurrentDate);
+    d.setDate(d.getDate() + i);
+    if (fechaLocalStr(d) === hoyStr) { todayCol = i; break; }
+  }
+  if (todayCol < 0) return; // hoy no está visible
+
+  const now = new Date();
+  const nowHour = now.getHours();
+  const nowMin = now.getMinutes();
+  if (nowHour < PLAN_HORAS_INICIO || nowHour >= PLAN_HORAS_FIN) return;
+
+  const topPx = ((nowHour - PLAN_HORAS_INICIO) + nowMin / 60) * planHoraHeight;
+  const colWidth = 100 / 7;
+
+  const line = document.createElement('div');
+  line.className = 'plan-now-line';
+  line.style.cssText = `position:absolute;top:${topPx}px;left:${todayCol * colWidth}%;width:${colWidth}%`;
+  container.appendChild(line);
+
+  // Auto-scroll para que la hora actual quede visible
+  const scrollParent = container.closest('[style*="overflow"]') || container.parentElement;
+  if (scrollParent && scrollParent.scrollHeight > scrollParent.clientHeight) {
+    const scrollTarget = Math.max(0, topPx - scrollParent.clientHeight / 3);
+    scrollParent.scrollTop = scrollTarget;
+  }
+}
+
 function renderGridTo(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -491,10 +530,14 @@ function renderGridTo(containerId) {
     for (let hourIdx = PLAN_HORAS_INICIO; hourIdx < PLAN_HORAS_FIN; hourIdx++) {
       const cell = document.createElement('div');
       const esLaboral = (hourIdx >= PLAN_HORA_LABORAL_INI && hourIdx < PLAN_HORA_LABORAL_FIN);
+      const halfTop = (hourIdx === PLAN_HORA_LABORAL_INI);   // 8:00 → gris arriba (8:00-8:30)
+      const halfBot = (hourIdx === PLAN_HORA_LABORAL_FIN - 1); // 16:00 → gris abajo (16:30-16:59)
 
       let cls = 'plan-grid-cell';
       if (esHoy) cls += ' plan-today-col';
       if (!esLaboral) cls += ' plan-cell-nolab';
+      else if (halfTop && !(esFinde || esFestivo)) cls += ' plan-cell-halfnolab-top';
+      else if (halfBot && !(esFinde || esFestivo)) cls += ' plan-cell-halfnolab-bot';
       if (esFinde || esFestivo) cls += ' plan-cell-finde';
       cell.className = cls;
 
@@ -548,6 +591,9 @@ function renderGridTo(containerId) {
   container.style.gridTemplateRows = `repeat(${totalRows}, ${planHoraHeight}px)`;
   container.innerHTML = '';
   container.appendChild(frag);
+
+  // ── Línea roja de hora actual (solo si hoy está visible) ──
+  _renderNowLine(container, hoyStr);
 
   // ── Event delegation (usar asignación directa, NO addEventListener) ──
   container.onclick = (e) => {

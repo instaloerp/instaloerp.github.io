@@ -50,52 +50,50 @@ function renderAlbaranes(list) {
   if (kFact)    kFact.textContent    = albaranesData.filter(a=>a.estado==='facturado').length;
   if (kImporte) kImporte.textContent = fmtE(albaranesData.reduce((s,a)=>s+(a.total||0),0));
 
-  const tbody = document.getElementById('abTable');
-  if (!tbody) return;
+  const container = _listContainer('abTable');
+  if (!container) return;
 
   // Botón facturar seleccionados
   const btnMulti = document.getElementById('abFacturarMulti');
   if (btnMulti) btnMulti.style.display = 'none';
 
-  tbody.innerHTML = list.length ? list.map(a => {
-    const est = ESTADOS[a.estado] || { label: a.estado||'—', color:'var(--gris-400)' };
+  container.innerHTML = list.length ? list.map(a => {
+    const est = ESTADOS[a.estado] || { label: a.estado||'—', color:'var(--gris-400)', bg:'var(--gris-100)' };
     const noFacturado = a.estado !== 'facturado' && a.estado !== 'anulado';
-    return `<tr style="cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
-      <td onclick="event.stopPropagation()" style="text-align:center;width:30px">
-        ${noFacturado ? `<input type="checkbox" class="ab-check" value="${a.id}" data-cliente="${a.cliente_id||''}" onchange="abCheckChanged()" style="cursor:pointer">` : ''}
-      </td>
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(a.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (a.numero||'—')}</td>
-      <td><div style="font-weight:600">${a.cliente_nombre||'—'}</div></td>
-      <td style="color:var(--gris-600);font-size:12.5px">${a.referencia||'—'}</td>
-      <td style="font-size:12px">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—'}</td>
-      <td style="font-weight:700">${fmtE(a.total||0)}</td>
-      <td>
-        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg}">${est.ico} ${est.label}</span>
-      </td>
-      <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center" onclick="event.stopPropagation()">
-          ${(()=>{
-            const _tO = !!a.trabajo_id;
-            const _tF = (window.facturasData||[]).some(f=>f.albaran_id===a.id) || (a.presupuesto_id && (window.facturasData||[]).some(f=>f.presupuesto_id===a.presupuesto_id));
-            const _tP = !!a.presupuesto_id;
-            const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
-            const _bBtn = 'padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151';
-            let btns = '';
-            // Presupuesto origen: badge verde clickable si viene de un presupuesto
-            if (_tP) btns += '<a onclick="event.stopPropagation();verDetallePresupuesto('+a.presupuesto_id+')" style="'+_bOK+'">✅ Presupuesto</a> ';
-            // Obra: badge verde si existe, botón si no y no facturado, oculto si facturado
-            if (_tO) { btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+a.trabajo_id+')" style="'+_bOK+'">✅ Obra</a> '; }
-            else if (!_tF) btns += '<button onclick="albaranToObra('+a.id+')" style="'+_bBtn+'" title="Crear obra">🏗️ Crear obra</button> ';
-            // Factura: badge verde si existe, botón si no
-            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Facturado</span>';
-            else btns += '<button onclick="albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾 Facturar</button>';
-            return btns;
-          })()}
+
+    // Acciones
+    let actionsHtml = '';
+    const _tO = !!a.trabajo_id;
+    const _tF = (window.facturasData||[]).some(f=>f.albaran_id===a.id) || (a.presupuesto_id && (window.facturasData||[]).some(f=>f.presupuesto_id===a.presupuesto_id));
+    const _tP = !!a.presupuesto_id;
+    const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none';
+    const _bBtn = 'padding:3px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:10px;font-weight:600;color:#374151';
+    if (_tP) actionsHtml += '<a onclick="event.stopPropagation();verDetallePresupuesto('+a.presupuesto_id+')" style="'+_bOK+'" title="Presupuesto">📋</a> ';
+    if (_tO) actionsHtml += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+a.trabajo_id+')" style="'+_bOK+'" title="Obra">🏗️</a> ';
+    else if (!_tF) actionsHtml += '<button onclick="event.stopPropagation();albaranToObra('+a.id+')" style="'+_bBtn+'" title="Crear obra">🏗️</button> ';
+    if (_tF) actionsHtml += '<span style="'+_bOK+'">🧾</span>';
+    else actionsHtml += '<button onclick="event.stopPropagation();albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾</button>';
+
+    return `<div class="list-row" style="border-left-color:${est.color}" onclick="verDetalleAlbaran(${a.id})">
+      ${noFacturado ? '<div onclick="event.stopPropagation()" style="flex-shrink:0"><input type="checkbox" class="ab-check" value="'+a.id+'" data-cliente="'+(a.cliente_id||'')+'" onchange="abCheckChanged()" style="cursor:pointer"></div>' : ''}
+      <div class="lr-left">
+        <div class="lr-num">${(a.numero||'').startsWith('BORR-') ? '✏️' : (a.numero||'—')}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : ''}</div>
+      </div>
+      <div class="lr-center">
+        <div class="lr-title">${a.cliente_nombre||'—'}</div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+          ${a.referencia ? '<span class="lr-sub">Ref: '+a.referencia+'</span>' : ''}
         </div>
-      </td>
-    </tr>`;
+      </div>
+      <div class="lr-right">
+        <div class="lr-amount">${fmtE(a.total||0)}</div>
+        <div class="lr-actions" onclick="event.stopPropagation()">${actionsHtml}</div>
+      </div>
+    </div>`;
   }).join('') :
-  '<tr><td colspan="8"><div class="empty"><div class="ei">📄</div><h3>Sin albaranes</h3><p>Crea el primero con el botón "+ Nuevo albarán"</p></div></td></tr>';
+  '<div class="empty"><div class="ei">📄</div><h3>Sin albaranes</h3><p>Crea el primero con el botón "+ Nuevo albarán"</p></div>';
 }
 
 // ═══════════════════════════════════════════════

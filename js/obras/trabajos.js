@@ -179,19 +179,40 @@ function filtrarTrabajos() {
 
 function renderTrabajos(list) {
   if (!list) list = trabajos;
-  document.getElementById('trabTable').innerHTML = list.length ?
+  const container = _listContainer('trabTable');
+  if (!container) return;
+
+  const ESTADOS = {
+    pendiente:   { label:'Pendiente',   ico:'⏳', color:'var(--gris-500)',    bg:'var(--gris-100)' },
+    planificado: { label:'Planificado', ico:'📅', color:'var(--azul)',        bg:'var(--azul-light)' },
+    en_curso:    { label:'En curso',    ico:'🔧', color:'var(--amarillo)',    bg:'var(--amarillo-light)' },
+    facturado:   { label:'Facturado',   ico:'🧾', color:'var(--morado)',      bg:'var(--morado-light)' },
+    finalizado:  { label:'Finalizado',  ico:'✅', color:'var(--verde)',       bg:'var(--verde-light)' },
+  };
+
+  container.innerHTML = list.length ?
     list.map(t=>{
       const _fDate = t.fecha || (t.created_at ? t.created_at.substring(0,10) : null);
       const _fShow = _fDate ? new Date(_fDate).toLocaleDateString('es-ES') : '—';
-      return `<tr style="cursor:pointer" onclick="abrirFichaObra(${t.id})">
-      <td style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${t.numero}</td>
-      <td style="font-weight:700">${t.titulo}</td>
-      <td>${t.cliente_nombre||'—'}</td>
-      <td style="font-size:11.5px">${_fShow}</td>
-      <td>${estadoBadge(t.estado)}</td>
-    </tr>`;
+      const estado = t.estado || 'pendiente';
+      const est = ESTADOS[estado] || { label: estado||'—', ico:'❔', color:'var(--gris-400)', bg:'var(--gris-100)' };
+      return `<div class="list-row" style="border-left-color:${est.color}" onclick="abrirFichaObra(${t.id})">
+      <div class="lr-left">
+        <div class="lr-num">${t.numero}</div>
+      </div>
+      <div class="lr-center">
+        <div class="lr-title">${t.titulo}</div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+          <span class="lr-sub">${t.cliente_nombre||'—'} · ${_fShow}</span>
+        </div>
+      </div>
+      <div class="lr-right">
+        <div class="lr-actions" onclick="event.stopPropagation()"></div>
+      </div>
+    </div>`;
     }).join('') :
-    '<tr><td colspan="5"><div class="empty"><div class="ei">🏗️</div><h3>Sin obras</h3></div></td></tr>';
+    '<div class="empty"><div class="ei">🏗️</div><h3>Sin obras</h3></div>';
 }
 
 // ═══════════════════════════════════════════════

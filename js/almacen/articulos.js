@@ -60,38 +60,43 @@ function renderArticulos(list) {
     actualizarFiltroSubfamilias();
   }
 
-  const tbody = document.getElementById('artTable');
-  tbody.innerHTML = list.length ?
+  const container = _listContainer('artTable');
+  container.innerHTML = list.length ?
     list.map(a => {
       const fam = familias.find(f => f.id === a.familia_id);
       const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
-      const famLabel = famPadre ? `${famPadre.nombre} <span style="color:var(--gris-300)">›</span> ${fam.nombre}` : (fam?.nombre || '—');
+      const famLabel = famPadre ? `${famPadre.nombre} › ${fam.nombre}` : (fam?.nombre || '—');
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
       const dto = a.descuento || 0;
-      const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
+      const dtoLabel = dto > 0 ? `<span class="col-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
-      return `<tr style="cursor:pointer" onclick="artRowClick(event,'${a.id}')" ondblclick="artRowDblClick(event,'${a.id}')">
-        <td style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul)">${fotoMini} ${a.codigo || '—'}</td>
-        <td>
-          <div style="font-weight:700">${a.nombre}</div>
-          ${a.descripcion ? `<div style="font-size:11px;color:var(--gris-400);max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.descripcion}</div>` : ''}
-          ${a.es_activo ? '<span class="badge bg-yellow" style="font-size:9.5px">Activo/Maquinaria</span>' : ''}
-        </td>
-        <td>${famLabel}</td>
-        <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}${dtoLabel}</td>
-        <td class="td-sensible" style="font-weight:600">${fmtE(a.precio_coste)}</td>
-        <td class="td-sensible">${dto > 0 ? dto + '%' : '—'}</td>
-        <td>${iva ? iva.porcentaje + '%' : '—'}</td>
-        <td>${a.activo !== false ? '<span class="badge bg-green">Sí</span>' : '<span class="badge bg-gray">No</span>'}</td>
-        <td><div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editArticulo('${a.id}')" title="Abrir ficha">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();duplicarArticulo('${a.id}')" title="Duplicar">📋</button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delArticulo('${a.id}')" title="Eliminar">🗑️</button>
-        </div></td>
-      </tr>`;
+      return `<div class="list-row" onclick="artRowClick(event,'${a.id}')" ondblclick="artRowDblClick(event,'${a.id}')">
+        <div class="lr-left">
+          <div style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul);display:flex;align-items:center;gap:4px">${fotoMini} ${a.codigo || '—'}</div>
+        </div>
+        <div class="lr-center">
+          <div class="lr-title">${a.nombre}</div>
+          <div class="lr-meta">
+            <span class="lr-badge" style="background:var(--gris-100);color:var(--gris-600)">${famLabel}</span>
+            ${a.descripcion ? `<span class="lr-sub" style="max-width:250px">${a.descripcion}</span>` : ''}
+            ${a.es_activo ? '<span class="lr-badge" style="background:#FEF08A;color:#92400E">Activo/Maquinaria</span>' : ''}
+          </div>
+        </div>
+        <div class="lr-right">
+          <div style="text-align:right">
+            <div style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}${dtoLabel}</div>
+            <div class="col-sensible" style="font-weight:600;font-size:11px;color:var(--gris-600)">${fmtE(a.precio_coste)}</div>
+          </div>
+          <div class="lr-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="editArticulo('${a.id}')" title="Abrir ficha">✏️</button>
+            <button class="btn btn-ghost btn-sm" onclick="duplicarArticulo('${a.id}')" title="Duplicar">📋</button>
+            <button class="btn btn-ghost btn-sm" onclick="delArticulo('${a.id}')" title="Eliminar">🗑️</button>
+          </div>
+        </div>
+      </div>`;
     }).join('') :
-    '<tr><td colspan="9"><div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div></td></tr>';
+    '<div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div>';
 
   updateArticulosKPIs();
 }

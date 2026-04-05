@@ -29,25 +29,37 @@ async function loadPedidosCompra() {
 }
 
 function renderPedidosCompra(list) {
+  const container = _listContainer('pcTable');
+  if (!container) return;
   const html = list.length ? list.map(pc => {
     const estado = {borrador:'⏳', enviado:'✉️', recibido_parcial:'📦', recibido:'✓', anulado:'✗'}[pc.estado]||'?';
-    return `<tr>
-      <td><div style="font-weight:700">${pc.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(pc.fecha).toLocaleDateString('es-ES')}</div></td>
-      <td><div style="font-weight:600">${pc.proveedor_nombre}</div></td>
-      <td>${pc.fecha_entrega_prevista ? new Date(pc.fecha_entrega_prevista).toLocaleDateString('es-ES') : '—'}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${pc.estado}</span></td>
-      <td style="text-align:right;font-weight:600">${fmtE(pc.total)}</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirPedidoCompra(${pc.id})" title="Imprimir">🖨️</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarPedidoCompraEmail(${pc.id})" title="Enviar por email">📧</button>
-        <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
-        ${pc.exportado_bloqueado ? '<span title="Exportado a '+pc.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>`}
-      </div></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">🛒</div><h3>Sin pedidos</h3></div></td></tr>';
-  document.getElementById('pcTable').innerHTML = html;
+    const statusColor = {borrador:'#9ca3af', enviado:'#3b82f6', recibido_parcial:'#f59e0b', recibido:'#10b981', anulado:'#ef4444'}[pc.estado] || '#9ca3af';
+    return `<div class="list-row" style="border-left-color:${statusColor}" onclick="editarPedidoCompra(${pc.id})">
+      <div class="lr-left">
+        <div class="lr-num">${pc.numero}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${new Date(pc.fecha).toLocaleDateString('es-ES')}</div>
+      </div>
+      <div class="lr-center">
+        <div class="lr-title">${pc.proveedor_nombre}</div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${statusColor};color:#fff">${estado} ${pc.estado}</span>
+          <span class="lr-sub">${pc.fecha_entrega_prevista ? new Date(pc.fecha_entrega_prevista).toLocaleDateString('es-ES') : '—'}</span>
+        </div>
+      </div>
+      <div class="lr-right">
+        <div class="lr-amount">${fmtE(pc.total)}</div>
+        <div class="lr-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm" onclick="imprimirPedidoCompra(${pc.id})" title="Imprimir">🖨️</button>
+          <button class="btn btn-ghost btn-sm" onclick="enviarPedidoCompraEmail(${pc.id})" title="Enviar por email">📧</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
+          ${pc.exportado_bloqueado ? '<span title="Exportado a '+pc.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty"><div class="ei">🛒</div><h3>Sin pedidos</h3></div>';
+  container.innerHTML = html;
 }
 
 function actualizarKpisPedidos() {

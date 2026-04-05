@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════
-let cliVista = 'tarjetas';
+let cliVista = 'tabla';
 let cliFiltroTipo = '';
 let cliFiltroList = [];
 let cliActualId = null;
@@ -30,10 +30,10 @@ function setCliVista(v) {
     const tb = document.getElementById('topbarBtns');
     if (tb) tb.innerHTML = '';
     cliActualId = null;
-    // Mostrar la vista correcta (tarjetas por defecto al volver)
+    // Mostrar la vista correcta (tabla por defecto al volver)
     if (v === 'lista') {
-      document.getElementById('cliGridTarjetas').style.display = 'grid';
-      cliVista = 'tarjetas';
+      document.getElementById('cliGridTabla').style.display = 'block';
+      cliVista = 'tabla';
     }
   }
   if (v === 'ficha' && cliActualId) {
@@ -47,13 +47,6 @@ function setCliVista(v) {
 
 function renderClientes(list) {
   document.getElementById('cliCount').textContent = `${clientes.length} clientes · mostrando ${list.length}`;
-
-  // Poblar filtro provincias
-  const provs = [...new Set(clientes.map(c=>c.provincia_fiscal).filter(Boolean))].sort();
-  const selProv = document.querySelector('select[onchange="filtrarCliProv(this.value)"]');
-  if (selProv && provs.length) {
-    selProv.innerHTML = '<option value="">Todas las provincias</option>' + provs.map(p=>`<option>${p}</option>`).join('');
-  }
 
   // Vista tarjetas
   document.getElementById('cliGridTarjetas').innerHTML = list.length ?
@@ -81,37 +74,55 @@ function renderClientes(list) {
       </div>`).join('') :
     '<div class="empty" style="grid-column:1/-1"><div class="ei">👥</div><h3>Sin clientes</h3><p>Crea tu primer cliente con el botón "+ Nuevo cliente"</p></div>';
 
-  // Vista tabla
-  document.getElementById('cliTable').innerHTML = list.length ?
-    list.map(c=>`<tr>
-      <td style="cursor:pointer" onclick="abrirFicha(${c.id})"><div style="display:flex;align-items:center;gap:8px"><div class="av av-sm" style="background:${avC(c.nombre)}">${ini(c.nombre)}</div><div><div style="font-weight:700">${c.nombre}</div><div style="font-size:11px;color:var(--gris-400)">${c.email||''}</div></div></div></td>
-      <td><span class="badge bg-blue">${c.tipo||'Particular'}</span></td>
-      <td>${c.telefono||c.movil||'—'}</td>
-      <td style="font-size:12px">${c.email||'—'}</td>
-      <td>${c.municipio_fiscal||'—'}</td>
-      <td style="font-family:monospace;font-size:12px">${c.nif||'—'}</td>
-      <td>—</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="abrirFicha(${c.id})">👁️</button>
-        <button class="btn btn-ghost btn-sm" onclick="editCliente(${c.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delCliente(${c.id})">🗑️</button>
-      </div></td>
-    </tr>`).join('') :
-    '<tr><td colspan="8"><div class="empty"><div class="ei">👥</div><h3>Sin clientes</h3></div></td></tr>';
+  // Vista tabla → tarjetas tipo list-row
+  const cliContainer = _listContainer('cliTable');
+  if (cliContainer) {
+    const TIPO_COL = {Particular:'#3B82F6',Empresa:'#16A34A',Comunidad:'#7C3AED'};
+    cliContainer.innerHTML = list.length ? list.map(c => {
+      const _col = TIPO_COL[c.tipo] || '#6B7280';
+      return `<div class="list-row" style="border-left-color:${_col}" onclick="abrirFicha(${c.id})">
+        <div class="lr-left">
+          <div style="width:36px;height:36px;border-radius:50%;background:${avC(c.nombre)};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff">${ini(c.nombre)}</div>
+        </div>
+        <div class="lr-center">
+          <div class="lr-title">${c.nombre}</div>
+          <div class="lr-meta">
+            <span class="lr-badge" style="background:${_col}18;color:${_col}">${c.tipo||'Particular'}</span>
+            ${c.telefono ? '<span class="lr-sub">📱 '+c.telefono+'</span>' : ''}
+            ${c.email ? '<span class="lr-sub">✉️ '+c.email+'</span>' : ''}
+            ${c.municipio_fiscal ? '<span class="lr-sub">📍 '+c.municipio_fiscal+(c.provincia_fiscal?', '+c.provincia_fiscal:'')+'</span>' : ''}
+            ${c.nif ? '<span style="font-size:10px;color:var(--gris-400);font-family:monospace">'+c.nif+'</span>' : ''}
+          </div>
+        </div>
+        <div class="lr-right">
+          <div class="lr-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="editCliente(${c.id})">✏️</button>
+            <button class="btn btn-ghost btn-sm" onclick="delCliente(${c.id})">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') :
+    '<div class="empty"><div class="ei">👥</div><h3>Sin clientes</h3></div>';
+  }
 }
 
 // ═══════════════════════════════════════════════
 //  BÚSQUEDA Y FILTROS
 // ═══════════════════════════════════════════════
 function buscarCli(v) {
-  const q = v.toLowerCase();
-  const filtered = clientes.filter(c =>
-    c.nombre?.toLowerCase().includes(q) ||
-    c.nif?.toLowerCase().includes(q) ||
-    c.email?.toLowerCase().includes(q) ||
-    c.telefono?.toLowerCase().includes(q) ||
-    c.municipio_fiscal?.toLowerCase().includes(q)
-  );
+  const q = v.trim().toLowerCase();
+  if (!q) { cliFiltroList = [...clientes]; renderClientes(cliFiltroList); return; }
+  // Soporta búsqueda multi-palabra: todas las palabras deben coincidir
+  const palabras = q.split(/\s+/);
+  const filtered = clientes.filter(c => {
+    const txt = [
+      c.nombre, c.nif, c.email, c.telefono, c.movil,
+      c.municipio_fiscal, c.provincia_fiscal, c.cp_fiscal,
+      c.direccion_fiscal, c.razon_social, c.observaciones,
+      c.tipo, c.web
+    ].filter(Boolean).join(' ').toLowerCase();
+    return palabras.every(p => txt.includes(p));
+  });
   cliFiltroList = filtered;
   renderClientes(filtered);
 }
@@ -121,10 +132,7 @@ function filtrarCliTipo(v) {
   renderClientes(cliFiltroList);
 }
 
-function filtrarCliProv(v) {
-  cliFiltroList = v ? clientes.filter(c=>c.provincia_fiscal===v) : [...clientes];
-  renderClientes(cliFiltroList);
-}
+// filtrarCliProv eliminado — provincia se busca desde el buscador general
 
 function exportarClientes() {
   if (!confirm('¿Exportar ' + clientes.length + ' clientes a Excel?')) return;

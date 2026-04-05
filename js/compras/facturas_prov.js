@@ -29,25 +29,37 @@ async function loadFacturasProv() {
 }
 
 function renderFacturasProv(list) {
+  const container = _listContainer('fpTable');
+  if (!container) return;
   const html = list.length ? list.map(fp => {
     const estado = {pendiente:'⏳', pagada:'✓', anulada:'✗'}[fp.estado]||'?';
-    const vencida = fp.estado === 'pendiente' && new Date(fp.fecha_vencimiento) < new Date() ? ' style="color:var(--rojo);font-weight:700)"' : '';
-    return `<tr${vencida}>
-      <td><div style="font-weight:700">${fp.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(fp.fecha).toLocaleDateString('es-ES')}</div></td>
-      <td><div style="font-weight:600">${fp.proveedor_nombre}</div></td>
-      <td>${new Date(fp.fecha_vencimiento).toLocaleDateString('es-ES')}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${fp.estado}</span></td>
-      <td style="text-align:right;font-weight:600">${fmtE(fp.total)}</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirFacturaProv(${fp.id})" title="Imprimir">🖨️</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarFacturaProvEmail(${fp.id})" title="Enviar por email">📧</button>
-        <button class="btn btn-ghost btn-sm" onclick="editarFacturaProv(${fp.id})">✏️</button>
-        ${fp.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="pagarFacturaProv(${fp.id})">💰</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="delFacturaProv(${fp.id})">🗑️</button>
-      </div></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📑</div><h3>Sin facturas</h3></div></td></tr>';
-  document.getElementById('fpTable').innerHTML = html;
+    const vencida = fp.estado === 'pendiente' && new Date(fp.fecha_vencimiento) < new Date();
+    const statusColor = vencida ? '#dc2626' : {pendiente:'#f59e0b', pagada:'#10b981', anulada:'#ef4444'}[fp.estado] || '#9ca3af';
+    return `<div class="list-row" style="border-left-color:${statusColor}" onclick="editarFacturaProv(${fp.id})">
+      <div class="lr-left">
+        <div class="lr-num">${fp.numero}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${new Date(fp.fecha).toLocaleDateString('es-ES')}</div>
+      </div>
+      <div class="lr-center">
+        <div class="lr-title">${fp.proveedor_nombre}</div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${statusColor};color:#fff">${estado} ${fp.estado}${vencida?' VENCIDA':''}</span>
+          <span class="lr-sub">${new Date(fp.fecha_vencimiento).toLocaleDateString('es-ES')}</span>
+        </div>
+      </div>
+      <div class="lr-right">
+        <div class="lr-amount">${fmtE(fp.total)}</div>
+        <div class="lr-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm" onclick="imprimirFacturaProv(${fp.id})" title="Imprimir">🖨️</button>
+          <button class="btn btn-ghost btn-sm" onclick="enviarFacturaProvEmail(${fp.id})" title="Enviar por email">📧</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarFacturaProv(${fp.id})">✏️</button>
+          ${fp.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="pagarFacturaProv(${fp.id})">💰</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="delFacturaProv(${fp.id})">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty"><div class="ei">📑</div><h3>Sin facturas</h3></div>';
+  container.innerHTML = html;
 }
 
 function actualizarKpisFacturas() {

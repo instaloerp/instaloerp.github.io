@@ -54,18 +54,26 @@ function filtrarPresupuestosCompra() {
 
 function renderPresupuestosCompra(list) {
   if (!list) list = presupuestosCompra;
-  const tb = document.getElementById('prcTable');
-  if (!tb) return;
-  tb.innerHTML = list.length ? list.map(p => {
+  const container = _listContainer('prcTable');
+  if (!container) return;
+  container.innerHTML = list.length ? list.map(p => {
     const total = parseFloat(p.total||0).toFixed(2);
-    return `<tr>
-      <td><strong style="color:var(--azul);font-family:monospace;font-size:11.5px">${p.numero||'—'}</strong><br><span style="font-size:11px;color:var(--gris-400)">${p.fecha||'—'}</span></td>
-      <td>${p.proveedor_nombre||'—'}</td>
-      <td style="font-size:11.5px">${p.validez||'—'}</td>
-      <td>${estadoBadgePrc(p.estado)}</td>
-      <td style="text-align:right;font-weight:700">${total} €</td>
-      <td style="text-align:right">
-        <div style="display:flex;gap:4px;justify-content:flex-end">
+    const statusColor = {borrador:'#9ca3af', enviado:'#3b82f6', aceptado:'#10b981', rechazado:'#ef4444'}[p.estado] || '#9ca3af';
+    return `<div class="list-row" style="border-left-color:${statusColor}" onclick="editarPresupuestoCompra(${p.id})">
+      <div class="lr-left">
+        <div class="lr-num">${p.numero||'—'}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${p.fecha||'—'}</div>
+      </div>
+      <div class="lr-center">
+        <div class="lr-title">${p.proveedor_nombre||'—'}</div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${statusColor};color:#fff">${p.estado}</span>
+          <span class="lr-sub">${p.validez||'—'}</span>
+        </div>
+      </div>
+      <div class="lr-right">
+        <div class="lr-amount">${total} €</div>
+        <div class="lr-actions" onclick="event.stopPropagation()">
           <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuestoCompra(${p.id})" title="Imprimir">🖨️</button>
           <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoCompraEmail(${p.id})" title="Enviar por email">📧</button>
           <button class="btn btn-ghost btn-sm" onclick="editarPresupuestoCompra(${p.id})" title="Editar">✏️</button>
@@ -74,9 +82,9 @@ function renderPresupuestosCompra(list) {
           <button class="btn btn-ghost btn-sm" onclick="prcToFacturaProv(${p.id})" title="Facturar">🧾</button>
           <button class="btn btn-ghost btn-sm" onclick="eliminarPresupuestoCompra(${p.id})" title="Eliminar">🗑️</button>`}
         </div>
-      </td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📋</div><h3>Sin presupuestos de compra</h3><p>Crea tu primer presupuesto de compra</p></div></td></tr>';
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty"><div class="ei">📋</div><h3>Sin presupuestos de compra</h3><p>Crea tu primer presupuesto de compra</p></div>';
 }
 
 function estadoBadgePrc(e) {

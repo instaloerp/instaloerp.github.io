@@ -75,36 +75,43 @@ function renderPartes(list) {
   if (el('pt-kpi-pendientes')) { el('pt-kpi-pendientes').textContent = kpiProg; }
   if (el('pt-kpi-material')) el('pt-kpi-material').textContent = kpiPend;
 
-  // ─ Renderizar tabla
-  const tbody = document.getElementById('ptTable');
-  if (!tbody) return;
+  // ─ Renderizar tarjetas
+  const container = _listContainer('ptTable');
+  if (!container) return;
 
-  tbody.innerHTML = list.length ? list.map(p => {
+  container.innerHTML = list.length ? list.map(p => {
     const est = PT_ESTADOS[p.estado] || { label: p.estado || '—', color: '#6B7280', bg: '#F3F4F6', ico:'📝' };
     const hora_inicio = p.hora_inicio ? p.hora_inicio.substring(0, 5) : '—';
     const hora_fin = p.hora_fin ? p.hora_fin.substring(0, 5) : '—';
     const horas = (parseFloat(p.horas) || 0).toFixed(1);
     const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
 
-    return `<tr style="cursor:pointer" onclick="verDetalleParte(${p.id})">
-      <td style="font-family:monospace;font-weight:700;font-size:12.5px;color:var(--azul)">${p.numero || '—'}</td>
-      <td>${p.trabajo_titulo || '—'}</td>
-      <td>${p.usuario_nombre || '—'}</td>
-      <td style="font-size:12.5px">${fecha}</td>
-      <td style="font-size:12.5px">${hora_inicio} - ${hora_fin}</td>
-      <td style="text-align:center;font-weight:600">${horas}h</td>
-      <td style="text-align:center">
-        <span style="background:${est.bg};color:${est.color};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600">${est.ico} ${est.label}</span>
-      </td>
-      <td onclick="event.stopPropagation()">
-        <div style="display:flex;gap:3px;justify-content:flex-end">
+    return `<div class="list-row" style="border-left-color:${est.color}" onclick="verDetalleParte(${p.id})">
+      <div class="lr-left">
+        <div style="font-size:15px;font-weight:800;color:var(--gris-800)">${hora_inicio}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${hora_inicio}-${hora_fin}</div>
+      </div>
+      <div class="lr-center">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="lr-title">${p.trabajo_titulo || '—'}</span>
+          <span style="font-size:10px;color:var(--gris-400)">${horas}h</span>
+        </div>
+        <div class="lr-meta">
+          <span class="lr-badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+          <span class="lr-sub">${p.numero||'—'} · ${p.usuario_nombre||'—'}</span>
+          <span style="font-size:10.5px;color:var(--gris-500)">${fecha}</span>
+        </div>
+        ${p.descripcion?'<div style="font-size:11px;color:var(--gris-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px">'+p.descripcion+'</div>':''}
+      </div>
+      <div class="lr-right">
+        <div class="lr-actions" onclick="event.stopPropagation()">
           <button class="btn btn-ghost btn-sm" onclick="verDetalleParte(${p.id})" title="Ver">👁️</button>
           <button class="btn btn-ghost btn-sm" onclick="editarParte(${p.id})" title="Editar">✏️</button>
         </div>
-      </td>
-    </tr>`;
+      </div>
+    </div>`;
   }).join('') :
-  '<tr><td colspan="8"><div class="empty"><div class="ei">📝</div><h3>Sin partes de trabajo</h3><p>Crea el primero con el botón "+ Nuevo parte"</p></div></td></tr>';
+  '<div class="empty"><div class="ei">📝</div><h3>Sin partes de trabajo</h3><p>Crea el primero con el botón "+ Nuevo parte"</p></div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════
