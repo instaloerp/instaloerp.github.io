@@ -142,7 +142,7 @@ function cerrarFichaMant() {
   mantActualId = null;
   setMantVista('lista');
   document.getElementById('pgTitle').textContent = 'Mantenimientos';
-  document.getElementById('pgSub').textContent = '';
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
 }
 
 // ═══════════════════════════════════════════════
@@ -161,7 +161,7 @@ async function abrirFichaMant(id) {
   // Cabecera
   document.getElementById('fichaMantTitulo').textContent = m.equipo || 'Mantenimiento';
   document.getElementById('pgTitle').textContent = m.numero || 'Mantenimiento';
-  document.getElementById('pgSub').textContent = m.equipo;
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
   document.getElementById('fichaMantSub').textContent = [m.numero, m.categoria||'', m.cliente_nombre||'', periodoBadgeText(m.periodicidad)].filter(Boolean).join(' · ');
   document.getElementById('fichaMantEstado').innerHTML = estadoMantBadge(m.estado);
 

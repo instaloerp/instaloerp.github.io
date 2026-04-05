@@ -632,7 +632,7 @@ async function mostrarApp() {
     localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos));
   }
   renderFavoritos();
-  document.getElementById('pgSub').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
   document.getElementById('tr_fecha').value = new Date().toISOString().split('T')[0];
   // Cargar datos
   await cargarTodos();

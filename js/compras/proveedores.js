@@ -11,9 +11,9 @@ function setProvVista(v) {
   document.getElementById('provVista-ficha').style.display = v === 'ficha' ? 'block' : 'none';
   if (v === 'lista') {
     document.getElementById('pgTitle').textContent = 'Proveedores';
-    document.getElementById('pgSub').textContent = '';
+    document.getElementById('pgSub').textContent = _fechaHoraActual();
     const tb = document.getElementById('topbarBtns');
-    if (tb) tb.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`;
+    if (tb) tb.innerHTML = '';
     provActualId = null;
   }
 }
@@ -302,7 +302,7 @@ async function abrirFichaProveedor(id) {
 
   document.getElementById('fichaProvNombre').textContent = p.nombre;
   document.getElementById('pgTitle').textContent = p.nombre;
-  document.getElementById('pgSub').textContent = 'Proveedor';
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
   const tb = document.getElementById('topbarBtns');
   if (tb) tb.innerHTML = '';
   setProvVista('ficha');

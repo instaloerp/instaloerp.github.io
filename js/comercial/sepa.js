@@ -55,11 +55,26 @@ function generarMandatoSEPA(tipo) {
 
   document.getElementById('sepa_resumen').innerHTML = html;
 
-  // Para proveedor, ocultar opción de firma online (nosotros firmamos)
-  document.getElementById('sepa_opcion_firma').style.display = tipo === 'cliente' ? '' : 'none';
+  // Adaptar opción 2 según tipo (cliente: firma online + email / proveedor: enviar por email)
+  const opFirma = document.getElementById('sepa_opcion_firma');
+  opFirma.style.display = '';
+  if (tipo === 'cliente') {
+    opFirma.innerHTML = `
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">✍️ Enviar para firma</div>
+      <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Envía el mandato al cliente para que lo firme y lo devuelva</p>
+      <button class="btn btn-sm" onclick="enviarMandatoParaFirma()" style="background:var(--verde);color:#fff;border:none;font-weight:700">📧 Generar enlace de firma</button>
+      <div id="sepa_firma_link" style="display:none;margin-top:10px;padding:10px;background:var(--gris-50);border-radius:8px;font-size:12px;word-break:break-all"></div>`;
+  } else {
+    opFirma.innerHTML = `
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">📧 Enviar por email al proveedor</div>
+      <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Envía el mandato por email al proveedor para que lo firme y lo devuelva</p>
+      <button class="btn btn-sm" onclick="enviarMandatoEmailProveedor()" style="background:var(--verde);color:#fff;border:none;font-weight:700">📧 Enviar por email</button>
+      <div id="sepa_firma_link" style="display:none;margin-top:10px;padding:10px;background:var(--gris-50);border-radius:8px;font-size:12px;word-break:break-all"></div>`;
+  }
 
   // Reset
-  document.getElementById('sepa_firma_link').style.display = 'none';
+  const _firmaLink = document.getElementById('sepa_firma_link');
+  if (_firmaLink) _firmaLink.style.display = 'none';
   document.getElementById('sepa_file').value = '';
 
   openModal('mMandatoSEPA');
@@ -259,6 +274,70 @@ function enviarMandatoEmail(clienteId, firmaUrl) {
   );
   window.open(`mailto:${c.email}?subject=${asunto}&body=${cuerpo}`);
   toast('Abriendo cliente de correo...', 'info');
+}
+
+// ─── Enviar mandato por email al proveedor ─────────────────
+async function enviarMandatoEmailProveedor() {
+  const entityId = parseInt(document.getElementById('sepa_entity_id').value);
+  const p = (proveedores||[]).find(x => x.id === entityId);
+  if (!p) { toast('Proveedor no encontrado', 'error'); return; }
+  if (!p.email) { toast('El proveedor no tiene email — edita la ficha para añadirlo', 'error'); return; }
+
+  // Generar referencia si no existe
+  const ref = p.mandato_sepa_ref || ('SEPA-P-' + entityId + '-' + Date.now().toString(36).toUpperCase());
+
+  // Marcar como pendiente en BD
+  const { error } = await sb.from('proveedores').update({
+    mandato_sepa_ref: ref,
+    mandato_sepa_estado: 'pendiente',
+    mandato_sepa_fecha: new Date().toISOString().split('T')[0]
+  }).eq('id', entityId);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Actualizar en memoria
+  p.mandato_sepa_ref = ref;
+  p.mandato_sepa_estado = 'pendiente';
+  p.mandato_sepa_fecha = new Date().toISOString().split('T')[0];
+
+  // También actualizar en cuentas_bancarias_entidad si existe
+  const cbe = (cuentasBancariasEntidad||[]).find(x => x.tipo_entidad === 'proveedor' && x.entidad_id === entityId && x.predeterminada);
+  if (cbe) {
+    await sb.from('cuentas_bancarias_entidad').update({
+      mandato_sepa_ref: ref,
+      mandato_sepa_estado: 'pendiente',
+      mandato_sepa_fecha: new Date().toISOString().split('T')[0]
+    }).eq('id', cbe.id);
+    cbe.mandato_sepa_ref = ref;
+    cbe.mandato_sepa_estado = 'pendiente';
+  }
+
+  // Abrir mailto
+  const empresaNombre = EMPRESA?.nombre || '';
+  const asunto = encodeURIComponent(`Mandato SEPA — ${empresaNombre} — Ref: ${ref}`);
+  const cuerpo = encodeURIComponent(
+    `Estimado/a ${p.nombre},\n\n` +
+    `Adjunto le enviamos el mandato de domiciliación SEPA (adeudo directo) para su autorización.\n\n` +
+    `Referencia del mandato: ${ref}\n` +
+    `Acreedor: ${empresaNombre}\n` +
+    `CIF: ${EMPRESA?.cif || ''}\n\n` +
+    `Por favor, firme el documento adjunto y devuélvalo por email o súbalo a nuestro sistema.\n\n` +
+    `IMPORTANTE: Antes de enviar, adjunte el PDF del mandato generado desde el botón "Generar PDF" del sistema.\n\n` +
+    `Gracias,\n${empresaNombre}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`
+  );
+  window.open(`mailto:${p.email}?subject=${asunto}&body=${cuerpo}`);
+
+  // Mostrar confirmación en el modal
+  const linkDiv = document.getElementById('sepa_firma_link');
+  if (linkDiv) {
+    linkDiv.style.display = 'block';
+    linkDiv.innerHTML = `
+      <div style="padding:8px 12px;background:var(--verde-light,#ecfdf5);border-radius:6px;font-size:12px;color:var(--verde)">
+        ✅ Se ha abierto el cliente de correo para enviar a <strong>${p.email}</strong>
+        <div style="margin-top:6px;font-size:11px;color:var(--gris-400)">Recuerda adjuntar el PDF del mandato al email</div>
+      </div>`;
+  }
+  toast('Abriendo cliente de correo — adjunta el PDF del mandato', 'info');
 }
 
 // ─── Subir mandato firmado ─────────────────

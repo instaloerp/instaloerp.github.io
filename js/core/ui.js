@@ -2,6 +2,21 @@
 // UI HELPERS - Screen, modal, page, and form utilities
 // ═══════════════════════════════════════════════
 
+// ── Fecha y hora para el topbar ──
+function _fechaHoraActual() {
+  const now = new Date();
+  const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const hora = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return fecha + ', ' + hora;
+}
+// Actualizar hora del topbar cada minuto
+setInterval(() => {
+  const sub = document.getElementById('pgSub');
+  if (sub && sub.textContent.match(/^\w.+\d{4},\s\d{2}:\d{2}$/)) {
+    sub.textContent = _fechaHoraActual();
+  }
+}, 60000);
+
 // ── Sidebar colapsable ──
 function toggleSidebar(){
   document.body.classList.toggle('sb-collapsed');
@@ -214,11 +229,7 @@ function goPage(id, opts){
       }
     }
   }
-  // Badge BETA en el subtítulo para páginas beta
-  if (typeof PAGES_BETA !== 'undefined' && PAGES_BETA.has(id)) {
-    const subEl = document.getElementById('pgSub');
-    if (subEl) subEl.innerHTML = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:#DBEAFE;color:#1D4ED8;letter-spacing:.5px;margin-left:4px">BETA</span>';
-  }
+  // Badge BETA eliminado — solo fecha y hora en pgSub
   // Guardar estado actual en la pila (salvo si es navegación "atrás")
   if (!opts._isBack) {
     const prev = _captureNavState();
@@ -232,39 +243,10 @@ function goPage(id, opts){
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
   const titles={dashboard:'Panel',clientes:'Clientes',proveedores:'Proveedores',articulos:'Artículos',almacenes:'Almacenes',trabajos:'Obras',mantenimientos:'Mantenimientos',presupuestos:'Presupuestos',albaranes:'Albaranes',facturas:'Facturas','presupuestos-compra':'Presupuestos de compra','pedidos-compra':'Pedidos de compra','albaranes-proveedor':'Albaranes de proveedor','facturas-proveedor':'Facturas de proveedor','calendario-pagos':'Calendario de Pagos',correo:'Correo',stock:'Stock',traspasos:'Traspasos',activos:'Activos',partes:'Partes de trabajo',planificador:'Planificador Semanal',fichajes:'Fichajes','audit-log':'Registro de actividad',papelera:'Papelera',usuarios:'Usuarios',configuracion:'Configuración','etiquetas-qr':'Etiquetas QR'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
-  document.getElementById('pgSub').textContent = '';
-  // Topbar buttons por página
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
+  // Topbar limpio — sin botones
   const tb = document.getElementById('topbarBtns');
-  if (tb) {
-    const btns = {
-      clientes: '',
-      presupuestos: '',
-      albaranes: '',
-      facturas: `<button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>`,
-      proveedores: `<button class="btn btn-secondary btn-sm" onclick="openModal('mImportarProveedores')">📥 Importar</button><button class="btn btn-primary btn-sm" onclick="openModal('mProveedor')">+ Nuevo</button>`,
-      articulos: '',
-      almacenes: `<button class="btn btn-primary btn-sm" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>`,
-      trabajos: '',
-      mantenimientos: '',
-      usuarios: `<button class="btn btn-primary btn-sm" onclick="openModal('mNuevoUsuario')">+ Nuevo usuario</button>`,
-      dashboard: '',
-      'audit-log': '',
-      papelera: '',
-      'presupuestos-compra': '',
-      'pedidos-compra': '',
-      'albaranes-proveedor': '',
-      'facturas-proveedor': '',
-      stock: '',
-      traspasos: '<button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo traspaso</button>',
-      partes: '<button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo parte</button>',
-      planificador: '<button class="btn btn-primary btn-sm" onclick="nuevoParteModal()">+ Nuevo parte</button>',
-      fichajes: '',
-      configuracion: '',
-      activos: '',
-      'etiquetas-qr': '',
-    };
-    tb.innerHTML = btns[id] !== undefined ? btns[id] : `<button class="btn btn-primary btn-sm" onclick="nuevoRapido()">+ Nuevo</button>`;
-  }
+  if (tb) tb.innerHTML = '';
   if(id==='configuracion') renderConfigLists();
   if(id==='etiquetas-qr') cargarPaginaEtiquetasQR();
   if(id==='mEmpresas') renderEmpresasList();

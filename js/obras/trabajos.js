@@ -211,7 +211,7 @@ function cerrarFichaObra() {
   obraActualId = null;
   setObraVista('lista');
   document.getElementById('pgTitle').textContent = 'Obras';
-  document.getElementById('pgSub').textContent = '';
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
 }
 
 // ═══════════════════════════════════════════════
@@ -239,7 +239,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   document.getElementById('fichaObraClienteNombre').textContent = _cliNombre;
   document.getElementById('fichaObraTitulo').textContent = t.titulo || '';
   document.getElementById('pgTitle').textContent = t.numero;
-  document.getElementById('pgSub').textContent = t.titulo;
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
   document.getElementById('fichaObraSub').textContent = t.numero;
   // Avatar con iniciales del cliente
   const _avEl = document.getElementById('fichaObraAvatar');

@@ -26,7 +26,7 @@ function setCliVista(v) {
     else renderClientes(clientes); // si viene de ficha, renderizar todos
     // Resetear topbar al volver a la lista
     document.getElementById('pgTitle').textContent = 'Clientes';
-    document.getElementById('pgSub').textContent = '';
+    document.getElementById('pgSub').textContent = _fechaHoraActual();
     const tb = document.getElementById('topbarBtns');
     if (tb) tb.innerHTML = '';
     cliActualId = null;
@@ -40,7 +40,7 @@ function setCliVista(v) {
     const c = clientes.find(x => x.id === cliActualId);
     if (c) {
       document.getElementById('pgTitle').textContent = c.nombre;
-      document.getElementById('pgSub').textContent = c.tipo || 'Cliente';
+      document.getElementById('pgSub').textContent = _fechaHoraActual();
     }
   }
 }
@@ -144,7 +144,7 @@ async function abrirFicha(id) {
   if (!c) return;
   document.getElementById('fichaCliNombre').textContent = c.nombre;
   document.getElementById('pgTitle').textContent = c.nombre;
-  document.getElementById('pgSub').textContent = c.tipo || 'Cliente';
+  document.getElementById('pgSub').textContent = _fechaHoraActual();
   setCliVista('ficha');
 
   // Avatar y subtítulo
