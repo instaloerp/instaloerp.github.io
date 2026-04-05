@@ -898,6 +898,123 @@ function debesFirmarDocumento(tipoDocumento) {
 // ═══════════════════════════════════════════════
 let _cuentasCorreo = [];
 
+// ─── Base de datos de proveedores conocidos ───
+const _emailProviders = {
+  // Gmail / Google Workspace
+  'gmail.com':          { smtp:'smtp.gmail.com', smtp_port:587, smtp_sec:'tls', imap:'imap.gmail.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación (no tu contraseña normal). Actívala en myaccount.google.com → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones.', nombre:'Gmail' },
+  'googlemail.com':     { smtp:'smtp.gmail.com', smtp_port:587, smtp_sec:'tls', imap:'imap.gmail.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación.', nombre:'Gmail' },
+  // Microsoft
+  'outlook.com':        { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Outlook' },
+  'outlook.es':         { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Outlook' },
+  'hotmail.com':        { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Hotmail/Outlook' },
+  'hotmail.es':         { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Hotmail/Outlook' },
+  'live.com':           { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Live/Outlook' },
+  'msn.com':            { smtp:'smtp.office365.com', smtp_port:587, smtp_sec:'tls', imap:'outlook.office365.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'MSN/Outlook' },
+  // Yahoo
+  'yahoo.com':          { smtp:'smtp.mail.yahoo.com', smtp_port:587, smtp_sec:'tls', imap:'imap.mail.yahoo.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación desde la configuración de seguridad de Yahoo.', nombre:'Yahoo' },
+  'yahoo.es':           { smtp:'smtp.mail.yahoo.com', smtp_port:587, smtp_sec:'tls', imap:'imap.mail.yahoo.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación.', nombre:'Yahoo' },
+  // iCloud
+  'icloud.com':         { smtp:'smtp.mail.me.com', smtp_port:587, smtp_sec:'tls', imap:'imap.mail.me.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación desde appleid.apple.com.', nombre:'iCloud' },
+  'me.com':             { smtp:'smtp.mail.me.com', smtp_port:587, smtp_sec:'tls', imap:'imap.mail.me.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación.', nombre:'iCloud' },
+  'mac.com':            { smtp:'smtp.mail.me.com', smtp_port:587, smtp_sec:'tls', imap:'imap.mail.me.com', imap_port:993, imap_sec:'ssl', nota:'Requiere contraseña de aplicación.', nombre:'iCloud' },
+  // Zoho
+  'zoho.com':           { smtp:'smtp.zoho.com', smtp_port:587, smtp_sec:'tls', imap:'imap.zoho.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Zoho' },
+  'zohomail.eu':        { smtp:'smtp.zoho.eu', smtp_port:587, smtp_sec:'tls', imap:'imap.zoho.eu', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Zoho EU' },
+  // ProtonMail (Bridge)
+  'protonmail.com':     { smtp:'127.0.0.1', smtp_port:1025, smtp_sec:'none', imap:'127.0.0.1', imap_port:1143, imap_sec:'none', nota:'Requiere Proton Mail Bridge instalado y ejecutándose.', nombre:'ProtonMail' },
+  'proton.me':          { smtp:'127.0.0.1', smtp_port:1025, smtp_sec:'none', imap:'127.0.0.1', imap_port:1143, imap_sec:'none', nota:'Requiere Proton Mail Bridge.', nombre:'ProtonMail' },
+  // Españoles
+  'telefonica.net':     { smtp:'smtp.telefonica.net', smtp_port:587, smtp_sec:'tls', imap:'imap.telefonica.net', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Telefónica/Movistar' },
+  'movistar.es':        { smtp:'smtp.movistar.es', smtp_port:587, smtp_sec:'tls', imap:'imap.movistar.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Movistar' },
+  'terra.es':           { smtp:'smtp.terra.es', smtp_port:587, smtp_sec:'tls', imap:'imap.terra.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Terra' },
+  'ono.com':            { smtp:'smtp.ono.com', smtp_port:587, smtp_sec:'tls', imap:'imap.ono.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'ONO/Vodafone' },
+  'vodafone.es':        { smtp:'smtp.vodafone.es', smtp_port:587, smtp_sec:'tls', imap:'imap.vodafone.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Vodafone' },
+  'orange.es':          { smtp:'smtp.orange.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.orange.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Orange' },
+  'jazztel.es':         { smtp:'smtp.orange.es', smtp_port:465, smtp_sec:'ssl', imap:'imap.orange.es', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Jazztel/Orange' },
+  'ya.com':             { smtp:'smtp.ya.com', smtp_port:587, smtp_sec:'tls', imap:'imap.ya.com', imap_port:993, imap_sec:'ssl', nota:'', nombre:'Ya.com' },
+  // Hosting genérico (cPanel, Plesk, etc.)
+  // Se usa la heurística de mail.dominio.com
+};
+
+let _autoconfLastDomain = '';
+
+function autoconfigurarCorreo() {
+  const email = (document.getElementById('cor_email')?.value || '').trim().toLowerCase();
+  const banner = document.getElementById('cor_autoconf_banner');
+  const msgEl = document.getElementById('cor_autoconf_msg');
+  const notaEl = document.getElementById('cor_nota_proveedor');
+
+  // Extraer dominio
+  const at = email.indexOf('@');
+  if (at < 1 || at === email.length - 1) {
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  const domain = email.substring(at + 1);
+  if (domain === _autoconfLastDomain) return; // Ya configurado
+  _autoconfLastDomain = domain;
+
+  // Auto-rellenar usuario SMTP = email completo
+  const userEl = document.getElementById('cor_smtp_user');
+  if (userEl && !userEl.value) userEl.value = email;
+
+  // Buscar proveedor conocido
+  const prov = _emailProviders[domain];
+
+  if (prov) {
+    // Proveedor conocido: autocompletar todo
+    document.getElementById('cor_smtp_host').value = prov.smtp;
+    document.getElementById('cor_smtp_port').value = prov.smtp_port;
+    document.getElementById('cor_seguridad').value = prov.smtp_sec;
+    document.getElementById('cor_smtp_user').value = email;
+    document.getElementById('cor_imap_host').value = prov.imap;
+    document.getElementById('cor_imap_port').value = prov.imap_port;
+    document.getElementById('cor_imap_seguridad').value = prov.imap_sec;
+
+    if (banner && msgEl) {
+      banner.style.display = 'block';
+      msgEl.innerHTML = `✅ <b>${prov.nombre}</b> detectado — configuración autocompletada`;
+    }
+    if (notaEl && prov.nota) {
+      notaEl.innerHTML = prov.nota;
+      notaEl.style.color = '#92400e';
+      notaEl.style.background = '#fffbeb';
+      notaEl.style.padding = '6px 10px';
+      notaEl.style.borderRadius = '6px';
+      notaEl.style.border = '1px solid #fbbf24';
+    } else if (notaEl) {
+      notaEl.innerHTML = 'La contraseña se almacena cifrada.';
+      notaEl.style.color = '';
+      notaEl.style.background = '';
+      notaEl.style.padding = '';
+      notaEl.style.borderRadius = '';
+      notaEl.style.border = '';
+    }
+  } else {
+    // Dominio desconocido: heurística estándar (mail.dominio, smtp.dominio, imap.dominio)
+    document.getElementById('cor_smtp_host').value = 'smtp.' + domain;
+    document.getElementById('cor_smtp_port').value = '587';
+    document.getElementById('cor_seguridad').value = 'tls';
+    document.getElementById('cor_smtp_user').value = email;
+    document.getElementById('cor_imap_host').value = 'imap.' + domain;
+    document.getElementById('cor_imap_port').value = '993';
+    document.getElementById('cor_imap_seguridad').value = 'ssl';
+
+    if (banner && msgEl) {
+      banner.style.display = 'block';
+      msgEl.innerHTML = `⚙️ Dominio <b>${domain}</b> — configuración estimada (smtp.${domain} / imap.${domain}). Si no funciona, consulta con tu proveedor de hosting.`;
+    }
+    if (notaEl) {
+      notaEl.innerHTML = 'La contraseña se almacena cifrada. Si usas hosting propio, consulta los datos SMTP/IMAP con tu proveedor.';
+      notaEl.style.color = '';
+      notaEl.style.background = '';
+      notaEl.style.padding = '';
+      notaEl.style.borderRadius = '';
+      notaEl.style.border = '';
+    }
+  }
+}
+
 async function cargarCuentasCorreoConfig() {
   try {
     const { data, error } = await sb.from('cuentas_correo')
@@ -931,12 +1048,16 @@ async function cargarCuentasCorreoConfig() {
     const predTag = c.predeterminada
       ? ' <span style="background:var(--azul);color:#fff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700">PREDETERMINADA</span>'
       : '';
+    const syncTag = c.sync_habilitada
+      ? ' <span style="background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700">SYNC</span>'
+      : '';
     return `<div style="padding:14px;border:1.5px solid ${c.predeterminada?'var(--azul)':'var(--gris-200)'};border-radius:10px;margin-bottom:10px;background:${c.predeterminada?'var(--azul-light,#eff6ff)':'#fff'}">
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div>
-          <div style="font-weight:700;font-size:14px">${c.nombre} ${estadoTag}${predTag}</div>
+          <div style="font-weight:700;font-size:14px">${c.nombre} ${estadoTag}${predTag}${syncTag}</div>
           <div style="font-size:12px;color:var(--gris-500);margin-top:2px">📧 ${c.email}</div>
-          <div style="font-size:11px;color:var(--gris-400);margin-top:2px">${c.smtp_host}:${c.smtp_port} (${(c.seguridad||'tls').toUpperCase()}) · ${c.nombre_mostrado||c.email}</div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:2px">SMTP: ${c.smtp_host}:${c.smtp_port} · IMAP: ${c.imap_host||'—'}:${c.imap_port||993}</div>
+          ${c.ultimo_sync ? `<div style="font-size:10px;color:var(--gris-400);margin-top:1px">Última sync: ${new Date(c.ultimo_sync).toLocaleString('es-ES')}</div>` : ''}
         </div>
         <div style="display:flex;gap:4px">
           ${!c.predeterminada ? `<button class="btn btn-ghost btn-sm" onclick="setPredeterminadaCorreo('${c.id}')" title="Predeterminada">⭐</button>` : ''}
@@ -948,7 +1069,25 @@ async function cargarCuentasCorreoConfig() {
   }).join('');
 }
 
+function _resetModalCorreo() {
+  _autoconfLastDomain = '';
+  const banner = document.getElementById('cor_autoconf_banner');
+  if (banner) banner.style.display = 'none';
+  const avanzado = document.getElementById('cor_avanzado');
+  if (avanzado) avanzado.style.display = 'none';
+  const notaEl = document.getElementById('cor_nota_proveedor');
+  if (notaEl) {
+    notaEl.innerHTML = 'La contraseña se almacena cifrada. Para Gmail, usa una "contraseña de aplicación" (no tu contraseña normal).';
+    notaEl.style.color = '';
+    notaEl.style.background = '';
+    notaEl.style.padding = '';
+    notaEl.style.borderRadius = '';
+    notaEl.style.border = '';
+  }
+}
+
 function nuevaCuentaCorreo() {
+  _resetModalCorreo();
   document.getElementById('cor_id').value = '';
   document.getElementById('cor_nombre').value = '';
   document.getElementById('cor_email').value = '';
@@ -958,13 +1097,18 @@ function nuevaCuentaCorreo() {
   document.getElementById('cor_smtp_user').value = '';
   document.getElementById('cor_smtp_pass').value = '';
   document.getElementById('cor_seguridad').value = 'tls';
+  document.getElementById('cor_imap_host').value = '';
+  document.getElementById('cor_imap_port').value = '993';
+  document.getElementById('cor_imap_seguridad').value = 'ssl';
   document.getElementById('cor_predeterminada').checked = _cuentasCorreo.length === 0;
   document.getElementById('cor_activa').checked = true;
+  document.getElementById('cor_sync_habilitada').checked = true;
   document.getElementById('mCorreoTit').textContent = 'Nueva cuenta de correo';
   openModal('mCuentaCorreo');
 }
 
 function editCuentaCorreo(id) {
+  _resetModalCorreo();
   const c = _cuentasCorreo.find(x => x.id == id);
   if (!c) return;
   document.getElementById('cor_id').value = c.id;
@@ -976,9 +1120,16 @@ function editCuentaCorreo(id) {
   document.getElementById('cor_smtp_user').value = c.smtp_usuario || '';
   document.getElementById('cor_smtp_pass').value = ''; // Never pre-fill password
   document.getElementById('cor_seguridad').value = c.seguridad || 'tls';
+  document.getElementById('cor_imap_host').value = c.imap_host || '';
+  document.getElementById('cor_imap_port').value = c.imap_port || 993;
+  document.getElementById('cor_imap_seguridad').value = c.imap_seguridad || 'ssl';
   document.getElementById('cor_predeterminada').checked = !!c.predeterminada;
   document.getElementById('cor_activa').checked = c.activa !== false;
+  document.getElementById('cor_sync_habilitada').checked = c.sync_habilitada !== false;
   document.getElementById('mCorreoTit').textContent = 'Editar cuenta: ' + (c.nombre || c.email);
+  // En edición, mostrar sección avanzada abierta
+  const avanzado = document.getElementById('cor_avanzado');
+  if (avanzado) avanzado.style.display = 'block';
   openModal('mCuentaCorreo');
 }
 
@@ -989,17 +1140,20 @@ async function guardarCuentaCorreo() {
   const display = document.getElementById('cor_display').value.trim();
   const host = document.getElementById('cor_smtp_host').value.trim();
   const port = parseInt(document.getElementById('cor_smtp_port').value) || 587;
-  const user = document.getElementById('cor_smtp_user').value.trim();
+  const user = document.getElementById('cor_smtp_user').value.trim() || email;
   const pass = document.getElementById('cor_smtp_pass').value;
   const seguridad = document.getElementById('cor_seguridad').value;
+  const imapHost = document.getElementById('cor_imap_host').value.trim();
+  const imapPort = parseInt(document.getElementById('cor_imap_port').value) || 993;
+  const imapSeg = document.getElementById('cor_imap_seguridad').value;
   const predeterminada = document.getElementById('cor_predeterminada').checked;
   const activa = document.getElementById('cor_activa').checked;
+  const syncHabilitada = document.getElementById('cor_sync_habilitada').checked;
 
   if (!nombre) { toast('Nombre de la cuenta obligatorio', 'error'); return; }
   if (!email) { toast('Dirección de correo obligatoria', 'error'); return; }
   if (!host) { toast('Servidor SMTP obligatorio', 'error'); return; }
-  if (!user) { toast('Usuario SMTP obligatorio', 'error'); return; }
-  if (!id && !pass) { toast('Contraseña SMTP obligatoria', 'error'); return; }
+  if (!id && !pass) { toast('Contraseña obligatoria', 'error'); return; }
 
   // Cifrar contraseña
   const passCifrada = pass ? btoa(unescape(encodeURIComponent(pass))) : undefined;
@@ -1020,6 +1174,10 @@ async function guardarCuentaCorreo() {
     smtp_port: port,
     smtp_usuario: user,
     seguridad,
+    imap_host: imapHost || null,
+    imap_port: imapPort,
+    imap_seguridad: imapSeg,
+    sync_habilitada: syncHabilitada,
     predeterminada,
     activa
   };
@@ -1063,12 +1221,12 @@ async function setPredeterminadaCorreo(id) {
 async function testConexionCorreo() {
   const host = document.getElementById('cor_smtp_host').value.trim();
   const port = document.getElementById('cor_smtp_port').value;
-  const user = document.getElementById('cor_smtp_user').value.trim();
+  const user = document.getElementById('cor_smtp_user').value.trim() || document.getElementById('cor_email').value.trim();
   const pass = document.getElementById('cor_smtp_pass').value;
   const seguridad = document.getElementById('cor_seguridad').value;
 
   if (!host || !user || !pass) {
-    toast('Rellena servidor, usuario y contraseña para probar', 'error');
+    toast('Rellena email y contraseña para probar', 'error');
     return;
   }
 

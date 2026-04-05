@@ -3749,8 +3749,9 @@
       <h2 id="mCorreoTit">Nueva cuenta de correo</h2>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mCuentaCorreo')">✕</button>
     </div>
-    <div class="modal-b">
+    <div class="modal-b" style="max-height:70vh;overflow-y:auto">
       <input type="hidden" id="cor_id">
+      <!-- PASO 1: Email + contraseña (autoconfiguración) -->
       <div class="fg" style="margin-bottom:11px">
         <label>Nombre de la cuenta *</label>
         <input id="cor_nombre" placeholder="Ej: Facturación, Comercial, General..." style="width:100%">
@@ -3758,47 +3759,79 @@
       <div class="fg-row" style="margin-bottom:11px;gap:10px">
         <div class="fg" style="flex:1">
           <label>Dirección de correo *</label>
-          <input id="cor_email" type="email" placeholder="facturacion@empresa.com" style="width:100%">
+          <input id="cor_email" type="email" placeholder="tu@email.com" style="width:100%" oninput="autoconfigurarCorreo()">
         </div>
         <div class="fg" style="flex:1">
-          <label>Nombre mostrado</label>
-          <input id="cor_display" placeholder="Ej: Jordi Instalaciones - Facturación" style="width:100%">
-        </div>
-      </div>
-      <div style="border-top:1px solid var(--gris-200);margin:14px 0;padding-top:14px">
-        <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:10px">CONFIGURACIÓN SMTP</div>
-      </div>
-      <div class="fg-row" style="margin-bottom:11px;gap:10px">
-        <div class="fg" style="flex:2">
-          <label>Servidor SMTP *</label>
-          <input id="cor_smtp_host" placeholder="smtp.gmail.com" style="width:100%">
-        </div>
-        <div class="fg" style="flex:1">
-          <label>Puerto *</label>
-          <input id="cor_smtp_port" type="number" placeholder="587" style="width:100%">
-        </div>
-        <div class="fg" style="flex:1">
-          <label>Seguridad</label>
-          <select id="cor_seguridad" style="width:100%">
-            <option value="tls">TLS</option>
-            <option value="ssl">SSL</option>
-            <option value="none">Ninguna</option>
-          </select>
-        </div>
-      </div>
-      <div class="fg-row" style="margin-bottom:11px;gap:10px">
-        <div class="fg" style="flex:1">
-          <label>Usuario SMTP *</label>
-          <input id="cor_smtp_user" placeholder="usuario@gmail.com" style="width:100%">
-        </div>
-        <div class="fg" style="flex:1">
-          <label>Contraseña SMTP *</label>
+          <label>Contraseña *</label>
           <div style="display:flex;gap:6px">
             <input type="password" id="cor_smtp_pass" placeholder="Contraseña o app password" style="flex:1">
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cor_smtp_pass').type=document.getElementById('cor_smtp_pass').type==='password'?'text':'password'" style="font-size:16px">👁️</button>
           </div>
         </div>
       </div>
+      <!-- Banner autoconfiguración -->
+      <div id="cor_autoconf_banner" style="display:none;background:var(--verde-light,#f0fdf4);border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#166534;display:none">
+        <span id="cor_autoconf_msg"></span>
+      </div>
+      <!-- Nombre mostrado -->
+      <div class="fg" style="margin-bottom:11px">
+        <label>Nombre mostrado (remitente)</label>
+        <input id="cor_display" placeholder="Ej: Jordi Instalaciones S.C." style="width:100%">
+      </div>
+      <!-- CONFIGURACIÓN AVANZADA (colapsable) -->
+      <div style="border-top:1px solid var(--gris-200);margin:14px 0 8px;padding-top:10px">
+        <div onclick="document.getElementById('cor_avanzado').style.display=document.getElementById('cor_avanzado').style.display==='none'?'block':'none';this.querySelector('span').textContent=document.getElementById('cor_avanzado').style.display==='none'?'▸':'▾'" style="font-weight:700;font-size:12px;color:var(--gris-500);cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none">
+          <span>▸</span> CONFIGURACIÓN AVANZADA
+          <span style="font-weight:400;font-size:11px;color:var(--gris-400)">(autocompletada)</span>
+        </div>
+      </div>
+      <div id="cor_avanzado" style="display:none">
+        <!-- SMTP -->
+        <div style="font-weight:600;font-size:11px;color:var(--azul);margin:10px 0 8px;text-transform:uppercase;letter-spacing:0.3px">Servidor de salida (SMTP)</div>
+        <div class="fg-row" style="margin-bottom:11px;gap:10px">
+          <div class="fg" style="flex:2">
+            <label>Servidor SMTP *</label>
+            <input id="cor_smtp_host" placeholder="smtp.gmail.com" style="width:100%">
+          </div>
+          <div class="fg" style="flex:1">
+            <label>Puerto</label>
+            <input id="cor_smtp_port" type="number" placeholder="587" style="width:100%">
+          </div>
+          <div class="fg" style="flex:1">
+            <label>Seguridad</label>
+            <select id="cor_seguridad" style="width:100%">
+              <option value="tls">TLS</option>
+              <option value="ssl">SSL</option>
+              <option value="none">Ninguna</option>
+            </select>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:11px">
+          <label>Usuario SMTP</label>
+          <input id="cor_smtp_user" placeholder="(mismo que el email)" style="width:100%">
+        </div>
+        <!-- IMAP -->
+        <div style="font-weight:600;font-size:11px;color:var(--azul);margin:14px 0 8px;text-transform:uppercase;letter-spacing:0.3px">Servidor de entrada (IMAP)</div>
+        <div class="fg-row" style="margin-bottom:11px;gap:10px">
+          <div class="fg" style="flex:2">
+            <label>Servidor IMAP</label>
+            <input id="cor_imap_host" placeholder="imap.gmail.com" style="width:100%">
+          </div>
+          <div class="fg" style="flex:1">
+            <label>Puerto</label>
+            <input id="cor_imap_port" type="number" placeholder="993" style="width:100%">
+          </div>
+          <div class="fg" style="flex:1">
+            <label>Seguridad</label>
+            <select id="cor_imap_seguridad" style="width:100%">
+              <option value="ssl">SSL</option>
+              <option value="tls">TLS</option>
+              <option value="none">Ninguna</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- Opciones -->
       <div class="fg-row" style="margin-bottom:11px;gap:10px;align-items:center">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
           <input type="checkbox" id="cor_predeterminada"> <span style="font-size:13px">Cuenta predeterminada</span>
@@ -3806,8 +3839,11 @@
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
           <input type="checkbox" id="cor_activa" checked> <span style="font-size:13px">Activa</span>
         </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
+          <input type="checkbox" id="cor_sync_habilitada" checked> <span style="font-size:13px">Sincronizar entrada</span>
+        </label>
       </div>
-      <div style="font-size:10px;color:var(--gris-400);margin-top:4px">
+      <div id="cor_nota_proveedor" style="font-size:10px;color:var(--gris-400);margin-top:4px">
         La contraseña se almacena cifrada. Para Gmail, usa una "contraseña de aplicación" (no tu contraseña normal).
       </div>
     </div>
