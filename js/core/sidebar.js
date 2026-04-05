@@ -94,6 +94,9 @@ function renderFavoritos() {
       const esFijo = id === 'dashboard';
       const isHidden = sbHidden.includes(id);
       const isProonto = PAGES_PRONTO.has(id);
+      const hasPermission = userCanAccess(p.id);
+      // Hide if no permission (unless admin/superadmin)
+      if (!hasPermission) return '';
       return `<div ${esFijo?'':'draggable="true"'} data-idx="${idx}"
         ${esFijo?'':'ondragstart="favDragStart(event,'+idx+')" ondragover="favDragOver(event)" ondrop="favDrop(event,'+idx+')" ondragleave="favDragLeave(event)"'}
         style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;${esFijo?'opacity:.6;cursor:default':'cursor:grab'};transition:background .12s;user-select:none;border-left:3px solid rgba(255,200,0,.6)">
@@ -114,14 +117,18 @@ function renderFavoritos() {
       const isHidden = sbHidden.includes(p.id);
       const isProonto = PAGES_PRONTO.has(p.id);
       const isShown = sbShown.includes(p.id);
-      // Opacidad: oculto→.3, pronto (no activado)→.5, visible→1
-      const opacity = isHidden ? '.35' : (isProonto && !isShown ? '.5' : '1');
-      return `<div style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;opacity:${opacity};transition:opacity .15s">
+      const hasPermission = userCanAccess(p.id);
+      // Opacidad: oculto→.3, pronto (no activado)→.5, sin permiso→.15, visible→1
+      let opacity = '1';
+      if (isHidden) opacity = '.35';
+      else if (!hasPermission) opacity = '.15';
+      else if (isProonto && !isShown) opacity = '.5';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:7px;color:#fff;font-size:14px;opacity:${opacity};transition:opacity .15s;${!hasPermission?'cursor:not-allowed':''}">
         <span style="width:14px;flex-shrink:0"></span>
         <span style="font-size:17px;width:20px;text-align:center;flex-shrink:0">${p.ico}</span>
-        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.6;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':(typeof PAGES_BETA!=='undefined'&&PAGES_BETA.has(p.id))?' <span style="font-size:9px;background:rgba(59,130,246,.35);color:#93c5fd;padding:1px 5px;border-radius:3px">beta</span>':''}</span>
-        <button onclick="toggleFavItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:.3" title="Añadir a favoritos">⭐</button>
-        <button onclick="toggleHideItem('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${isHidden?'Mostrar':'Ocultar'}">${isHidden?'🙈':'🙈'}</button>
+        <span style="flex:1;font-size:13px">${p.label}${isProonto?' <span style="font-size:9px;opacity:.6;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:3px">pronto</span>':(typeof PAGES_BETA!=='undefined'&&PAGES_BETA.has(p.id))?' <span style="font-size:9px;background:rgba(59,130,246,.35);color:#93c5fd;padding:1px 5px;border-radius:3px">beta</span>':''} ${!hasPermission?' <span style="font-size:9px;opacity:.6;background:rgba(255,100,100,.25);color:#ff9999;padding:1px 5px;border-radius:3px">sin acceso</span>':''}</span>
+        <button onclick="${hasPermission?`toggleFavItem('${p.id}')`:'return'}" style="background:none;border:none;cursor:${hasPermission?'pointer':'not-allowed'};font-size:15px;padding:2px;flex-shrink:0;opacity:.3" title="${hasPermission?'Añadir a favoritos':'Sin permiso'}" ${!hasPermission?'disabled':''}}>⭐</button>
+        <button onclick="${hasPermission?`toggleHideItem('${p.id}')`:'return'}" style="background:none;border:none;cursor:${hasPermission?'pointer':'not-allowed'};font-size:15px;padding:2px;flex-shrink:0;opacity:${isHidden?'1':'.3'}" title="${!hasPermission?'Sin permiso':(isHidden?'Mostrar':'Ocultar')}" ${!hasPermission?'disabled':''}>${isHidden?'🙈':'🙈'}</button>
       </div>`;
     }).join('');
 
@@ -131,6 +138,8 @@ function renderFavoritos() {
     list.innerHTML = sbFavoritos.map(id => {
       const p = ALL_PAGES.find(x => x.id === id);
       if (!p) return '';
+      // Hide favorite if user doesn't have permission
+      if (!userCanAccess(p.id)) return '';
       return `<button class="sb-fav-item" onclick="goPage('${p.id}')">
         <span style="font-size:18px;width:21px;text-align:center;flex-shrink:0">${p.ico}</span>
         <span>${p.label}</span>
@@ -139,6 +148,48 @@ function renderFavoritos() {
   }
 
   applySbItemVisibility();
+}
+
+// Check if user has permission to access a page
+function userCanAccess(pageId) {
+  // Permission-free pages
+  const pagesLibres = ['dashboard', 'calendario', 'mistareas', 'correo', 'fichajes'];
+  if (pagesLibres.includes(pageId)) return true;
+
+  // Check if user has permission
+  if (typeof CP === 'undefined' || !CP) return false;
+  if (CP.es_superadmin) return true;
+  if (!CP.permisos) return false;
+
+  // Get required permission for this page
+  const _permisosPagina = {
+    'clientes': 'clientes',
+    'presupuestos': 'presupuestos',
+    'albaranes': 'facturas',
+    'facturas': 'facturas',
+    'proveedores': 'clientes',
+    'presupuestos-compra': 'presupuestos',
+    'pedidos-compra': 'presupuestos',
+    'albaranes-proveedor': 'facturas',
+    'facturas-proveedor': 'facturas',
+    'calendario-pagos': 'facturas',
+    'articulos': 'stock',
+    'stock': 'stock',
+    'traspasos': 'stock',
+    'trabajos': 'trabajos',
+    'mantenimientos': 'trabajos',
+    'partes': 'partes',
+    'planificador': 'partes',
+    'usuarios': 'usuarios',
+    'configuracion': 'config',
+    'audit-log': 'usuarios',
+    'etiquetas-qr': 'stock',
+    'papelera': 'usuarios'
+  };
+
+  const permNeeded = _permisosPagina[pageId];
+  if (!permNeeded) return true; // Unknown pages are allowed
+  return CP.permisos[permNeeded] !== false;
 }
 
 // Ocultar/mostrar items del sidebar principal
@@ -150,7 +201,8 @@ function applySbItemVisibility() {
     const inFavs = sbFavoritos.includes(pageId);
     const isHidden = sbHidden.includes(pageId);
     const isProonto = PAGES_PRONTO.has(pageId) && !sbShown.includes(pageId);
-    btn.style.display = (inFavs || isHidden || isProonto) ? 'none' : '';
+    const hasPermission = userCanAccess(pageId);
+    btn.style.display = (inFavs || isHidden || isProonto || !hasPermission) ? 'none' : '';
   });
   // Ocultar secciones enteras si todos sus items están ocultos
   document.querySelectorAll('.sb-section-items').forEach(sec => {

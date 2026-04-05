@@ -221,6 +221,60 @@ table.datos td{padding:8px 12px;border:1px solid #e2e8f0;font-size:12px}
   </div>
 </div></body></html>`);
   win.document.close();
+
+  // Generar PDF con jsPDF y firmar
+  if (typeof firmarYGuardarPDF === 'function' && window.jspdf) {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p','mm','a4');
+      const ML=15,MR=15,W=210;
+      let y=20;
+      // Cabecera empresa
+      doc.setFontSize(16);doc.setFont(undefined,'bold');doc.setTextColor(30,64,175);
+      doc.text(EMPRESA?.nombre||'',ML,y);y+=6;
+      doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+      doc.text(`CIF: ${EMPRESA?.cif||''} · ${dirEmpresa}`,ML,y);y+=10;
+      // Título
+      doc.setFillColor(30,64,175);doc.rect(ML,y-4,W-ML-MR,14,'F');
+      doc.setFontSize(11);doc.setFont(undefined,'bold');doc.setTextColor(255,255,255);
+      doc.text(titulo,W/2,y+3,{align:'center'});
+      doc.setFontSize(8);doc.text('Referencia: '+ref,W/2,y+8,{align:'center'});y+=18;
+      // Subtítulo
+      doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+      const subLines=doc.splitTextToSize(subtitulo,W-ML-MR);doc.text(subLines,ML,y);y+=subLines.length*4+6;
+      // Tabla acreedor
+      doc.autoTable({startY:y,head:[['DATOS DEL ACREEDOR','']],body:[['Nombre',acreedorDoc.nombre],['CIF',acreedorDoc.cif],['Dirección',acreedorDoc.direccion]],styles:{fontSize:9},headStyles:{fillColor:[30,64,175]},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+      y=doc.lastAutoTable.finalY+4;
+      // Tabla deudor
+      doc.autoTable({startY:y,head:[['DATOS DEL DEUDOR','']],body:[['Nombre',deudorDoc.nombre],['NIF/CIF',deudorDoc.cif],['Dirección',deudorDoc.direccion],['IBAN',deudorDoc.iban],['BIC/SWIFT',deudorDoc.bic],['Entidad bancaria',deudorDoc.entidad]],styles:{fontSize:9},headStyles:{fillColor:[146,64,14]},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+      y=doc.lastAutoTable.finalY+4;
+      // Tipo de pago
+      doc.autoTable({startY:y,head:[['TIPO DE PAGO','']],body:[['Tipo de adeudo','Recurrente'],['Fecha',hoy]],styles:{fontSize:9},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+      y=doc.lastAutoTable.finalY+6;
+      // Texto legal
+      doc.setFontSize(7.5);doc.setTextColor(100,116,139);
+      const legalText='Nota: Sus derechos en relación con el presente mandato están recogidos en un documento que puede obtener de su entidad bancaria.';
+      const legalLines=doc.splitTextToSize(legalText,W-ML-MR);doc.text(legalLines,ML,y);y+=legalLines.length*3.5+8;
+      // Firma
+      doc.setFontSize(10);doc.setFont(undefined,'bold');doc.setTextColor(0,0,0);
+      doc.text('FIRMA DEL '+(esCliente?'DEUDOR':'EMISOR'),ML,y);y+=8;
+      doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(100,116,139);
+      doc.text('Lugar y fecha:',ML,y);doc.line(ML+30,y,ML+90,y);
+      doc.text('Firma:',ML+100,y);doc.line(ML+115,y,W-MR,y);y+=8;
+      doc.text('Nombre: '+(esCliente?deudorDoc.nombre:acreedorDoc.nombre),ML,y);y+=4;
+      doc.text('NIF/CIF: '+(esCliente?deudorDoc.cif:acreedorDoc.cif),ML,y);
+
+      const pdfData=doc.output('arraybuffer');
+      firmarYGuardarPDF(pdfData,{
+        tipo_documento:'mandato_sepa',
+        documento_id:entityId,
+        numero:ref,
+        entidad_tipo:tipo,
+        entidad_id:entityId,
+        entidad_nombre:entity.nombre||''
+      }).catch(e=>console.error('Error firmando mandato SEPA:',e));
+    } catch(e) { console.error('Error generando PDF mandato SEPA:',e); }
+  }
 }
 
 // ─── Enviar mandato para firma (cliente) ─────────────────

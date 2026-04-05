@@ -245,6 +245,7 @@ function cfgTab(id,el){
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
+  if (id === 'correo') cargarCuentasCorreoConfig();
 }
 
 // ═══════════════════════════════════════════════
@@ -736,14 +737,19 @@ async function guardarCertificado() {
   toast('Subiendo certificado...', 'info');
 
   // 1. Subir fichero al Storage (bucket privado "certificados")
-  const path = `certificados/${EMPRESA.id}/${Date.now()}_${file.name}`;
+  // Sanitizar nombre de archivo: quitar acentos, espacios y caracteres especiales
+  const safeFileName = file.name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quitar acentos
+    .replace(/[^a-zA-Z0-9._-]/g, '_')                  // solo alfanumérico
+    .replace(/_+/g, '_');                                // múltiples _ a uno solo
+  const path = `${EMPRESA.id}/${Date.now()}_${safeFileName}`;
   let archivoUrl = '', archivoPath = path;
 
   // Intentar bucket "certificados", fallback a "documentos"
   let { error: upErr } = await sb.storage.from('certificados').upload(path, file, { upsert: true });
   if (upErr) {
     // Si el bucket no existe, intentar con "documentos"
-    const path2 = `certificados/${EMPRESA.id}/${Date.now()}_${file.name}`;
+    const path2 = `certificados/${EMPRESA.id}/${Date.now()}_${safeFileName}`;
     const { error: upErr2 } = await sb.storage.from('documentos').upload(path2, file, { upsert: true });
     if (upErr2) {
       toast('Error subiendo: ' + (upErr2.message || upErr.message) + '. Crea el bucket "certificados" en Supabase Storage.', 'error');
@@ -832,12 +838,13 @@ let _cfgFirmaDocumentos = {
   albaran: true,
   pedido_compra: true,
   presupuesto_compra: true,
+  mandato_sepa: true,
   parte_trabajo: true
 };
 
 // Guardar config en la tabla empresas (campo config_firma JSON)
 async function guardarCfgFirmaDocumentos() {
-  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','parte_trabajo'];
+  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','mandato_sepa','parte_trabajo'];
   const cfg = {};
   tipos.forEach(t => {
     const el = document.getElementById('cfgFirma_' + t);
@@ -874,7 +881,7 @@ async function cargarCfgFirmaDocumentos() {
   }
 
   // Actualizar checkboxes en la UI si existen
-  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','parte_trabajo'];
+  const tipos = ['factura','presupuesto','albaran','pedido_compra','presupuesto_compra','mandato_sepa','parte_trabajo'];
   tipos.forEach(t => {
     const el = document.getElementById('cfgFirma_' + t);
     if (el) el.checked = _cfgFirmaDocumentos[t] !== false;
@@ -886,3 +893,212 @@ function debesFirmarDocumento(tipoDocumento) {
   return _cfgFirmaDocumentos[tipoDocumento] !== false;
 }
 
+// ═══════════════════════════════════════════════
+//  CUENTAS DE CORREO ELECTRÓNICO
+// ═══════════════════════════════════════════════
+let _cuentasCorreo = [];
+
+async function cargarCuentasCorreoConfig() {
+  try {
+    const { data, error } = await sb.from('cuentas_correo')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .order('predeterminada', { ascending: false })
+      .order('nombre');
+    if (error) throw error;
+    _cuentasCorreo = data || [];
+  } catch(e) {
+    _cuentasCorreo = [];
+    console.warn('Error cargando cuentas correo:', e.message);
+  }
+
+  const el = document.getElementById('correoConfigList');
+  if (!el) return;
+
+  if (!_cuentasCorreo.length) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--gris-400)">
+      <div style="font-size:32px;margin-bottom:8px">✉️</div>
+      <div style="font-size:13px">No hay cuentas de correo configuradas</div>
+      <div style="font-size:11px;margin-top:4px">Añade tu primera cuenta SMTP para empezar a enviar correos</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = _cuentasCorreo.map(c => {
+    const estadoTag = c.activa
+      ? '<span style="background:#ecfdf5;color:#166534;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">ACTIVA</span>'
+      : '<span style="background:var(--gris-100);color:var(--gris-500);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">INACTIVA</span>';
+    const predTag = c.predeterminada
+      ? ' <span style="background:var(--azul);color:#fff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700">PREDETERMINADA</span>'
+      : '';
+    return `<div style="padding:14px;border:1.5px solid ${c.predeterminada?'var(--azul)':'var(--gris-200)'};border-radius:10px;margin-bottom:10px;background:${c.predeterminada?'var(--azul-light,#eff6ff)':'#fff'}">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div>
+          <div style="font-weight:700;font-size:14px">${c.nombre} ${estadoTag}${predTag}</div>
+          <div style="font-size:12px;color:var(--gris-500);margin-top:2px">📧 ${c.email}</div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:2px">${c.smtp_host}:${c.smtp_port} (${(c.seguridad||'tls').toUpperCase()}) · ${c.nombre_mostrado||c.email}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          ${!c.predeterminada ? `<button class="btn btn-ghost btn-sm" onclick="setPredeterminadaCorreo('${c.id}')" title="Predeterminada">⭐</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="editCuentaCorreo('${c.id}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="delCuentaCorreo('${c.id}')" style="color:var(--rojo)">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function nuevaCuentaCorreo() {
+  document.getElementById('cor_id').value = '';
+  document.getElementById('cor_nombre').value = '';
+  document.getElementById('cor_email').value = '';
+  document.getElementById('cor_display').value = EMPRESA?.nombre || '';
+  document.getElementById('cor_smtp_host').value = '';
+  document.getElementById('cor_smtp_port').value = '587';
+  document.getElementById('cor_smtp_user').value = '';
+  document.getElementById('cor_smtp_pass').value = '';
+  document.getElementById('cor_seguridad').value = 'tls';
+  document.getElementById('cor_predeterminada').checked = _cuentasCorreo.length === 0;
+  document.getElementById('cor_activa').checked = true;
+  document.getElementById('mCorreoTit').textContent = 'Nueva cuenta de correo';
+  openModal('mCuentaCorreo');
+}
+
+function editCuentaCorreo(id) {
+  const c = _cuentasCorreo.find(x => x.id == id);
+  if (!c) return;
+  document.getElementById('cor_id').value = c.id;
+  document.getElementById('cor_nombre').value = c.nombre || '';
+  document.getElementById('cor_email').value = c.email || '';
+  document.getElementById('cor_display').value = c.nombre_mostrado || '';
+  document.getElementById('cor_smtp_host').value = c.smtp_host || '';
+  document.getElementById('cor_smtp_port').value = c.smtp_port || 587;
+  document.getElementById('cor_smtp_user').value = c.smtp_usuario || '';
+  document.getElementById('cor_smtp_pass').value = ''; // Never pre-fill password
+  document.getElementById('cor_seguridad').value = c.seguridad || 'tls';
+  document.getElementById('cor_predeterminada').checked = !!c.predeterminada;
+  document.getElementById('cor_activa').checked = c.activa !== false;
+  document.getElementById('mCorreoTit').textContent = 'Editar cuenta: ' + (c.nombre || c.email);
+  openModal('mCuentaCorreo');
+}
+
+async function guardarCuentaCorreo() {
+  const id = document.getElementById('cor_id').value;
+  const nombre = document.getElementById('cor_nombre').value.trim();
+  const email = document.getElementById('cor_email').value.trim();
+  const display = document.getElementById('cor_display').value.trim();
+  const host = document.getElementById('cor_smtp_host').value.trim();
+  const port = parseInt(document.getElementById('cor_smtp_port').value) || 587;
+  const user = document.getElementById('cor_smtp_user').value.trim();
+  const pass = document.getElementById('cor_smtp_pass').value;
+  const seguridad = document.getElementById('cor_seguridad').value;
+  const predeterminada = document.getElementById('cor_predeterminada').checked;
+  const activa = document.getElementById('cor_activa').checked;
+
+  if (!nombre) { toast('Nombre de la cuenta obligatorio', 'error'); return; }
+  if (!email) { toast('Dirección de correo obligatoria', 'error'); return; }
+  if (!host) { toast('Servidor SMTP obligatorio', 'error'); return; }
+  if (!user) { toast('Usuario SMTP obligatorio', 'error'); return; }
+  if (!id && !pass) { toast('Contraseña SMTP obligatoria', 'error'); return; }
+
+  // Cifrar contraseña
+  const passCifrada = pass ? btoa(unescape(encodeURIComponent(pass))) : undefined;
+
+  // Si es predeterminada, quitar predeterminada de las demás
+  if (predeterminada) {
+    await sb.from('cuentas_correo')
+      .update({ predeterminada: false })
+      .eq('empresa_id', EMPRESA.id);
+  }
+
+  const registro = {
+    empresa_id: EMPRESA.id,
+    nombre,
+    email,
+    nombre_mostrado: display || nombre,
+    smtp_host: host,
+    smtp_port: port,
+    smtp_usuario: user,
+    seguridad,
+    predeterminada,
+    activa
+  };
+  if (passCifrada) registro.smtp_password_cifrada = passCifrada;
+
+  let error;
+  if (id) {
+    ({ error } = await sb.from('cuentas_correo').update(registro).eq('id', id));
+  } else {
+    // Auto-predeterminada si es la primera
+    if (_cuentasCorreo.length === 0) registro.predeterminada = true;
+    ({ error } = await sb.from('cuentas_correo').insert(registro));
+  }
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  toast('✅ Cuenta de correo guardada', 'success');
+  closeModal('mCuentaCorreo');
+  cargarCuentasCorreoConfig();
+}
+
+async function delCuentaCorreo(id) {
+  if (!confirm('¿Eliminar esta cuenta de correo?')) return;
+  const { error } = await sb.from('cuentas_correo').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast('Cuenta eliminada', 'success');
+  cargarCuentasCorreoConfig();
+}
+
+async function setPredeterminadaCorreo(id) {
+  await sb.from('cuentas_correo')
+    .update({ predeterminada: false })
+    .eq('empresa_id', EMPRESA.id);
+  await sb.from('cuentas_correo')
+    .update({ predeterminada: true })
+    .eq('id', id);
+  toast('Cuenta predeterminada actualizada', 'success');
+  cargarCuentasCorreoConfig();
+}
+
+async function testConexionCorreo() {
+  const host = document.getElementById('cor_smtp_host').value.trim();
+  const port = document.getElementById('cor_smtp_port').value;
+  const user = document.getElementById('cor_smtp_user').value.trim();
+  const pass = document.getElementById('cor_smtp_pass').value;
+  const seguridad = document.getElementById('cor_seguridad').value;
+
+  if (!host || !user || !pass) {
+    toast('Rellena servidor, usuario y contraseña para probar', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnTestCorreo');
+  btn.disabled = true;
+  btn.textContent = '⏳ Probando...';
+
+  try {
+    const { data, error } = await sb.functions.invoke('test-smtp', {
+      body: {
+        smtp_host: host,
+        smtp_port: parseInt(port) || 587,
+        smtp_usuario: user,
+        smtp_password: pass,
+        seguridad: seguridad,
+        email_destino: document.getElementById('cor_email').value.trim()
+      }
+    });
+
+    if (error) throw error;
+    if (data?.success) {
+      toast('✅ Conexión SMTP correcta', 'success');
+    } else {
+      toast('❌ ' + (data?.error || 'Error de conexión'), 'error');
+    }
+  } catch(e) {
+    toast('⚠️ No se pudo probar la conexión. La Edge Function test-smtp no está desplegada aún.', 'warning');
+    console.warn('Test SMTP:', e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔌 Probar conexión';
+}

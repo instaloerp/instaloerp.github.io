@@ -139,7 +139,7 @@ async function saveUsuario() {
     trabajos: document.getElementById('up_trabajos').checked,
     partes: document.getElementById('up_partes').checked,
     stock: document.getElementById('up_stock').checked,
-    configuracion: document.getElementById('up_config').checked,
+    config: document.getElementById('up_config').checked,
     usuarios: document.getElementById('up_usuarios').checked,
   };
 
@@ -155,6 +155,12 @@ async function saveUsuario() {
     }
     const { error: updErr } = await sb.from('perfiles').update(obj).eq('id', id);
     if (updErr) { toast('Error al guardar: ' + updErr.message, 'error'); console.error('[saveUsuario] Error:', updErr); return; }
+    // If current user, update CP and refresh sidebar
+    if (id === CU.id) {
+      await cargarPerfil();
+      if (typeof applySbItemVisibility === 'function') applySbItemVisibility();
+      if (typeof renderFavoritos === 'function') renderFavoritos();
+    }
     toast('Usuario actualizado ✓', 'success');
   } else {
     const { data: authData, error: authErr } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
@@ -222,7 +228,7 @@ function editUsuario(uid) {
   });
   const elCfg = document.getElementById('up_config');
   const elUsr = document.getElementById('up_usuarios');
-  if(elCfg) elCfg.checked = isAdmin ? true : (p['configuracion'] || p['config'] || false);
+  if(elCfg) elCfg.checked = isAdmin ? true : (p['config'] || p['configuracion'] || false);
   if(elUsr) elUsr.checked = isAdmin ? true : (p['usuarios'] || false);
 
   // Disponible para partes

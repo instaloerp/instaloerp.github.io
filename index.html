@@ -1791,6 +1791,7 @@
             <button class="cfg-menu-item" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
             <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
             <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
+            <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -2012,10 +2013,44 @@
                       <input type="checkbox" id="cfgFirma_presupuesto_compra" checked onchange="guardarCfgFirmaDocumentos()"> Presupuestos de compra
                     </label>
                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--gris-600)">
+                      <input type="checkbox" id="cfgFirma_mandato_sepa" checked onchange="guardarCfgFirmaDocumentos()"> Mandatos SEPA
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--gris-600)">
                       <input type="checkbox" id="cfgFirma_parte_trabajo" checked onchange="guardarCfgFirmaDocumentos()"> Partes de trabajo
                     </label>
                   </div>
                   <div style="font-size:10px;color:var(--gris-400);margin-top:8px">Desmarca los tipos de documento que no quieras firmar automáticamente</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Correo Electrónico -->
+            <div class="cfg-panel card" id="cfg-correo">
+              <div class="card-h">
+                <h3>✉️ Cuentas de correo electrónico</h3>
+                <div class="card-ha">
+                  <button class="btn btn-primary btn-sm" onclick="nuevaCuentaCorreo()">+ Nueva cuenta</button>
+                </div>
+              </div>
+              <div class="card-b" style="padding:20px">
+                <div style="background:var(--azul-light);border-radius:10px;padding:16px;margin-bottom:20px">
+                  <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">Configuración de correo saliente</div>
+                  <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                    Configura las cuentas de correo SMTP para enviar documentos, notificaciones y comunicaciones desde el ERP. Puedes tener una cuenta genérica o varias especializadas (facturación, comercial, etc.).
+                  </div>
+                </div>
+                <div id="correoConfigList" style="margin-bottom:16px">
+                  <div style="text-align:center;padding:20px;color:var(--gris-400)">
+                    <div style="font-size:32px;margin-bottom:8px">✉️</div>
+                    <div style="font-size:13px">No hay cuentas de correo configuradas</div>
+                    <div style="font-size:11px;margin-top:4px">Añade tu primera cuenta SMTP para empezar a enviar correos</div>
+                  </div>
+                </div>
+                <div style="padding:14px;background:var(--gris-50);border-radius:8px;font-size:11px;color:var(--gris-500);line-height:1.7">
+                  <strong>Configuraciones habituales:</strong><br>
+                  📧 Gmail: smtp.gmail.com, puerto 587, TLS (requiere contraseña de aplicación)<br>
+                  📧 Outlook/Office365: smtp.office365.com, puerto 587, TLS<br>
+                  📧 Hosting propio: consulta con tu proveedor los datos SMTP
                 </div>
               </div>
             </div>
@@ -3702,6 +3737,84 @@
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mCuentaBancaria')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarCuentaBancaria()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CUENTA CORREO ═══ -->
+<div class="overlay" id="mCuentaCorreo" style="display:none">
+  <div class="modal modal-md">
+    <div class="modal-h">
+      <span>✉️</span>
+      <h2 id="mCorreoTit">Nueva cuenta de correo</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mCuentaCorreo')">✕</button>
+    </div>
+    <div class="modal-b">
+      <input type="hidden" id="cor_id">
+      <div class="fg" style="margin-bottom:11px">
+        <label>Nombre de la cuenta *</label>
+        <input id="cor_nombre" placeholder="Ej: Facturación, Comercial, General..." style="width:100%">
+      </div>
+      <div class="fg-row" style="margin-bottom:11px;gap:10px">
+        <div class="fg" style="flex:1">
+          <label>Dirección de correo *</label>
+          <input id="cor_email" type="email" placeholder="facturacion@empresa.com" style="width:100%">
+        </div>
+        <div class="fg" style="flex:1">
+          <label>Nombre mostrado</label>
+          <input id="cor_display" placeholder="Ej: Jordi Instalaciones - Facturación" style="width:100%">
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--gris-200);margin:14px 0;padding-top:14px">
+        <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:10px">CONFIGURACIÓN SMTP</div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px;gap:10px">
+        <div class="fg" style="flex:2">
+          <label>Servidor SMTP *</label>
+          <input id="cor_smtp_host" placeholder="smtp.gmail.com" style="width:100%">
+        </div>
+        <div class="fg" style="flex:1">
+          <label>Puerto *</label>
+          <input id="cor_smtp_port" type="number" placeholder="587" style="width:100%">
+        </div>
+        <div class="fg" style="flex:1">
+          <label>Seguridad</label>
+          <select id="cor_seguridad" style="width:100%">
+            <option value="tls">TLS</option>
+            <option value="ssl">SSL</option>
+            <option value="none">Ninguna</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px;gap:10px">
+        <div class="fg" style="flex:1">
+          <label>Usuario SMTP *</label>
+          <input id="cor_smtp_user" placeholder="usuario@gmail.com" style="width:100%">
+        </div>
+        <div class="fg" style="flex:1">
+          <label>Contraseña SMTP *</label>
+          <div style="display:flex;gap:6px">
+            <input type="password" id="cor_smtp_pass" placeholder="Contraseña o app password" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cor_smtp_pass').type=document.getElementById('cor_smtp_pass').type==='password'?'text':'password'" style="font-size:16px">👁️</button>
+          </div>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px;gap:10px;align-items:center">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
+          <input type="checkbox" id="cor_predeterminada"> <span style="font-size:13px">Cuenta predeterminada</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
+          <input type="checkbox" id="cor_activa" checked> <span style="font-size:13px">Activa</span>
+        </label>
+      </div>
+      <div style="font-size:10px;color:var(--gris-400);margin-top:4px">
+        La contraseña se almacena cifrada. Para Gmail, usa una "contraseña de aplicación" (no tu contraseña normal).
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" onclick="closeModal('mCuentaCorreo')">Cancelar</button>
+      <button class="btn btn-secondary btn-sm" onclick="testConexionCorreo()" id="btnTestCorreo">🔌 Probar conexión</button>
+      <button class="btn btn-primary" onclick="guardarCuentaCorreo()">💾 Guardar</button>
     </div>
   </div>
 </div>

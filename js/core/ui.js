@@ -200,8 +200,48 @@ const PAGE_PRONTO_INFO = {
   'etiquetas-qr':        {ico:'🏷️', titulo:'Etiquetas QR', desc:'Genera etiquetas QR para artículos, almacenes y activos.', features:['Generación masiva de QR','Etiquetas personalizables','Escaneo desde móvil','Acceso rápido a fichas']},
 };
 
+// ═══════════════════════════════════════════════
+// PERMISSION MAPPING FOR PAGES
+// ═══════════════════════════════════════════════
+const _permisosPagina = {
+  'clientes': 'clientes',
+  'presupuestos': 'presupuestos',
+  'albaranes': 'facturas',
+  'facturas': 'facturas',
+  'proveedores': 'clientes',
+  'presupuestos-compra': 'presupuestos',
+  'pedidos-compra': 'presupuestos',
+  'albaranes-proveedor': 'facturas',
+  'facturas-proveedor': 'facturas',
+  'calendario-pagos': 'facturas',
+  'articulos': 'stock',
+  'stock': 'stock',
+  'traspasos': 'stock',
+  'trabajos': 'trabajos',
+  'mantenimientos': 'trabajos',
+  'partes': 'partes',
+  'planificador': 'partes',
+  'usuarios': 'usuarios',
+  'configuracion': 'config',
+  'audit-log': 'usuarios',
+  'etiquetas-qr': 'stock',
+  'papelera': 'usuarios'
+};
+
 function goPage(id, opts){
   opts = opts || {};
+
+  // ── Permission Check ──
+  // Pages accessible to everyone without permission check
+  const pagesLibres = ['dashboard', 'calendario', 'mistareas', 'correo', 'fichajes'];
+  if (!pagesLibres.includes(id) && typeof CP !== 'undefined' && CP && CP.permisos && !CP.es_superadmin) {
+    const permNeeded = _permisosPagina[id];
+    if (permNeeded && CP.permisos[permNeeded] === false) {
+      toast('🔒 No tienes permiso para acceder a esta sección', 'error');
+      return;
+    }
+  }
+
   // Si la página es "pronto", inyectar contenido de "en construcción"
   if (typeof PAGES_PRONTO !== 'undefined' && PAGES_PRONTO.has(id)) {
     const info = PAGE_PRONTO_INFO[id];
