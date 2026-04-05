@@ -258,9 +258,9 @@ async function abrirFicha(id) {
           <span style="font-size:18px">${d.firmado ? '🔏' : '📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.numero||d.tipo_documento} ${d.firmado?'(firmado)':''}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo_documento} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
           <div style="display:flex;gap:3px;align-items:center">
-            <a href="${d.archivo_url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Ver en navegador">👁️</a>
-            <a href="${d.archivo_url}" download="${(d.numero||d.tipo_documento)+'_firmado.pdf'}" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Descargar">⬇️</a>
-            <a href="#" onclick="event.preventDefault();var w=window.open('${d.archivo_url}');setTimeout(function(){w.print()},1000)" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Imprimir">🖨️</a>
+            <a href="#" onclick="event.preventDefault();verPdfFirmado('${d.archivo_url}','${d.numero||d.tipo_documento} — PDF Firmado')" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Ver">👁️</a>
+            <a href="#" onclick="event.preventDefault();descargarPdfFirmado('${d.archivo_url}','${(d.numero||d.tipo_documento)}_firmado.pdf')" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Descargar">⬇️</a>
+            <a href="#" onclick="event.preventDefault();imprimirPdfFirmado('${d.archivo_url}')" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Imprimir">🖨️</a>
           </div>
         </div>`).join('') : ''}
       ${!(docs.data||[]).length && !docsObras.length && !docsGenerados.length ? '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin documentos adjuntos</div>' : ''}

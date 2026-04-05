@@ -19,6 +19,96 @@ document.addEventListener('click', function(e) {
 });
 
 // ═══════════════════════════════════════════════
+// VISOR PDF INTEGRADO + ACCIONES
+// ═══════════════════════════════════════════════
+
+// Ver PDF dentro del ERP (modal con visor embebido)
+async function verPdfFirmado(url, titulo) {
+  // Eliminar modal anterior si existe
+  let modal = document.getElementById('modalPdfViewer');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'modalPdfViewer';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;border-radius:12px 12px 0 0">
+        <div style="font-weight:700;font-size:14px;color:#1e293b">📄 ${titulo || 'Documento PDF'}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="descargarPdfFirmado('${url}','${(titulo||'documento')}.pdf')" style="padding:6px 12px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#374151" title="Descargar">⬇️ Descargar</button>
+          <button onclick="imprimirPdfFirmado('${url}')" style="padding:6px 12px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#374151" title="Imprimir">🖨️ Imprimir</button>
+          <button onclick="window.open('${url}','_blank')" style="padding:6px 12px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#374151" title="Abrir en navegador">↗️ Navegador</button>
+          <button onclick="this.closest('#modalPdfViewer').remove()" style="padding:6px 10px;border-radius:6px;border:none;background:#ef4444;color:#fff;cursor:pointer;font-size:14px;font-weight:700" title="Cerrar">✕</button>
+        </div>
+      </div>
+      <div id="pdfViewerBody" style="flex:1;display:flex;align-items:center;justify-content:center;background:#64748b">
+        <div style="color:#fff;font-size:14px">Cargando PDF...</div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  // Cargar PDF via fetch para evitar problemas cross-origin
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const viewer = document.getElementById('pdfViewerBody');
+    viewer.innerHTML = `<iframe src="${blobUrl}" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`;
+  } catch(e) {
+    console.error('Error cargando PDF:', e);
+    const viewer = document.getElementById('pdfViewerBody');
+    viewer.innerHTML = `<div style="color:#fff;text-align:center;padding:40px"><div style="font-size:24px;margin-bottom:12px">⚠️</div><p>No se pudo cargar el PDF en el visor.</p><button onclick="window.open('${url}','_blank')" style="margin-top:12px;padding:8px 16px;border-radius:6px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-weight:600">Abrir en navegador</button></div>`;
+  }
+}
+
+// Descargar PDF firmado (cross-origin compatible)
+async function descargarPdfFirmado(url, nombre) {
+  try {
+    toast('⬇️ Descargando...', 'info');
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre || 'documento_firmado.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast('✅ PDF descargado', 'success');
+  } catch(e) {
+    console.error('Error descargando PDF:', e);
+    window.open(url, '_blank');
+  }
+}
+
+// Imprimir PDF firmado (cross-origin compatible)
+async function imprimirPdfFirmado(url) {
+  try {
+    toast('🖨️ Preparando impresión...', 'info');
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = function() {
+      setTimeout(function() {
+        iframe.contentWindow.print();
+        setTimeout(function() { document.body.removeChild(iframe); URL.revokeObjectURL(blobUrl); }, 5000);
+      }, 500);
+    };
+  } catch(e) {
+    console.error('Error imprimiendo PDF:', e);
+    window.open(url, '_blank');
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
 async function loadPresupuestos() {
@@ -118,7 +208,7 @@ function renderPresupuestos(list) {
             _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+'">🖊️ Firma digital</span></div>';
           }
           if (p.pdf_firmado_url) {
-            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.pdf_firmado_url+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--azul);text-decoration:none" title="Descargar PDF firmado">📄 PDF firmado</a></div>';
+            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="#" onclick="event.preventDefault();event.stopPropagation();verPdfFirmado(\''+p.pdf_firmado_url+'\',\''+(p.numero||'')+' — PDF Firmado\')" style="color:var(--azul);text-decoration:none;cursor:pointer" title="Ver PDF firmado">📄 PDF firmado</a></div>';
           } else if (p.firma_url) {
             _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--azul);text-decoration:none" title="Ver firma">📎 Ver firma</a></div>';
           }
@@ -155,7 +245,7 @@ function renderPresupuestos(list) {
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
             if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
-            if (p.pdf_firmado_url) btns += ` <div style="position:relative;display:inline-block" onclick="event.stopPropagation()"><button data-pdf-toggle onclick="var m=this.nextElementSibling;document.querySelectorAll('[data-pdf-menu]').forEach(x=>{if(x!==m)x.style.display='none'});m.style.display=m.style.display==='none'?'block':'none'" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">📄 PDF ▾</button><div data-pdf-menu style="display:none;position:absolute;right:0;top:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;min-width:160px;padding:4px 0;margin-top:2px"><a href="${p.pdf_firmado_url}" target="_blank" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">👁️ Ver en navegador</a><a href="${p.pdf_firmado_url}" download="${(p.numero||'')+'_firmado.pdf'}" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">⬇️ Descargar PDF</a><a href="#" onclick="event.preventDefault();var w=window.open('${p.pdf_firmado_url}');setTimeout(function(){w.print()},1000)" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🖨️ Imprimir</a></div></div>`;
+            if (p.pdf_firmado_url) btns += ` <div style="position:relative;display:inline-block" onclick="event.stopPropagation()"><button data-pdf-toggle onclick="var m=this.nextElementSibling;document.querySelectorAll('[data-pdf-menu]').forEach(x=>{if(x!==m)x.style.display='none'});m.style.display=m.style.display==='none'?'block':'none'" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">📄 PDF ▾</button><div data-pdf-menu style="display:none;position:absolute;right:0;bottom:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;min-width:170px;padding:4px 0;margin-bottom:2px"><a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')} — PDF Firmado')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">👁️ Ver</a><a href="#" onclick="event.preventDefault();descargarPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')}_firmado.pdf')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">⬇️ Descargar</a><a href="#" onclick="event.preventDefault();imprimirPdfFirmado('${p.pdf_firmado_url}')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🖨️ Imprimir</a></div></div>`;
             return btns;
           })()}
         </div>
@@ -335,7 +425,7 @@ async function verDetallePresupuesto(id) {
         refs += `<span style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}">🖊️ Firma digital — ${p.firma_nombre||'—'}</span> `;
       }
       if (p.pdf_firmado_url) {
-        refs += `<a href="${p.pdf_firmado_url}" target="_blank" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE" title="Descargar PDF firmado">📄 PDF firmado</a> `;
+        refs += `<a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${p.numero||''} — PDF Firmado')" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;cursor:pointer" title="Ver PDF firmado">📄 PDF firmado</a> `;
       } else if (p.firma_url) {
         refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE">📎 Ver firma</a> `;
       }
