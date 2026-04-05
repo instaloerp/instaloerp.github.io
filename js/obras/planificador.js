@@ -677,7 +677,8 @@ function crearElementoParte(parte, alturaTotal) {
   const estadoInfo = PT_ESTADOS_PLAN[parte.estado] || PT_ESTADOS_PLAN.borrador;
 
   el.className = 'plan-parte';
-  el.style.background = estadoInfo.bg;
+  // Fondo semitransparente: color del estado con 20% opacidad → se ve la rejilla detrás
+  el.style.background = estadoInfo.color + '30';
   el.style.color = estadoInfo.color;
   el.style.borderLeft = '3px solid ' + estadoInfo.color;
 
