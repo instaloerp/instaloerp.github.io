@@ -832,7 +832,7 @@ async function cargarTodos() {
     sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
     sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}),
-    safeQuery(sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false})),
+    sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias_entidad:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
   ]);
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
   cuentasBancariasEntidad = (cbe&&cbe.data) ? cbe.data : [];
