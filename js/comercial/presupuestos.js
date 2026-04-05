@@ -11,6 +11,13 @@ let presupuestos = [];
 let presFiltrados = [];
 let _kpiFilterActivo = '';
 
+// Cerrar menús dropdown de PDF al hacer clic fuera
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('[data-pdf-menu]') && !e.target.closest('[data-pdf-toggle]')) {
+    document.querySelectorAll('[data-pdf-menu]').forEach(m => m.style.display = 'none');
+  }
+});
+
 // ═══════════════════════════════════════════════
 //  CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
@@ -148,7 +155,7 @@ function renderPresupuestos(list) {
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
             if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
-            if (p.pdf_firmado_url) btns += ' <a href="'+p.pdf_firmado_url+'" target="_blank" onclick="event.stopPropagation()" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;text-decoration:none;cursor:pointer" title="Descargar PDF firmado">📄 PDF</a>';
+            if (p.pdf_firmado_url) btns += ` <div style="position:relative;display:inline-block" onclick="event.stopPropagation()"><button data-pdf-toggle onclick="var m=this.nextElementSibling;document.querySelectorAll('[data-pdf-menu]').forEach(x=>{if(x!==m)x.style.display='none'});m.style.display=m.style.display==='none'?'block':'none'" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">📄 PDF ▾</button><div data-pdf-menu style="display:none;position:absolute;right:0;top:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;min-width:160px;padding:4px 0;margin-top:2px"><a href="${p.pdf_firmado_url}" target="_blank" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">👁️ Ver en navegador</a><a href="${p.pdf_firmado_url}" download="${(p.numero||'')+'_firmado.pdf'}" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">⬇️ Descargar PDF</a><a href="#" onclick="event.preventDefault();var w=window.open('${p.pdf_firmado_url}');setTimeout(function(){w.print()},1000)" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🖨️ Imprimir</a></div></div>`;
             return btns;
           })()}
         </div>
