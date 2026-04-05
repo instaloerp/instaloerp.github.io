@@ -604,11 +604,14 @@ async function mostrarApp() {
   showScreen('s-app');
   // Sidebar
   document.getElementById('sbNombre').textContent = CP?.nombre || CU.email;
-  document.getElementById('sbRol').textContent = CP?.es_superadmin ? 'Superadmin' : 'Usuario';
+  const rolTxt = CP?.es_superadmin ? 'Admin' : 'Usuario';
+  const empTxt = EMPRESA?.nombre || '';
+  document.getElementById('sbRol').textContent = empTxt ? `${empTxt} · ${rolTxt}` : rolTxt;
   document.getElementById('sbAv').textContent = (CP?.nombre||'?')[0].toUpperCase();
-  document.getElementById('sbEmpNombre').textContent = EMPRESA?.nombre || '—';
-  document.getElementById('sbEmpAv').textContent = (EMPRESA?.nombre||'E')[0].toUpperCase();
-  document.getElementById('sbEmpRole').textContent = CP?.es_superadmin ? 'Administrador' : 'Usuario';
+  // sb-emp-selector eliminado — empresa se muestra en sbRol
+  const elEmpNombre = document.getElementById('sbEmpNombre'); if(elEmpNombre) elEmpNombre.textContent = EMPRESA?.nombre || '—';
+  const elEmpAv = document.getElementById('sbEmpAv'); if(elEmpAv) elEmpAv.textContent = (EMPRESA?.nombre||'E')[0].toUpperCase();
+  const elEmpRole = document.getElementById('sbEmpRole'); if(elEmpRole) elEmpRole.textContent = CP?.es_superadmin ? 'Administrador' : 'Usuario';
   // Admin menu
   if (CP?.es_superadmin) {
     const as1=document.getElementById('adminSec'); if(as1)as1.style.display='block'; const as2=document.getElementById('adminSection'); if(as2)as2.style.display='block';

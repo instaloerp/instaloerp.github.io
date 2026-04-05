@@ -183,12 +183,6 @@
       <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.2.17</span></div>
     </div>
 
-    <div class="sb-emp-selector" onclick="openModal('mEmpresas')">
-      <div class="emp-av" id="sbEmpAv">JI</div>
-      <div class="emp-info"><strong id="sbEmpNombre">Cargando...</strong><small id="sbEmpRole">—</small></div>
-      <span class="chev">⌄</span>
-    </div>
-
     <div class="sb-nav" id="sbNav">
 
       <!-- FAVORITOS -->
@@ -254,6 +248,7 @@
       <div id="adminSection" style="display:none">
         <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)">Administración</div>
         <div class="sb-section-items" id="sec-admin">
+          <button class="sb-item" onclick="openModal('mEmpresas')"><span class="ico">🏢</span> Empresas</button>
           <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios<span class="sb-beta">beta</span></button>
           <button class="sb-item" onclick="goPage('etiquetas-qr')"><span class="ico">🏷️</span> Etiquetas QR<span class="sb-beta">pronto</span></button>
           <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad<span class="sb-beta">beta</span></button>
@@ -274,8 +269,8 @@
 
     <div class="sb-user">
       <div class="av av-sm" id="sbAv" style="background:var(--azul)">J</div>
-      <div><strong id="sbNombre">...</strong><small id="sbRol">...</small></div>
-      <button class="logout" onclick="doLogout()" title="Cerrar sesión" style="display:flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:700;color:#EF4444;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);cursor:pointer;transition:background .2s,color .2s;">⏻ Salir</button>
+      <div class="sb-user-info"><strong id="sbNombre">...</strong><small id="sbRol">...</small></div>
+      <button class="logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
     </div>
   </nav>
 
@@ -1576,7 +1571,7 @@
             <!-- Carpetas -->
             <div style="padding:0 12px 8px;display:flex;flex-direction:column;gap:2px">
               <div class="mail-folder active" data-folder="inbox" onclick="cambiarCarpeta('inbox')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;background:var(--azul-light);color:var(--azul)">
-                <span>📥</span> Entrada <span class="mail-count" id="mailCntInbox" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+                <span>📥</span> Entrada <span id="mailBadgeUnread" style="margin-left:auto;background:var(--rojo);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;display:none"></span><span class="mail-count" id="mailCntInbox" style="margin-left:4px;font-size:11px;color:var(--gris-400)"></span>
               </div>
               <div class="mail-folder" data-folder="drafts" onclick="cambiarCarpeta('drafts')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
                 <span>📝</span> Borradores <span class="mail-count" id="mailCntDrafts" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>

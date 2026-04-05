@@ -214,6 +214,28 @@ function filtrarCorreos() {
     if (el) el.textContent = conteos[k] > 0 ? conteos[k] : '';
   });
 
+  // Badge no leídos en Entrada (dentro del buzón)
+  const noLeidos = correos.filter(c => _carpetaLocal(c) === 'inbox' && !c.leido).length;
+  const badgeUnread = document.getElementById('mailBadgeUnread');
+  if (badgeUnread) {
+    if (noLeidos > 0) {
+      badgeUnread.textContent = noLeidos;
+      badgeUnread.style.display = 'inline';
+    } else {
+      badgeUnread.style.display = 'none';
+    }
+  }
+  // Badge no leídos en sidebar principal
+  const badgeSidebar = document.getElementById('correo-badge');
+  if (badgeSidebar) {
+    if (noLeidos > 0) {
+      badgeSidebar.textContent = noLeidos > 99 ? '99+' : noLeidos;
+      badgeSidebar.style.display = 'inline';
+    } else {
+      badgeSidebar.style.display = 'none';
+    }
+  }
+
   // Barra de estado
   const statusBar = document.getElementById('mailStatusBar');
   if (statusBar) {

@@ -56,7 +56,9 @@ async function saveEmpresa() {
   }
   await sb.from('empresas').update(obj).eq('id',EMPRESA.id);
   EMPRESA={...EMPRESA,...obj};
-  document.getElementById('sbEmpNombre').textContent=EMPRESA.nombre;
+  const elEN=document.getElementById('sbEmpNombre'); if(elEN) elEN.textContent=EMPRESA.nombre;
+  // Actualizar también el sbRol con nombre de empresa
+  const elRol=document.getElementById('sbRol'); if(elRol){const r=CP?.es_superadmin?'Admin':'Usuario';elRol.textContent=EMPRESA.nombre?`${EMPRESA.nombre} · ${r}`:r;}
   toast('Datos de empresa guardados ✓','success');
 }
 
