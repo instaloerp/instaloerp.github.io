@@ -152,11 +152,13 @@ body.editor-open #content{margin-top:0}
 .art-tab.active .art-tab-badge{background:var(--azul-light);color:var(--azul)}
 
 .tw{overflow-x:auto}
-table.dt{width:100%;border-collapse:collapse}
+table.dt{width:100%;border-collapse:separate;border-spacing:0 4px}
 table.dt th{padding:8px 12px;background:var(--gris-50);font-size:10.5px;font-weight:700;color:var(--gris-500);text-align:left;border-bottom:1px solid var(--gris-200);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
-table.dt td{padding:11px 12px;border-bottom:1px solid var(--gris-100);font-size:13px;vertical-align:middle}
-table.dt tr:last-child td{border-bottom:none}
-table.dt tbody tr:hover{background:var(--gris-50)}
+table.dt td{padding:10px 12px;font-size:13px;vertical-align:middle;background:#fff;border-top:1px solid var(--gris-100);border-bottom:1px solid var(--gris-100)}
+table.dt tbody tr td:first-child{border-left:3px solid var(--gris-200);border-radius:8px 0 0 8px}
+table.dt tbody tr td:last-child{border-right:1px solid var(--gris-100);border-radius:0 8px 8px 0}
+table.dt tr:last-child td{border-bottom:1px solid var(--gris-100)}
+table.dt tbody tr:hover td{background:var(--gris-50);box-shadow:0 1px 4px rgba(0,0,0,.04)}
 
 .tabs{display:flex;gap:2px;background:var(--gris-100);padding:3px;border-radius:9px;margin-bottom:18px}
 .tab{padding:6px 14px;border-radius:7px;border:none;background:none;font-size:12.5px;font-weight:600;color:var(--gris-500);cursor:pointer;transition:background .12s,color .12s}
@@ -382,21 +384,6 @@ body.sb-collapsed #main{transition:none!important}
 .parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100)}
 .parte-row:hover{background:rgba(0,0,0,.03)!important}
 .parte-row *{transition:none!important}
-/* ══ LIST-ROW: formato tarjeta genérico para todas las listas ══ */
-.list-row{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-radius:8px;margin-bottom:5px;border-left:3px solid var(--gris-200);background:#fff;border:1px solid var(--gris-100);border-left:3px solid var(--gris-200)}
-.list-row:hover{background:var(--gris-50);box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.list-row *{transition:none!important}
-.list-cards{display:flex;flex-direction:column;gap:2px;padding:4px 0}
-.list-row .lr-left{min-width:54px;text-align:center;flex-shrink:0}
-.list-row .lr-center{flex:1;min-width:0}
-.list-row .lr-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.list-row .lr-num{font-family:monospace;font-weight:700;font-size:12.5px;color:var(--azul)}
-.list-row .lr-title{font-weight:700;font-size:13px;color:var(--gris-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.list-row .lr-sub{font-size:11px;color:var(--gris-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.list-row .lr-meta{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
-.list-row .lr-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap}
-.list-row .lr-amount{font-weight:700;font-size:13px;color:var(--gris-800);white-space:nowrap;text-align:right}
-.list-row .lr-actions{display:flex;gap:3px}
 /* ficha-doc-row: hover instantáneo */
 .ficha-doc-row:hover{background:var(--gris-50)}
 
