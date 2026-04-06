@@ -147,7 +147,10 @@ function pc_removeLinea(idx) {
   pc_renderLineas();
 }
 
+let _pcArtSelecting = false;
 function pc_updateLinea(idx, field, val) {
+  // Si se acaba de seleccionar un artículo, no dejar que onblur sobreescriba nombre con el texto parcial
+  if (field === 'nombre' && _pcArtSelecting) return;
   if (field === 'articulo_id') {
     const art = (articulos||[]).find(a => a.id == val);
     if (art) {
@@ -166,6 +169,7 @@ function pc_updateLinea(idx, field, val) {
 }
 
 function _pc_onSelectArt(lineaIdx, art) {
+  _pcArtSelecting = true;
   pcLineas[lineaIdx].articulo_id = art.id;
   pcLineas[lineaIdx].codigo = art.codigo || '';
   pcLineas[lineaIdx].nombre = art.nombre || '';
@@ -177,6 +181,7 @@ function _pc_onSelectArt(lineaIdx, art) {
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { pc_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+  setTimeout(() => { _pcArtSelecting = false; }, 300);
 }
 
 function pc_renderLineas() {

@@ -183,7 +183,10 @@ function prc_removeLinea(idx) {
   prc_renderLineas();
 }
 
+let _prcArtSelecting = false;
 function prc_updateLinea(idx, field, val) {
+  // Si se acaba de seleccionar un artículo, no dejar que onblur sobreescriba nombre con el texto parcial
+  if (field === 'nombre' && _prcArtSelecting) return;
   if (field === 'articulo_id') {
     const art = (articulos||[]).find(a => a.id == val);
     if (art) {
@@ -202,6 +205,7 @@ function prc_updateLinea(idx, field, val) {
 }
 
 function _prc_onSelectArt(lineaIdx, art) {
+  _prcArtSelecting = true;
   prcLineas[lineaIdx].articulo_id = art.id;
   prcLineas[lineaIdx].codigo = art.codigo || '';
   prcLineas[lineaIdx].nombre = art.nombre || '';
@@ -213,6 +217,7 @@ function _prc_onSelectArt(lineaIdx, art) {
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { prc_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+  setTimeout(() => { _prcArtSelecting = false; }, 300);
 }
 
 function prc_renderLineas() {

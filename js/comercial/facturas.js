@@ -417,6 +417,8 @@ function fr_removeLinea(idx) {
 }
 
 function fr_updateLinea(idx, field, val) {
+  // Si se acaba de seleccionar un artículo, no dejar que onblur sobreescriba desc con el texto parcial
+  if (field === 'desc' && _frArtSelecting) return;
   if (field === 'dto1' || field === 'dto2' || field === 'dto3' || field === 'cant' || field === 'precio' || field === 'iva') {
     frLineas[idx][field] = parseFloat(val)||0;
   } else {
@@ -470,10 +472,13 @@ function renderPPartidas(list) {
   document.getElementById('fr_total').textContent = fmtE(total);
 }
 
+let _frArtSelecting = false;
 function _fr_onSelectArt(lineaIdx, art) {
+  _frArtSelecting = true;
   frLineas[lineaIdx].desc = art.nombre || '';
   frLineas[lineaIdx].precio = art.precio_venta || 0;
   frLineas[lineaIdx].articulo_id = art.id;
+  frLineas[lineaIdx].codigo = art.codigo || '';
   if (art.tipo_iva_id && typeof tiposIva!=='undefined') {
     const t = tiposIva.find(x=>x.id===art.tipo_iva_id);
     if (t) frLineas[lineaIdx].iva = t.porcentaje;
@@ -481,6 +486,7 @@ function _fr_onSelectArt(lineaIdx, art) {
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { fr_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+  setTimeout(() => { _frArtSelecting = false; }, 300);
 }
 
 function fr_renderLineas() {

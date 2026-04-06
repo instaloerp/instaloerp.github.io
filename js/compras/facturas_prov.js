@@ -200,7 +200,10 @@ function fp_removeLinea(idx) {
   fp_renderLineas();
 }
 
+let _fpArtSelecting = false;
 function fp_updateLinea(idx, field, val) {
+  // Si se acaba de seleccionar un artículo, no dejar que onblur sobreescriba nombre con el texto parcial
+  if (field === 'nombre' && _fpArtSelecting) return;
   if (field === 'articulo_id') {
     const art = (articulos||[]).find(a => a.id == val);
     if (art) {
@@ -219,6 +222,7 @@ function fp_updateLinea(idx, field, val) {
 }
 
 function _fp_onSelectArt(lineaIdx, art) {
+  _fpArtSelecting = true;
   fpLineas[lineaIdx].articulo_id = art.id;
   fpLineas[lineaIdx].codigo = art.codigo || '';
   fpLineas[lineaIdx].nombre = art.nombre || '';
@@ -230,6 +234,7 @@ function _fp_onSelectArt(lineaIdx, art) {
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { fp_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+  setTimeout(() => { _fpArtSelecting = false; }, 300);
 }
 
 function fp_renderLineas() {

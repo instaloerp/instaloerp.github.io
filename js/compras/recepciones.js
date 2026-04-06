@@ -177,7 +177,10 @@ function rc_removeLinea(idx) {
   rc_renderLineas();
 }
 
+let _rcArtSelecting = false;
 function rc_updateLinea(idx, field, val) {
+  // Si se acaba de seleccionar un artículo, no dejar que onblur sobreescriba nombre con el texto parcial
+  if (field === 'nombre' && _rcArtSelecting) return;
   if (field === 'articulo_id') {
     const art = (articulos||[]).find(a => a.id == val);
     if (art) {
@@ -195,13 +198,19 @@ function rc_updateLinea(idx, field, val) {
 }
 
 function _rc_onSelectArt(lineaIdx, art) {
+  _rcArtSelecting = true;
   rcLineas[lineaIdx].articulo_id = art.id;
   rcLineas[lineaIdx].codigo = art.codigo || '';
   rcLineas[lineaIdx].nombre = art.nombre || '';
   rcLineas[lineaIdx].precio = art.precio_coste || art.precio_venta || 0;
+  if (art.tipo_iva_id && typeof tiposIva!=='undefined') {
+    const t = tiposIva.find(x=>x.id===art.tipo_iva_id);
+    if (t) rcLineas[lineaIdx].iva = t.porcentaje;
+  }
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { rc_renderLineas(); }, 0);
   toast(`📦 ${art.codigo||''} — ${art.nombre}`,'info');
+  setTimeout(() => { _rcArtSelecting = false; }, 300);
 }
 
 function rc_renderLineas() {

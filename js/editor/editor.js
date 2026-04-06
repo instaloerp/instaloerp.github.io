@@ -427,7 +427,7 @@ function de_addLinea() {
   de_renderLineas();
   // Focus en la nueva línea de descripción
   setTimeout(()=>{
-    const inp = document.querySelector(`input[data-linea="${deLineas.length-1}"]`);
+    const inp = document.querySelector(`input[data-linea-idx="${deLineas.length-1}"]`);
     if (inp) inp.focus();
   },50);
 }
@@ -455,7 +455,7 @@ function _de_onSelectArt(lineaIdx, a) {
     const tipoIva = tiposIva.find(t=>t.id===a.tipo_iva_id);
     if (tipoIva) deLineas[lineaIdx].iva = tipoIva.porcentaje;
   }
-  const inp = document.querySelector(`input[data-linea="${lineaIdx}"]`);
+  const inp = document.querySelector(`input[data-linea-idx="${lineaIdx}"]`);
   if (inp) inp.value = a.nombre || '';
   // Defer render to avoid blur/innerHTML race condition
   setTimeout(() => { de_renderLineas(); de_autoguardar(); }, 0);
@@ -476,7 +476,7 @@ function de_acKeydown(event, lineaIdx) {
 
 // Cerrar dropdown al hacer click fuera (legacy, ahora gestionado por ui.js)
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#acArticulos') && !e.target.matches('input[data-linea]') && !e.target.matches('[data-ac]')) {
+  if (!e.target.closest('#acArticulos') && !e.target.matches('input[data-linea-idx]') && !e.target.matches('[data-ac]')) {
     const d = document.getElementById('acArticulos');
     if (d) d.style.display='none';
   }
@@ -689,7 +689,7 @@ function de_renderLineas() {
             onblur="setTimeout(()=>{const d=document.getElementById('acArticulos');if(d)d.style.display='none'},200)"
             onkeydown="de_acKeydown(event,${i})"
             autocomplete="off"
-            data-linea="${i}"
+            data-linea-idx="${i}"
             style="width:100%;border:none;outline:none;font-size:13px;background:transparent">
         </td>
         <td style="padding:6px 5px">
