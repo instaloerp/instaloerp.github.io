@@ -2,85 +2,102 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Parte de Trabajo</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --azul:#2563EB;--verde:#16A34A;--rojo:#DC2626;
-  --gris-50:#F8FAFC;--gris-100:#F1F5F9;--gris-200:#E2E8F0;
-  --gris-400:#94A3B8;--gris-500:#64748B;--gris-800:#1E293B;
-  --font:'Segoe UI',system-ui,-apple-system,sans-serif;--radius:10px
-}
-body{font-family:var(--font);background:var(--gris-50);color:var(--gris-800);min-height:100vh}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.container{max-width:700px;margin:0 auto;padding:20px}
 
-/* ── Cabecera ── */
-.header{background:var(--azul);color:#fff;padding:18px 20px;text-align:center}
-.header h1{font-size:19px;font-weight:700;letter-spacing:.2px}
-.header p{font-size:13px;opacity:.8;margin-top:4px}
+/* Cards */
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.10);padding:24px;margin-bottom:16px}
 
-/* ── Botón PDF ── */
-.pdf-bar{display:flex;justify-content:flex-end;padding:12px 16px 0;max-width:640px;margin:0 auto}
-.btn-pdf{display:inline-flex;align-items:center;gap:6px;background:var(--azul);color:#fff;border:none;
-  border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none}
-.btn-pdf:hover{background:#1d4ed8}
+/* Header card */
+.card-header{text-align:center;padding:28px 24px 22px}
+.empresa-nombre{font-size:22px;font-weight:800;color:#1e40af;margin-bottom:4px;letter-spacing:-.3px}
+.empresa-sub{font-size:13px;color:#64748b}
+.divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}
 
-/* ── Contenido ── */
-.container{max-width:640px;margin:0 auto;padding:12px 16px 32px}
-.card{background:#fff;border-radius:var(--radius);padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.card-title{font-size:11px;font-weight:800;color:var(--azul);margin-bottom:12px;text-transform:uppercase;letter-spacing:.8px}
-.field{margin-bottom:10px}
-.field:last-child{margin-bottom:0}
-.field-label{font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase;margin-bottom:3px;letter-spacing:.4px}
-.field-value{font-size:14px;color:var(--gris-800);line-height:1.5}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
-.badge-completado{background:#DCFCE7;color:#15803D}
-.badge-revisado{background:#DBEAFE;color:var(--azul)}
-.badge-facturado{background:#F3E8FF;color:#7C3AED}
+/* Nº parte + fecha */
+.doc-meta{display:flex;justify-content:space-between;align-items:flex-end}
+.doc-tipo{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:2px}
+.doc-numero{font-size:22px;font-weight:800;color:#1e40af}
+.doc-fecha-label{font-size:11px;color:#94a3b8;text-align:right}
+.doc-fecha{font-weight:700;font-size:15px;text-align:right}
 
-/* ── Pendientes ── */
-.card-pendiente{border-left:3px solid #F59E0B}
-.card-pendiente .card-title{color:#B45309}
+/* Info grid */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.info-grid.full{grid-template-columns:1fr}
+.info-item{background:#f8fafc;border-radius:8px;padding:12px}
+.info-label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
+.info-value{font-size:14px;font-weight:600;color:#1e293b;line-height:1.4}
 
-/* ── Firmas ── */
-.firma-wrap{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+/* Estado badge */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.02em}
+.badge-completado{background:#dcfce7;color:#15803d}
+.badge-revisado{background:#dbeafe;color:#1e40af}
+.badge-facturado{background:#f3e8ff;color:#6d28d9}
+
+/* Section title */
+.section-title{font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+
+/* Descripción */
+.desc-text{font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap}
+
+/* Pendientes */
+.card-pendiente{border-left:3px solid #f59e0b}
+.pendiente-item{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #fef3c7;font-size:13px;color:#334155}
+.pendiente-item:last-child{border-bottom:none}
+.pendiente-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:5px}
+
+/* Firmas */
+.firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px}
 .firma-block{text-align:center}
-.firma-label{font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
-.firma-img{width:100%;max-width:220px;border:1px solid var(--gris-200);border-radius:8px;background:#fff}
-.firma-nombre{font-size:12px;color:var(--gris-500);margin-top:4px}
-.firma-dni{font-size:11px;color:var(--gris-400)}
+.firma-label{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.firma-img-wrap{border:1px solid #e2e8f0;border-radius:10px;background:#fafafa;padding:6px;display:inline-block;width:100%}
+.firma-img{width:100%;max-height:120px;object-fit:contain;display:block}
+.firma-nombre{font-size:13px;font-weight:600;color:#1e293b;margin-top:8px}
+.firma-dni{font-size:11px;color:#94a3b8;margin-top:1px}
+.firma-line{border:none;border-bottom:2px solid #e2e8f0;margin:10px 0 4px;display:block}
 
-/* ── Loading / Error ── */
-.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;color:var(--gris-500)}
-.loading .spinner{width:38px;height:38px;border:4px solid var(--gris-200);border-top-color:var(--azul);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+/* Botón PDF */
+.pdf-bar{display:flex;justify-content:flex-end;padding:0 0 12px}
+.btn-pdf{display:inline-flex;align-items:center;gap:7px;background:#1e40af;color:#fff;border:none;
+  border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;
+  box-shadow:0 2px 6px rgba(30,64,175,.25);transition:background .15s}
+.btn-pdf:hover{background:#1d3fa3}
+
+/* Footer */
+.footer{text-align:center;padding:4px 0 20px;color:#94a3b8;font-size:11px}
+
+/* Loading / Error */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;color:#64748b}
+.spinner{width:38px;height:38px;border:4px solid #e2e8f0;border-top-color:#1e40af;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.error{text-align:center;padding:40px 20px;color:var(--rojo)}
+.error{text-align:center;padding:60px 20px}
 
-/* ── Footer ── */
-.footer{text-align:center;padding:16px;color:var(--gris-400);font-size:11px}
+/* Responsive */
+@media(max-width:560px){
+  .container{padding:12px}
+  .info-grid{grid-template-columns:1fr}
+  .firma-grid{grid-template-columns:1fr}
+  .doc-meta{flex-direction:column;align-items:flex-start;gap:8px}
+  .doc-fecha-label,.doc-fecha{text-align:left}
+}
 
-/* ── Print / PDF ── */
+/* Print */
 @media print{
   body{background:#fff}
-  .pdf-bar{display:none}
-  .card{box-shadow:none;border:1px solid #E2E8F0;page-break-inside:avoid}
-  .header{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pdf-bar{display:none!important}
+  .card{box-shadow:none;border:1px solid #e2e8f0;page-break-inside:avoid}
+  .card-header{border:1px solid #e2e8f0}
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1 id="empresaNombre">Parte de Trabajo</h1>
-  <p id="parteNumero"></p>
-</div>
-
-<div class="pdf-bar" id="pdfBar" style="display:none">
-  <button class="btn-pdf" onclick="window.print()">⬇ Guardar como PDF</button>
-</div>
-
-<div class="container" id="content">
+<div class="container" id="app">
   <div class="loading" id="loadingScreen">
     <div class="spinner"></div>
     <p>Cargando parte de trabajo...</p>
@@ -92,49 +109,51 @@ const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
-const params = new URLSearchParams(window.location.search);
-const parteId = params.get('id');
+const params   = new URLSearchParams(window.location.search);
+const parteId  = params.get('id');
 
 async function cargarParte() {
-  if (!parteId) {
-    showError('⚠️ Enlace no válido', 'No se ha proporcionado un identificador de parte.');
-    return;
-  }
+  if (!parteId) { showError('Enlace no válido', 'No se ha proporcionado un identificador de parte.'); return; }
   try {
     const { data: parte, error } = await sb.from('partes_trabajo').select('*').eq('id', parteId).single();
-    if (error || !parte) { showError('⚠️ Parte no encontrado', 'El parte solicitado no existe o no está disponible.'); return; }
-    if (!['completado','revisado','facturado'].includes(parte.estado)) { showError('⏳ Parte en proceso', 'Este parte de trabajo aún no ha sido completado.'); return; }
-
-    // Empresa
-    if (parte.empresa_id) {
-      const { data: emp } = await sb.from('empresas').select('nombre').eq('id', parte.empresa_id).single();
-      if (emp) document.getElementById('empresaNombre').textContent = emp.nombre || 'Parte de Trabajo';
+    if (error || !parte) { showError('Parte no encontrado', 'El parte solicitado no existe o no está disponible.'); return; }
+    if (!['completado','revisado','facturado'].includes(parte.estado)) {
+      showError('Parte en proceso', 'Este parte de trabajo aún no ha sido completado.'); return;
     }
 
-    // Trabajo (para dirección)
+    // Empresa
+    let empresa = null;
+    if (parte.empresa_id) {
+      const { data: emp } = await sb.from('empresas').select('nombre,razon_social,cif,telefono,email').eq('id', parte.empresa_id).single();
+      empresa = emp;
+    }
+
+    // Trabajo
     let trabajo = null;
     if (parte.trabajo_id) {
       const { data: trab } = await sb.from('trabajos').select('titulo,direccion_obra_texto').eq('id', parte.trabajo_id).single();
-      if (trab) trabajo = trab;
+      trabajo = trab;
     }
 
-    document.getElementById('parteNumero').textContent = `Parte nº ${parte.numero || parteId}`;
-    document.getElementById('pdfBar').style.display = 'flex';
-
-    renderParte(parte, trabajo);
+    renderParte(parte, empresa, trabajo);
   } catch(e) {
-    console.error('Error:', e);
-    showError('❌ Error', 'No se pudo cargar el parte. Inténtelo de nuevo.');
+    console.error(e);
+    showError('Error de carga', 'No se pudo cargar el parte. Inténtelo de nuevo más tarde.');
   }
 }
 
 function showError(titulo, msg) {
-  document.getElementById('content').innerHTML = `<div class="error"><h2>${titulo}</h2><p>${msg}</p></div>`;
+  document.getElementById('app').innerHTML = `
+    <div class="card error">
+      <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+      <h2 style="font-size:18px;color:#dc2626;margin-bottom:6px">${titulo}</h2>
+      <p style="font-size:14px;color:#64748b">${msg}</p>
+    </div>`;
 }
 
 function formatFecha(f) {
-  if (!f) return '-';
-  return new Date(f + 'T00:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  if (!f) return '—';
+  return new Date(f + 'T00:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' });
 }
 
 function estadoBadge(e) {
@@ -144,67 +163,100 @@ function estadoBadge(e) {
 }
 
 function renderPendientes(val) {
-  if (!val) return '';
-  // Si es array JSON, renderizar cada ítem
+  if (!val) return null;
   let items = null;
   try { items = typeof val === 'string' ? JSON.parse(val) : val; } catch(e) { items = null; }
-  if (Array.isArray(items)) {
+  if (Array.isArray(items) && items.length > 0) {
     return items.map(i => {
       const tipo = i.tipo || i.categoria || '';
       const desc = i.descripcion || i.texto || '';
-      return `<div class="field-value" style="margin-bottom:6px">🔧 ${tipo}${desc ? ': ' + desc : ''}</div>`;
+      return `<div class="pendiente-item"><span class="pendiente-dot"></span><span>${[tipo, desc].filter(Boolean).join(': ')}</span></div>`;
     }).join('');
   }
-  // Texto plano
-  return `<div class="field-value" style="white-space:pre-wrap">${val}</div>`;
+  if (typeof val === 'string' && val.trim()) {
+    return `<div class="desc-text">${val.trim()}</div>`;
+  }
+  return null;
 }
 
-function renderParte(p, trab) {
-  const dir = p.direccion || (trab ? trab.direccion_obra_texto : '') || '';
-  const titulo = p.trabajo_titulo || (trab ? trab.titulo : '') || '';
+function renderParte(p, emp, trab) {
+  const dir     = p.direccion || (trab?.direccion_obra_texto) || '';
+  const titulo  = p.trabajo_titulo || (trab?.titulo) || '';
+  const empNombre = emp?.nombre || 'Parte de Trabajo';
+  const empSub  = [emp?.razon_social, emp?.cif ? 'CIF: ' + emp.cif : ''].filter(Boolean).join(' · ');
+
   let html = '';
 
-  // ── Información general ──
-  html += `<div class="card">
-    <div class="card-title">📋 Información</div>
-    <div class="field"><div class="field-label">Fecha</div><div class="field-value">${formatFecha(p.fecha)}</div></div>
-    <div class="field"><div class="field-label">Estado</div><div class="field-value">${estadoBadge(p.estado)}</div></div>
-    ${titulo ? `<div class="field"><div class="field-label">Trabajo</div><div class="field-value">${titulo}</div></div>` : ''}
-    ${dir    ? `<div class="field"><div class="field-label">Dirección</div><div class="field-value">${dir}</div></div>` : ''}
+  // ── Botón PDF ──
+  html += `<div class="pdf-bar"><button class="btn-pdf" onclick="window.print()">Guardar como PDF</button></div>`;
+
+  // ── Cabecera empresa ──
+  html += `<div class="card card-header">
+    <div class="empresa-nombre">${empNombre}</div>
+    ${empSub ? `<div class="empresa-sub">${empSub}</div>` : ''}
+    <hr class="divider">
+    <div class="doc-meta">
+      <div>
+        <div class="doc-tipo">Parte de trabajo</div>
+        <div class="doc-numero">${p.numero || ('Parte nº ' + parteId)}</div>
+      </div>
+      <div>
+        <div class="doc-fecha-label">Fecha</div>
+        <div class="doc-fecha">${formatFecha(p.fecha)}</div>
+      </div>
+    </div>
   </div>`;
+
+  // ── Información ──
+  const infoItems = [];
+  if (titulo)  infoItems.push({ label: 'Trabajo / Obra',  value: titulo });
+  if (dir)     infoItems.push({ label: 'Dirección',       value: dir });
+  infoItems.push({ label: 'Estado', value: estadoBadge(p.estado) });
+  if (p.operario_nombre_firma) infoItems.push({ label: 'Operario', value: p.operario_nombre_firma });
+
+  if (infoItems.length) {
+    const gridClass = infoItems.length === 1 ? 'info-grid full' : 'info-grid';
+    html += `<div class="card">
+      <div class="section-title">Información del parte</div>
+      <div class="${gridClass}">
+        ${infoItems.map(it => `<div class="info-item"><div class="info-label">${it.label}</div><div class="info-value">${it.value}</div></div>`).join('')}
+      </div>
+    </div>`;
+  }
 
   // ── Trabajo realizado ──
   if (p.descripcion) {
     html += `<div class="card">
-      <div class="card-title">🔧 Trabajo realizado</div>
-      <div class="field-value" style="white-space:pre-wrap;line-height:1.6">${p.descripcion}</div>
+      <div class="section-title">Trabajo realizado</div>
+      <div class="desc-text">${p.descripcion}</div>
     </div>`;
   }
 
   // ── Trabajos pendientes ──
-  const pendientesHtml = renderPendientes(p.trabajos_pendientes);
-  if (pendientesHtml) {
+  const pendHtml = renderPendientes(p.trabajos_pendientes);
+  if (pendHtml) {
     html += `<div class="card card-pendiente">
-      <div class="card-title">⚠️ Trabajos pendientes</div>
-      ${pendientesHtml}
+      <div class="section-title" style="color:#b45309">Trabajos pendientes</div>
+      ${pendHtml}
     </div>`;
   }
 
   // ── Firmas ──
-  const hayFirmaCliente = p.firma_url;
-  const hayFirmaOperario = p.firma_operario_url;
+  const hayFirmaCliente   = !!p.firma_url;
+  const hayFirmaOperario  = !!p.firma_operario_url;
 
   if (hayFirmaCliente || hayFirmaOperario) {
     html += `<div class="card">
-      <div class="card-title">✍️ Conformidad</div>
-      <div class="firma-wrap">`;
+      <div class="section-title">Conformidad</div>
+      <div class="firma-grid">`;
 
     if (hayFirmaCliente) {
       html += `<div class="firma-block">
         <div class="firma-label">Persona responsable</div>
-        <img src="${p.firma_url}" class="firma-img" alt="Firma cliente">
+        <div class="firma-img-wrap"><img src="${p.firma_url}" class="firma-img" alt="Firma cliente"></div>
+        <span class="firma-line"></span>
         ${p.cliente_nombre_firma ? `<div class="firma-nombre">${p.cliente_nombre_firma}</div>` : ''}
-        ${p.cliente_dni         ? `<div class="firma-dni">DNI: ${p.cliente_dni}</div>` : ''}
+        ${p.cliente_dni           ? `<div class="firma-dni">DNI: ${p.cliente_dni}</div>` : ''}
       </div>`;
     } else {
       html += `<div></div>`;
@@ -213,7 +265,8 @@ function renderParte(p, trab) {
     if (hayFirmaOperario) {
       html += `<div class="firma-block">
         <div class="firma-label">Operario</div>
-        <img src="${p.firma_operario_url}" class="firma-img" alt="Firma operario">
+        <div class="firma-img-wrap"><img src="${p.firma_operario_url}" class="firma-img" alt="Firma operario"></div>
+        <span class="firma-line"></span>
         ${p.operario_nombre_firma ? `<div class="firma-nombre">${p.operario_nombre_firma}</div>` : ''}
       </div>`;
     }
@@ -221,8 +274,11 @@ function renderParte(p, trab) {
     html += `</div></div>`;
   }
 
+  // ── Footer ──
   html += `<div class="footer">Documento generado por Instalo ERP</div>`;
-  document.getElementById('content').innerHTML = html;
+
+  document.getElementById('app').innerHTML = html;
+  document.title = `${p.numero || 'Parte'} · ${empNombre}`;
 }
 
 cargarParte();

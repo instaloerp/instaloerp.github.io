@@ -1141,10 +1141,10 @@ function renderOperarioInicio(el) {
     </div>
 
     ${enCurso.length ? `
-      <div class="en-curso-banner">
+      <div style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span class="en-curso-dot"></span>
-          <span style="font-size:13px;font-weight:800;color:#92400E;text-transform:uppercase;letter-spacing:.5px">Trabajo en curso</span>
+          <span style="font-size:12px;font-weight:800;color:#92400E;text-transform:uppercase;letter-spacing:.5px">Trabajo en curso</span>
         </div>
         ${enCurso.map(p => renderParteCard(p)).join('')}
       </div>
