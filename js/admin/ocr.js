@@ -174,7 +174,7 @@ async function ocrPrevisualizar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
 
-  const imgUrl = doc.archivo_path ? sb.storage.from('ocr-documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
+  const imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
   if (!imgUrl) { toast('Sin archivo para previsualizar', 'error'); return; }
 
   const ext = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
@@ -251,10 +251,8 @@ async function ocrGestionar(id) {
   toast('Descargando imagen para procesar con IA...', 'info');
 
   try {
-    // Usar createSignedUrl para evitar problemas con buckets no públicos
-    const { data: signedData, error: signErr } = await sb.storage.from('ocr-documentos').createSignedUrl(doc.archivo_path, 300);
-    if (signErr || !signedData?.signedUrl) throw new Error('No se pudo generar URL firmada: ' + (signErr?.message || 'sin URL'));
-    const imgUrl = signedData.signedUrl;
+    const imgUrl = sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl;
+    if (!imgUrl) throw new Error('No se pudo obtener URL del archivo');
     const response = await fetch(imgUrl);
     if (!response.ok) throw new Error('No se pudo descargar la imagen (HTTP ' + response.status + ')');
 
@@ -356,9 +354,8 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
 
 async function _ocrCargarImagenEnPreview(doc) {
   try {
-    const { data: signedData, error: signErr } = await sb.storage.from('ocr-documentos').createSignedUrl(doc.archivo_path, 300);
-    if (signErr || !signedData?.signedUrl) throw new Error('No se pudo generar URL firmada');
-    const imgUrl = signedData.signedUrl;
+    const imgUrl = sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl;
+    if (!imgUrl) throw new Error('No se pudo obtener URL del archivo');
     const response = await fetch(imgUrl);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const blob = await response.blob();
@@ -399,7 +396,7 @@ async function ocrEliminar(id) {
   if (error) { toast('Error al eliminar: ' + error.message, 'error'); return; }
 
   if (doc?.archivo_path) {
-    await sb.storage.from('ocr-documentos').remove([doc.archivo_path]);
+    await sb.storage.from('documentos').remove([doc.archivo_path]);
   }
 
   toast('Documento OCR eliminado', 'success');

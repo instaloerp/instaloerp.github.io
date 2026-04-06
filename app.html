@@ -2789,11 +2789,16 @@ async function _uploadOCR() {
   try {
     // 1. Subir imagen al bucket de Supabase Storage
     const ext = _ocrSelectedFile.name.split('.').pop() || 'jpg';
-    const fileName = `ocr_${Date.now()}_${Math.random().toString(36).substring(2,8)}.${ext}`;
+    const ahora = new Date();
+    const fechaStr = ahora.toISOString().slice(0,10); // 2026-04-06
+    const horaStr = ahora.toTimeString().slice(0,5).replace(':','-'); // 09-17
+    const uid = Math.random().toString(36).substring(2,6); // 4 chars aleatorios
+    const fileName = `ocr_${fechaStr}_${horaStr}_${uid}.${ext}`;
+    const nombreVisible = `Doc_OCR_${fechaStr}_${horaStr}.${ext}`;
     const storagePath = `${EMPRESA.id}/ocr/${fileName}`;
 
     const { data: uploadData, error: uploadErr } = await sb.storage
-      .from('ocr-documentos')
+      .from('documentos')
       .upload(storagePath, _ocrSelectedFile, { contentType: _ocrSelectedFile.type });
 
     if (uploadErr) throw uploadErr;
@@ -2803,7 +2808,7 @@ async function _uploadOCR() {
       empresa_id: EMPRESA.id,
       usuario_id: CP?.id,
       archivo_path: storagePath,
-      archivo_nombre: _ocrSelectedFile.name,
+      archivo_nombre: nombreVisible,
       estado: 'pendiente',
       created_at: new Date().toISOString()
     });

@@ -208,7 +208,7 @@ function showScreen(id){
 }
 
 // Modales de solo lectura que NO necesitan populateSelects
-const _readOnlyModals = new Set(['dtlPartes','modal-detalle-trasp','modal-movimientos-stock','mArtVistaRapida','mImportarIA']);
+const _readOnlyModals = new Set(['dtlPartes','modal-detalle-trasp','modal-movimientos-stock','mArtVistaRapida','mImportarIA','mOcrPreview']);
 
 function openModal(id, skipReset){
   // Solo resetear si NO venimos de una edición
