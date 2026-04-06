@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <title>Instalo App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -4474,7 +4475,14 @@ async function wizFinish() {
         }
       }
     }
-    mostrarModalEnvio(id, parteNum, cliTel, cliEmail);
+    // 4b. Generar PDF automáticamente y subirlo a Storage
+    toast('📄 Generando PDF...', '');
+    const _trabajoLocal = p?.trabajo_id ? trabajos.find(t => t.id === p.trabajo_id) : null;
+    const _tituloTrabajo = p?.trabajo_titulo || _trabajoLocal?.titulo || '';
+    const _dirTrabajo    = p?.direccion     || _trabajoLocal?.direccion_obra_texto || '';
+    const pdfUrl = await generarPdfParte(id, { ...updateObj, numero: p?.numero }, EMPRESA?.nombre || 'Instalo', _tituloTrabajo, _dirTrabajo);
+
+    mostrarModalEnvio(id, parteNum, cliTel, cliEmail, pdfUrl);
   } catch(err) {
     console.error('[wizFinish] Error:', err);
     // Último recurso: guardar offline si hay cualquier error
@@ -4490,6 +4498,155 @@ async function wizFinish() {
     toast('⚠️ Error: ' + (err.message || 'Sin conexión') + '. Datos guardados localmente.', 'warning');
     closeModal();
     navigateTo(currentTab);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── GENERACIÓN AUTOMÁTICA DE PDF AL COMPLETAR PARTE ──
+// ══════════════════════════════════════════════════════════════
+
+// Convierte una URL pública de imagen a dataURL (base64) para jsPDF
+async function _imageUrlToDataUrl(url) {
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) { console.warn('[PDF] No se pudo cargar imagen:', url, e); return null; }
+}
+
+// Genera el PDF del parte, lo sube a Storage y devuelve la URL pública
+async function generarPdfParte(parteId, parteData, empresaNombre, trabajoTitulo, trabajoDireccion) {
+  try {
+    const jsPDFLib = window.jspdf?.jsPDF || window.jsPDF;
+    if (!jsPDFLib) { console.warn('[PDF] jsPDF no disponible'); return null; }
+
+    const doc      = new jsPDFLib({ format:'a4', unit:'mm' });
+    const pageW    = 210;
+    const margin   = 15;
+    const contentW = pageW - margin * 2;
+    let y = 0;
+
+    // ── Cabecera azul ──────────────────────────────────────
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, pageW, 24, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text(empresaNombre || 'Parte de Trabajo', pageW / 2, 11, { align:'center' });
+    doc.setFontSize(9);  doc.setFont('helvetica', 'normal');
+    doc.text(`Parte nº ${parteData.numero || parteId}`, pageW / 2, 18, { align:'center' });
+    y = 32;
+
+    // ── Información ────────────────────────────────────────
+    const _seccion = (titulo, color) => {
+      doc.setTextColor(...color);
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      doc.text(titulo, margin, y); y += 2;
+      doc.setDrawColor(...color); doc.setLineWidth(0.3);
+      doc.line(margin, y, pageW - margin, y); y += 5;
+    };
+
+    _seccion('INFORMACIÓN', [37, 99, 235]);
+    const fecha = parteData.fecha
+      ? new Date(parteData.fecha + 'T00:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+      : '-';
+    const infoRows = [
+      ['Fecha:',     fecha],
+      ...(trabajoTitulo    ? [['Trabajo:',    trabajoTitulo]]    : []),
+      ...(trabajoDireccion ? [['Dirección:',  trabajoDireccion]] : []),
+    ];
+    doc.setTextColor(50, 50, 50); doc.setFontSize(9);
+    for (const [lbl, val] of infoRows) {
+      doc.setFont('helvetica', 'bold');   doc.text(lbl, margin, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(val, contentW - 28);
+      doc.text(lines, margin + 28, y);
+      y += lines.length * 5 + 1;
+    }
+    y += 5;
+
+    // ── Trabajo realizado ───────────────────────────────────
+    if (parteData.descripcion) {
+      _seccion('TRABAJO REALIZADO', [37, 99, 235]);
+      doc.setTextColor(50, 50, 50); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      const lines = doc.splitTextToSize(parteData.descripcion, contentW);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 7;
+    }
+
+    // ── Trabajos pendientes ─────────────────────────────────
+    if (parteData.trabajos_pendientes) {
+      _seccion('TRABAJOS PENDIENTES', [180, 83, 9]);
+      let pendText = '';
+      try {
+        const parsed = typeof parteData.trabajos_pendientes === 'string'
+          ? JSON.parse(parteData.trabajos_pendientes)
+          : parteData.trabajos_pendientes;
+        if (Array.isArray(parsed)) {
+          pendText = parsed.map(i => `- ${i.tipo||''}${i.descripcion ? ': '+i.descripcion : ''}`).join('\n');
+        } else { pendText = String(parteData.trabajos_pendientes); }
+      } catch(e) { pendText = String(parteData.trabajos_pendientes); }
+      doc.setTextColor(50, 50, 50); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      const lines = doc.splitTextToSize(pendText, contentW);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 7;
+    }
+
+    // ── Firmas ──────────────────────────────────────────────
+    if (parteData.firma_url || parteData.firma_operario_url) {
+      _seccion('CONFORMIDAD', [37, 99, 235]);
+      const firmaW = 75; const firmaH = 30;
+
+      const [firmaCliDU, firmaOpDU] = await Promise.all([
+        parteData.firma_url          ? _imageUrlToDataUrl(parteData.firma_url)          : Promise.resolve(null),
+        parteData.firma_operario_url ? _imageUrlToDataUrl(parteData.firma_operario_url) : Promise.resolve(null),
+      ]);
+
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
+      if (firmaCliDU) {
+        doc.text('PERSONA RESPONSABLE', margin, y - 2);
+        doc.addImage(firmaCliDU, 'PNG', margin, y, firmaW, firmaH);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(50, 50, 50);
+        if (parteData.cliente_nombre_firma) doc.text(parteData.cliente_nombre_firma, margin, y + firmaH + 5);
+        if (parteData.cliente_dni) { doc.setFontSize(7); doc.setTextColor(100,100,100); doc.text('DNI: ' + parteData.cliente_dni, margin, y + firmaH + 10); }
+      }
+      if (firmaOpDU) {
+        const xOp = margin + firmaW + 18;
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
+        doc.text('OPERARIO', xOp, y - 2);
+        doc.addImage(firmaOpDU, 'PNG', xOp, y, firmaW, firmaH);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(50, 50, 50);
+        if (parteData.operario_nombre_firma) doc.text(parteData.operario_nombre_firma, xOp, y + firmaH + 5);
+      }
+      y += firmaH + 16;
+    }
+
+    // ── Footer ──────────────────────────────────────────────
+    doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(160, 160, 160);
+    doc.text('Documento generado por Instalo ERP', pageW / 2, 287, { align:'center' });
+
+    // ── Subir PDF a Storage ─────────────────────────────────
+    const pdfBlob = doc.output('blob');
+    const eid = EMPRESA?.id || 'default';
+    const filename = `${eid}/partes-pdf/parte_${parteData.numero || parteId}.pdf`;
+    const { error: upErr } = await sb.storage.from('documentos').upload(filename, pdfBlob, { contentType:'application/pdf', upsert:true });
+    if (upErr) { console.error('[PDF] Error subiendo:', upErr); return null; }
+
+    const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
+    const pdfUrl = urlData?.publicUrl || null;
+
+    // Guardar pdf_url en el parte
+    if (pdfUrl) {
+      await sb.from('partes_trabajo').update({ pdf_url: pdfUrl }).eq('id', parteId);
+    }
+    return pdfUrl;
+  } catch(e) {
+    console.error('[PDF] Error generando PDF del parte:', e);
+    return null;
   }
 }
 
@@ -4510,10 +4667,10 @@ async function enviarEmailParte(parteId, email) {
 // ── MODAL ENVÍO PARTE (WhatsApp / SMS / Cerrar) ──
 let _envioRealizado = false; // Track si se envió por al menos 1 vía
 
-function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente) {
+function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdfUrl = null) {
   _envioRealizado = false;
   const baseUrl = window.location.origin;
-  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+  const enlace = pdfUrl || `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
 
   // Limpiar teléfono pre-rellenado
@@ -4525,6 +4682,7 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente) {
         <div style="font-size:48px;margin-bottom:8px">✅</div>
         <h2 style="margin:0 0 4px;color:var(--verde)">Parte completado</h2>
         <p style="color:var(--gris-500);margin:0;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
+        ${pdfUrl ? `<p style="color:var(--verde);font-size:12px;margin:4px 0 0;font-weight:600">📄 PDF generado — el cliente recibirá el enlace directo</p>` : `<p style="color:var(--gris-400);font-size:11px;margin:4px 0 0;font-style:italic">Enlace web (PDF no disponible)</p>`}
       </div>
 
       <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
