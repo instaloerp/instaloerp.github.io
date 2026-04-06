@@ -2473,16 +2473,33 @@ async function _docGenerar() {
     const btn = document.querySelector('#modalContent .btn-primary');
     if (btn) { btn.textContent = 'Generando...'; btn.disabled = true; }
 
+    // Para presupuestos: generar firma_token
+    if (_doc.tipo === 'presupuesto') {
+      const token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2));
+      datos.firma_token = token;
+      _doc._firmaToken = token;
+    }
+
     const { data, error } = await sb.from(tabla).insert(datos).select('id,numero').single();
     if (error) throw error;
 
     _doc.savedId = data?.id;
+    _doc._numero = data?.numero || numero;
     const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo];
+
+    // Generar enlace según tipo
+    const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
+    if (_doc.tipo === 'presupuesto' && _doc._firmaToken) {
+      _doc._enlace = `${baseUrl}/firma.html?token=${_doc._firmaToken}`;
+    } else {
+      // Para albaranes y facturas: enlace al ERP (se podrá crear página pública más adelante)
+      _doc._enlace = null;
+    }
 
     toast(tipoLabel + ' generado correctamente', 'success');
 
     // Mostrar pantalla de envío multi-canal (igual que partes)
-    _docMostrarEnvio(data?.id || _doc.savedId, data?.numero || numero, tipoLabel);
+    _docMostrarEnvio(data?.id || _doc.savedId, _doc._numero, tipoLabel);
   } catch(e) {
     console.error('Doc generate error:', e);
     toast('Error al generar: ' + (e.message||e), 'error');
@@ -2492,11 +2509,8 @@ async function _docGenerar() {
 }
 
 // ── Pantalla envío multi-canal (WhatsApp / SMS / Email) ──
-let _docEnvioRealizado = false;
 
 function _docMostrarEnvio(docId, docNumero, tipoLabel) {
-  _docEnvioRealizado = false;
-  const empresa = EMPRESA?.nombre || 'Instalo';
   const tel = (_doc.cliente?.telefono || '').replace(/[\s\-\.\(\)]/g, '');
   const email = _doc.cliente?.email || '';
 
@@ -2508,6 +2522,8 @@ function _docMostrarEnvio(docId, docNumero, tipoLabel) {
         <p style="color:var(--gris-500);margin:0;font-size:14px">${docNumero} · ${_doc.cliente?.nombre||''}</p>
       </div>
 
+      <div style="font-size:12px;font-weight:700;color:var(--gris-500);text-align:center;margin-bottom:12px">Enviar al cliente</div>
+
       <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
         <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">TELÉFONO DE CONTACTO</label>
         <input id="docEnvioTel" type="tel" placeholder="Ej: 666123456" value="${tel}"
@@ -2515,7 +2531,7 @@ function _docMostrarEnvio(docId, docNumero, tipoLabel) {
           style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-family:var(--font)">
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
         <button onclick="_docEnvioWhatsApp()" style="flex:1;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
           📱 WhatsApp
         </button>
@@ -2524,23 +2540,20 @@ function _docMostrarEnvio(docId, docNumero, tipoLabel) {
         </button>
       </div>
 
-      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:12px;text-align:left">
         <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">📧 ENVIAR POR EMAIL</label>
         <div style="display:flex;gap:6px">
           <input id="docEnvioEmail" type="email" placeholder="email@ejemplo.com" value="${email}"
             inputmode="email" autocomplete="off"
             style="flex:1;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
-          <button onclick="_docEnvioEmailSend()" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Enviar</button>
+          <button id="docBtnEmail" onclick="_docEnvioEmailSend()" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Enviar</button>
         </div>
-        <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía directamente al cliente.</p>
+        <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía desde el correo de la empresa.</p>
       </div>
 
-      <div style="display:flex;gap:8px;margin-top:16px">
-        <button class="btn btn-secondary" onclick="_docNuevo()" style="flex:1">📄 Crear otro</button>
-        <button id="docBtnCerrar" onclick="closeModal();doRefresh()" style="flex:1;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400)" disabled>
-          Envía al cliente para cerrar
-        </button>
-      </div>
+      <button onclick="closeModal();doRefresh()" style="width:100%;padding:12px;background:var(--gris-100);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-500);margin-top:4px">
+        Cerrar sin enviar
+      </button>
     </div>
   `;
 }
@@ -2555,18 +2568,28 @@ function _docLimpiarTel() {
 function _docGetMensaje() {
   const tipoLabel = { presupuesto:'presupuesto', albaran:'albarán', factura:'factura' }[_doc.tipo] || _doc.tipo;
   const empresa = EMPRESA?.nombre || 'Instalo';
-  return `Estimado/a ${_doc.cliente?.nombre||'cliente'}, desde ${empresa} le hacemos llegar su ${tipoLabel}.\n\nGracias por confiar en nosotros.`;
-}
 
-function _docMarcarEnviado() {
-  _docEnvioRealizado = true;
-  const btn = document.getElementById('docBtnCerrar');
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = 'Cerrar';
-    btn.style.background = 'var(--gris-600)';
-    btn.style.color = '#fff';
+  let total = 0;
+  _doc.lineas.forEach(ln => {
+    total += (ln.cant||0) * (ln.precio||0) * (1-(ln.dto||0)/100) * (1+(ln.iva||0)/100);
+  });
+
+  let msg = `Estimado/a ${_doc.cliente?.nombre||'cliente'}, desde ${empresa} le hacemos llegar su ${tipoLabel}`;
+  if (_doc._numero) msg += ` nº ${_doc._numero}`;
+  msg += ` por importe de ${total.toFixed(2)} €.`;
+
+  if (_doc.tipo === 'presupuesto' && _doc._enlace) {
+    msg += `\n\nPuede ver y firmar el presupuesto en el siguiente enlace:\n${_doc._enlace}`;
+  } else if (_doc._enlace) {
+    msg += `\n\nPuede consultar los detalles en:\n${_doc._enlace}`;
   }
+
+  const lineasResumen = _doc.lineas.slice(0, 5).map(ln => `• ${ln.desc||'—'} x${ln.cant||1} = ${((ln.cant||0)*(ln.precio||0)*(1-(ln.dto||0)/100)).toFixed(2)}€`).join('\n');
+  if (lineasResumen) msg += '\n\n' + lineasResumen;
+  if (_doc.lineas.length > 5) msg += `\n... y ${_doc.lineas.length - 5} línea(s) más`;
+
+  msg += `\n\nGracias por confiar en nosotros.\n${empresa}`;
+  return msg;
 }
 
 function _docEnvioWhatsApp() {
@@ -2579,7 +2602,10 @@ function _docEnvioWhatsApp() {
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
   const msg = encodeURIComponent(_docGetMensaje());
   window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
-  _docMarcarEnviado();
+  const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo];
+  toast(`${tipoLabel} enviado por WhatsApp`, 'success');
+  closeModal();
+  doRefresh();
 }
 
 function _docEnvioSMS() {
@@ -2591,7 +2617,9 @@ function _docEnvioSMS() {
   }
   const msg = encodeURIComponent(_docGetMensaje());
   window.location.href = `sms:${tel}?body=${msg}`;
-  _docMarcarEnviado();
+  const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo];
+  toast(`${tipoLabel} enviado por SMS`, 'success');
+  setTimeout(() => { closeModal(); doRefresh(); }, 500);
 }
 
 async function _docEnvioEmailSend() {
@@ -2602,11 +2630,30 @@ async function _docEnvioEmailSend() {
     return;
   }
 
+  const btn = document.getElementById('docBtnEmail');
+  if (btn) { btn.textContent = 'Enviando...'; btn.disabled = true; }
+
   const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo] || _doc.tipo;
   const tipoVinc = { presupuesto:'presupuesto', albaran:'albaran', factura:'factura' }[_doc.tipo];
   const empresaNombre = EMPRESA?.nombre || 'Instalo';
-  const asunto = tipoLabel + ' de ' + empresaNombre;
-  const cuerpo = `Estimado/a ${_doc.cliente?.nombre||'cliente'},\n\nAdjunto le enviamos el ${tipoLabel.toLowerCase()} correspondiente.\n\nUn cordial saludo,\n${empresaNombre}`;
+
+  let total = 0;
+  _doc.lineas.forEach(ln => {
+    total += (ln.cant||0) * (ln.precio||0) * (1-(ln.dto||0)/100) * (1+(ln.iva||0)/100);
+  });
+
+  const asunto = tipoLabel + (_doc._numero ? ' ' + _doc._numero : '') + ' — ' + empresaNombre;
+
+  let cuerpo = `Estimado/a ${_doc.cliente?.nombre||'cliente'},\n\nLe hacemos llegar el ${tipoLabel.toLowerCase()} ${_doc._numero||''} por importe de ${total.toFixed(2)} €.\n`;
+
+  if (_doc.tipo === 'presupuesto' && _doc._enlace) {
+    cuerpo += `\nPuede ver y firmar el presupuesto en el siguiente enlace:\n${_doc._enlace}\n`;
+  } else if (_doc._enlace) {
+    cuerpo += `\nPuede consultar los detalles en:\n${_doc._enlace}\n`;
+  }
+
+  cuerpo += `\nUn cordial saludo,\n${empresaNombre}`;
+  if (EMPRESA?.telefono) cuerpo += `\nTel: ${EMPRESA.telefono}`;
 
   try {
     const { data, error } = await sb.functions.invoke('enviar-correo', {
@@ -2617,22 +2664,19 @@ async function _docEnvioEmailSend() {
         cuerpo_texto: cuerpo,
         vinculado_tipo: tipoVinc,
         vinculado_id: _doc.savedId,
-        vinculado_ref: tipoLabel
+        vinculado_ref: _doc._numero || tipoLabel
       }
     });
 
-    if (error) {
-      // Fallback: abrir mailto
-      window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo));
-      toast('Abriendo correo...', 'info');
-    } else {
-      toast('Email enviado a ' + email, 'success');
-    }
+    if (error) throw error;
+    toast(`${tipoLabel} enviado por email a ${email}`, 'success');
+    closeModal();
+    doRefresh();
   } catch(e) {
-    window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo));
-    toast('Abriendo correo...', 'info');
+    console.error('Email error:', e);
+    toast('Error al enviar email: ' + (e.message||'Revisa la configuración de correo en el ERP'), 'error');
+    if (btn) { btn.textContent = 'Enviar'; btn.disabled = false; }
   }
-  _docMarcarEnviado();
 }
 
 function _docNuevo() {
