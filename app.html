@@ -2736,7 +2736,7 @@ async function _uploadOCR() {
     const storagePath = `${EMPRESA.id}/ocr/${fileName}`;
 
     const { data: uploadData, error: uploadErr } = await sb.storage
-      .from('documentos')
+      .from('fotos-partes')
       .upload(storagePath, _ocrSelectedFile, { contentType: _ocrSelectedFile.type });
 
     if (uploadErr) throw uploadErr;
