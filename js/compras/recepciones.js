@@ -68,7 +68,7 @@ function renderRecepciones(list) {
         <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
       </div></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin recepciones</h3></div></td></tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin albaranes de proveedor</h3></div></td></tr>';
   document.getElementById('rcTable').innerHTML = html;
 }
 
@@ -124,7 +124,7 @@ async function nuevaRecepcion() {
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('rc_fecha').value = hoy;
   document.getElementById('rc_observaciones').value = '';
-  document.getElementById('mRCTit').textContent = 'Nueva Recepción';
+  document.getElementById('mRCTit').textContent = 'Nuevo Albarán de Proveedor';
 
   rc_addLinea();
   openModal('mRecepcion');
@@ -154,7 +154,7 @@ async function editarRecepcion(id) {
     rc_observaciones: r.observaciones || ''
   });
 
-  document.getElementById('mRCTit').textContent = 'Editar Recepción';
+  document.getElementById('mRCTit').textContent = 'Editar Albarán de Proveedor';
   rc_renderLineas();
   openModal('mRecepcion');
 }
@@ -259,7 +259,7 @@ async function guardarRecepcion() {
     const provId = parseInt(v('rc_proveedor'));
     const almacenId = parseInt(v('rc_almacen'));
 
-    if (!numero) {toast('Introduce número de recepción','error');return;}
+    if (!numero) {toast('Introduce número de albarán','error');return;}
     if (!provId) {toast('Selecciona proveedor','error');return;}
     if (!almacenId) {toast('Selecciona almacén','error');return;}
     if (rcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
@@ -287,7 +287,7 @@ async function guardarRecepcion() {
 
     closeModal('mRecepcion');
     loadRecepciones();
-    toast('Recepción guardada ✓', 'success');
+    toast('Albarán guardado ✓', 'success');
   } finally {
     _creando = false;
   }
@@ -297,10 +297,10 @@ async function guardarRecepcion() {
 // VERIFICAR RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function verificarRecepcion(id) {
-  if (!confirm('¿Verificar recepción?')) return;
+  if (!confirm('¿Verificar albarán?')) return;
   await sb.from('recepciones').update({estado:'verificada'}).eq('id', id);
   loadRecepciones();
-  toast('Recepción verificada ✓', 'success');
+  toast('Albarán verificado ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -332,18 +332,18 @@ async function almacenarRecepcion(id) {
 
   await sb.from('recepciones').update({estado:'almacenada'}).eq('id', id);
   loadRecepciones();
-  toast('Recepción almacenada y stock actualizado ✓', 'success');
+  toast('Albarán almacenado y stock actualizado ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
 // ELIMINAR RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function delRecepcion(id) {
-  if (!confirm('¿Eliminar recepción?')) return;
+  if (!confirm('¿Eliminar albarán?')) return;
   await sb.from('recepciones').delete().eq('id', id);
   recepciones = recepciones.filter(r => r.id !== id);
   renderRecepciones(recepciones);
-  toast('Recepción eliminada', 'info');
+  toast('Albarán eliminado', 'info');
 }
 
 // ═══════════════════════════════════════════════
@@ -472,11 +472,11 @@ function imprimirRecepcion(id) {
 
 function enviarRecepcionEmail(id) {
   const r = recepciones.find(x => x.id === id);
-  if (!r) return toast('Recepción no encontrada', 'error');
+  if (!r) return toast('Albarán no encontrado', 'error');
   const prov = proveedores.find(x => x.id === r.proveedor_id);
   const email = prov?.email || '';
-  const asuntoTxt = `Recepción ${r.numero||''} — ${EMPRESA.nombre}`;
-  const cuerpoTxt = `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\nNº Recepción: ${r.numero||'—'}\nFecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\nPedido origen: ${r.pedido_numero||'—'}\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
+  const asuntoTxt = `Albarán proveedor ${r.numero||''} — ${EMPRESA.nombre}`;
+  const cuerpoTxt = `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\nNº Albarán: ${r.numero||'—'}\nFecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\nPedido origen: ${r.pedido_numero||'—'}\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
   if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'recepcion', id: r.id, ref: r.numero || '' });
     goPage('correo');

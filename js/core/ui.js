@@ -904,29 +904,43 @@ document.addEventListener('keydown', function(e) {
 
   e.preventDefault();
 
-  if (idx < fields.length - 1) {
-    // Avanzar al siguiente campo de esta fila
-    const next = fields[idx + 1];
-    next.focus();
-    if (next.select) next.select();
-  } else if (isEnter) {
-    // Enter en el último campo → confirmar y crear nueva línea
-    el.blur();
-    const tbodyId = tbody.id;
-    setTimeout(() => {
+  // Guardar posición ANTES de que blur/onchange destruya el DOM
+  const tbodyId = tbody.id;
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  const rowIdx = allRows.indexOf(row);
+  const nextFieldIdx = idx + 1;
+  const isLastField = idx >= fields.length - 1;
+
+  // Blur para confirmar el valor (dispara onchange → re-render)
+  el.blur();
+
+  // Navegar DESPUÉS de que el render se complete, buscando por posición en el DOM nuevo
+  setTimeout(() => {
+    const tb = document.getElementById(tbodyId);
+    if (!tb) return;
+
+    if (!isLastField) {
+      // Avanzar al siguiente campo de la misma fila
+      const rows = tb.querySelectorAll('tr');
+      const targetRow = rows[rowIdx];
+      if (!targetRow) return;
+      const targetFields = Array.from(targetRow.querySelectorAll('input:not([type="hidden"]):not([style*="display:none"]), select'));
+      const target = targetFields[nextFieldIdx];
+      if (target) { target.focus(); if (target.select) target.select(); }
+    } else if (isEnter) {
+      // Enter en el último campo → crear nueva línea
       if (_ADD_LINE_FNS[tbodyId]) _ADD_LINE_FNS[tbodyId]();
-      _lineNavFocusNew(tbody);
-    }, 30);
-  } else {
-    // Tab en último campo → saltar a la primera celda de la siguiente fila (si existe)
-    const allRows = Array.from(tbody.querySelectorAll('tr'));
-    const rowIdx = allRows.indexOf(row);
-    if (rowIdx < allRows.length - 1) {
-      const nextRow = allRows[rowIdx + 1];
-      const first = nextRow.querySelector('input:not([type="hidden"]), select');
-      if (first) { first.focus(); if (first.select) first.select(); }
+      _lineNavFocusNew(tb);
+    } else {
+      // Tab en último campo → saltar a la primera celda de la siguiente fila
+      const rows = tb.querySelectorAll('tr');
+      if (rowIdx < rows.length - 1) {
+        const nextRow = rows[rowIdx + 1];
+        const first = nextRow.querySelector('input:not([type="hidden"]), select');
+        if (first) { first.focus(); if (first.select) first.select(); }
+      }
     }
-  }
+  }, 50);
 });
 
 function setPermisosByRol(rol) {

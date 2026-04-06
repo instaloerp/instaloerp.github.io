@@ -2727,7 +2727,7 @@
     <div class="modal-b">
       <input type="hidden" id="ser_id">
       <div class="fg" style="margin-bottom:11px"><label>Tipo de documento</label>
-        <select id="ser_tipo"><option value="presupuesto">Presupuesto</option><option value="albaran">Albarán</option><option value="factura">Factura</option><option value="pedido_compra">Pedido compra</option><option value="recepcion">Recepción</option><option value="traspaso">Traspaso</option><option value="parte_trabajo">Parte trabajo</option></select>
+        <select id="ser_tipo"><option value="presupuesto">Presupuesto</option><option value="albaran">Albarán</option><option value="factura">Factura</option><option value="pedido_compra">Pedido compra</option><option value="recepcion">Albarán proveedor</option><option value="traspaso">Traspaso</option><option value="parte_trabajo">Parte trabajo</option></select>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Serie *</label><input id="ser_serie" placeholder="Ej: FAC-A"></div>
@@ -3098,7 +3098,7 @@
 <!-- ═══ MODAL RECEPCIÓN (ALBARÁN PROVEEDOR) ═══ -->
 <div class="overlay" id="mRecepcion">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><span>📥</span><h2 id="mRCTit">Nueva Recepción</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mRecepcion')">✕</button></div>
+    <div class="modal-h"><span>📥</span><h2 id="mRCTit">Nuevo Albarán de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mRecepcion')">✕</button></div>
     <div class="modal-b">
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Proveedor *</label><select id="rc_proveedor" style="width:100%"><option value="">— Selecciona proveedor —</option></select></div>
@@ -3110,7 +3110,7 @@
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="font-weight:700;font-size:13px">Líneas de recepción</label>
+          <label style="font-weight:700;font-size:13px">Líneas del albarán</label>
           <button class="btn btn-ghost btn-sm" onclick="rc_addLinea()">+ Añadir línea</button>
         </div>
         <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
@@ -3141,7 +3141,7 @@
     </div>
     <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mRecepcion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarRecepcion()">💾 Guardar recepción</button>
+      <button class="btn btn-primary" onclick="guardarRecepcion()">💾 Guardar albarán</button>
     </div>
   </div>
 </div>
@@ -3923,7 +3923,7 @@
 
 
 <!-- Dropdown global autocompletado artículos -->
-<div id="acArticulos"></div>
+<div id="acArticulos" class="ac-dropdown"></div>
 
 <!-- Carga dinámica con cache-bust automático -->
 <script>
