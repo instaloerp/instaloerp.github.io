@@ -6,6 +6,42 @@
 
 let _ocrDocs = []; // cache local para filtro de búsqueda
 
+// ─── Realtime — actualización automática de la bandeja ───
+let _ocrChannel        = null;
+let _ocrReloadTimer    = null;
+
+function _ocrStartRealtime() {
+  if (_ocrChannel) return; // ya suscrito
+  _ocrChannel = sb
+    .channel('ocr-realtime-' + (EMPRESA?.id || 'global'))
+    .on('postgres_changes', {
+      event:  '*',               // INSERT · UPDATE · DELETE
+      schema: 'public',
+      table:  'documentos_ocr',
+      filter: `empresa_id=eq.${EMPRESA.id}`
+    }, () => {
+      // Debounce 400 ms para evitar recargas múltiples en ráfagas
+      clearTimeout(_ocrReloadTimer);
+      _ocrReloadTimer = setTimeout(() => {
+        const paginaActiva = document.getElementById('page-ocr')?.classList.contains('active');
+        if (paginaActiva) {
+          loadOCRInbox();          // recarga completa si el usuario está viendo la bandeja
+        } else {
+          updateOCRBadge();        // solo actualiza el badge del sidebar si está en otra sección
+        }
+      }, 400);
+    })
+    .subscribe((status) => {
+      const dot = document.getElementById('ocrLiveDot');
+      if (dot) dot.style.background = status === 'SUBSCRIBED' ? '#22C55E' : '#94A3B8';
+    });
+}
+
+function _ocrStopRealtime() {
+  if (_ocrChannel) { sb.removeChannel(_ocrChannel); _ocrChannel = null; }
+  clearTimeout(_ocrReloadTimer);
+}
+
 // ─── Badge counter in sidebar ───
 async function updateOCRBadge() {
   try {
@@ -54,6 +90,7 @@ async function loadOCRInbox() {
   _ocrUpdateKpis();
   _ocrRenderTable(_ocrDocs);
   updateOCRBadge();
+  _ocrStartRealtime(); // iniciar suscripción si aún no está activa
 }
 
 // ─── Update KPIs ───

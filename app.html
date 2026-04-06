@@ -4687,7 +4687,8 @@ let _envioRealizado = false; // Track si se envió por al menos 1 vía
 function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdfUrl = null) {
   _envioRealizado = false;
   const baseUrl = window.location.origin;
-  const enlace = pdfUrl || `${baseUrl}/parte.html?id=${parteId}`;
+  // Siempre usar la URL limpia de parte.html para el cliente — el PDF se guarda internamente
+  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
 
   // Limpiar teléfono pre-rellenado
@@ -4699,7 +4700,7 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdf
         <div style="font-size:48px;margin-bottom:8px">✅</div>
         <h2 style="margin:0 0 4px;color:var(--verde)">Parte completado</h2>
         <p style="color:var(--gris-500);margin:0;font-size:14px">Parte nº ${parteNum} guardado correctamente</p>
-        ${pdfUrl ? `<p style="color:var(--verde);font-size:12px;margin:4px 0 0;font-weight:600">📄 PDF generado — el cliente recibirá el enlace directo</p>` : `<p style="color:var(--gris-400);font-size:11px;margin:4px 0 0;font-style:italic">Enlace web (PDF no disponible)</p>`}
+        ${pdfUrl ? `<p style="color:var(--verde);font-size:12px;margin:4px 0 0;font-weight:600">📄 PDF archivado internamente</p>` : `<p style="color:var(--gris-400);font-size:11px;margin:4px 0 0;font-style:italic">Enlace web generado</p>`}
       </div>
 
       <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
