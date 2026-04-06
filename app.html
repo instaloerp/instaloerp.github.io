@@ -41,11 +41,11 @@ a{color:var(--azul);text-decoration:none}
 .screen.active{display:flex;flex-direction:column}
 
 /* ── LOGIN ── */
-#s-login{align-items:center;justify-content:center;background:linear-gradient(135deg,var(--azul-dark),var(--azul));padding:24px}
-.login-card{background:#fff;border-radius:20px;padding:32px 24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-.login-card h1{text-align:center;font-size:22px;font-weight:800;color:var(--azul);margin-bottom:4px}
-.login-card p{text-align:center;font-size:13px;color:var(--gris-400);margin-bottom:24px}
-.login-card .logo{text-align:center;margin-bottom:16px;font-size:40px}
+#s-login{align-items:center;justify-content:center;background:#080E1E;padding:24px;position:relative}
+.login-bg{position:fixed;inset:0;background:radial-gradient(ellipse at 20% 65%,rgba(34,197,94,.12) 0%,transparent 45%),radial-gradient(ellipse at 80% 25%,rgba(245,158,11,.10) 0%,transparent 45%),radial-gradient(ellipse at 75% 75%,rgba(59,130,246,.14) 0%,transparent 45%),radial-gradient(ellipse at 30% 20%,rgba(139,92,246,.10) 0%,transparent 40%);pointer-events:none;z-index:0}
+.login-card{position:relative;z-index:1;background:#fff;border-radius:16px;padding:36px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.login-card .login-logo{text-align:center;margin-bottom:24px}
+.login-card .login-logo p{font-size:12px;color:var(--gris-400);margin-top:6px}
 .field{margin-bottom:16px}
 .field label{display:block;font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
 .field input{width:100%;padding:12px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:15px;outline:none;transition:border .2s;font-family:var(--font)}
@@ -288,20 +288,25 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ═══════════ LOGIN SCREEN ═══════════ -->
 <div id="s-login" class="screen active">
+  <div class="login-bg"></div>
   <div class="login-card">
-    <div class="logo">🔧</div>
-    <h1>Instalo App</h1>
-    <p>Accede a tu cuenta de trabajo</p>
+    <div class="login-logo">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">
+        <img src="icon.png" alt="Instalo ERP" style="height:124px;width:124px;object-fit:contain;border-radius:20px">
+        <span style="font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1"><span style="color:#1E293B">instalo</span><span style="color:#22C55E">E</span><span style="color:#F59E0B">R</span><span style="color:#3B82F6">P</span></span>
+      </div>
+      <p>Accede a tu cuenta de trabajo</p>
+    </div>
     <div id="loginErr" class="err"></div>
     <div class="field">
       <label>Email</label>
-      <input type="email" id="lEmail" placeholder="tu@email.com" autocomplete="email">
+      <input type="email" id="lEmail" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="field">
       <label>Contraseña</label>
-      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password">
+      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <button class="btn btn-primary" onclick="doLogin()" id="btnLogin">Entrar</button>
+    <button class="btn btn-primary" onclick="doLogin()" id="btnLogin">Entrar →</button>
   </div>
 </div>
 
