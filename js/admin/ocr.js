@@ -174,7 +174,7 @@ async function ocrPrevisualizar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
 
-  const imgUrl = doc.archivo_path ? sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl : '';
+  const imgUrl = doc.archivo_path ? sb.storage.from('ocr-documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
   if (!imgUrl) { toast('Sin archivo para previsualizar', 'error'); return; }
 
   const ext = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
@@ -188,28 +188,28 @@ async function ocrPrevisualizar(id) {
     contenido = `<img src="${imgUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
   }
 
-  document.getElementById('modalContent').innerHTML = `
-    <div style="max-width:900px;width:90vw">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div>
-          <h3 style="font-size:15px;font-weight:800;margin:0">${doc.archivo_nombre || 'Documento OCR'}</h3>
-          <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${new Date(doc.created_at).toLocaleString('es-ES')} · ${est[doc.estado] || doc.estado}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="window.open('${imgUrl}','_blank')" style="font-size:11px">🔗 Abrir en nueva pestaña</button>
+  const container = document.getElementById('ocrPreviewContent');
+  if (!container) { toast('Error: modal OCR no encontrado', 'error'); return; }
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <h3 style="font-size:15px;font-weight:800;margin:0">${doc.archivo_nombre || 'Documento OCR'}</h3>
+        <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${new Date(doc.created_at).toLocaleString('es-ES')} · ${est[doc.estado] || doc.estado}</div>
       </div>
-      <div style="text-align:center;background:var(--gris-50);border-radius:10px;padding:12px;min-height:300px;display:flex;align-items:center;justify-content:center">
-        ${contenido}
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
-        ${!doc.documento_vinculado_id
-          ? `<button class="btn btn-primary" onclick="closeModal();ocrGestionar(${doc.id})" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
-             <button class="btn btn-ghost" onclick="closeModal();ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
-          : `<button class="btn btn-secondary" onclick="closeModal();ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`}
-        <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
-      </div>
+      <button class="btn btn-ghost btn-sm" onclick="window.open('${imgUrl}','_blank')" style="font-size:11px">🔗 Abrir en nueva pestaña</button>
+    </div>
+    <div style="text-align:center;background:var(--gris-50);border-radius:10px;padding:12px;min-height:300px;display:flex;align-items:center;justify-content:center">
+      ${contenido}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      ${!doc.documento_vinculado_id
+        ? `<button class="btn btn-primary" onclick="closeModal('mOcrPreview');ocrGestionar(${doc.id})" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
+           <button class="btn btn-ghost" onclick="closeModal('mOcrPreview');ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
+        : `<button class="btn btn-secondary" onclick="closeModal('mOcrPreview');ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`}
+      <button class="btn btn-secondary" onclick="closeModal('mOcrPreview')">Cerrar</button>
     </div>
   `;
-  openModal();
+  openModal('mOcrPreview');
 }
 
 // ═══════════════════════════════════════════════
@@ -251,9 +251,12 @@ async function ocrGestionar(id) {
   toast('Descargando imagen para procesar con IA...', 'info');
 
   try {
-    const imgUrl = sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl;
+    // Usar createSignedUrl para evitar problemas con buckets no públicos
+    const { data: signedData, error: signErr } = await sb.storage.from('ocr-documentos').createSignedUrl(doc.archivo_path, 300);
+    if (signErr || !signedData?.signedUrl) throw new Error('No se pudo generar URL firmada: ' + (signErr?.message || 'sin URL'));
+    const imgUrl = signedData.signedUrl;
     const response = await fetch(imgUrl);
-    if (!response.ok) throw new Error('No se pudo descargar la imagen');
+    if (!response.ok) throw new Error('No se pudo descargar la imagen (HTTP ' + response.status + ')');
 
     const blob = await response.blob();
     const mimeType = blob.type || 'image/jpeg';
@@ -353,8 +356,11 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
 
 async function _ocrCargarImagenEnPreview(doc) {
   try {
-    const imgUrl = sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl;
+    const { data: signedData, error: signErr } = await sb.storage.from('ocr-documentos').createSignedUrl(doc.archivo_path, 300);
+    if (signErr || !signedData?.signedUrl) throw new Error('No se pudo generar URL firmada');
+    const imgUrl = signedData.signedUrl;
     const response = await fetch(imgUrl);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
     const blob = await response.blob();
     const mimeType = blob.type || 'image/jpeg';
 
@@ -393,7 +399,7 @@ async function ocrEliminar(id) {
   if (error) { toast('Error al eliminar: ' + error.message, 'error'); return; }
 
   if (doc?.archivo_path) {
-    await sb.storage.from('fotos-partes').remove([doc.archivo_path]);
+    await sb.storage.from('ocr-documentos').remove([doc.archivo_path]);
   }
 
   toast('Documento OCR eliminado', 'success');

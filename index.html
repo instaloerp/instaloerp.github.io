@@ -4057,6 +4057,14 @@
   </div>
 </div>
 
+<!-- Modal OCR Preview — Previsualización de documento subido -->
+<div class="overlay" id="mOcrPreview" onclick="if(event.target===this)closeModal('mOcrPreview')">
+  <div class="modal" style="max-width:900px;width:90vw">
+    <div class="modal-h"><span>🖼️</span><h2>Previsualización</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mOcrPreview')">✕</button></div>
+    <div id="ocrPreviewContent"></div>
+  </div>
+</div>
+
 <!-- Modal Preview IA — Validación antes de crear -->
 <div class="overlay" id="mIAPreview" style="z-index:10001">
   <div class="modal" style="max-width:95vw;width:1400px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
