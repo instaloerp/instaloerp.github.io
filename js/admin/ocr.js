@@ -307,7 +307,7 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
     const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
-      body: JSON.stringify({ imagen_base64: _iaFileBase64, media_type: _iaFileMime, tipo, empresa_id: EMPRESA.id })
+      body: JSON.stringify({ imagen_base64: _iaFileBase64, media_type: _iaFileMime, tipo, empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || '' })
     });
 
     const result = await resp.json();
