@@ -747,7 +747,14 @@ function iaPreviewMostrar() {
   // SECCIÓN 1: Info del documento
   html += `<div style="margin-bottom:20px">
     <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:10px;display:flex;align-items:center;gap:8px">
-      📋 ${tipoLabel} de Proveedor
+      📋 Tipo de documento:
+      <select id="iap_tipo_doc" onchange="_iaPreviewTipo=this.value" style="padding:4px 10px;border:1.5px solid var(--azul);border-radius:8px;font-size:13px;font-weight:700;color:var(--azul);background:#eef2ff;outline:none;cursor:pointer">
+        <option value="factura" ${_iaPreviewTipo==='factura'?'selected':''}>🧾 Factura de proveedor</option>
+        <option value="albaran" ${_iaPreviewTipo==='albaran'?'selected':''}>📥 Albarán de proveedor</option>
+        <option value="pedido" ${_iaPreviewTipo==='pedido'?'selected':''}>🛒 Pedido de compra</option>
+        <option value="presupuesto" ${_iaPreviewTipo==='presupuesto'||_iaPreviewTipo==='presupuesto_compra'?'selected':''}>📋 Presupuesto de compra</option>
+      </select>
+      <span style="font-size:11px;color:var(--gris-400);font-weight:400">detectado por IA — cambia si no es correcto</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label style="font-size:11px;color:var(--gris-500);font-weight:600">Número
@@ -976,7 +983,9 @@ async function iaPreviewValidar() {
   try {
     // 1. Leer datos editados del preview
     const data = _iaPreviewLeerDatos();
-    const tipo = _iaPreviewTipo;
+    // Leer tipo del selector (por si el usuario lo cambió)
+    const tipoSel = document.getElementById('iap_tipo_doc');
+    const tipo = tipoSel ? tipoSel.value : _iaPreviewTipo;
 
     // 2. Resolver/crear proveedor
     let provId = null;

@@ -835,6 +835,7 @@ function renderBottomNav() {
       <button class="nav-item" data-tab="partes" onclick="navigateTo('partes')"><span class="ico">📝</span><span class="lbl">Mis partes</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
+      <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
     if (fab) fab.style.display = 'none';
   }
@@ -861,6 +862,7 @@ function navigateTo(tab) {
       case 'partes': renderOperarioPartes(body); break;
       case 'tareas': renderOperarioTareas(body); break;
       case 'agenda': renderOperarioAgenda(body); break;
+      case 'mas': renderOperarioMas(body); break;
     }
   }
 }
@@ -1558,6 +1560,61 @@ function _agendaNavMonth(offset) {
 function _getWeekNum(d) {
   const onejan = new Date(d.getFullYear(), 0, 1);
   return Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+}
+
+// ═══════════════════════════════════════════════
+// OPERARIO: MÁS (opciones adicionales)
+// ═══════════════════════════════════════════════
+async function renderOperarioMas(el) {
+  const lastCache = localStorage.getItem('instalo_last_cache');
+  const cacheInfo = lastCache
+    ? 'Última descarga: ' + new Date(parseInt(lastCache)).toLocaleString('es-ES', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+    : 'Sin datos descargados aún';
+  const pendingOps = await syncQueueGetAll();
+  const pendingInfo = pendingOps.length > 0
+    ? `<div style="margin-top:6px;font-size:12px;color:#B45309;font-weight:600">${pendingOps.length} cambio(s) pendientes de subir</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="section-title">🛠️ Herramientas</div>
+    <div class="card" onclick="_openOCRUpload()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:28px">📷</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">Subir documento OCR</div>
+        <div style="font-size:12px;color:var(--gris-400)">Haz una foto a una factura o albarán de proveedor</div>
+      </div>
+      <span style="font-size:18px;color:var(--gris-300)">›</span>
+    </div>
+
+    <div class="section-title" style="margin-top:16px">📡 Conexión y datos</div>
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">${navigator.onLine ? '🟢' : '🟡'}</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${navigator.onLine ? 'Conectado' : 'Sin conexión (modo offline)'}</div>
+        <div style="font-size:12px;color:var(--gris-400)">${cacheInfo}</div>
+        ${pendingInfo}
+      </div>
+    </div>
+    ${pendingOps.length > 0 ? `
+    <div class="card" onclick="processSyncQueue()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">📤</span>
+      <div><div style="font-weight:700;font-size:14px">Sincronizar ahora</div><div style="font-size:12px;color:var(--gris-400)">Subir ${pendingOps.length} cambio(s) pendiente(s)</div></div>
+    </div>` : ''}
+    <div class="card" onclick="doRefresh()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🔄</span>
+      <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y datos</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px">🔒 Sesión</div>
+    <div class="card" onclick="doLogout()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🚪</span>
+      <div><div style="font-weight:700;font-size:14px">Cerrar sesión</div><div style="font-size:12px;color:var(--gris-400)">${CU?.email||''}</div></div>
+    </div>
+
+    <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
+      Instalo ERP · App móvil v1.0 stable
+    </div>
+  `;
 }
 
 // ═══════════════════════════════════════════════

@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════
 // Bandeja OCR — Documentos pendientes de gestionar por IA
-// Reutiliza el sistema de importación IA existente (mIAPreview split-screen)
+// Formato tabla estilo presupuestos — click para previsualizar
+// Reutiliza sistema de importación IA existente (mIAPreview split-screen)
 // ═══════════════════════════════════════════════
+
+let _ocrDocs = []; // cache local para filtro de búsqueda
 
 // ─── Badge counter in sidebar ───
 async function updateOCRBadge() {
@@ -21,11 +24,11 @@ async function updateOCRBadge() {
   } catch(e) { /* silently ignore */ }
 }
 
-// ─── Load OCR inbox (grid de tarjetas) ───
+// ─── Load OCR inbox ───
 async function loadOCRInbox() {
-  const grid = document.getElementById('ocrGrid');
-  if (!grid) return;
-  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--gris-400)">Cargando documentos OCR...</div>';
+  const tbody = document.getElementById('ocrTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gris-400)">Cargando documentos OCR...</td></tr>';
 
   const filtro = document.getElementById('ocrFiltroEstado')?.value || '';
 
@@ -33,106 +36,176 @@ async function loadOCRInbox() {
     .select('*')
     .eq('empresa_id', EMPRESA.id)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(200);
 
   if (filtro) q = q.eq('estado', filtro);
 
   const { data, error } = await q;
 
   if (error) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--rojo)">
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--rojo)">
       Error al cargar: ${error.message}<br>
       <small>¿Has ejecutado crear_documentos_ocr.sql en Supabase?</small>
-    </div>`;
+    </td></tr>`;
     return;
   }
 
-  if (!data || !data.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--gris-400)">
-      <div style="font-size:48px;margin-bottom:12px">🤖</div>
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">Sin documentos ${filtro ? 'con estado "' + filtro + '"' : 'pendientes'}</h3>
-      <p style="font-size:12px">Los documentos subidos desde la app móvil aparecerán aquí</p>
-    </div>`;
+  _ocrDocs = data || [];
+  _ocrUpdateKpis();
+  _ocrRenderTable(_ocrDocs);
+  updateOCRBadge();
+}
+
+// ─── Update KPIs ───
+function _ocrUpdateKpis() {
+  // Contar por estado (sobre todos los docs, no filtrados)
+  // Hacemos query aparte para KPIs totales
+  sb.from('documentos_ocr')
+    .select('estado')
+    .eq('empresa_id', EMPRESA.id)
+    .then(({ data }) => {
+      if (!data) return;
+      const counts = { pendiente: 0, procesando: 0, completado: 0, error: 0 };
+      data.forEach(d => { if (counts[d.estado] !== undefined) counts[d.estado]++; });
+      const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      el('ocrKpiPend', counts.pendiente);
+      el('ocrKpiProc', counts.procesando);
+      el('ocrKpiComp', counts.completado);
+      el('ocrKpiErr', counts.error);
+    });
+}
+
+// ─── Render table rows ───
+function _ocrRenderTable(docs) {
+  const tbody = document.getElementById('ocrTableBody');
+  if (!tbody) return;
+
+  if (!docs || !docs.length) {
+    const filtro = document.getElementById('ocrFiltroEstado')?.value || '';
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gris-400)">
+      <div style="font-size:36px;margin-bottom:8px">🤖</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">Sin documentos ${filtro ? filtro + 's' : ''}</div>
+      <div style="font-size:12px">Los documentos subidos desde la app móvil aparecerán aquí</div>
+    </td></tr>`;
     return;
   }
 
   const estadoConfig = {
-    pendiente:  { ico: '⏳', color: '#f59e0b', bg: '#fef3c7', label: 'Pendiente' },
-    procesando: { ico: '⚙️', color: '#3b82f6', bg: '#dbeafe', label: 'Procesando' },
-    completado: { ico: '✅', color: '#10b981', bg: '#d1fae5', label: 'Completado' },
-    error:      { ico: '❌', color: '#ef4444', bg: '#fee2e2', label: 'Error' }
+    pendiente:  { ico: '⏳', color: '#92400e', bg: '#fef3c7', label: 'PENDIENTE' },
+    procesando: { ico: '⚙️', color: '#1e40af', bg: '#dbeafe', label: 'PROCESANDO' },
+    completado: { ico: '✅', color: '#065f46', bg: '#d1fae5', label: 'COMPLETADO' },
+    error:      { ico: '❌', color: '#991b1b', bg: '#fee2e2', label: 'ERROR' }
   };
 
-  const tipoLabels = {
-    factura_prov: '📑 Factura proveedor',
-    albaran_prov: '📥 Albarán proveedor',
-    otro: '📄 Otro documento'
-  };
+  // Buscar nombres de usuarios
+  const userMap = {};
+  if (typeof todosUsuarios !== 'undefined' && todosUsuarios) {
+    todosUsuarios.forEach(u => { userMap[u.id] = u.nombre || u.email || '—'; });
+  }
 
-  grid.innerHTML = data.map(doc => {
+  tbody.innerHTML = docs.map(doc => {
     const est = estadoConfig[doc.estado] || estadoConfig.pendiente;
-    const fecha = new Date(doc.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const imgUrl = doc.archivo_path ? sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl : '';
-    const tipoLabel = doc.tipo_documento ? (tipoLabels[doc.tipo_documento] || doc.tipo_documento) : '📄 Sin clasificar';
-    const vinculado = doc.documento_vinculado_id
-      ? `<div style="font-size:11px;color:var(--verde);font-weight:600;margin-top:4px">✅ Vinculado → ${doc.documento_vinculado_tipo} #${doc.documento_vinculado_id}</div>`
-      : '';
+    const dt = new Date(doc.created_at);
+    const fecha = dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const hora = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const ext = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
+    const esImg = ['jpg','jpeg','png','webp','heic','heif'].includes(ext);
+    const esPdf = ext === 'pdf';
+    const icoTipo = esPdf ? '📄' : (esImg ? '🖼️' : '📎');
     const datos = doc.datos_extraidos;
-    const resumen = datos ? _ocrResumen(datos) : '';
+    const resumen = datos ? _ocrResumenTexto(datos) : '';
+    const usuario = userMap[doc.usuario_id] || '—';
+    const vinculado = doc.documento_vinculado_id
+      ? `<div style="font-size:10px;color:var(--verde);font-weight:600">✅ → ${doc.documento_vinculado_tipo} #${doc.documento_vinculado_id}</div>`
+      : '';
 
-    return `<div class="card" style="padding:0;overflow:hidden">
-      <div style="height:180px;background:var(--gris-100);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer" onclick="ocrPrevisualizar('${imgUrl}')">
-        ${imgUrl
-          ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=\\'font-size:40px\\'>📄</span>'">`
-          : '<span style="font-size:40px">📄</span>'}
-      </div>
-      <div style="padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:6px">
-          <div style="font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${doc.archivo_nombre || 'Sin nombre'}</div>
-          <span style="flex-shrink:0;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
-        </div>
-        <div style="font-size:11.5px;color:var(--gris-500);margin-bottom:4px">📅 ${fecha}</div>
-        ${resumen}
+    return `<tr style="cursor:pointer" onclick="ocrPrevisualizar(${doc.id})">
+      <td style="text-align:center;font-size:22px;padding:8px">${icoTipo}</td>
+      <td style="padding:8px 12px">
+        <div style="font-weight:700;font-size:13px">${doc.archivo_nombre || 'Sin nombre'}</div>
+        ${resumen ? `<div style="font-size:11px;color:var(--gris-500);margin-top:1px">${resumen}</div>` : ''}
         ${vinculado}
-        ${doc.notas ? `<div style="font-size:11px;color:var(--gris-400);margin-top:4px;font-style:italic">"${doc.notas}"</div>` : ''}
-      </div>
-      <div style="border-top:1px solid var(--gris-100);padding:10px 12px;display:flex;gap:8px">
+      </td>
+      <td style="font-size:12px;padding:8px">${usuario}</td>
+      <td style="white-space:nowrap;font-size:12px;padding:8px">
+        <div>${fecha}</div>
+        <div style="color:var(--gris-400);font-size:11px">${hora}</div>
+      </td>
+      <td style="padding:8px">
+        <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap;display:inline-block">${est.ico} ${est.label}</span>
+      </td>
+      <td style="padding:8px;white-space:nowrap" onclick="event.stopPropagation()">
         ${!doc.documento_vinculado_id
-          ? `<button class="btn btn-primary btn-sm" onclick="ocrGestionar(${doc.id})" style="flex:1;font-size:12px;background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
-             <button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:12px;color:var(--rojo);font-weight:600" title="Rechazar">✕ Rechazar</button>`
-          : `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="flex:1;font-size:12px">📄 Ver documento creado</button>
-             <button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:12px;color:var(--rojo)" title="Eliminar">🗑️</button>`}
-      </div>
-    </div>`;
+          ? `<button class="btn btn-sm" onclick="ocrGestionar(${doc.id})" style="font-size:11px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600;margin-right:4px">🤖 Importar con IA</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Rechazar">✕</button>`
+          : `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="font-size:11px;margin-right:4px">Ver doc.</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Eliminar">🗑️</button>`}
+      </td>
+    </tr>`;
   }).join('');
-
-  updateOCRBadge();
 }
 
-function _ocrResumen(datos) {
+// ─── Filtro de búsqueda local ───
+function filtrarOCR() {
+  const q = (document.getElementById('ocrSearch')?.value || '').toLowerCase().trim();
+  if (!q) { _ocrRenderTable(_ocrDocs); return; }
+  const filtered = _ocrDocs.filter(d => {
+    const nombre = (d.archivo_nombre || '').toLowerCase();
+    const resumen = d.datos_extraidos ? _ocrResumenTexto(d.datos_extraidos).toLowerCase() : '';
+    return nombre.includes(q) || resumen.includes(q);
+  });
+  _ocrRenderTable(filtered);
+}
+
+// Resumen en texto plano
+function _ocrResumenTexto(datos) {
   const parts = [];
   if (datos.proveedor) {
     const nombre = typeof datos.proveedor === 'object' ? datos.proveedor.nombre : datos.proveedor;
-    if (nombre) parts.push(`<strong>${nombre}</strong>`);
+    if (nombre) parts.push(nombre);
   }
-  if (datos.numero || datos.numero_documento) parts.push(`Nº ${datos.numero || datos.numero_documento}`);
-  if (datos.fecha) parts.push(datos.fecha);
-  if (datos.total != null) parts.push(`Total: ${Number(datos.total).toFixed(2)} €`);
-  if (!parts.length) return '';
-  return `<div style="font-size:11.5px;color:var(--gris-700);margin-top:6px;padding:6px 8px;background:var(--gris-50);border-radius:6px">${parts.join(' · ')}</div>`;
+  if (datos.numero || datos.numero_documento) parts.push('Nº ' + (datos.numero || datos.numero_documento));
+  if (datos.total != null) parts.push(Number(datos.total).toFixed(2) + ' €');
+  return parts.join(' · ');
 }
 
 // ═══════════════════════════════════════════════
-// PREVISUALIZAR — Ver imagen del documento en grande
+// PREVISUALIZAR — Modal con imagen o PDF del documento
 // ═══════════════════════════════════════════════
-function ocrPrevisualizar(imgUrl) {
-  if (!imgUrl) return;
+async function ocrPrevisualizar(id) {
+  const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
+  if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
+
+  const imgUrl = doc.archivo_path ? sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl : '';
+  if (!imgUrl) { toast('Sin archivo para previsualizar', 'error'); return; }
+
+  const ext = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
+  const esPdf = ext === 'pdf';
+  const est = { pendiente: '⏳ Pendiente', procesando: '⚙️ Procesando', completado: '✅ Completado', error: '❌ Error' };
+
+  let contenido;
+  if (esPdf) {
+    contenido = `<iframe src="${imgUrl}" style="width:100%;height:70vh;border:none;border-radius:8px"></iframe>`;
+  } else {
+    contenido = `<img src="${imgUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
+  }
+
   document.getElementById('modalContent').innerHTML = `
-    <div style="max-width:90vw;max-height:85vh;text-align:center">
-      <img src="${imgUrl}" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">
-      <div style="margin-top:12px">
+    <div style="max-width:900px;width:90vw">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <h3 style="font-size:15px;font-weight:800;margin:0">${doc.archivo_nombre || 'Documento OCR'}</h3>
+          <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${new Date(doc.created_at).toLocaleString('es-ES')} · ${est[doc.estado] || doc.estado}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="window.open('${imgUrl}','_blank')" style="font-size:11px">🔗 Abrir en nueva pestaña</button>
+      </div>
+      <div style="text-align:center;background:var(--gris-50);border-radius:10px;padding:12px;min-height:300px;display:flex;align-items:center;justify-content:center">
+        ${contenido}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        ${!doc.documento_vinculado_id
+          ? `<button class="btn btn-primary" onclick="closeModal();ocrGestionar(${doc.id})" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
+             <button class="btn btn-ghost" onclick="closeModal();ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
+          : `<button class="btn btn-secondary" onclick="closeModal();ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`}
         <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
-        <button class="btn btn-ghost" onclick="window.open('${imgUrl}','_blank');closeModal()" style="margin-left:8px">🔗 Abrir en nueva pestaña</button>
       </div>
     </div>
   `;
@@ -145,7 +218,6 @@ function ocrPrevisualizar(imgUrl) {
 let _ocrCurrentDocId = null;
 
 async function ocrGestionar(id) {
-  // Check API key
   if (!EMPRESA?.anthropic_api_key) {
     toast('Configura primero la API Key de Anthropic en Configuración > Inteligencia Artificial', 'warning');
     return;
@@ -158,25 +230,27 @@ async function ocrGestionar(id) {
   if (doc.estado === 'completado' && doc.datos_extraidos && doc.datos_extraidos.lineas) {
     _ocrCurrentDocId = id;
     _iaPreviewData = doc.datos_extraidos;
-    _iaPreviewTipo = doc.tipo_documento === 'albaran_prov' ? 'albaran' : 'factura';
+    // Usar tipo detectado por la IA
+    _iaPreviewTipo = doc.datos_extraidos.tipo_documento || doc.tipo_documento || 'factura';
+    // Normalizar nombres
+    if (_iaPreviewTipo === 'albaran_prov') _iaPreviewTipo = 'albaran';
+    if (_iaPreviewTipo === 'factura_prov') _iaPreviewTipo = 'factura';
     _iaPreviewProvMatch = _iaBuscarProveedorExistente(doc.datos_extraidos.proveedor);
     if (doc.datos_extraidos.lineas) {
       for (const linea of doc.datos_extraidos.lineas) {
         linea._artMatch = _iaBuscarArticuloExistente(linea);
       }
     }
-    // Cargar imagen para preview
     await _ocrCargarImagenEnPreview(doc);
     iaPreviewMostrar();
     return;
   }
 
-  // Si está pendiente, necesitamos descargar la imagen y procesarla con IA
+  // Si está pendiente → procesar directamente, la IA detecta el tipo automáticamente
   _ocrCurrentDocId = id;
-  toast('Descargando imagen para procesar...', 'info');
+  toast('Descargando imagen para procesar con IA...', 'info');
 
   try {
-    // Descargar imagen desde storage
     const imgUrl = sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl;
     const response = await fetch(imgUrl);
     if (!response.ok) throw new Error('No se pudo descargar la imagen');
@@ -184,7 +258,6 @@ async function ocrGestionar(id) {
     const blob = await response.blob();
     const mimeType = blob.type || 'image/jpeg';
 
-    // Convertir a base64
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -192,27 +265,23 @@ async function ocrGestionar(id) {
       reader.readAsDataURL(blob);
     });
 
-    // Rellenar los globals del sistema IA existente
     _iaFileBase64 = base64;
     _iaFileName = doc.archivo_nombre || 'documento_ocr';
     _iaFileMime = mimeType;
 
-    // Abrir el modal de importación con el archivo ya cargado, directamente
-    // pero saltamos el modal de upload y vamos directo a procesamiento
-    document.getElementById('ia_tipo_doc').value = doc.tipo_documento === 'albaran_prov' ? 'albaran' : 'factura';
+    // No enviamos tipo — la IA lo detecta automáticamente
+    // El usuario puede corregirlo en la pantalla de preview antes de validar
+    document.getElementById('ia_tipo_doc').value = 'factura'; // fallback por defecto
 
-    // Marcar documento como procesando
     await sb.from('documentos_ocr').update({
       estado: 'procesando',
       updated_at: new Date().toISOString()
     }).eq('id', id);
 
-    // Lanzar procesamiento directamente
     await _ocrProcesarDirecto(id, doc);
 
   } catch(e) {
     toast('Error: ' + e.message, 'error');
-    // Reset estado
     await sb.from('documentos_ocr').update({
       estado: 'error',
       notas: 'Error: ' + e.message,
@@ -222,7 +291,6 @@ async function ocrGestionar(id) {
   }
 }
 
-// Procesar directamente sin pasar por el modal de upload
 async function _ocrProcesarDirecto(ocrDocId, doc) {
   if (!_iaFileBase64) { toast('Sin imagen para procesar', 'error'); return; }
 
@@ -246,17 +314,22 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
 
     const data = result.data;
 
-    // Guardar datos extraídos en documentos_ocr
+    // Usar tipo detectado por la IA (data.tipo_documento) o fallback
+    const tipoDetectado = data.tipo_documento || tipo || 'factura';
+
     await sb.from('documentos_ocr').update({
       estado: 'completado',
-      tipo_documento: tipo === 'albaran' ? 'albaran_prov' : 'factura_prov',
+      tipo_documento: tipoDetectado,
       datos_extraidos: data,
       updated_at: new Date().toISOString()
     }).eq('id', ocrDocId);
 
-    // Configurar preview IA
     _iaPreviewData = data;
-    _iaPreviewTipo = tipo;
+    // Normalizar para el preview
+    let tipoPreview = tipoDetectado;
+    if (tipoPreview === 'albaran_prov') tipoPreview = 'albaran';
+    if (tipoPreview === 'factura_prov') tipoPreview = 'factura';
+    _iaPreviewTipo = tipoPreview;
     _iaPreviewProvMatch = _iaBuscarProveedorExistente(data.proveedor);
     if (data.lineas) {
       for (const linea of data.lineas) {
@@ -264,7 +337,6 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
       }
     }
 
-    // Mostrar split-screen preview
     iaPreviewMostrar();
     toast('Documento procesado correctamente', 'success');
 
@@ -279,7 +351,6 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
   }
 }
 
-// Cargar imagen en el preview (para docs ya procesados)
 async function _ocrCargarImagenEnPreview(doc) {
   try {
     const imgUrl = sb.storage.from('fotos-partes').getPublicUrl(doc.archivo_path).data.publicUrl;
