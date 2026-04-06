@@ -210,6 +210,70 @@ a{color:var(--azul);text-decoration:none}
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
+
+/* ═══════ FAB (Floating Action Button) ═══════ */
+.fab-container{position:fixed;bottom:calc(64px + var(--safe-bottom));right:16px;z-index:90;display:flex;flex-direction:column-reverse;align-items:flex-end;gap:10px}
+.fab-main{width:56px;height:56px;border-radius:50%;background:var(--azul);color:#fff;border:none;font-size:26px;box-shadow:0 4px 16px rgba(27,79,216,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .3s,background .3s;z-index:2}
+.fab-main.open{transform:rotate(45deg);background:var(--gris-700)}
+.fab-menu{display:flex;flex-direction:column-reverse;gap:8px;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .25s,transform .25s}
+.fab-menu.open{opacity:1;transform:translateY(0);pointer-events:auto}
+.fab-action{display:flex;align-items:center;gap:8px;flex-direction:row-reverse}
+.fab-action button{width:44px;height:44px;border-radius:50%;border:none;color:#fff;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+.fab-action button:active{transform:scale(.9)}
+.fab-action span{background:#fff;color:var(--gris-800);padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.1);white-space:nowrap}
+.fab-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:89}
+.fab-overlay.open{display:block}
+
+/* ═══════ CALENDARIO MES ═══════ */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-header h3{font-size:16px;font-weight:800}
+.cal-header button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px;color:var(--gris-600)}
+.cal-views{display:flex;gap:4px;margin-bottom:12px}
+.cal-views button{flex:1;padding:6px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);background:var(--gris-100);color:var(--gris-500);transition:all .2s}
+.cal-views button.active{background:var(--azul);color:#fff}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:16px}
+.cal-dow{text-align:center;font-size:10px;font-weight:700;color:var(--gris-400);padding:4px 0;text-transform:uppercase}
+.cal-day{text-align:center;padding:8px 2px;border-radius:8px;font-size:13px;cursor:pointer;transition:background .15s;position:relative;min-height:38px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cal-day:active{background:var(--gris-100)}
+.cal-day.other{color:var(--gris-300)}
+.cal-day.today{background:var(--azul-light);font-weight:800;color:var(--azul)}
+.cal-day.selected{background:var(--azul);color:#fff;font-weight:800}
+.cal-day.selected.today{background:var(--azul)}
+.cal-day .cal-dots{display:flex;gap:2px;margin-top:2px;justify-content:center}
+.cal-day .cal-dot{width:4px;height:4px;border-radius:50%}
+
+/* ═══════ VISTA SEMANA ═══════ */
+.week-grid{display:grid;grid-template-columns:50px 1fr;gap:0}
+.week-hour{font-size:10px;color:var(--gris-400);text-align:right;padding:0 8px 0 0;height:48px;display:flex;align-items:flex-start;justify-content:flex-end}
+.week-slot{border-top:1px solid var(--gris-100);height:48px;position:relative}
+.week-event{position:absolute;left:2px;right:2px;background:var(--azul-light);border-left:3px solid var(--azul);border-radius:4px;padding:2px 6px;font-size:11px;font-weight:600;overflow:hidden;cursor:pointer;z-index:1}
+
+/* ═══════ VISTA DÍA ═══════ */
+.day-timeline{margin-top:8px}
+.day-event{display:flex;gap:12px;padding:12px;margin-bottom:8px;border-radius:var(--radius);border:1px solid var(--gris-100);background:#fff;cursor:pointer;transition:box-shadow .15s}
+.day-event:active{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.day-event-time{font-size:12px;font-weight:800;color:var(--azul);width:50px;flex-shrink:0}
+.day-event-body{flex:1;min-width:0}
+.day-event-title{font-size:13.5px;font-weight:700}
+.day-event-sub{font-size:11.5px;color:var(--gris-400);margin-top:2px}
+.day-event-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-top:4px}
+
+/* ═══════ EQUIPO NAVEGACIÓN DÍA ═══════ */
+.equipo-day-nav{display:flex;align-items:center;justify-content:space-between;padding:8px 0;margin-bottom:12px}
+.equipo-day-nav h3{font-size:15px;font-weight:800}
+.equipo-day-nav button{background:var(--gris-100);border:none;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;font-weight:700}
+.equipo-day-nav button:active{background:var(--gris-200)}
+
+/* ═══════ CREACIÓN RÁPIDA (mini-formularios) ═══════ */
+.quick-form .field{margin-bottom:12px}
+.quick-form .field label{font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;display:block}
+.quick-form .field input,
+.quick-form .field select,
+.quick-form .field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;transition:border .2s}
+.quick-form .field input:focus,
+.quick-form .field select:focus,
+.quick-form .field textarea:focus{border-color:var(--azul)}
+.quick-form .field textarea{resize:vertical;min-height:60px}
 </style>
 </head>
 <body>
@@ -259,6 +323,19 @@ input[type=number]{-moz-appearance:textfield}
 
   <!-- Bottom Navigation (rendered by JS based on role) -->
   <nav class="bottom-nav" id="bottomNav"></nav>
+
+  <!-- FAB (solo admin) -->
+  <div id="fabOverlay" class="fab-overlay" onclick="toggleFab()"></div>
+  <div id="fabContainer" class="fab-container" style="display:none">
+    <button class="fab-main" id="fabMain" onclick="toggleFab()">＋</button>
+    <div class="fab-menu" id="fabMenu">
+      <div class="fab-action"><button style="background:var(--azul)" onclick="fabCrear('presupuesto')">📋</button><span>Presupuesto</span></div>
+      <div class="fab-action"><button style="background:var(--verde)" onclick="fabCrear('albaran')">📄</button><span>Albarán</span></div>
+      <div class="fab-action"><button style="background:var(--violeta)" onclick="fabCrear('factura')">🧾</button><span>Factura</span></div>
+      <div class="fab-action"><button style="background:var(--acento)" onclick="fabCrear('parte')">🔧</button><span>Nuevo parte</span></div>
+      <div class="fab-action"><button style="background:var(--gris-700)" onclick="fabOCR()">📷</button><span>Foto OCR</span></div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════ MODALS ═══════════ -->
@@ -743,14 +820,15 @@ async function showApp() {
 
 function renderBottomNav() {
   const nav = document.getElementById('bottomNav');
+  const fab = document.getElementById('fabContainer');
   if (esJefe) {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
-      <button class="nav-item" data-tab="partes" onclick="navigateTo('partes')"><span class="ico">📝</span><span class="lbl">Partes</span></button>
       <button class="nav-item" data-tab="equipo" onclick="navigateTo('equipo')"><span class="ico">👥</span><span class="lbl">Equipo</span></button>
-      <button class="nav-item" data-tab="docs" onclick="navigateTo('docs')"><span class="ico">📄</span><span class="lbl">Docs</span></button>
+      <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">⚙️</span><span class="lbl">Más</span></button>
     `;
+    if (fab) fab.style.display = '';
   } else {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
@@ -758,6 +836,7 @@ function renderBottomNav() {
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
     `;
+    if (fab) fab.style.display = 'none';
   }
 }
 
@@ -765,13 +844,15 @@ function navigateTo(tab) {
   currentTab = tab;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   const body = document.getElementById('appBody');
+  // Cerrar FAB si está abierto
+  const fabMenu = document.getElementById('fabMenu');
+  if (fabMenu && fabMenu.classList.contains('open')) toggleFab();
 
   if (esJefe) {
     switch(tab) {
       case 'inicio': renderJefeInicio(body); break;
-      case 'partes': renderJefePartes(body); break;
       case 'equipo': renderJefeEquipo(body); break;
-      case 'docs': renderJefeDocs(body); break;
+      case 'agenda': renderJefeAgenda(body); break;
       case 'mas': renderJefeMas(body); break;
     }
   } else {
@@ -1484,7 +1565,6 @@ function _getWeekNum(d) {
 // ═══════════════════════════════════════════════
 
 function renderJefeInicio(el) {
-  // Usar fecha local (no UTC) para evitar desfase horario
   const _ahora = new Date();
   const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
   const partesHoy = misPartes.filter(p => p.fecha === hoy);
@@ -1501,18 +1581,22 @@ function renderJefeInicio(el) {
     return { ...op, partesHoy: partesOp, enCurso: enCursoOp };
   });
 
+  // Mis partes de hoy (del admin)
+  const misPartesHoy = misPartes.filter(p => p.usuario_id === CP?.id && p.fecha === hoy)
+    .sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+
   el.innerHTML = `
     <div style="margin-bottom:16px">
-      <h2 style="font-size:20px;font-weight:800">Panel de control 👑</h2>
+      <h2 style="font-size:20px;font-weight:800">Panel de control</h2>
       <p style="font-size:13px;color:var(--gris-400)">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</p>
     </div>
 
     <div class="stats-grid">
-      <div class="stat-card" onclick="navigateTo('partes')" style="cursor:pointer">
+      <div class="stat-card" style="cursor:pointer" onclick="navigateTo('equipo')">
         <div class="stat-num" style="color:var(--azul)">${partesHoy.length}</div>
         <div class="stat-label">Partes hoy</div>
       </div>
-      <div class="stat-card" style="cursor:pointer" onclick="filterPartes('completado')">
+      <div class="stat-card" style="cursor:pointer">
         <div class="stat-num" style="color:${pendRevision.length?'var(--rojo)':'var(--verde)'}">${pendRevision.length}</div>
         <div class="stat-label">Pend. revisión</div>
       </div>
@@ -1520,11 +1604,12 @@ function renderJefeInicio(el) {
         <div class="stat-num" style="color:var(--acento)">${enCurso.length}</div>
         <div class="stat-label">En curso</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-num" style="color:var(--gris-500)">${borradores.length}</div>
-        <div class="stat-label">Borradores</div>
-      </div>
     </div>
+
+    ${misPartesHoy.length ? `
+      <div class="section-title">📋 Mi agenda hoy</div>
+      ${misPartesHoy.map(p => renderParteCard(p, true)).join('')}
+    ` : ''}
 
     <div class="section-title">👥 Equipo hoy</div>
     ${opResumen.map(op => {
@@ -1545,143 +1630,71 @@ function renderJefeInicio(el) {
 
     ${pendRevision.length ? `
       <div class="section-title">⚠️ Pendientes de revisión</div>
-      ${pendRevision.slice(0,5).map(p => renderParteCard(p)).join('')}
+      ${pendRevision.slice(0,5).map(p => renderParteCard(p, true)).join('')}
     ` : ''}
   `;
 }
 
-function renderJefePartes(el) {
-  let filteredPartes = [...misPartes];
-  const filterState = window._jefeParteFilter || 'todos';
-
-  if (filterState !== 'todos') {
-    filteredPartes = misPartes.filter(p => p.estado === filterState);
-  }
-
-  const counts = {};
-  misPartes.forEach(p => { counts[p.estado] = (counts[p.estado]||0) + 1; });
-
-  el.innerHTML = `
-    <div class="tabs">
-      <button class="tab ${filterState==='todos'?'active':''}" onclick="filterPartes('todos')">Todos (${misPartes.length})</button>
-      <button class="tab ${filterState==='borrador'?'active':''}" onclick="filterPartes('borrador')">✏️ Borrador (${counts.borrador||0})</button>
-      <button class="tab ${filterState==='programado'?'active':''}" onclick="filterPartes('programado')">📅 Programado (${counts.programado||0})</button>
-      <button class="tab ${filterState==='en_curso'?'active':''}" onclick="filterPartes('en_curso')">🔧 En curso (${counts.en_curso||0})</button>
-      <button class="tab ${filterState==='completado'?'active':''}" onclick="filterPartes('completado')">✅ Completado (${counts.completado||0})</button>
-      <button class="tab ${filterState==='revisado'?'active':''}" onclick="filterPartes('revisado')">👁️ Revisado (${counts.revisado||0})</button>
-      <button class="tab ${filterState==='facturado'?'active':''}" onclick="filterPartes('facturado')">🧾 Facturado (${counts.facturado||0})</button>
-    </div>
-
-    ${filteredPartes.length ? filteredPartes.slice(0,50).map(p => renderParteCard(p, true)).join('') : '<div class="empty-state"><div class="ico">📝</div><p>Sin partes en este estado</p></div>'}
-  `;
-}
-
-function filterPartes(estado) {
-  window._jefeParteFilter = estado;
-  navigateTo('partes');
-}
+// ── Equipo state ──
+let _equipoFechaOffset = 0; // 0 = hoy, +1 = mañana, etc.
 
 function renderJefeEquipo(el) {
   const operarios = todosUsuarios.filter(u => u.disponible_partes === true);
-  // Usar fecha local (no UTC) para evitar desfase horario
   const _ahora = new Date();
-  const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
+  const target = new Date(_ahora);
+  target.setDate(target.getDate() + _equipoFechaOffset);
+  const targetStr = target.getFullYear() + '-' + String(target.getMonth()+1).padStart(2,'0') + '-' + String(target.getDate()).padStart(2,'0');
+  const hoyStr = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
+  const esHoy = targetStr === hoyStr;
+  const labelDia = esHoy ? 'Hoy' : target.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
 
   el.innerHTML = `
-    <div class="section-title">👥 Operarios de campo</div>
-    ${operarios.map(op => {
-      const partesOp = misPartes.filter(p => p.usuario_id === op.id);
-      const partesHoy = partesOp.filter(p => p.fecha === hoy);
-      const completados = partesOp.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
-      return `<div class="operario-card" onclick="openOperarioDetail('${op.id}')">
-        <div class="operario-av" style="background:${partesHoy.some(p=>p.estado==='en_curso')?'var(--acento)':'var(--azul)'}">${(op.nombre||'?')[0].toUpperCase()}</div>
-        <div class="operario-info">
-          <div class="operario-name">${op.nombre||''} ${op.apellidos||''}</div>
-          <div class="operario-status" style="color:var(--gris-400)">${partesOp.length} partes · ${completados} completados · Hoy: ${partesHoy.length}</div>
-        </div>
-        <span style="font-size:18px">›</span>
-      </div>`;
-    }).join('')}
+    <div class="equipo-day-nav">
+      <button onclick="_equipoFechaOffset--;renderJefeEquipo(document.getElementById('appBody'))">‹</button>
+      <h3>👥 Equipo — ${labelDia}</h3>
+      <button onclick="_equipoFechaOffset++;renderJefeEquipo(document.getElementById('appBody'))">›</button>
+    </div>
+    ${esHoy ? `<div style="display:flex;gap:4px;margin-bottom:12px">
+      <button class="btn btn-sm btn-secondary" onclick="_equipoFechaOffset=0;renderJefeEquipo(document.getElementById('appBody'))">Hoy</button>
+      <button class="btn btn-sm btn-secondary" onclick="_equipoFechaOffset=1;renderJefeEquipo(document.getElementById('appBody'))">Mañana</button>
+      <button class="btn btn-sm btn-secondary" onclick="_equipoFechaOffset=7;renderJefeEquipo(document.getElementById('appBody'))">+7 días</button>
+    </div>` : `<div style="margin-bottom:12px"><button class="btn btn-sm btn-secondary" onclick="_equipoFechaOffset=0;renderJefeEquipo(document.getElementById('appBody'))">Volver a hoy</button></div>`}
 
-    <div class="section-title" style="margin-top:24px">📅 Agenda del equipo — Hoy</div>
     ${operarios.map(op => {
-      const partesHoy = misPartes.filter(p => p.usuario_id === op.id && p.fecha === hoy).sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
-      if (!partesHoy.length) return '';
-      return `<div class="card">
-        <div class="card-title">👷 ${op.nombre||''}</div>
-        ${partesHoy.map(p => {
+      const partesOp = misPartes.filter(p => p.usuario_id === op.id && p.fecha === targetStr)
+        .sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+      const enCursoOp = partesOp.find(p => p.estado === 'en_curso');
+      let statusIco = '⚫', statusColor = 'var(--gris-400)', statusTxt = 'Sin partes';
+      if (enCursoOp) { statusIco = '🔧'; statusColor = 'var(--acento)'; statusTxt = 'Trabajando'; }
+      else if (partesOp.some(p=>p.estado==='programado')) { statusIco = '📅'; statusColor = 'var(--azul)'; statusTxt = 'Programado'; }
+      else if (partesOp.some(p=>['completado','revisado','facturado'].includes(p.estado))) { statusIco = '✅'; statusColor = 'var(--verde)'; statusTxt = 'Completado'; }
+
+      return `<div class="card" style="padding:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:${partesOp.length?'10px':'0'}">
+          <div class="operario-av" style="background:${enCursoOp?'var(--acento)':'var(--azul)'}; width:36px;height:36px;font-size:14px">${(op.nombre||'?')[0].toUpperCase()}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700">${op.nombre||''} ${op.apellidos||''}</div>
+            <div style="font-size:11.5px;color:${statusColor}">${statusIco} ${statusTxt} · ${partesOp.length} parte${partesOp.length!==1?'s':''}</div>
+          </div>
+          <span style="font-size:16px;cursor:pointer" onclick="openOperarioDetail('${op.id}')">›</span>
+        </div>
+        ${partesOp.map(p => {
           const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
-          const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '—';
+          const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '';
           const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
-          return `<div class="agenda-item" onclick="openParteDetail(${p.id})">
+          return `<div class="agenda-item" onclick="openParteDetail(${p.id})" style="padding:8px 0">
             <div class="agenda-time">${hi}</div>
             <div class="agenda-content">
-              <div class="agenda-title">${p.trabajo_titulo||'Sin obra'}</div>
-              <div class="agenda-sub">${hi}-${hf} · <span style="color:${est.color}">${est.ico} ${est.label}</span></div>
+              <div class="agenda-title">${p.trabajo_titulo||p.descripcion?.substring(0,40)||'Sin obra'}</div>
+              <div class="agenda-sub">${hi}${hf?'-'+hf:''} · <span style="color:${est.color}">${est.ico} ${est.label}</span>${p.direccion?' · 📍 '+p.direccion.substring(0,30):''}</div>
             </div>
           </div>`;
         }).join('')}
       </div>`;
-    }).join('') || '<div class="card" style="text-align:center;padding:20px;color:var(--gris-400)">Sin partes programados hoy</div>'}
+    }).join('')}
+
+    ${!operarios.length ? '<div class="empty-state"><div class="ico">👥</div><p>Sin operarios configurados</p></div>' : ''}
   `;
-}
-
-function renderJefeDocs(el) {
-  // Presupuestos y facturas
-  el.innerHTML = `
-    <div class="tabs" id="docsTabs">
-      <button class="tab active" onclick="showDocTab('presupuestos')">📋 Presupuestos</button>
-      <button class="tab" onclick="showDocTab('albaranes')">📄 Albaranes</button>
-      <button class="tab" onclick="showDocTab('facturas')">🧾 Facturas</button>
-    </div>
-    <div id="docsContent"><div style="text-align:center;padding:20px;color:var(--gris-400)">Cargando...</div></div>
-  `;
-  showDocTab('presupuestos');
-}
-
-async function showDocTab(tipo) {
-  document.querySelectorAll('#docsTabs .tab').forEach(t => t.classList.remove('active'));
-  event?.target?.classList.add('active');
-  const container = document.getElementById('docsContent');
-  if (!container) return;
-
-  try {
-    let query;
-    if (tipo === 'presupuestos') {
-      query = sb.from('presupuestos').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
-    } else if (tipo === 'albaranes') {
-      query = sb.from('albaranes').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
-    } else {
-      query = sb.from('facturas').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false}).limit(30);
-    }
-    const { data } = await query;
-    const docs = data || [];
-
-    if (!docs.length) {
-      container.innerHTML = `<div class="empty-state"><div class="ico">${tipo==='presupuestos'?'📋':tipo==='albaranes'?'📄':'🧾'}</div><p>Sin ${tipo}</p></div>`;
-      return;
-    }
-
-    container.innerHTML = docs.map(d => {
-      const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString('es-ES') : '—';
-      const total = d.total != null ? d.total.toLocaleString('es-ES',{style:'currency',currency:'EUR'}) : '—';
-      const estCol = d.estado==='aceptado'||d.estado==='cobrada'?'var(--verde)':d.estado==='pendiente'||d.estado==='vencida'?'var(--acento)':'var(--gris-400)';
-      return `<div class="card" style="padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-weight:700;font-size:13px;font-family:monospace;color:var(--azul)">${d.numero||'—'}</div>
-            <div style="font-size:12px;color:var(--gris-500)">${d.cliente_nombre||'—'} · ${fecha}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-weight:800;font-size:14px">${total}</div>
-            <div style="font-size:11px;color:${estCol};font-weight:700">${(d.estado||'—').toUpperCase()}</div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-  } catch(e) {
-    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--rojo)">Error cargando</div>';
-  }
 }
 
 async function renderJefeMas(el) {
@@ -1731,9 +1744,985 @@ async function renderJefeMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      Instalo ERP · App móvil v2.0 (offline)
+      Instalo ERP · App móvil v1.0 stable
     </div>
   `;
+}
+
+// ═══════════════════════════════════════════════
+// JEFE: AGENDA PERSONAL (Calendario)
+// ═══════════════════════════════════════════════
+// _agendaView y _agendaDate se declaran en la sección operario y se comparten
+
+function _fmtDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function renderJefeAgenda(el) {
+  const hoyStr = _fmtDateStr(new Date());
+  const selStr = _fmtDateStr(_agendaDate);
+
+  el.innerHTML = `
+    <div class="cal-header">
+      <button onclick="_agendaNav(-1)">‹</button>
+      <h3 id="agendaTitle">${_agendaDate.toLocaleDateString('es-ES',{month:'long',year:'numeric'})}</h3>
+      <button onclick="_agendaNav(1)">›</button>
+    </div>
+    <div class="cal-views">
+      <button class="${_agendaView==='dia'?'active':''}" onclick="_agendaView='dia';renderJefeAgenda(document.getElementById('appBody'))">Día</button>
+      <button class="${_agendaView==='semana'?'active':''}" onclick="_agendaView='semana';renderJefeAgenda(document.getElementById('appBody'))">Semana</button>
+      <button class="${_agendaView==='mes'?'active':''}" onclick="_agendaView='mes';renderJefeAgenda(document.getElementById('appBody'))">Mes</button>
+    </div>
+    <div id="agendaContent"></div>
+  `;
+
+  const container = document.getElementById('agendaContent');
+  if (_agendaView === 'mes') _renderAgendaMes(container, hoyStr, selStr);
+  else if (_agendaView === 'semana') _renderAgendaSemana(container, hoyStr, selStr);
+  else _renderAgendaDia(container, hoyStr, selStr);
+}
+
+function _agendaNav(dir) {
+  if (_agendaView === 'mes') {
+    _agendaDate.setMonth(_agendaDate.getMonth() + dir);
+  } else if (_agendaView === 'semana') {
+    _agendaDate.setDate(_agendaDate.getDate() + dir * 7);
+  } else {
+    _agendaDate.setDate(_agendaDate.getDate() + dir);
+  }
+  renderJefeAgenda(document.getElementById('appBody'));
+}
+
+function _misPartesDelDia(dateStr) {
+  return misPartes.filter(p => p.usuario_id === CP?.id && p.fecha === dateStr)
+    .sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+}
+
+function _todosPartesDelDia(dateStr) {
+  return misPartes.filter(p => p.fecha === dateStr)
+    .sort((a,b) => (a.hora_inicio||'').localeCompare(b.hora_inicio||''));
+}
+
+function _renderAgendaMes(container, hoyStr, selStr) {
+  const year = _agendaDate.getFullYear();
+  const month = _agendaDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  let startDay = firstDay.getDay(); // 0=dom
+  if (startDay === 0) startDay = 7;
+  startDay--; // 0=lun
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+
+  // Build days array: prev month days, current, next
+  const days = [];
+  for (let i = startDay - 1; i >= 0; i--) {
+    const d = new Date(year, month - 1, daysInPrev - i);
+    days.push({ date: d, str: _fmtDateStr(d), other: true });
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(year, month, i);
+    days.push({ date: d, str: _fmtDateStr(d), other: false });
+  }
+  const remaining = 7 - (days.length % 7);
+  if (remaining < 7) {
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ date: d, str: _fmtDateStr(d), other: true });
+    }
+  }
+
+  // Count partes per day for dots
+  const partesCountMap = {};
+  misPartes.forEach(p => {
+    if (p.usuario_id === CP?.id && p.fecha) {
+      partesCountMap[p.fecha] = (partesCountMap[p.fecha] || 0) + 1;
+    }
+  });
+
+  let gridHTML = '<div class="cal-grid">';
+  ['L','M','X','J','V','S','D'].forEach(d => { gridHTML += `<div class="cal-dow">${d}</div>`; });
+  days.forEach(day => {
+    const isToday = day.str === hoyStr;
+    const isSel = day.str === selStr;
+    const cnt = partesCountMap[day.str] || 0;
+    const dots = cnt > 0 ? `<div class="cal-dots">${Array(Math.min(cnt,4)).fill('<span class="cal-dot" style="background:var(--azul)"></span>').join('')}</div>` : '';
+    const cls = `cal-day${day.other?' other':''}${isToday?' today':''}${isSel?' selected':''}`;
+    gridHTML += `<div class="${cls}" onclick="_agendaDate=new Date(${day.date.getFullYear()},${day.date.getMonth()},${day.date.getDate()});renderJefeAgenda(document.getElementById('appBody'))">
+      ${day.date.getDate()}${dots}
+    </div>`;
+  });
+  gridHTML += '</div>';
+
+  // Partes del día seleccionado
+  const partesDia = _misPartesDelDia(selStr);
+  const selLabel = _agendaDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+
+  container.innerHTML = gridHTML + `
+    <div class="section-title" style="text-transform:capitalize">${selLabel}</div>
+    ${partesDia.length ? partesDia.map(p => renderParteCard(p, true)).join('') :
+      '<div style="text-align:center;padding:20px;color:var(--gris-400);font-size:13px">Sin partes este día</div>'}
+  `;
+}
+
+function _renderAgendaSemana(container, hoyStr, selStr) {
+  // Calcular lunes de la semana
+  const d = new Date(_agendaDate);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const lunes = new Date(d.setDate(diff));
+
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const wd = new Date(lunes);
+    wd.setDate(lunes.getDate() + i);
+    weekDays.push({ date: wd, str: _fmtDateStr(wd) });
+  }
+
+  const weekLabel = weekDays[0].date.toLocaleDateString('es-ES',{day:'numeric',month:'short'}) + ' — ' +
+    weekDays[6].date.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+
+  // Header de la semana
+  let html = `<div style="text-align:center;font-size:12px;color:var(--gris-400);margin-bottom:12px;font-weight:600">${weekLabel}</div>`;
+
+  // Day columns
+  html += '<div style="display:flex;gap:2px;margin-bottom:16px">';
+  const dowNames = ['L','M','X','J','V','S','D'];
+  weekDays.forEach((wd, i) => {
+    const isToday = wd.str === hoyStr;
+    const isSel = wd.str === selStr;
+    const partesCount = misPartes.filter(p => p.usuario_id === CP?.id && p.fecha === wd.str).length;
+    html += `<div style="flex:1;text-align:center;padding:6px 2px;border-radius:8px;cursor:pointer;
+      ${isSel?'background:var(--azul);color:#fff;':isToday?'background:var(--azul-light);color:var(--azul);':'color:var(--gris-600);'}"
+      onclick="_agendaDate=new Date(${wd.date.getFullYear()},${wd.date.getMonth()},${wd.date.getDate()});renderJefeAgenda(document.getElementById('appBody'))">
+      <div style="font-size:10px;font-weight:700">${dowNames[i]}</div>
+      <div style="font-size:15px;font-weight:800">${wd.date.getDate()}</div>
+      ${partesCount ? `<div style="font-size:9px;font-weight:700;margin-top:2px">${partesCount}</div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+
+  // Timeline del día seleccionado
+  const partesDia = _misPartesDelDia(selStr);
+  const selLabel = _agendaDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+
+  html += `<div class="section-title" style="text-transform:capitalize">${selLabel}</div>`;
+  if (partesDia.length) {
+    html += '<div class="day-timeline">' + partesDia.map(p => {
+      const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+      const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '';
+      const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+      return `<div class="day-event" onclick="openParteDetail(${p.id})">
+        <div class="day-event-time">${hi}</div>
+        <div class="day-event-body">
+          <div class="day-event-title">${p.trabajo_titulo||p.descripcion?.substring(0,50)||'Sin obra'}</div>
+          <div class="day-event-sub">${hi}${hf?'-'+hf:''} ${p.direccion?'· 📍 '+p.direccion.substring(0,35):''}</div>
+          <span class="day-event-badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  } else {
+    html += '<div style="text-align:center;padding:20px;color:var(--gris-400);font-size:13px">Sin partes este día</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function _renderAgendaDia(container, hoyStr, selStr) {
+  const selLabel = _agendaDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const partesDia = _misPartesDelDia(selStr);
+
+  // Generar timeline por horas (7h a 20h)
+  let html = `<div style="font-size:14px;font-weight:800;text-transform:capitalize;margin-bottom:12px">${selLabel}</div>`;
+
+  if (partesDia.length) {
+    html += '<div class="day-timeline">' + partesDia.map(p => {
+      const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+      const hf = p.hora_fin ? p.hora_fin.substring(0,5) : '';
+      const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+      const horas = (parseFloat(p.horas)||0).toFixed(1);
+      return `<div class="day-event" onclick="openParteDetail(${p.id})">
+        <div class="day-event-time">${hi}${hf?'<br><span style="font-size:10px;color:var(--gris-400)">${hf}</span>':''}</div>
+        <div class="day-event-body">
+          <div class="day-event-title">${p.trabajo_titulo||'Sin obra'}</div>
+          <div class="day-event-sub">
+            ${p.cliente_nombre?'👤 '+p.cliente_nombre+' · ':''}${horas}h
+            ${p.direccion?'<br>📍 '+p.direccion:''}
+          </div>
+          <span class="day-event-badge" style="background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>
+          ${p.descripcion?'<div style="font-size:12px;color:var(--gris-500);margin-top:6px;line-height:1.4">'+p.descripcion.substring(0,120)+(p.descripcion.length>120?'...':'')+'</div>':''}
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  } else {
+    html += '<div class="empty-state"><div class="ico">📅</div><p>Sin partes este día</p></div>';
+  }
+
+  // Quick access: todos los partes del equipo este día
+  const todosHoy = _todosPartesDelDia(selStr).filter(p => p.usuario_id !== CP?.id);
+  if (todosHoy.length) {
+    html += '<div class="section-title">👥 Equipo este día</div>';
+    html += todosHoy.map(p => {
+      const hi = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+      const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
+      return `<div class="day-event" onclick="openParteDetail(${p.id})" style="border-left:3px solid var(--azul-light)">
+        <div class="day-event-time">${hi}</div>
+        <div class="day-event-body">
+          <div class="day-event-title">${p.usuario_nombre||'—'}</div>
+          <div class="day-event-sub">${p.trabajo_titulo||'Sin obra'} · <span style="color:${est.color}">${est.ico} ${est.label}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// FAB (Floating Action Button)
+// ═══════════════════════════════════════════════
+let _fabOpen = false;
+
+function toggleFab() {
+  _fabOpen = !_fabOpen;
+  document.getElementById('fabMain').classList.toggle('open', _fabOpen);
+  document.getElementById('fabMenu').classList.toggle('open', _fabOpen);
+  document.getElementById('fabOverlay').classList.toggle('open', _fabOpen);
+}
+
+function fabCrear(tipo) {
+  toggleFab();
+  if (tipo === 'parte') _openParteForm();
+  else _openDocEditor(tipo);
+}
+
+function fabOCR() {
+  toggleFab();
+  _openOCRUpload();
+}
+
+// ═══════════════════════════════════════════════
+// PARTE: Formulario rápido (solo partes)
+// ═══════════════════════════════════════════════
+function _openParteForm() {
+  const opOptions = todosUsuarios.filter(u => u.disponible_partes)
+    .map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+  const obraOptions = trabajos.map(t => `<option value="${t.id}">${t.titulo||''}</option>`).join('');
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-title">🔧 Nuevo Parte</div>
+    <div class="quick-form">
+      <div class="field"><label>Operario</label><select id="qf_usuario"><option value="${CP?.id}">Yo (${CP?.nombre||''})</option>${opOptions}</select></div>
+      <div class="field"><label>Obra</label><select id="qf_trabajo"><option value="">— Seleccionar —</option>${obraOptions}</select></div>
+      <div class="field"><label>Fecha</label><input type="date" id="qf_fecha" value="${_fmtDateStr(new Date())}"></div>
+      <div class="field" style="display:flex;gap:8px"><div style="flex:1"><label>Hora inicio</label><input type="time" id="qf_hora_ini" value="08:00"></div><div style="flex:1"><label>Hora fin</label><input type="time" id="qf_hora_fin" value="14:00"></div></div>
+      <div class="field"><label>Dirección</label><input type="text" id="qf_direccion" placeholder="Dirección del trabajo"></div>
+      <div class="field"><label>Descripción</label><textarea id="qf_desc" placeholder="Descripción del trabajo..."></textarea></div>
+      <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:8px">Crear parte</button>
+      <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:8px">Cancelar</button>
+    </div>
+  `;
+  openModal();
+}
+
+async function _saveParteForm() {
+  if (!EMPRESA) { toast('Sin empresa activa','error'); return; }
+  try {
+    const trabajoId = document.getElementById('qf_trabajo')?.value;
+    const trabajo = trabajos.find(t => t.id == trabajoId);
+    const record = {
+      empresa_id: EMPRESA.id, estado: 'borrador',
+      usuario_id: document.getElementById('qf_usuario')?.value || CP?.id,
+      trabajo_id: trabajoId || null,
+      trabajo_titulo: trabajo?.titulo || '',
+      fecha: document.getElementById('qf_fecha')?.value || _fmtDateStr(new Date()),
+      hora_inicio: document.getElementById('qf_hora_ini')?.value || '08:00',
+      hora_fin: document.getElementById('qf_hora_fin')?.value || '14:00',
+      direccion: document.getElementById('qf_direccion')?.value || '',
+      descripcion: document.getElementById('qf_desc')?.value || '',
+      horas: 0
+    };
+    const { error } = await sb.from('partes_trabajo').insert(record);
+    if (error) throw error;
+    toast('Parte creado','success');
+    closeModal();
+    await doRefresh();
+  } catch(e) { toast('Error: '+(e.message||e),'error'); }
+}
+
+// ═══════════════════════════════════════════════
+// DOC EDITOR: Mini-editor completo para
+// presupuestos, albaranes y facturas
+// ═══════════════════════════════════════════════
+let _doc = { tipo:'', cliente:null, fecha:'', observaciones:'', lineas:[], savedId:null };
+
+function _openDocEditor(tipo) {
+  const titles = { presupuesto:'Nuevo Presupuesto', albaran:'Nuevo Albarán', factura:'Nueva Factura' };
+  _doc = { tipo, cliente:null, fecha:_fmtDateStr(new Date()), observaciones:'', lineas:[], savedId:null };
+
+  document.getElementById('modalContent').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="modal-title" style="margin:0">${titles[tipo]||tipo}</div>
+      <button class="btn btn-sm btn-secondary" onclick="closeModal()" style="width:auto">✕</button>
+    </div>
+
+    <!-- CLIENTE -->
+    <div id="docClienteSection">
+      <div style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cliente</div>
+      <div style="position:relative">
+        <input type="text" id="docClienteBuscar" placeholder="Buscar cliente por nombre..."
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none"
+          oninput="_docBuscarCliente(this.value)" onfocus="_docBuscarCliente(this.value)">
+        <div id="docClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+      </div>
+      <button onclick="_docNuevoCliente()" style="background:none;border:none;color:var(--azul);font-size:12px;font-weight:700;padding:6px 0;cursor:pointer">+ Crear cliente nuevo</button>
+    </div>
+
+    <!-- CLIENTE SELECCIONADO (colapsado) -->
+    <div id="docClienteSeleccionado" style="display:none;background:var(--azul-light);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:700" id="docClienteNombre">—</div>
+          <div style="font-size:11px;color:var(--gris-400)" id="docClienteInfo">—</div>
+        </div>
+        <button onclick="_docCambiarCliente()" style="background:none;border:none;color:var(--azul);font-size:12px;font-weight:700;cursor:pointer">Cambiar</button>
+      </div>
+    </div>
+
+    <!-- FECHA + OBS -->
+    <div id="docDatosExtra" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div class="field" style="flex:1;margin:0"><label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;display:block;margin-bottom:3px">Fecha</label><input type="date" id="docFecha" value="${_doc.fecha}" onchange="_doc.fecha=this.value" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)"></div>
+      </div>
+    </div>
+
+    <!-- LÍNEAS -->
+    <div id="docLineasSection" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 8px">
+        <div style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px">Líneas</div>
+        <button onclick="_docAddLinea()" style="background:var(--azul);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">+ Añadir</button>
+      </div>
+      <div id="docLineasList"></div>
+
+      <!-- TOTALES -->
+      <div id="docTotales" style="background:var(--gris-50);border-radius:10px;padding:12px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gris-500)"><span>Base imponible</span><span id="docBase">0,00 €</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gris-500);margin-top:4px"><span>IVA</span><span id="docIva">0,00 €</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;margin-top:6px;padding-top:6px;border-top:1px solid var(--gris-200)"><span>Total</span><span id="docTotal">0,00 €</span></div>
+      </div>
+
+      <!-- OBS -->
+      <div class="field" style="margin-top:12px">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;display:block;margin-bottom:3px">Observaciones</label>
+        <textarea id="docObs" placeholder="Notas u observaciones..." onchange="_doc.observaciones=this.value" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);min-height:50px;resize:vertical"></textarea>
+      </div>
+
+      <!-- ACCIONES -->
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-secondary" onclick="_docPreview()" style="flex:1">👁️ Previsualizar</button>
+        <button class="btn btn-primary" onclick="_docGenerar()" style="flex:1">Generar</button>
+      </div>
+    </div>
+  `;
+  openModal();
+
+  // Cerrar dropdown al tocar fuera
+  document.getElementById('docClienteBuscar')?.addEventListener('blur', () => {
+    setTimeout(() => { const r = document.getElementById('docClienteResults'); if(r) r.style.display='none'; }, 200);
+  });
+}
+
+// ── Cliente search ──
+function _docBuscarCliente(q) {
+  const res = document.getElementById('docClienteResults');
+  if (!res) return;
+  const term = (q||'').toLowerCase().trim();
+  const filtered = term.length < 1 ? clientes.slice(0,15) : clientes.filter(c =>
+    (c.nombre||'').toLowerCase().includes(term) || (c.nif||'').toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term)
+  ).slice(0,15);
+
+  if (!filtered.length) {
+    res.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--gris-400);text-align:center">Sin resultados</div>';
+  } else {
+    res.innerHTML = filtered.map(c =>
+      `<div style="padding:10px 12px;font-size:13px;border-bottom:1px solid var(--gris-100);cursor:pointer"
+        onmousedown="_docSelCliente(${c.id})">${c.nombre||'—'} <span style="color:var(--gris-400);font-size:11px">${c.nif||''} ${c.email||''}</span></div>`
+    ).join('');
+  }
+  res.style.display = '';
+}
+
+function _docSelCliente(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+  _doc.cliente = c;
+  // Colapsar búsqueda, mostrar seleccionado
+  document.getElementById('docClienteSection').style.display = 'none';
+  const sel = document.getElementById('docClienteSeleccionado');
+  sel.style.display = '';
+  document.getElementById('docClienteNombre').textContent = c.nombre || '—';
+  document.getElementById('docClienteInfo').textContent = [c.nif, c.email, c.telefono].filter(Boolean).join(' · ') || '—';
+  // Mostrar resto del formulario
+  document.getElementById('docDatosExtra').style.display = '';
+  document.getElementById('docLineasSection').style.display = '';
+  document.getElementById('docClienteResults').style.display = 'none';
+}
+
+function _docCambiarCliente() {
+  _doc.cliente = null;
+  document.getElementById('docClienteSection').style.display = '';
+  document.getElementById('docClienteSeleccionado').style.display = 'none';
+  document.getElementById('docClienteBuscar').value = '';
+  document.getElementById('docClienteBuscar').focus();
+}
+
+function _docNuevoCliente() {
+  document.getElementById('docClienteSection').innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;margin-bottom:6px">Nuevo cliente</div>
+    <div class="quick-form">
+      <div class="field"><label>Nombre / Razón social *</label><input type="text" id="ncNombre" placeholder="Nombre del cliente"></div>
+      <div class="field"><label>NIF / CIF</label><input type="text" id="ncNif" placeholder="NIF o CIF"></div>
+      <div class="field"><label>Email</label><input type="email" id="ncEmail" placeholder="email@ejemplo.com"></div>
+      <div class="field"><label>Teléfono</label><input type="tel" id="ncTel" placeholder="Teléfono"></div>
+      <div class="field"><label>Dirección</label><input type="text" id="ncDir" placeholder="Dirección"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="_docGuardarNuevoCliente()">Guardar</button>
+        <button class="btn btn-secondary btn-sm" onclick="_openDocEditor(_doc.tipo)">Cancelar</button>
+      </div>
+    </div>
+  `;
+}
+
+async function _docGuardarNuevoCliente() {
+  const nombre = document.getElementById('ncNombre')?.value?.trim();
+  if (!nombre) { toast('El nombre es obligatorio','error'); return; }
+  try {
+    const nuevoCliente = {
+      empresa_id: EMPRESA.id,
+      nombre,
+      nif: document.getElementById('ncNif')?.value?.trim() || '',
+      email: document.getElementById('ncEmail')?.value?.trim() || '',
+      telefono: document.getElementById('ncTel')?.value?.trim() || '',
+      direccion: document.getElementById('ncDir')?.value?.trim() || '',
+    };
+    const { data, error } = await sb.from('clientes').insert(nuevoCliente).select().single();
+    if (error) throw error;
+    // Añadir a la lista local
+    clientes.push(data);
+    toast('Cliente creado','success');
+    _docSelCliente(data.id);
+  } catch(e) { toast('Error: '+(e.message||e),'error'); }
+}
+
+// ── Líneas ──
+function _docAddLinea() {
+  _doc.lineas.push({ tipo:'linea', desc:'', cant:1, precio:0, dto:0, iva:21, articulo_id:null, codigo:'' });
+  _docRenderLineas();
+  // Focus en el campo descripción de la nueva línea
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.doc-linea-desc');
+    if (inputs.length) inputs[inputs.length-1].focus();
+  }, 50);
+}
+
+function _docRenderLineas() {
+  const container = document.getElementById('docLineasList');
+  if (!container) return;
+
+  if (!_doc.lineas.length) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Sin líneas. Pulsa "+ Añadir" para empezar.</div>';
+    _docRecalcTotales();
+    return;
+  }
+
+  container.innerHTML = _doc.lineas.map((ln, i) => `
+    <div style="background:#fff;border:1px solid var(--gris-100);border-radius:10px;padding:10px;margin-bottom:8px;position:relative" id="docLinea${i}">
+      <button onclick="_docDelLinea(${i})" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--rojo);font-size:16px;cursor:pointer;padding:2px 6px">✕</button>
+      <div style="position:relative;margin-bottom:6px">
+        <input type="text" class="doc-linea-desc" placeholder="Buscar artículo o escribir descripción..."
+          value="${(ln.desc||'').replace(/"/g,'&quot;')}"
+          oninput="_docBuscarArticulo(${i},this.value)"
+          onchange="_docUpdateLinea(${i},'desc',this.value)"
+          style="width:calc(100% - 30px);padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
+        <div id="docArtResults${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+      </div>
+      ${ln.codigo ? `<div style="font-size:10px;color:var(--azul);font-weight:600;margin-bottom:4px">📦 ${ln.codigo}</div>` : ''}
+      <div style="display:flex;gap:6px;align-items:center">
+        <div style="flex:1"><label style="font-size:10px;color:var(--gris-400)">Cant.</label><input type="number" value="${ln.cant}" step="any" min="0"
+          onchange="_docUpdateLinea(${i},'cant',this.value)"
+          style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
+        <div style="flex:1.5"><label style="font-size:10px;color:var(--gris-400)">Precio</label><input type="number" value="${ln.precio}" step="any" min="0"
+          onchange="_docUpdateLinea(${i},'precio',this.value)"
+          style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:right;font-family:var(--font)"></div>
+        <div style="flex:0.8"><label style="font-size:10px;color:var(--gris-400)">Dto%</label><input type="number" value="${ln.dto}" step="any" min="0" max="100"
+          onchange="_docUpdateLinea(${i},'dto',this.value)"
+          style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
+        <div style="flex:0.8"><label style="font-size:10px;color:var(--gris-400)">IVA%</label><input type="number" value="${ln.iva}" step="any" min="0"
+          onchange="_docUpdateLinea(${i},'iva',this.value)"
+          style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
+        <div style="min-width:55px;text-align:right">
+          <label style="font-size:10px;color:var(--gris-400)">Importe</label>
+          <div style="font-size:13px;font-weight:700">${_docLineImporte(ln)}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  _docRecalcTotales();
+}
+
+function _docLineImporte(ln) {
+  const base = (ln.cant||0) * (ln.precio||0) * (1 - (ln.dto||0)/100);
+  return base.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+}
+
+function _docUpdateLinea(idx, field, val) {
+  if (!_doc.lineas[idx]) return;
+  if (field === 'desc') _doc.lineas[idx].desc = val;
+  else if (field === 'cant') _doc.lineas[idx].cant = parseFloat(val) || 0;
+  else if (field === 'precio') _doc.lineas[idx].precio = parseFloat(val) || 0;
+  else if (field === 'dto') _doc.lineas[idx].dto = parseFloat(val) || 0;
+  else if (field === 'iva') _doc.lineas[idx].iva = parseFloat(val) || 0;
+  _docRecalcTotales();
+}
+
+function _docDelLinea(idx) {
+  _doc.lineas.splice(idx, 1);
+  _docRenderLineas();
+}
+
+// ── Búsqueda artículos inline ──
+let _docArtSearchTimeout = null;
+
+function _docBuscarArticulo(idx, q) {
+  clearTimeout(_docArtSearchTimeout);
+  const res = document.getElementById('docArtResults' + idx);
+  if (!res) return;
+  const term = (q||'').toLowerCase().trim();
+  if (term.length < 2) { res.style.display = 'none'; return; }
+
+  _docArtSearchTimeout = setTimeout(() => {
+    const found = articulos.filter(a =>
+      (a.nombre||'').toLowerCase().includes(term) || (a.codigo||'').toLowerCase().includes(term)
+    ).slice(0,10);
+
+    if (!found.length) { res.style.display = 'none'; return; }
+
+    res.innerHTML = found.map(a =>
+      `<div style="padding:8px 12px;font-size:12px;border-bottom:1px solid var(--gris-100);cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+        onmousedown="_docSelArticulo(${idx},${a.id})">
+        <div><span style="color:var(--azul);font-weight:700">${a.codigo||''}</span> ${a.nombre||'—'}</div>
+        <span style="font-weight:700;color:var(--gris-600)">${(a.precio_venta||0).toFixed(2)}€</span>
+      </div>`
+    ).join('');
+    res.style.display = '';
+  }, 150);
+}
+
+function _docSelArticulo(idx, artId) {
+  const art = articulos.find(a => a.id === artId);
+  if (!art || !_doc.lineas[idx]) return;
+  _doc.lineas[idx].desc = art.nombre || '';
+  _doc.lineas[idx].precio = art.precio_venta || 0;
+  _doc.lineas[idx].articulo_id = art.id;
+  _doc.lineas[idx].codigo = art.codigo || '';
+  // IVA del artículo si tiene tipo_iva configurado (por ahora 21% default)
+  _doc.lineas[idx].iva = 21;
+  toast('📦 ' + (art.codigo||'') + ' — ' + (art.nombre||''), 'info');
+  _docRenderLineas();
+  // Focus cantidad de esa línea
+  setTimeout(() => {
+    const linea = document.getElementById('docLinea'+idx);
+    if (linea) {
+      const cantInput = linea.querySelectorAll('input[type="number"]')[0];
+      if (cantInput) { cantInput.focus(); cantInput.select(); }
+    }
+  }, 50);
+}
+
+// ── Totales ──
+function _docRecalcTotales() {
+  let base = 0, iva = 0;
+  _doc.lineas.forEach(ln => {
+    const lineBase = (ln.cant||0) * (ln.precio||0) * (1 - (ln.dto||0)/100);
+    base += lineBase;
+    iva += lineBase * ((ln.iva||0)/100);
+  });
+  const total = base + iva;
+  const fmt = (v) => v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+  const elBase = document.getElementById('docBase');
+  const elIva = document.getElementById('docIva');
+  const elTotal = document.getElementById('docTotal');
+  if (elBase) elBase.textContent = fmt(base);
+  if (elIva) elIva.textContent = fmt(iva);
+  if (elTotal) elTotal.textContent = fmt(total);
+}
+
+// ── Preview ──
+function _docPreview() {
+  if (!_doc.cliente) { toast('Selecciona un cliente','error'); return; }
+  if (!_doc.lineas.length) { toast('Añade al menos una línea','error'); return; }
+
+  const tipoLabel = { presupuesto:'PRESUPUESTO', albaran:'ALBARÁN', factura:'FACTURA' }[_doc.tipo] || _doc.tipo.toUpperCase();
+  let base = 0, iva = 0;
+  _doc.lineas.forEach(ln => {
+    const lb = (ln.cant||0) * (ln.precio||0) * (1 - (ln.dto||0)/100);
+    base += lb; iva += lb * ((ln.iva||0)/100);
+  });
+  const total = base + iva;
+  const fmt = (v) => v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+
+  const previewHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;margin-bottom:4px">Previsualización</div>
+    <div style="background:#fff;border:1px solid var(--gris-200);border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:18px;font-weight:800;color:var(--azul)">${tipoLabel}</div>
+        <div style="font-size:12px;color:var(--gris-400)">${new Date(_doc.fecha).toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+      <div style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--gris-100)">
+        <div style="font-size:13px;font-weight:700">${_doc.cliente.nombre||'—'}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${[_doc.cliente.nif, _doc.cliente.direccion, _doc.cliente.email].filter(Boolean).join(' · ')}</div>
+      </div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead><tr style="border-bottom:2px solid var(--gris-200)">
+          <th style="text-align:left;padding:4px 2px;font-weight:700">Concepto</th>
+          <th style="text-align:right;padding:4px 2px;font-weight:700;width:35px">Ud.</th>
+          <th style="text-align:right;padding:4px 2px;font-weight:700;width:55px">Precio</th>
+          <th style="text-align:right;padding:4px 2px;font-weight:700;width:55px">Importe</th>
+        </tr></thead>
+        <tbody>
+          ${_doc.lineas.map(ln => {
+            const imp = (ln.cant||0) * (ln.precio||0) * (1-(ln.dto||0)/100);
+            return `<tr style="border-bottom:1px solid var(--gris-100)">
+              <td style="padding:4px 2px">${ln.desc||'—'}${ln.dto?` <span style="color:var(--rojo)">(-${ln.dto}%)</span>`:''}</td>
+              <td style="text-align:right;padding:4px 2px">${ln.cant}</td>
+              <td style="text-align:right;padding:4px 2px">${(ln.precio||0).toFixed(2)}</td>
+              <td style="text-align:right;padding:4px 2px;font-weight:600">${imp.toFixed(2)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:10px;border-top:2px solid var(--gris-200);padding-top:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gris-500)"><span>Base imponible</span><span>${fmt(base)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gris-500);margin-top:2px"><span>IVA</span><span>${fmt(iva)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;margin-top:6px"><span>TOTAL</span><span>${fmt(total)}</span></div>
+      </div>
+      ${_doc.observaciones ? `<div style="margin-top:10px;font-size:11px;color:var(--gris-500);border-top:1px dashed var(--gris-200);padding-top:6px">${_doc.observaciones}</div>` : ''}
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="_docVolverEdicion()" style="flex:1">← Editar</button>
+      <button class="btn btn-primary" onclick="_docGenerar()" style="flex:1">Generar</button>
+    </div>
+  `;
+  document.getElementById('modalContent').innerHTML = previewHTML;
+}
+
+function _docVolverEdicion() {
+  _openDocEditor(_doc.tipo);
+  // Restaurar estado
+  setTimeout(() => {
+    if (_doc.cliente) _docSelCliente(_doc.cliente.id);
+    document.getElementById('docFecha').value = _doc.fecha;
+    document.getElementById('docObs').value = _doc.observaciones || '';
+    _docRenderLineas();
+  }, 50);
+}
+
+// ── Generar documento en Supabase ──
+async function _docGenerar() {
+  if (!_doc.cliente) { toast('Selecciona un cliente','error'); return; }
+  if (!_doc.lineas.length) { toast('Añade al menos una línea','error'); return; }
+  if (!EMPRESA) { toast('Sin empresa activa','error'); return; }
+
+  const tabla = { presupuesto:'presupuestos', albaran:'albaranes', factura:'facturas' }[_doc.tipo];
+  if (!tabla) return;
+
+  // Calcular totales
+  let baseTotal = 0, ivaTotal = 0;
+  _doc.lineas.forEach(ln => {
+    const lb = (ln.cant||0) * (ln.precio||0) * (1-(ln.dto||0)/100);
+    baseTotal += lb; ivaTotal += lb * ((ln.iva||0)/100);
+  });
+  const total = baseTotal + ivaTotal;
+
+  // Generar número provisional
+  const numero = 'BORR-' + Date.now();
+
+  const datos = {
+    empresa_id: EMPRESA.id,
+    numero,
+    cliente_id: _doc.cliente.id,
+    cliente_nombre: _doc.cliente.nombre || '',
+    fecha: _doc.fecha,
+    base_imponible: Math.round(baseTotal * 100) / 100,
+    total_iva: Math.round(ivaTotal * 100) / 100,
+    total: Math.round(total * 100) / 100,
+    observaciones: _doc.observaciones || '',
+    estado: 'pendiente',
+    lineas: _doc.lineas.map(ln => ({
+      tipo: 'linea',
+      desc: ln.desc || '',
+      cant: ln.cant || 0,
+      precio: ln.precio || 0,
+      dto: ln.dto || 0,
+      iva: ln.iva || 0
+    }))
+  };
+
+  try {
+    const btn = document.querySelector('#modalContent .btn-primary');
+    if (btn) { btn.textContent = 'Generando...'; btn.disabled = true; }
+
+    const { data, error } = await sb.from(tabla).insert(datos).select('id,numero').single();
+    if (error) throw error;
+
+    _doc.savedId = data?.id;
+    const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo];
+
+    toast(tipoLabel + ' generado correctamente', 'success');
+
+    // Mostrar pantalla de envío multi-canal (igual que partes)
+    _docMostrarEnvio(data?.id || _doc.savedId, data?.numero || numero, tipoLabel);
+  } catch(e) {
+    console.error('Doc generate error:', e);
+    toast('Error al generar: ' + (e.message||e), 'error');
+    const btn = document.querySelector('#modalContent .btn-primary');
+    if (btn) { btn.textContent = 'Generar'; btn.disabled = false; }
+  }
+}
+
+// ── Pantalla envío multi-canal (WhatsApp / SMS / Email) ──
+let _docEnvioRealizado = false;
+
+function _docMostrarEnvio(docId, docNumero, tipoLabel) {
+  _docEnvioRealizado = false;
+  const empresa = EMPRESA?.nombre || 'Instalo';
+  const tel = (_doc.cliente?.telefono || '').replace(/[\s\-\.\(\)]/g, '');
+  const email = _doc.cliente?.email || '';
+
+  document.getElementById('modalContent').innerHTML = `
+    <div style="padding:16px 0">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:48px;margin-bottom:8px">✅</div>
+        <h2 style="margin:0 0 4px;color:var(--verde)">${tipoLabel} generado</h2>
+        <p style="color:var(--gris-500);margin:0;font-size:14px">${docNumero} · ${_doc.cliente?.nombre||''}</p>
+      </div>
+
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">TELÉFONO DE CONTACTO</label>
+        <input id="docEnvioTel" type="tel" placeholder="Ej: 666123456" value="${tel}"
+          inputmode="tel" autocomplete="off"
+          style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-family:var(--font)">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="_docEnvioWhatsApp()" style="flex:1;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
+          📱 WhatsApp
+        </button>
+        <button onclick="_docEnvioSMS()" style="flex:1;padding:12px;background:var(--azul);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
+          💬 SMS
+        </button>
+      </div>
+
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">📧 ENVIAR POR EMAIL</label>
+        <div style="display:flex;gap:6px">
+          <input id="docEnvioEmail" type="email" placeholder="email@ejemplo.com" value="${email}"
+            inputmode="email" autocomplete="off"
+            style="flex:1;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
+          <button onclick="_docEnvioEmailSend()" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Enviar</button>
+        </div>
+        <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía directamente al cliente.</p>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-secondary" onclick="_docNuevo()" style="flex:1">📄 Crear otro</button>
+        <button id="docBtnCerrar" onclick="closeModal();doRefresh()" style="flex:1;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400)" disabled>
+          Envía al cliente para cerrar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function _docLimpiarTel() {
+  let tel = (document.getElementById('docEnvioTel')?.value || '').replace(/[\s\-\.\(\)]/g, '');
+  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+  if (tel.startsWith('0034')) tel = tel.substring(2);
+  return tel;
+}
+
+function _docGetMensaje() {
+  const tipoLabel = { presupuesto:'presupuesto', albaran:'albarán', factura:'factura' }[_doc.tipo] || _doc.tipo;
+  const empresa = EMPRESA?.nombre || 'Instalo';
+  return `Estimado/a ${_doc.cliente?.nombre||'cliente'}, desde ${empresa} le hacemos llegar su ${tipoLabel}.\n\nGracias por confiar en nosotros.`;
+}
+
+function _docMarcarEnviado() {
+  _docEnvioRealizado = true;
+  const btn = document.getElementById('docBtnCerrar');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Cerrar';
+    btn.style.background = 'var(--gris-600)';
+    btn.style.color = '#fff';
+  }
+}
+
+function _docEnvioWhatsApp() {
+  const tel = _docLimpiarTel();
+  if (!tel || tel.length < 9) {
+    toast('Introduce un teléfono válido', 'error');
+    document.getElementById('docEnvioTel')?.focus();
+    return;
+  }
+  const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
+  const msg = encodeURIComponent(_docGetMensaje());
+  window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
+  _docMarcarEnviado();
+}
+
+function _docEnvioSMS() {
+  const tel = _docLimpiarTel();
+  if (!tel || tel.length < 9) {
+    toast('Introduce un teléfono válido', 'error');
+    document.getElementById('docEnvioTel')?.focus();
+    return;
+  }
+  const msg = encodeURIComponent(_docGetMensaje());
+  window.location.href = `sms:${tel}?body=${msg}`;
+  _docMarcarEnviado();
+}
+
+async function _docEnvioEmailSend() {
+  const email = document.getElementById('docEnvioEmail')?.value?.trim();
+  if (!email || !email.includes('@') || !email.includes('.')) {
+    toast('Introduce un email válido', 'error');
+    document.getElementById('docEnvioEmail')?.focus();
+    return;
+  }
+
+  const tipoLabel = { presupuesto:'Presupuesto', albaran:'Albarán', factura:'Factura' }[_doc.tipo] || _doc.tipo;
+  const tipoVinc = { presupuesto:'presupuesto', albaran:'albaran', factura:'factura' }[_doc.tipo];
+  const empresaNombre = EMPRESA?.nombre || 'Instalo';
+  const asunto = tipoLabel + ' de ' + empresaNombre;
+  const cuerpo = `Estimado/a ${_doc.cliente?.nombre||'cliente'},\n\nAdjunto le enviamos el ${tipoLabel.toLowerCase()} correspondiente.\n\nUn cordial saludo,\n${empresaNombre}`;
+
+  try {
+    const { data, error } = await sb.functions.invoke('enviar-correo', {
+      body: {
+        empresa_id: EMPRESA.id,
+        para: email,
+        asunto,
+        cuerpo_texto: cuerpo,
+        vinculado_tipo: tipoVinc,
+        vinculado_id: _doc.savedId,
+        vinculado_ref: tipoLabel
+      }
+    });
+
+    if (error) {
+      // Fallback: abrir mailto
+      window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo));
+      toast('Abriendo correo...', 'info');
+    } else {
+      toast('Email enviado a ' + email, 'success');
+    }
+  } catch(e) {
+    window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo));
+    toast('Abriendo correo...', 'info');
+  }
+  _docMarcarEnviado();
+}
+
+function _docNuevo() {
+  _openDocEditor(_doc.tipo);
+}
+
+// ═══════════════════════════════════════════════
+// OCR: Subida de foto para procesamiento
+// ═══════════════════════════════════════════════
+function _openOCRUpload() {
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-title">📷 Subir foto para OCR</div>
+    <p style="font-size:13px;color:var(--gris-500);margin-bottom:16px">Saca una foto a un documento (factura, albarán, etc.) y se subirá al ERP pendiente de procesar.</p>
+    <div style="text-align:center;margin-bottom:16px">
+      <label class="foto-add" style="width:100%;aspect-ratio:auto;padding:40px 20px;cursor:pointer">
+        <input type="file" accept="image/*" capture="environment" id="ocrFileInput" style="display:none" onchange="_onOCRFileSelected(this)">
+        <span style="font-size:40px">📷</span>
+        <span>Toca para hacer foto o elegir imagen</span>
+      </label>
+    </div>
+    <div id="ocrPreview" style="display:none;text-align:center;margin-bottom:16px">
+      <img id="ocrPreviewImg" style="max-width:100%;max-height:300px;border-radius:12px;border:2px solid var(--gris-200)">
+      <p id="ocrFileName" style="font-size:11px;color:var(--gris-400);margin-top:6px"></p>
+    </div>
+    <button id="ocrSendBtn" class="btn btn-primary" onclick="_uploadOCR()" style="display:none">Subir documento</button>
+    <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:8px">Cancelar</button>
+  `;
+  openModal();
+}
+
+let _ocrSelectedFile = null;
+
+function _onOCRFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _ocrSelectedFile = file;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('ocrPreviewImg').src = e.target.result;
+    document.getElementById('ocrPreview').style.display = '';
+    document.getElementById('ocrFileName').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+    document.getElementById('ocrSendBtn').style.display = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function _uploadOCR() {
+  if (!_ocrSelectedFile || !EMPRESA) return;
+  const btn = document.getElementById('ocrSendBtn');
+  btn.textContent = 'Subiendo...';
+  btn.disabled = true;
+
+  try {
+    // 1. Subir imagen al bucket de Supabase Storage
+    const ext = _ocrSelectedFile.name.split('.').pop() || 'jpg';
+    const fileName = `ocr_${Date.now()}_${Math.random().toString(36).substring(2,8)}.${ext}`;
+    const storagePath = `${EMPRESA.id}/ocr/${fileName}`;
+
+    const { data: uploadData, error: uploadErr } = await sb.storage
+      .from('documentos')
+      .upload(storagePath, _ocrSelectedFile, { contentType: _ocrSelectedFile.type });
+
+    if (uploadErr) throw uploadErr;
+
+    // 2. Crear registro en tabla documentos_ocr
+    const { error: dbErr } = await sb.from('documentos_ocr').insert({
+      empresa_id: EMPRESA.id,
+      usuario_id: CP?.id,
+      archivo_path: storagePath,
+      archivo_nombre: _ocrSelectedFile.name,
+      estado: 'pendiente',
+      created_at: new Date().toISOString()
+    });
+
+    if (dbErr) {
+      console.warn('Tabla documentos_ocr no existe o error:', dbErr.message);
+      // Si la tabla no existe, al menos la foto está en Storage
+      toast('Foto subida a Storage (tabla OCR no disponible)','warning');
+    } else {
+      toast('Documento subido correctamente. Pendiente de procesar.','success');
+    }
+
+    closeModal();
+    _ocrSelectedFile = null;
+  } catch(e) {
+    console.error('OCR upload error:', e);
+    toast('Error al subir: ' + (e.message||e),'error');
+    btn.textContent = 'Subir documento';
+    btn.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
