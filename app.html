@@ -2778,6 +2778,39 @@ async function _saveParteForm() {
       trabajo_titulo = obra?.titulo || '';
     }
 
+
+    // ── Validar solapamiento de horario ──────────────────────────────────────
+    const _qfUid   = document.getElementById('qf_usuario')?.value || CP?.id;
+    const _qfFecha = document.getElementById('qf_fecha')?.value;
+    const _qfHIni  = document.getElementById('qf_hora_ini')?.value;
+    const _qfHFin  = document.getElementById('qf_hora_fin')?.value;
+    if (_qfUid && _qfFecha && _qfHIni && _qfHFin) {
+      const toMins = t => { const [h,m] = (t||'00:00').substring(0,5).split(':').map(Number); return h*60+(m||0); };
+      const ni = toMins(_qfHIni), nf = toMins(_qfHFin);
+      if (ni < nf) {
+        const { data: _solapeData } = await sb.from('partes_trabajo')
+          .select('id,numero,hora_inicio,hora_fin,trabajo_titulo')
+          .eq('empresa_id', EMPRESA.id)
+          .eq('usuario_id', String(_qfUid))
+          .eq('fecha', _qfFecha)
+          .neq('estado', 'cancelado')
+          .not('hora_inicio', 'is', null)
+          .not('hora_fin', 'is', null);
+        const _solape = (_solapeData || []).find(p => {
+          const pi = toMins(p.hora_inicio), pf = toMins(p.hora_fin);
+          return ni < pf && nf > pi;
+        });
+        if (_solape) {
+          const hI = (_solape.hora_inicio||'').substring(0,5);
+          const hF = (_solape.hora_fin||'').substring(0,5);
+          const tit = _solape.trabajo_titulo ? ` · ${_solape.trabajo_titulo}` : '';
+          toast(`⚠️ Conflicto de horario: ya hay un parte de ${hI} a ${hF}${tit}`, 'error');
+          return;
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const record = {
       empresa_id:     EMPRESA.id,
       estado:         'borrador',

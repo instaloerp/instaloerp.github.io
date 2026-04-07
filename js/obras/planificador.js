@@ -1408,19 +1408,12 @@ async function crearPartesDesdeModal(estado) {
     const [hfH,hfM] = horaFin.split(':').map(Number);
     const diffMins = (hfH*60+hfM) - (hiH*60+hiM);
     if (diffMins < 120) { toast('La duración mínima es de 2 horas', 'error'); return; }
-    // Validar solapamiento con partes existentes del mismo operario
-    const _iniM = hiH * 60 + hiM, _finM = hfH * 60 + hfM;
-    const _solape = planPartesData.find(p =>
-      p.fecha === fechaIni && p.usuario_id === planOperarioFilter &&
-      p.estado !== 'borrador' && p.hora_inicio && (() => {
-        const [a,b] = p.hora_inicio.split(':').map(Number);
-        const pIni = a*60+(b||0);
-        let pFin = pIni + 60;
-        if (p.hora_fin) { const [c,d] = p.hora_fin.split(':').map(Number); pFin = c*60+(d||0); }
-        return _iniM < pFin && _finM > pIni;
-      })()
-    );
-    if (_solape) { toast('⚠️ Se solapa con otro parte del mismo operario (' + (_solape.hora_inicio||'').substring(0,5) + '-' + (_solape.hora_fin||'').substring(0,5) + ')', 'error'); return; }
+  }
+
+  // Validar solapamiento — aplica siempre (día simple y multiday primer día)
+  if (planOperarioFilter && fechaIni) {
+    const _solape = await _validarSolapeHorario(planOperarioFilter, fechaIni, horaIni, horaFin);
+    if (_solape) { _toastSolape(_solape); return; }
   }
 
   // Calcular horas de la jornada

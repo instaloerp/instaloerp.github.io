@@ -1089,3 +1089,60 @@ function _acHighlight() {
   const sel = drop.querySelector('.ac-sel');
   if (sel) sel.scrollIntoView({ block:'nearest' });
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VALIDACIÓN DE SOLAPAMIENTO DE HORARIO EN PARTES DE TRABAJO
+// Un operario no puede tener dos partes en el mismo rango horario.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Verifica si existe un parte que se solape con el rango horario indicado.
+ * @param {string|number} usuarioId  — ID del operario
+ * @param {string}        fecha      — YYYY-MM-DD
+ * @param {string}        horaIni    — HH:MM o HH:MM:SS
+ * @param {string}        horaFin    — HH:MM o HH:MM:SS
+ * @param {number|null}   excluirId  — ID del parte a ignorar (para ediciones)
+ * @returns {object|null} El parte conflictivo, o null si no hay solapamiento
+ */
+async function _validarSolapeHorario(usuarioId, fecha, horaIni, horaFin, excluirId = null) {
+  if (!usuarioId || !fecha || !horaIni || !horaFin) return null;
+
+  const toMins = t => {
+    const str = (t || '00:00').substring(0, 5);
+    const [h, m] = str.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  const ni = toMins(horaIni);
+  const nf = toMins(horaFin);
+  if (ni >= nf) return null; // rango inválido, no bloquear
+
+  let q = sb.from('partes_trabajo')
+    .select('id, numero, hora_inicio, hora_fin, trabajo_titulo, usuario_nombre')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('usuario_id', String(usuarioId))
+    .eq('fecha', fecha)
+    .neq('estado', 'cancelado')
+    .not('hora_inicio', 'is', null)
+    .not('hora_fin',    'is', null);
+
+  if (excluirId) q = q.neq('id', excluirId);
+
+  const { data } = await q;
+  if (!data?.length) return null;
+
+  // Comparar en minutos para evitar problemas con formato HH:MM vs HH:MM:SS
+  return data.find(p => {
+    const pi = toMins(p.hora_inicio);
+    const pf = toMins(p.hora_fin);
+    return ni < pf && nf > pi; // solapamiento: inicio nuevo < fin existente Y fin nuevo > inicio existente
+  }) || null;
+}
+
+/** Muestra el toast de solapamiento con info del parte conflictivo */
+function _toastSolape(p) {
+  const hI = (p.hora_inicio || '').substring(0, 5);
+  const hF = (p.hora_fin    || '').substring(0, 5);
+  const tit = p.trabajo_titulo ? ` · ${p.trabajo_titulo}` : '';
+  toast(`⚠️ Conflicto de horario: ya hay un parte de ${hI} a ${hF}${tit}`, 'error');
+}

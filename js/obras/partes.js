@@ -778,6 +778,12 @@ async function guardarParte(estado = 'borrador') {
     const selOption = selUsr?.options[selUsr.selectedIndex];
     const usuario_nombre = selOption ? selOption.textContent.replace(/👷|🖥️/g,'').trim() : (CP?.nombre || '');
 
+
+    // ── Validar solapamiento de horario ──────────────────────────────────────
+    const _solape = await _validarSolapeHorario(usuario_id, fecha, hora_inicio, hora_fin, pt_edicion || null);
+    if (_solape) { _toastSolape(_solape); return; }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Materiales
     const materiales = pt_materiales.filter(m => m.articulo_id && m.cantidad > 0);
 
