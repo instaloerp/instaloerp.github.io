@@ -669,6 +669,49 @@ async function eliminarNota(id) {
 }
 
 // ═══════════════════════════════════════════════
+//  RESET Y CONTROL DEL FORMULARIO DE CLIENTE
+// ═══════════════════════════════════════════════
+
+/** Limpia todos los campos del formulario antes de abrir "Nuevo cliente" */
+function resetFormCliente() {
+  const ids = ['c_id','c_nombre','c_razon','c_nif','c_tel','c_movil','c_email',
+                'c_dir','c_muni','c_cp','c_prov','c_descuento','c_notas',
+                'c_iban','c_bic','c_banco_entidad','c_banco_titular'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = el.id === 'c_descuento' ? '0' : '';
+    el.style.borderColor = '';
+  });
+  const tipo = document.getElementById('c_tipo');
+  if (tipo) tipo.value = 'Particular';
+  const titulo = document.getElementById('mCliTit');
+  if (titulo) titulo.textContent = 'Nuevo Cliente';
+  const fpago = document.getElementById('c_fpago');
+  if (fpago) fpago.selectedIndex = 0;
+  const ibanMsg = document.getElementById('c_iban_msg');
+  if (ibanMsg) ibanMsg.textContent = '';
+  const ibanStatus = document.getElementById('c_iban_status');
+  if (ibanStatus) ibanStatus.textContent = '';
+  cliTipoChanged(); // ajustar visibilidad de razón social
+}
+
+/** Muestra/oculta el campo Razón social según el tipo seleccionado */
+function cliTipoChanged() {
+  const tipo = document.getElementById('c_tipo')?.value;
+  const wrapRazon = document.getElementById('c_wrap_razon');
+  if (!wrapRazon) return;
+  wrapRazon.style.display = tipo === 'Empresa' ? '' : 'none';
+  // Cambiar label NIF según tipo
+  const lblNif = document.getElementById('c_lbl_nif');
+  if (lblNif) {
+    if (tipo === 'Empresa')     lblNif.textContent = 'CIF *';
+    else if (tipo === 'Particular') lblNif.textContent = 'DNI/NIF *';
+    else                         lblNif.textContent = 'NIF *';
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CREAR CLIENTE DESDE DOCUMENTO
 // ═══════════════════════════════════════════════
 let _desdeDocumento = null;
@@ -1096,34 +1139,57 @@ async function saveContacto() {
   toast('Contacto añadido ✓','success');
 }
 
-async function delContacto(id) {
-  if(!confirm('¿Eliminar contacto?'))return;
-  await sb.from('contactos_cliente').delete().eq('id',id);
-  await abrirFicha(cliActualId);
-  toast('Eliminado','info');
-}
-
-// ═══════════════════════════════════════════════
-//  CRUD CLIENTES
-// ═══════════════════════════════════════════════
 function editCliente(id) {
   const c = clientes.find(x=>x.id===id); if(!c) return;
+  resetFormCliente(); // limpiar primero para no dejar residuos
   document.getElementById('c_id').value = c.id;
-  setVal({c_nombre:c.nombre,c_nif:c.nif||'',c_tel:c.telefono||'',c_movil:c.movil||'',c_email:c.email||'',c_dir:c.direccion_fiscal||'',c_muni:c.municipio_fiscal||'',c_cp:c.cp_fiscal||'',c_prov:c.provincia_fiscal||'',c_descuento:c.descuento_habitual||0,c_notas:c.observaciones||'',c_iban:c.iban||'',c_bic:c.bic||'',c_banco_entidad:c.banco_entidad||'',c_banco_titular:c.banco_titular||''});
+  setVal({c_nombre:c.nombre,c_nif:c.nif||'',c_tel:c.telefono||'',c_movil:c.movil||'',
+    c_email:c.email||'',c_dir:c.direccion_fiscal||'',c_muni:c.municipio_fiscal||'',
+    c_cp:c.cp_fiscal||'',c_prov:c.provincia_fiscal||'',c_descuento:c.descuento_habitual||0,
+    c_notas:c.observaciones||'',c_iban:c.iban||'',c_bic:c.bic||'',
+    c_banco_entidad:c.banco_entidad||'',c_banco_titular:c.banco_titular||'',
+    c_razon:c.razon_social||''});
   document.getElementById('c_tipo').value = c.tipo||'Particular';
   document.getElementById('mCliTit').textContent = 'Editar Cliente';
+  cliTipoChanged(); // ajustar razón social y labels según tipo
   // Validar IBAN si existe
   const ibanEl = document.getElementById('c_iban');
   if (ibanEl && ibanEl.value) validarIBANLive(ibanEl);
   openModal('mCliente', true);
-}
-
 async function saveCliente() {
   const nombre = document.getElementById('c_nombre').value.trim();
-  if (!nombre) { toast('Introduce el nombre','error'); return; }
+  const tipo   = v('c_tipo');
+  const nif    = v('c_nif').trim().toUpperCase();
+  const tel    = v('c_tel').trim();
+  const dir    = v('c_dir').trim();
+  const cp     = v('c_cp').trim();
+  const muni   = v('c_muni').trim();
+  const prov   = v('c_prov').trim();
 
-  const nif = v('c_nif').trim().toUpperCase();
-  const tipo = v('c_tipo');
+  // ─── Validación de campos obligatorios ────────────────────────────────────
+  const errores = [];
+  if (!nombre) errores.push('nombre');
+  if (!nif)    errores.push(tipo === 'Empresa' ? 'CIF' : tipo === 'Particular' ? 'DNI/NIF' : 'NIF');
+  if (!tel)    errores.push('teléfono');
+  if (!dir)    errores.push('dirección');
+  if (!cp)     errores.push('CP');
+  if (!muni)   errores.push('municipio');
+  if (!prov)   errores.push('provincia');
+
+  if (errores.length) {
+    // Resaltar campos en rojo
+    const mapa = { nombre:'c_nombre', teléfono:'c_tel', dirección:'c_dir', CP:'c_cp', municipio:'c_muni', provincia:'c_prov' };
+    const nifKey = tipo === 'Empresa' ? 'CIF' : tipo === 'Particular' ? 'DNI/NIF' : 'NIF';
+    mapa[nifKey] = 'c_nif';
+    errores.forEach(campo => {
+      const el = document.getElementById(mapa[campo]);
+      if (el) el.style.borderColor = 'var(--rojo)';
+    });
+    toast('Faltan campos obligatorios: ' + errores.join(', '), 'error');
+    return;
+  }
+
+  // Validar formato NIF (aviso, no bloquea)
   if (nif && !validarNIF(nif, tipo)) {
     if (!confirm('El NIF/CIF no parece válido. ¿Guardar igualmente?')) return;
   }
@@ -1132,9 +1198,10 @@ async function saveCliente() {
   const obj = {
     empresa_id: EMPRESA.id, nombre, tipo,
     nif: nif || null,
-    telefono: v('c_tel'), movil: v('c_movil'), email: v('c_email'),
-    direccion_fiscal: v('c_dir'), municipio_fiscal: v('c_muni'),
-    cp_fiscal: v('c_cp'), provincia_fiscal: v('c_prov'),
+    razon_social: tipo === 'Empresa' ? (v('c_razon').trim() || null) : null,
+    telefono: tel, movil: v('c_movil'), email: v('c_email'),
+    direccion_fiscal: dir, municipio_fiscal: muni,
+    cp_fiscal: cp, provincia_fiscal: prov,
     descuento_habitual: parseFloat(v('c_descuento'))||0,
     observaciones: v('c_notas'),
     iban: v('c_iban').replace(/\s/g,'').toUpperCase() || null,
@@ -1151,11 +1218,12 @@ async function saveCliente() {
     registrarAudit('modificar', 'cliente', parseInt(id), 'Editado cliente: '+nombre);
     toast('Cliente actualizado ✓','success');
   } else {
-    const { error } = await sb.from('clientes').insert(obj);
+    const { data, error } = await sb.from('clientes').insert(obj).select('id').single();
     if (error) { toast('Error al guardar: '+error.message,'error'); return; }
-    registrarAudit('crear', 'cliente', null, 'Nuevo cliente: '+nombre);
+    registrarAudit('crear', 'cliente', data?.id || null, 'Nuevo cliente: '+nombre);
     toast('Cliente guardado ✓','success');
   }
+
   closeModal('mCliente');
   const { data } = await sb.from('clientes').select('*').eq('empresa_id',EMPRESA.id).order('nombre');
   clientes = data||[];
@@ -1166,6 +1234,40 @@ async function saveCliente() {
   _cerrarClienteDesdeDocumento();
   _volverADocumentoConCliente();
 }
+
+// ─── Genera tarea pendiente cuando un cliente se crea automáticamente sin todos los campos ───────
+async function _generarTareaClienteIncompleto(clienteId, nombre, obj) {
+  const REQUERIDOS = {
+    telefono:          'Teléfono',
+    nif:               'NIF/CIF',
+    direccion_fiscal:  'Dirección',
+    cp_fiscal:         'CP',
+    municipio_fiscal:  'Municipio',
+    provincia_fiscal:  'Provincia'
+  };
+  const faltantes = Object.entries(REQUERIDOS)
+    .filter(([k]) => !obj[k])
+    .map(([, label]) => label);
+
+  if (!faltantes.length) return; // completo, no hace falta tarea
+
+  const tarea = {
+    empresa_id:       EMPRESA.id,
+    entidad_tipo:     'cliente',
+    entidad_id:       clienteId,
+    entidad_nombre:   nombre,
+    titulo:           'Completar ficha de cliente: ' + nombre,
+    campos_faltantes: faltantes,
+    origen:           'auto',
+    rol_asignado:     'admin',
+    estado:           'pendiente',
+    usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+  };
+  const { error } = await sb.from('tareas_pendientes').insert(tarea);
+  if (error) console.warn('[Tarea cliente incompleto]', error.message);
+  else console.info('[Tarea] Ficha incompleta → ' + nombre + ' | Faltan: ' + faltantes.join(', '));
+}
+
 
 function checkNIFLive(input) {
   const val = input.value.trim().toUpperCase();

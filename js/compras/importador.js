@@ -180,7 +180,7 @@ async function confirmarImport(tipo) {
 
   if (tipo === 'clientes') {
     for (const row of data) {
-      const { error } = await sb.from('clientes').insert({
+      const cliObj = {
         empresa_id: EMPRESA.id,
         nombre: row.nombre, tipo: row.tipo||'Particular',
         nif: row.nif||null, telefono: row.telefono||null,
@@ -190,8 +190,14 @@ async function confirmarImport(tipo) {
         cp_fiscal: row.cp_fiscal||null,
         provincia_fiscal: row.provincia_fiscal||null,
         observaciones: row.observaciones||null,
-      });
-      error ? err++ : ok++;
+      };
+      const { data: cliData, error } = await sb.from('clientes').insert(cliObj).select('id').single();
+      if (error) { err++; continue; }
+      ok++;
+      // Generar tarea si la ficha queda incompleta
+      if (typeof _generarTareaClienteIncompleto === 'function') {
+        await _generarTareaClienteIncompleto(cliData.id, row.nombre, cliObj);
+      }
     }
     closeModal('mImportarClientes');
     const { data: d } = await sb.from('clientes').select('*').eq('empresa_id',EMPRESA.id).order('nombre');

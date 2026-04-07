@@ -301,7 +301,7 @@
               <div style="width:1px;height:20px;background:var(--gris-200)"></div>
               <button class="btn btn-ghost btn-sm" onclick="exportarClientes()">📤 Exportar</button>
               <button class="btn btn-secondary btn-sm" onclick="openModal('mImportarClientes')">📥 Importar</button>
-              <button class="btn btn-primary btn-sm" onclick="openModal('mCliente')">+ Nuevo</button>
+              <button class="btn btn-primary btn-sm" onclick="resetFormCliente();openModal('mCliente')">+ Nuevo</button>
             </div>
           </div>
           <!-- Barra búsqueda y filtros -->
@@ -1950,22 +1950,22 @@
         </div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Tipo</label><select id="c_tipo"><option>Particular</option><option>Empresa</option><option>Comunidad</option></select></div>
-        <div class="fg"><label>Razón social</label><input id="c_razon" autocorrect="on" spellcheck="true" placeholder="Si es diferente al nombre"></div>
+        <div class="fg"><label>Tipo</label><select id="c_tipo" onchange="cliTipoChanged()"><option>Particular</option><option>Empresa</option><option>Comunidad</option></select></div>
+        <div class="fg" id="c_wrap_razon" style="display:none"><label>Razón social</label><input id="c_razon" autocorrect="on" spellcheck="true" placeholder="Nombre legal completo (si es diferente)"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>NIF/CIF</label><div style="display:flex;gap:6px"><input id="c_nif" style="flex:1" oninput="checkNIFLive(this)" placeholder="12345678A"><button type="button" class="btn btn-secondary btn-sm" onclick="buscarEmpresaPorCIF()" title="Buscar empresa por CIF">🔍</button></div></div>
-        <div class="fg"><label>Teléfono</label><input id="c_tel" type="tel"></div>
+        <div class="fg"><label id="c_lbl_nif">DNI/NIF *</label><div style="display:flex;gap:6px"><input id="c_nif" style="flex:1" oninput="checkNIFLive(this)" placeholder="12345678A"><button type="button" class="btn btn-secondary btn-sm" onclick="buscarEmpresaPorCIF()" title="Buscar empresa por CIF">🔍</button></div></div>
+        <div class="fg"><label>Teléfono *</label><input id="c_tel" type="tel"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Móvil</label><input id="c_movil" type="tel"></div>
         <div class="fg"><label>Email</label><input id="c_email" type="email"></div>
       </div>
-      <div class="fg" style="margin-bottom:11px"><label>Dirección fiscal</label><input id="c_dir" autocorrect="on" spellcheck="true"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Dirección fiscal *</label><input id="c_dir" autocorrect="on" spellcheck="true" placeholder="Calle y número"></div>
       <div class="fg-row g3" style="margin-bottom:11px">
-        <div class="fg"><label>Municipio</label><input id="c_muni" autocorrect="on" spellcheck="true"></div>
-        <div class="fg"><label>CP</label><input id="c_cp" maxlength="5" oninput="cpToProvincia(this.value,'c_prov')"></div>
-        <div class="fg"><label>Provincia</label><input id="c_prov" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>Municipio *</label><input id="c_muni" autocorrect="on" spellcheck="true"></div>
+        <div class="fg"><label>CP *</label><input id="c_cp" maxlength="5" oninput="cpToProvincia(this.value,'c_prov')"></div>
+        <div class="fg"><label>Provincia *</label><input id="c_prov" autocorrect="on" spellcheck="true"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Forma de pago</label><select id="c_fpago"></select></div>
@@ -3279,7 +3279,7 @@
 
 <!-- ═══ MODAL DETALLE FACTURA ═══ -->
 <div class="overlay" id="mFacturaDetalle">
-  <div class="modal modal-lg">
+  <div class="modal modal-fullscreen">
     <div class="modal-h">
       <span>🧾</span>
       <div>
@@ -3296,6 +3296,7 @@
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaDetalle')">✕</button>
     </div>
     <div class="modal-b">
+      <div style="max-width:900px;margin:0 auto">
       <input type="hidden" id="facDetId">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px">
         <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="facDetFecha" style="font-weight:600">—</div></div>
@@ -3335,6 +3336,7 @@
         <div id="facDetObs" style="font-size:13px;color:var(--gris-600);margin-top:4px;padding:8px 10px;background:var(--gris-50);border-radius:8px"></div>
       </div>
       <div id="facDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
+      </div><!-- /max-width wrapper -->
     </div>
     <div class="modal-f" style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mFacturaDetalle')">Cerrar</button>

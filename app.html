@@ -2389,16 +2389,22 @@ function _ppRender() {
     <div style="max-height:48vh;overflow-y:auto;padding-right:4px">${timeHtml}</div>`;
 }
 
-// Paso 2: confirmaci\u00f3n editable con datos pre-rellenos del slot y la obra
+// Paso 2: confirmación editable con datos pre-rellenos del slot y la obra
 function _openParteFormFilled(fecha, horaIni, horaFin) {
-  const uid      = document.getElementById('pp_usuario')?.value || CP?.id;
+  const uid = document.getElementById('pp_usuario')?.value || CP?.id;
+
+  // Validación: Con obra requiere obra seleccionada
+  if (_ppModo === 'obra' && !_ppObraId) {
+    toast('Selecciona una obra primero', 'error');
+    return;
+  }
+
   const diaLabel = new Date(fecha+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
 
   // Datos de la obra seleccionada (si aplica)
-  const trab    = (_ppModo === 'obra' && _ppObraId) ? trabajos.find(t => t.id == _ppObraId) : null;
-  const cli     = trab?.cliente_id ? clientes.find(c => c.id === trab.cliente_id) : null;
-  const dirObra = trab ? (trab.direccion_obra_texto || trab.direccion_obra || trab.direccion ||
-                  cli?.direccion_fiscal || '') : '';
+  const trab      = (_ppModo === 'obra' && _ppObraId) ? trabajos.find(t => t.id == _ppObraId) : null;
+  const cli       = trab?.cliente_id ? clientes.find(c => c.id === trab.cliente_id) : null;
+  const dirObra   = trab ? (trab.direccion_obra_texto || trab.direccion_obra || trab.direccion || cli?.direccion_fiscal || '') : '';
   const instrObra = trab?.instrucciones || '';
   const cliNombre = cli?.nombre || trab?.cliente_nombre || '';
   const opOptions = todosUsuarios.filter(u => u.disponible_partes)
@@ -2407,10 +2413,10 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
   document.getElementById('modalContent').innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <button onclick="_openParteForm()"
-        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:18px;line-height:1">\u2190</button>
-      <div class="modal-title" style="margin:0;flex:1">\u{1F527} Nuevo Parte</div>
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:18px;line-height:1">←</button>
+      <div class="modal-title" style="margin:0;flex:1">🔧 Nuevo Parte</div>
       <button onclick="closeModal()"
-        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:16px">\u2715</button>
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:16px">✕</button>
     </div>
     <div class="quick-form">
 
@@ -2428,19 +2434,18 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
       <div class="field">
         <label>Obra</label>
         <div style="padding:10px 12px;background:var(--gris-50);border:1.5px solid var(--gris-200);border-radius:10px">
-          ${trab
-            ? `<div style="font-size:13px;font-weight:700">${trab.titulo||'Sin t\u00edtulo'}</div>
-               ${cliNombre ? `<div style="font-size:11px;color:var(--gris-500);margin-top:2px">\u{1F464} ${cliNombre}</div>` : ''}`
-            : `<div style="font-size:13px;color:var(--gris-400)">\u2014 Sin obra seleccionada \u2014</div>`}
+          <div style="font-size:13px;font-weight:700">${trab.titulo||'Sin título'}</div>
+          ${cliNombre ? `<div style="font-size:11px;color:var(--gris-500);margin-top:2px">👤 ${cliNombre}</div>` : ''}
         </div>
         <input type="hidden" id="qf_trabajo" value="${_ppObraId||''}">
       </div>
-      ` : `
-      <!-- Parte libre -->
+      <!-- Descripción del trabajo (obligatorio) -->
       <div class="field">
-        <label>Descripci\u00f3n del trabajo *</label>
-        <input type="text" id="qf_libre_desc" placeholder="Ej: Reparaci\u00f3n fuga, Instalaci\u00f3n caldera...">
+        <label>Descripción del trabajo <span style="color:var(--rojo)">*</span></label>
+        <input type="text" id="qf_descripcion" placeholder="¿Qué hay que hacer?">
       </div>
+      ` : `
+      <!-- Parte libre: cliente -->
       <div class="field">
         <label>Cliente</label>
         <div style="display:flex;gap:6px;align-items:flex-start">
@@ -2453,17 +2458,22 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
             <div id="qfClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
           </div>
           <button onclick="_qfCrearClienteRapido()" title="Nuevo cliente"
-            style="padding:10px 13px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;cursor:pointer;font-size:18px;line-height:1;white-space:nowrap;flex-shrink:0">\u2795</button>
+            style="padding:10px 13px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;cursor:pointer;font-size:18px;line-height:1;white-space:nowrap;flex-shrink:0">➕</button>
         </div>
+      </div>
+      <!-- Descripción del trabajo (obligatorio) -->
+      <div class="field">
+        <label>Descripción del trabajo <span style="color:var(--rojo)">*</span></label>
+        <input type="text" id="qf_descripcion" placeholder="Ej: Reparación fuga, Instalación caldera...">
       </div>
       `}
 
-      <!-- Franja elegida \u2014 editable -->
+      <!-- Franja elegida — editable -->
       <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--azul-light);border-radius:10px;margin-bottom:10px">
-        <span style="font-size:20px">\u{1F4C5}</span>
+        <span style="font-size:20px">📅</span>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:700;color:var(--azul);text-transform:capitalize">${diaLabel}</div>
-          <div style="font-size:12px;color:var(--gris-600);margin-top:1px">${horaIni} \u2013 ${horaFin}</div>
+          <div style="font-size:12px;color:var(--gris-600);margin-top:1px">${horaIni} – ${horaFin}</div>
         </div>
         <button onclick="_openParteForm()"
           style="font-size:11px;color:var(--azul);background:none;border:1px solid var(--azul);border-radius:6px;padding:4px 8px;cursor:pointer">Cambiar</button>
@@ -2473,13 +2483,28 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
         <div style="flex:1"><label>Hora inicio</label><input type="time" id="qf_hora_ini" value="${horaIni}"></div>
         <div style="flex:1"><label>Hora fin</label>   <input type="time" id="qf_hora_fin"  value="${horaFin}"></div>
       </div>
-      <div class="field">
-        <label>Direcci\u00f3n</label>
-        <input type="text" id="qf_direccion" value="${dirObra.replace(/"/g,'&quot;')}" placeholder="Direcci\u00f3n del trabajo">
+
+      <!-- Dirección: solo informativa (no editable) -->
+      <div class="field" id="qf_dir_wrap">
+        <label style="display:flex;align-items:center;gap:6px">📍 Dirección
+          <span style="font-size:10px;font-weight:400;color:var(--gris-400)">solo informativa</span>
+        </label>
+        <div id="qf_direccion_display" style="padding:10px 12px;background:var(--gris-50);border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;color:var(--gris-700);min-height:40px;line-height:1.5">
+          ${_ppModo === 'obra'
+            ? (dirObra || '<span style="color:var(--gris-400)">Sin dirección asignada a la obra</span>')
+            : '<span style="color:var(--gris-400)">Selecciona un cliente para ver la dirección</span>'}
+        </div>
+        <input type="hidden" id="qf_direccion" value="${dirObra.replace(/"/g,'&quot;')}">
+        ${_ppModo === 'libre' ? `
+        <button onclick="_qfEditarDireccionCliente()" id="qf_btn_dir"
+          style="display:none;margin-top:6px;font-size:12px;color:var(--azul);background:none;border:1px solid var(--azul);border-radius:6px;padding:5px 10px;cursor:pointer;width:100%">
+          ➕ Añadir dirección al cliente
+        </button>` : ''}
       </div>
+
       <div class="field">
-        <label>Instrucciones</label>
-        <textarea id="qf_desc" placeholder="Instrucciones o notas...">${instrObra}</textarea>
+        <label>Notas adicionales</label>
+        <textarea id="qf_desc" placeholder="Instrucciones, observaciones...">${instrObra}</textarea>
       </div>
       <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:8px">Crear parte</button>
     </div>
@@ -2495,6 +2520,7 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
     setTimeout(() => { const r = document.getElementById('qfClienteResults'); if(r) r.style.display='none'; }, 200);
   });
 }
+
 
 function _qfModoToggle(modo) {
   const secObra  = document.getElementById('qfSecObra');
@@ -2542,6 +2568,22 @@ function _qfSelCliente(id, nombre) {
   if (input) { input.value = nombre; input.style.borderColor = 'var(--azul)'; }
   const res = document.getElementById('qfClienteResults');
   if (res) res.style.display = 'none';
+
+  // Auto-rellenar dirección del cliente en el campo informativo
+  const cli = (typeof clientes !== 'undefined' ? clientes : []).find(c => c.id == id);
+  if (cli) {
+    const _d  = cli.direccion  || cli.direccion_fiscal  || '';
+    const _cp = cli.cp         || cli.cp_fiscal          || '';
+    const _mu = cli.municipio  || cli.municipio_fiscal   || '';
+    const _pr = cli.provincia  || cli.provincia_fiscal   || '';
+    const dir = [_d, _cp, _mu, _pr].filter(Boolean).join(', ');
+    const display = document.getElementById('qf_direccion_display');
+    const hidden  = document.getElementById('qf_direccion');
+    const btnDir  = document.getElementById('qf_btn_dir');
+    if (display) display.innerHTML = dir ? dir : '<span style=\'color:var(--gris-400)\'>El cliente no tiene dirección guardada</span>';
+    if (hidden)  hidden.value = dir;
+    if (btnDir)  btnDir.style.display = dir ? 'none' : '';
+  }
 }
 
 // ─── Crear cliente rápido desde FAB parte libre ───────────────────────
@@ -2620,10 +2662,90 @@ async function _qfGuardarClienteRapido() {
     clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,
       direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov });
   }
+
+  // Generar tarea si la ficha queda incompleta (p.ej. falta NIF)
+  if (!nif && EMPRESA?.id) {
+    sb.from('tareas_pendientes').insert({
+      empresa_id: EMPRESA.id,
+      entidad_tipo: 'cliente', entidad_id: data.id, entidad_nombre: data.nombre,
+      titulo: 'Completar ficha de cliente: ' + data.nombre,
+      campos_faltantes: ['NIF/CIF'],
+      origen: 'auto', rol_asignado: 'admin', estado: 'pendiente',
+      usuario_creador_id: CP?.id || null
+    }).then(({ error: te }) => { if (te) console.warn('[Tarea cliente]', te.message); });
+  }
+
   _qfSelCliente(data.id, data.nombre);
   document.getElementById('qfMiniClienteModal')?.remove();
   toast('Cliente creado ✓', 'success');
 }
+
+// ─── Editar/añadir dirección del cliente desde parte libre ───────────────────
+function _qfEditarDireccionCliente() {
+  const clienteId = parseInt(document.getElementById('qf_cliente_id')?.value) || null;
+  if (!clienteId) { toast('Selecciona primero un cliente', 'error'); return; }
+  const existing = document.getElementById('qfMiniDirModal');
+  if (existing) { existing.remove(); return; }
+  const cli = (typeof clientes !== 'undefined' ? clientes : []).find(c => c.id === clienteId);
+  const iS = 'width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box;margin-top:4px';
+  const lS = 'font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-top:10px';
+  const mini = document.createElement('div');
+  mini.id = 'qfMiniDirModal';
+  mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+  mini.innerHTML = `
+    <div style="background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:800">📍 Dirección del cliente</div>
+        <button onclick="document.getElementById('qfMiniDirModal').remove()"
+          style="width:28px;height:28px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <label style="${lS}">Calle / dirección</label>
+      <input id="qfDirCalle" type="text" style="${iS}" placeholder="Calle, número..." value="${cli?.direccion||cli?.direccion_fiscal||''}">
+      <label style="${lS}">CP</label>
+      <input id="qfDirCp" type="text" style="${iS}" placeholder="Código postal" value="${cli?.cp||cli?.cp_fiscal||''}">
+      <label style="${lS}">Municipio</label>
+      <input id="qfDirMun" type="text" style="${iS}" placeholder="Municipio" value="${cli?.municipio||cli?.municipio_fiscal||''}">
+      <label style="${lS}">Provincia</label>
+      <input id="qfDirProv" type="text" style="${iS}" placeholder="Provincia" value="${cli?.provincia||cli?.provincia_fiscal||''}">
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button onclick="document.getElementById('qfMiniDirModal').remove()"
+          style="flex:1;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;font-size:14px;cursor:pointer">Cancelar</button>
+        <button onclick="_qfGuardarDireccionCliente(${clienteId})"
+          style="flex:2;padding:12px;border:none;border-radius:10px;background:var(--azul);color:#fff;font-size:14px;font-weight:700;cursor:pointer">Guardar dirección</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mini);
+}
+
+async function _qfGuardarDireccionCliente(clienteId) {
+  const calle = document.getElementById('qfDirCalle')?.value.trim() || '';
+  const cp    = document.getElementById('qfDirCp')?.value.trim()    || '';
+  const mun   = document.getElementById('qfDirMun')?.value.trim()   || '';
+  const prov  = document.getElementById('qfDirProv')?.value.trim()  || '';
+  if (!calle) { toast('Indica la dirección (calle)', 'error'); return; }
+  try {
+    const { error } = await sb.from('clientes').update({
+      direccion: calle, cp, municipio: mun, provincia: prov
+    }).eq('id', clienteId);
+    if (error) throw error;
+    // Actualizar array local
+    const idx = (typeof clientes !== 'undefined' ? clientes : []).findIndex(c => c.id === clienteId);
+    if (idx >= 0) {
+      clientes[idx].direccion = calle; clientes[idx].cp = cp;
+      clientes[idx].municipio = mun;   clientes[idx].provincia = prov;
+    }
+    const dir = [calle, cp, mun, prov].filter(Boolean).join(', ');
+    const display = document.getElementById('qf_direccion_display');
+    const hidden  = document.getElementById('qf_direccion');
+    const btnDir  = document.getElementById('qf_btn_dir');
+    if (display) display.innerHTML = dir;
+    if (hidden)  hidden.value = dir;
+    if (btnDir)  btnDir.style.display = 'none';
+    document.getElementById('qfMiniDirModal')?.remove();
+    toast('Dirección guardada en el cliente ✓', 'success');
+  } catch(e) { toast('Error: '+(e.message||e), 'error'); }
+}
+
 
 async function _saveParteForm() {
   if (!EMPRESA) { toast('Sin empresa activa','error'); return; }
@@ -2639,17 +2761,20 @@ async function _saveParteForm() {
     let cliente_nombre = null;
     let es_parte_libre = false;
 
+    // Descripción del trabajo (obligatorio en ambos modos)
+    const descripcion = document.getElementById('qf_descripcion')?.value?.trim() || '';
+    if (!descripcion) { toast('Indica la descripción del trabajo', 'error'); return; }
+
     if (esLibre) {
-      const desc = document.getElementById('qf_libre_desc')?.value.trim();
-      if (!desc) { toast('Indica la descripción del trabajo', 'error'); return; }
-      trabajo_titulo  = desc;
+      trabajo_titulo  = descripcion;
       es_parte_libre  = true;
       cliente_id      = parseInt(document.getElementById('qf_cliente_id')?.value) || null;
       cliente_nombre  = document.getElementById('qf_cliente_nombre')?.value || null;
     } else {
       const trabajoId = document.getElementById('qf_trabajo')?.value;
+      if (!trabajoId) { toast('Selecciona una obra', 'error'); return; }
       const obra = trabajos.find(t => t.id == trabajoId);
-      trabajo_id    = trabajoId ? parseInt(trabajoId) : null;
+      trabajo_id    = parseInt(trabajoId);
       trabajo_titulo = obra?.titulo || '';
     }
 
@@ -2665,15 +2790,14 @@ async function _saveParteForm() {
       fecha:          document.getElementById('qf_fecha')?.value || _fmtDateStr(new Date()),
       hora_inicio:    document.getElementById('qf_hora_ini')?.value || '08:00',
       hora_fin:       document.getElementById('qf_hora_fin')?.value || '14:00',
-      instrucciones:  document.getElementById('qf_desc')?.value || '',
+      instrucciones:  descripcion + (document.getElementById('qf_desc')?.value?.trim() ? '\n' + document.getElementById('qf_desc').value.trim() : ''),
       horas: 0
     };
 
-    // Si es parte libre con cliente y sin dirección manual → copiar dirección del cliente al parte
+    // Dirección: ya viene pre-cargada desde el campo oculto qf_direccion
     const dirManual = document.getElementById('qf_direccion')?.value?.trim() || '';
-    if (dirManual) {
-      record.direccion = dirManual;
-    } else if (esLibre && cliente_id) {
+    record.direccion = dirManual;
+    if (!record.direccion && esLibre && cliente_id) {
       const cliRec = (typeof clientes !== 'undefined' ? clientes : []).find(c => c.id === cliente_id);
       if (cliRec) {
         const _d  = cliRec.direccion  || cliRec.direccion_fiscal  || '';
@@ -2681,7 +2805,6 @@ async function _saveParteForm() {
         const _mu = cliRec.municipio  || cliRec.municipio_fiscal   || '';
         const _pr = cliRec.provincia  || cliRec.provincia_fiscal   || '';
         record.direccion = [_d, _cp, _mu, _pr].filter(Boolean).join(', ');
-        // También el teléfono si no se guardó en otro campo
         if (!record.cliente_telefono && cliRec.telefono) record.cliente_telefono = cliRec.telefono;
       }
     }
