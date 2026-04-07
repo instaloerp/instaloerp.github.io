@@ -2169,12 +2169,8 @@ function _openDocEditor(tipo) {
       </div>
     </div>
 
-    <!-- FECHA + OBS -->
-    <div id="docDatosExtra" style="display:none">
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <div class="field" style="flex:1;margin:0"><label style="font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;display:block;margin-bottom:3px">Fecha</label><input type="date" id="docFecha" value="${_doc.fecha}" onchange="_doc.fecha=this.value" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)"></div>
-      </div>
-    </div>
+    <!-- DATOS EXTRA (fecha auto = hoy, solo mostramos placeholder oculto para compatibilidad) -->
+    <div id="docDatosExtra" style="display:none"></div>
 
     <!-- LÍNEAS -->
     <div id="docLineasSection" style="display:none">
@@ -2322,27 +2318,37 @@ function _docRenderLineas() {
         <input type="text" class="doc-linea-desc" placeholder="Buscar artículo o escribir descripción..."
           value="${(ln.desc||'').replace(/"/g,'&quot;')}"
           oninput="_docBuscarArticulo(${i},this.value)"
-          onchange="_docUpdateLinea(${i},'desc',this.value)"
+          onblur="_docUpdateLinea(${i},'desc',this.value,false)"
+          onkeydown="_docDescEnter(event,${i})"
+          autocomplete="off"
           style="width:calc(100% - 30px);padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
         <div id="docArtResults${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
       </div>
       ${ln.codigo ? `<div style="font-size:10px;color:var(--azul);font-weight:600;margin-bottom:4px">📦 ${ln.codigo}</div>` : ''}
       <div style="display:flex;gap:6px;align-items:center">
         <div style="flex:1"><label style="font-size:10px;color:var(--gris-400)">Cant.</label><input type="number" value="${ln.cant}" step="any" min="0"
-          onchange="_docUpdateLinea(${i},'cant',this.value)"
+          oninput="_docUpdateLinea(${i},'cant',this.value,false)"
+          onkeydown="_docNumEnter(event,${i},0)"
+          inputmode="decimal"
           style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
         <div style="flex:1.5"><label style="font-size:10px;color:var(--gris-400)">Precio</label><input type="number" value="${ln.precio}" step="any" min="0"
-          onchange="_docUpdateLinea(${i},'precio',this.value)"
+          oninput="_docUpdateLinea(${i},'precio',this.value,false)"
+          onkeydown="_docNumEnter(event,${i},1)"
+          inputmode="decimal"
           style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:right;font-family:var(--font)"></div>
         <div style="flex:0.8"><label style="font-size:10px;color:var(--gris-400)">Dto%</label><input type="number" value="${ln.dto}" step="any" min="0" max="100"
-          onchange="_docUpdateLinea(${i},'dto',this.value)"
+          oninput="_docUpdateLinea(${i},'dto',this.value,false)"
+          onkeydown="_docNumEnter(event,${i},2)"
+          inputmode="decimal"
           style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
         <div style="flex:0.8"><label style="font-size:10px;color:var(--gris-400)">IVA%</label><input type="number" value="${ln.iva}" step="any" min="0"
-          onchange="_docUpdateLinea(${i},'iva',this.value)"
+          oninput="_docUpdateLinea(${i},'iva',this.value,false)"
+          onkeydown="_docNumEnter(event,${i},3)"
+          inputmode="decimal"
           style="width:100%;padding:6px 8px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-family:var(--font)"></div>
         <div style="min-width:55px;text-align:right">
           <label style="font-size:10px;color:var(--gris-400)">Importe</label>
-          <div style="font-size:13px;font-weight:700">${_docLineImporte(ln)}</div>
+          <div id="docLineaImp${i}" style="font-size:13px;font-weight:700">${_docLineImporte(ln)}</div>
         </div>
       </div>
     </div>
@@ -2356,14 +2362,45 @@ function _docLineImporte(ln) {
   return base.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
 }
 
-function _docUpdateLinea(idx, field, val) {
+// Actualiza datos SIN re-renderizar (el teclado no se cierra)
+function _docUpdateLinea(idx, field, val, rerender = false) {
   if (!_doc.lineas[idx]) return;
   if (field === 'desc') _doc.lineas[idx].desc = val;
   else if (field === 'cant') _doc.lineas[idx].cant = parseFloat(val) || 0;
   else if (field === 'precio') _doc.lineas[idx].precio = parseFloat(val) || 0;
   else if (field === 'dto') _doc.lineas[idx].dto = parseFloat(val) || 0;
   else if (field === 'iva') _doc.lineas[idx].iva = parseFloat(val) || 0;
+  // Actualiza solo el importe de esa línea sin destruir el DOM
+  const impEl = document.getElementById('docLineaImp' + idx);
+  if (impEl) impEl.textContent = _docLineImporte(_doc.lineas[idx]);
   _docRecalcTotales();
+  if (rerender) _docRenderLineas();
+}
+
+// Enter en descripción → foco a Cant.
+function _docDescEnter(e, idx) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const linea = document.getElementById('docLinea' + idx);
+  if (!linea) return;
+  const first = linea.querySelectorAll('input[type="number"]')[0];
+  if (first) { first.focus(); first.select(); }
+}
+
+// Enter en campos numéricos: navega al siguiente, y al último crea nueva línea
+function _docNumEnter(e, idx, fieldPos) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const linea = document.getElementById('docLinea' + idx);
+  if (!linea) return;
+  const nums = linea.querySelectorAll('input[type="number"]');
+  if (fieldPos < nums.length - 1) {
+    nums[fieldPos + 1].focus();
+    nums[fieldPos + 1].select();
+  } else {
+    // Último campo → nueva línea
+    _docAddLinea();
+  }
 }
 
 function _docDelLinea(idx) {
@@ -2502,8 +2539,10 @@ function _docVolverEdicion() {
   // Restaurar estado
   setTimeout(() => {
     if (_doc.cliente) _docSelCliente(_doc.cliente.id);
-    document.getElementById('docFecha').value = _doc.fecha;
-    document.getElementById('docObs').value = _doc.observaciones || '';
+    const docFechaEl = document.getElementById('docFecha');
+    if (docFechaEl) docFechaEl.value = _doc.fecha;
+    const docObsEl = document.getElementById('docObs');
+    if (docObsEl) docObsEl.value = _doc.observaciones || '';
     _docRenderLineas();
   }, 50);
 }
@@ -2571,8 +2610,11 @@ async function _docGenerar() {
     const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
     if (_doc.tipo === 'presupuesto' && _doc._firmaToken) {
       _doc._enlace = `${baseUrl}/firma.html?token=${_doc._firmaToken}`;
+    } else if (_doc.tipo === 'factura') {
+      _doc._enlace = `${baseUrl}/factura.html?id=${data.id}`;
+    } else if (_doc.tipo === 'albaran') {
+      _doc._enlace = `${baseUrl}/albaran.html?id=${data.id}`;
     } else {
-      // Para albaranes y facturas: enlace al ERP (se podrá crear página pública más adelante)
       _doc._enlace = null;
     }
 
@@ -2653,20 +2695,17 @@ function _docGetMensaje() {
   _doc.lineas.forEach(ln => {
     total += (ln.cant||0) * (ln.precio||0) * (1-(ln.dto||0)/100) * (1+(ln.iva||0)/100);
   });
+  const totalFmt = total.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
 
   let msg = `Estimado/a ${_doc.cliente?.nombre||'cliente'}, desde ${empresa} le hacemos llegar su ${tipoLabel}`;
   if (_doc._numero) msg += ` nº ${_doc._numero}`;
-  msg += ` por importe de ${total.toFixed(2)} €.`;
+  msg += ` por importe de ${totalFmt}.`;
 
   if (_doc.tipo === 'presupuesto' && _doc._enlace) {
     msg += `\n\nPuede ver y firmar el presupuesto en el siguiente enlace:\n${_doc._enlace}`;
   } else if (_doc._enlace) {
-    msg += `\n\nPuede consultar los detalles en:\n${_doc._enlace}`;
+    msg += `\n\nPuede consultar y descargar el documento en:\n${_doc._enlace}`;
   }
-
-  const lineasResumen = _doc.lineas.slice(0, 5).map(ln => `• ${ln.desc||'—'} x${ln.cant||1} = ${((ln.cant||0)*(ln.precio||0)*(1-(ln.dto||0)/100)).toFixed(2)}€`).join('\n');
-  if (lineasResumen) msg += '\n\n' + lineasResumen;
-  if (_doc.lineas.length > 5) msg += `\n... y ${_doc.lineas.length - 5} línea(s) más`;
 
   msg += `\n\nGracias por confiar en nosotros.\n${empresa}`;
   return msg;

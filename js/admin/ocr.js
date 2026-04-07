@@ -6,30 +6,61 @@
 
 let _ocrDocs = []; // cache local para filtro de búsqueda
 
-// ─── Realtime — actualización automática de la bandeja ───
+// ─── Realtime + Polling — actualización automática de la bandeja ───
 let _ocrChannel        = null;
 let _ocrReloadTimer    = null;
+let _ocrPollInterval   = null;
+let _ocrLastCount      = -1;   // para detectar cambios en el polling
+let _ocrIgnoreNext     = false; // evita re-render tras borrado manual
+
+// Polling cada 15 s: garantía si el realtime de Supabase no llega
+function _ocrStartPoll() {
+  if (_ocrPollInterval) return;
+  _ocrPollInterval = setInterval(async () => {
+    if (!EMPRESA?.id) return;
+    try {
+      const { count } = await sb.from('documentos_ocr')
+        .select('*', { count: 'exact', head: true })
+        .eq('empresa_id', EMPRESA.id);
+      if (count !== _ocrLastCount) {
+        _ocrLastCount = count;
+        const paginaActiva = document.getElementById('page-ocr')?.classList.contains('active');
+        if (paginaActiva) {
+          loadOCRInbox();
+        } else {
+          updateOCRBadge();
+        }
+      }
+    } catch(e) { /* silent */ }
+  }, 15000);
+}
+
+function _ocrStopPoll() {
+  clearInterval(_ocrPollInterval);
+  _ocrPollInterval = null;
+}
 
 function _ocrStartRealtime() {
-  if (_ocrChannel) return; // ya suscrito
+  _ocrStartPoll(); // siempre arrancar polling como garantía
+  if (_ocrChannel) return; // ya suscrito al realtime
   _ocrChannel = sb
-    .channel('ocr-realtime-' + (EMPRESA?.id || 'global'))
+    .channel('ocr-rt-' + (EMPRESA?.id || 'g'))
     .on('postgres_changes', {
       event:  '*',               // INSERT · UPDATE · DELETE
       schema: 'public',
       table:  'documentos_ocr',
       filter: `empresa_id=eq.${EMPRESA.id}`
     }, () => {
-      // Debounce 400 ms para evitar recargas múltiples en ráfagas
+      if (_ocrIgnoreNext) { _ocrIgnoreNext = false; return; } // ignorar evento propio del delete
       clearTimeout(_ocrReloadTimer);
       _ocrReloadTimer = setTimeout(() => {
         const paginaActiva = document.getElementById('page-ocr')?.classList.contains('active');
         if (paginaActiva) {
-          loadOCRInbox();          // recarga completa si el usuario está viendo la bandeja
+          loadOCRInbox();
         } else {
-          updateOCRBadge();        // solo actualiza el badge del sidebar si está en otra sección
+          updateOCRBadge();
         }
-      }, 400);
+      }, 500);
     })
     .subscribe((status) => {
       const dot = document.getElementById('ocrLiveDot');
@@ -40,6 +71,7 @@ function _ocrStartRealtime() {
 function _ocrStopRealtime() {
   if (_ocrChannel) { sb.removeChannel(_ocrChannel); _ocrChannel = null; }
   clearTimeout(_ocrReloadTimer);
+  _ocrStopPoll();
 }
 
 // ─── Badge counter in sidebar ───
@@ -428,21 +460,40 @@ function ocrVerVinculado(id) {
 async function ocrEliminar(id) {
   if (!confirm('¿Eliminar este documento OCR?')) return;
 
+  // 1. Borrado optimista: quitar de la cache local y re-renderizar YA (sin esperar a la DB)
+  _ocrDocs = _ocrDocs.filter(d => d.id !== id);
+  _ocrRenderTable(_ocrDocs);
+  _ocrUpdateKpis();
+  _ocrLastCount = _ocrDocs.length; // actualizar contador para que el polling no re-dispare
+
+  // 2. Cancelar cualquier reload pendiente (del realtime) para evitar que el item reaparezca
+  clearTimeout(_ocrReloadTimer);
+  _ocrIgnoreNext = true; // el DELETE en la DB dispara un evento realtime — lo ignoramos
+
+  // 3. Borrar en la DB (en segundo plano)
   const { data: doc } = await sb.from('documentos_ocr').select('archivo_path').eq('id', id).single();
   const { error } = await sb.from('documentos_ocr').delete().eq('id', id);
-  if (error) { toast('Error al eliminar: ' + error.message, 'error'); return; }
+  if (error) {
+    toast('Error al eliminar: ' + error.message, 'error');
+    // Revertir: recargar para restaurar el estado real
+    _ocrIgnoreNext = false;
+    loadOCRInbox();
+    return;
+  }
 
+  // 4. Borrar el archivo del storage
   if (doc?.archivo_path) {
     await sb.storage.from('documentos').remove([doc.archivo_path]);
   }
 
   toast('Documento OCR eliminado', 'success');
-  loadOCRInbox();
+  updateOCRBadge();
+  // No llamamos loadOCRInbox() — ya está actualizado con el borrado optimista
 }
 
 // ─── Hook: update badge on app init ───
 if (typeof window._initHooks === 'undefined') window._initHooks = [];
 window._initHooks.push(updateOCRBadge);
 
-// Auto-refresh badge every 60s
-setInterval(updateOCRBadge, 60000);
+// El badge se actualiza automáticamente mediante el polling de 15s (_ocrStartPoll)
+// No hace falta un setInterval adicional aquí
