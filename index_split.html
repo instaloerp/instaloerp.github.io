@@ -824,26 +824,32 @@
             <select id="fEstado" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
               <option value="_todas" selected>Todas (sin anuladas)</option>
               <option value="">Todos los estados</option>
-              <option value="borrador">Borrador</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="cobrada">Cobrada</option>
-              <option value="vencida">Vencida</option>
-              <option value="anulada">Anulada</option>
+              <option value="borrador">✏️ Borrador</option>
+              <option value="pendiente">⏳ Pendiente</option>
+              <option value="cobrada">✅ Cobrada</option>
+              <option value="vencida">⚠️ Vencida</option>
+              <option value="anulada">🚫 Anulada</option>
             </select>
-            <input type="date" id="fDesde" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <input type="date" id="fHasta" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <select id="fAnio" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" title="Filtrar por año">
+              <option value="">Todos los años</option>
+            </select>
+            <input type="date" id="fDesde" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" placeholder="Desde">
+            <input type="date" id="fHasta" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" placeholder="Hasta">
             <button class="btn btn-ghost btn-sm" onclick="exportarFacturas()">📤 Exportar</button>
             <button class="btn btn-ghost btn-sm" onclick="generarRemesaSEPA()" title="Generar remesa SEPA de adeudo directo desde facturas pendientes">🏦 Remesa SEPA</button>
             <button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>
           </div>
         </div>
         <!-- KPIs -->
-        <div id="fk-row" style="display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:16px">
+        <div id="fk-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
           <div class="sc fk-click" data-fk="_todas" onclick="filtrarFacturasPorKpi('_todas')" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer"><div class="si">🧾</div><div class="sv" id="fk-total">—</div><div class="sl">Todas</div></div>
           <div class="sc fk-click" data-fk="borrador" onclick="filtrarFacturasPorKpi('borrador')" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer"><div class="si">✏️</div><div class="sv" id="fk-borradores">—</div><div class="sl">Borradores</div></div>
           <div class="sc fk-click" data-fk="pendiente" onclick="filtrarFacturasPorKpi('pendiente')" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer"><div class="si">⏳</div><div class="sv" id="fk-pendientes">—</div><div class="sl">Pendientes</div></div>
           <div class="sc fk-click" data-fk="vencida" onclick="filtrarFacturasPorKpi('vencida')" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer"><div class="si">⚠️</div><div class="sv" id="fk-vencidas">—</div><div class="sl">Vencidas</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
           <div class="sc fk-click" data-fk="cobrada" onclick="filtrarFacturasPorKpi('cobrada')" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer"><div class="si">✅</div><div class="sv" id="fk-cobradas">—</div><div class="sl">Cobradas</div></div>
+          <div class="sc fk-click" data-fk="anulada" onclick="filtrarFacturasPorKpi('anulada')" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer"><div class="si">🚫</div><div class="sv" id="fk-anuladas">—</div><div class="sl">Anuladas</div></div>
           <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="fk-imp-pend">—</div><div class="sl">Importe pendiente</div></div>
           <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💰</div><div class="sv" id="fk-imp-cobr">—</div><div class="sl">Importe cobrado</div></div>
         </div>

@@ -3334,6 +3334,17 @@ function openParteDetail(id) {
           }
         }
       }
+      // Parte libre: obtener datos del cliente directamente por cliente_id
+      if (p.cliente_id && (!cliNombre || !cliTelefono)) {
+        const cliDirecto = clientes.find(c => c.id === p.cliente_id);
+        if (cliDirecto) {
+          if (!cliNombre) cliNombre = cliDirecto.nombre || '';
+          if (!cliTelefono) cliTelefono = cliDirecto.telefono || '';
+          if (!cliEmail) cliEmail = cliDirecto.email || '';
+        }
+      }
+      // Último recurso: cliente_nombre guardado en el parte
+      if (!cliNombre) cliNombre = p.cliente_nombre || '';
       if (cliNombre || cliTelefono || cliEmail) {
         return `<div style="margin-bottom:12px;padding:12px;background:var(--violeta-light);border-radius:8px">
           <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--violeta)">👤 Cliente</div>
@@ -3351,6 +3362,14 @@ function openParteDetail(id) {
       if (!dir && p.trabajo_id) {
         const trab = trabajos.find(tr => tr.id === p.trabajo_id);
         if (trab) dir = trab.direccion_obra_texto || '';
+      }
+      // Parte libre: usar dirección del cliente si el parte no tiene una
+      if (!dir && p.cliente_id) {
+        const cliDir = clientes.find(c => c.id === p.cliente_id);
+        if (cliDir) {
+          const partsDir = [cliDir.direccion, cliDir.cp, cliDir.municipio, cliDir.provincia].filter(Boolean);
+          dir = partsDir.join(', ');
+        }
       }
       if (dir) {
         const dirEnc = encodeURIComponent(dir);

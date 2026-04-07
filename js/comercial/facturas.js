@@ -22,12 +22,21 @@ async function loadFacturas() {
     .order('created_at', { ascending: false });
   facLocalData = data || [];
   window.facturasData = facLocalData;
-  // Filtro por defecto: año en curso
-  const y = new Date().getFullYear();
+  // Poblar selector de año con los años presentes en las facturas
+  const anioSel = document.getElementById('fAnio');
+  if (anioSel) {
+    const aniosPresentes = [...new Set(
+      facLocalData.map(f => f.fecha ? new Date(f.fecha).getFullYear() : null).filter(Boolean)
+    )].sort((a, b) => b - a);
+    const anioActual = new Date().getFullYear();
+    anioSel.innerHTML = '<option value="">Todos los años</option>' +
+      aniosPresentes.map(a => `<option value="${a}" ${a === anioActual ? 'selected' : ''}>${a}</option>`).join('');
+  }
+  // Quitar filtro de fecha manual — el filtro de año hace ese trabajo
   const dEl = document.getElementById('fDesde');
   const hEl = document.getElementById('fHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  if (dEl) dEl.value = '';
+  if (hEl) hEl.value = '';
   facFiltrados = [...facLocalData];
   filtrarFacturas();
 }
@@ -55,22 +64,25 @@ function renderFacturas(list) {
   // KPIs — dinámicos sobre la lista filtrada visible
   const noAnuladas = list.filter(f => f.estado !== 'anulada');
   const borradores = list.filter(f => f.estado === 'borrador');
-  const pends = list.filter(f => f.estado === 'pendiente');
+  const pends    = list.filter(f => f.estado === 'pendiente');
   const vencidas = list.filter(f => f.estado === 'vencida');
   const cobradas = list.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
+  const anuladas = list.filter(f => f.estado === 'anulada');
 
-  const kTotal   = document.getElementById('fk-total');
-  const kBorr    = document.getElementById('fk-borradores');
-  const kPend    = document.getElementById('fk-pendientes');
-  const kVenc    = document.getElementById('fk-vencidas');
-  const kCobr    = document.getElementById('fk-cobradas');
-  const kImpPend = document.getElementById('fk-imp-pend');
-  const kImpCobr = document.getElementById('fk-imp-cobr');
+  const kTotal    = document.getElementById('fk-total');
+  const kBorr     = document.getElementById('fk-borradores');
+  const kPend     = document.getElementById('fk-pendientes');
+  const kVenc     = document.getElementById('fk-vencidas');
+  const kCobr     = document.getElementById('fk-cobradas');
+  const kAnul     = document.getElementById('fk-anuladas');
+  const kImpPend  = document.getElementById('fk-imp-pend');
+  const kImpCobr  = document.getElementById('fk-imp-cobr');
   if (kTotal)   kTotal.textContent   = noAnuladas.length;
   if (kBorr)    kBorr.textContent    = borradores.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kVenc)    kVenc.textContent    = vencidas.length;
   if (kCobr)    kCobr.textContent    = cobradas.length;
+  if (kAnul)    kAnul.textContent    = anuladas.length;
   if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas).reduce((s, f) => s + (f.total || 0), 0));
   if (kImpCobr) kImpCobr.textContent = fmtE(cobradas.reduce((s, f) => s + (f.total || 0), 0));
 
@@ -104,7 +116,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #10B981;background:#D1FAE5;cursor:pointer;font-size:11px;font-weight:700;color:#065F46" title="Marcar como cobrada">💰 Cobrada</button>` : ''}
+          ${f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
             const _tA = !!f.albaran_id;
@@ -127,10 +139,11 @@ function renderFacturas(list) {
 //  FILTRADO Y BÚSQUEDA
 // ═══════════════════════════════════════════════
 function filtrarFacturas() {
-  const q   = (document.getElementById('fSearch')?.value || '').toLowerCase();
-  const est = document.getElementById('fEstado')?.value || '';
-  const des = document.getElementById('fDesde')?.value || '';
-  const has = document.getElementById('fHasta')?.value || '';
+  const q    = (document.getElementById('fSearch')?.value || '').toLowerCase();
+  const est  = document.getElementById('fEstado')?.value || '';
+  const anio = document.getElementById('fAnio')?.value || '';
+  const des  = document.getElementById('fDesde')?.value || '';
+  const has  = document.getElementById('fHasta')?.value || '';
   facFiltrados = facLocalData.filter(f => {
     // Filtro de estado
     if (est === '_todas') {
@@ -142,7 +155,9 @@ function filtrarFacturas() {
     }
     // Filtro de búsqueda
     if (q && !(f.numero || '').toLowerCase().includes(q) && !(f.cliente_nombre || '').toLowerCase().includes(q)) return false;
-    // Filtro de fechas
+    // Filtro de año
+    if (anio && f.fecha && new Date(f.fecha).getFullYear() !== parseInt(anio)) return false;
+    // Filtro de fechas exactas (complementario al año)
     if (des && (!f.fecha || f.fecha < des)) return false;
     if (has && (!f.fecha || f.fecha > has)) return false;
     return true;
@@ -199,10 +214,88 @@ function cambiarEstadoFacMenu(event, id) {
   setTimeout(() => document.addEventListener('click', _close), 10);
 }
 
-async function marcarCobrada(id) {
-  if (!confirm('¿Marcar esta factura como cobrada?')) return;
-  await cambiarEstadoFac(id, 'cobrada');
+function marcarCobrada(id) {
+  const f = facLocalData.find(x => x.id === id);
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  // Opciones de forma de pago desde administración
+  const fpOpts = (typeof formasPago !== 'undefined' ? formasPago : [])
+    .map(fp => `<option value="${fp.id}">${fp.nombre}</option>`).join('');
+
+  const html = `
+    <div style="padding:8px 0">
+      <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">💰 Registrar cobro</h3>
+      <p style="font-size:13px;color:var(--gris-500);margin-bottom:20px">
+        Factura <strong>${f?.numero || '—'}</strong> · <strong>${f ? fmtE(f.total || 0) : '—'}</strong>
+      </p>
+
+      <label style="display:block;margin-bottom:14px">
+        <span style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:4px">Fecha de cobro</span>
+        <input type="date" id="cobro_fecha" value="${hoy}"
+          style="width:100%;padding:9px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;outline:none">
+        <span style="font-size:11px;color:var(--gris-400);margin-top:3px;display:block">
+          Modifica si el cobro fue en una fecha anterior
+        </span>
+      </label>
+
+      <label style="display:block;margin-bottom:14px">
+        <span style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:4px">Forma de pago</span>
+        ${fpOpts ? `<select id="cobro_fp" style="width:100%;padding:9px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;outline:none">
+          <option value="">— Sin especificar —</option>
+          ${fpOpts}
+        </select>` : `<p style="font-size:13px;color:var(--gris-400);padding:8px 0">
+          No hay formas de pago configuradas. <a href="#" onclick="goPage('config');closeModal();return false" style="color:var(--azul)">Configúralas en Administración</a>.
+        </p>`}
+      </label>
+
+      <label style="display:block;margin-bottom:20px">
+        <span style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:4px">Notas (opcional)</span>
+        <input type="text" id="cobro_notas" placeholder="Ej: Transferencia recibida el día 5..."
+          style="width:100%;padding:9px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+      </label>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('mCobroFac')">Cancelar</button>
+        <button class="btn btn-primary" onclick="_confirmarCobro(${id})" style="background:var(--verde)">✅ Confirmar cobro</button>
+      </div>
+    </div>`;
+
+  // Reutilizar modal genérico o crear uno temporal
+  const existing = document.getElementById('mCobroFac');
+  if (existing) {
+    existing.remove();
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'mCobroFac';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:5000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:16px;padding:28px;max-width:420px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.2)">${html}</div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  document.getElementById('cobro_fecha')?.focus();
 }
+
+async function _confirmarCobro(id) {
+  const fecha   = document.getElementById('cobro_fecha')?.value || new Date().toISOString().slice(0, 10);
+  const fpId    = parseInt(document.getElementById('cobro_fp')?.value) || null;
+  const notas   = document.getElementById('cobro_notas')?.value?.trim() || null;
+
+  const upd = { estado: 'cobrada', fecha_cobro: fecha };
+  if (fpId)  upd.forma_pago_id = fpId;
+  if (notas) upd.notas_cobro   = notas;
+
+  const { error } = await sb.from('facturas').update(upd).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  const f = facLocalData.find(x => x.id === id);
+  if (f) Object.assign(f, upd);
+  window.facturasData = facLocalData;
+
+  document.getElementById('mCobroFac')?.remove();
+  toast('✅ Factura marcada como cobrada', 'success');
+  filtrarFacturas();
+  loadDashboard();
+}
+
 // Compat legacy
 async function marcarPagada(id) { return marcarCobrada(id); }
 
@@ -293,7 +386,7 @@ function verDetalleFactura(id) {
     if (f.estado === 'cobrada' || f.estado === 'pagada' || f.estado === 'anulada') {
       footerBtns.innerHTML = '';
     } else {
-      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="marcarCobrada(${f.id});closeModal('mFacturaDetalle')">💰 Marcar como cobrada</button>`;
+      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="closeModal('mFacturaDetalle');marcarCobrada(${f.id})" style="background:var(--verde)">💰 Registrar cobro</button>`;
     }
   }
 
