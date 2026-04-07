@@ -8,6 +8,8 @@
 <meta http-equiv="Expires" content="0">
 <title>Instalo ERP</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" href="icon.png" sizes="any">
+<link rel="apple-touch-icon" href="icon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -3285,6 +3287,7 @@
         <div id="facDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
+        <button class="btn btn-primary btn-sm" onclick="window.open('factura.html?id='+document.getElementById('facDetId').value,'_blank')" title="Ver factura en pantalla completa" style="gap:4px">↗️ Abrir</button>
         <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value))" title="Enviar por email">📧 Enviar</button>

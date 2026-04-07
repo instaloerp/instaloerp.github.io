@@ -717,9 +717,14 @@ async function enviarCorreo() {
       if (error) throw error;
 
       if (data?.success) {
-        toast('📤 Correo enviado correctamente', 'success');
         cancelarCorreo();
         await loadCorreos();
+        // Popup de confirmación si el correo va vinculado a una factura
+        if (vinculacion?.tipo === 'factura') {
+          _mostrarPopupEnvioFactura(vinculacion.ref || '', para);
+        } else {
+          toast('📤 Correo enviado correctamente', 'success');
+        }
         return;
       } else {
         throw new Error(data?.error || 'Error desconocido');
@@ -904,4 +909,43 @@ async function _marcarSeleccionados(comoLeido) {
   _correosSeleccionados.clear();
   filtrarCorreos();
   toast(`✅ ${ids.length} correo${ids.length !== 1 ? 's' : ''} marcado${ids.length !== 1 ? 's' : ''} como ${comoLeido ? 'leídos' : 'no leídos'}`, 'success');
+}
+
+// ── Popup de confirmación de envío de factura ──
+function _mostrarPopupEnvioFactura(ref, destinatario) {
+  const existing = document.getElementById('_popupFacturaEnviada');
+  if (existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.id = '_popupFacturaEnviada';
+  popup.style.cssText = [
+    'position:fixed;bottom:24px;right:24px;z-index:9999',
+    'background:#fff;border-radius:16px;padding:20px 24px',
+    'box-shadow:0 8px 32px rgba(0,0,0,.18);border-left:4px solid #10B981',
+    'max-width:340px;display:flex;flex-direction:column;gap:8px',
+    'animation:_slideIn .25s ease'
+  ].join(';');
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes _slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}';
+  document.head.appendChild(style);
+
+  popup.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:24px">📤</span>
+      <div>
+        <div style="font-weight:800;font-size:14px;color:#065F46">Factura enviada</div>
+        <div style="font-size:12px;color:#6B7280;margin-top:2px">${ref ? ref + ' · ' : ''}${destinatario || ''}</div>
+      </div>
+      <button onclick="this.closest('#_popupFacturaEnviada').remove()"
+        style="margin-left:auto;background:none;border:none;font-size:18px;cursor:pointer;color:#9CA3AF;line-height:1">✕</button>
+    </div>
+    <div style="font-size:12px;color:#374151">
+      El correo ha salido del servidor correctamente.
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+  // Cierre automático a los 6 segundos
+  setTimeout(() => { popup.style.transition = 'opacity .4s'; popup.style.opacity = '0'; setTimeout(() => popup.remove(), 400); }, 6000);
 }

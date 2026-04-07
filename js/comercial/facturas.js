@@ -804,15 +804,13 @@ ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}`;
 
-  // Si hay cuenta SMTP y función de envío, usar Edge Function con PDF adjunto
-  if (typeof enviarDocumentoPorEmail === 'function' && _correoCuentaActiva) {
-    // Pre-rellenar composer de correo con datos
+  // Usar siempre el gestor de correo interno del ERP
+  if (typeof nuevoCorreo === 'function') {
+    closeModal('mFacturaDetalle');
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura', id: f.id, ref: f.numero || '' });
     goPage('correo');
   } else {
-    // Fallback: mailto
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('📧 Abriendo cliente de correo...','info');
+    toast('⚠️ El gestor de correo no está disponible. Configura una cuenta en Administración → Correo.', 'warning');
   }
 }
 

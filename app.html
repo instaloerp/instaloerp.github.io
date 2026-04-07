@@ -2378,10 +2378,27 @@ async function _saveParteForm() {
       fecha:          document.getElementById('qf_fecha')?.value || _fmtDateStr(new Date()),
       hora_inicio:    document.getElementById('qf_hora_ini')?.value || '08:00',
       hora_fin:       document.getElementById('qf_hora_fin')?.value || '14:00',
-      direccion:      document.getElementById('qf_direccion')?.value || '',
       instrucciones:  document.getElementById('qf_desc')?.value || '',
       horas: 0
     };
+
+    // Si es parte libre con cliente y sin dirección manual → copiar dirección del cliente al parte
+    const dirManual = document.getElementById('qf_direccion')?.value?.trim() || '';
+    if (dirManual) {
+      record.direccion = dirManual;
+    } else if (esLibre && cliente_id) {
+      const cliRec = (typeof clientes !== 'undefined' ? clientes : []).find(c => c.id === cliente_id);
+      if (cliRec) {
+        const _d  = cliRec.direccion  || cliRec.direccion_fiscal  || '';
+        const _cp = cliRec.cp         || cliRec.cp_fiscal          || '';
+        const _mu = cliRec.municipio  || cliRec.municipio_fiscal   || '';
+        const _pr = cliRec.provincia  || cliRec.provincia_fiscal   || '';
+        record.direccion = [_d, _cp, _mu, _pr].filter(Boolean).join(', ');
+        // También el teléfono si no se guardó en otro campo
+        if (!record.cliente_telefono && cliRec.telefono) record.cliente_telefono = cliRec.telefono;
+      }
+    }
+    if (!record.direccion) record.direccion = '';
 
     const { error } = await sb.from('partes_trabajo').insert(record);
     if (error) throw error;
@@ -2808,6 +2825,43 @@ function _docVolverEdicion() {
   }, 50);
 }
 
+// ── Genera el siguiente número de documento real consultando Supabase ──
+async function _appGenerarNumeroDoc(tipo) {
+  const PREFIJOS  = { presupuesto:'PRE-', albaran:'ALB-', factura:'FAC-' };
+  const TABLAS    = { presupuesto:'presupuestos', albaran:'albaranes', factura:'facturas' };
+  const tabla     = TABLAS[tipo];
+  const prefijoDef = PREFIJOS[tipo] || 'DOC-';
+
+  // Leer serie configurada para este tipo
+  let prefijo = prefijoDef, digitos = 4;
+  try {
+    const TIPO_ALIAS = { factura:['factura','fact','facturas'], presupuesto:['presupuesto','pres','presup'], albaran:['albaran','alb'] };
+    const { data: sers } = await sb.from('series_numeracion')
+      .select('*').eq('empresa_id', EMPRESA.id);
+    if (sers?.length) {
+      const aliases = TIPO_ALIAS[tipo] || [tipo];
+      const s = sers.find(x => aliases.includes(x.tipo));
+      if (s) { prefijo = s.prefijo || prefijo; digitos = s.digitos || digitos; }
+    }
+  } catch(e) {}
+
+  // Buscar el número más alto existente (excluyendo BORR-)
+  let maxNum = 0;
+  try {
+    const { data: ultimos } = await sb.from(tabla)
+      .select('numero').eq('empresa_id', EMPRESA.id)
+      .not('numero','is',null).not('numero','like','BORR-%')
+      .order('created_at', { ascending: false }).limit(20);
+    (ultimos || []).forEach(d => {
+      const m = (d.numero || '').match(/(\d+)$/);
+      if (m) { const n = parseInt(m[1]); if (n > maxNum) maxNum = n; }
+    });
+  } catch(e) {}
+
+  const siguiente = maxNum + 1;
+  return prefijo + String(siguiente).padStart(digitos, '0');
+}
+
 // ── Generar documento en Supabase ──
 async function _docGenerar() {
   if (!_doc.cliente) { toast('Selecciona un cliente','error'); return; }
@@ -2825,8 +2879,8 @@ async function _docGenerar() {
   });
   const total = baseTotal + ivaTotal;
 
-  // Generar número provisional
-  const numero = 'BORR-' + Date.now();
+  // Generar número real según la serie configurada
+  const numero = await _appGenerarNumeroDoc(_doc.tipo);
 
   const datos = {
     empresa_id: EMPRESA.id,
@@ -3334,9 +3388,17 @@ function openParteDetail(id) {
           }
         }
       }
-      // Parte libre: obtener datos del cliente directamente por cliente_id
-      if (p.cliente_id && (!cliNombre || !cliTelefono)) {
-        const cliDirecto = clientes.find(c => c.id === p.cliente_id);
+      // Parte libre: obtener datos del cliente directamente
+      if (!cliNombre || !cliTelefono) {
+        let cliDirecto = null;
+        if (p.cliente_id) {
+          cliDirecto = clientes.find(c => c.id === p.cliente_id);
+        }
+        // Fallback: buscar por nombre (partes antiguos sin cliente_id)
+        if (!cliDirecto && p.cliente_nombre) {
+          const nomBusca = (p.cliente_nombre || '').toLowerCase().trim();
+          cliDirecto = clientes.find(c => (c.nombre||'').toLowerCase().trim() === nomBusca);
+        }
         if (cliDirecto) {
           if (!cliNombre) cliNombre = cliDirecto.nombre || '';
           if (!cliTelefono) cliTelefono = cliDirecto.telefono || '';
@@ -3364,22 +3426,41 @@ function openParteDetail(id) {
         if (trab) dir = trab.direccion_obra_texto || '';
       }
       // Parte libre: usar dirección del cliente si el parte no tiene una
-      if (!dir && p.cliente_id) {
-        const cliDir = clientes.find(c => c.id === p.cliente_id);
+      // Soporta tanto columnas 'direccion' como 'direccion_fiscal' (clientes creados en caliente)
+      if (!dir && !p.trabajo_id) {
+        let cliDir = null;
+        if (p.cliente_id) {
+          cliDir = clientes.find(c => c.id === p.cliente_id);
+        }
+        // Fallback: buscar por nombre (partes libres antiguos sin cliente_id)
+        if (!cliDir && p.cliente_nombre) {
+          const nomBusca = (p.cliente_nombre || '').toLowerCase().trim();
+          cliDir = clientes.find(c => (c.nombre||'').toLowerCase().trim() === nomBusca);
+        }
         if (cliDir) {
-          const partsDir = [cliDir.direccion, cliDir.cp, cliDir.municipio, cliDir.provincia].filter(Boolean);
-          dir = partsDir.join(', ');
+          const _d  = cliDir.direccion  || cliDir.direccion_fiscal  || '';
+          const _cp = cliDir.cp         || cliDir.cp_fiscal          || '';
+          const _mu = cliDir.municipio  || cliDir.municipio_fiscal   || '';
+          const _pr = cliDir.provincia  || cliDir.provincia_fiscal   || '';
+          dir = [_d, _cp, _mu, _pr].filter(Boolean).join(', ');
         }
       }
       if (dir) {
         const dirEnc = encodeURIComponent(dir);
         const mapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + dirEnc;
-        const embedUrl = 'https://www.openstreetmap.org/export/embed.html?bbox=&layer=mapnik&marker=&query=' + dirEnc;
-        return `<div style="margin-bottom:12px;border-radius:10px;overflow:hidden;border:1.5px solid var(--gris-200)">
-          <iframe src="https://maps.google.com/maps?q=${dirEnc}&z=15&output=embed" width="100%" height="150" style="border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          <div style="padding:10px;background:var(--gris-50);display:flex;align-items:center;gap:8px">
-            <span style="font-size:12px;flex:1;color:var(--gris-600)">📍 ${dir}</span>
-            <a href="${mapsUrl}" target="_blank" style="background:var(--azul);color:#fff;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">🧭 Indicaciones</a>
+        const mapImgFallbackId = 'mapFb_' + p.id;
+        return `<div style="margin-bottom:12px;border-radius:10px;overflow:hidden;border:1.5px solid var(--gris-200);background:#fff">
+          <div style="padding:12px 14px 10px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris-500);margin-bottom:6px">📍 Dirección</div>
+            <div style="font-size:15px;font-weight:700;color:var(--gris-800);line-height:1.45;margin-bottom:10px">${dir}</div>
+            <a href="${mapsUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;background:var(--azul);color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">🧭 Cómo llegar</a>
+          </div>
+          <div id="${mapImgFallbackId}" style="height:140px;overflow:hidden;border-top:1px solid var(--gris-200)">
+            <iframe src="https://maps.google.com/maps?q=${dirEnc}&z=15&output=embed"
+              width="100%" height="140" style="border:0;display:block" loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+              onload="try{var d=this.contentDocument||this.contentWindow.document;if(d&&d.body&&d.body.innerHTML.indexOf('UnsupportedBrowser')>-1)document.getElementById('${mapImgFallbackId}').style.display='none'}catch(e){}"
+            ></iframe>
           </div>
         </div>`;
       }
@@ -3395,6 +3476,19 @@ function openParteDetail(id) {
           if (!instr) instr = trab.instrucciones || '';
           trabDesc = trab.descripcion || '';
         }
+      }
+      // Parte libre: si no hay instrucciones propias, mostrar notas del cliente
+      if (!instr && !p.trabajo_id) {
+        let cliInstr = null;
+        if (p.cliente_id) {
+          cliInstr = clientes.find(c => c.id === p.cliente_id);
+        }
+        // Fallback: buscar por nombre si no hay cliente_id (partes antiguos)
+        if (!cliInstr && p.cliente_nombre) {
+          const nomBusca = (p.cliente_nombre || '').toLowerCase().trim();
+          cliInstr = clientes.find(c => (c.nombre||'').toLowerCase().trim() === nomBusca);
+        }
+        if (cliInstr) instr = cliInstr.notas || cliInstr.observaciones || '';
       }
       let html = '';
       if (trabDesc) {
