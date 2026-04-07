@@ -203,7 +203,7 @@
       <!-- PERSONAL -->
       <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)"><span class="sb-sec-ico">👷</span><span class="sb-sec-label">Personal</span></div>
       <div class="sb-section-items" id="sec-personal">
-        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes<span class="sb-beta">beta</span></button>
       </div>
 
       <!-- ADMINISTRACIÓN -->
@@ -3652,7 +3652,7 @@
 <script src="js/core/app.js?v=20260407b"></script>
 <script src="js/core/ui.js?v=20260403p"></script>
 <script src="js/core/dashboard.js?v=20260403p"></script>
-<script src="js/core/sidebar.js"></script>
+<script src="js/core/sidebar.js?v=20260408a"></script>
 
 <!-- Comercial -->
 <script src="js/comercial/autocomplete.js"></script>
@@ -3686,7 +3686,7 @@
 <script src="js/obras/calendario.js?v=20260403p"></script>
 
 <!-- Personal -->
-<script src="js/personal/fichajes.js"></script>
+<script src="js/personal/fichajes.js?v=20260408a"></script>
 
 <!-- Editor de Documentos -->
 <script src="js/editor/editor.js?v=20260403p"></script>
@@ -3778,6 +3778,50 @@
           ✅ Validar y crear
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar Fichaje (admin) -->
+<div class="overlay" id="mFichaje" onclick="if(event.target===this)closeModal('mFichaje')">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-h"><span>⏱️</span><h2 id="mFichajeTit">Editar Fichaje</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="fic_id">
+      <div class="form-g">
+        <div class="form-r">
+          <div class="form-f">
+            <label class="label" for="fic_fecha">Fecha</label>
+            <input type="date" id="fic_fecha" class="input">
+          </div>
+        </div>
+        <div class="form-r" style="grid-template-columns:1fr 1fr">
+          <div class="form-f">
+            <label class="label" for="fic_entrada">Hora entrada</label>
+            <input type="time" id="fic_entrada" class="input">
+          </div>
+          <div class="form-f">
+            <label class="label" for="fic_salida">Hora salida</label>
+            <input type="time" id="fic_salida" class="input" placeholder="(en curso)">
+          </div>
+        </div>
+        <div class="form-r">
+          <div class="form-f">
+            <label class="label" for="fic_motivo">Motivo de la corrección <span style="color:var(--rojo)">*</span></label>
+            <input type="text" id="fic_motivo" class="input" placeholder="Ej: Operario olvidó fichar entrada">
+          </div>
+        </div>
+        <div class="form-r">
+          <div class="form-f">
+            <label class="label" for="fic_observaciones">Observaciones</label>
+            <input type="text" id="fic_observaciones" class="input" placeholder="Notas adicionales (opcional)">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mFichaje')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFichaje()">💾 Guardar</button>
     </div>
   </div>
 </div>

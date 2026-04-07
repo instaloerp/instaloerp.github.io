@@ -129,18 +129,7 @@ function renderFichajes() {
       ` : ''}
       <select id="ficFiltroMes" onchange="filtrarFichajes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
         <option value="">Mes actual</option>
-        <option value="201">Enero</option>
-        <option value="202">Febrero</option>
-        <option value="203">Marzo</option>
-        <option value="204">Abril</option>
-        <option value="205">Mayo</option>
-        <option value="206">Junio</option>
-        <option value="207">Julio</option>
-        <option value="208">Agosto</option>
-        <option value="209">Septiembre</option>
-        <option value="2010">Octubre</option>
-        <option value="2011">Noviembre</option>
-        <option value="2012">Diciembre</option>
+        ${_getFicMesesOpciones()}
       </select>
     </div>
 
@@ -330,9 +319,15 @@ async function saveFichaje() {
   const entrada = document.getElementById('fic_entrada').value;
   const salida = document.getElementById('fic_salida').value;
   const observaciones = document.getElementById('fic_observaciones').value;
+  const motivo = (document.getElementById('fic_motivo')?.value || '').trim();
 
   if (!fecha || !entrada) {
-    toast('Fecha y entrada son obligatorias', 'error');
+    toast('Fecha y hora de entrada son obligatorias', 'error');
+    return;
+  }
+  if (!motivo) {
+    toast('El motivo de la corrección es obligatorio', 'error');
+    document.getElementById('fic_motivo')?.focus();
     return;
   }
 
@@ -350,16 +345,36 @@ async function saveFichaje() {
   };
 
   if (id) {
+    // Guardar en audit trail antes de actualizar
+    const original = fichajes.find(f => String(f.id) === String(id));
+    if (original) {
+      const cambios = [];
+      if (original.hora_entrada !== obj.hora_entrada) cambios.push({ campo: 'hora_entrada', antes: original.hora_entrada, despues: obj.hora_entrada });
+      if ((original.hora_salida || null) !== (obj.hora_salida || null)) cambios.push({ campo: 'hora_salida', antes: original.hora_salida, despues: obj.hora_salida });
+      if ((original.horas_total || null) !== (obj.horas_total || null)) cambios.push({ campo: 'horas_total', antes: String(original.horas_total), despues: String(obj.horas_total) });
+      if (cambios.length > 0) {
+        const ajustes = cambios.map(c => ({
+          fichaje_id: id,
+          campo_modificado: c.campo,
+          valor_anterior: c.antes || null,
+          valor_nuevo: c.despues || null,
+          ajustado_por: CU.id,
+          motivo
+        }));
+        await sb.from('fichajes_ajustes').insert(ajustes);
+      }
+    }
+
     const { error } = await sb.from('fichajes').update(obj).eq('id', id);
     if (error) {
       toast('Error: ' + error.message, 'error');
       return;
     }
-    toast('Fichaje actualizado ✓', 'success');
+    toast('Fichaje corregido ✓ (audit registrado)', 'success');
   }
 
   closeModal('mFichaje');
-  document.getElementById('fic_id').value = '';
+  ['fic_id','fic_motivo'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   await loadFichajes();
 }
 
@@ -380,9 +395,23 @@ async function delFichaje(id) {
 // ═══════════════════════════════════════════════
 //  FILTROS
 // ═══════════════════════════════════════════════
+function _getFicMesesOpciones() {
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const ahora = new Date();
+  let opts = '';
+  // Mostrar últimos 12 meses
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${meses[d.getMonth()]} ${d.getFullYear()}`;
+    opts += `<option value="${val}">${label}</option>`;
+  }
+  return opts;
+}
+
 async function filtrarFichajes() {
   const usuarioId = document.getElementById('ficFiltroUsuario')?.value || '';
-  const mes = document.getElementById('ficFiltroMes')?.value || '';
+  const mes = document.getElementById('ficFiltroMes')?.value || ''; // formato YYYY-MM
 
   // Crear query base
   let query = sb.from('fichajes')
@@ -396,20 +425,11 @@ async function filtrarFichajes() {
     query = query.eq('usuario_id', CU.id);
   }
 
-  // Filtro mes
-  if (mes) {
-    const [year, month] = mes.match(/\d{4}/) ? [mes.slice(0, 4), mes.slice(4)] : [new Date().getFullYear(), mes];
-    const mesFormat = `${year}-${String(month).padStart(2, '0')}`;
-    query = query
-      .gte('fecha', mesFormat + '-01')
-      .lte('fecha', mesFormat + '-31');
-  } else {
-    const ahora = new Date();
-    const mesActual = ahora.toISOString().slice(0, 7);
-    query = query
-      .gte('fecha', mesActual + '-01')
-      .lte('fecha', mesActual + '-31');
-  }
+  // Filtro mes (formato YYYY-MM)
+  const mesFormat = mes || new Date().toISOString().slice(0, 7);
+  query = query
+    .gte('fecha', mesFormat + '-01')
+    .lte('fecha', mesFormat + '-31');
 
   const { data } = await query.order('fecha', { ascending: false }).order('hora_entrada', { ascending: false });
   fichajes = data || [];
@@ -418,7 +438,7 @@ async function filtrarFichajes() {
 }
 
 // ═══════════════════════════════════════════════
-//  EXPORTAR A EXCEL
+//  EXPORTAR A CSV (compatible ITSS / asesoría laboral)
 // ═══════════════════════════════════════════════
 function exportFichajes() {
   if (fichajes.length === 0) {
@@ -426,43 +446,53 @@ function exportFichajes() {
     return;
   }
 
-  // Preparar datos
-  const datos = fichajes.map(f => ({
-    'Fecha': f.fecha || '',
-    'Empleado': f.usuario_nombre || '',
-    'Entrada': f.hora_entrada ? f.hora_entrada.slice(0, 5) : '',
-    'Salida': f.hora_salida ? f.hora_salida.slice(0, 5) : '',
-    'Horas': f.horas_total ? parseFloat(f.horas_total).toFixed(2) : '',
-    'Observaciones': f.observaciones || ''
-  }));
+  const empresa = (typeof EMPRESA !== 'undefined' && EMPRESA?.razon_social) ? EMPRESA.razon_social : '';
+  const sep = ';'; // Separador punto y coma (estándar Excel europeo)
 
-  // Crear CSV
-  const headers = ['Fecha', 'Empleado', 'Entrada', 'Salida', 'Horas', 'Observaciones'];
-  let csv = headers.join(',') + '\n';
+  // Cabecera informativa (requerida por ITSS)
+  let csv = `\uFEFF`; // BOM para UTF-8 en Excel
+  csv += `"REGISTRO DE JORNADA LABORAL"\n`;
+  csv += `"Empresa: ${empresa}"\n`;
+  csv += `"Exportado: ${new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}"\n`;
+  csv += `\n`;
 
-  datos.forEach(row => {
-    csv += [
-      row.Fecha,
-      '"' + row.Empleado + '"',
-      row.Entrada,
-      row.Salida,
-      row.Horas,
-      '"' + row.Observaciones + '"'
-    ].join(',') + '\n';
+  // Cabecera de columnas
+  const cols = ['Fecha','Día semana','Empleado','Hora entrada','Hora salida','Horas trabajadas','Estado','Observaciones'];
+  csv += cols.map(c => `"${c}"`).join(sep) + '\n';
+
+  const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  fichajes.forEach(f => {
+    const fechaObj = f.fecha ? new Date(f.fecha + 'T00:00:00') : null;
+    const diaSem = fechaObj ? diasSemana[fechaObj.getDay()] : '';
+    const estado = !f.hora_salida ? 'Abierto' : (f.observaciones?.includes('correg') ? 'Ajustado' : 'Completo');
+    const row = [
+      f.fecha || '',
+      diaSem,
+      f.usuario_nombre || '',
+      f.hora_entrada ? f.hora_entrada.slice(0, 5) : '',
+      f.hora_salida ? f.hora_salida.slice(0, 5) : '',
+      f.horas_total ? parseFloat(f.horas_total).toFixed(2).replace('.', ',') : '',
+      estado,
+      f.observaciones || ''
+    ];
+    csv += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(sep) + '\n';
   });
+
+  // Pie de total
+  const totalHoras = fichajes.reduce((s, f) => s + (parseFloat(f.horas_total) || 0), 0);
+  csv += `\n"Total horas"${sep}${sep}${sep}${sep}${sep}"${totalHoras.toFixed(2).replace('.', ',')}"\n`;
 
   // Descargar
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `fichajes_${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute('href', URL.createObjectURL(blob));
+  link.setAttribute('download', `registro_jornada_${new Date().toISOString().split('T')[0]}.csv`);
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  toast('Fichajes exportados ✓', 'success');
+  toast(`Exportados ${fichajes.length} registros ✓`, 'success');
 }
 
 // ═══════════════════════════════════════════════

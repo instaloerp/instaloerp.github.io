@@ -383,6 +383,10 @@ let trabajos = [];
 let clientes = [];
 let articulos = [];
 
+// Fichaje
+let misFichajesHoy = [];
+let _fichajeEntradaHoy = null; // fichaje de entrada abierto (sin salida)
+
 // Wizard state
 let _wiz = { parteId:null, step:0, fotos:[], materiales:[], albaranes_compra:[], firmaData:null };
 
@@ -996,6 +1000,9 @@ async function loadAllData() {
     await cacheDataOffline();
     _updateConnIndicator();
 
+    // Cargar fichajes de hoy (no bloqueante — en paralelo con el resto)
+    loadMisFichajesHoy().catch(e => console.warn('[Fichajes]', e));
+
   } catch(e) {
     console.error('Error loading data:', e);
     // Si falla la red, intentar cache offline
@@ -1090,6 +1097,144 @@ function forceCacheClear() {
 // OPERARIO VIEWS
 // ═══════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════
+// MÓDULO FICHAJE MÓVIL
+// ═══════════════════════════════════════════════
+async function loadMisFichajesHoy() {
+  if (!EMPRESA || !CU) return;
+  const hoy = new Date().toISOString().split('T')[0];
+  const { data } = await sb.from('fichajes')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('usuario_id', CU.id)
+    .eq('fecha', hoy)
+    .order('hora_entrada', { ascending: true });
+  misFichajesHoy = data || [];
+  // Detectar si hay una entrada abierta (sin salida)
+  _fichajeEntradaHoy = misFichajesHoy.find(f => f.hora_entrada && !f.hora_salida) || null;
+}
+
+function _getFichajeCardHtml() {
+  const tieneEntrada = !!_fichajeEntradaHoy;
+  const tiempoCorriendo = tieneEntrada ? _calcTiempoFichaje(_fichajeEntradaHoy.hora_entrada) : '';
+  const entradaLabel = _fichajeEntradaHoy?.hora_entrada?.slice(0,5) || '';
+
+  return `
+    <div style="margin-bottom:16px;border-radius:14px;overflow:hidden;border:2px solid ${tieneEntrada ? '#2563EB' : '#E5E7EB'};background:${tieneEntrada ? '#EFF6FF' : '#fff'}">
+      <div style="padding:14px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;font-weight:800;color:${tieneEntrada ? '#1D4ED8' : '#6B7280'};text-transform:uppercase;letter-spacing:.5px">⏱️ Fichaje de jornada</div>
+            ${tieneEntrada
+              ? `<div style="font-size:13px;color:#374151;margin-top:2px">Entrada: <b>${entradaLabel}</b> · <span id="ficTiempoVivo">${tiempoCorriendo}</span></div>`
+              : `<div style="font-size:13px;color:#9CA3AF;margin-top:2px">Sin fichar hoy</div>`
+            }
+          </div>
+          <div style="width:44px;height:44px;border-radius:50%;background:${tieneEntrada ? '#2563EB' : '#F3F4F6'};display:flex;align-items:center;justify-content:center;font-size:20px">
+            ${tieneEntrada ? '🟢' : '⏸️'}
+          </div>
+        </div>
+        <button onclick="${tieneEntrada ? 'appFichajeSalida()' : 'appFichajeEntrada()'}"
+          style="width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font);background:${tieneEntrada ? '#EF4444' : '#2563EB'};color:#fff;display:flex;align-items:center;justify-content:center;gap:8px">
+          ${tieneEntrada ? '🔴 Fichar salida' : '🟢 Fichar entrada'}
+        </button>
+        ${misFichajesHoy.length > 0 ? `
+          <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+            ${misFichajesHoy.filter(f=>f.hora_salida).map(f=>`
+              <span style="font-size:11px;color:#6B7280;background:#F3F4F6;padding:3px 8px;border-radius:8px">
+                ${f.hora_entrada?.slice(0,5)||'?'} → ${f.hora_salida?.slice(0,5)||'?'}
+                (${f.horas_total ? parseFloat(f.horas_total).toFixed(1)+'h' : '—'})
+              </span>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>`;
+}
+
+function _calcTiempoFichaje(horaEntrada) {
+  if (!horaEntrada) return '';
+  const [h, m] = horaEntrada.split(':').map(Number);
+  const ahora = new Date();
+  const entrada = new Date(); entrada.setHours(h, m, 0, 0);
+  const mins = Math.floor((ahora - entrada) / 60000);
+  if (mins < 0) return '—';
+  const hh = Math.floor(mins / 60), mm = mins % 60;
+  return hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+}
+
+async function appFichajeEntrada() {
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando…'; }
+
+  const hoy = new Date().toISOString().split('T')[0];
+  const ahora = new Date();
+  const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}:${String(ahora.getSeconds()).padStart(2,'0')}`;
+
+  let lat = null, lng = null;
+  if (navigator.geolocation) {
+    try {
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 }));
+      lat = pos.coords.latitude; lng = pos.coords.longitude;
+    } catch(_) { /* Sin GPS: fichaje igualmente válido */ }
+  }
+
+  const { data, error } = await sb.from('fichajes').insert({
+    empresa_id: EMPRESA.id, usuario_id: CU.id,
+    usuario_nombre: CP?.nombre || '',
+    fecha: hoy, hora_entrada: hora, tipo: 'entrada', latitud: lat, longitud: lng
+  }).select().single();
+
+  if (error) { toast('Error al fichar: ' + error.message, 'error'); if (btn) { btn.disabled = false; } return; }
+
+  _fichajeEntradaHoy = data;
+  misFichajesHoy.push(data);
+  toast('✅ Entrada registrada · ' + hora.slice(0,5), 'success');
+  // Re-renderizar para actualizar el card
+  const body = document.getElementById('appBody');
+  if (body) navigateTo('inicio');
+}
+
+async function appFichajeSalida() {
+  if (!_fichajeEntradaHoy) { toast('No hay entrada registrada hoy', 'error'); return; }
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando…'; }
+
+  const ahora = new Date();
+  const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}:${String(ahora.getSeconds()).padStart(2,'0')}`;
+
+  let lat = null, lng = null;
+  if (navigator.geolocation) {
+    try {
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 }));
+      lat = pos.coords.latitude; lng = pos.coords.longitude;
+    } catch(_) {}
+  }
+
+  // Calcular horas
+  const [hh, mm] = _fichajeEntradaHoy.hora_entrada.split(':').map(Number);
+  const [hs, ms] = hora.split(':').map(Number);
+  let mins = (hs * 60 + ms) - (hh * 60 + mm);
+  if (mins < 0) mins += 24 * 60;
+  const horasTotal = +(mins / 60).toFixed(2);
+
+  const { error } = await sb.from('fichajes').update({
+    hora_salida: hora, horas_total: horasTotal, latitud: lat, longitud: lng
+  }).eq('id', _fichajeEntradaHoy.id);
+
+  if (error) { toast('Error al fichar: ' + error.message, 'error'); if (btn) btn.disabled = false; return; }
+
+  // Actualizar local
+  const idx = misFichajesHoy.findIndex(f => f.id === _fichajeEntradaHoy.id);
+  if (idx !== -1) { misFichajesHoy[idx].hora_salida = hora; misFichajesHoy[idx].horas_total = horasTotal; }
+  _fichajeEntradaHoy = null;
+
+  const hDisplay = Math.floor(horasTotal), mDisplay = Math.round((horasTotal - hDisplay) * 60);
+  toast(`⬛ Salida registrada · ${hora.slice(0,5)} · ${hDisplay}h ${mDisplay}m`, 'success');
+  const body = document.getElementById('appBody');
+  if (body) navigateTo('inicio');
+}
+
 function renderOperarioInicio(el) {
   // Usar fecha local (no UTC) para evitar desfase horario
   const _ahora = new Date();
@@ -1149,6 +1294,8 @@ function renderOperarioInicio(el) {
       <h2 style="font-size:20px;font-weight:800">¡Hola, ${(CP?.nombre||'').split(' ')[0]}! 👋</h2>
       <p style="font-size:13px;color:var(--gris-400)">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</p>
     </div>
+
+    ${_getFichajeCardHtml()}
 
     <div class="stats-grid">
       <div class="stat-card" onclick="scrollToSection('pendientes')" style="cursor:pointer">
@@ -1802,6 +1949,8 @@ function renderJefeInicio(el) {
       <h2 style="font-size:20px;font-weight:800">Panel de control</h2>
       <p style="font-size:13px;color:var(--gris-400)">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</p>
     </div>
+
+    ${_getFichajeCardHtml()}
 
     <div class="stats-grid">
       <div class="stat-card" style="cursor:pointer" onclick="navigateTo('equipo')">
