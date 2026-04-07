@@ -10,9 +10,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png">
 <title>Instalo App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -292,7 +292,7 @@ input[type=number]{-moz-appearance:textfield}
   <div class="login-card">
     <div class="login-logo">
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">
-        <img src="icon.png" alt="Instalo ERP" style="height:200px;width:200px;object-fit:contain;border-radius:24px">
+        <img src="assets/icon.png" alt="Instalo ERP" style="height:200px;width:200px;object-fit:contain;border-radius:24px">
         <span style="font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1"><span style="color:#1E293B">instalo</span><span style="color:#22C55E">E</span><span style="color:#F59E0B">R</span><span style="color:#3B82F6">P</span></span>
       </div>
       <p>Accede a tu cuenta de trabajo</p>
@@ -775,16 +775,16 @@ async function loadEmpresa(id) {
 function toggleModo() {
   const actual = localStorage.getItem('instalo_modo');
   const esSuperAdmin = CP?.es_superadmin === true;
-  const tieneAlmacen = CP?.acceso_almacen === true;
+  const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
 
   if (esSuperAdmin) {
-    // Ciclo: jefe → almacen (si tiene permiso) → operario → jefe
+    // Ciclo: jefe → almacen → operario → jefe
     if (actual === 'operario') {
       localStorage.setItem('instalo_modo', 'jefe');
     } else if (actual === 'almacen') {
       localStorage.setItem('instalo_modo', 'operario');
     } else {
-      localStorage.setItem('instalo_modo', tieneAlmacen ? 'almacen' : 'operario');
+      localStorage.setItem('instalo_modo', 'almacen');
     }
   } else if (tieneAlmacen) {
     // Encargado almacén: toggle operario ↔ almacen
@@ -1736,7 +1736,7 @@ async function renderOperarioMas(el) {
       <span style="font-size:24px">🔄</span>
       <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y datos</div></div>
     </div>
-    <div class="card" onclick="clearCacheAndReload()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+    <div class="card" onclick="forceCacheClear()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🗑️</span>
       <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
     </div>
@@ -2277,7 +2277,7 @@ function renderAlmacenMas(el) {
     <div style="padding:16px">
       <div style="font-size:18px;font-weight:800;margin-bottom:16px">Ajustes</div>
       <div style="background:#fff;border:1px solid var(--gris-100);border-radius:16px;overflow:hidden">
-        <div onclick="borrarCache()" style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--gris-100)">
+        <div onclick="forceCacheClear()" style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--gris-100)">
           <div style="width:40px;height:40px;background:var(--gris-100);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">🗑️</div>
           <div><div style="font-weight:700">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Forzar recarga de datos</div></div>
         </div>
@@ -3969,9 +3969,9 @@ function _openOCRUpload() {
     <p style="font-size:13px;color:var(--gris-500);margin-bottom:16px">Saca una foto a un documento (factura, albarán, etc.) y se subirá al ERP pendiente de procesar.</p>
     <div style="text-align:center;margin-bottom:16px">
       <label class="foto-add" style="width:100%;aspect-ratio:auto;padding:40px 20px;cursor:pointer">
-        <input type="file" accept="image/*" capture="environment" id="ocrFileInput" style="display:none" onchange="_onOCRFileSelected(this)">
+        <input type="file" accept="image/*,application/pdf" id="ocrFileInput" style="display:none" onchange="_onOCRFileSelected(this)">
         <span style="font-size:40px">📷</span>
-        <span>Toca para hacer foto o elegir imagen</span>
+        <span>Cámara, galería o archivo</span>
       </label>
     </div>
     <div id="ocrPreview" style="display:none;text-align:center;margin-bottom:16px">

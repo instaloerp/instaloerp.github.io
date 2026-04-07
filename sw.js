@@ -2,7 +2,7 @@
 const CACHE_NAME = 'instalo-app-v18';
 const STATIC_ASSETS = [
   '/app.html',
-  '/icon.svg',
+  '/assets/icon.svg',
   '/manifest.json',
 ];
 
