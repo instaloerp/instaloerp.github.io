@@ -32,16 +32,17 @@ async function loadDashboard() {
   // KPI presupuestos aceptados (count)
   const numAceptados = presupAcep.count || 0;
 
-  // Actualizar KPIs
-  document.getElementById('d-fact-mes').textContent = fmtE(factMes);
-  document.getElementById('d-fact-ano').textContent = fmtE(factAno);
-  document.getElementById('d-pend-cobro').textContent = fmtE(pendCobro);
-  document.getElementById('d-pend-pago').textContent = fmtE(pendPago);
-  document.getElementById('d-presup-mes').textContent = presupPend;
-  document.getElementById('d-presup-acep').textContent = numAceptados;
-  document.getElementById('d-vencidas').textContent = vencidas;
-  document.getElementById('d-cli').textContent = clientes.length;
-  document.getElementById('d-trab').textContent = trabajos.filter(t=>t.estado==='en_curso'||t.estado==='planificado'||t.estado==='pendiente').length;
+  // Actualizar KPIs (usar ?. por si falta algún elemento en el HTML)
+  const _d = id => document.getElementById(id);
+  if (_d('d-fact-mes'))    _d('d-fact-mes').textContent = fmtE(factMes);
+  if (_d('d-fact-ano'))    _d('d-fact-ano').textContent = fmtE(factAno);
+  if (_d('d-pend-cobro'))  _d('d-pend-cobro').textContent = fmtE(pendCobro);
+  if (_d('d-pend-pago'))   _d('d-pend-pago').textContent = fmtE(pendPago);
+  if (_d('d-presup-mes'))  _d('d-presup-mes').textContent = presupPend;
+  if (_d('d-presup-acep')) _d('d-presup-acep').textContent = numAceptados;
+  if (_d('d-vencidas'))    _d('d-vencidas').textContent = vencidas;
+  if (_d('d-cli'))         _d('d-cli').textContent = clientes.length;
+  if (_d('d-trab'))        _d('d-trab').textContent = trabajos.filter(t=>t.estado==='en_curso'||t.estado==='planificado'||t.estado==='pendiente').length;
 
   // Trabajos activos
   const trabActivos = trabajos.filter(t=>t.estado!=='finalizado'&&t.estado!=='cancelado').slice(0,5);
