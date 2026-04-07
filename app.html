@@ -1112,6 +1112,327 @@ async function loadMisFichajesHoy() {
   misFichajesHoy = data || [];
   // Detectar si hay una entrada abierta (sin salida)
   _fichajeEntradaHoy = misFichajesHoy.find(f => f.hora_entrada && !f.hora_salida) || null;
+  // Mostrar popup bloqueante si aplica
+  _checkFichajePrompt();
+  // Programar recordatorio de salida si hay entrada abierta
+  _iniciarRecordatorioFichaje();
+}
+
+// ═══════════════════════════════════════════════
+// FICHAJE INTELIGENTE — sugerencias desde partes
+// ═══════════════════════════════════════════════
+
+// Banner NO bloqueante: aparece al iniciar el primer parte si no hay entrada
+function _sugerirFichajeEntradaSiProcede() {
+  if (esModoAlmacen) return;
+  if (_fichajeEntradaHoy) return;               // ya hay entrada
+  if (misFichajesHoy.length > 0) return;        // ya fichó antes
+  if (document.getElementById('ficSugerenciaBanner')) return; // ya visible
+
+  const ahora = new Date();
+  const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  const banner = document.createElement('div');
+  banner.id = 'ficSugerenciaBanner';
+  banner.style.cssText = `
+    position:fixed;bottom:80px;left:12px;right:12px;
+    background:#1E3A5F;color:#fff;
+    border-radius:14px;padding:14px 16px;
+    display:flex;align-items:center;gap:12px;
+    z-index:9000;box-shadow:0 8px 24px rgba(0,0,0,.3);
+    animation:slideUp .3s ease;
+  `;
+  banner.innerHTML = `
+    <span style="font-size:24px">⏱️</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:700">¿Registrar entrada? · ${horaStr}</div>
+      <div style="font-size:11px;opacity:.75">No tienes fichaje de entrada hoy</div>
+    </div>
+    <button onclick="_sugerirFichajeEntradaAceptar()" style="background:#22C55E;border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer;font-family:var(--font);white-space:nowrap">
+      ✅ Sí
+    </button>
+    <button onclick="document.getElementById('ficSugerenciaBanner')?.remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:10px;color:#fff;font-size:12px;padding:8px 10px;cursor:pointer;font-family:var(--font)">
+      ✕
+    </button>
+  `;
+  document.body.appendChild(banner);
+  // Auto-desaparecer a los 12 segundos si no se toca
+  setTimeout(() => banner.remove(), 12000);
+}
+
+async function _sugerirFichajeEntradaAceptar() {
+  document.getElementById('ficSugerenciaBanner')?.remove();
+  await appFichajeEntrada();
+}
+
+// Popup al completar el último parte del día → sugerir fichar salida
+function _checkUltimoParteSalida() {
+  if (esModoAlmacen) return;
+  if (!_fichajeEntradaHoy) return;  // no hay entrada abierta, no aplica
+
+  const ahora = new Date();
+  const hoy = ahora.toISOString().split('T')[0];
+
+  // ¿Quedan partes activos hoy (programado, borrador, en_curso)?
+  const activosHoy = misPartes.filter(p =>
+    p.fecha === hoy &&
+    ['programado', 'borrador', 'en_curso'].includes(p.estado)
+  );
+  if (activosHoy.length > 0) return; // todavía hay más partes pendientes
+
+  // Todos completados — preguntar si quiere fichar salida
+  const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  // Pequeño delay para que el modal de envío del parte se muestre primero
+  setTimeout(() => {
+    if (document.getElementById('ficPromptSalidaOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'ficPromptSalidaOverlay';
+    overlay.style.cssText = `
+      position:fixed;inset:0;background:rgba(15,23,42,.75);
+      backdrop-filter:blur(4px);z-index:99985;
+      display:flex;align-items:flex-end;justify-content:center;padding:16px;
+    `;
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px 20px 16px 16px;width:100%;max-width:400px;overflow:hidden;margin-bottom:8px">
+        <div style="background:linear-gradient(135deg,#059669,#10B981);padding:20px 20px 16px;text-align:center">
+          <div style="font-size:36px;margin-bottom:4px">🏁</div>
+          <div style="font-size:17px;font-weight:800;color:#fff">¡Partes completados!</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:2px">${horaStr} — No quedan partes activos hoy</div>
+        </div>
+        <div style="padding:20px;text-align:center">
+          <p style="font-size:14px;color:#374151;margin:0 0 18px;line-height:1.6">
+            ¿Quieres registrar tu <strong>hora de salida</strong> ahora?
+          </p>
+          <div style="display:flex;gap:10px">
+            <button onclick="_fichajePromptSalidaAceptar()" style="flex:1;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#EF4444,#F87171);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font)">
+              🔴 Fichar salida
+            </button>
+            <button onclick="document.getElementById('ficPromptSalidaOverlay')?.remove()" style="flex:1;padding:14px;border:none;border-radius:12px;background:#F3F4F6;color:#6B7280;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">
+              Ahora no
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }, 2500); // esperar 2.5s para no solapar con el modal de envío
+}
+
+async function _fichajePromptSalidaAceptar() {
+  document.getElementById('ficPromptSalidaOverlay')?.remove();
+  await appFichajeSalida();
+}
+
+// ── Notificación a las 16:30 si hay entrada abierta ──────────────
+let _fichajeReminderTimer = null;
+
+function _programarRecordatorioSalida() {
+  if (_fichajeReminderTimer) { clearTimeout(_fichajeReminderTimer); _fichajeReminderTimer = null; }
+  if (!_fichajeEntradaHoy) return;
+
+  const ahora = new Date();
+  const limite = new Date(ahora);
+  limite.setHours(16, 30, 0, 0); // 16:30
+
+  let ms = limite - ahora;
+  if (ms < 0) ms += 24 * 60 * 60 * 1000; // si ya son más de las 16:30, para mañana
+
+  // Solo programar si es hoy (ms < 8 horas)
+  if (ms > 8 * 60 * 60 * 1000) return;
+
+  _fichajeReminderTimer = setTimeout(() => {
+    _lanzarAvisoSalida();
+  }, ms);
+}
+
+function _lanzarAvisoSalida() {
+  if (!_fichajeEntradaHoy) return; // ya fichó salida
+
+  // Vibración larga (3 pulsos)
+  if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 600]);
+
+  // Notificación del sistema (si tiene permiso)
+  if (Notification.permission === 'granted') {
+    const n = new Notification('⏱️ Instalo ERP — Recuerda fichar', {
+      body: '¡Son las 16:30! Registra tu hora de salida cuando termines.',
+      icon: '/assets/icon.svg',
+      badge: '/assets/icon.svg',
+      requireInteraction: true,   // No desaparece sola
+      tag: 'fichaje-salida',
+      silent: false
+    });
+    n.onclick = () => { window.focus(); n.close(); navigateTo('inicio'); };
+  }
+
+  // Alerta in-app (por si la notificación no se muestra)
+  if (document.getElementById('ficPromptSalidaOverlay')) return;
+  const banner = document.createElement('div');
+  banner.style.cssText = `
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(239,68,68,.95);
+    z-index:99999;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:32px;text-align:center;
+  `;
+  banner.innerHTML = `
+    <div style="font-size:56px;margin-bottom:12px">⏰</div>
+    <div style="font-size:24px;font-weight:800;color:#fff;margin-bottom:8px">16:30 — Hora de fichar</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:28px;line-height:1.6">
+      No olvides registrar tu <strong>hora de salida</strong><br>cuando termines la jornada
+    </div>
+    <button onclick="this.closest('div[style]').remove();appFichajeSalida()" style="background:#fff;color:#DC2626;border:none;border-radius:14px;font-size:17px;font-weight:800;padding:16px 32px;cursor:pointer;font-family:var(--font);margin-bottom:12px;width:100%;max-width:300px">
+      🔴 Fichar salida ahora
+    </button>
+    <button onclick="this.closest('div[style]').remove()" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:14px;font-size:14px;padding:12px 24px;cursor:pointer;font-family:var(--font);max-width:300px;width:100%">
+      Fichar más tarde
+    </button>
+  `;
+  document.body.appendChild(banner);
+}
+
+// Solicitar permiso de notificaciones y programar recordatorio
+async function _iniciarRecordatorioFichaje() {
+  if (esModoAlmacen) return;
+  if (!_fichajeEntradaHoy) return;
+
+  // Pedir permiso si aún no se ha concedido
+  if (Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch(_) {}
+  }
+
+  _programarRecordatorioSalida();
+}
+
+// ═══════════════════════════════════════════════
+// POPUP BLOQUEANTE DE FICHAJE
+// ═══════════════════════════════════════════════
+function _checkFichajePrompt() {
+  // No mostrar en modo almacén
+  if (esModoAlmacen) return;
+
+  // Solo a partir de las 8:30
+  const ahora = new Date();
+  const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+  if (minutos < 8 * 60 + 30) return; // antes de las 8:30 → nada
+
+  // Si ya hay entrada registrada hoy → no mostrar
+  if (_fichajeEntradaHoy) return;
+
+  // Si ya hay algún fichaje del día (aunque sea con salida) → no molestar
+  if (misFichajesHoy.length > 0) return;
+
+  _showFichajePrompt();
+}
+
+function _showFichajePrompt() {
+  // Evitar duplicados
+  if (document.getElementById('fichajePromptOverlay')) return;
+
+  const ahora = new Date();
+  const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const diaStr = ahora.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const nombre = (CP?.nombre || '').split(' ')[0];
+
+  const overlay = document.createElement('div');
+  overlay.id = 'fichajePromptOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;
+    background:rgba(15,23,42,0.85);
+    backdrop-filter:blur(6px);
+    z-index:99990;
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  `;
+  // Bloquear cualquier toque fuera del card
+  overlay.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  overlay.addEventListener('click', e => e.stopPropagation());
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)">
+      <!-- Cabecera -->
+      <div style="background:linear-gradient(135deg,#1E3A5F,#2563EB);padding:28px 24px 20px;text-align:center">
+        <div style="font-size:48px;margin-bottom:8px">⏱️</div>
+        <div style="font-size:22px;font-weight:800;color:#fff">${horaStr}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.75);margin-top:4px;text-transform:capitalize">${diaStr}</div>
+      </div>
+      <!-- Cuerpo -->
+      <div style="padding:24px;text-align:center">
+        <p style="font-size:18px;font-weight:800;color:#111827;margin:0 0 6px">
+          ¡Hola${nombre ? ', ' + nombre : ''}! 👋
+        </p>
+        <p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 24px">
+          Antes de continuar registra tu <strong style="color:#1E3A5F">hora de entrada</strong>.<br>
+          Es obligatorio para el registro de jornada.
+        </p>
+        <button id="btnFichajePromptEntrada"
+          onclick="_fichajePromptEntrada()"
+          style="width:100%;padding:16px;border:none;border-radius:12px;background:linear-gradient(135deg,#16A34A,#22C55E);color:#fff;font-size:17px;font-weight:800;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 14px rgba(22,163,74,.4)">
+          🟢 Registrar entrada
+        </button>
+        <p style="font-size:11px;color:#D1D5DB;margin-top:14px">
+          Tu ubicación solo se usará en este momento · Puedes denegar el permiso GPS
+        </p>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+}
+
+async function _fichajePromptEntrada() {
+  const btn = document.getElementById('btnFichajePromptEntrada');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span style="opacity:.6">Registrando…</span>'; }
+
+  const ahora = new Date();
+  const hoy = ahora.toISOString().split('T')[0];
+  const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}:${String(ahora.getSeconds()).padStart(2,'0')}`;
+
+  let lat = null, lng = null;
+  if (navigator.geolocation) {
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+      );
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch(_) { /* GPS denegado o sin señal — fichaje válido igualmente */ }
+  }
+
+  const { data, error } = await sb.from('fichajes').insert({
+    empresa_id: EMPRESA.id,
+    usuario_id: CU.id,
+    usuario_nombre: CP?.nombre || '',
+    fecha: hoy,
+    hora_entrada: hora,
+    tipo: 'entrada',
+    latitud: lat,
+    longitud: lng
+  }).select().single();
+
+  if (error) {
+    toast('Error al registrar: ' + error.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '🟢 Registrar entrada'; }
+    return;
+  }
+
+  _fichajeEntradaHoy = data;
+  misFichajesHoy.push(data);
+  _iniciarRecordatorioFichaje(); // programar aviso 16:30
+
+  // Animar salida del overlay
+  const overlay = document.getElementById('fichajePromptOverlay');
+  if (overlay) {
+    overlay.style.transition = 'opacity .35s';
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.remove(), 380);
+  }
+
+  toast('✅ Entrada registrada · ' + hora.slice(0, 5), 'success');
+
+  // Refrescar pantalla inicio para actualizar el card de fichaje
+  const body = document.getElementById('appBody');
+  if (body && typeof navigateTo === 'function') navigateTo('inicio');
 }
 
 function _getFichajeCardHtml() {
@@ -1189,6 +1510,7 @@ async function appFichajeEntrada() {
 
   _fichajeEntradaHoy = data;
   misFichajesHoy.push(data);
+  _iniciarRecordatorioFichaje(); // programar aviso 16:30
   toast('✅ Entrada registrada · ' + hora.slice(0,5), 'success');
   // Re-renderizar para actualizar el card
   const body = document.getElementById('appBody');
@@ -1916,7 +2238,155 @@ async function renderOperarioMas(el) {
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
       Instalo ERP · App móvil v1.0 stable
     </div>
+
+    ${(esJefe || CP?.es_superadmin) ? _renderTestFichajePanel() : ''}
   `;
+}
+
+// ═══════════════════════════════════════════════
+// PANEL DE PRUEBAS DE FICHAJE
+// ═══════════════════════════════════════════════
+function _renderTestFichajePanel() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const tieneEntrada = !!_fichajeEntradaHoy;
+  const entradaInfo = tieneEntrada
+    ? `Entrada: ${_fichajeEntradaHoy.hora_entrada?.slice(0,5)} · ID ${_fichajeEntradaHoy.id}`
+    : 'Sin entrada registrada hoy';
+  const fichajesInfo = misFichajesHoy.length > 0
+    ? misFichajesHoy.map(f => `${f.hora_entrada?.slice(0,5)||'?'} → ${f.hora_salida?.slice(0,5)||'abierto'}`).join(' | ')
+    : 'Ninguno';
+
+  return `
+    <details style="margin-top:8px">
+      <summary style="
+        list-style:none;cursor:pointer;
+        display:flex;align-items:center;gap:10px;
+        background:#1E3A5F;color:#fff;
+        border-radius:12px;padding:14px 16px;
+        font-size:13px;font-weight:700;
+        user-select:none;
+      ">
+        <span style="font-size:20px">🧪</span>
+        <span style="flex:1">Panel de pruebas — Fichaje</span>
+        <span style="font-size:10px;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:8px">SOLO TEST</span>
+      </summary>
+
+      <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:0 0 12px 12px;padding:14px;margin-top:-4px">
+
+        <!-- Estado actual -->
+        <div style="background:#EFF6FF;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#1E3A5F">
+          <div style="font-weight:700;margin-bottom:2px">📋 Estado actual</div>
+          <div>${entradaInfo}</div>
+          <div style="color:#64748B">Fichajes hoy: ${fichajesInfo}</div>
+        </div>
+
+        <!-- Simular popup 8:30 -->
+        <button onclick="_checkFichajePromptForzado()" style="width:100%;margin-bottom:8px;padding:12px;border:1.5px solid #2563EB;border-radius:10px;background:#fff;color:#2563EB;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px">
+          <span>🔔</span> Simular popup de entrada (8:30)
+        </button>
+
+        <!-- Simular aviso 16:30 -->
+        <button onclick="_lanzarAvisoSalida()" style="width:100%;margin-bottom:8px;padding:12px;border:1.5px solid #EF4444;border-radius:10px;background:#fff;color:#EF4444;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px">
+          <span>⏰</span> Simular aviso 16:30 (vibración + pantalla)
+        </button>
+
+        <!-- Simular último parte -->
+        <button onclick="_checkUltimoParteSalidaForzado()" style="width:100%;margin-bottom:8px;padding:12px;border:1.5px solid #059669;border-radius:10px;background:#fff;color:#059669;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px">
+          <span>🏁</span> Simular "último parte completado"
+        </button>
+
+        <!-- Simular banner entrada desde parte -->
+        <button onclick="_sugerirFichajeEntradaSiProcedeTest()" style="width:100%;margin-bottom:8px;padding:12px;border:1.5px solid #D97706;border-radius:10px;background:#fff;color:#D97706;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px">
+          <span>📍</span> Simular banner "¿Fichar entrada?" (desde parte)
+        </button>
+
+        <!-- Reset estado local -->
+        <button onclick="_testResetFichajeLocal()" style="width:100%;margin-bottom:4px;padding:12px;border:1.5px solid #94A3B8;border-radius:10px;background:#fff;color:#64748B;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px">
+          <span>🔄</span> Resetear estado local (solo pantalla, no borra BD)
+        </button>
+
+        <div style="margin-top:10px;font-size:11px;color:#94A3B8;text-align:center">
+          Estos botones simulan eventos reales sin modificar horas · Solo para pruebas
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+// Versiones "forzadas" para testing (sin comprobación de hora)
+function _checkFichajePromptForzado() {
+  // Cerrar cualquier overlay previo
+  document.getElementById('fichajePromptOverlay')?.remove();
+  if (_fichajeEntradaHoy) {
+    toast('Ya tienes entrada registrada hoy (' + _fichajeEntradaHoy.hora_entrada?.slice(0,5) + ')', 'info');
+    return;
+  }
+  _showFichajePrompt();
+}
+
+function _checkUltimoParteSalidaForzado() {
+  document.getElementById('ficPromptSalidaOverlay')?.remove();
+  if (!_fichajeEntradaHoy) {
+    toast('No hay entrada abierta — registra una entrada primero', 'info');
+    return;
+  }
+  // Forzar el popup ignorando si hay partes activos
+  const ahora = new Date();
+  const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const overlay = document.createElement('div');
+  overlay.id = 'ficPromptSalidaOverlay';
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(15,23,42,.75);backdrop-filter:blur(4px);z-index:99985;display:flex;align-items:flex-end;justify-content:center;padding:16px;`;
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 16px 16px;width:100%;max-width:400px;overflow:hidden;margin-bottom:8px">
+      <div style="background:linear-gradient(135deg,#059669,#10B981);padding:20px 20px 16px;text-align:center">
+        <div style="font-size:36px;margin-bottom:4px">🏁</div>
+        <div style="font-size:17px;font-weight:800;color:#fff">¡Partes completados!</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:2px">${horaStr} — (simulado)</div>
+      </div>
+      <div style="padding:20px;text-align:center">
+        <p style="font-size:14px;color:#374151;margin:0 0 18px;line-height:1.6">¿Quieres registrar tu <strong>hora de salida</strong> ahora?</p>
+        <div style="display:flex;gap:10px">
+          <button onclick="_fichajePromptSalidaAceptar()" style="flex:1;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#EF4444,#F87171);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font)">🔴 Fichar salida</button>
+          <button onclick="document.getElementById('ficPromptSalidaOverlay')?.remove()" style="flex:1;padding:14px;border:none;border-radius:12px;background:#F3F4F6;color:#6B7280;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Ahora no</button>
+        </div>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function _sugerirFichajeEntradaSiProcedeTest() {
+  document.getElementById('ficSugerenciaBanner')?.remove();
+  // Mostrar banner aunque ya tenga entrada (para probar el diseño)
+  const ahora = new Date();
+  const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const banner = document.createElement('div');
+  banner.id = 'ficSugerenciaBanner';
+  banner.style.cssText = `position:fixed;bottom:80px;left:12px;right:12px;background:#1E3A5F;color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:9000;box-shadow:0 8px 24px rgba(0,0,0,.3);`;
+  banner.innerHTML = `
+    <span style="font-size:24px">⏱️</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:700">¿Registrar entrada? · ${horaStr}</div>
+      <div style="font-size:11px;opacity:.75">No tienes fichaje de entrada hoy</div>
+    </div>
+    <button onclick="_sugerirFichajeEntradaAceptar()" style="background:#22C55E;border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer;font-family:var(--font);white-space:nowrap">✅ Sí</button>
+    <button onclick="document.getElementById('ficSugerenciaBanner')?.remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:10px;color:#fff;font-size:12px;padding:8px 10px;cursor:pointer;font-family:var(--font)">✕</button>
+  `;
+  document.body.appendChild(banner);
+  setTimeout(() => banner.remove(), 12000);
+}
+
+function _testResetFichajeLocal() {
+  misFichajesHoy = [];
+  _fichajeEntradaHoy = null;
+  if (_fichajeReminderTimer) { clearTimeout(_fichajeReminderTimer); _fichajeReminderTimer = null; }
+  // Cerrar cualquier overlay abierto
+  ['fichajePromptOverlay','ficPromptSalidaOverlay','ficSugerenciaBanner'].forEach(id => {
+    document.getElementById(id)?.remove();
+  });
+  toast('Estado local reseteado · Vuelve a Inicio para ver los cambios', 'info');
+  // Refrescar el panel de pruebas
+  navigateTo('mas');
 }
 
 // ═══════════════════════════════════════════════
@@ -5935,6 +6405,9 @@ async function wizFinish() {
         }
       }
     }
+    // ── Comprobar si es el último parte del día → sugerir fichar salida ──
+    _checkUltimoParteSalida();
+
     // 4b. Generar PDF automáticamente y subirlo a Storage
     toast('📄 Generando PDF...', '');
     const _trabajoLocal = p?.trabajo_id ? trabajos.find(t => t.id === p.trabajo_id) : null;
@@ -6617,6 +7090,7 @@ async function iniciarParteConGPS(id) {
     toast('🔧 Trabajo iniciado (se sincronizará al recuperar conexión)', 'success');
     closeModal();
     navigateTo(currentTab);
+    _sugerirFichajeEntradaSiProcede();
     return;
   }
 
@@ -6630,6 +7104,8 @@ async function iniciarParteConGPS(id) {
     toast('🔧 Trabajo iniciado · GPS guardado', 'success');
     closeModal();
     navigateTo(currentTab);
+    // ── Sugerir fichaje entrada si es el primer parte y no hay entrada ──
+    _sugerirFichajeEntradaSiProcede();
   } catch(e) {
     console.error('Error iniciar parte:', e);
     // Falló la red durante el intento → guardar offline

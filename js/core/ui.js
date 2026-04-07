@@ -369,7 +369,7 @@ function goPage(id, opts){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'🏠 Panel',clientes:'👥 Clientes',proveedores:'🏭 Proveedores',articulos:'📦 Artículos',almacenes:'🏬 Almacenes',trabajos:'🏗️ Obras',mantenimientos:'🔧 Mantenimientos',presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'💶 Facturas','presupuestos-compra':'📋 Presupuestos de compra','pedidos-compra':'📦 Pedidos de compra','albaranes-proveedor':'📄 Albaranes de proveedor','facturas-proveedor':'🧾 Facturas de proveedor','calendario-pagos':'📅 Calendario de Pagos',correo:'📧 Correo',stock:'📊 Stock',traspasos:'🔄 Traspasos',activos:'🔧 Activos',partes:'📝 Partes de trabajo',planificador:'⏱️ Planificador Semanal',fichajes:'⏱️ Fichajes','audit-log':'📜 Registro de actividad',papelera:'🗑️ Papelera',usuarios:'👷 Usuarios',configuracion:'⚙️ Configuración','etiquetas-qr':'🏷️ Etiquetas QR',mistareas:'✅ Tareas',calendario:'📅 Calendario',ocr:'🤖 Bandeja OCR'};
+  const titles={dashboard:'🏠 Panel',clientes:'👥 Clientes',proveedores:'🏭 Proveedores',articulos:'📦 Artículos',almacenes:'🏬 Almacenes',trabajos:'🏗️ Obras',mantenimientos:'🔧 Mantenimientos',presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'💶 Facturas','presupuestos-compra':'📋 Presupuestos de compra','pedidos-compra':'📦 Pedidos de compra','albaranes-proveedor':'📄 Albaranes de proveedor','facturas-proveedor':'🧾 Facturas de proveedor','calendario-pagos':'📅 Calendario de Pagos',correo:'📧 Correo',stock:'📊 Stock',traspasos:'🔄 Traspasos',activos:'🔧 Activos',partes:'📝 Partes de trabajo',planificador:'⏱️ Planificador Semanal',fichajes:'⏱️ Fichajes','audit-log':'📜 Registro de actividad',papelera:'🗑️ Papelera',usuarios:'👷 Usuarios',configuracion:'⚙️ Configuración','etiquetas-qr':'🏷️ Etiquetas QR',mistareas:'✅ Tareas',calendario:'📅 Calendario',ocr:'🤖 Bandeja OCR',laboratorio:'🧪 Laboratorio de pruebas'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = _fechaHoraActual();
   // Topbar limpio — sin botones
@@ -385,6 +385,7 @@ function goPage(id, opts){
   if(id==='albaranes') loadAlbaranes();
   if(id==='facturas') loadFacturas();
   if(id==='fichajes') loadFichajes();
+  if(id==='laboratorio' && typeof loadLaboratorio==='function') loadLaboratorio();
   if(id==='partes') loadPartes();
   if(id==='planificador' && typeof initPlanificador==='function') initPlanificador();
   if(id==='calendario' && typeof renderCalendario==='function') renderCalendario();

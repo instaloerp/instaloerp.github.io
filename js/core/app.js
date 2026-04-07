@@ -615,7 +615,7 @@ async function mostrarApp() {
   // Admin menu
   if (CP?.es_superadmin) {
     const as1=document.getElementById('adminSec'); if(as1)as1.style.display='block'; const as2=document.getElementById('adminSection'); if(as2)as2.style.display='block';
-    const bu=document.getElementById('btnUsuarios'); if(bu)bu.style.display='flex'; const bc=document.getElementById('btnConfig'); if(bc)bc.style.display='flex';
+    const bu=document.getElementById('btnUsuarios'); if(bu)bu.style.display='flex'; const bc=document.getElementById('btnConfig'); if(bc)bc.style.display='flex'; const bl=document.getElementById('btnLaboratorio'); if(bl)bl.style.display='flex';
   }
   // Mostrar logo si existe
   if (EMPRESA?.logo_url) {

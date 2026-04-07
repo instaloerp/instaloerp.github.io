@@ -215,6 +215,7 @@
           <button class="sb-item" onclick="goPage('etiquetas-qr')"><span class="ico">🏷️</span> Etiquetas QR<span class="sb-beta">pronto</span></button>
           <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad<span class="sb-beta">beta</span></button>
           <button class="sb-item" onclick="goPage('papelera')"><span class="ico">🗑️</span> Papelera<span class="sb-beta">beta</span></button>
+          <button class="sb-item" id="btnLaboratorio" onclick="goPage('laboratorio')" style="display:none"><span class="ico">🧪</span> Laboratorio<span class="sb-beta" style="background:#7C3AED;color:#fff">dev</span></button>
         <button class="sb-item" id="btnConfig" onclick="goPage('configuracion')" style="display:none"><span class="ico">⚙️</span> Configuración<span class="sb-beta">beta</span></button>
         </div>
       </div>
@@ -1292,6 +1293,9 @@
 
       <!-- FICHAJES -->
       <div class="page" id="page-fichajes"></div>
+
+      <!-- LABORATORIO DE PRUEBAS -->
+      <div class="page" id="page-laboratorio"></div>
 
       <!-- REGISTRO DE ACTIVIDAD (AUDIT LOG) -->
       <div class="page" id="page-audit-log">
@@ -3687,6 +3691,7 @@
 
 <!-- Personal -->
 <script src="js/personal/fichajes.js?v=20260408a"></script>
+<script src="js/personal/laboratorio.js?v=20260408a"></script>
 
 <!-- Editor de Documentos -->
 <script src="js/editor/editor.js?v=20260403p"></script>
