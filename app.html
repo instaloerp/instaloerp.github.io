@@ -1094,7 +1094,7 @@ function renderOperarioInicio(el) {
   // Usar fecha local (no UTC) para evitar desfase horario
   const _ahora = new Date();
   const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
-  const partesPend = misPartes.filter(p => ['programado','en_curso'].includes(p.estado));
+  const partesPend = misPartes.filter(p => ['programado','borrador'].includes(p.estado) && p.fecha === hoy);
   const tareasActivas = misTareas.filter(t => t.estado !== 'completada');
 
   // Group partes by day
@@ -1204,6 +1204,7 @@ function renderOperarioInicio(el) {
       <div id="searchPartesResults" style="max-height:400px;overflow-y:auto"></div>
     </div>
 
+    <div id="mainDayList">
     ${enCurso.length ? `
       <div style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1277,6 +1278,7 @@ function renderOperarioInicio(el) {
         ${tareasActivas.length > 5 ? `<div style="text-align:center;padding:8px"><button class="btn btn-secondary btn-sm" onclick="navigateTo('tareas')">Ver todas (${tareasActivas.length})</button></div>` : ''}
       </div>
     ` : ''}
+    </div>
   `;
 
   // Desplegables por día
@@ -1316,14 +1318,22 @@ function toggleBuscadorPartes() {
   if (!buscador) return;
   const visible = buscador.style.display !== 'none';
   buscador.style.display = visible ? 'none' : 'block';
+  // Ocultar/mostrar el listado principal
+  const mainList = document.getElementById('mainDayList');
+  if (mainList) mainList.style.display = visible ? 'block' : 'none';
   if (!visible) {
+    // Al abrir: reset filtros y poner rango último mes por defecto
     _searchFilter = 'todos';
     const input = document.getElementById('searchPartesInput');
     if (input) { input.value = ''; input.focus(); }
+    const hoy = new Date();
+    const hoyStr = hoy.toISOString().split('T')[0];
+    const haceUnMes = new Date(hoy); haceUnMes.setDate(haceUnMes.getDate() - 30);
+    const haceUnMesStr = haceUnMes.toISOString().split('T')[0];
     const desde = document.getElementById('searchFechaDesde');
     const hasta = document.getElementById('searchFechaHasta');
-    if (desde) desde.value = '';
-    if (hasta) hasta.value = '';
+    if (desde) desde.value = haceUnMesStr;
+    if (hasta) hasta.value = hoyStr;
     document.querySelectorAll('.search-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === 'todos'));
     document.getElementById('searchPartesResults').innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Usa los filtros o escribe para buscar</div>';
   }
@@ -1344,8 +1354,17 @@ function filtrarPartesHistorico() {
 
   const hayFiltro = q.length >= 2 || desde || hasta || _searchFilter !== 'todos';
   if (!hayFiltro) {
-    results.innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Usa los filtros o escribe para buscar</div>';
+    results.innerHTML = '<div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px">Escribe algo o selecciona un filtro para buscar</div>';
     return;
+  }
+  // Con filtro de estado activo sin rango de fechas → mostrar aviso y forzar último mes
+  if (_searchFilter !== 'todos' && !desde && !hasta) {
+    const hoy = new Date();
+    const haceUnMes = new Date(hoy); haceUnMes.setDate(haceUnMes.getDate() - 30);
+    const desdeEl = document.getElementById('searchFechaDesde');
+    const hastaEl = document.getElementById('searchFechaHasta');
+    if (desdeEl && !desdeEl.value) desdeEl.value = haceUnMes.toISOString().split('T')[0];
+    if (hastaEl && !hastaEl.value) hastaEl.value = hoy.toISOString().split('T')[0];
   }
 
   const found = misPartes.filter(p => {
@@ -4066,7 +4085,7 @@ function renderParteCard(p, showActions = false) {
   // Acciones según estado (para operario)
   let actionHtml = '';
   if (showActions && !esJefe) {
-    if (p.estado === 'programado') {
+    if (p.estado === 'programado' || p.estado === 'borrador') {
       actionHtml = `<div class="parte-actions">
         <button class="btn btn-sm" style="background:var(--acento);color:#fff" onclick="event.stopPropagation();iniciarParteConGPS(${p.id})">🔧 Iniciar</button>
       </div>`;
@@ -4077,7 +4096,7 @@ function renderParteCard(p, showActions = false) {
     }
   } else if (showActions && esJefe) {
     // Jefe usa los mismos flujos completos que operario para iniciar/informar
-    if (p.estado === 'programado') {
+    if (p.estado === 'programado' || p.estado === 'borrador') {
       actionHtml = `<div class="parte-actions">
         <button class="btn btn-sm" style="background:var(--acento);color:#fff" onclick="event.stopPropagation();iniciarParteConGPS(${p.id})">🔧 Iniciar</button>
       </div>`;
@@ -4450,7 +4469,7 @@ function openParteDetail(id) {
     </div>` : ''}
 
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
-    ${p.estado === 'programado' ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
+    ${(p.estado === 'programado' || p.estado === 'borrador') ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
     ${p.estado === 'en_curso' ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="openInformarWizard(${p.id})">📋 Informar parte</button>` : ''}
     ${['completado','revisado','facturado'].includes(p.estado) ? `<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:13px;font-style:italic">🔒 Parte informado — no editable</div>` : ''}
     ${esJefe && p.estado !== 'facturado' ? `

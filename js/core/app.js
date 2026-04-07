@@ -690,12 +690,6 @@ function initRealtimePartes() {
 
     console.log('[Realtime] Parte:', payload.eventType || payload.type, nuevo.numero, 'estado:', nuevo.estado);
 
-    // Solo notificar en_curso y completado
-    if (nuevo.estado !== 'en_curso' && nuevo.estado !== 'completado') {
-      console.log('[Realtime] Estado parte ignorado:', nuevo.estado);
-      return;
-    }
-
     // Comparar con cache local para evitar duplicados
     const estadoPrevio = _partesEstadoCache.get(nuevo.id);
     if (estadoPrevio && estadoPrevio === nuevo.estado) {
@@ -704,29 +698,28 @@ function initRealtimePartes() {
     }
     _partesEstadoCache.set(nuevo.id, nuevo.estado);
 
-    // TODO: Reactivar cuando haya operarios reales
-    // if (nuevo.usuario_id && nuevo.usuario_id === CU?.id) return;
-
     const operario = nuevo.usuario_nombre || 'Un operario';
     const numero = nuevo.numero || '';
     const obra = nuevo.trabajo_titulo || '';
     const obraId = nuevo.trabajo_id || null;
 
+    // Notificación según estado (solo para los relevantes)
     const notifs = {
-      en_curso:   { ico:'🔧', titulo:'Trabajo iniciado', msg:`${operario} ha iniciado ${numero}`, color:'var(--acento)' },
-      completado: { ico:'✅', titulo:'Parte cumplimentado',  msg:`${operario} ha cumplimentado ${numero}`, color:'var(--verde)' },
+      en_curso:   { ico:'🔧', titulo:'Trabajo iniciado',    msg:`${operario} ha iniciado ${numero}`,        color:'var(--acento)' },
+      completado: { ico:'✅', titulo:'Parte cumplimentado', msg:`${operario} ha cumplimentado ${numero}`,   color:'var(--verde)'  },
+      revisado:   { ico:'👁️', titulo:'Parte revisado',      msg:`${numero} marcado como revisado`,          color:'#10B981'       },
+      facturado:  { ico:'🧾', titulo:'Parte facturado',     msg:`${numero} marcado como facturado`,         color:'#8B5CF6'       },
     };
     const n = notifs[nuevo.estado];
-    if (!n) return;
-
-    console.log('[Realtime] Mostrando notificación parte:', n.titulo);
-    showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
-
-    if (Notification.permission === 'granted') {
-      try { new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'icon.svg' }); } catch(e) {}
+    if (n) {
+      console.log('[Realtime] Mostrando notificación parte:', n.titulo);
+      showRealtimeNotif(n.ico, n.titulo, `${n.msg}${obra ? ' — ' + obra : ''}`, n.color, nuevo.id);
+      if (Notification.permission === 'granted') {
+        try { new Notification(`${n.ico} ${n.titulo}`, { body: n.msg + (obra ? ' — ' + obra : ''), icon: 'assets/icon-192.png' }); } catch(e) {}
+      }
     }
 
-    // Auto-refrescar partes
+    // Siempre refrescar tabla de partes y dashboard (cualquier cambio de estado)
     if (typeof loadPartes === 'function') { try { loadPartes(); } catch(e) {} }
     if (obraId && typeof obraActualId !== 'undefined' && obraActualId && obraActualId === obraId) {
       try { abrirFichaObra(obraActualId, false); } catch(e) {}

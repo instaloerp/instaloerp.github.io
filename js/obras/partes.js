@@ -33,6 +33,7 @@ async function loadPartes() {
     // Actualizar cache de estados para Realtime
     if (typeof _populateEstadoCache === 'function') _populateEstadoCache(partesData);
     renderPartes(partesData);
+    initCaducadosCheck(); // arrancar detector de partes no iniciados (solo la primera vez)
     // Poblar filtro de operarios
     const selFiltroUsr = document.getElementById('pt-filter-usuario');
     if (selFiltroUsr) {
@@ -80,8 +81,24 @@ function renderPartes(list) {
   const tbody = document.getElementById('ptTable');
   if (!tbody) return;
 
+  const _ahora = new Date();
+  const _hoyStr = _ahora.toISOString().split('T')[0];
+
   tbody.innerHTML = list.length ? list.map(p => {
-    const est = PT_ESTADOS[p.estado] || { label: p.estado || '—', color: '#6B7280', bg: '#F3F4F6', ico:'📝' };
+    // Detectar caducado: programado/borrador cuya hora_fin ya ha pasado sin iniciarse
+    let esCaducado = false;
+    if ((p.estado === 'programado' || p.estado === 'borrador') && p.fecha) {
+      if (p.fecha < _hoyStr) {
+        esCaducado = true; // Día anterior entero sin iniciar
+      } else if (p.fecha === _hoyStr && p.hora_fin) {
+        const [hh, mm] = p.hora_fin.split(':').map(Number);
+        const finDate = new Date(_ahora); finDate.setHours(hh, mm, 0, 0);
+        if (_ahora > finDate) esCaducado = true; // Hoy pero hora_fin ya pasó
+      }
+    }
+    const est = esCaducado
+      ? { label:'Caducado', color:'#EF4444', bg:'#FEF2F2', ico:'⏰' }
+      : (PT_ESTADOS[p.estado] || { label: p.estado || '—', color: '#6B7280', bg: '#F3F4F6', ico:'📝' });
     const hora_inicio = p.hora_inicio ? p.hora_inicio.substring(0, 5) : '—';
     const hora_fin = p.hora_fin ? p.hora_fin.substring(0, 5) : '—';
     const horas = (parseFloat(p.horas) || 0).toFixed(1);
@@ -1877,4 +1894,73 @@ async function exportarPartePDF(id) {
   } catch (e) {
     toast('Error al exportar', 'error');
   }
+}
+
+// ═══════════════════════════════════════════════
+// DETECCIÓN DE PARTES CADUCADOS (check cada minuto)
+// Lanza popup cuando un parte lleva +10 min sin iniciarse
+// ═══════════════════════════════════════════════
+const _caducadosNotificados = new Set();
+let   _caducadosCheckInterval = null;
+
+function initCaducadosCheck() {
+  if (_caducadosCheckInterval) return; // ya iniciado
+
+  function _check() {
+    if (!partesData || !partesData.length) return;
+    const ahora = new Date();
+    const hoyStr = ahora.toISOString().split('T')[0];
+      partesData.forEach(p => {
+      if (p.estado !== 'programado' && p.estado !== 'borrador') return;
+      if (!p.fecha) return;
+
+      let debeNotificar = false;
+
+      if (p.fecha < hoyStr) {
+        // Día anterior sin iniciar → caducado
+        debeNotificar = true;
+      } else if (p.fecha === hoyStr && p.hora_fin) {
+        // Hoy: caducado cuando hora_fin ha pasado y el parte sigue sin iniciarse
+        const [hh, mm] = p.hora_fin.split(':').map(Number);
+        const finDate = new Date(ahora); finDate.setHours(hh, mm, 0, 0);
+        if (ahora > finDate) debeNotificar = true;
+      }
+
+      if (!debeNotificar || _caducadosNotificados.has(p.id)) return;
+      _caducadosNotificados.add(p.id);
+
+      const operario = p.usuario_nombre || 'Operario sin asignar';
+      const numero   = p.numero || 'Parte sin número';
+      const obra     = p.trabajo_titulo || '';
+      const horaIni  = p.hora_inicio ? p.hora_inicio.substring(0,5) : '—';
+
+      // Notificación visual en el ERP
+      if (typeof showRealtimeNotif === 'function') {
+        showRealtimeNotif(
+          '⏰',
+          'Parte no iniciado',
+          `${numero} — ${operario}${obra ? ' · ' + obra : ''}. Hora inicio: ${horaIni}`,
+          '#EF4444',
+          p.id
+        );
+      }
+
+      // Notificación del sistema (si el usuario lo tiene concedido)
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          new Notification('⏰ Parte no iniciado', {
+            body: `${numero} — ${operario} no ha iniciado el trabajo (hora: ${horaIni})`,
+            icon: 'assets/icon-192.png',
+            tag:  'caducado-' + p.id,
+          });
+        } catch(e) {}
+      }
+
+      // Refrescar tabla para mostrar badge ⏰ Caducado
+      if (typeof partesFiltrados !== 'undefined') renderPartes(partesFiltrados);
+    });
+  }
+
+  _check(); // comprobación inmediata al cargar
+  _caducadosCheckInterval = setInterval(_check, 60 * 1000); // cada minuto
 }
