@@ -2506,7 +2506,12 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
         <label>Notas adicionales</label>
         <textarea id="qf_desc" placeholder="Instrucciones, observaciones...">${instrObra}</textarea>
       </div>
-      <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:8px">Crear parte</button>
+      <!-- Estado: por defecto programado, opción de dejarlo borrador -->
+      <label style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:var(--gris-50);border-radius:10px;cursor:pointer">
+        <input type="checkbox" id="qf_borrador" style="width:18px;height:18px;cursor:pointer;accent-color:var(--azul)">
+        <span style="font-size:13px;color:var(--gris-600)">Guardar como borrador (pendiente de confirmar)</span>
+      </label>
+      <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:10px">Crear parte</button>
     </div>
   `;
 
@@ -2811,9 +2816,13 @@ async function _saveParteForm() {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Estado: programado por defecto (tiene fecha); borrador si el check está marcado
+    const esBorrador = document.getElementById('qf_borrador')?.checked || false;
     const record = {
       empresa_id:     EMPRESA.id,
-      estado:         'borrador',
+      estado:         esBorrador ? 'borrador' : 'programado',
+      programado_por: esBorrador ? null : (CP?.id || null),
+      programado_por_nombre: esBorrador ? null : (CP?.nombre || ''),
       usuario_id:     document.getElementById('qf_usuario')?.value || CP?.id,
       trabajo_id,
       trabajo_titulo,
