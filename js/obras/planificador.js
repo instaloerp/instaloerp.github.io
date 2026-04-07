@@ -1191,27 +1191,60 @@ function planCrearClienteRapido() {
   const mini = document.createElement('div');
   mini.id = 'planMiniClienteModal';
   mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  const inputStyle = 'width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box';
+  const labelStyle = 'font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px';
   mini.innerHTML = `
-    <div style="background:#fff;border-radius:12px;padding:20px;max-width:380px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="background:#fff;border-radius:12px;padding:20px;max-width:420px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
       <div style="font-size:15px;font-weight:800;margin-bottom:14px">➕ Nuevo cliente</div>
+
       <div style="margin-bottom:10px">
-        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Nombre *</label>
-        <input id="planCliNombre" type="text" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Nombre o razón social">
+        <label style="${labelStyle}">Nombre *</label>
+        <input id="planCliNombre" type="text" style="${inputStyle}" placeholder="Nombre o razón social">
       </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div>
-          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Teléfono</label>
-          <input id="planCliTel" type="tel" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="6XX XXX XXX">
+          <label style="${labelStyle}">Teléfono *</label>
+          <input id="planCliTel" type="tel" style="${inputStyle}" placeholder="6XX XXX XXX">
         </div>
         <div>
-          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">NIF/CIF</label>
-          <input id="planCliNif" type="text" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="12345678A">
+          <label style="${labelStyle}">Teléfono 2</label>
+          <input id="planCliTel2" type="tel" style="${inputStyle}" placeholder="6XX XXX XXX">
         </div>
       </div>
-      <div style="margin-bottom:14px">
-        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Email</label>
-        <input id="planCliEmail" type="email" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="correo@ejemplo.com">
+
+      <div style="margin-bottom:10px">
+        <label style="${labelStyle}">Dirección *</label>
+        <input id="planCliDir" type="text" style="${inputStyle}" placeholder="Calle, número, piso...">
       </div>
+
+      <div style="display:grid;grid-template-columns:90px 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="${labelStyle}">CP *</label>
+          <input id="planCliCp" type="text" style="${inputStyle}" placeholder="46001" maxlength="5">
+        </div>
+        <div>
+          <label style="${labelStyle}">Municipio *</label>
+          <input id="planCliMun" type="text" style="${inputStyle}" placeholder="Valencia">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div>
+          <label style="${labelStyle}">Provincia *</label>
+          <input id="planCliProv" type="text" style="${inputStyle}" placeholder="Valencia">
+        </div>
+        <div>
+          <label style="${labelStyle}">NIF/CIF</label>
+          <input id="planCliNif" type="text" style="${inputStyle}" placeholder="12345678A">
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="${labelStyle}">Email</label>
+        <input id="planCliEmail" type="email" style="${inputStyle}" placeholder="correo@ejemplo.com">
+      </div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('planMiniClienteModal').remove()" style="padding:8px 14px;border:1px solid #D1D5DB;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600">Cancelar</button>
         <button onclick="planGuardarClienteRapido()" style="padding:8px 14px;border:none;border-radius:8px;background:#8B5CF6;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Guardar cliente</button>
@@ -1223,16 +1256,38 @@ function planCrearClienteRapido() {
 }
 
 async function planGuardarClienteRapido() {
-  const nombre = document.getElementById('planCliNombre')?.value.trim();
-  if (!nombre) { toast('El nombre es obligatorio', 'error'); return; }
-  const telefono = document.getElementById('planCliTel')?.value.trim() || null;
-  const nif      = document.getElementById('planCliNif')?.value.trim() || null;
-  const email    = document.getElementById('planCliEmail')?.value.trim() || null;
+  const nombre    = document.getElementById('planCliNombre')?.value.trim();
+  const telefono  = document.getElementById('planCliTel')?.value.trim() || null;
+  const telefono2 = document.getElementById('planCliTel2')?.value.trim() || null;
+  const dir       = document.getElementById('planCliDir')?.value.trim() || null;
+  const cp        = document.getElementById('planCliCp')?.value.trim() || null;
+  const mun       = document.getElementById('planCliMun')?.value.trim() || null;
+  const prov      = document.getElementById('planCliProv')?.value.trim() || null;
+  const nif       = document.getElementById('planCliNif')?.value.trim() || null;
+  const email     = document.getElementById('planCliEmail')?.value.trim() || null;
+
+  // Validar campos obligatorios
+  const errores = [];
+  if (!nombre)   errores.push('nombre');
+  if (!telefono) errores.push('teléfono');
+  if (!dir)      errores.push('dirección');
+  if (!cp)       errores.push('código postal');
+  if (!mun)      errores.push('municipio');
+  if (!prov)     errores.push('provincia');
+  if (errores.length) {
+    toast('Faltan campos obligatorios: ' + errores.join(', '), 'error');
+    return;
+  }
 
   const { data, error } = await sb.from('clientes').insert({
     empresa_id: EMPRESA.id,
     nombre,
     telefono,
+    telefono2,
+    direccion_fiscal: dir,
+    cp_fiscal: cp,
+    municipio_fiscal: mun,
+    provincia_fiscal: prov,
     nif,
     email
   }).select('id,nombre').single();
@@ -1241,7 +1296,8 @@ async function planGuardarClienteRapido() {
 
   // Añadir al array local para buscarlo inmediatamente
   if (typeof clientes !== 'undefined' && Array.isArray(clientes)) {
-    clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email });
+    clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,
+      direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov });
   }
 
   // Seleccionar el nuevo cliente en el buscador

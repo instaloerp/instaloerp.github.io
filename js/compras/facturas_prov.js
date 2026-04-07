@@ -1035,6 +1035,84 @@ async function iaPreviewValidar() {
 }
 
 // ═══════════════════════════════════════════════
+// TAREAS PENDIENTES — Datos incompletos en OCR
+// Se genera una tarea cuando el OCR crea un
+// proveedor o artículo con campos obligatorios
+// vacíos, para que el rol correspondiente los
+// complete manualmente.
+//
+// Campos obligatorios:
+//   Proveedor : nombre, cif, telefono, direccion, cp, municipio, provincia, forma_pago_id
+//   Artículo  : nombre, precio_venta, precio_coste, tipo_iva_id, unidad_id, familia_id, codigo
+// ═══════════════════════════════════════════════
+
+const _CAMPOS_REQUERIDOS = {
+  proveedor: [
+    { campo: 'cif',          etiqueta: 'CIF/NIF' },
+    { campo: 'telefono',     etiqueta: 'Teléfono' },
+    { campo: 'direccion',    etiqueta: 'Dirección' },
+    { campo: 'cp',           etiqueta: 'Código postal' },
+    { campo: 'municipio',    etiqueta: 'Municipio' },
+    { campo: 'provincia',    etiqueta: 'Provincia' },
+    { campo: 'forma_pago_id',etiqueta: 'Forma de pago' },
+  ],
+  articulo: [
+    { campo: 'precio_venta', etiqueta: 'Precio venta (PVP)' },
+    { campo: 'precio_coste', etiqueta: 'Precio coste' },
+    { campo: 'tipo_iva_id',  etiqueta: 'Tipo IVA' },
+    { campo: 'unidad_id',    etiqueta: 'Unidad de medida' },
+    { campo: 'familia_id',   etiqueta: 'Familia' },
+    { campo: 'codigo',       etiqueta: 'Código interno' },
+  ]
+};
+
+const _ROL_ASIGNADO = {
+  proveedor: 'admin',
+  articulo:  'encargado_almacen'
+};
+
+async function _generarTareaPendiente(entidadTipo, entidadId, entidadNombre, registro, facturaRef) {
+  if (!EMPRESA?.id) return;
+
+  const requeridos = _CAMPOS_REQUERIDOS[entidadTipo] || [];
+  const faltantes  = requeridos.filter(({ campo }) => {
+    const v = registro[campo];
+    return v === null || v === undefined || v === '' || v === 0;
+  });
+
+  if (!faltantes.length) return; // Todo completo, no hace falta tarea
+
+  const etiquetas = faltantes.map(f => f.etiqueta);
+  const rol = _ROL_ASIGNADO[entidadTipo] || 'admin';
+
+  const nombreTipo = entidadTipo === 'proveedor' ? 'proveedor' : 'artículo';
+  const titulo = `Completar datos del ${nombreTipo}: ${entidadNombre}`;
+
+  const tarea = {
+    empresa_id:       EMPRESA.id,
+    entidad_tipo:     entidadTipo,
+    entidad_id:       entidadId,
+    entidad_nombre:   entidadNombre,
+    titulo,
+    campos_faltantes: etiquetas,
+    origen:           'ocr',
+    rol_asignado:     rol,
+    estado:           'pendiente',
+    factura_origen_ref: facturaRef || null,
+    usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+  };
+
+  const { error } = await sb.from('tareas_pendientes').insert(tarea);
+  if (error) {
+    console.warn('No se pudo crear tarea pendiente:', error.message);
+    return;
+  }
+
+  const iconos = { proveedor: '🏢', articulo: '📦' };
+  console.info(`[Tarea] ${iconos[entidadTipo] || '📋'} ${titulo} | Faltan: ${etiquetas.join(', ')} → ${rol}`);
+}
+
+// ═══════════════════════════════════════════════
 // CREAR PROVEEDOR (solo cuando se confirma)
 // ═══════════════════════════════════════════════
 async function iaCrearProveedor(provData) {
@@ -1061,6 +1139,11 @@ async function iaCrearProveedor(provData) {
   }
   proveedores.push(data);
   toast('Nuevo proveedor creado: ' + data.nombre, 'success');
+
+  // Generar tarea si faltan campos obligatorios
+  const facturaRef = _iaPreviewData?.numero || _iaPreviewData?.referencia || null;
+  await _generarTareaPendiente('proveedor', data.id, data.nombre, data, facturaRef);
+
   return data.id;
 }
 
@@ -1104,6 +1187,18 @@ async function iaCrearArticulo(lineaOCR, provId) {
   if (provId && data.id) {
     await _iaVincularArticuloProveedor(data.id, provId, lineaOCR);
   }
+
+  // Generar tarea si faltan campos obligatorios del artículo
+  // Nota: precio_coste y precio_venta ya se calculan arriba; si pvp=0 quedarán a 0
+  const artFacturaRef = _iaPreviewData?.numero || _iaPreviewData?.referencia || null;
+  await _generarTareaPendiente('articulo', data.id, data.nombre, {
+    precio_venta: nuevo.precio_venta,
+    precio_coste: nuevo.precio_coste,
+    tipo_iva_id:  nuevo.tipo_iva_id,
+    unidad_id:    nuevo.unidad_id    || null,
+    familia_id:   nuevo.familia_id   || null,
+    codigo:       nuevo.codigo
+  }, artFacturaRef);
 
   toast('Nuevo artículo: ' + data.nombre, 'info');
   return data;

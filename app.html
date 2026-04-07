@@ -2178,13 +2178,16 @@ function _openParteForm() {
         </div>
         <div class="field">
           <label>Cliente</label>
-          <div style="position:relative">
-            <input type="text" id="qf_cliente_busca" placeholder="Buscar cliente..." autocomplete="off"
-              oninput="_qfBuscarCliente(this.value)" onfocus="_qfBuscarCliente(this.value)"
-              style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box">
-            <input type="hidden" id="qf_cliente_id">
-            <input type="hidden" id="qf_cliente_nombre">
-            <div id="qfClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+          <div style="display:flex;gap:6px;align-items:flex-start">
+            <div style="position:relative;flex:1">
+              <input type="text" id="qf_cliente_busca" placeholder="Buscar cliente..." autocomplete="off"
+                oninput="_qfBuscarCliente(this.value)" onfocus="_qfBuscarCliente(this.value)"
+                style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box">
+              <input type="hidden" id="qf_cliente_id">
+              <input type="hidden" id="qf_cliente_nombre">
+              <div id="qfClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+            </div>
+            <button onclick="_qfCrearClienteRapido()" title="Nuevo cliente" style="padding:10px 13px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;cursor:pointer;font-size:18px;line-height:1;white-space:nowrap;flex-shrink:0">➕</button>
           </div>
         </div>
       </div>
@@ -2254,6 +2257,86 @@ function _qfSelCliente(id, nombre) {
   if (input) { input.value = nombre; input.style.borderColor = 'var(--azul)'; }
   const res = document.getElementById('qfClienteResults');
   if (res) res.style.display = 'none';
+}
+
+// ─── Crear cliente rápido desde FAB parte libre ───────────────────────
+function _qfCrearClienteRapido() {
+  const existente = document.getElementById('qfMiniClienteModal');
+  if (existente) { existente.remove(); return; }
+
+  const iS = 'width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box;margin-top:4px';
+  const lS = 'font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-top:10px';
+  const mini = document.createElement('div');
+  mini.id = 'qfMiniClienteModal';
+  mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+  mini.innerHTML = `
+    <div style="background:#fff;border-radius:18px 18px 0 0;padding:20px 18px 32px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
+      <div style="font-size:15px;font-weight:800;margin-bottom:6px">➕ Nuevo cliente</div>
+      <label style="${lS}">Nombre *</label>
+      <input id="qfCN_nombre" type="text" style="${iS}" placeholder="Nombre o razón social">
+      <label style="${lS}">Teléfono *</label>
+      <input id="qfCN_tel" type="tel" style="${iS}" placeholder="6XX XXX XXX">
+      <label style="${lS}">Teléfono 2</label>
+      <input id="qfCN_tel2" type="tel" style="${iS}" placeholder="6XX XXX XXX">
+      <label style="${lS}">Dirección *</label>
+      <input id="qfCN_dir" type="text" style="${iS}" placeholder="Calle, número, piso...">
+      <div style="display:grid;grid-template-columns:90px 1fr;gap:8px">
+        <div><label style="${lS}">CP *</label><input id="qfCN_cp" type="text" maxlength="5" style="${iS}" placeholder="46001"></div>
+        <div><label style="${lS}">Municipio *</label><input id="qfCN_mun" type="text" style="${iS}" placeholder="Valencia"></div>
+      </div>
+      <label style="${lS}">Provincia *</label>
+      <input id="qfCN_prov" type="text" style="${iS}" placeholder="Valencia">
+      <label style="${lS}">NIF/CIF</label>
+      <input id="qfCN_nif" type="text" style="${iS}" placeholder="12345678A">
+      <label style="${lS}">Email</label>
+      <input id="qfCN_email" type="email" style="${iS}" placeholder="correo@ejemplo.com">
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button onclick="document.getElementById('qfMiniClienteModal').remove()" style="flex:1;padding:12px;border:1.5px solid var(--gris-200);border-radius:12px;background:#fff;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer">Cancelar</button>
+        <button onclick="_qfGuardarClienteRapido()" style="flex:2;padding:12px;border:none;border-radius:12px;background:var(--azul);color:#fff;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer">Guardar cliente</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mini);
+  mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
+  setTimeout(() => document.getElementById('qfCN_nombre')?.focus(), 80);
+}
+
+async function _qfGuardarClienteRapido() {
+  const nombre    = document.getElementById('qfCN_nombre')?.value.trim();
+  const telefono  = document.getElementById('qfCN_tel')?.value.trim()  || null;
+  const telefono2 = document.getElementById('qfCN_tel2')?.value.trim() || null;
+  const dir       = document.getElementById('qfCN_dir')?.value.trim()  || null;
+  const cp        = document.getElementById('qfCN_cp')?.value.trim()   || null;
+  const mun       = document.getElementById('qfCN_mun')?.value.trim()  || null;
+  const prov      = document.getElementById('qfCN_prov')?.value.trim() || null;
+  const nif       = document.getElementById('qfCN_nif')?.value.trim()  || null;
+  const email     = document.getElementById('qfCN_email')?.value.trim()|| null;
+
+  const errores = [];
+  if (!nombre)   errores.push('nombre');
+  if (!telefono) errores.push('teléfono');
+  if (!dir)      errores.push('dirección');
+  if (!cp)       errores.push('CP');
+  if (!mun)      errores.push('municipio');
+  if (!prov)     errores.push('provincia');
+  if (errores.length) { toast('Faltan: ' + errores.join(', '), 'error'); return; }
+
+  const { data, error } = await sb.from('clientes').insert({
+    empresa_id: EMPRESA.id,
+    nombre, telefono, telefono2,
+    direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov,
+    nif, email
+  }).select('id,nombre').single();
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  if (typeof clientes !== 'undefined' && Array.isArray(clientes)) {
+    clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,
+      direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov });
+  }
+
+  _qfSelCliente(data.id, data.nombre);
+  document.getElementById('qfMiniClienteModal')?.remove();
+  toast('Cliente creado ✓', 'success');
 }
 
 async function _saveParteForm() {

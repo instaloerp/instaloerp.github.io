@@ -9,6 +9,29 @@ let artProveedores = [];  // proveedores del artículo abierto
 let artHistorial = [];    // historial del artículo abierto
 let artFotoFile = null;   // archivo foto pendiente de subir
 
+// Mapa artículo_id → [nombre_proveedor, ...] para columna de la lista
+let _artProvMap = {}; // { articuloId: ['Proveedor A', 'Proveedor B'] }
+let _artProvMapLoaded = false;
+
+async function _cargarArtProvMap() {
+  if (_artProvMapLoaded || !EMPRESA?.id) return;
+  const { data } = await sb.from('articulos_proveedores')
+    .select('articulo_id, proveedor_id')
+    .eq('empresa_id', EMPRESA.id);
+  if (!data) return;
+  _artProvMap = {};
+  data.forEach(({ articulo_id, proveedor_id }) => {
+    const prov = (typeof proveedores !== 'undefined' && proveedores.find(p => p.id === proveedor_id));
+    if (!prov) return;
+    if (!_artProvMap[articulo_id]) _artProvMap[articulo_id] = [];
+    if (!_artProvMap[articulo_id].includes(prov.nombre)) _artProvMap[articulo_id].push(prov.nombre);
+  });
+  _artProvMapLoaded = true;
+}
+
+// Invalida el mapa cuando se vincula un nuevo proveedor a un artículo
+function _invalidarArtProvMap() { _artProvMapLoaded = false; }
+
 // ─── Toggle datos sensibles (Coste, Dto, Valor stock) ───
 function toggleDatosSensibles() {
   _ocultarSensibles = !_ocultarSensibles;
@@ -43,9 +66,17 @@ function artTab(tab, el) {
 }
 
 // ─── RENDERIZAR LISTADO ───────────────────────
-function renderArticulos(list) {
+async function renderArticulos(list) {
   artFiltrados = list;
   document.getElementById('artCount').textContent = `${list.length} de ${articulos.length} artículos`;
+
+  // Cargar mapa proveedor→artículo la primera vez (asíncrono, re-renderiza al terminar)
+  if (!_artProvMapLoaded && EMPRESA?.id) {
+    _cargarArtProvMap().then(() => {
+      const tbody = document.getElementById('artTable');
+      if (tbody) _renderArticulosTabla(artFiltrados);
+    });
+  }
 
   // Populate filtro familias (solo padres)
   const sf = document.getElementById('selFamFiltro');
@@ -60,7 +91,13 @@ function renderArticulos(list) {
     actualizarFiltroSubfamilias();
   }
 
+  _renderArticulosTabla(list);
+  updateArticulosKPIs();
+}
+
+function _renderArticulosTabla(list) {
   const tbody = document.getElementById('artTable');
+  if (!tbody) return;
   tbody.innerHTML = list.length ?
     list.map(a => {
       const fam = familias.find(f => f.id === a.familia_id);
@@ -71,6 +108,15 @@ function renderArticulos(list) {
       const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
+      // Columna Proveedor/es
+      const provNombres = _artProvMap[a.id] || [];
+      let provCell = '—';
+      if (provNombres.length === 1) {
+        provCell = `<span style="font-size:12px;color:var(--gris-600)">${provNombres[0]}</span>`;
+      } else if (provNombres.length > 1) {
+        provCell = `<span style="font-size:12px;color:var(--gris-600)" title="${provNombres.join('\n')}">${provNombres[0]} <span style="color:var(--gris-300);font-size:11px">+${provNombres.length - 1}</span></span>`;
+      }
+
       return `<tr style="cursor:pointer" onclick="artRowClick(event,'${a.id}')" ondblclick="artRowDblClick(event,'${a.id}')">
         <td style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul)">${fotoMini} ${a.codigo || '—'}</td>
         <td>
@@ -79,6 +125,7 @@ function renderArticulos(list) {
           ${a.es_activo ? '<span class="badge bg-yellow" style="font-size:9.5px">Activo/Maquinaria</span>' : ''}
         </td>
         <td>${famLabel}</td>
+        <td>${provCell}</td>
         <td style="font-weight:700;color:var(--verde)">${fmtE(a.precio_venta)}${dtoLabel}</td>
         <td class="td-sensible" style="font-weight:600">${fmtE(a.precio_coste)}</td>
         <td class="td-sensible">${dto > 0 ? dto + '%' : '—'}</td>
@@ -91,9 +138,7 @@ function renderArticulos(list) {
         </div></td>
       </tr>`;
     }).join('') :
-    '<tr><td colspan="9"><div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div></td></tr>';
-
-  updateArticulosKPIs();
+    '<tr><td colspan="10"><div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div></td></tr>';
 }
 
 // ─── KPIs ──────────────────────────────────────
@@ -634,6 +679,7 @@ async function saveArtProveedor() {
 
   cancelArtProv();
   await loadArtProveedores(artId);
+  _invalidarArtProvMap(); // Actualizar columna de proveedor en la lista
   toast(apId ? 'Proveedor actualizado ✓' : 'Proveedor añadido ✓', 'success');
 }
 
@@ -641,6 +687,7 @@ async function delArtProveedor(id) {
   if (!confirm('¿Eliminar este proveedor del artículo?')) return;
   await sb.from('articulos_proveedores').delete().eq('id', id);
   const artId = document.getElementById('art_id').value;
+  _invalidarArtProvMap(); // Actualizar columna de proveedor en la lista
   await loadArtProveedores(artId);
   toast('Proveedor eliminado', 'info');
 }
