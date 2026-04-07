@@ -10,9 +10,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" href="icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <title>Instalo App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -831,10 +831,15 @@ async function showApp() {
 function renderBottomNav() {
   const nav = document.getElementById('bottomNav');
   const fab = document.getElementById('fabContainer');
+
+  // Permiso de almacén: admin siempre, operario si tiene acceso_almacen = true
+  const tieneAlmacen = esJefe || CP?.acceso_almacen === true;
+
   if (esJefe) {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="equipo" onclick="navigateTo('equipo')"><span class="ico">👥</span><span class="lbl">Equipo</span></button>
+      ${tieneAlmacen ? `<button class="nav-item" data-tab="almacen" onclick="navigateTo('almacen')"><span class="ico">📦</span><span class="lbl">Almacén</span></button>` : ''}
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">⚙️</span><span class="lbl">Más</span></button>
     `;
@@ -842,12 +847,20 @@ function renderBottomNav() {
   } else {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
-      <button class="nav-item" data-tab="partes" onclick="navigateTo('partes')"><span class="ico">📝</span><span class="lbl">Mis partes</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
+      ${tieneAlmacen ? `<button class="nav-item" data-tab="almacen" onclick="navigateTo('almacen')"><span class="ico">📦</span><span class="lbl">Almacén</span></button>` : ''}
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
-    if (fab) fab.style.display = 'none';
+    // FAB operario: OCR siempre; si tiene almacén añadir salida rápida
+    if (fab) {
+      fab.style.display = '';
+      const fabMenu = document.getElementById('fabMenu');
+      if (fabMenu) fabMenu.innerHTML = `
+        ${tieneAlmacen ? `<div class="fab-action"><button style="background:var(--rojo)" onclick="toggleFab();_almMovModal(null,'salida')">📦</button><span>Sacar material</span></div>` : ''}
+        <div class="fab-action"><button style="background:var(--gris-700)" onclick="toggleFab();fabOCR()">📷</button><span>Foto OCR</span></div>
+      `;
+    }
   }
 }
 
@@ -861,18 +874,20 @@ function navigateTo(tab) {
 
   if (esJefe) {
     switch(tab) {
-      case 'inicio': renderJefeInicio(body); break;
-      case 'equipo': renderJefeEquipo(body); break;
-      case 'agenda': renderJefeAgenda(body); break;
-      case 'mas': renderJefeMas(body); break;
+      case 'inicio':   renderJefeInicio(body); break;
+      case 'equipo':   renderJefeEquipo(body); break;
+      case 'almacen':  renderAppAlmacen(body); break;
+      case 'agenda':   renderJefeAgenda(body); break;
+      case 'mas':      renderJefeMas(body); break;
     }
   } else {
     switch(tab) {
-      case 'inicio': renderOperarioInicio(body); break;
-      case 'partes': renderOperarioPartes(body); break;
-      case 'tareas': renderOperarioTareas(body); break;
-      case 'agenda': renderOperarioAgenda(body); break;
-      case 'mas': renderOperarioMas(body); break;
+      case 'inicio':   renderOperarioInicio(body); break;
+      case 'partes':   renderOperarioPartes(body); break;
+      case 'tareas':   renderOperarioTareas(body); break;
+      case 'almacen':  renderAppAlmacen(body); break;
+      case 'agenda':   renderOperarioAgenda(body); break;
+      case 'mas':      renderOperarioMas(body); break;
     }
   }
 }
@@ -1659,17 +1674,7 @@ async function renderOperarioMas(el) {
     : '';
 
   el.innerHTML = `
-    <div class="section-title">🛠️ Herramientas</div>
-    <div class="card" onclick="_openOCRUpload()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
-      <span style="font-size:28px">📷</span>
-      <div style="flex:1">
-        <div style="font-weight:700;font-size:14px">Subir documento OCR</div>
-        <div style="font-size:12px;color:var(--gris-400)">Haz una foto a una factura o albarán de proveedor</div>
-      </div>
-      <span style="font-size:18px;color:var(--gris-300)">›</span>
-    </div>
-
-    <div class="section-title" style="margin-top:16px">📡 Conexión y datos</div>
+    <div class="section-title">📡 Conexión y datos</div>
     <div class="card" style="display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">${navigator.onLine ? '🟢' : '🟡'}</span>
       <div style="flex:1">
@@ -1686,6 +1691,10 @@ async function renderOperarioMas(el) {
     <div class="card" onclick="doRefresh()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🔄</span>
       <div><div style="font-weight:700;font-size:14px">Forzar actualización</div><div style="font-size:12px;color:var(--gris-400)">Recargar partes, tareas y datos</div></div>
+    </div>
+    <div class="card" onclick="clearCacheAndReload()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🗑️</span>
+      <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
     </div>
 
     <div class="section-title" style="margin-top:16px">🔒 Sesión</div>
@@ -1896,6 +1905,279 @@ async function renderJefeMas(el) {
 
 function _fmtDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+
+// ═══════════════════════════════════════════════
+// ALMACÉN: Vista principal en la app
+// ═══════════════════════════════════════════════
+let _almStock = [];
+let _almFiltro = '';
+
+async function renderAppAlmacen(el) {
+  // Vista diferente según rol: admin = completa, operario = solo consulta + sacar material
+  const soloLectura = !esJefe; // operario con acceso_almacen ve la lista pero no entra/ajusta
+  const subtitulo = soloLectura
+    ? 'Consulta stock y registra lo que sacas'
+    : 'Inventario y movimientos de stock';
+  el.innerHTML = `
+    <div style="padding:16px">
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px">📦 Almacén</div>
+      <div style="font-size:12px;color:var(--gris-400);margin-bottom:16px">${subtitulo}</div>
+      <div id="almKpis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input type="text" id="almBuscar" placeholder="Buscar artículo..." oninput="_almRender()"
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">
+        ${soloLectura
+          ? `<button onclick="_almMovModal(null,'salida')" style="padding:10px 13px;border:none;background:var(--rojo);color:#fff;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">⬇️ Sacar</button>`
+          : `<button onclick="_almMovModal()" style="padding:10px 13px;border:none;background:var(--azul);color:#fff;border-radius:10px;font-size:18px;cursor:pointer" title="Registrar movimiento">±</button>`
+        }
+      </div>
+      <div id="almLista"></div>
+    </div>
+  `;
+  await _almCargar();
+}
+
+async function _almCargar() {
+  const kpisEl = document.getElementById('almKpis');
+  const listaEl = document.getElementById('almLista');
+  if (kpisEl) kpisEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gris-400)">Cargando...</div>`;
+
+  try {
+    const { data, error } = await sb.from('stock')
+      .select('*, articulos(id,codigo,nombre,precio_venta,precio_coste,stock_minimo,familia_id)')
+      .eq('empresa_id', EMPRESA.id)
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    _almStock = data || [];
+  } catch(e) {
+    // Si la tabla stock no existe o falla, usar artículos directamente
+    _almStock = (articulos || []).map(a => ({
+      articulo_id: a.id,
+      cantidad: 0,
+      stock_minimo: a.stock_minimo || 0,
+      articulos: a
+    }));
+  }
+  _almRender();
+}
+
+function _almRender() {
+  const kpisEl = document.getElementById('almKpis');
+  const listaEl = document.getElementById('almLista');
+  if (!listaEl) return;
+
+  const q = (document.getElementById('almBuscar')?.value || '').toLowerCase().trim();
+  const lista = _almStock.filter(s => {
+    const art = s.articulos || articulos.find(a => a.id === s.articulo_id) || {};
+    if (!q) return true;
+    return (art.nombre||'').toLowerCase().includes(q) || (art.codigo||'').toLowerCase().includes(q);
+  });
+
+  // KPIs
+  const total   = _almStock.length;
+  const agotado = _almStock.filter(s => (s.cantidad||0) <= 0).length;
+  const bajo    = _almStock.filter(s => (s.cantidad||0) > 0 && (s.cantidad||0) < (s.stock_minimo||1)).length;
+
+  if (kpisEl) kpisEl.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;border:1.5px solid var(--gris-100)">
+      <div style="font-size:22px;font-weight:800;color:var(--azul)">${total}</div>
+      <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Referencias</div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;border:1.5px solid ${bajo>0?'#FEF3C7':'var(--gris-100)'}">
+      <div style="font-size:22px;font-weight:800;color:${bajo>0?'#D97706':'var(--verde)'}">${bajo}</div>
+      <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Bajo mínimo</div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;border:1.5px solid ${agotado>0?'#FEE2E2':'var(--gris-100)'}">
+      <div style="font-size:22px;font-weight:800;color:${agotado>0?'var(--rojo)':'var(--verde)'}">${agotado}</div>
+      <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Agotados</div>
+    </div>
+  `;
+
+  if (!lista.length) {
+    listaEl.innerHTML = `<div style="text-align:center;padding:32px;color:var(--gris-400)">Sin resultados</div>`;
+    return;
+  }
+
+  listaEl.innerHTML = lista.map(s => {
+    const art = s.articulos || articulos.find(a => a.id === s.articulo_id) || {};
+    const qty = s.cantidad || 0;
+    const min = s.stock_minimo || art.stock_minimo || 0;
+    const estado = qty <= 0 ? {ico:'🔴',col:'#DC2626',lbl:'Agotado'} :
+                   (min > 0 && qty < min) ? {ico:'🟡',col:'#D97706',lbl:'Bajo mínimo'} :
+                   {ico:'🟢',col:'var(--verde)',lbl:'OK'};
+    return `
+      <div onclick="_almDetalle(${s.id||'null'},${art.id||'null'})"
+        style="background:#fff;border-radius:12px;padding:14px;margin-bottom:8px;border:1.5px solid var(--gris-100);display:flex;align-items:center;gap:12px;cursor:pointer;active:background:var(--gris-50)">
+        <div style="width:42px;height:42px;background:var(--gris-50);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${art.nombre||'Sin nombre'}</div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:1px">${art.codigo||''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:20px;font-weight:800;color:${estado.col}">${qty}</div>
+          <div style="font-size:10px;color:var(--gris-400)">${min>0?'mín. '+min:''}</div>
+        </div>
+        <span style="font-size:18px">${estado.ico}</span>
+      </div>`;
+  }).join('');
+}
+
+function _almDetalle(stockId, articuloId) {
+  const s = stockId ? _almStock.find(x => x.id === stockId) : null;
+  const art = articuloId ? (articulos.find(a => a.id === articuloId) || s?.articulos || {}) : {};
+  const qty = s?.cantidad || 0;
+  const min = s?.stock_minimo || art.stock_minimo || 0;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <div style="font-size:16px;font-weight:800">${art.nombre||'Artículo'}</div>
+          ${art.codigo ? `<div style="font-size:11px;color:var(--gris-400)">${art.codigo}</div>` : ''}
+        </div>
+        <button onclick="this.closest('div[style*=fixed]').remove()"
+          style="width:28px;height:28px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:var(--gris-50);border-radius:10px;padding:14px;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:var(--azul)">${qty}</div>
+          <div style="font-size:11px;color:var(--gris-400)">En stock</div>
+        </div>
+        <div style="background:var(--gris-50);border-radius:10px;padding:14px;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:var(--gris-600)">${min}</div>
+          <div style="font-size:11px;color:var(--gris-400)">Mínimo</div>
+        </div>
+      </div>
+      ${art.precio_venta ? `<div style="font-size:13px;color:var(--gris-500);margin-bottom:12px">PVP: <strong>${parseFloat(art.precio_venta).toFixed(2)} €</strong>${art.precio_coste ? ` · Coste: <strong>${parseFloat(art.precio_coste).toFixed(2)} €</strong>` : ''}</div>` : ''}
+      <div style="display:flex;gap:10px;margin-top:4px">
+        ${esJefe ? `
+        <button onclick="this.closest('div[style*=fixed]').remove();_almMovModal(${articuloId||'null'},'entrada')"
+          style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--verde);color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+          ⬆️ Entrada
+        </button>` : ''}
+        <button onclick="this.closest('div[style*=fixed]').remove();_almMovModal(${articuloId||'null'},'salida')"
+          style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--rojo);color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+          ${esJefe ? '⬇️ Salida' : '⬇️ Sacar material'}
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _almMovModal(articuloId = null, tipoDefault = 'entrada') {
+  const iS = 'width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box;margin-top:4px';
+  const lS = 'font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-top:10px';
+  const artOpts = (articulos||[]).map(a =>
+    `<option value="${a.id}" ${a.id===articuloId?'selected':''}>${a.nombre||''} ${a.codigo?'('+a.codigo+')':''}</option>`
+  ).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'almMovModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:800">📦 Registrar movimiento</div>
+        <button onclick="document.getElementById('almMovModal').remove()"
+          style="width:28px;height:28px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <!-- Tipo -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        ${esJefe ? `<button id="almTipoEntrada" onclick="_almSelTipo('entrada')"
+          style="flex:1;padding:10px;border:2px solid var(--gris-200);border-radius:10px;background:#fff;color:var(--gris-500);font-weight:700;cursor:pointer;font-size:13px">
+          ⬆️ Entrada
+        </button>` : ''}
+        <button id="almTipoSalida" onclick="_almSelTipo('salida')"
+          style="flex:1;padding:10px;border:2px solid var(--gris-200);border-radius:10px;background:#fff;color:var(--gris-500);font-weight:700;cursor:pointer;font-size:13px">
+          ⬇️ Salida
+        </button>
+        ${esJefe ? `<button id="almTipoAjuste" onclick="_almSelTipo('ajuste')"
+          style="flex:1;padding:10px;border:2px solid var(--gris-200);border-radius:10px;background:#fff;color:var(--gris-500);font-weight:700;cursor:pointer;font-size:13px">
+          ✏️ Ajuste
+        </button>` : ''}
+      </div>
+      <input type="hidden" id="almMovTipo" value="${esJefe ? tipoDefault : 'salida'}">
+      <label style="${lS}">Artículo</label>
+      <select id="almMovArt" style="${iS}">
+        <option value="">— Selecciona artículo —</option>
+        ${artOpts}
+      </select>
+      <label style="${lS}">Cantidad</label>
+      <input id="almMovQty" type="number" min="1" value="1" style="${iS}">
+      <label style="${lS}">Notas (opcional)</label>
+      <input id="almMovNota" type="text" placeholder="Motivo, referencia..." style="${iS}">
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button onclick="document.getElementById('almMovModal').remove()"
+          style="flex:1;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;font-size:14px;cursor:pointer">Cancelar</button>
+        <button onclick="_almGuardarMov()"
+          style="flex:2;padding:12px;border:none;border-radius:10px;background:var(--azul);color:#fff;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const tipoEfectivo = esJefe ? tipoDefault : 'salida';
+  _almSelTipo(tipoEfectivo);
+}
+
+function _almSelTipo(tipo) {
+  document.getElementById('almMovTipo').value = tipo;
+  const cols = { entrada: 'var(--verde)', salida: 'var(--rojo)', ajuste: 'var(--azul)' };
+  ['entrada','salida','ajuste'].forEach(t => {
+    const btn = document.getElementById('almTipo' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (!btn) return;
+    const activo = t === tipo;
+    btn.style.background = activo ? cols[t] : '#fff';
+    btn.style.color = activo ? '#fff' : 'var(--gris-500)';
+    btn.style.borderColor = activo ? cols[t] : 'var(--gris-200)';
+  });
+}
+
+async function _almGuardarMov() {
+  const tipo    = document.getElementById('almMovTipo')?.value;
+  const artId   = parseInt(document.getElementById('almMovArt')?.value) || null;
+  const qty     = parseFloat(document.getElementById('almMovQty')?.value) || 0;
+  const nota    = document.getElementById('almMovNota')?.value.trim() || null;
+
+  if (!artId) { toast('Selecciona un artículo', 'error'); return; }
+  if (!qty || qty <= 0) { toast('Indica una cantidad válida', 'error'); return; }
+
+  try {
+    // Registrar movimiento en movimientos_stock
+    const delta = tipo === 'salida' ? -qty : (tipo === 'ajuste' ? qty : qty);
+    const { error: errMov } = await sb.from('movimientos_stock').insert({
+      empresa_id: EMPRESA.id,
+      articulo_id: artId,
+      tipo,
+      cantidad: qty,
+      delta,
+      notas: nota,
+      usuario_id: CP?.id || null,
+      usuario_nombre: CP?.nombre || '',
+      fecha: new Date().toISOString().slice(0,10)
+    });
+    if (errMov) throw errMov;
+
+    // Actualizar stock (upsert)
+    const stockRec = _almStock.find(s => s.articulo_id === artId);
+    const qtyActual = stockRec?.cantidad || 0;
+    const qtyNueva  = tipo === 'ajuste' ? qty : Math.max(0, qtyActual + delta);
+    const { error: errSt } = await sb.from('stock').upsert({
+      empresa_id: EMPRESA.id,
+      articulo_id: artId,
+      cantidad: qtyNueva,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'empresa_id,articulo_id' });
+    if (errSt) console.warn('[Almacén] upsert stock:', errSt.message);
+
+    document.getElementById('almMovModal')?.remove();
+    toast(`${tipo === 'entrada' ? '⬆️ Entrada' : tipo === 'salida' ? '⬇️ Salida' : '✏️ Ajuste'} registrado ✓`, 'success');
+    // Recargar vista
+    const body = document.getElementById('appBody');
+    if (body) await renderAppAlmacen(body);
+  } catch(e) { toast('Error: ' + (e.message||e), 'error'); }
 }
 
 function renderJefeAgenda(el) {
