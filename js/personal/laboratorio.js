@@ -2,18 +2,94 @@
  * LABORATORIO DE PRUEBAS — Instalo ERP
  * ─────────────────────────────────────────────────────────────
  * Página de desarrollo/testing solo visible para superadmin.
- * Aquí van features en pruebas antes de pasar a producción.
+ *
+ * AUTO-INSTALABLE: Este script se inyecta solo en el sidebar
+ * y crea su propia página. No necesita que index_split.html
+ * tenga el botón ni el div de página previamente.
  *
  * CÓMO USAR:
- *   1. Añade un nuevo panel con _labAddPanel(id, titulo, html, handlers)
+ *   1. Añade un nuevo panel con objeto en _LAB_PANELS
  *   2. Prueba la feature desde aquí
  *   3. Cuando esté lista, mueve el código al módulo correspondiente
- *      y elimina el panel de aquí con _labRemovePanel(id)
- *
- * Paneles activos:
- *   - fichaje-tests    → Pruebas del módulo de fichaje (app móvil)
+ *      y cambia estado a 'archivado'
  * ─────────────────────────────────────────────────────────────
  */
+
+// ── Auto-bootstrap: esperar a que CP esté disponible ────────
+(function _labBootstrap() {
+  // Intentar instalar cada 500ms hasta que CP esté listo (max 30s)
+  let intentos = 0;
+  const timer = setInterval(() => {
+    intentos++;
+    if (intentos > 60) { clearInterval(timer); return; } // max 30s
+    if (typeof CP === 'undefined' || !CP || !CP.es_superadmin) {
+      if (intentos > 60) clearInterval(timer);
+      return;
+    }
+    clearInterval(timer);
+    _labInstall();
+  }, 500);
+})();
+
+function _labInstall() {
+  // 1) Crear botón en sidebar (si no existe)
+  if (!document.getElementById('btnLaboratorio')) {
+    const secAdmin = document.getElementById('sec-admin');
+    if (secAdmin) {
+      const btn = document.createElement('button');
+      btn.className = 'sb-item';
+      btn.id = 'btnLaboratorio';
+      btn.onclick = function() { goPage('laboratorio'); };
+      btn.innerHTML = '<span class="ico">🧪</span> Laboratorio<span class="sb-beta" style="background:#7C3AED;color:#fff">dev</span>';
+      btn.style.display = 'flex';
+      secAdmin.appendChild(btn);
+    }
+  } else {
+    document.getElementById('btnLaboratorio').style.display = 'flex';
+  }
+
+  // 2) Crear página (si no existe)
+  if (!document.getElementById('page-laboratorio')) {
+    const pagesContainer = document.getElementById('content')
+      || document.getElementById('pagesContainer')
+      || document.querySelector('.pages')
+      || document.querySelector('main');
+    if (pagesContainer) {
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'page';
+      pageDiv.id = 'page-laboratorio';
+      pagesContainer.appendChild(pageDiv);
+    }
+  }
+
+  // 3) Registrar en goPage si no está (patchear ui.js)
+  // goPage ya tiene el handler gracias a ui.js, pero si no lo tiene,
+  // hacemos override del goPage para capturarlo
+  const originalGoPage = window._originalGoPage || window.goPage;
+  if (originalGoPage && !window._labGoPagePatched) {
+    window._originalGoPage = originalGoPage;
+    window._labGoPagePatched = true;
+    window.goPage = function(id) {
+      if (id === 'laboratorio') {
+        // Ocultar todas las páginas y mostrar la de laboratorio
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const labPage = document.getElementById('page-laboratorio');
+        if (labPage) {
+          labPage.classList.add('active');
+          // Actualizar título
+          const titleEl = document.getElementById('pgTitle') || document.querySelector('.topbar-title,.tb-title') || document.querySelector('h1');
+          if (titleEl) titleEl.textContent = '🧪 Laboratorio de pruebas';
+        }
+        loadLaboratorio();
+        return;
+      }
+      return originalGoPage.call(this, id);
+    };
+  }
+
+  console.log('🧪 Laboratorio instalado correctamente');
+}
+
 
 // ── Registro de paneles activos ─────────────────────────────
 const _LAB_PANELS = [
@@ -300,7 +376,6 @@ function _labSimular(evento) {
     'aviso-1630': '⏰ Este aviso se lanza en la APP MÓVIL a las 16:30 con vibración.\n\nPara probarlo: ve a ≡ Más → 🧪 Panel de pruebas → "Simular aviso 16:30"',
   };
   const desc = msgs[evento] || 'Evento no reconocido';
-  // Mostrar en un toast informativo + modal descriptivo
   _labModalInfo(desc);
 }
 
