@@ -1401,6 +1401,9 @@ function renderOperarioTareas(el) {
 let _agendaView = 'dia'; // dia | semana | mes
 let _agendaDate = new Date();
 
+// Mini agenda dentro del formulario de nuevo parte
+let _qfMiniWeekStart = null; // lunes de la semana visible en el mini-planner
+
 function renderOperarioAgenda(el) {
   const _ahora = new Date();
   const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
@@ -2139,75 +2142,357 @@ function fabOCR() {
 }
 
 // ═══════════════════════════════════════════════
-// PARTE: Formulario rápido (solo partes)
+// PLANIFICADOR PICKER para nuevo parte
+// Flujo: _openParteForm() → planificador → tocar hueco → _openParteFormFilled()
 // ═══════════════════════════════════════════════
+let _ppWeekStart  = null;
+let _ppSelDate    = null;
+let _ppModo       = 'obra';   // 'obra' | 'libre'
+let _ppObraId     = null;     // id de la obra seleccionada
+
+function _ppGetLunes(d) {
+  const r = new Date(d); const day = r.getDay() || 7;
+  r.setDate(r.getDate() - day + 1); r.setHours(0,0,0,0); return r;
+}
+
+// Calcula hora fin inteligente: 2h por defecto, recorta si hay parte antes
+function _ppSmartFin(fecha, horaIni, uid) {
+  const hiH = parseInt(horaIni.split(':')[0]);
+  const pts  = (Array.isArray(misPartes) ? misPartes : [])
+    .filter(p => p.fecha === fecha && (p.usuario_id == uid || !uid) && p.hora_inicio);
+  const siguiente = pts
+    .map(p => parseInt(p.hora_inicio.split(':')[0]))
+    .filter(h => h > hiH)
+    .sort((a,b) => a-b)[0];
+  const endH = siguiente !== undefined ? Math.min(hiH + 2, siguiente) : hiH + 2;
+  return String(Math.min(endH, 23)).padStart(2,'0') + ':00';
+}
+
+// Paso 1: abre el planificador semanal para elegir hueco
 function _openParteForm() {
-  const opOptions = todosUsuarios.filter(u => u.disponible_partes)
-    .map(u => `<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
-  const obraOptions = trabajos.filter(t => t.estado !== 'eliminado')
-    .map(t => `<option value="${t.id}" data-cli="${(t.cliente_nombre||'').replace(/"/g,'&quot;')}">${t.titulo||''}</option>`).join('');
+  if (!_ppSelDate) { _ppSelDate = new Date(); _ppSelDate.setHours(0,0,0,0); }
+  if (!_ppWeekStart) _ppWeekStart = _ppGetLunes(_ppSelDate);
+
+  const opOpts = todosUsuarios.filter(u=>u.disponible_partes)
+    .map(u=>`<option value="${u.id}">${u.nombre||''} ${u.apellidos||''}</option>`).join('');
 
   document.getElementById('modalContent').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div class="modal-title" style="margin:0">🔧 Nuevo Parte</div>
-      <button class="btn btn-sm btn-secondary" onclick="closeModal()" style="width:auto">✕</button>
+      <div class="modal-title" style="margin:0">📅 Elige un hueco</div>
+      <button onclick="closeModal()" style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:16px">✕</button>
     </div>
-    <div class="quick-form">
-      <!-- Operario -->
-      <div class="field">
-        <label>Operario</label>
-        <select id="qf_usuario"><option value="${CP?.id}">Yo (${CP?.nombre||''})</option>${opOptions}</select>
-      </div>
 
-      <!-- Toggle Obra / Parte libre -->
-      <div style="display:flex;gap:0;margin-bottom:10px;border:1.5px solid var(--gris-200);border-radius:10px;overflow:hidden">
-        <button id="qfToggleObra" onclick="_qfModoToggle('obra')" style="flex:1;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:var(--azul);color:#fff;font-family:var(--font)">🏗️ Con obra</button>
-        <button id="qfToggleLibre" onclick="_qfModoToggle('libre')" style="flex:1;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:var(--gris-100);color:var(--gris-500);font-family:var(--font)">📋 Parte libre</button>
-      </div>
-
-      <!-- Sección obra -->
-      <div id="qfSecObra">
-        <div class="field"><label>Obra</label><select id="qf_trabajo"><option value="">— Sin obra —</option>${obraOptions}</select></div>
-      </div>
-
-      <!-- Sección parte libre -->
-      <div id="qfSecLibre" style="display:none">
-        <div class="field">
-          <label>Descripción del trabajo *</label>
-          <input type="text" id="qf_libre_desc" placeholder="Ej: Reparación fuga, Instalación caldera...">
-        </div>
-        <div class="field">
-          <label>Cliente</label>
-          <div style="display:flex;gap:6px;align-items:flex-start">
-            <div style="position:relative;flex:1">
-              <input type="text" id="qf_cliente_busca" placeholder="Buscar cliente..." autocomplete="off"
-                oninput="_qfBuscarCliente(this.value)" onfocus="_qfBuscarCliente(this.value)"
-                style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box">
-              <input type="hidden" id="qf_cliente_id">
-              <input type="hidden" id="qf_cliente_nombre">
-              <div id="qfClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
-            </div>
-            <button onclick="_qfCrearClienteRapido()" title="Nuevo cliente" style="padding:10px 13px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;cursor:pointer;font-size:18px;line-height:1;white-space:nowrap;flex-shrink:0">➕</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Fecha y horas -->
-      <div class="field"><label>Fecha</label><input type="date" id="qf_fecha" value="${_fmtDateStr(new Date())}"></div>
-      <div class="field" style="display:flex;gap:8px">
-        <div style="flex:1"><label>Hora inicio</label><input type="time" id="qf_hora_ini" value="08:00"></div>
-        <div style="flex:1"><label>Hora fin</label><input type="time" id="qf_hora_fin" value="14:00"></div>
-      </div>
-      <div class="field"><label>Dirección</label><input type="text" id="qf_direccion" placeholder="Dirección del trabajo"></div>
-      <div class="field"><label>Instrucciones</label><textarea id="qf_desc" placeholder="Instrucciones o notas..."></textarea></div>
-      <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:8px">Crear parte</button>
+    <!-- Operario -->
+    <div style="margin-bottom:10px">
+      <select id="pp_usuario" onchange="_ppRender()"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;font-family:var(--font)">
+        <option value="${CP?.id}">Yo (${CP?.nombre||''})</option>${opOpts}
+      </select>
     </div>
+
+    <!-- Toggle Con obra / Parte libre -->
+    <div style="display:flex;gap:0;margin-bottom:10px;border:1.5px solid var(--gris-200);border-radius:10px;overflow:hidden">
+      <button id="ppBtnObra"  onclick="_ppSetModo('obra')"
+        style="flex:1;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:var(--azul);color:#fff;font-family:var(--font)">🏗️ Con obra</button>
+      <button id="ppBtnLibre" onclick="_ppSetModo('libre')"
+        style="flex:1;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:var(--gris-100);color:var(--gris-500);font-family:var(--font)">📋 Parte libre</button>
+    </div>
+
+    <!-- Buscador de obra (solo modo obra) -->
+    <div id="ppObraSection" style="margin-bottom:10px">
+      <div style="position:relative">
+        <input type="text" id="ppObraBusca" placeholder="🔍 Buscar por obra, cliente, dirección..."
+          autocomplete="off" oninput="_ppBuscarObra(this.value)" onfocus="_ppBuscarObra(this.value)"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;font-family:var(--font);outline:none;box-sizing:border-box">
+        <input type="hidden" id="ppObraId">
+        <div id="ppObraResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:200px;overflow-y:auto;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>
+      </div>
+    </div>
+
+    <div id="ppContent"></div>
   `;
   openModal();
 
-  // Blur para cerrar dropdown cliente
+  // Restaurar estado del toggle
+  _ppSetModo(_ppModo, true);
+
+  // Blur cierra dropdown obra
+  document.getElementById('ppObraBusca')?.addEventListener('blur', () => {
+    setTimeout(() => { const r = document.getElementById('ppObraResults'); if(r) r.style.display='none'; }, 200);
+  });
+
+  _ppRender();
+}
+
+function _ppSetModo(modo, silent) {
+  _ppModo = modo;
+  const btnObra  = document.getElementById('ppBtnObra');
+  const btnLibre = document.getElementById('ppBtnLibre');
+  const sec      = document.getElementById('ppObraSection');
+  if (!btnObra) return;
+  if (modo === 'obra') {
+    btnObra.style.background  = 'var(--azul)'; btnObra.style.color  = '#fff';
+    btnLibre.style.background = 'var(--gris-100)'; btnLibre.style.color = 'var(--gris-500)';
+    if (sec) sec.style.display = '';
+  } else {
+    btnLibre.style.background = '#7C3AED'; btnLibre.style.color = '#fff';
+    btnObra.style.background  = 'var(--gris-100)'; btnObra.style.color = 'var(--gris-500)';
+    if (sec) sec.style.display = 'none';
+    _ppObraId = null;
+  }
+  if (!silent) _ppRender();
+}
+
+// Búsqueda de obra por: número, título, cliente (nombre/nif/tel/email), dirección
+function _ppBuscarObra(q) {
+  const res = document.getElementById('ppObraResults');
+  if (!res) return;
+  const term = (q||'').toLowerCase().trim();
+  const activos = trabajos.filter(t => t.estado !== 'eliminado' && t.estado !== 'completado');
+  const found = term.length < 1
+    ? activos.slice(0, 10)
+    : activos.filter(t => {
+        const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+        const haystack = [
+          t.numero, t.referencia, t.titulo,
+          t.cliente_nombre, t.direccion_obra_texto, t.direccion_obra, t.direccion,
+          cli?.nombre, cli?.nif, cli?.telefono, cli?.email,
+          cli?.direccion_fiscal, cli?.municipio_fiscal, cli?.municipio
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(term);
+      }).slice(0, 12);
+
+  if (!found.length) {
+    res.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--gris-400);text-align:center">Sin resultados</div>';
+  } else {
+    res.innerHTML = found.map(t => {
+      const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+      const cliNombre = cli?.nombre || t.cliente_nombre || '';
+      const dir = t.direccion_obra_texto || t.direccion_obra || cli?.direccion_fiscal || '';
+      return `<div onmousedown="_ppSelObra(${t.id},'${(t.titulo||'').replace(/'/g,"\\'")}','${(cliNombre).replace(/'/g,"\\'")}','${(dir).replace(/'/g,"\\'")}')"
+        style="padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;font-family:monospace;color:var(--azul);font-weight:700">${t.numero||'—'}</span>
+          <span style="font-size:13px;font-weight:700;flex:1">${t.titulo||'Sin título'}</span>
+        </div>
+        ${cliNombre ? `<div style="font-size:11px;color:var(--gris-500);margin-top:2px">👤 ${cliNombre}</div>` : ''}
+        ${dir        ? `<div style="font-size:11px;color:var(--gris-400);margin-top:1px">📍 ${dir.substring(0,60)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  res.style.display = '';
+}
+
+function _ppSelObra(id, titulo, cliente, dir) {
+  _ppObraId = id;
+  const input = document.getElementById('ppObraBusca');
+  if (input) {
+    input.value = titulo + (cliente ? '  ·  ' + cliente : '');
+    input.style.borderColor = 'var(--azul)';
+  }
+  document.getElementById('ppObraId').value = id;
+  const res = document.getElementById('ppObraResults');
+  if (res) res.style.display = 'none';
+  _ppRender();
+}
+
+// Renderiza semana + timeline del día seleccionado
+function _ppRender() {
+  const container = document.getElementById('ppContent');
+  if (!container) return;
+
+  const hoyStr = _fmtDateStr(new Date());
+  const selStr = _fmtDateStr(_ppSelDate);
+  const uid    = document.getElementById('pp_usuario')?.value || CP?.id;
+  const partes = Array.isArray(misPartes) ? misPartes : [];
+
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(_ppWeekStart); d.setDate(_ppWeekStart.getDate() + i);
+    dias.push({ date: d, str: _fmtDateStr(d) });
+  }
+  const weekLabel = dias[0].date.toLocaleDateString('es-ES',{day:'numeric',month:'short'}) +
+    ' \u2013 ' + dias[6].date.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+  const dowNames = ['L','M','X','J','V','S','D'];
+
+  const diasHtml = dowNames.map((n, i) => {
+    const d = dias[i];
+    const count = partes.filter(p => p.fecha === d.str && (p.usuario_id == uid || !uid)).length;
+    const isSel = d.str === selStr, isHoy = d.str === hoyStr, isWe = i >= 5;
+    let bg = 'transparent', color = isWe ? 'var(--gris-400)' : 'var(--gris-700)';
+    if (isSel) { bg='var(--azul)'; color='#fff'; } else if (isHoy) { bg='var(--azul-light)'; color='var(--azul)'; }
+    return `<div onclick="_ppSelDate=new Date('${d.str}T00:00:00');_ppRender()"
+      style="flex:1;text-align:center;padding:5px 2px;border-radius:8px;cursor:pointer;background:${bg};color:${color};user-select:none">
+      <div style="font-size:10px;font-weight:700">${n}</div>
+      <div style="font-size:15px;font-weight:800;line-height:1.2">${d.date.getDate()}</div>
+      ${count ? `<div style="font-size:9px;font-weight:700;background:${isSel?'rgba(255,255,255,.35)':'var(--azul)'};color:#fff;border-radius:10px;padding:1px 5px;margin-top:2px;display:inline-block">${count}</div>` : '<div style="height:14px"></div>'}
+    </div>`;
+  }).join('');
+
+  const partesDia = partes
+    .filter(p => p.fecha === selStr && (p.usuario_id == uid || !uid))
+    .sort((a,b) => (a.hora_inicio||'00:00').localeCompare(b.hora_inicio||'00:00'));
+
+  const pHiH = p => p.hora_inicio ? parseInt(p.hora_inicio.split(':')[0]) : null;
+  const pHfH = p => p.hora_fin    ? parseInt(p.hora_fin.split(':')[0])    : (pHiH(p) !== null ? pHiH(p)+8 : null);
+  const parteAt = h => partesDia.find(p => pHiH(p) !== null && pHiH(p) <= h && pHfH(p) > h);
+
+  let timeHtml = '';
+  const rendered = new Set();
+  for (let h = 7; h <= 20; h++) {
+    const hStr = String(h).padStart(2,'0') + ':00';
+    const p    = parteAt(h);
+    if (p) {
+      if (!rendered.has(p.id)) {
+        rendered.add(p.id);
+        const startH = pHiH(p), endH = pHfH(p), durH = Math.max(1, endH - startH);
+        const hiStr  = p.hora_inicio ? p.hora_inicio.substring(0,5) : hStr;
+        const hfStr  = p.hora_fin    ? p.hora_fin.substring(0,5)    : '';
+        const est    = PT_ESTADOS?.[p.estado] || { bg:'#DBEAFE', color:'#1E40AF' };
+        const titulo = p.trabajo_titulo || p.descripcion?.substring(0,40) || 'Sin obra';
+        const op     = (p.usuario_nombre && p.usuario_id != uid)
+          ? `<div style="font-size:10px;color:var(--gris-500);margin-top:2px">\u{1F477} ${p.usuario_nombre}</div>` : '';
+        timeHtml += `<div style="display:flex;gap:8px;align-items:stretch;margin-bottom:3px">
+          <div style="font-size:11px;font-weight:700;color:var(--gris-400);min-width:40px;padding-top:10px;text-align:right;flex-shrink:0">${hiStr}</div>
+          <div style="flex:1;background:${est.bg};border-left:3px solid var(--azul);border-radius:8px;padding:8px 10px;min-height:${durH*42}px">
+            <div style="font-size:12px;font-weight:700;color:var(--gris-800)">${titulo}</div>
+            <div style="font-size:11px;color:var(--gris-500);margin-top:2px">${hiStr}${hfStr?' \u2013 '+hfStr:''}</div>${op}
+          </div>
+        </div>`;
+      }
+    } else {
+      const hFin = _ppSmartFin(selStr, hStr, uid);
+      timeHtml += `<div onclick="_openParteFormFilled('${selStr}','${hStr}','${hFin}')"
+        style="display:flex;gap:8px;align-items:center;margin-bottom:3px;cursor:pointer"
+        onmouseenter="this.querySelector('.ppslot').style.background='#EFF6FF';this.querySelector('.ppslot').style.borderColor='var(--azul)'"
+        onmouseleave="this.querySelector('.ppslot').style.background='transparent';this.querySelector('.ppslot').style.borderColor='var(--gris-200)'">
+        <div style="font-size:11px;font-weight:700;color:var(--gris-300);min-width:40px;text-align:right;flex-shrink:0">${hStr}</div>
+        <div class="ppslot" style="flex:1;border:1.5px dashed var(--gris-200);border-radius:8px;padding:9px 12px;min-height:42px;display:flex;align-items:center;gap:8px;transition:all .15s">
+          <span style="color:var(--azul);font-size:20px;font-weight:300;line-height:1;flex-shrink:0">+</span>
+          <span style="font-size:12px;color:var(--gris-500)">${hStr} \u2013 ${hFin}</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  const diaLabel = _ppSelDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <button onclick="event.preventDefault();_ppWeekStart=new Date(_ppWeekStart.getTime()-7*864e5);_ppRender()"
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:18px;font-weight:700;line-height:1">\u2039</button>
+      <span style="font-size:12px;font-weight:700;color:var(--gris-600)">${weekLabel}</span>
+      <button onclick="event.preventDefault();_ppWeekStart=new Date(_ppWeekStart.getTime()+7*864e5);_ppRender()"
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:18px;font-weight:700;line-height:1">\u203a</button>
+    </div>
+    <div style="display:flex;gap:2px;margin-bottom:14px">${diasHtml}</div>
+    <div style="font-size:12px;font-weight:700;text-transform:capitalize;color:var(--gris-700);margin-bottom:8px">${diaLabel}</div>
+    <div style="max-height:48vh;overflow-y:auto;padding-right:4px">${timeHtml}</div>`;
+}
+
+// Paso 2: confirmaci\u00f3n editable con datos pre-rellenos del slot y la obra
+function _openParteFormFilled(fecha, horaIni, horaFin) {
+  const uid      = document.getElementById('pp_usuario')?.value || CP?.id;
+  const diaLabel = new Date(fecha+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+
+  // Datos de la obra seleccionada (si aplica)
+  const trab    = (_ppModo === 'obra' && _ppObraId) ? trabajos.find(t => t.id == _ppObraId) : null;
+  const cli     = trab?.cliente_id ? clientes.find(c => c.id === trab.cliente_id) : null;
+  const dirObra = trab ? (trab.direccion_obra_texto || trab.direccion_obra || trab.direccion ||
+                  cli?.direccion_fiscal || '') : '';
+  const instrObra = trab?.instrucciones || '';
+  const cliNombre = cli?.nombre || trab?.cliente_nombre || '';
+  const opOptions = todosUsuarios.filter(u => u.disponible_partes)
+    .map(u => `<option value="${u.id}" ${u.id==uid?'selected':''}>${u.nombre||''} ${u.apellidos||''}</option>`).join('');
+
+  document.getElementById('modalContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <button onclick="_openParteForm()"
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:18px;line-height:1">\u2190</button>
+      <div class="modal-title" style="margin:0;flex:1">\u{1F527} Nuevo Parte</div>
+      <button onclick="closeModal()"
+        style="width:32px;height:32px;border:none;background:var(--gris-100);border-radius:8px;cursor:pointer;font-size:16px">\u2715</button>
+    </div>
+    <div class="quick-form">
+
+      <!-- Operario -->
+      <div class="field">
+        <label>Operario</label>
+        <select id="qf_usuario">
+          <option value="${CP?.id}" ${(!uid||uid==CP?.id)?'selected':''}>Yo (${CP?.nombre||''})</option>
+          ${opOptions}
+        </select>
+      </div>
+
+      ${_ppModo === 'obra' ? `
+      <!-- Obra seleccionada -->
+      <div class="field">
+        <label>Obra</label>
+        <div style="padding:10px 12px;background:var(--gris-50);border:1.5px solid var(--gris-200);border-radius:10px">
+          ${trab
+            ? `<div style="font-size:13px;font-weight:700">${trab.titulo||'Sin t\u00edtulo'}</div>
+               ${cliNombre ? `<div style="font-size:11px;color:var(--gris-500);margin-top:2px">\u{1F464} ${cliNombre}</div>` : ''}`
+            : `<div style="font-size:13px;color:var(--gris-400)">\u2014 Sin obra seleccionada \u2014</div>`}
+        </div>
+        <input type="hidden" id="qf_trabajo" value="${_ppObraId||''}">
+      </div>
+      ` : `
+      <!-- Parte libre -->
+      <div class="field">
+        <label>Descripci\u00f3n del trabajo *</label>
+        <input type="text" id="qf_libre_desc" placeholder="Ej: Reparaci\u00f3n fuga, Instalaci\u00f3n caldera...">
+      </div>
+      <div class="field">
+        <label>Cliente</label>
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <div style="position:relative;flex:1">
+            <input type="text" id="qf_cliente_busca" placeholder="Buscar cliente..." autocomplete="off"
+              oninput="_qfBuscarCliente(this.value)" onfocus="_qfBuscarCliente(this.value)"
+              style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;box-sizing:border-box">
+            <input type="hidden" id="qf_cliente_id">
+            <input type="hidden" id="qf_cliente_nombre">
+            <div id="qfClienteResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gris-200);border-radius:0 0 10px 10px;max-height:180px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+          </div>
+          <button onclick="_qfCrearClienteRapido()" title="Nuevo cliente"
+            style="padding:10px 13px;border:1.5px solid var(--gris-200);border-radius:10px;background:#fff;cursor:pointer;font-size:18px;line-height:1;white-space:nowrap;flex-shrink:0">\u2795</button>
+        </div>
+      </div>
+      `}
+
+      <!-- Franja elegida \u2014 editable -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--azul-light);border-radius:10px;margin-bottom:10px">
+        <span style="font-size:20px">\u{1F4C5}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--azul);text-transform:capitalize">${diaLabel}</div>
+          <div style="font-size:12px;color:var(--gris-600);margin-top:1px">${horaIni} \u2013 ${horaFin}</div>
+        </div>
+        <button onclick="_openParteForm()"
+          style="font-size:11px;color:var(--azul);background:none;border:1px solid var(--azul);border-radius:6px;padding:4px 8px;cursor:pointer">Cambiar</button>
+      </div>
+      <input type="hidden" id="qf_fecha" value="${fecha}">
+      <div class="field" style="display:flex;gap:8px">
+        <div style="flex:1"><label>Hora inicio</label><input type="time" id="qf_hora_ini" value="${horaIni}"></div>
+        <div style="flex:1"><label>Hora fin</label>   <input type="time" id="qf_hora_fin"  value="${horaFin}"></div>
+      </div>
+      <div class="field">
+        <label>Direcci\u00f3n</label>
+        <input type="text" id="qf_direccion" value="${dirObra.replace(/"/g,'&quot;')}" placeholder="Direcci\u00f3n del trabajo">
+      </div>
+      <div class="field">
+        <label>Instrucciones</label>
+        <textarea id="qf_desc" placeholder="Instrucciones o notas...">${instrObra}</textarea>
+      </div>
+      <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:8px">Crear parte</button>
+    </div>
+  `;
+
+  if (_ppModo === 'libre') {
+    const h = document.createElement('input');
+    h.type = 'hidden'; h.id = 'qf_es_libre'; h.value = '1';
+    document.querySelector('.quick-form')?.appendChild(h);
+  }
+
   document.getElementById('qf_cliente_busca')?.addEventListener('blur', () => {
-    setTimeout(() => { const r = document.getElementById('qfClienteResults'); if (r) r.style.display = 'none'; }, 200);
+    setTimeout(() => { const r = document.getElementById('qfClienteResults'); if(r) r.style.display='none'; }, 200);
   });
 }
 
@@ -2343,8 +2628,10 @@ async function _qfGuardarClienteRapido() {
 async function _saveParteForm() {
   if (!EMPRESA) { toast('Sin empresa activa','error'); return; }
   try {
-    // Detectar modo (obra / parte libre)
-    const esLibre = document.getElementById('qfSecLibre')?.style.display !== 'none';
+    // Detectar modo (obra / parte libre) — soporta toggle clásico y nuevo picker
+    const esLibre = document.getElementById('qf_es_libre')?.value === '1'
+      || document.getElementById('qfSecLibre')?.style.display === ''
+      || _ppModo === 'libre';
 
     let trabajo_id    = null;
     let trabajo_titulo = '';
