@@ -1156,6 +1156,8 @@ function editCliente(id) {
   const ibanEl = document.getElementById('c_iban');
   if (ibanEl && ibanEl.value) validarIBANLive(ibanEl);
   openModal('mCliente', true);
+}
+
 async function saveCliente() {
   const nombre = document.getElementById('c_nombre').value.trim();
   const tipo   = v('c_tipo');
