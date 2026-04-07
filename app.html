@@ -3423,9 +3423,23 @@ function openParteDetail(id) {
       let dir = p.direccion || '';
       if (!dir && p.trabajo_id) {
         const trab = trabajos.find(tr => tr.id === p.trabajo_id);
-        if (trab) dir = trab.direccion_obra_texto || '';
+        if (trab) {
+          // Intentar todos los posibles nombres de campo de la obra
+          dir = trab.direccion_obra_texto || trab.direccion_obra || trab.direccion || trab.direccion_fiscal || '';
+          // Si la obra no tiene dirección, usar la dirección del cliente de la obra
+          if (!dir && trab.cliente_id) {
+            const cliObra = clientes.find(c => c.id === trab.cliente_id);
+            if (cliObra) {
+              const _d  = cliObra.direccion  || cliObra.direccion_fiscal  || '';
+              const _cp = cliObra.cp         || cliObra.cp_fiscal          || '';
+              const _mu = cliObra.municipio  || cliObra.municipio_fiscal   || '';
+              const _pr = cliObra.provincia  || cliObra.provincia_fiscal   || '';
+              dir = [_d, _cp, _mu, _pr].filter(Boolean).join(', ');
+            }
+          }
+        }
       }
-      // Parte libre: usar dirección del cliente si el parte no tiene una
+      // Parte libre (o sin obra): usar dirección del cliente
       // Soporta tanto columnas 'direccion' como 'direccion_fiscal' (clientes creados en caliente)
       if (!dir && !p.trabajo_id) {
         let cliDir = null;
