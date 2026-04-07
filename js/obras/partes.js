@@ -48,13 +48,14 @@ async function loadPartes() {
 
 // Estados globales del parte (flujo de 3 fases)
 const PT_ESTADOS = {
-  programado:  { label:'Programado',  color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
-  en_curso:    { label:'En curso',    color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
-  completado:  { label:'Cumplimentado', color:'#059669', bg:'#ECFDF5',  ico:'✅' },
-  revisado:    { label:'Revisado',    color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
-  facturado:   { label:'Facturado',   color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
-  borrador:    { label:'Borrador',    color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
-  enviado:     { label:'Enviado',     color:'#3B82F6', bg:'#EFF6FF',  ico:'📤' },
+  programado:              { label:'Programado',           color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
+  en_curso:                { label:'En curso',             color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
+  completado:              { label:'Cumplimentado',        color:'#059669', bg:'#ECFDF5',  ico:'✅' },
+  pendiente_firma_cliente: { label:'Pte. firma cliente',  color:'#F59E0B', bg:'#FEF3C7',  ico:'✍️' },
+  revisado:                { label:'Revisado',             color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
+  facturado:               { label:'Facturado',            color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
+  borrador:                { label:'Borrador',             color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
+  enviado:                 { label:'Enviado',              color:'#3B82F6', bg:'#EFF6FF',  ico:'📤' },
 };
 
 function renderPartes(list) {
@@ -1748,6 +1749,12 @@ async function eliminarParte(id) {
   partesData = partesData.filter(p => p.id !== id);
   partesFiltrados = partesFiltrados.filter(p => p.id !== id);
   renderPartes(partesFiltrados.length ? partesFiltrados : partesData);
+
+  // Refrescar planificador semanal (tiene su propia copia de datos)
+  if (typeof planPartesData !== 'undefined') {
+    planPartesData = planPartesData.filter(p => p.id !== id);
+    if (typeof renderPlanificador === 'function') try { renderPlanificador(); } catch(e) {}
+  }
 
   // Refrescar ficha de obra si está abierta
   if (typeof obraActualId !== 'undefined' && obraActualId) {

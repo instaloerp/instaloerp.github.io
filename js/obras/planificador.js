@@ -1202,15 +1202,9 @@ function planCrearClienteRapido() {
         <input id="planCliNombre" type="text" style="${inputStyle}" placeholder="Nombre o razón social">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <div>
-          <label style="${labelStyle}">Teléfono *</label>
-          <input id="planCliTel" type="tel" style="${inputStyle}" placeholder="6XX XXX XXX">
-        </div>
-        <div>
-          <label style="${labelStyle}">Teléfono 2</label>
-          <input id="planCliTel2" type="tel" style="${inputStyle}" placeholder="6XX XXX XXX">
-        </div>
+      <div style="margin-bottom:10px">
+        <label style="${labelStyle}">Teléfonos *</label>
+        <div id="phonesContainer_planCli"></div>
       </div>
 
       <div style="margin-bottom:10px">
@@ -1252,19 +1246,23 @@ function planCrearClienteRapido() {
     </div>`;
   document.body.appendChild(mini);
   mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
-  setTimeout(() => document.getElementById('planCliNombre')?.focus(), 80);
+  setTimeout(() => {
+    document.getElementById('planCliNombre')?.focus();
+    if (typeof _phonesInit === 'function') _phonesInit('planCli');
+  }, 80);
 }
 
 async function planGuardarClienteRapido() {
-  const nombre    = document.getElementById('planCliNombre')?.value.trim();
-  const telefono  = document.getElementById('planCliTel')?.value.trim() || null;
-  const telefono2 = document.getElementById('planCliTel2')?.value.trim() || null;
-  const dir       = document.getElementById('planCliDir')?.value.trim() || null;
-  const cp        = document.getElementById('planCliCp')?.value.trim() || null;
-  const mun       = document.getElementById('planCliMun')?.value.trim() || null;
-  const prov      = document.getElementById('planCliProv')?.value.trim() || null;
-  const nif       = document.getElementById('planCliNif')?.value.trim() || null;
-  const email     = document.getElementById('planCliEmail')?.value.trim() || null;
+  const nombre = document.getElementById('planCliNombre')?.value.trim();
+  const dir    = document.getElementById('planCliDir')?.value.trim() || null;
+  const cp     = document.getElementById('planCliCp')?.value.trim() || null;
+  const mun    = document.getElementById('planCliMun')?.value.trim() || null;
+  const prov   = document.getElementById('planCliProv')?.value.trim() || null;
+  const nif    = document.getElementById('planCliNif')?.value.trim() || null;
+  const email  = document.getElementById('planCliEmail')?.value.trim() || null;
+
+  // Recoger teléfonos del componente dinámico
+  const { telefono, telefonos } = (typeof _phonesGet === 'function') ? _phonesGet('planCli') : { telefono: null, telefonos: [] };
 
   // Validar campos obligatorios
   const errores = [];
@@ -1283,7 +1281,7 @@ async function planGuardarClienteRapido() {
     empresa_id: EMPRESA.id,
     nombre,
     telefono,
-    telefono2,
+    telefonos: telefonos.length ? telefonos : [],
     direccion_fiscal: dir,
     cp_fiscal: cp,
     municipio_fiscal: mun,
@@ -1298,6 +1296,7 @@ async function planGuardarClienteRapido() {
   if (typeof clientes !== 'undefined' && Array.isArray(clientes)) {
     clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,
       direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov });
+
   }
 
   // Seleccionar el nuevo cliente en el buscador

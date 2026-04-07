@@ -970,6 +970,127 @@ function showErr(id, msg) {
   el.style.display = 'block';
 }
 
+// ═══════════════════════════════════════════════
+//  COMPONENTE: TELÉFONOS MÚLTIPLES
+//  Uso en formularios de cliente (modal rápido y ficha completa)
+//
+//  HTML de contenedor:  <div id="phonesContainer_X"></div>
+//  Inicializar:         _phonesInit('X', valorExistente)
+//  Recoger valores:     const {telefono, telefonos} = _phonesGet('X')
+// ═══════════════════════════════════════════════
+
+const _PHONE_ETIQUETAS = ['Principal', 'Móvil', 'WhatsApp', 'Obra', 'Urgencias', 'Otro'];
+
+function _phonesInit(prefix, telefonoActual = '', telefonosActual = []) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+
+  // Construir lista inicial: siempre al menos 1 campo
+  const lista = [];
+  if (telefonoActual) lista.push({ numero: telefonoActual, etiqueta: 'Principal' });
+  else lista.push({ numero: '', etiqueta: 'Principal' });
+
+  (Array.isArray(telefonosActual) ? telefonosActual : []).forEach(t => {
+    if (typeof t === 'string') lista.push({ numero: t, etiqueta: 'Móvil' });
+    else if (t?.numero)        lista.push(t);
+  });
+
+  _phonesRender(prefix, lista);
+}
+
+function _phonesRender(prefix, lista) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+
+  const iS = 'flex:1;padding:9px 11px;border:1.5px solid var(--gris-200,#e5e7eb);border-radius:9px;font-size:13px;outline:none;box-sizing:border-box;min-width:0';
+  const selS = 'padding:9px 6px;border:1.5px solid var(--gris-200,#e5e7eb);border-radius:9px;font-size:12px;outline:none;background:#fff;color:#374151;cursor:pointer';
+  const delS = 'padding:8px 10px;border:none;background:none;cursor:pointer;font-size:16px;color:#9CA3AF;flex-shrink:0;border-radius:7px';
+
+  const etiqOpts = _PHONE_ETIQUETAS.map(e => `<option>${e}</option>`).join('');
+
+  const filas = lista.map((item, i) => {
+    const esPrimero = i === 0;
+    const delBtn = esPrimero ? '' : `<button type="button" onclick="_phoneDel('${prefix}',${i})" style="${delS}" title="Eliminar">✕</button>`;
+    const opts = _PHONE_ETIQUETAS.map(e => `<option ${e===item.etiqueta?'selected':''}>${e}</option>`).join('');
+    return `
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:7px" id="phoneRow_${prefix}_${i}">
+        <select onchange="_phoneSetEtiqueta('${prefix}',${i},this.value)" style="${selS}">${opts}</select>
+        <input type="tel" inputmode="tel" placeholder="6XX XXX XXX"
+          value="${item.numero || ''}"
+          oninput="_phoneSetNumero('${prefix}',${i},this.value)"
+          style="${iS}"
+          ${esPrimero ? 'id="phoneFirst_'+prefix+'"' : ''}>
+        ${delBtn}
+      </div>`;
+  }).join('');
+
+  container.innerHTML = filas + `
+    <button type="button" onclick="_phoneAdd('${prefix}')"
+      style="padding:7px 12px;border:1.5px dashed var(--gris-200,#e5e7eb);border-radius:9px;background:none;font-size:12px;font-weight:600;color:var(--azul,#3B82F6);cursor:pointer;width:100%;margin-top:2px">
+      ➕ Añadir teléfono
+    </button>`;
+
+  // Guardar lista en dataset para recuperarla
+  container.dataset.phones = JSON.stringify(lista);
+}
+
+function _phoneSetNumero(prefix, idx, val) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+  const lista = JSON.parse(container.dataset.phones || '[]');
+  if (lista[idx]) lista[idx].numero = val;
+  container.dataset.phones = JSON.stringify(lista);
+}
+
+function _phoneSetEtiqueta(prefix, idx, val) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+  const lista = JSON.parse(container.dataset.phones || '[]');
+  if (lista[idx]) lista[idx].etiqueta = val;
+  container.dataset.phones = JSON.stringify(lista);
+}
+
+function _phoneAdd(prefix) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+  const lista = JSON.parse(container.dataset.phones || '[]');
+  lista.push({ numero: '', etiqueta: _PHONE_ETIQUETAS[Math.min(lista.length, _PHONE_ETIQUETAS.length - 1)] });
+  _phonesRender(prefix, lista);
+  // Focus en el nuevo campo
+  const rows = container.querySelectorAll('input[type="tel"]');
+  if (rows.length) rows[rows.length - 1].focus();
+}
+
+function _phoneDel(prefix, idx) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return;
+  let lista = JSON.parse(container.dataset.phones || '[]');
+  lista.splice(idx, 1);
+  if (lista.length === 0) lista.push({ numero: '', etiqueta: 'Principal' });
+  _phonesRender(prefix, lista);
+}
+
+function _phonesGet(prefix) {
+  const container = document.getElementById('phonesContainer_' + prefix);
+  if (!container) return { telefono: null, telefonos: [] };
+  const lista = JSON.parse(container.dataset.phones || '[]');
+
+  // Sincronizar con los valores actuales de los inputs (el usuario puede haber tecleado sin disparar oninput en algunos casos)
+  container.querySelectorAll('input[type="tel"]').forEach((inp, i) => {
+    if (lista[i]) lista[i].numero = inp.value.trim();
+  });
+  container.querySelectorAll('select').forEach((sel, i) => {
+    if (lista[i]) lista[i].etiqueta = sel.value;
+  });
+
+  const primero   = lista[0]?.numero?.trim() || null;
+  const adicionales = lista.slice(1)
+    .map(t => ({ numero: t.numero?.trim() || '', etiqueta: t.etiqueta || 'Móvil' }))
+    .filter(t => t.numero);
+
+  return { telefono: primero, telefonos: adicionales };
+}
+
 // ─── Forzar spellcheck en todos los campos de texto ───
 function forzarSpellcheck(root) {
   root.querySelectorAll('input:not([type="hidden"]):not([type="number"]):not([type="email"]):not([type="password"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]), textarea').forEach(el => {

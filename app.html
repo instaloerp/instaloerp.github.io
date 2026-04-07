@@ -2274,10 +2274,8 @@ function _qfCrearClienteRapido() {
       <div style="font-size:15px;font-weight:800;margin-bottom:6px">➕ Nuevo cliente</div>
       <label style="${lS}">Nombre *</label>
       <input id="qfCN_nombre" type="text" style="${iS}" placeholder="Nombre o razón social">
-      <label style="${lS}">Teléfono *</label>
-      <input id="qfCN_tel" type="tel" style="${iS}" placeholder="6XX XXX XXX">
-      <label style="${lS}">Teléfono 2</label>
-      <input id="qfCN_tel2" type="tel" style="${iS}" placeholder="6XX XXX XXX">
+      <label style="${lS}">Teléfonos *</label>
+      <div id="phonesContainer_qfCN"></div>
       <label style="${lS}">Dirección *</label>
       <input id="qfCN_dir" type="text" style="${iS}" placeholder="Calle, número, piso...">
       <div style="display:grid;grid-template-columns:90px 1fr;gap:8px">
@@ -2297,19 +2295,22 @@ function _qfCrearClienteRapido() {
     </div>`;
   document.body.appendChild(mini);
   mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
-  setTimeout(() => document.getElementById('qfCN_nombre')?.focus(), 80);
+  setTimeout(() => {
+    document.getElementById('qfCN_nombre')?.focus();
+    if (typeof _phonesInit === 'function') _phonesInit('qfCN');
+  }, 80);
 }
 
 async function _qfGuardarClienteRapido() {
-  const nombre    = document.getElementById('qfCN_nombre')?.value.trim();
-  const telefono  = document.getElementById('qfCN_tel')?.value.trim()  || null;
-  const telefono2 = document.getElementById('qfCN_tel2')?.value.trim() || null;
-  const dir       = document.getElementById('qfCN_dir')?.value.trim()  || null;
-  const cp        = document.getElementById('qfCN_cp')?.value.trim()   || null;
-  const mun       = document.getElementById('qfCN_mun')?.value.trim()  || null;
-  const prov      = document.getElementById('qfCN_prov')?.value.trim() || null;
-  const nif       = document.getElementById('qfCN_nif')?.value.trim()  || null;
-  const email     = document.getElementById('qfCN_email')?.value.trim()|| null;
+  const nombre = document.getElementById('qfCN_nombre')?.value.trim();
+  const dir    = document.getElementById('qfCN_dir')?.value.trim()  || null;
+  const cp     = document.getElementById('qfCN_cp')?.value.trim()   || null;
+  const mun    = document.getElementById('qfCN_mun')?.value.trim()  || null;
+  const prov   = document.getElementById('qfCN_prov')?.value.trim() || null;
+  const nif    = document.getElementById('qfCN_nif')?.value.trim()  || null;
+  const email  = document.getElementById('qfCN_email')?.value.trim()|| null;
+
+  const { telefono, telefonos } = (typeof _phonesGet === 'function') ? _phonesGet('qfCN') : { telefono: null, telefonos: [] };
 
   const errores = [];
   if (!nombre)   errores.push('nombre');
@@ -2322,7 +2323,8 @@ async function _qfGuardarClienteRapido() {
 
   const { data, error } = await sb.from('clientes').insert({
     empresa_id: EMPRESA.id,
-    nombre, telefono, telefono2,
+    nombre, telefono,
+    telefonos: telefonos.length ? telefonos : [],
     direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov,
     nif, email
   }).select('id,nombre').single();
@@ -2333,7 +2335,6 @@ async function _qfGuardarClienteRapido() {
     clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,
       direccion_fiscal: dir, cp_fiscal: cp, municipio_fiscal: mun, provincia_fiscal: prov });
   }
-
   _qfSelCliente(data.id, data.nombre);
   document.getElementById('qfMiniClienteModal')?.remove();
   toast('Cliente creado ✓', 'success');
@@ -4987,16 +4988,18 @@ async function enviarEmailParte(parteId, email) {
 
 // ── MODAL ENVÍO PARTE (WhatsApp / SMS / Cerrar) ──
 let _envioRealizado = false; // Track si se envió por al menos 1 vía
+window._envioParteId = null; // ID del parte actual en el modal de envío
 
 function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdfUrl = null) {
   _envioRealizado = false;
+  window._envioParteId = parteId;
   const baseUrl = window.location.origin;
   // Siempre usar la URL limpia de parte.html para el cliente — el PDF se guarda internamente
   const enlace = `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
 
-  // Limpiar teléfono pre-rellenado
-  let tel = (telefonoCliente || '').replace(/[\s\-\.\(\)]/g, '');
+  // Campos siempre vacíos — el operario debe escribirlos expresamente
+  const tel = '';
 
   const content = `
     <div style="padding:16px 0">
@@ -5026,7 +5029,7 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdf
       <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:10px;text-align:left">
         <label style="font-size:11px;font-weight:700;color:var(--gris-500);margin-bottom:4px;display:block">📧 ENVIAR POR EMAIL</label>
         <div style="display:flex;gap:6px">
-          <input id="envioEmailInput" type="email" placeholder="email@ejemplo.com" value="${emailCliente || ''}"
+          <input id="envioEmailInput" type="email" placeholder="email@ejemplo.com" value=""
             inputmode="email" autocomplete="off"
             style="flex:1;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font)">
           <button onclick="enviarEmailDesdModal(${parteId})" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Enviar</button>
@@ -5034,7 +5037,15 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdf
         <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía desde el ERP directamente al cliente.</p>
       </div>
 
-      <button id="btnCerrarEnvio" onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400)" disabled>
+      <!-- Firma remota (cliente ausente) -->
+      <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px">
+        <p style="font-size:11px;color:var(--gris-400);margin:0 0 8px;text-align:center">¿El cliente no está presente para firmar?</p>
+        <button onclick="iniciarFirmaRemota(${parteId},'${parteNum}','${empresa}')" style="width:100%;padding:12px;border:1.5px solid #F59E0B;border-radius:10px;background:#FFFBEB;color:#B45309;font-size:14px;font-weight:700;cursor:pointer">
+          ✍️ Enviar enlace de firma remota al cliente
+        </button>
+      </div>
+
+      <button id="btnCerrarEnvio" onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400);margin-top:10px" disabled>
         Envía el parte al cliente para poder cerrar
       </button>
     </div>
@@ -5122,11 +5133,123 @@ function enviarEmailDesdModal(parteId) {
 
 function cerrarModalEnvio() {
   if (!_envioRealizado) {
-    toast('⚠️ Debes enviar el parte al cliente por al menos una vía', 'error');
+    _mostrarDialogSinEnvio();
     return;
   }
   closeModal();
   navigateTo(currentTab);
+}
+
+// Diálogo cuando el operario intenta salir sin haber enviado el parte
+function _mostrarDialogSinEnvio() {
+  const existente = document.getElementById('dlgSinEnvio');
+  if (existente) return;
+
+  // Obtener parteId del contexto actual
+  const parteIdActual = window._envioParteId;
+
+  const dlg = document.createElement('div');
+  dlg.id = 'dlgSinEnvio';
+  dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20000;display:flex;align-items:flex-end;justify-content:center';
+  dlg.innerHTML = `
+    <div style="background:#fff;border-radius:18px 18px 0 0;padding:24px 20px 36px;width:100%;max-width:480px">
+      <div style="font-size:32px;text-align:center;margin-bottom:8px">⚠️</div>
+      <h3 style="text-align:center;margin:0 0 8px;font-size:16px;color:#1e293b">¿Salir sin enviar el parte?</h3>
+      <p style="text-align:center;font-size:13px;color:#64748b;margin:0 0 20px">El cliente no ha recibido el parte todavía. Se creará una tarea de seguimiento para recordártelo.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="document.getElementById('dlgSinEnvio').remove()" style="padding:14px;border:none;border-radius:12px;background:#3B82F6;color:#fff;font-size:15px;font-weight:700;cursor:pointer">← Volver y enviar ahora</button>
+        <button onclick="_salirSinEnvioConTarea(${parteIdActual})" style="padding:14px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;color:#475569;font-size:14px;font-weight:600;cursor:pointer">Salir · Crear tarea de seguimiento</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
+}
+
+async function _salirSinEnvioConTarea(parteId) {
+  document.getElementById('dlgSinEnvio')?.remove();
+
+  // Crear tarea pendiente para admin/responsable
+  if (parteId && EMPRESA?.id) {
+    const parte = misPartes.find(p => p.id === parteId);
+    await sb.from('tareas_pendientes').insert({
+      empresa_id:   EMPRESA.id,
+      entidad_tipo: 'parte',
+      entidad_id:   parteId,
+      entidad_nombre: parte ? (parte.numero || 'Parte') : ('Parte #' + parteId),
+      titulo:       `Enviar parte al cliente: ${parte ? (parte.numero || '') : ''}`.trim(),
+      campos_faltantes: ['envio_cliente'],
+      origen:       'manual',
+      rol_asignado: 'admin',
+      estado:       'pendiente',
+      usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+    });
+    toast('Tarea de seguimiento creada 📋', 'info');
+  }
+
+  closeModal();
+  navigateTo(currentTab);
+}
+
+// ── FIRMA REMOTA — El cliente firma desde su móvil sin estar presente ──
+async function iniciarFirmaRemota(parteId, parteNum, empresa) {
+  const tel = _limpiarTelEnvio();
+  if (!tel || tel.length < 9) {
+    toast('⚠️ Introduce el teléfono del cliente primero', 'error');
+    document.getElementById('envioTelInput')?.focus();
+    return;
+  }
+
+  // Generar token corto único para este parte
+  const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
+
+  // Actualizar parte: guardar token + cambiar estado a pendiente_firma_cliente
+  const { error } = await sb.from('partes_trabajo').update({
+    firma_token: token,
+    estado: 'pendiente_firma_cliente',
+    firma_remota_enviado_at: new Date().toISOString()
+  }).eq('id', parteId);
+
+  if (error) {
+    toast('Error al preparar la firma remota: ' + error.message, 'error');
+    return;
+  }
+
+  // Actualizar en memoria local
+  const p = misPartes.find(x => x.id === parteId);
+  if (p) { p.firma_token = token; p.estado = 'pendiente_firma_cliente'; }
+
+  // Construir enlace de firma
+  const baseUrl = window.location.origin;
+  const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
+
+  // Mensaje para el cliente
+  const msg = encodeURIComponent(
+    `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
+    `Puede revisar el trabajo realizado y firmarlo desde su móvil en el siguiente enlace:\n\n${enlaceFirma}\n\n` +
+    `Una vez firmado, recibiremos la confirmación automáticamente. Gracias.`
+  );
+
+  const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
+  window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
+
+  _marcarEnvioRealizado();
+  toast('✍️ Enlace de firma enviado · El parte queda pendiente de firma cliente', 'success');
+
+  // Crear tarea pendiente de firma
+  if (EMPRESA?.id) {
+    await sb.from('tareas_pendientes').insert({
+      empresa_id:    EMPRESA.id,
+      entidad_tipo:  'parte',
+      entidad_id:    parteId,
+      entidad_nombre: parteNum,
+      titulo:        `Pendiente firma remota del cliente: ${parteNum}`,
+      campos_faltantes: ['firma_cliente'],
+      origen:        'manual',
+      rol_asignado:  'admin',
+      estado:        'pendiente',
+      usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+    });
+  }
 }
 
 // ── ADD WORK INFO (wizard completo sin cambiar estado) ──
