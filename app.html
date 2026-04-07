@@ -374,6 +374,7 @@ let _gmapsLoaded = false;
 // ─── State ───
 let CU = null, CP = null, EMPRESA = null;
 let esJefe = false;
+let esModoAlmacen = false;
 let currentTab = 'inicio';
 let misPartes = [];
 let misTareas = [];
@@ -772,10 +773,22 @@ async function loadEmpresa(id) {
 // APP INIT
 // ═══════════════════════════════════════════════
 function toggleModo() {
-  if (localStorage.getItem('instalo_modo') === 'operario') {
-    localStorage.setItem('instalo_modo', 'jefe');
-  } else {
-    localStorage.setItem('instalo_modo', 'operario');
+  const actual = localStorage.getItem('instalo_modo');
+  const esSuperAdmin = CP?.es_superadmin === true;
+  const tieneAlmacen = CP?.acceso_almacen === true;
+
+  if (esSuperAdmin) {
+    // Ciclo: jefe → almacen (si tiene permiso) → operario → jefe
+    if (actual === 'operario') {
+      localStorage.setItem('instalo_modo', 'jefe');
+    } else if (actual === 'almacen') {
+      localStorage.setItem('instalo_modo', 'operario');
+    } else {
+      localStorage.setItem('instalo_modo', tieneAlmacen ? 'almacen' : 'operario');
+    }
+  } else if (tieneAlmacen) {
+    // Encargado almacén: toggle operario ↔ almacen
+    localStorage.setItem('instalo_modo', actual === 'almacen' ? 'operario' : 'almacen');
   }
   showApp();
 }
@@ -791,27 +804,33 @@ async function showApp() {
     localStorage.setItem('instalo_modo', modoURL);
   }
   const modoFinal = localStorage.getItem('instalo_modo');
-  esJefe = modoFinal === 'operario' ? false : (CP?.es_superadmin === true);
+  esModoAlmacen = modoFinal === 'almacen';
+  esJefe = !esModoAlmacen && modoFinal !== 'operario' && CP?.es_superadmin === true;
   showScreen('s-app');
 
   // Header
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
 
-  // Botón cambio de modo (solo visible si es superadmin real)
+  // Botón cambio de modo: visible a superadmin o a encargado almacén
   const btnModo = document.getElementById('btnModo');
-  if (CP?.es_superadmin) {
+  if (CP?.es_superadmin || CP?.acceso_almacen) {
     btnModo.style.display = '';
-    if (esJefe) {
+    if (esModoAlmacen) {
+      btnModo.innerHTML = '📦 ALMACÉN';
+      btnModo.style.background = '#10B981';
+      btnModo.style.color = '#fff';
+      btnModo.title = CP?.es_superadmin ? 'Cambiar a modo Operario' : 'Volver a modo Operario';
+    } else if (esJefe) {
       btnModo.innerHTML = '⚙️ ADMIN';
       btnModo.style.background = '#3B82F6';
       btnModo.style.color = '#fff';
-      btnModo.title = 'Cambiar a modo Operario';
+      btnModo.title = CP?.acceso_almacen ? 'Cambiar a modo Almacén' : 'Cambiar a modo Operario';
     } else {
       btnModo.innerHTML = '👷 OPERARIO';
       btnModo.style.background = '#F59E0B';
       btnModo.style.color = '#fff';
-      btnModo.title = 'Cambiar a modo Administrador';
+      btnModo.title = CP?.es_superadmin ? 'Cambiar a modo Administrador' : 'Cambiar a modo Almacén';
     }
   } else {
     btnModo.style.display = 'none';
@@ -831,33 +850,54 @@ async function showApp() {
 function renderBottomNav() {
   const nav = document.getElementById('bottomNav');
   const fab = document.getElementById('fabContainer');
+  const fabMenu = document.getElementById('fabMenu');
 
-  // Permiso de almacén: admin siempre, operario si tiene acceso_almacen = true
-  const tieneAlmacen = esJefe || CP?.acceso_almacen === true;
+  if (esModoAlmacen) {
+    // ── Modo Almacén ──
+    nav.innerHTML = `
+      <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">📦</span><span class="lbl">Stock</span></button>
+      <button class="nav-item" data-tab="movimientos" onclick="navigateTo('movimientos')"><span class="ico">↕️</span><span class="lbl">Movimientos</span></button>
+      <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
+    `;
+    if (fab) {
+      fab.style.display = '';
+      if (fabMenu) fabMenu.innerHTML = `
+        ${esJefe ? `<div class="fab-action"><button style="background:var(--verde)" onclick="toggleFab();_almMovModal(null,'entrada')">⬆️</button><span>Entrada</span></div>` : ''}
+        ${esJefe ? `<div class="fab-action"><button style="background:var(--azul)" onclick="toggleFab();_almMovModal(null,'ajuste')">✏️</button><span>Ajuste</span></div>` : ''}
+        <div class="fab-action"><button style="background:var(--rojo)" onclick="toggleFab();_almMovModal(null,'salida')">⬇️</button><span>Sacar material</span></div>
+      `;
+    }
 
-  if (esJefe) {
+  } else if (esJefe) {
+    // ── Modo Admin ──
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="equipo" onclick="navigateTo('equipo')"><span class="ico">👥</span><span class="lbl">Equipo</span></button>
-      ${tieneAlmacen ? `<button class="nav-item" data-tab="almacen" onclick="navigateTo('almacen')"><span class="ico">📦</span><span class="lbl">Almacén</span></button>` : ''}
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">⚙️</span><span class="lbl">Más</span></button>
     `;
-    if (fab) fab.style.display = '';
+    if (fab) {
+      fab.style.display = '';
+      if (fabMenu) fabMenu.innerHTML = `
+        <div class="fab-action"><button style="background:var(--azul)" onclick="toggleFab();fabCrear('presupuesto')">📋</button><span>Presupuesto</span></div>
+        <div class="fab-action"><button style="background:var(--verde)" onclick="toggleFab();fabCrear('albaran')">📄</button><span>Albarán</span></div>
+        <div class="fab-action"><button style="background:var(--violeta)" onclick="toggleFab();fabCrear('factura')">🧾</button><span>Factura</span></div>
+        <div class="fab-action"><button style="background:var(--acento)" onclick="toggleFab();fabCrear('parte')">🔧</button><span>Nuevo parte</span></div>
+        <div class="fab-action"><button style="background:var(--gris-700)" onclick="toggleFab();fabOCR()">📷</button><span>Foto OCR</span></div>
+      `;
+    }
+
   } else {
+    // ── Modo Operario ──
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
-      ${tieneAlmacen ? `<button class="nav-item" data-tab="almacen" onclick="navigateTo('almacen')"><span class="ico">📦</span><span class="lbl">Almacén</span></button>` : ''}
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
-    // FAB operario: OCR siempre; si tiene almacén añadir salida rápida
     if (fab) {
       fab.style.display = '';
-      const fabMenu = document.getElementById('fabMenu');
       if (fabMenu) fabMenu.innerHTML = `
-        ${tieneAlmacen ? `<div class="fab-action"><button style="background:var(--rojo)" onclick="toggleFab();_almMovModal(null,'salida')">📦</button><span>Sacar material</span></div>` : ''}
         <div class="fab-action"><button style="background:var(--gris-700)" onclick="toggleFab();fabOCR()">📷</button><span>Foto OCR</span></div>
       `;
     }
@@ -872,11 +912,16 @@ function navigateTo(tab) {
   const fabMenu = document.getElementById('fabMenu');
   if (fabMenu && fabMenu.classList.contains('open')) toggleFab();
 
-  if (esJefe) {
+  if (esModoAlmacen) {
+    switch(tab) {
+      case 'inicio':       renderAppAlmacen(body); break;
+      case 'movimientos':  renderAlmacenMovimientos(body); break;
+      case 'mas':          renderAlmacenMas(body); break;
+    }
+  } else if (esJefe) {
     switch(tab) {
       case 'inicio':   renderJefeInicio(body); break;
       case 'equipo':   renderJefeEquipo(body); break;
-      case 'almacen':  renderAppAlmacen(body); break;
       case 'agenda':   renderJefeAgenda(body); break;
       case 'mas':      renderJefeMas(body); break;
     }
@@ -885,7 +930,6 @@ function navigateTo(tab) {
       case 'inicio':   renderOperarioInicio(body); break;
       case 'partes':   renderOperarioPartes(body); break;
       case 'tareas':   renderOperarioTareas(body); break;
-      case 'almacen':  renderAppAlmacen(body); break;
       case 'agenda':   renderOperarioAgenda(body); break;
       case 'mas':      renderOperarioMas(body); break;
     }
@@ -2178,6 +2222,71 @@ async function _almGuardarMov() {
     const body = document.getElementById('appBody');
     if (body) await renderAppAlmacen(body);
   } catch(e) { toast('Error: ' + (e.message||e), 'error'); }
+}
+
+// ═══════════════════════════════════════════════
+// MODO ALMACÉN — vistas adicionales
+// ═══════════════════════════════════════════════
+async function renderAlmacenMovimientos(el) {
+  el.innerHTML = `<div style="padding:16px;text-align:center;color:var(--gris-400)">Cargando...</div>`;
+  try {
+    const { data: movs } = await sb.from('movimientos_stock')
+      .select('*, articulos(nombre,codigo)')
+      .eq('empresa_id', EMPRESA.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const iS = 'display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700';
+    const tipoStyle = { entrada: `${iS};background:#D1FAE5;color:#065F46`, salida: `${iS};background:#FEE2E2;color:#991B1B`, ajuste: `${iS};background:#E0E7FF;color:#3730A3` };
+    const tipoLabel = { entrada: '⬆️ Entrada', salida: '⬇️ Salida', ajuste: '✏️ Ajuste' };
+
+    el.innerHTML = `
+      <div style="padding:16px">
+        <div style="font-size:18px;font-weight:800;margin-bottom:16px">↕️ Movimientos</div>
+        ${!movs?.length ? `<div style="text-align:center;color:var(--gris-400);padding:40px 0">Sin movimientos registrados</div>` :
+          movs.map(m => {
+            const art = m.articulos || {};
+            const fecha = m.fecha || m.created_at?.slice(0,10) || '';
+            return `
+            <div style="background:#fff;border:1px solid var(--gris-100);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <div style="font-weight:700;font-size:14px">${art.nombre||'—'}</div>
+                  ${art.codigo ? `<div style="font-size:11px;color:var(--gris-400)">${art.codigo}</div>` : ''}
+                  ${m.notas ? `<div style="font-size:12px;color:var(--gris-500);margin-top:2px">${m.notas}</div>` : ''}
+                </div>
+                <span style="${tipoStyle[m.tipo]||iS}">${tipoLabel[m.tipo]||m.tipo}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <span style="font-size:13px;color:var(--gris-500)">${m.usuario_nombre||''} · ${fecha}</span>
+                <span style="font-size:18px;font-weight:800;color:${m.tipo==='salida'?'var(--rojo)':m.tipo==='entrada'?'var(--verde)':'var(--azul)'}">
+                  ${m.tipo==='salida'?'-':'+'} ${m.cantidad}
+                </span>
+              </div>
+            </div>`;
+          }).join('')
+        }
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="padding:16px;color:var(--rojo)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderAlmacenMas(el) {
+  el.innerHTML = `
+    <div style="padding:16px">
+      <div style="font-size:18px;font-weight:800;margin-bottom:16px">Ajustes</div>
+      <div style="background:#fff;border:1px solid var(--gris-100);border-radius:16px;overflow:hidden">
+        <div onclick="borrarCache()" style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--gris-100)">
+          <div style="width:40px;height:40px;background:var(--gris-100);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">🗑️</div>
+          <div><div style="font-weight:700">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Forzar recarga de datos</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:16px">
+          <div style="width:40px;height:40px;background:var(--gris-100);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>
+          <div><div style="font-weight:700">Modo Almacén</div><div style="font-size:12px;color:var(--gris-400)">Sesión activa · ${CP?.nombre||''}</div></div>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderJefeAgenda(el) {
