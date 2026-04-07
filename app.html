@@ -2238,8 +2238,6 @@ async function renderOperarioMas(el) {
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
       Instalo ERP · App móvil v1.0 stable
     </div>
-
-    ${(esJefe || CP?.es_superadmin) ? _renderTestFichajePanel() : ''}
   `;
 }
 
@@ -2573,6 +2571,8 @@ async function renderJefeMas(el) {
       <span style="font-size:24px">🚪</span>
       <div><div style="font-weight:700;font-size:14px">Cerrar sesión</div><div style="font-size:12px;color:var(--gris-400)">${CU?.email||''}</div></div>
     </div>
+
+    ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
       Instalo ERP · App móvil v1.0 stable
