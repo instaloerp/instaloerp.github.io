@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Parte de Trabajo</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
@@ -103,29 +103,72 @@ canvas#firmaCanvas{display:block;width:100%;height:180px}
 </head>
 <body>
 
-<div class="container" id="app">
-  <div class="loading" id="loadingScreen">
-    <div class="spinner"></div>
+<main class="container" id="app">
+  <div class="loading" id="loadingScreen" role="status">
+    <div class="spinner" aria-hidden="true"></div>
     <p>Cargando parte de trabajo...</p>
   </div>
-</div>
+</main>
 
 <script>
+// ─── Constantes y estados ──────────────────────────────
 const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
+const ESTADOS = {
+  completado:             { label: 'Completado', badge: 'badge-completado', publico: true },
+  revisado:               { label: 'Revisado',   badge: 'badge-revisado',   publico: true },
+  facturado:              { label: 'Facturado',   badge: 'badge-facturado',  publico: true },
+  pendiente_firma_cliente:{ label: 'Pte. firma',  badge: '',                 publico: true },
+};
+const ESTADOS_PUBLICOS = Object.keys(ESTADOS).filter(k => ESTADOS[k].publico);
+
 const params      = new URLSearchParams(window.location.search);
 const parteId     = params.get('id');
 const firmaToken  = params.get('token');
-let   parteData   = null; // referencia global para el firmado remoto
+let   parteData   = null;
 
+// ─── Utilidades ────────────────────────────────────────
+/** Escapa HTML para prevenir XSS */
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatFecha(f) {
+  if (!f) return '—';
+  const date = new Date(f.includes('T') ? f : f + 'T00:00:00');
+  if (isNaN(date)) return esc(f);
+  return date.toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' });
+}
+
+function estadoBadge(e) {
+  const est = ESTADOS[e];
+  if (!est) return `<span class="badge">${esc(e)}</span>`;
+  return `<span class="badge ${est.badge}">${esc(est.label)}</span>`;
+}
+
+function showError(titulo, msg) {
+  document.getElementById('app').innerHTML = `
+    <div class="card error">
+      <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+      <h2 style="font-size:18px;color:#dc2626;margin-bottom:6px">${esc(titulo)}</h2>
+      <p style="font-size:14px;color:#64748b">${esc(msg)}</p>
+    </div>`;
+}
+
+// ─── Carga principal ───────────────────────────────────
 async function cargarParte() {
   if (!parteId && !firmaToken) { showError('Enlace no válido', 'No se ha proporcionado un identificador de parte.'); return; }
   try {
     let query;
     if (firmaToken) {
-      // Acceso por token (firma remota)
       query = sb.from('partes_trabajo').select('*').eq('firma_token', firmaToken);
     } else {
       query = sb.from('partes_trabajo').select('*').eq('id', parteId);
@@ -133,54 +176,30 @@ async function cargarParte() {
     const { data: parte, error } = await query.single();
     if (error || !parte) { showError('Parte no encontrado', 'El parte solicitado no existe o no está disponible.'); return; }
 
-    const estadosPublicos = ['completado','revisado','facturado','pendiente_firma_cliente'];
-    if (!estadosPublicos.includes(parte.estado)) {
+    if (!ESTADOS_PUBLICOS.includes(parte.estado)) {
       showError('Parte en proceso', 'Este parte de trabajo aún no ha sido completado.'); return;
     }
 
-    parteData = parte; // guardar para firma
+    parteData = parte;
 
-    // Empresa
-    let empresa = null;
-    if (parte.empresa_id) {
-      const { data: emp } = await sb.from('empresas').select('nombre,razon_social,cif,telefono,email').eq('id', parte.empresa_id).single();
-      empresa = emp;
-    }
+    // Consultas en paralelo
+    const [empresaRes, trabajoRes] = await Promise.all([
+      parte.empresa_id
+        ? sb.from('empresas').select('nombre,razon_social,cif,telefono,email').eq('id', parte.empresa_id).single()
+        : Promise.resolve({ data: null }),
+      parte.trabajo_id
+        ? sb.from('trabajos').select('titulo,direccion_obra_texto').eq('id', parte.trabajo_id).single()
+        : Promise.resolve({ data: null }),
+    ]);
 
-    // Trabajo
-    let trabajo = null;
-    if (parte.trabajo_id) {
-      const { data: trab } = await sb.from('trabajos').select('titulo,direccion_obra_texto').eq('id', parte.trabajo_id).single();
-      trabajo = trab;
-    }
-
-    renderParte(parte, empresa, trabajo);
+    renderParte(parte, empresaRes.data, trabajoRes.data);
   } catch(e) {
-    console.error(e);
+    console.error('[parte.html] Error cargando parte:', e);
     showError('Error de carga', 'No se pudo cargar el parte. Inténtelo de nuevo más tarde.');
   }
 }
 
-function showError(titulo, msg) {
-  document.getElementById('app').innerHTML = `
-    <div class="card error">
-      <div style="font-size:40px;margin-bottom:12px">⚠️</div>
-      <h2 style="font-size:18px;color:#dc2626;margin-bottom:6px">${titulo}</h2>
-      <p style="font-size:14px;color:#64748b">${msg}</p>
-    </div>`;
-}
-
-function formatFecha(f) {
-  if (!f) return '—';
-  return new Date(f + 'T00:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' });
-}
-
-function estadoBadge(e) {
-  const cls = { completado:'badge-completado', revisado:'badge-revisado', facturado:'badge-facturado' };
-  const lbl = { completado:'Completado', revisado:'Revisado', facturado:'Facturado' };
-  return `<span class="badge ${cls[e]||''}">${lbl[e]||e}</span>`;
-}
-
+// ─── Renderizado ───────────────────────────────────────
 function renderPendientes(val) {
   if (!val) return null;
   let items = null;
@@ -189,35 +208,26 @@ function renderPendientes(val) {
     return items.map(i => {
       const tipo = i.tipo || i.categoria || '';
       const desc = i.descripcion || i.texto || '';
-      return `<div class="pendiente-item"><span class="pendiente-dot"></span><span>${[tipo, desc].filter(Boolean).join(': ')}</span></div>`;
+      return `<div class="pendiente-item"><span class="pendiente-dot"></span><span>${esc([tipo, desc].filter(Boolean).join(': '))}</span></div>`;
     }).join('');
   }
   if (typeof val === 'string' && val.trim()) {
-    return `<div class="desc-text">${val.trim()}</div>`;
+    return `<div class="desc-text">${esc(val.trim())}</div>`;
   }
   return null;
 }
 
-function renderParte(p, emp, trab) {
-  const dir     = p.direccion || (trab?.direccion_obra_texto) || '';
-  const titulo  = p.trabajo_titulo || (trab?.titulo) || '';
+function renderCabecera(p, emp) {
   const empNombre = emp?.nombre || 'Parte de Trabajo';
-  const empSub  = [emp?.razon_social, emp?.cif ? 'CIF: ' + emp.cif : ''].filter(Boolean).join(' · ');
-
-  let html = '';
-
-  // ── Botón PDF ──
-  html += `<div class="pdf-bar"><button class="btn-pdf" onclick="window.print()">Guardar como PDF</button></div>`;
-
-  // ── Cabecera empresa ──
-  html += `<div class="card card-header">
-    <div class="empresa-nombre">${empNombre}</div>
-    ${empSub ? `<div class="empresa-sub">${empSub}</div>` : ''}
+  const empSub = [emp?.razon_social, emp?.cif ? 'CIF: ' + emp.cif : ''].filter(Boolean).join(' · ');
+  return `<div class="card card-header">
+    <div class="empresa-nombre">${esc(empNombre)}</div>
+    ${empSub ? `<div class="empresa-sub">${esc(empSub)}</div>` : ''}
     <hr class="divider">
     <div class="doc-meta">
       <div>
         <div class="doc-tipo">Parte de trabajo</div>
-        <div class="doc-numero">${p.numero || ('Parte nº ' + parteId)}</div>
+        <div class="doc-numero">${esc(p.numero) || ('Parte nº ' + esc(parteId))}</div>
       </div>
       <div>
         <div class="doc-fecha-label">Fecha</div>
@@ -225,33 +235,113 @@ function renderParte(p, emp, trab) {
       </div>
     </div>
   </div>`;
+}
 
-  // ── Información ──
+function renderInfoGrid(p, trab) {
+  const titulo = p.trabajo_titulo || (trab?.titulo) || '';
+  const dir    = p.direccion || (trab?.direccion_obra_texto) || '';
   const infoItems = [];
-  if (titulo)  infoItems.push({ label: 'Trabajo / Obra',  value: titulo });
-  if (dir)     infoItems.push({ label: 'Dirección',       value: dir });
+  if (titulo) infoItems.push({ label: 'Trabajo / Obra', value: esc(titulo) });
+  if (dir)    infoItems.push({ label: 'Dirección',      value: esc(dir) });
   infoItems.push({ label: 'Estado', value: estadoBadge(p.estado) });
-  if (p.operario_nombre_firma) infoItems.push({ label: 'Operario', value: p.operario_nombre_firma });
+  if (p.operario_nombre_firma) infoItems.push({ label: 'Operario', value: esc(p.operario_nombre_firma) });
 
-  if (infoItems.length) {
-    const gridClass = infoItems.length === 1 ? 'info-grid full' : 'info-grid';
-    html += `<div class="card">
-      <div class="section-title">Información del parte</div>
-      <div class="${gridClass}">
-        ${infoItems.map(it => `<div class="info-item"><div class="info-label">${it.label}</div><div class="info-value">${it.value}</div></div>`).join('')}
-      </div>
+  if (!infoItems.length) return '';
+  const gridClass = infoItems.length === 1 ? 'info-grid full' : 'info-grid';
+  return `<div class="card">
+    <div class="section-title">Información del parte</div>
+    <div class="${gridClass}">
+      ${infoItems.map(it => `<div class="info-item"><div class="info-label">${it.label}</div><div class="info-value">${it.value}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderFirmas(p) {
+  const hayFirmaCliente  = !!p.firma_url;
+  const hayFirmaOperario = !!p.firma_operario_url;
+  if (!hayFirmaCliente && !hayFirmaOperario) return '';
+
+  let html = `<div class="card">
+    <div class="section-title">Conformidad</div>
+    <div class="firma-grid">`;
+
+  if (hayFirmaCliente) {
+    html += `<div class="firma-block">
+      <div class="firma-label">Persona responsable</div>
+      <div class="firma-img-wrap"><img src="${esc(p.firma_url)}" class="firma-img" alt="Firma del responsable"></div>
+      <span class="firma-line"></span>
+      ${p.cliente_nombre_firma ? `<div class="firma-nombre">${esc(p.cliente_nombre_firma)}</div>` : ''}
+      ${p.cliente_dni           ? `<div class="firma-dni">DNI: ${esc(p.cliente_dni)}</div>` : ''}
+    </div>`;
+  } else {
+    html += `<div></div>`;
+  }
+
+  if (hayFirmaOperario) {
+    html += `<div class="firma-block">
+      <div class="firma-label">Operario</div>
+      <div class="firma-img-wrap"><img src="${esc(p.firma_operario_url)}" class="firma-img" alt="Firma del operario"></div>
+      <span class="firma-line"></span>
+      ${p.operario_nombre_firma ? `<div class="firma-nombre">${esc(p.operario_nombre_firma)}</div>` : ''}
     </div>`;
   }
 
-  // ── Trabajo realizado ──
+  html += `</div></div>`;
+  return html;
+}
+
+function renderFormFirmaRemota(p) {
+  if (!firmaToken || p.estado !== 'pendiente_firma_cliente' || p.firma_url) return '';
+  return `
+  <div class="card firma-remota-card">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:36px;margin-bottom:6px">✍️</div>
+      <h3 style="margin:0 0 4px;color:#92400e;font-size:17px">Firmar parte de trabajo</h3>
+      <p style="margin:0;font-size:13px;color:#78350f">Firme en el recuadro de abajo para confirmar la conformidad con el trabajo realizado</p>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label for="frNombre" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nombre completo *</label>
+      <input id="frNombre" type="text" autocomplete="name" placeholder="Nombre y apellidos"
+        style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
+    </div>
+    <div style="margin-bottom:12px">
+      <label for="frDni" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">DNI / NIE (opcional)</label>
+      <input id="frDni" type="text" placeholder="12345678A"
+        style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
+    </div>
+
+    <label style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Firma *</label>
+    <div class="firma-pad-wrap" style="margin-bottom:8px">
+      <canvas id="firmaCanvas" width="700" height="180" role="img" aria-label="Área de firma"></canvas>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button type="button" onclick="_firmaLimpiar()" style="flex:1;padding:10px;border:1.5px solid #F59E0B;border-radius:8px;background:#fff;color:#92400e;font-size:13px;font-weight:600;cursor:pointer">🗑️ Borrar firma</button>
+    </div>
+
+    <button type="button" id="btnFirmaEnviar" style="width:100%;padding:14px;border:none;border-radius:12px;background:#F59E0B;color:#fff;font-size:16px;font-weight:800;cursor:pointer">
+      ✅ Confirmar y firmar
+    </button>
+  </div>`;
+}
+
+function renderParte(p, emp, trab) {
+  const empNombre = emp?.nombre || 'Parte de Trabajo';
+
+  let html = '';
+  html += `<div class="pdf-bar"><button type="button" class="btn-pdf" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>`;
+  html += renderCabecera(p, emp);
+  html += renderInfoGrid(p, trab);
+
+  // Trabajo realizado
   if (p.descripcion) {
     html += `<div class="card">
       <div class="section-title">Trabajo realizado</div>
-      <div class="desc-text">${p.descripcion}</div>
+      <div class="desc-text">${esc(p.descripcion)}</div>
     </div>`;
   }
 
-  // ── Trabajos pendientes ──
+  // Trabajos pendientes
   const pendHtml = renderPendientes(p.trabajos_pendientes);
   if (pendHtml) {
     html += `<div class="card card-pendiente">
@@ -260,83 +350,18 @@ function renderParte(p, emp, trab) {
     </div>`;
   }
 
-  // ── Firmas ──
-  const hayFirmaCliente   = !!p.firma_url;
-  const hayFirmaOperario  = !!p.firma_operario_url;
-
-  if (hayFirmaCliente || hayFirmaOperario) {
-    html += `<div class="card">
-      <div class="section-title">Conformidad</div>
-      <div class="firma-grid">`;
-
-    if (hayFirmaCliente) {
-      html += `<div class="firma-block">
-        <div class="firma-label">Persona responsable</div>
-        <div class="firma-img-wrap"><img src="${p.firma_url}" class="firma-img" alt="Firma cliente"></div>
-        <span class="firma-line"></span>
-        ${p.cliente_nombre_firma ? `<div class="firma-nombre">${p.cliente_nombre_firma}</div>` : ''}
-        ${p.cliente_dni           ? `<div class="firma-dni">DNI: ${p.cliente_dni}</div>` : ''}
-      </div>`;
-    } else {
-      html += `<div></div>`;
-    }
-
-    if (hayFirmaOperario) {
-      html += `<div class="firma-block">
-        <div class="firma-label">Operario</div>
-        <div class="firma-img-wrap"><img src="${p.firma_operario_url}" class="firma-img" alt="Firma operario"></div>
-        <span class="firma-line"></span>
-        ${p.operario_nombre_firma ? `<div class="firma-nombre">${p.operario_nombre_firma}</div>` : ''}
-      </div>`;
-    }
-
-    html += `</div></div>`;
-  }
-
-  // ── Firma remota (solo si viene por token y aún no hay firma) ──
-  if (firmaToken && p.estado === 'pendiente_firma_cliente' && !p.firma_url) {
-    html += `
-    <div class="card firma-remota-card">
-      <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:36px;margin-bottom:6px">✍️</div>
-        <h3 style="margin:0 0 4px;color:#92400e;font-size:17px">Firmar parte de trabajo</h3>
-        <p style="margin:0;font-size:13px;color:#78350f">Firme en el recuadro de abajo para confirmar la conformidad con el trabajo realizado</p>
-      </div>
-
-      <div style="margin-bottom:12px">
-        <label style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nombre completo *</label>
-        <input id="frNombre" type="text" autocomplete="name" placeholder="Nombre y apellidos"
-          style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">DNI / NIE (opcional)</label>
-        <input id="frDni" type="text" placeholder="12345678A"
-          style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
-      </div>
-
-      <label style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Firma *</label>
-      <div class="firma-pad-wrap" style="margin-bottom:8px">
-        <canvas id="firmaCanvas" width="700" height="180"></canvas>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="_firmaLimpiar()" style="flex:1;padding:10px;border:1.5px solid #F59E0B;border-radius:8px;background:#fff;color:#92400e;font-size:13px;font-weight:600;cursor:pointer">🗑️ Borrar firma</button>
-      </div>
-
-      <button onclick="_firmaEnviar('${firmaToken}')" id="btnFirmaEnviar" style="width:100%;padding:14px;border:none;border-radius:12px;background:#F59E0B;color:#fff;font-size:16px;font-weight:800;cursor:pointer">
-        ✅ Confirmar y firmar
-      </button>
-    </div>`;
-  }
-
-  // ── Footer ──
+  html += renderFirmas(p);
+  html += renderFormFirmaRemota(p);
   html += `<div class="footer">Documento generado por Instalo ERP</div>`;
 
   document.getElementById('app').innerHTML = html;
   document.title = `${p.numero || 'Parte'} · ${empNombre}`;
 
-  // Inicializar canvas de firma si está presente
+  // Inicializar canvas y botón de firma
   if (firmaToken && p.estado === 'pendiente_firma_cliente' && !p.firma_url) {
     _initFirmaCanvas();
+    const btnFirma = document.getElementById('btnFirmaEnviar');
+    if (btnFirma) btnFirma.addEventListener('click', () => _firmaEnviar());
   }
 }
 
@@ -350,10 +375,11 @@ function _initFirmaCanvas() {
   const ctx = canvas.getContext('2d');
 
   // Ajustar resolución para pantallas retina
+  const dpr  = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width  = rect.width  * window.devicePixelRatio || 700;
-  canvas.height = 180 * window.devicePixelRatio || 180;
-  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  canvas.width  = (rect.width || 700) * dpr;
+  canvas.height = 180 * dpr;
+  ctx.scale(dpr, dpr);
   ctx.strokeStyle = '#1e293b';
   ctx.lineWidth = 2.5;
   ctx.lineCap   = 'round';
@@ -383,7 +409,7 @@ function _firmaLimpiar() {
   _firmaTieneTrazo = false;
 }
 
-async function _firmaEnviar(token) {
+async function _firmaEnviar() {
   const nombre = document.getElementById('frNombre')?.value.trim();
   const dni    = document.getElementById('frDni')?.value.trim() || null;
   if (!nombre) { alert('Por favor, introduce tu nombre completo antes de firmar.'); return; }
@@ -394,12 +420,13 @@ async function _firmaEnviar(token) {
 
   try {
     const canvas = document.getElementById('firmaCanvas');
-    const firmaBase64 = canvas.toDataURL('image/png');
+
+    // Convertir canvas a blob directamente (más eficiente que fetch de base64)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 
     // Subir firma a storage
-    let firmaUrl = firmaBase64; // fallback: base64 inline
+    let firmaUrl = canvas.toDataURL('image/png'); // fallback: base64 inline
     try {
-      const blob = await (await fetch(firmaBase64)).blob();
       const filename = `${parteData.empresa_id}/${parteData.id}_firma_remota_${Date.now()}.png`;
       const { error: upErr } = await sb.storage.from('fotos-partes').upload(filename, blob, { contentType: 'image/png' });
       if (!upErr) {
@@ -408,14 +435,14 @@ async function _firmaEnviar(token) {
       }
     } catch(e) { /* usar base64 */ }
 
-    // Actualizar parte por token (anon update — necesita RLS policy)
+    // Actualizar parte por token
     const { error } = await sb.from('partes_trabajo').update({
       firma_url:            firmaUrl,
       cliente_nombre_firma: nombre,
       cliente_dni:          dni,
       estado:               'completado',
       completado_at:        new Date().toISOString()
-    }).eq('firma_token', token);
+    }).eq('firma_token', firmaToken);
 
     if (error) throw error;
 
@@ -424,9 +451,9 @@ async function _firmaEnviar(token) {
       <div class="container" style="text-align:center;padding-top:60px">
         <div style="font-size:64px;margin-bottom:16px">✅</div>
         <h2 style="color:#15803d;margin:0 0 8px;font-size:22px">¡Firma registrada!</h2>
-        <p style="color:#64748b;font-size:14px;line-height:1.6">Gracias, ${nombre}.<br>Su conformidad con el parte de trabajo ha quedado registrada correctamente.</p>
+        <p style="color:#64748b;font-size:14px;line-height:1.6">Gracias, ${esc(nombre)}.<br>Su conformidad con el parte de trabajo ha quedado registrada correctamente.</p>
         <div style="margin-top:24px;padding:16px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;display:inline-block">
-          <p style="margin:0;font-size:12px;color:#15803d;font-weight:600">📄 ${parteData.numero || 'Parte'} · Firmado el ${new Date().toLocaleDateString('es-ES')}</p>
+          <p style="margin:0;font-size:12px;color:#15803d;font-weight:600">📄 ${esc(parteData.numero) || 'Parte'} · Firmado el ${new Date().toLocaleDateString('es-ES')}</p>
         </div>
       </div>`;
 
@@ -436,7 +463,10 @@ async function _firmaEnviar(token) {
   }
 }
 
-cargarParte();
+cargarParte().catch(e => {
+  console.error('[parte.html] Error inesperado:', e);
+  showError('Error inesperado', 'Recarga la página o contacta con soporte.');
+});
 </script>
 </body>
 </html>
