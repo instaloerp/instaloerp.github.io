@@ -816,10 +816,27 @@ function initRealtimePartes() {
       { event: 'INSERT', schema: 'public', table: 'documentos_generados', filter: `empresa_id=eq.${EMPRESA.id}` },
       _handleDocumentoGenerado
     )
+    // Tareas de obra — refrescar dashboard al cambiar cualquier tarea
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'tareas_obra', filter: `empresa_id=eq.${EMPRESA.id}` },
+      () => { if (typeof loadDashboard === 'function') loadDashboard(); }
+    )
+    // Trabajos (obras) — refrescar dashboard al crear/modificar una obra
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'trabajos', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        // Recargar lista global de trabajos y luego el dashboard
+        try {
+          const { data } = await sb.from('trabajos').select('*').eq('empresa_id', EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
+          if (data) trabajos = data;
+        } catch(e) {}
+        if (typeof loadDashboard === 'function') loadDashboard();
+      }
+    )
     .subscribe((status, err) => {
       console.log('[Realtime] Status:', status, err ? 'Error: ' + err.message : '');
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] ✅ Suscripción activa — escuchando: partes_trabajo, presupuestos, documentos_generados');
+        console.log('[Realtime] ✅ Suscripción activa — escuchando: partes_trabajo, presupuestos, documentos_generados, tareas_obra, trabajos');
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.error('[Realtime] ❌ Error de conexión. Verifica que las tablas están en la publicación supabase_realtime');
       }

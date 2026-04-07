@@ -1393,6 +1393,7 @@ async function guardarTareaObra() {
     document.getElementById('obraTareaFecha').value = '';
     updateTareasKpi();
     renderObraTareas();
+    if (typeof loadDashboard === 'function') loadDashboard();
   } finally {
     _creando = false;
   }
@@ -1465,6 +1466,7 @@ async function toggleTareaObra(id) {
   await registrarActividadObra(obraActualId, accion, `${nuevoEstado === 'completada' ? '✅' : '🔄'} "${tarea.texto}" — ${estadoAnterior} → ${nuevoEstado}`);
   updateTareasKpi();
   renderObraTareas();
+  if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 async function cambiarEstadoTarea(id, nuevoEstado) {
@@ -1490,6 +1492,7 @@ async function cambiarEstadoTarea(id, nuevoEstado) {
   await registrarActividadObra(obraActualId, accion, `${estInfo.ico||'🔀'} "${tarea.texto}" — ${estadoAnterior} → ${nuevoEstado}`);
   updateTareasKpi();
   renderObraTareas();
+  if (typeof loadDashboard === 'function') loadDashboard();
   toast(`${estInfo.ico||''} Tarea ${estInfo.label?.toLowerCase()||nuevoEstado}`, 'success');
 }
 
@@ -1620,6 +1623,7 @@ async function guardarEdicionTarea(id) {
 
   document.getElementById('modal-editar-tarea')?.remove();
   renderObraTareas();
+  if (typeof loadDashboard === 'function') loadDashboard();
   toast('Tarea editada ✓', 'success');
 }
 
