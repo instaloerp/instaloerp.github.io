@@ -10,20 +10,27 @@ let _ocrDocs = []; // cache local para filtro de búsqueda
 let _ocrChannel        = null;
 let _ocrReloadTimer    = null;
 let _ocrPollInterval   = null;
-let _ocrLastCount      = -1;   // para detectar cambios en el polling
+let _ocrLastFingerprint = '';  // huella: id:estado de cada doc — detecta cambios de estado Y de cantidad
 let _ocrIgnoreNext     = false; // evita re-render tras borrado manual
 
-// Polling cada 15 s: garantía si el realtime de Supabase no llega
+// Construye una huella única con todos los ids y sus estados actuales
+async function _ocrGetFingerprint() {
+  const { data } = await sb.from('documentos_ocr')
+    .select('id,estado')
+    .eq('empresa_id', EMPRESA.id)
+    .order('id', { ascending: true });
+  return data ? data.map(r => `${r.id}:${r.estado}`).join(',') : '';
+}
+
+// Polling cada 10 s: detecta tanto nuevos docs como cambios de estado (pendiente → completado)
 function _ocrStartPoll() {
   if (_ocrPollInterval) return;
   _ocrPollInterval = setInterval(async () => {
     if (!EMPRESA?.id) return;
     try {
-      const { count } = await sb.from('documentos_ocr')
-        .select('*', { count: 'exact', head: true })
-        .eq('empresa_id', EMPRESA.id);
-      if (count !== _ocrLastCount) {
-        _ocrLastCount = count;
+      const fp = await _ocrGetFingerprint();
+      if (fp !== _ocrLastFingerprint) {
+        _ocrLastFingerprint = fp;
         const paginaActiva = document.getElementById('page-ocr')?.classList.contains('active');
         if (paginaActiva) {
           loadOCRInbox();
@@ -32,7 +39,7 @@ function _ocrStartPoll() {
         }
       }
     } catch(e) { /* silent */ }
-  }, 15000);
+  }, 10000);
 }
 
 function _ocrStopPoll() {
@@ -119,6 +126,8 @@ async function loadOCRInbox() {
   }
 
   _ocrDocs = data || [];
+  // Inicializar huella para que el polling no detecte un cambio falso en el primer ciclo
+  _ocrLastFingerprint = _ocrDocs.map(r => `${r.id}:${r.estado}`).join(',');
   _ocrUpdateKpis();
   _ocrRenderTable(_ocrDocs);
   updateOCRBadge();
@@ -298,7 +307,7 @@ async function ocrGestionar(id) {
   // Si ya tiene datos extraídos y está completado, abrir directamente el preview
   if (doc.estado === 'completado' && doc.datos_extraidos && doc.datos_extraidos.lineas) {
     _ocrCurrentDocId = id;
-    _iaPreviewData = doc.datos_extraidos;
+    _iaPreviewData = _ocrSanitizeNumeros(doc.datos_extraidos);
     // Usar tipo detectado por la IA
     _iaPreviewTipo = doc.datos_extraidos.tipo_documento || doc.tipo_documento || 'factura';
     // Normalizar nombres
@@ -361,6 +370,41 @@ async function ocrGestionar(id) {
   }
 }
 
+// ─── Sanitizar campos numéricos: la OCR confunde O(letra) con 0(cero) ───
+// Se aplica a todos los importes y cantidades antes de mostrar el preview.
+function _ocrSanitizeNumeros(data) {
+  if (!data || typeof data !== 'object') return data;
+
+  // Convierte cadena que debería ser número: reemplaza O/o por 0, elimina espacios y letras extra
+  function limpiarNum(v) {
+    if (v === null || v === undefined) return v;
+    const s = String(v)
+      .replace(/[Oo]/g, '0')   // O/o → 0
+      .replace(/[Ss]/g, '5')   // S/s → 5 (confusión frecuente)
+      .replace(/[Il]/g, '1')   // I/l → 1
+      .replace(/[^0-9.,\-]/g, '') // quitar cualquier otro carácter no numérico
+      .replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // Campos de importe en el nivel raíz
+  const camposNum = ['total','subtotal','base_imponible','iva','iva_importe',
+                     'iva_porcentaje','irpf','irpf_importe','descuento','recargo'];
+  camposNum.forEach(k => { if (k in data) data[k] = limpiarNum(data[k]); });
+
+  // Líneas
+  if (Array.isArray(data.lineas)) {
+    data.lineas = data.lineas.map(l => {
+      const camposLinea = ['cantidad','precio_unitario','precio','total','descuento','iva'];
+      camposLinea.forEach(k => { if (k in l) l[k] = limpiarNum(l[k]); });
+      return l;
+    });
+  }
+
+  return data;
+}
+
 async function _ocrProcesarDirecto(ocrDocId, doc) {
   if (!_iaFileBase64) { toast('Sin imagen para procesar', 'error'); return; }
 
@@ -382,7 +426,7 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
     const result = await resp.json();
     if (!result.success) throw new Error(result.error || 'Error procesando documento');
 
-    const data = result.data;
+    const data = _ocrSanitizeNumeros(result.data);
 
     // Usar tipo detectado por la IA (data.tipo_documento) o fallback
     const tipoDetectado = data.tipo_documento || tipo || 'factura';
@@ -464,7 +508,8 @@ async function ocrEliminar(id) {
   _ocrDocs = _ocrDocs.filter(d => d.id !== id);
   _ocrRenderTable(_ocrDocs);
   _ocrUpdateKpis();
-  _ocrLastCount = _ocrDocs.length; // actualizar contador para que el polling no re-dispare
+  // Recalcular huella local para que el polling no re-dispare después del borrado
+  _ocrLastFingerprint = _ocrDocs.map(r => `${r.id}:${r.estado}`).join(',');
 
   // 2. Cancelar cualquier reload pendiente (del realtime) para evitar que el item reaparezca
   clearTimeout(_ocrReloadTimer);

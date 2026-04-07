@@ -1321,6 +1321,17 @@ async function verDetalleParte(id) {
       <div id="revStatus_${parte.id}" style="text-align:center;font-size:11px;color:var(--gris-400);margin-top:6px">Marca todos los checks para validar</div>
     </div>` : ''}
 
+    ${parte.es_parte_libre && !parte.trabajo_id ? `
+    <div style="margin:12px 0;padding:12px 14px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#6D28D9">📋 Parte libre</div>
+        <div style="font-size:11px;color:#7C3AED;margin-top:1px">
+          ${parte.cliente_nombre ? '👤 ' + parte.cliente_nombre : 'Sin cliente asignado'} · Sin obra vinculada
+        </div>
+      </div>
+      <button onclick="parteLibreCrearObra(${parte.id})" style="white-space:nowrap;padding:8px 12px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🏗️ Crear obra</button>
+    </div>` : ''}
+
     <div style="margin:20px 0;padding-top:20px;border-top:1px solid var(--gris-200);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       ${next && parte.estado !== 'completado' ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
       <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-secondary btn-sm">✏️ Editar</button>
@@ -1338,6 +1349,104 @@ async function verDetalleParte(id) {
 
   document.getElementById('dtlPartesContent').innerHTML = html;
   openModal('dtlPartes');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PARTE LIBRE → CREAR OBRA
+// ═══════════════════════════════════════════════════════════════════════
+
+function parteLibreCrearObra(parteId) {
+  const parte = partesData.find(p => p.id === parteId);
+  if (!parte) return;
+
+  // Mini-modal de confirmación con título de obra + cliente prellenado
+  const mini = document.createElement('div');
+  mini.id = 'miniObraModal';
+  mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  mini.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px">🏗️ Crear obra desde parte libre</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">El parte quedará vinculado a la nueva obra</div>
+
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Título de la obra *</label>
+        <input id="miniObraTitulo" type="text" value="${(parte.trabajo_titulo && parte.trabajo_titulo !== 'Parte libre') ? parte.trabajo_titulo : ''}"
+          placeholder="Ej: Reforma baño, Instalación caldera..."
+          style="width:100%;padding:9px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box">
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Cliente</label>
+        <div id="miniObraClienteInfo" style="padding:9px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:13px;background:#F9FAFB;color:#374151">
+          ${parte.cliente_nombre || '<span style="color:#9CA3AF">Sin cliente (se asignará después)</span>'}
+        </div>
+        <input type="hidden" id="miniObraClienteId" value="${parte.cliente_id || ''}">
+        <input type="hidden" id="miniObraClienteNombre" value="${parte.cliente_nombre || ''}">
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('miniObraModal').remove()" style="padding:9px 16px;border:1px solid #D1D5DB;border-radius:8px;background:#fff;cursor:pointer;font-weight:600;font-size:13px">Cancelar</button>
+        <button onclick="parteLibreGuardarObra(${parteId})" style="padding:9px 18px;border:none;border-radius:8px;background:#7C3AED;color:#fff;cursor:pointer;font-weight:700;font-size:13px">Crear obra y vincular</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mini);
+  mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
+  setTimeout(() => document.getElementById('miniObraTitulo')?.focus(), 80);
+}
+
+async function parteLibreGuardarObra(parteId) {
+  const titulo = document.getElementById('miniObraTitulo')?.value.trim();
+  if (!titulo) { toast('El título de la obra es obligatorio', 'error'); return; }
+
+  const cliente_id   = parseInt(document.getElementById('miniObraClienteId')?.value) || null;
+  const cliente_nombre = document.getElementById('miniObraClienteNombre')?.value || null;
+
+  // Crear la obra en la tabla trabajos
+  const yearStr = new Date().getFullYear();
+  const { data: obraData, error: obraErr } = await sb.from('trabajos').insert({
+    empresa_id: EMPRESA.id,
+    titulo,
+    cliente_id,
+    cliente_nombre,
+    estado: 'en_curso',
+    fecha_inicio: new Date().toISOString().split('T')[0],
+  }).select('id,titulo').single();
+
+  if (obraErr || !obraData) {
+    toast('Error al crear la obra: ' + (obraErr?.message || ''), 'error');
+    return;
+  }
+
+  // Vincular todos los partes libres de la misma "serie" al nuevo trabajo
+  // (buscamos partes con el mismo trabajo_titulo, es_parte_libre, y sin trabajo_id)
+  const parte = partesData.find(p => p.id === parteId);
+  const { error: updErr } = await sb.from('partes_trabajo')
+    .update({
+      trabajo_id:    obraData.id,
+      trabajo_titulo: obraData.titulo,
+      es_parte_libre: false,  // ya no es parte libre, está vinculado
+    })
+    .eq('id', parteId);
+
+  if (updErr) {
+    toast('Error al vincular el parte: ' + updErr.message, 'error');
+    return;
+  }
+
+  // Actualizar cache local
+  if (parte) {
+    parte.trabajo_id    = obraData.id;
+    parte.trabajo_titulo = obraData.titulo;
+    parte.es_parte_libre = false;
+  }
+
+  document.getElementById('miniObraModal')?.remove();
+  closeModal('dtlPartes');
+  toast(`✅ Obra "${titulo}" creada y parte vinculado`, 'success');
+
+  // Navegar a la ficha de la obra
+  if (typeof goPage === 'function') goPage('obras');
+  if (typeof cargarTrabajos === 'function') cargarTrabajos();
 }
 
 // ═══════════════════════════════════════════════════════════════════════

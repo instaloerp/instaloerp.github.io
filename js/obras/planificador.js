@@ -682,19 +682,22 @@ function crearElementoParte(parte, alturaTotal) {
   el.style.color = estadoInfo.color;
   el.style.borderLeft = '3px solid ' + estadoInfo.color;
 
+  const esLibre = parte.es_parte_libre;
   const titulo = parte.trabajo_titulo || 'Sin título';
   const numero = parte.numero || '';
   const horaInicio = parte.hora_inicio ? parte.hora_inicio.substring(0, 5) : '—';
   const horaFin = parte.hora_fin ? parte.hora_fin.substring(0, 5) : '—';
   const usuario = parte.usuario_nombre || '—';
+  const clienteTag = esLibre && parte.cliente_nombre ? `<small style="opacity:.8">👤 ${parte.cliente_nombre}</small>` : '';
+  const libreIco = esLibre ? '📋 ' : '';
 
   // ── Contenido adaptable al tamaño del hueco ──
   if (alturaTotal >= 60) {
     // Grande: todo visible
-    el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${titulo}<br><small>${usuario}</small>`;
+    el.innerHTML = `<strong>${horaInicio}-${horaFin}</strong> ${estadoInfo.ico}<br>${libreIco}${titulo}<br><small>${usuario}</small>${clienteTag ? '<br>' + clienteTag : ''}`;
   } else if (alturaTotal >= 38) {
     // Mediano: obra + número
-    el.innerHTML = `<strong>${numero || titulo}</strong> ${estadoInfo.ico}<br><small>${titulo}</small>`;
+    el.innerHTML = `<strong>${numero || titulo}</strong> ${estadoInfo.ico}<br><small>${libreIco}${titulo}</small>`;
   } else {
     // Pequeño: solo número/obra, la hora ya se sabe por la posición
     el.innerHTML = `${estadoInfo.ico} <strong>${numero || titulo}</strong>`;
@@ -918,18 +921,47 @@ function abrirCrearParteRapido(fecha, hora) {
   box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;max-width:500px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto';
   box.innerHTML = `
     <div style="font-size:16px;font-weight:700;margin-bottom:4px">📅 Nuevo parte de trabajo</div>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${operarioNombre}</div>
+    <div style="font-size:12px;color:#6B7280;margin-bottom:12px">${operarioNombre}</div>
 
-    <div style="margin-bottom:12px;position:relative">
-      <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Obra *</label>
+    ${!planObraFija ? `
+    <!-- Selector Con obra / Parte libre -->
+    <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid #D1D5DB;border-radius:8px;overflow:hidden">
+      <button id="planToggleObra" onclick="planToggleTipo('obra')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:#3B82F6;color:#fff;transition:all .15s">🏗️ Con obra</button>
+      <button id="planToggleLibre" onclick="planToggleTipo('libre')" style="flex:1;padding:8px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:#F3F4F6;color:#6B7280;transition:all .15s">📋 Parte libre</button>
+    </div>` : ''}
+
+    <!-- Sección CON OBRA -->
+    <div id="planSeccionObra" style="margin-bottom:12px;position:relative">
       ${planObraFija
-        ? `<div style="padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;background:#F9FAFB">${planObraFija.titulo}</div>
+        ? `<label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Obra</label>
+           <div style="padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;background:#F9FAFB">${planObraFija.titulo}</div>
            <input type="hidden" id="planNuevoObraId" value="${planObraFija.id}">
            <input type="hidden" id="planNuevoObraTitulo" value="${planObraFija.titulo}">`
-        : `<input type="text" id="planBuscaObra" autocomplete="off" placeholder="Buscar por número, nombre o cliente..." style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+        : `<label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Obra *</label>
+           <input type="text" id="planBuscaObra" autocomplete="off" placeholder="Buscar por número, nombre o cliente..." style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
            <input type="hidden" id="planNuevoObraId" value="">
            <input type="hidden" id="planNuevoObraTitulo" value="">
            <div id="planObraResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow:auto;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>`}
+    </div>
+
+    <!-- Sección PARTE LIBRE -->
+    <div id="planSeccionLibre" style="display:none;margin-bottom:12px">
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Descripción del trabajo *</label>
+        <input type="text" id="planLibreDescripcion" placeholder="Ej: Reparación fuga, Instalación caldera..." style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div style="position:relative">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Cliente</label>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1;position:relative">
+            <input type="text" id="planBuscaCliente" autocomplete="off" placeholder="Buscar cliente..." style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box">
+            <input type="hidden" id="planLibreClienteId" value="">
+            <input type="hidden" id="planLibreClienteNombre" value="">
+            <div id="planClienteResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 8px 8px;max-height:160px;overflow:auto;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+          </div>
+          <button onclick="planCrearClienteRapido()" title="Crear nuevo cliente" style="padding:8px 12px;border:1px solid #D1D5DB;border-radius:8px;background:#fff;cursor:pointer;font-size:16px;white-space:nowrap">➕</button>
+        </div>
+      </div>
     </div>
 
     <!-- Fecha y check multi-día -->
@@ -1034,8 +1066,8 @@ function abrirCrearParteRapido(fecha, hora) {
   fechaIniEl.addEventListener('change', () => { if (multiCheck.checked) { fechaFinEl.min = fechaIniEl.value; } actualizarInfoMultiDia(); });
   fechaFinEl.addEventListener('change', actualizarInfoMultiDia);
 
-  // ── Buscador de obras ──
-  _initBuscadorObrasModal();
+  // ── Buscador de obras (modo "Con obra") ──
+  if (!planObraFija) _initBuscadorObrasModal();
 }
 
 /** Cuenta días laborables (L-V) entre dos fechas inclusive */
@@ -1070,6 +1102,162 @@ function _obtenerDiasLaborables(fechaIni, fechaFin) {
 }
 
 /** Inicializa el buscador de obras dentro del modal */
+// ─── Toggle Con obra / Parte libre ───────────────────────────────────
+function planToggleTipo(tipo) {
+  const secObra  = document.getElementById('planSeccionObra');
+  const secLibre = document.getElementById('planSeccionLibre');
+  const btnObra  = document.getElementById('planToggleObra');
+  const btnLibre = document.getElementById('planToggleLibre');
+  if (!secObra || !secLibre) return;
+
+  if (tipo === 'obra') {
+    secObra.style.display  = 'block';
+    secLibre.style.display = 'none';
+    if (btnObra)  { btnObra.style.background = '#3B82F6'; btnObra.style.color = '#fff'; }
+    if (btnLibre) { btnLibre.style.background = '#F3F4F6'; btnLibre.style.color = '#6B7280'; }
+    setTimeout(() => document.getElementById('planBuscaObra')?.focus(), 80);
+  } else {
+    secObra.style.display  = 'none';
+    secLibre.style.display = 'block';
+    // Limpiar selección de obra
+    const obraIdEl = document.getElementById('planNuevoObraId');
+    if (obraIdEl) obraIdEl.value = '';
+    if (btnLibre) { btnLibre.style.background = '#8B5CF6'; btnLibre.style.color = '#fff'; }
+    if (btnObra)  { btnObra.style.background = '#F3F4F6'; btnObra.style.color = '#6B7280'; }
+    _initBuscadorClientesModal();
+    setTimeout(() => document.getElementById('planLibreDescripcion')?.focus(), 80);
+  }
+}
+
+// ─── Buscador de clientes para parte libre ────────────────────────────
+function _initBuscadorClientesModal() {
+  const inputBusca = document.getElementById('planBuscaCliente');
+  const resultsDiv = document.getElementById('planClienteResults');
+  if (!inputBusca || !resultsDiv || inputBusca._ready) return;
+  inputBusca._ready = true;
+
+  const clientesDisponibles = (typeof clientes !== 'undefined' && Array.isArray(clientes)) ? clientes : [];
+
+  inputBusca.addEventListener('input', () => {
+    const q = inputBusca.value.toLowerCase().trim();
+    if (q.length < 1) { resultsDiv.style.display = 'none'; return; }
+
+    const resultados = clientesDisponibles.filter(c => {
+      return (c.nombre || '').toLowerCase().includes(q) ||
+             (c.nif    || '').toLowerCase().includes(q) ||
+             (c.email  || '').toLowerCase().includes(q) ||
+             (c.telefono || '').toLowerCase().includes(q);
+    }).slice(0, 8);
+
+    if (resultados.length === 0) {
+      resultsDiv.innerHTML = '<div style="padding:10px;color:#9CA3AF;font-size:12px">Sin resultados — usa ➕ para crear</div>';
+      resultsDiv.style.display = 'block';
+      return;
+    }
+
+    resultsDiv.innerHTML = resultados.map(c => `
+      <div class="plan-cli-result" data-id="${c.id}" data-nombre="${(c.nombre||'').replace(/"/g,'&quot;')}"
+           style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F3F4F6;font-size:12px">
+        <div style="font-weight:700;color:#1F2937">${c.nombre || '—'}</div>
+        <div style="color:#6B7280;font-size:11px">${[c.telefono, c.email].filter(Boolean).join(' · ') || c.nif || ''}</div>
+      </div>`).join('');
+    resultsDiv.style.display = 'block';
+
+    resultsDiv.querySelectorAll('.plan-cli-result').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = '#F5F3FF');
+      el.addEventListener('mouseleave', () => el.style.background = '#fff');
+      el.addEventListener('click', () => {
+        document.getElementById('planLibreClienteId').value    = el.dataset.id;
+        document.getElementById('planLibreClienteNombre').value = el.dataset.nombre;
+        inputBusca.value = el.dataset.nombre;
+        inputBusca.style.borderColor = '#8B5CF6';
+        inputBusca.style.fontWeight  = '600';
+        resultsDiv.style.display = 'none';
+      });
+    });
+  });
+
+  inputBusca.addEventListener('blur', () => {
+    setTimeout(() => { resultsDiv.style.display = 'none'; }, 200);
+  });
+}
+
+// ─── Crear cliente rápido desde el planificador ───────────────────────
+function planCrearClienteRapido() {
+  // Mini-modal inline sobre el mismo overlay
+  const existente = document.getElementById('planMiniClienteModal');
+  if (existente) { existente.remove(); return; }
+
+  const mini = document.createElement('div');
+  mini.id = 'planMiniClienteModal';
+  mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  mini.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:20px;max-width:380px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:14px">➕ Nuevo cliente</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Nombre *</label>
+        <input id="planCliNombre" type="text" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Nombre o razón social">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Teléfono</label>
+          <input id="planCliTel" type="tel" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="6XX XXX XXX">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">NIF/CIF</label>
+          <input id="planCliNif" type="text" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="12345678A">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Email</label>
+        <input id="planCliEmail" type="email" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="correo@ejemplo.com">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('planMiniClienteModal').remove()" style="padding:8px 14px;border:1px solid #D1D5DB;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600">Cancelar</button>
+        <button onclick="planGuardarClienteRapido()" style="padding:8px 14px;border:none;border-radius:8px;background:#8B5CF6;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Guardar cliente</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mini);
+  mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
+  setTimeout(() => document.getElementById('planCliNombre')?.focus(), 80);
+}
+
+async function planGuardarClienteRapido() {
+  const nombre = document.getElementById('planCliNombre')?.value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'error'); return; }
+  const telefono = document.getElementById('planCliTel')?.value.trim() || null;
+  const nif      = document.getElementById('planCliNif')?.value.trim() || null;
+  const email    = document.getElementById('planCliEmail')?.value.trim() || null;
+
+  const { data, error } = await sb.from('clientes').insert({
+    empresa_id: EMPRESA.id,
+    nombre,
+    telefono,
+    nif,
+    email
+  }).select('id,nombre').single();
+
+  if (error) { toast('Error al crear cliente: ' + error.message, 'error'); return; }
+
+  // Añadir al array local para buscarlo inmediatamente
+  if (typeof clientes !== 'undefined' && Array.isArray(clientes)) {
+    clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email });
+  }
+
+  // Seleccionar el nuevo cliente en el buscador
+  document.getElementById('planLibreClienteId').value     = data.id;
+  document.getElementById('planLibreClienteNombre').value = data.nombre;
+  const inputBusca = document.getElementById('planBuscaCliente');
+  if (inputBusca) {
+    inputBusca.value = data.nombre;
+    inputBusca.style.borderColor = '#8B5CF6';
+    inputBusca.style.fontWeight  = '600';
+  }
+
+  document.getElementById('planMiniClienteModal')?.remove();
+  toast('Cliente creado correctamente', 'success');
+}
+
 function _initBuscadorObrasModal() {
   const inputBusca = document.getElementById('planBuscaObra');
   const resultsDiv = document.getElementById('planObraResults');
@@ -1126,10 +1314,19 @@ function _initBuscadorObrasModal() {
 
 /** Crea uno o varios partes desde el modal (soporta multi-día) */
 async function crearPartesDesdeModal(estado) {
-  const trabajo_id = parseInt(document.getElementById('planNuevoObraId')?.value);
-  if (!trabajo_id) {
-    toast('Busca y selecciona una obra', 'error');
-    return;
+  // Detectar modo: con obra o parte libre
+  const esLibre = document.getElementById('planSeccionLibre')?.style.display !== 'none' && !planObraFija;
+
+  const _obraIdRaw = document.getElementById('planNuevoObraId')?.value;
+  const trabajo_id = _obraIdRaw ? parseInt(_obraIdRaw) : null;
+
+  // Validaciones específicas de cada modo
+  if (!esLibre && !planObraFija && !trabajo_id) {
+    toast('Busca y selecciona una obra', 'error'); return;
+  }
+  if (esLibre) {
+    const desc = document.getElementById('planLibreDescripcion')?.value.trim();
+    if (!desc) { toast('Indica la descripción del trabajo', 'error'); return; }
   }
 
   const fechaIni = document.getElementById('planNuevoFechaIni')?.value;
@@ -1138,7 +1335,15 @@ async function crearPartesDesdeModal(estado) {
   const horaIni = esMultiDia ? '08:30:00' : ((document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00');
   const horaFin = esMultiDia ? '16:30:00' : ((document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00');
   const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
-  const trabajo_titulo = document.getElementById('planNuevoObraTitulo')?.value || '';
+
+  // Título: si es libre usa la descripción; si es obra usa el título de la obra
+  const trabajo_titulo = esLibre
+    ? (document.getElementById('planLibreDescripcion')?.value.trim() || 'Parte libre')
+    : (document.getElementById('planNuevoObraTitulo')?.value || '');
+
+  // Datos de cliente para parte libre
+  const _clienteId  = esLibre ? (parseInt(document.getElementById('planLibreClienteId')?.value) || null) : null;
+  const _clienteNom = esLibre ? (document.getElementById('planLibreClienteNombre')?.value || null) : null;
 
   if (!fechaIni) { toast('Selecciona una fecha', 'error'); return; }
 
@@ -1193,8 +1398,11 @@ async function crearPartesDesdeModal(estado) {
     const payload = {
       empresa_id: EMPRESA.id,
       numero,
-      trabajo_id,
+      trabajo_id: trabajo_id || null,
       trabajo_titulo,
+      es_parte_libre: esLibre,
+      cliente_id:     _clienteId   || null,
+      cliente_nombre: _clienteNom  || null,
       usuario_id,
       usuario_nombre,
       fecha: diaFecha,
