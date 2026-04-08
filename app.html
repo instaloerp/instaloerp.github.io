@@ -7671,8 +7671,10 @@ async function wizFirmaRemotaEnviar(canal) {
   showLoading('Preparando firma remota...');
 
   try {
-    // Mensaje con info del parte (sin token DB por ahora — se implementará página de firma remota)
-    const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPor favor, contacte con nosotros para gestionar la firma del parte.\n\nGracias.`;
+    // Generar enlace real al parte (misma URL que usa el envío normal)
+    const baseUrl = window.location.origin;
+    const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+    const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPuede consultar los detalles y firmar aquí:\n${enlace}\n\nGracias por confiar en nosotros.`;
 
     hideLoading();
 
@@ -7680,25 +7682,31 @@ async function wizFirmaRemotaEnviar(canal) {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
       if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
       window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
-      toast('✍️ Enlace de firma enviado por WhatsApp', 'success');
     } else if (canal === 'sms') {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
       window.open(`sms:${tel}?body=${encodeURIComponent(mensaje)}`, '_blank');
-      toast('✍️ Enlace de firma enviado por SMS', 'success');
     } else if (canal === 'email') {
       const email = (document.getElementById('frEmailInput')?.value || '').trim();
       window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
-      toast('✍️ Email preparado para enviar', 'success');
     }
 
-    // Crear tarea pendiente
+    // Marcar parte como pendiente de firma cliente
+    const canalLabel = canal === 'whatsapp' ? 'WhatsApp' : canal === 'sms' ? 'SMS' : 'Email';
+    await sb.from('partes_trabajo').update({
+      estado: 'pendiente_firma_cliente'
+    }).eq('id', parteId).catch(() => {});
+
+    // Actualizar en memoria
+    if (p) p.estado = 'pendiente_firma_cliente';
+
+    // Crear tarea pendiente para seguimiento desde oficina
     if (EMPRESA?.id) {
       await sb.from('tareas_pendientes').insert({
         empresa_id: EMPRESA.id,
         entidad_tipo: 'parte',
         entidad_id: parteId,
         entidad_nombre: parteNum,
-        titulo: `Pendiente firma remota del cliente: ${parteNum}`,
+        titulo: `Pendiente firma remota del cliente: ${parteNum} (${canalLabel})`,
         campos_faltantes: ['firma_cliente_remota'],
         origen: 'auto',
         rol_asignado: 'admin',
@@ -7706,6 +7714,13 @@ async function wizFirmaRemotaEnviar(canal) {
         usuario_creador_id: CU?.id || null
       }).catch(() => {});
     }
+
+    // Marcar envío como realizado y cerrar todo
+    _envioRealizado = true;
+    toast(`✍️ Firma remota enviada por ${canalLabel} · Pendiente de firma`, 'success');
+    closeModal();
+    navigateTo(currentTab);
+
   } catch(e) {
     hideLoading();
     toast('Error: ' + (e.message || 'desconocido'), 'error');
@@ -7720,10 +7735,12 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
     return;
   }
 
-  // Mensaje para el cliente (sin token DB por ahora)
+  // Enlace real al parte
+  const baseUrl = window.location.origin;
+  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
   const msg = encodeURIComponent(
     `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
-    `Por favor, contacte con nosotros para gestionar la firma del parte.\n\nGracias.`
+    `Puede consultar los detalles y firmar aquí:\n${enlace}\n\nGracias por confiar en nosotros.`
   );
 
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
