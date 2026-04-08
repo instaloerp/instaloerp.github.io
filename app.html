@@ -160,6 +160,33 @@ a{color:var(--azul);text-decoration:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{color:#fff;font-size:15px;font-weight:700;text-align:center;max-width:80%}
 
+/* ── OCR PREVIEW PANEL ── */
+.ocr-preview-overlay{display:none;position:fixed;inset:0;background:#fff;z-index:250;flex-direction:column}
+.ocr-preview-overlay.active{display:flex}
+.ocr-preview-bar{background:#3b82f6;padding:var(--safe-top) 16px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;min-height:calc(var(--safe-top) + 44px)}
+.ocr-preview-bar h3{color:#fff;font-size:15px;font-weight:700;margin:0}
+.ocr-preview-bar .modal-x{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ocr-preview-body{flex:1;overflow-y:auto;padding:12px 16px calc(120px + var(--safe-bottom))}
+.ocr-page-badge{background:#DBEAFE;color:#1E40AF;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:8px}
+.ocr-line-item{background:#F9FAFB;border:1.5px solid var(--gris-200);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:center;transition:border-color .2s,background .2s}
+.ocr-line-item.selected{border-color:#3b82f6;background:#EFF6FF}
+.ocr-line-item .ocr-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--gris-300);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;font-size:13px}
+.ocr-line-item.selected .ocr-check{background:#3b82f6;border-color:#3b82f6;color:#fff}
+.ocr-line-detail{flex:1;min-width:0}
+.ocr-line-name{font-size:13px;font-weight:600;color:var(--gris-800);line-height:1.3}
+.ocr-line-qty{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ocr-line-qty input{width:56px;padding:4px 6px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center}
+.ocr-line-qty span{font-size:12px;color:var(--gris-500)}
+.ocr-preview-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--gris-200);padding:10px 16px calc(10px + var(--safe-bottom));z-index:251;display:flex;flex-direction:column;gap:8px}
+.ocr-footer-row{display:flex;gap:10px}
+.ocr-footer-row button{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer}
+.ocr-btn-cancel{background:var(--gris-100);color:var(--gris-600)}
+.ocr-btn-confirm{background:#3b82f6;color:#fff}
+.ocr-btn-confirm:disabled{opacity:.5}
+.ocr-btn-addpage{background:#F0FDF4;color:#15803D;border:1.5px solid #BBF7D0 !important}
+.ocr-select-all{display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--gris-600);cursor:pointer}
+.ocr-select-all input[type=checkbox]{width:18px;height:18px;accent-color:#3b82f6}
+
 /* ── TOAST ── */
 .toast{position:fixed;top:calc(var(--safe-top) + 12px);left:50%;transform:translateX(-50%);background:var(--gris-800);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
@@ -379,6 +406,25 @@ input[type=number]{-moz-appearance:textfield}
     <div id="modalContent" style="padding-top:16px"></div>
   </div>
 </div>
+
+<!-- OCR Preview Overlay -->
+<div id="ocrPreviewOverlay" class="ocr-preview-overlay">
+  <div class="ocr-preview-bar">
+    <h3 id="ocrPreviewTitle">📋 Materiales detectados</h3>
+    <button class="modal-x" onclick="ocrPreviewCerrar()">✕</button>
+  </div>
+  <div class="ocr-preview-body" id="ocrPreviewBody"></div>
+  <div class="ocr-preview-footer">
+    <div class="ocr-footer-row">
+      <button class="ocr-btn-addpage" onclick="ocrPreviewAddPage()">📷 Añadir página</button>
+    </div>
+    <div class="ocr-footer-row">
+      <button class="ocr-btn-cancel" onclick="ocrPreviewCerrar()">Cancelar</button>
+      <button class="ocr-btn-confirm" id="ocrPreviewConfirmBtn" onclick="ocrPreviewConfirmar()">Añadir seleccionados</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="ocrAddPageInput" accept="image/*" capture="environment" style="display:none" onchange="_ocrAddPageSelected(this)">
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -5495,7 +5541,7 @@ function renderWizStep() {
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('merma')" style="font-size:11px;color:#92400E;border-color:#FDE68A">⚠️ Merma</button>
         <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('rotura')" style="font-size:11px;color:#991B1B;border-color:#FECACA">💥 Rotura</button>
-        <button class="btn btn-ghost btn-sm" onclick="wizOCRScan()" style="font-size:11px;color:#1D4ED8;border-color:#93C5FD" id="btnOcrScan">📷 Escanear albarán</button>
+        <button class="btn btn-ghost btn-sm" onclick="wizOCRScan()" style="font-size:11px;color:#1D4ED8;border-color:#93C5FD" id="btnOcrScan">📷 Escanear documento</button>
         <input type="file" id="ocrWizFileInput" accept="image/*" capture="environment" style="display:none" onchange="_wizOCRFileSelected(this)">
       </div>
       <div class="mat-search" style="margin-bottom:12px">
@@ -5909,7 +5955,7 @@ function wizAddMatManual() {
   renderWizStep();
 }
 
-// ── OCR: Escanear albarán desde el wizard de materiales ──
+// ── OCR: Escanear documento desde el wizard de materiales ──
 function wizOCRScan() {
   if (!EMPRESA?.anthropic_api_key) {
     toast('⚠️ Configura la API key de IA en Ajustes del ERP', 'error');
@@ -5925,7 +5971,7 @@ async function _wizOCRFileSelected(input) {
 
   const btn = document.getElementById('btnOcrScan');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
-  showLoading('📷 Procesando albarán con IA...');
+  showLoading('📷 Procesando documento con IA...');
 
   try {
     // Convertir a base64
@@ -5962,60 +6008,300 @@ async function _wizOCRFileSelected(input) {
     if (!result.success) throw new Error(result.error || 'Error procesando documento');
 
     const data = result.data || {};
-    // Extraer líneas del resultado OCR
     const lineas = data.lineas || [];
     if (!lineas.length) {
-      toast('⚠️ No se han detectado materiales en la imagen', 'warning');
+      toast('⚠️ No se han detectado materiales en el documento', 'warning');
       return;
     }
 
-    // Añadir materiales al parte — intentar vincular con catálogo existente
-    let added = 0;
-    for (const linea of lineas) {
+    // Detectar número de documento
+    const numDoc = (data.numero_documento || data.numero || '').trim();
+
+    // Comprobar duplicados: parte actual + albaranes + facturas + partes
+    if (numDoc) {
+      // 1. En el parte actual (wizard)
+      if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
+      const enParte = _wiz.albaranes_compra.find(a => a.numero && a.numero === numDoc);
+      if (enParte) {
+        toast(`⚠️ El documento nº ${numDoc} ya está en este parte`, 'error');
+        return;
+      }
+      // 2. En las tablas de COMPRA del ERP + documentos en otros partes
+      try {
+        const eid = EMPRESA.id;
+        const [resRecep, resFactProv, resPedidos, resPresCom, resPartes] = await Promise.all([
+          sb.from('recepciones').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+          sb.from('facturas_proveedor').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+          sb.from('pedidos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+          sb.from('presupuestos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+          sb.from('partes_trabajo').select('id,numero,albaranes_compra').eq('empresa_id', eid).not('albaranes_compra', 'is', null)
+        ]);
+        if (resRecep.data?.length) {
+          toast(`⚠️ Ya existe una recepción (albarán compra) nº ${numDoc}`, 'error');
+          return;
+        }
+        if (resFactProv.data?.length) {
+          toast(`⚠️ Ya existe una factura de proveedor nº ${numDoc}`, 'error');
+          return;
+        }
+        if (resPedidos.data?.length) {
+          toast(`⚠️ Ya existe un pedido de compra nº ${numDoc}`, 'error');
+          return;
+        }
+        if (resPresCom.data?.length) {
+          toast(`⚠️ Ya existe un presupuesto de compra nº ${numDoc}`, 'error');
+          return;
+        }
+        // Documento ya subido en otro parte
+        if (resPartes.data) {
+          for (const pt of resPartes.data) {
+            const albs = Array.isArray(pt.albaranes_compra) ? pt.albaranes_compra : [];
+            if (albs.find(a => a.numero && a.numero === numDoc)) {
+              toast(`⚠️ Documento nº ${numDoc} ya registrado en parte ${pt.numero || pt.id}`, 'error');
+              return;
+            }
+          }
+        }
+      } catch(e) { console.warn('Error comprobando duplicados:', e); }
+    }
+
+    // Preparar líneas con match de catálogo para preview
+    const lineasProcesadas = lineas.map((linea, i) => {
       const nombre = linea.descripcion || linea.nombre || '';
       const codigo = linea.codigo || '';
       const cantidad = parseFloat(linea.cantidad) || 1;
       const precio = parseFloat(linea.precio_unitario) || 0;
 
-      // Buscar en catálogo por código o nombre
       let artMatch = null;
       if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
       if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
 
-      _wiz.materiales.push({
-        articulo_id: artMatch?.id || null,
+      return {
+        idx: i, page: 0,
         nombre: artMatch?.nombre || nombre || 'Material OCR',
         codigo: artMatch?.codigo || codigo,
-        cantidad: cantidad,
-        precio: artMatch?.precio_venta || precio,
+        cantidad, precio: artMatch?.precio_venta || precio,
         unidad: linea.unidad || artMatch?.unidad || 'ud',
-        total: cantidad * (artMatch?.precio_venta || precio),
-        _ocr: true, // Marcar como añadido por OCR
-      });
-      added++;
-    }
+        artMatch, selected: true
+      };
+    });
 
-    // Guardar datos del proveedor/albarán como compra externa si tiene número
-    const numAlbaran = data.numero_documento || data.numero || '';
-    const proveedor = data.proveedor?.nombre || (typeof data.proveedor === 'string' ? data.proveedor : '') || '';
-    if (numAlbaran || proveedor) {
-      if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
-      _wiz.albaranes_compra.push({
-        numero: numAlbaran ? `${proveedor ? proveedor + ' - ' : ''}${numAlbaran}` : proveedor,
-        foto: base64, // Guardar la foto original
-      });
-    }
+    // Inicializar estructura multipágina — un solo documento con N fotos
+    _ocrPreviewData = {
+      numDocumento: numDoc,
+      pages: [{ foto: base64 }],
+      allLineas: lineasProcesadas
+    };
 
-    toast(`✅ ${added} material(es) añadido(s) desde albarán`, 'success');
-    renderWizStep();
+    // Mostrar pantalla de preview
+    _ocrRenderPreview();
 
   } catch(e) {
     console.error('[OCR Wizard]', e);
     toast('Error procesando imagen: ' + (e.message || 'desconocido'), 'error');
   } finally {
     hideLoading();
-    if (btn) { btn.disabled = false; btn.textContent = '📷 Escanear albarán'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Escanear documento'; }
   }
+}
+
+// ── OCR Preview: pantalla de selección de materiales detectados (multipágina) ──
+let _ocrPreviewData = null; // { pages: [{foto, lineas}], allLineas: [{idx,nombre,...,selected}] }
+
+function _ocrRenderPreview() {
+  const d = _ocrPreviewData;
+  if (!d) return;
+
+  const body = document.getElementById('ocrPreviewBody');
+  const totalLineas = d.allLineas.length;
+  const selectedCount = d.allLineas.filter(l => l.selected).length;
+  const numPages = d.pages.length;
+
+  // Título dinámico
+  const titleEl = document.getElementById('ocrPreviewTitle');
+  if (titleEl) titleEl.textContent = `📋 Materiales detectados` + (numPages > 1 ? ` (${numPages} págs)` : '');
+
+  let html = '';
+
+  // Select all
+  html += `<label class="ocr-select-all"><input type="checkbox" ${selectedCount === totalLineas ? 'checked' : ''} onchange="_ocrToggleAll(this.checked)"> Seleccionar todo (${totalLineas})</label>`;
+
+  // Agrupar por página si hay varias
+  if (numPages > 1) {
+    for (let p = 0; p < numPages; p++) {
+      const pageLineas = d.allLineas.filter(l => l.page === p);
+      if (!pageLineas.length) continue;
+      html += `<div class="ocr-page-badge">Página ${p + 1}</div>`;
+      for (const l of pageLineas) html += _ocrRenderLine(l);
+    }
+  } else {
+    for (const l of d.allLineas) html += _ocrRenderLine(l);
+  }
+
+  body.innerHTML = html;
+
+  // Botón confirmar
+  const btn = document.getElementById('ocrPreviewConfirmBtn');
+  if (btn) {
+    btn.textContent = selectedCount > 0 ? `Añadir ${selectedCount} material${selectedCount > 1 ? 'es' : ''}` : 'Ninguno seleccionado';
+    btn.disabled = selectedCount === 0;
+  }
+
+  document.getElementById('ocrPreviewOverlay').classList.add('active');
+}
+
+function _ocrRenderLine(l) {
+  return `<div class="ocr-line-item ${l.selected ? 'selected' : ''}" onclick="_ocrToggleLine(${l.idx})" id="ocrLine${l.idx}">
+    <div class="ocr-check">${l.selected ? '✓' : ''}</div>
+    <div class="ocr-line-detail">
+      <div class="ocr-line-name">${l.nombre}</div>
+      <div class="ocr-line-qty">
+        <span>Cant:</span>
+        <input type="number" value="${l.cantidad}" min="0.01" step="any" onclick="event.stopPropagation()" onchange="_ocrUpdateQty(${l.idx}, this.value)">
+        <span>${l.unidad}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _ocrToggleLine(idx) {
+  if (!_ocrPreviewData) return;
+  const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
+  if (l) l.selected = !l.selected;
+  _ocrRenderPreview();
+}
+
+function _ocrToggleAll(checked) {
+  if (!_ocrPreviewData) return;
+  _ocrPreviewData.allLineas.forEach(l => l.selected = checked);
+  _ocrRenderPreview();
+}
+
+function _ocrUpdateQty(idx, val) {
+  if (!_ocrPreviewData) return;
+  const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
+  if (l) l.cantidad = parseFloat(val) || 1;
+}
+
+function ocrPreviewCerrar() {
+  document.getElementById('ocrPreviewOverlay').classList.remove('active');
+  _ocrPreviewData = null;
+}
+
+// ── Añadir otra página al mismo documento ──
+function ocrPreviewAddPage() {
+  document.getElementById('ocrAddPageInput')?.click();
+}
+
+async function _ocrAddPageSelected(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  input.value = '';
+
+  showLoading('📷 Procesando página adicional...');
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const mimeMatch = base64.match(/^data:([^;]+);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const b64Data = base64.split(',')[1];
+
+    let apiKey;
+    try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { apiKey = EMPRESA.anthropic_api_key; }
+
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
+      body: JSON.stringify({
+        imagen_base64: b64Data, media_type: mimeType, tipo: 'albaran',
+        empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || ''
+      })
+    });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Error procesando documento');
+
+    const data = result.data || {};
+    const lineas = data.lineas || [];
+    if (!lineas.length) { toast('⚠️ No se detectaron materiales en esta página', 'warning'); return; }
+
+    // Añadir página y líneas al preview existente
+    const pageIdx = _ocrPreviewData.pages.length;
+    _ocrPreviewData.pages.push({ foto: base64 });
+
+    const baseIdx = _ocrPreviewData.allLineas.length;
+    lineas.forEach((linea, i) => {
+      const nombre = linea.descripcion || linea.nombre || '';
+      const codigo = linea.codigo || '';
+      const cantidad = parseFloat(linea.cantidad) || 1;
+      const precio = parseFloat(linea.precio_unitario) || 0;
+
+      let artMatch = null;
+      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
+      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+
+      _ocrPreviewData.allLineas.push({
+        idx: baseIdx + i,
+        page: pageIdx,
+        nombre: artMatch?.nombre || nombre || 'Material OCR',
+        codigo: artMatch?.codigo || codigo,
+        cantidad, precio: artMatch?.precio_venta || precio,
+        unidad: linea.unidad || artMatch?.unidad || 'ud',
+        artMatch, selected: true
+      });
+    });
+
+    toast(`✅ Página ${pageIdx + 1}: ${lineas.length} material(es) detectado(s)`, 'success');
+    _ocrRenderPreview();
+
+  } catch(e) {
+    console.error('[OCR AddPage]', e);
+    toast('Error procesando página: ' + (e.message || 'desconocido'), 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function ocrPreviewConfirmar() {
+  if (!_ocrPreviewData) return;
+  const d = _ocrPreviewData;
+  const seleccionados = d.allLineas.filter(l => l.selected);
+
+  if (!seleccionados.length) {
+    toast('⚠️ No has seleccionado ningún material', 'warning');
+    return;
+  }
+
+  // Añadir materiales seleccionados al parte
+  for (const l of seleccionados) {
+    _wiz.materiales.push({
+      articulo_id: l.artMatch?.id || null,
+      nombre: l.nombre,
+      codigo: l.codigo,
+      cantidad: l.cantidad,
+      precio: l.precio,
+      unidad: l.unidad,
+      total: l.cantidad * l.precio,
+      _ocr: true,
+    });
+  }
+
+  // Guardar UN solo documento con todas las fotos (multipágina)
+  if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
+  _wiz.albaranes_compra.push({
+    numero: d.numDocumento || 'Sin número',
+    fotos: d.pages.map(pg => pg.foto) // Array de fotos (1 por página)
+  });
+
+  toast(`✅ ${seleccionados.length} material(es) añadido(s) al parte`, 'success');
+
+  document.getElementById('ocrPreviewOverlay').classList.remove('active');
+  _ocrPreviewData = null;
+  renderWizStep();
 }
 
 function renderWizMatRow(m, idx) {
@@ -6826,10 +7112,19 @@ async function wizFinish() {
     for (const foto of fotosNuevas) {
       uploadTasks.push(_uploadFile(foto.data, 'foto', 'jpg').then(url => ({ type:'foto', url })));
     }
-    // Fotos de albaranes
+    // Fotos de albaranes/documentos (soporta .foto simple y .fotos[] multipágina)
     for (let i = 0; i < albaranesCompra.length; i++) {
-      if (albaranesCompra[i].foto && albaranesCompra[i].foto.startsWith('data:')) {
-        uploadTasks.push(_uploadFile(albaranesCompra[i].foto, 'alb', 'jpg').then(url => ({ type:'albaran', idx:i, url })));
+      const alb = albaranesCompra[i];
+      if (alb.fotos && Array.isArray(alb.fotos)) {
+        // Multipágina: subir cada foto
+        for (let j = 0; j < alb.fotos.length; j++) {
+          if (alb.fotos[j] && alb.fotos[j].startsWith('data:')) {
+            uploadTasks.push(_uploadFile(alb.fotos[j], 'alb', 'jpg').then(url => ({ type:'albaran_multi', idx:i, pageIdx:j, url })));
+          }
+        }
+      } else if (alb.foto && alb.foto.startsWith('data:')) {
+        // Página única (manual)
+        uploadTasks.push(_uploadFile(alb.foto, 'alb', 'jpg').then(url => ({ type:'albaran', idx:i, url })));
       }
     }
     // Firma cliente
@@ -6849,6 +7144,7 @@ async function wizFinish() {
       if (!res.url) continue;
       if (res.type === 'foto') fotosUrls.push(res.url);
       else if (res.type === 'albaran') albaranesCompra[res.idx].foto = res.url;
+      else if (res.type === 'albaran_multi') { if (albaranesCompra[res.idx]?.fotos) albaranesCompra[res.idx].fotos[res.pageIdx] = res.url; }
       else if (res.type === 'firma_cli') firmaUrl = res.url;
       else if (res.type === 'firma_op') firmaOpUrl = res.url;
     }
@@ -7364,19 +7660,8 @@ async function wizFirmaRemotaEnviar(canal) {
   showLoading('Preparando firma remota...');
 
   try {
-    // Generar token
-    const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
-
-    const { error } = await sb.from('partes_trabajo').update({
-      firma_token: token
-    }).eq('id', parteId);
-
-    if (error) { hideLoading(); toast('Error: ' + error.message, 'error'); return; }
-    if (p) p.firma_token = token;
-
-    const baseUrl = window.location.origin;
-    const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
-    const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPuede revisar y firmarlo aquí:\n${enlaceFirma}\n\nGracias.`;
+    // Mensaje con info del parte (sin token DB por ahora — se implementará página de firma remota)
+    const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPor favor, contacte con nosotros para gestionar la firma del parte.\n\nGracias.`;
 
     hideLoading();
 
@@ -7391,17 +7676,8 @@ async function wizFirmaRemotaEnviar(canal) {
       toast('✍️ Enlace de firma enviado por SMS', 'success');
     } else if (canal === 'email') {
       const email = (document.getElementById('frEmailInput')?.value || '').trim();
-      // Intentar enviar via Edge Function si existe, sino mailto
-      try {
-        await sb.functions.invoke('enviar-parte-email', {
-          body: { parteId, email, empresaId: EMPRESA.id, tipo: 'firma_remota', enlace: enlaceFirma }
-        });
-        toast('✍️ Enlace de firma enviado a ' + email, 'success');
-      } catch(e) {
-        // Fallback: abrir cliente email
-        window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
-        toast('✍️ Email preparado para enviar', 'success');
-      }
+      window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
+      toast('✍️ Email preparado para enviar', 'success');
     }
 
     // Crear tarea pendiente
@@ -7433,33 +7709,10 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
     return;
   }
 
-  // Generar token corto único para este parte
-  const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
-
-  // Actualizar parte: guardar token + cambiar estado a pendiente_firma_cliente
-  const { error } = await sb.from('partes_trabajo').update({
-    firma_token: token,
-    estado: 'pendiente_firma_cliente'
-  }).eq('id', parteId);
-
-  if (error) {
-    toast('Error al preparar la firma remota: ' + error.message, 'error');
-    return;
-  }
-
-  // Actualizar en memoria local
-  const p = misPartes.find(x => x.id === parteId);
-  if (p) { p.firma_token = token; p.estado = 'pendiente_firma_cliente'; }
-
-  // Construir enlace de firma
-  const baseUrl = window.location.origin;
-  const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
-
-  // Mensaje para el cliente
+  // Mensaje para el cliente (sin token DB por ahora)
   const msg = encodeURIComponent(
     `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
-    `Puede revisar el trabajo realizado y firmarlo desde su móvil en el siguiente enlace:\n\n${enlaceFirma}\n\n` +
-    `Una vez firmado, recibiremos la confirmación automáticamente. Gracias.`
+    `Por favor, contacte con nosotros para gestionar la firma del parte.\n\nGracias.`
   );
 
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
@@ -7539,10 +7792,24 @@ async function wizFinishEdit() {
       } catch(e) { console.error('Error subiendo foto:', e); }
     }
 
-    // 1b. Subir fotos de albaranes de compra
+    // 1b. Subir fotos de documentos (soporta .foto simple y .fotos[] multipágina)
     const albaranesCompra = _wiz.albaranes_compra || [];
     for (const alb of albaranesCompra) {
-      if (alb.foto && alb.foto.startsWith('data:')) {
+      if (alb.fotos && Array.isArray(alb.fotos)) {
+        for (let j = 0; j < alb.fotos.length; j++) {
+          if (alb.fotos[j] && alb.fotos[j].startsWith('data:')) {
+            try {
+              const blob = await (await fetch(alb.fotos[j])).blob();
+              const filename = `${eid}/${Date.now()}_alb_p${j}_${Math.random().toString(36).substr(2,6)}.jpg`;
+              const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+              if (!error) {
+                const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+                alb.fotos[j] = data.publicUrl;
+              }
+            } catch(e) { console.error('Error subiendo foto doc:', e); }
+          }
+        }
+      } else if (alb.foto && alb.foto.startsWith('data:')) {
         try {
           const blob = await (await fetch(alb.foto)).blob();
           const filename = `${eid}/${Date.now()}_alb_${Math.random().toString(36).substr(2,6)}.jpg`;
@@ -7550,8 +7817,8 @@ async function wizFinishEdit() {
           if (!error) {
             const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
             alb.foto = data.publicUrl;
-          } else { console.warn('Upload foto albarán error:', error.message); }
-        } catch(e) { console.error('Error subiendo foto albarán:', e); }
+          }
+        } catch(e) { console.error('Error subiendo foto doc:', e); }
       }
     }
 
