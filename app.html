@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#1B4FD8">
+<meta name="theme-color" content="#3b82f6">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -60,14 +60,18 @@ a{color:var(--azul);text-decoration:none}
 
 /* ── APP SHELL ── */
 #s-app{background:var(--gris-50)}
-.app-header{position:sticky;top:0;z-index:100;background:#fff;padding:calc(var(--safe-top) + 8px) 16px 8px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px}
-.app-header .avatar{width:42px;height:42px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
+.safe-top-bar{position:sticky;top:0;z-index:101;background:#3b82f6;height:var(--safe-top);min-height:0}
+.app-header{position:sticky;top:var(--safe-top);z-index:100;background:#3b82f6;padding:10px 16px;display:flex;align-items:center;gap:12px;color:#fff}
+.app-header .info h2{color:#fff}
+.app-header .info span{color:rgba(255,255,255,.7)}
+.app-header .hdr-btn{background:rgba(255,255,255,.2);color:#fff}
+.app-header .avatar{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
 .app-header .info{flex:1;min-width:0}
 .app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
 .app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
-.hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:#ECFDF5;border:1px solid #A7F3D0;font-size:10px;font-weight:700;color:#059669;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
+.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px;background:rgba(255,255,255,.2);color:#fff}
+.hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);font-size:10px;font-weight:700;color:#fff;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
 .hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
 .app-body{flex:1;padding:12px 16px;padding-bottom:calc(80px + var(--safe-bottom))}
@@ -135,6 +139,12 @@ a{color:var(--azul);text-decoration:none}
 /* ── PROGRESS ── */
 .progress-bar{height:8px;background:var(--gris-100);border-radius:4px;overflow:hidden;margin:8px 0}
 .progress-fill{height:100%;border-radius:4px;transition:width .5s}
+
+/* ── SUB-SCREEN HEADER (fullscreen views with X back) ── */
+.sub-header{background:#3b82f6;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:-12px -16px 16px}
+.sub-header h3{flex:1;font-size:16px;font-weight:800;color:#fff}
+.sub-header .sub-x{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.sub-header .sub-x:active{background:rgba(255,255,255,.35)}
 
 /* ── EMPTY ── */
 .empty-state{text-align:center;padding:40px 20px;color:var(--gris-400)}
@@ -312,20 +322,20 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ═══════════ APP SCREEN ═══════════ -->
 <div id="s-app" class="screen">
+  <!-- Safe area top bar (notch cover) -->
+  <div class="safe-top-bar"></div>
   <!-- Header -->
   <div class="app-header">
     <div class="avatar" id="hdrAvatar">J</div>
     <div class="info">
       <h2 id="hdrNombre">—</h2>
-      <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600"></span>
-      <span style="font-size:9px;color:var(--gris-300);font-weight:600" id="appBuildVersion">v1.0 stable</span>
+      <span id="hdrLastSync" style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600"></span>
     </div>
     <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
     <div style="position:relative;display:inline-flex">
-      <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> OK</div>
+      <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot" style="background:#fff"></span> OK</div>
       <span id="syncBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;text-align:center;line-height:16px">0</span>
     </div>
-    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión" style="background:var(--rojo);color:#fff;font-size:15px;font-weight:700;width:36px;height:36px">✕</button>
   </div>
 
   <!-- Body (content rendered by JS) -->
@@ -940,19 +950,16 @@ function renderMiFurgoneta() {
   const bajosStock = stockItems.filter(s => s.stock_minimo && s.cantidad <= s.stock_minimo).length;
 
   let filterHtml = `
-    <div style="padding:12px 16px;position:sticky;top:0;background:#fff;z-index:10;border-bottom:1px solid var(--gris-100)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <button class="btn btn-ghost btn-sm" onclick="navigateTo(currentTab)" style="padding:4px 8px">←</button>
-        <div style="flex:1">
-          <h2 style="font-size:16px;font-weight:800;margin:0">🚐 ${miFurgoneta.nombre}</h2>
-          <p style="font-size:11px;color:var(--gris-400);margin:0">${miFurgoneta.matricula || ''} · ${totalRefs} artículos${bajosStock > 0 ? ` · <span style="color:var(--rojo)">${bajosStock} bajo mínimo</span>` : ''}</p>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="loadStockFurgoneta(${miFurgoneta.id}).then(()=>renderMiFurgoneta())" style="padding:6px 10px">🔄</button>
+    ${subHeader('🚐 ' + miFurgoneta.nombre, 'inicio')}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="flex:1">
+        <p style="font-size:12px;color:var(--gris-400);margin:0">${miFurgoneta.matricula || ''} · ${totalRefs} artículos${bajosStock > 0 ? ` · <span style="color:var(--rojo)">${bajosStock} bajo mínimo</span>` : ''}</p>
       </div>
-      <input type="text" id="furgSearchInput" placeholder="🔍 Buscar artículo..."
-        style="width:100%;padding:10px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)"
-        oninput="filtrarStockFurgoneta(this.value)">
-    </div>`;
+      <button class="btn btn-secondary btn-sm" onclick="loadStockFurgoneta(${miFurgoneta.id}).then(()=>renderMiFurgoneta())" style="padding:6px 10px">🔄</button>
+    </div>
+    <input type="text" id="furgSearchInput" placeholder="🔍 Buscar artículo..."
+      style="width:100%;padding:10px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);margin-bottom:12px"
+      oninput="filtrarStockFurgoneta(this.value)">`;
 
   let listHtml = '';
   if (stockItems.length === 0) {
@@ -1127,6 +1134,15 @@ function renderBottomNav() {
       `;
     }
   }
+}
+
+// ── Sub-header con X para volver atrás ──
+let _navHistory = [];
+function subHeader(title, backTab) {
+  return `<div class="sub-header">
+    <button class="sub-x" onclick="navigateTo('${backTab || 'inicio'}')" title="Volver">✕</button>
+    <h3>${title}</h3>
+  </div>`;
 }
 
 function navigateTo(tab) {
