@@ -5592,8 +5592,24 @@ function renderWizStep() {
 
       <!-- Firma remota (cliente ausente) -->
       <div style="margin-top:16px;padding:14px;border:1.5px solid #F59E0B;border-radius:12px;background:#FFFBEB">
-        <p style="font-size:12px;color:#92400E;margin:0 0 8px;font-weight:600">¿El cliente no está presente para firmar?</p>
-        <button onclick="wizFirmaRemota()" style="width:100%;padding:12px;border:none;border-radius:10px;background:#F59E0B;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+        <p style="font-size:12px;color:#92400E;margin:0 0 8px;font-weight:700">¿El cliente no está presente para firmar?</p>
+        <div id="firmaRemotaPanel" style="display:none">
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;font-weight:700;color:#92400E;display:block;margin-bottom:4px">TELÉFONO DE CONTACTO</label>
+            <input id="frTelInput" type="tel" placeholder="Ej: 666123456" inputmode="tel" autocomplete="off"
+              style="width:100%;padding:10px;border:1.5px solid #FDE68A;border-radius:8px;font-size:14px;font-family:var(--font);background:#fff">
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <button onclick="wizFirmaRemotaEnviar('whatsapp')" style="flex:1;padding:11px;background:#25D366;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">📱 WhatsApp</button>
+            <button onclick="wizFirmaRemotaEnviar('sms')" style="flex:1;padding:11px;background:var(--azul);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">💬 SMS</button>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input id="frEmailInput" type="email" placeholder="email@ejemplo.com" inputmode="email" autocomplete="off"
+              style="flex:1;padding:10px;border:1.5px solid #FDE68A;border-radius:8px;font-size:13px;font-family:var(--font);background:#fff">
+            <button onclick="wizFirmaRemotaEnviar('email')" style="padding:10px 14px;border:none;background:#EA580C;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">Enviar</button>
+          </div>
+        </div>
+        <button id="btnFirmaRemotaToggle" onclick="document.getElementById('firmaRemotaPanel').style.display='block';this.style.display='none'" style="width:100%;padding:12px;border:none;border-radius:10px;background:#F59E0B;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
           ✍️ Enviar enlace de firma remota
         </button>
       </div>
@@ -7320,44 +7336,93 @@ async function _salirSinEnvioConTarea(parteId) {
 
 // ── FIRMA REMOTA — El cliente firma desde su móvil sin estar presente ──
 // Firma remota desde el wizard (paso firma, cliente ausente)
-async function wizFirmaRemota() {
+async function wizFirmaRemotaEnviar(canal) {
   const parteId = _wiz.parteId;
   const p = misPartes.find(x => x.id === parteId);
   if (!p) return;
   const parteNum = p.numero || parteId;
   const empresa = EMPRESA?.nombre || 'Instalo';
 
-  // Pedir teléfono
-  const tel = prompt('Teléfono del cliente (WhatsApp):');
-  if (!tel || tel.replace(/\D/g,'').length < 9) {
-    toast('⚠️ Teléfono no válido', 'error');
-    return;
+  // Validar datos según canal
+  if (canal === 'whatsapp' || canal === 'sms') {
+    const telRaw = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
+    if (!telRaw || telRaw.replace(/\D/g,'').length < 9) {
+      toast('⚠️ Introduce el teléfono del cliente', 'error');
+      document.getElementById('frTelInput')?.focus();
+      return;
+    }
   }
-  const telClean = tel.replace(/[\s\-\.\(\)]/g, '');
-  let telFull = telClean;
-  if (/^[679]\d{8}$/.test(telFull)) telFull = '34' + telFull;
+  if (canal === 'email') {
+    const email = (document.getElementById('frEmailInput')?.value || '').trim();
+    if (!email || !email.includes('@')) {
+      toast('⚠️ Introduce el email del cliente', 'error');
+      document.getElementById('frEmailInput')?.focus();
+      return;
+    }
+  }
 
-  toast('Preparando firma remota...', '');
+  showLoading('Preparando firma remota...');
 
-  // Generar token
-  const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
+  try {
+    // Generar token
+    const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
 
-  const { error } = await sb.from('partes_trabajo').update({
-    firma_token: token,
-    firma_remota_enviado_at: new Date().toISOString()
-  }).eq('id', parteId);
+    const { error } = await sb.from('partes_trabajo').update({
+      firma_token: token
+    }).eq('id', parteId);
 
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
-  if (p) p.firma_token = token;
+    if (error) { hideLoading(); toast('Error: ' + error.message, 'error'); return; }
+    if (p) p.firma_token = token;
 
-  const baseUrl = window.location.origin;
-  const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
-  const msg = encodeURIComponent(
-    `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
-    `Puede revisar y firmarlo aquí:\n${enlaceFirma}\n\nGracias.`
-  );
-  window.open(`https://wa.me/${telFull}?text=${msg}`, '_blank');
-  toast('✍️ Enlace de firma remota enviado por WhatsApp', 'success');
+    const baseUrl = window.location.origin;
+    const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
+    const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPuede revisar y firmarlo aquí:\n${enlaceFirma}\n\nGracias.`;
+
+    hideLoading();
+
+    if (canal === 'whatsapp') {
+      let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
+      if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+      window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+      toast('✍️ Enlace de firma enviado por WhatsApp', 'success');
+    } else if (canal === 'sms') {
+      let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
+      window.open(`sms:${tel}?body=${encodeURIComponent(mensaje)}`, '_blank');
+      toast('✍️ Enlace de firma enviado por SMS', 'success');
+    } else if (canal === 'email') {
+      const email = (document.getElementById('frEmailInput')?.value || '').trim();
+      // Intentar enviar via Edge Function si existe, sino mailto
+      try {
+        await sb.functions.invoke('enviar-parte-email', {
+          body: { parteId, email, empresaId: EMPRESA.id, tipo: 'firma_remota', enlace: enlaceFirma }
+        });
+        toast('✍️ Enlace de firma enviado a ' + email, 'success');
+      } catch(e) {
+        // Fallback: abrir cliente email
+        window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
+        toast('✍️ Email preparado para enviar', 'success');
+      }
+    }
+
+    // Crear tarea pendiente
+    if (EMPRESA?.id) {
+      await sb.from('tareas_pendientes').insert({
+        empresa_id: EMPRESA.id,
+        entidad_tipo: 'parte',
+        entidad_id: parteId,
+        entidad_nombre: parteNum,
+        titulo: `Pendiente firma remota del cliente: ${parteNum}`,
+        campos_faltantes: ['firma_cliente_remota'],
+        origen: 'auto',
+        rol_asignado: 'admin',
+        estado: 'pendiente',
+        usuario_creador_id: CU?.id || null
+      }).catch(() => {});
+    }
+  } catch(e) {
+    hideLoading();
+    toast('Error: ' + (e.message || 'desconocido'), 'error');
+  }
 }
 
 async function iniciarFirmaRemota(parteId, parteNum, empresa) {
@@ -7374,8 +7439,7 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
   // Actualizar parte: guardar token + cambiar estado a pendiente_firma_cliente
   const { error } = await sb.from('partes_trabajo').update({
     firma_token: token,
-    estado: 'pendiente_firma_cliente',
-    firma_remota_enviado_at: new Date().toISOString()
+    estado: 'pendiente_firma_cliente'
   }).eq('id', parteId);
 
   if (error) {
