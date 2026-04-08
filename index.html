@@ -177,8 +177,10 @@
       <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)"><span class="sb-sec-ico">📦</span><span class="sb-sec-label">Almacén</span></div>
       <div class="sb-section-items" id="sec-almacen">
         <button class="sb-item" onclick="goPage('articulos')"><span class="ico">📦</span> Artículos</button>
-        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes<span class="sb-beta">pronto</span></button>
-        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock<span class="sb-beta">pronto</span></button>
+        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes</button>
+        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock</button>
+        <button class="sb-item" onclick="goPage('consumos')"><span class="ico">🔧</span> Consumos</button>
+        <button class="sb-item" onclick="goPage('incidencias-stock')"><span class="ico">⚠️</span> Incidencias</button>
         <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos<span class="sb-beta">pronto</span></button>
         <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos<span class="sb-beta">pronto</span></button>
       </div>
@@ -1158,6 +1160,81 @@
             <th>Artículo</th><th>Código</th><th>Familia</th><th>Almacén</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Mínimo</th><th>Estado</th><th style="text-align:right">Valor</th><th style="text-align:center">Acciones</th>
           </tr></thead><tbody id="stock-table"><tr></tr></tbody></table></div>
         </div>
+      </div>
+
+      <!-- CONSUMOS DE PARTES -->
+      <div class="page" id="page-consumos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Consumos de Material</h2><p style="font-size:11.5px;color:var(--gris-400)">Materiales usados en partes de trabajo</p></div>
+          <button class="btn btn-secondary btn-sm" onclick="exportConsumos()">📊 Excel</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total Consumos</div>
+            <div id="kpi-consumos-total" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Sin Stock</div>
+            <div id="kpi-consumos-sinstock" style="font-size:24px;font-weight:800;color:var(--rojo)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Mermas/Roturas</div>
+            <div id="kpi-consumos-mermas" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Valor Total</div>
+            <div id="kpi-consumos-valor" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <input type="date" id="consumos-desde" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="date" id="consumos-hasta" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <select id="consumos-tipo" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todos los tipos</option>
+            <option value="consumo">Consumo</option>
+            <option value="merma">Merma</option>
+            <option value="rotura">Rotura</option>
+          </select>
+          <input type="text" id="consumos-buscar" placeholder="Buscar artículo o parte..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
+          <button class="btn btn-secondary btn-sm" onclick="filtrarConsumos()">Filtrar</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Fecha</th><th>Parte</th><th>Artículo</th><th>Tipo</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th><th>Operario</th><th>Stock</th>
+          </tr></thead><tbody id="consumos-table"><tr></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- INCIDENCIAS DE STOCK -->
+      <div class="page" id="page-incidencias-stock">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div><h2 style="font-size:17px;font-weight:800">Incidencias de Stock</h2><p style="font-size:11.5px;color:var(--gris-400)">Alertas de consumo sin stock disponible</p></div>
+          <button class="btn btn-secondary btn-sm" onclick="exportIncidencias()">📊 Excel</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
+            <div id="kpi-inc-pendientes" style="font-size:24px;font-weight:800;color:var(--rojo)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Resueltas</div>
+            <div id="kpi-inc-resueltas" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
+          </div>
+          <div class="card" style="padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total</div>
+            <div id="kpi-inc-total" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select id="inc-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="">Todas</option>
+            <option value="pendiente" selected>Pendientes</option>
+            <option value="resuelta">Resueltas</option>
+          </select>
+          <input type="text" id="inc-buscar" placeholder="Buscar artículo o parte..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
+          <button class="btn btn-secondary btn-sm" onclick="filtrarIncidencias()">Filtrar</button>
+        </div>
+        <div id="incidencias-grid" style="display:grid;gap:12px"></div>
       </div>
 
       <!-- TRASPASOS -->
@@ -2398,6 +2475,70 @@
         <button class="btn btn-secondary" onclick="closeModal('mAlmacen')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveAlmacen()">💾 Guardar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Ajuste Stock -->
+<div class="overlay" id="modal-ajuste-stock">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>📦</span><h2>Ajustar Stock</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-ajuste-stock')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="ajuste-articulo-id">
+      <input type="hidden" id="ajuste-almacen-id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Artículo</label><input id="ajuste-articulo" disabled></div>
+        <div class="fg"><label>Código</label><input id="ajuste-codigo" disabled></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Stock actual</label><input id="ajuste-cantidad-actual" disabled></div>
+        <div class="fg"><label>Tipo</label><select id="ajuste-tipo"><option value="entrada">📥 Entrada</option><option value="salida">📤 Salida</option></select></div>
+        <div class="fg"><label>Cantidad *</label><input id="ajuste-cantidad" type="number" min="0" step="0.01" placeholder="0"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Motivo *</label>
+        <textarea id="ajuste-motivo" rows="2" style="width:100%;padding:8px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);resize:vertical" placeholder="Ej: Recuento inventario, devolución..."></textarea>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-ajuste-stock')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAjuste()">💾 Guardar ajuste</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Movimientos Stock -->
+<div class="overlay" id="modal-movimientos-stock">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📋</span><h2 id="movimientos-titulo">Movimientos</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-movimientos-stock')">✕</button></div>
+    <div class="modal-b">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="tw"><table class="dt"><thead><tr>
+          <th>Fecha</th><th>Tipo</th><th style="text-align:right">Anterior</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Nuevo</th><th>Motivo</th><th>Usuario</th>
+        </tr></thead><tbody id="movimientos-table"></tbody></table></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-movimientos-stock')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Resolver Incidencia -->
+<div class="overlay" id="modal-resolver-incidencia">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>✅</span><h2>Resolver Incidencia</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-resolver-incidencia')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="resolver-inc-id">
+      <div id="resolver-inc-info" style="margin-bottom:14px;padding:12px;background:var(--gris-50);border-radius:8px;font-size:13px"></div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Resolución *</label>
+        <textarea id="resolver-inc-texto" rows="3" style="width:100%;padding:8px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);resize:vertical" placeholder="Ej: Se repuso stock desde almacén central, pedido a proveedor..."></textarea>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-resolver-incidencia')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarResolucion()">✅ Resolver</button>
     </div>
   </div>
 </div>
@@ -3772,6 +3913,8 @@
     'js/almacen/articulos.js',
     'js/almacen/almacenes.js',
     'js/almacen/stock.js',
+    'js/almacen/consumos.js',
+    'js/almacen/incidencias.js',
     'js/almacen/traspasos.js',
     // Gestión de Obras
     'js/obras/trabajos.js',
