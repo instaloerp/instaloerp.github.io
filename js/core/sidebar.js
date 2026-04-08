@@ -36,7 +36,6 @@ const ALL_PAGES = [
 
 // Páginas marcadas como "pronto" — se ocultan automáticamente del sidebar
 const PAGES_PRONTO = new Set([
-  'almacenes','stock',
   'traspasos','activos','mantenimientos','etiquetas-qr'
 ]);
 

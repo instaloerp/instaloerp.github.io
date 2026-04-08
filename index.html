@@ -528,7 +528,7 @@
       <div class="page" id="page-almacenes">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div><h2 style="font-size:17px;font-weight:800">Almacenes</h2><p style="font-size:11.5px;color:var(--gris-400)">Central + furgonetas</p></div>
-          <button class="btn btn-primary" onclick="openModal('mAlmacen')">+ Nuevo almacén</button>
+          <button class="btn btn-primary" onclick="document.getElementById('alm_id').value='';setVal({alm_nombre:'',alm_matricula:'',alm_dir:''});document.getElementById('alm_tipo').value='central';_cargarOperariosAlmacen('');document.getElementById('mAlmTit').textContent='Nuevo Almacén';openModal('mAlmacen')">+ Nuevo almacén</button>
         </div>
         <div id="almGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
       </div>
@@ -2378,6 +2378,9 @@
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Matrícula (si es furgoneta)</label><input id="alm_matricula"></div>
         <div class="fg"><label>Dirección</label><input id="alm_dir" autocorrect="on" spellcheck="true"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Operario asignado (si es furgoneta)</label><select id="alm_operario"><option value="">— Sin asignar —</option></select></div>
       </div>
     </div>
     <div class="modal-f">
