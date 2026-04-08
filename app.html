@@ -1112,10 +1112,10 @@ async function loadMisFichajesHoy() {
   misFichajesHoy = data || [];
   // Detectar si hay una entrada abierta (sin salida)
   _fichajeEntradaHoy = misFichajesHoy.find(f => f.hora_entrada && !f.hora_salida) || null;
-  // Mostrar popup bloqueante si aplica
-  _checkFichajePrompt();
-  // Programar recordatorio de salida si hay entrada abierta
-  _iniciarRecordatorioFichaje();
+  // [DESACTIVADO] Mostrar popup bloqueante si aplica
+  // _checkFichajePrompt();
+  // [DESACTIVADO] Programar recordatorio de salida si hay entrada abierta
+  // _iniciarRecordatorioFichaje();
 }
 
 // ═══════════════════════════════════════════════
@@ -1418,7 +1418,7 @@ async function _fichajePromptEntrada() {
 
   _fichajeEntradaHoy = data;
   misFichajesHoy.push(data);
-  _iniciarRecordatorioFichaje(); // programar aviso 16:30
+  // [DESACTIVADO] _iniciarRecordatorioFichaje(); // programar aviso 16:30
 
   // Animar salida del overlay
   const overlay = document.getElementById('fichajePromptOverlay');
@@ -1510,7 +1510,7 @@ async function appFichajeEntrada() {
 
   _fichajeEntradaHoy = data;
   misFichajesHoy.push(data);
-  _iniciarRecordatorioFichaje(); // programar aviso 16:30
+  // [DESACTIVADO] _iniciarRecordatorioFichaje(); // programar aviso 16:30
   toast('✅ Entrada registrada · ' + hora.slice(0,5), 'success');
   // Re-renderizar para actualizar el card
   const body = document.getElementById('appBody');
@@ -6405,8 +6405,8 @@ async function wizFinish() {
         }
       }
     }
-    // ── Comprobar si es el último parte del día → sugerir fichar salida ──
-    _checkUltimoParteSalida();
+    // [DESACTIVADO] Comprobar si es el último parte del día → sugerir fichar salida
+    // _checkUltimoParteSalida();
 
     // 4b. Generar PDF automáticamente y subirlo a Storage
     toast('📄 Generando PDF...', '');
@@ -7090,7 +7090,7 @@ async function iniciarParteConGPS(id) {
     toast('🔧 Trabajo iniciado (se sincronizará al recuperar conexión)', 'success');
     closeModal();
     navigateTo(currentTab);
-    _sugerirFichajeEntradaSiProcede();
+    // [DESACTIVADO] _sugerirFichajeEntradaSiProcede();
     return;
   }
 
@@ -7104,8 +7104,8 @@ async function iniciarParteConGPS(id) {
     toast('🔧 Trabajo iniciado · GPS guardado', 'success');
     closeModal();
     navigateTo(currentTab);
-    // ── Sugerir fichaje entrada si es el primer parte y no hay entrada ──
-    _sugerirFichajeEntradaSiProcede();
+    // [DESACTIVADO] Sugerir fichaje entrada si es el primer parte y no hay entrada
+    // _sugerirFichajeEntradaSiProcede();
   } catch(e) {
     console.error('Error iniciar parte:', e);
     // Falló la red durante el intento → guardar offline
