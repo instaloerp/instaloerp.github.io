@@ -5504,14 +5504,7 @@ function renderWizStep() {
         <span style="font-weight:800;font-size:13px">${totalMat.toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>
       </div>` : ''}
 
-      <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--gris-200)">
-        <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:#92400E">🛒 Compras externas</div>
-        <p style="font-size:11px;color:var(--gris-500);margin-bottom:8px">Si has comprado material, añade cada albarán con su número y foto.</p>
-        <div id="wz_albaranes_list">
-          ${(_wiz.albaranes_compra||[]).length ? _wiz.albaranes_compra.map((alb, i) => renderWizAlbaranRow(alb, i)).join('') : '<div style="text-align:center;padding:8px;color:var(--gris-400);font-size:12px">Sin compras externas</div>'}
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="wizAddAlbaran()" style="margin-top:8px;width:100%">➕ Añadir albarán de compra</button>
-      </div>
+      <!-- Compras externas: se gestionan via OCR escanear albarán -->
 
       ${esJefe ? `<div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--gris-200)">
         <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--violeta)">👷 Mano de obra</div>
@@ -5914,10 +5907,15 @@ async function _wizOCRFileSelected(input) {
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
     const b64Data = base64.split(',')[1];
 
+    // Decodificar API key (puede estar en base64)
+    let apiKey;
+    try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { apiKey = EMPRESA.anthropic_api_key; }
+
     // Llamar Edge Function OCR
     const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': EMPRESA.anthropic_api_key },
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
       body: JSON.stringify({
         imagen_base64: b64Data,
         media_type: mimeType,
@@ -5928,11 +5926,12 @@ async function _wizOCRFileSelected(input) {
       })
     });
 
-    if (!resp.ok) throw new Error('Error ' + resp.status);
     const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Error procesando documento');
 
+    const data = result.data || {};
     // Extraer líneas del resultado OCR
-    const lineas = result?.lineas || result?.data?.lineas || [];
+    const lineas = data.lineas || [];
     if (!lineas.length) {
       toast('⚠️ No se han detectado materiales en la imagen', 'warning');
       return;
@@ -5965,8 +5964,8 @@ async function _wizOCRFileSelected(input) {
     }
 
     // Guardar datos del proveedor/albarán como compra externa si tiene número
-    const numAlbaran = result?.numero_documento || result?.numero || '';
-    const proveedor = result?.proveedor?.nombre || result?.proveedor || '';
+    const numAlbaran = data.numero_documento || data.numero || '';
+    const proveedor = data.proveedor?.nombre || (typeof data.proveedor === 'string' ? data.proveedor : '') || '';
     if (numAlbaran || proveedor) {
       if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
       _wiz.albaranes_compra.push({
