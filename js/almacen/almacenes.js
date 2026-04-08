@@ -103,7 +103,7 @@ function editAlmacen(id) {
   _toggleCamposFurgoneta();
   document.getElementById('mAlmTit').textContent = 'Editar Almacén';
   document.getElementById('alm_btn_delete').style.display = '';
-  openModal('mAlmacen');
+  openModal('mAlmacen', true);
 }
 
 async function saveAlmacen() {
