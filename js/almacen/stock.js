@@ -259,10 +259,39 @@ function exportStock() {
   toast('Exportación preparada (ver consola)', 'success');
 }
 
+// Poblar filtros dropdowns
+function populateStockFilters() {
+  // Almacenes
+  const selAlm = document.getElementById('filter-almacen');
+  if (selAlm && typeof almacenes !== 'undefined') {
+    const current = selAlm.value;
+    selAlm.innerHTML = '<option value="">Todos los almacenes</option>';
+    almacenes.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.nombre;
+      if (String(a.id) === current) opt.selected = true;
+      selAlm.appendChild(opt);
+    });
+  }
+  // Familias
+  const selFam = document.getElementById('filter-familia');
+  if (selFam && typeof familias !== 'undefined') {
+    selFam.innerHTML = '<option value="">Todas las familias</option>';
+    familias.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = f.nombre;
+      selFam.appendChild(opt);
+    });
+  }
+}
+
 // Inicializar módulo al cargar página
 function initStock() {
   const pageStock = document.getElementById('page-stock');
   if (pageStock) {
+    populateStockFilters();
     loadStock();
 
     // Listeners de filtros

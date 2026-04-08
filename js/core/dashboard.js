@@ -92,6 +92,29 @@ async function loadDashboard() {
   // ── PARTES AUTO-GENERADOS POR GREMIO ──
   await loadDashboardPartesGremio();
 
+  // ── INCIDENCIAS STOCK PENDIENTES ──
+  try {
+    const { data: incPend, error: incErr } = await sb.from('incidencias_stock')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', EMPRESA.id)
+      .eq('estado', 'pendiente');
+    if (!incErr && incPend !== null) {
+      const cnt = typeof incPend === 'number' ? incPend : 0;
+      const el = document.getElementById('dash-incidencias');
+      if (el && cnt > 0) {
+        el.style.display = '';
+        el.innerHTML = `<div class="card" style="padding:14px;border-left:4px solid var(--rojo);cursor:pointer" onclick="goPage('incidencias-stock')">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:24px">⚠️</div>
+            <div style="flex:1"><div style="font-weight:800;font-size:14px">${cnt} incidencia${cnt>1?'s':''} de stock pendiente${cnt>1?'s':''}</div>
+            <div style="font-size:11px;color:var(--gris-400)">Materiales consumidos sin stock disponible</div></div>
+            <span class="badge bg-red">${cnt}</span>
+          </div>
+        </div>`;
+      }
+    }
+  } catch(e) { /* silent */ }
+
   // ── BADGE CORREO NO LEÍDO ──
   if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
 

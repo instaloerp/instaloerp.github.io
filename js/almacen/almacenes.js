@@ -47,9 +47,10 @@ function renderAlmacenes() {
       ${matricula}
       ${a.direccion ? `<div style="font-size:11px;color:var(--gris-400);margin-top:2px">📍 ${a.direccion}</div>` : ''}
       ${stockInfo}
-      <div style="display:flex;gap:7px;margin-top:12px;border-top:1px solid var(--gris-100);padding-top:10px">
+      <div style="display:flex;gap:7px;margin-top:12px;border-top:1px solid var(--gris-100);padding-top:10px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="editAlmacen(${a.id})">✏️ Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="goPage('stock')" style="font-size:11px">📊 Ver stock</button>
+        <button class="btn btn-ghost btn-sm" onclick="verStockAlmacen(${a.id})" style="font-size:11px">📊 Ver stock</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirCargaStock(${a.id})" style="font-size:11px;color:var(--verde)">+ Añadir artículo</button>
       </div>
     </div>`;
   }).join('');
@@ -154,4 +155,136 @@ async function deleteAlmacen() {
   almacenes = data || [];
   renderAlmacenes();
   toast('Almacén eliminado', 'success');
+}
+
+// Ver stock filtrado por almacén
+function verStockAlmacen(almacenId) {
+  goPage('stock');
+  setTimeout(() => {
+    const sel = document.getElementById('filter-almacen');
+    if (sel) { sel.value = almacenId; filtrarStock(); }
+  }, 300);
+}
+
+// ═══════════════════════════════════════════════
+// Cargar stock a un almacén (añadir artículos)
+// ═══════════════════════════════════════════════
+let _cargaAlmacenId = null;
+
+function abrirCargaStock(almacenId) {
+  _cargaAlmacenId = almacenId;
+  const a = almacenes.find(x => x.id === almacenId);
+  document.getElementById('carga-alm-nombre').textContent = a?.nombre || 'Almacén';
+  document.getElementById('carga-articulo-search').value = '';
+  document.getElementById('carga-articulo-id').value = '';
+  document.getElementById('carga-articulo-info').innerHTML = '';
+  document.getElementById('carga-cantidad').value = '';
+  document.getElementById('carga-minimo').value = '';
+  document.getElementById('carga-dropdown').style.display = 'none';
+  openModal('modal-carga-stock');
+}
+
+function buscarArticuloCarga() {
+  const q = (document.getElementById('carga-articulo-search')?.value || '').toLowerCase();
+  const dd = document.getElementById('carga-dropdown');
+  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
+
+  const results = (typeof articulos !== 'undefined' ? articulos : [])
+    .filter(a => (a.nombre||'').toLowerCase().includes(q) || (a.codigo||'').toLowerCase().includes(q))
+    .slice(0, 10);
+
+  if (!results.length) { dd.style.display = 'none'; return; }
+
+  dd.style.display = 'block';
+  dd.innerHTML = results.map(a =>
+    `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100);font-size:13px" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''" onclick="seleccionarArticuloCarga(${a.id})">
+      <strong>${a.nombre}</strong> <span style="color:var(--gris-400);font-size:11px">${a.codigo || ''}</span>
+      ${a.unidad_medida ? `<span style="color:var(--gris-400);font-size:11px;margin-left:8px">(${a.unidad_medida})</span>` : ''}
+    </div>`
+  ).join('');
+}
+
+function seleccionarArticuloCarga(artId) {
+  const a = articulos.find(x => x.id === artId);
+  if (!a) return;
+  document.getElementById('carga-articulo-id').value = artId;
+  document.getElementById('carga-articulo-search').value = a.nombre;
+  document.getElementById('carga-dropdown').style.display = 'none';
+  document.getElementById('carga-articulo-info').innerHTML = `
+    <div style="padding:8px;background:var(--gris-50);border-radius:6px;font-size:12px;margin-top:6px">
+      <strong>${a.nombre}</strong> — ${a.codigo || 'Sin código'}
+      ${a.unidad_medida ? ` · ${a.unidad_medida}` : ''}
+      ${a.costo ? ` · Coste: ${fmtE(a.costo)}` : ''}
+    </div>`;
+}
+
+async function guardarCargaStock() {
+  const articuloId = parseInt(document.getElementById('carga-articulo-id').value);
+  const cantidad = parseFloat(document.getElementById('carga-cantidad').value) || 0;
+  const minimo = parseFloat(document.getElementById('carga-minimo').value) || 0;
+
+  if (!articuloId) { toast('Selecciona un artículo', 'warning'); return; }
+  if (cantidad <= 0) { toast('Introduce una cantidad', 'warning'); return; }
+
+  try {
+    // Check si ya existe stock de este artículo en este almacén
+    const { data: existing } = await sb.from('stock')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('articulo_id', articuloId)
+      .eq('almacen_id', _cargaAlmacenId)
+      .maybeSingle();
+
+    if (existing) {
+      // Actualizar cantidad
+      const newCant = (existing.cantidad || 0) + cantidad;
+      const { error } = await sb.from('stock').update({
+        cantidad: newCant,
+        stock_minimo: minimo || existing.stock_minimo || 0,
+        updated_at: new Date().toISOString()
+      }).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      // Insertar nuevo
+      const { error } = await sb.from('stock').insert({
+        empresa_id: EMPRESA.id,
+        articulo_id: articuloId,
+        almacen_id: _cargaAlmacenId,
+        cantidad: cantidad,
+        stock_minimo: minimo,
+        stock_provisional: 0,
+        stock_reservado: 0,
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+    }
+
+    // Registrar movimiento
+    const art = articulos.find(a => a.id === articuloId);
+    await sb.from('movimientos_stock').insert({
+      empresa_id: EMPRESA.id,
+      articulo_id: articuloId,
+      almacen_id: _cargaAlmacenId,
+      tipo: 'carga_inicial',
+      cantidad: cantidad,
+      cantidad_anterior: existing?.cantidad || 0,
+      cantidad_nueva: (existing?.cantidad || 0) + cantidad,
+      motivo: 'Carga inicial de stock',
+      usuario_id: CU.id,
+      usuario_nombre: CP?.nombre || CU.email,
+      created_at: new Date().toISOString()
+    });
+
+    closeModal('modal-carga-stock');
+    toast(`${art?.nombre}: +${cantidad} unidades ✓`, 'success');
+
+    // Recargar stock data y re-renderizar almacenes
+    if (typeof loadStock === 'function') loadStock();
+    const { data } = await sb.from('stock').select('*').eq('empresa_id', EMPRESA.id);
+    if (typeof stockData !== 'undefined') stockData = data || [];
+    renderAlmacenes();
+  } catch (e) {
+    console.error('Error cargando stock:', e);
+    toast('Error: ' + e.message, 'error');
+  }
 }

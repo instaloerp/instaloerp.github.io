@@ -267,6 +267,9 @@
           <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="d-vencidas">—</div><div class="sl">Facturas vencidas</div></div>
         </div>
 
+        <!-- ALERTAS: Incidencias stock -->
+        <div id="dash-incidencias" style="display:none;margin-bottom:16px"></div>
+
         <!-- FILA 3: Mis Tareas + Tablas -->
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
           <div class="card">
@@ -2475,6 +2478,30 @@
         <button class="btn btn-secondary" onclick="closeModal('mAlmacen')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveAlmacen()">💾 Guardar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Carga Stock (añadir artículo a almacén) -->
+<div class="overlay" id="modal-carga-stock">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>📦</span><h2>Añadir artículo a <span id="carga-alm-nombre"></span></h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-carga-stock')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="carga-articulo-id">
+      <div class="fg" style="margin-bottom:11px;position:relative">
+        <label>Artículo *</label>
+        <input id="carga-articulo-search" placeholder="Buscar artículo por nombre o código..." autocomplete="off" oninput="buscarArticuloCarga()">
+        <div id="carga-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--gris-200);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 6px 20px rgba(0,0,0,.12)"></div>
+        <div id="carga-articulo-info"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Cantidad *</label><input id="carga-cantidad" type="number" min="0" step="0.01" placeholder="0"></div>
+        <div class="fg"><label>Stock mínimo</label><input id="carga-minimo" type="number" min="0" step="0.01" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('modal-carga-stock')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCargaStock()">📦 Cargar stock</button>
     </div>
   </div>
 </div>
