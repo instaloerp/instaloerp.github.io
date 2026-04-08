@@ -6026,18 +6026,19 @@ async function _wizOCRFileSelected(input) {
         toast(`⚠️ El documento nº ${numDoc} ya está en este parte`, 'error');
         return;
       }
-      // 2. En las tablas de COMPRA del ERP + documentos en otros partes
+      // 2. En las tablas de COMPRA del ERP + documentos OCR pendientes + otros partes
       try {
         const eid = EMPRESA.id;
-        const [resRecep, resFactProv, resPedidos, resPresCom, resPartes] = await Promise.all([
+        const [resRecep, resFactProv, resPedidos, resPresCom, resOcr, resPartes] = await Promise.all([
           sb.from('recepciones').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
           sb.from('facturas_proveedor').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
           sb.from('pedidos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
           sb.from('presupuestos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+          sb.from('documentos_ocr').select('id,estado,datos_extraidos').eq('empresa_id', eid).in('estado', ['completado','procesando','pendiente']),
           sb.from('partes_trabajo').select('id,numero,albaranes_compra').eq('empresa_id', eid).not('albaranes_compra', 'is', null)
         ]);
         if (resRecep.data?.length) {
-          toast(`⚠️ Ya existe una recepción (albarán compra) nº ${numDoc}`, 'error');
+          toast(`⚠️ Ya existe una recepción nº ${numDoc}`, 'error');
           return;
         }
         if (resFactProv.data?.length) {
@@ -6052,12 +6053,22 @@ async function _wizOCRFileSelected(input) {
           toast(`⚠️ Ya existe un presupuesto de compra nº ${numDoc}`, 'error');
           return;
         }
+        // Documentos OCR ya procesados (pendientes de validar)
+        if (resOcr.data) {
+          for (const doc of resOcr.data) {
+            const ext = doc.datos_extraidos;
+            if (ext && (ext.numero_documento === numDoc || ext.numero === numDoc)) {
+              toast(`⚠️ Documento nº ${numDoc} ya escaneado (pendiente de validar en OCR)`, 'error');
+              return;
+            }
+          }
+        }
         // Documento ya subido en otro parte
         if (resPartes.data) {
           for (const pt of resPartes.data) {
             const albs = Array.isArray(pt.albaranes_compra) ? pt.albaranes_compra : [];
             if (albs.find(a => a.numero && a.numero === numDoc)) {
-              toast(`⚠️ Documento nº ${numDoc} ya registrado en parte ${pt.numero || pt.id}`, 'error');
+              toast(`⚠️ Documento nº ${numDoc} ya en parte ${pt.numero || pt.id}`, 'error');
               return;
             }
           }
