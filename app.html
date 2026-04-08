@@ -383,6 +383,10 @@ let trabajos = [];
 let clientes = [];
 let articulos = [];
 
+// Furgoneta del operario
+let miFurgoneta = null;       // objeto almacen con tipo='furgoneta' asignado al operario
+let miFurgonetaStock = [];    // stock de la furgoneta [{articulo_id, cantidad, stock_provisional, stock_reservado, articulo:{nombre,codigo}}]
+
 // Fichaje
 let misFichajesHoy = [];
 let _fichajeEntradaHoy = null; // fichaje de entrada abierto (sin salida)
@@ -774,6 +778,223 @@ async function loadEmpresa(id) {
 }
 
 // ═══════════════════════════════════════════════
+// FURGONETA — Stock del operario
+// ═══════════════════════════════════════════════
+async function loadMiFurgoneta() {
+  if (!EMPRESA || !CU) return;
+  try {
+    // 1. Buscar furgoneta asignada al operario actual
+    const { data: furgs } = await sb.from('almacenes')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('tipo', 'furgoneta')
+      .eq('operario_id', CU.id)
+      .eq('activo', true)
+      .limit(1);
+
+    if (furgs && furgs.length > 0) {
+      miFurgoneta = furgs[0];
+    } else {
+      // Fallback: si no hay asignación directa, buscar por nombre del operario
+      const { data: furgs2 } = await sb.from('almacenes')
+        .select('*')
+        .eq('empresa_id', EMPRESA.id)
+        .eq('tipo', 'furgoneta')
+        .eq('activo', true);
+      // Intentar match por nombre
+      if (furgs2) {
+        const nombre = (CP?.nombre || '').toLowerCase();
+        miFurgoneta = furgs2.find(f => (f.operario_nombre||'').toLowerCase().includes(nombre)) || null;
+      }
+    }
+
+    if (miFurgoneta) {
+      await loadStockFurgoneta(miFurgoneta.id);
+      console.log(`[Furgoneta] ${miFurgoneta.nombre} — ${miFurgonetaStock.length} artículos`);
+    } else {
+      console.log('[Furgoneta] No hay furgoneta asignada al operario');
+      miFurgonetaStock = [];
+    }
+  } catch(e) {
+    console.error('[Furgoneta] Error:', e);
+  }
+}
+
+async function loadStockFurgoneta(almacenId) {
+  if (!EMPRESA) return;
+  const { data } = await sb.from('stock')
+    .select('*, articulos(id,codigo,nombre,foto_url,familia_id,unidad_venta_id)')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('almacen_id', almacenId);
+  miFurgonetaStock = (data || []).map(s => ({
+    ...s,
+    stock_disponible: (s.cantidad || 0) + (s.stock_provisional || 0) - (s.stock_reservado || 0)
+  }));
+}
+
+function getStockFurgoneta(articuloId) {
+  const s = miFurgonetaStock.find(x => x.articulo_id === articuloId);
+  if (!s) return { cantidad: 0, provisional: 0, reservado: 0, disponible: 0 };
+  return {
+    cantidad: s.cantidad || 0,
+    provisional: s.stock_provisional || 0,
+    reservado: s.stock_reservado || 0,
+    disponible: s.stock_disponible || 0
+  };
+}
+
+// Registrar consumo de material en la BD (consumos_parte + movimiento + incidencia si procede)
+async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = 'consumo', motivoMerma = null) {
+  if (!EMPRESA || !CU) return;
+  const almacenId = miFurgoneta?.id || null;
+  const stock = getStockFurgoneta(material.articulo_id);
+  const sinStock = material.articulo_id ? (stock.disponible < material.cantidad) : false;
+  const esFacturable = (tipo === 'consumo');
+
+  // 1. Insertar consumo_parte
+  const consumo = {
+    empresa_id: EMPRESA.id,
+    parte_id: parteId,
+    articulo_id: material.articulo_id,
+    articulo_codigo: material.codigo || null,
+    articulo_nombre: material.nombre,
+    cantidad: material.cantidad,
+    unidad: material.unidad || 'ud',
+    precio_unitario: material.precio || 0,
+    total: material.total || 0,
+    almacen_id: almacenId,
+    tipo_stock: 'real',
+    tipo: tipo,
+    motivo_merma: motivoMerma,
+    sin_stock: sinStock,
+    facturable: esFacturable,
+    usuario_id: CU.id,
+    usuario_nombre: CP?.nombre || CU.email
+  };
+  await sb.from('consumos_parte').insert(consumo);
+
+  // 2. Descontar stock de furgoneta (si hay furgoneta y artículo del catálogo)
+  if (almacenId && material.articulo_id && !sinStock) {
+    const nuevaCant = Math.max(0, stock.cantidad - material.cantidad);
+    await sb.from('stock')
+      .update({ cantidad: nuevaCant })
+      .eq('almacen_id', almacenId)
+      .eq('articulo_id', material.articulo_id)
+      .eq('empresa_id', EMPRESA.id);
+
+    // Registrar movimiento
+    await sb.from('movimientos_stock').insert({
+      empresa_id: EMPRESA.id,
+      articulo_id: material.articulo_id,
+      almacen_id: almacenId,
+      tipo: tipo === 'consumo' ? 'consumo' : 'merma',
+      cantidad: -material.cantidad,
+      cantidad_anterior: stock.cantidad,
+      cantidad_nueva: nuevaCant,
+      motivo: tipo === 'consumo'
+        ? `Consumo en parte ${parteNumero}`
+        : `${tipo.charAt(0).toUpperCase()+tipo.slice(1)}: ${motivoMerma || ''} (parte ${parteNumero})`,
+      parte_id: parteId,
+      parte_numero: parteNumero,
+      tipo_stock: 'real',
+      usuario_id: CU.id,
+      usuario_nombre: CP?.nombre || CU.email
+    });
+  }
+
+  // 3. Generar incidencia si no hay stock
+  if (sinStock && material.articulo_id) {
+    await sb.from('incidencias_stock').insert({
+      empresa_id: EMPRESA.id,
+      articulo_id: material.articulo_id,
+      articulo_nombre: material.nombre,
+      cantidad: material.cantidad,
+      almacen_id: almacenId,
+      almacen_nombre: miFurgoneta?.nombre || 'Sin furgoneta',
+      parte_id: parteId,
+      parte_numero: parteNumero,
+      usuario_id: CU.id,
+      usuario_nombre: CP?.nombre || CU.email
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MI FURGONETA — Vista móvil
+// ═══════════════════════════════════════════════
+function renderMiFurgoneta() {
+  const body = document.getElementById('appBody');
+  if (!miFurgoneta) {
+    body.innerHTML = `
+      <div style="padding:20px;text-align:center;margin-top:40px">
+        <div style="font-size:48px;margin-bottom:16px">🚐</div>
+        <h3 style="font-size:17px;font-weight:800;margin-bottom:8px">Sin furgoneta asignada</h3>
+        <p style="font-size:13px;color:var(--gris-400)">Contacta con la oficina para que te asignen una furgoneta.</p>
+        <button class="btn btn-secondary" onclick="navigateTo(currentTab)" style="margin-top:20px">← Volver</button>
+      </div>`;
+    return;
+  }
+
+  const stockItems = miFurgonetaStock.filter(s => s.stock_disponible > 0 || s.cantidad > 0);
+  const totalRefs = stockItems.length;
+  const bajosStock = stockItems.filter(s => s.stock_minimo && s.cantidad <= s.stock_minimo).length;
+
+  let filterHtml = `
+    <div style="padding:12px 16px;position:sticky;top:0;background:#fff;z-index:10;border-bottom:1px solid var(--gris-100)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <button class="btn btn-ghost btn-sm" onclick="navigateTo(currentTab)" style="padding:4px 8px">←</button>
+        <div style="flex:1">
+          <h2 style="font-size:16px;font-weight:800;margin:0">🚐 ${miFurgoneta.nombre}</h2>
+          <p style="font-size:11px;color:var(--gris-400);margin:0">${miFurgoneta.matricula || ''} · ${totalRefs} artículos${bajosStock > 0 ? ` · <span style="color:var(--rojo)">${bajosStock} bajo mínimo</span>` : ''}</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadStockFurgoneta(${miFurgoneta.id}).then(()=>renderMiFurgoneta())" style="padding:6px 10px">🔄</button>
+      </div>
+      <input type="text" id="furgSearchInput" placeholder="🔍 Buscar artículo..."
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)"
+        oninput="filtrarStockFurgoneta(this.value)">
+    </div>`;
+
+  let listHtml = '';
+  if (stockItems.length === 0) {
+    listHtml = `<div style="text-align:center;padding:40px 20px;color:var(--gris-400)">
+      <div style="font-size:36px;margin-bottom:12px">📦</div>
+      <p style="font-size:13px">No hay stock en esta furgoneta</p>
+    </div>`;
+  } else {
+    listHtml = `<div id="furgStockList" style="padding:8px 12px">
+      ${stockItems.map(s => {
+        const art = s.articulos || {};
+        const bajMin = s.stock_minimo && s.cantidad <= s.stock_minimo;
+        return `<div class="furg-stock-item" style="display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:6px;background:#fff;border-radius:10px;border:1px solid ${bajMin ? 'var(--rojo)' : 'var(--gris-100)'}">
+          <div style="width:44px;height:44px;border-radius:8px;background:var(--gris-50);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;overflow:hidden">
+            ${art.foto_url ? `<img src="${art.foto_url}" style="width:100%;height:100%;object-fit:cover">` : '📦'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${art.nombre || 'Artículo'}</div>
+            <div style="font-size:11px;color:var(--gris-400)">${art.codigo || ''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:800;font-size:15px;${bajMin ? 'color:var(--rojo)' : ''}">${s.cantidad || 0}</div>
+            ${s.stock_provisional > 0 ? `<div style="font-size:10px;color:var(--naranja)">+${s.stock_provisional} prov.</div>` : ''}
+            ${s.stock_minimo ? `<div style="font-size:10px;color:var(--gris-300)">mín: ${s.stock_minimo}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  body.innerHTML = filterHtml + listHtml;
+}
+
+function filtrarStockFurgoneta(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('.furg-stock-item').forEach(el => {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(q) ? 'flex' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════
 function toggleModo() {
@@ -896,7 +1117,7 @@ function renderBottomNav() {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
-      <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
+      <button class="nav-item" data-tab="furgoneta" onclick="navigateTo('furgoneta')"><span class="ico">🚐</span><span class="lbl">Furgoneta</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
     if (fab) {
@@ -924,18 +1145,20 @@ function navigateTo(tab) {
     }
   } else if (esJefe) {
     switch(tab) {
-      case 'inicio':   renderJefeInicio(body); break;
-      case 'equipo':   renderJefeEquipo(body); break;
-      case 'agenda':   renderJefeAgenda(body); break;
-      case 'mas':      renderJefeMas(body); break;
+      case 'inicio':     renderJefeInicio(body); break;
+      case 'equipo':     renderJefeEquipo(body); break;
+      case 'furgoneta':  renderMiFurgoneta(); break;
+      case 'agenda':     renderJefeAgenda(body); break;
+      case 'mas':        renderJefeMas(body); break;
     }
   } else {
     switch(tab) {
-      case 'inicio':   renderOperarioInicio(body); break;
-      case 'partes':   renderOperarioPartes(body); break;
-      case 'tareas':   renderOperarioTareas(body); break;
-      case 'agenda':   renderOperarioAgenda(body); break;
-      case 'mas':      renderOperarioMas(body); break;
+      case 'inicio':     renderOperarioInicio(body); break;
+      case 'partes':     renderOperarioPartes(body); break;
+      case 'tareas':     renderOperarioTareas(body); break;
+      case 'furgoneta':  renderMiFurgoneta(); break;
+      case 'agenda':     renderOperarioAgenda(body); break;
+      case 'mas':        renderOperarioMas(body); break;
     }
   }
 }
@@ -999,6 +1222,9 @@ async function loadAllData() {
     // ✅ Guardar en cache offline para uso sin conexión
     await cacheDataOffline();
     _updateConnIndicator();
+
+    // Cargar furgoneta del operario (no bloqueante)
+    loadMiFurgoneta().catch(e => console.warn('[Furgoneta]', e));
 
     // Cargar fichajes de hoy (no bloqueante — en paralelo con el resto)
     loadMisFichajesHoy().catch(e => console.warn('[Fichajes]', e));
@@ -5209,7 +5435,14 @@ function renderWizStep() {
         <p style="font-size:13px;color:var(--gris-500)">Añade materiales del catálogo y registra la mano de obra.</p>
       </div>
 
-      <div style="font-weight:800;font-size:13px;margin-bottom:8px;color:var(--azul)">🔧 Materiales</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:800;font-size:13px;color:var(--azul)">🔧 Materiales</span>
+        ${miFurgoneta ? `<span style="font-size:10px;color:var(--gris-400)">🚐 ${miFurgoneta.nombre}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('merma')" style="font-size:11px;color:#92400E;border-color:#FDE68A">⚠️ Merma</button>
+        <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('rotura')" style="font-size:11px;color:#991B1B;border-color:#FECACA">💥 Rotura</button>
+      </div>
       <div class="mat-search" style="margin-bottom:12px">
         <input id="wz_mat_buscar" type="text" placeholder="🔍 Buscar artículo o escribir nombre..."
           style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)"
@@ -5544,14 +5777,23 @@ function wizSearchMat(q) {
     (a.nombre||'').toLowerCase().includes(q) || (a.codigo||'').toLowerCase().includes(q)
   ).slice(0, 8);
 
-  let html = matches.map(a => `
-    <div class="mat-search-item" onclick="wizAddMatFromCatalog(${a.id})">
-      <div style="font-weight:700;font-size:13px">${a.nombre||''}</div>
+  let html = matches.map(a => {
+    const st = getStockFurgoneta(a.id);
+    const stockBadge = miFurgoneta
+      ? (st.disponible > 0
+        ? `<span style="color:var(--verde);font-weight:700">${st.disponible} en furgoneta</span>`
+        : `<span style="color:var(--rojo)">sin stock</span>`)
+      : '';
+    return `<div class="mat-search-item" onclick="wizAddMatFromCatalog(${a.id})">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:13px">${a.nombre||''}</span>
+        <span style="font-size:10px">${stockBadge}</span>
+      </div>
       <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''} · ${(a.precio_venta||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})} · ${a.unidad||'ud'}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
-  // Siempre mostrar opción de añadir manualmente (se bloqueará cuando STOCK_ENABLED = true)
+  // Añadir manualmente
   html += `<div class="mat-search-item" style="background:var(--azul-light);font-weight:700;color:var(--azul)" onclick="wizAddMatManual()">
     ➕ Añadir "${q}" manualmente
   </div>`;
@@ -5596,17 +5838,25 @@ function wizAddMatManual() {
 }
 
 function renderWizMatRow(m, idx) {
-  // STOCK CHECK — preparado pero desactivado hasta implementar multialmacén
-  const STOCK_ENABLED = false;
+  // Stock check en furgoneta del operario
   let stockWarning = '';
-  if (STOCK_ENABLED && m.articulo_id) {
-    // TODO: comprobar stock en furgoneta del operario
-    // const stockDisponible = getStockFurgoneta(m.articulo_id);
-    // if (m.cantidad > stockDisponible) stockWarning = `<div style="font-size:10px;color:#DC2626;padding:4px 10px">⚠️ Stock insuficiente en furgoneta (disponible: ${stockDisponible})</div>`;
+  let stockBadge = '';
+  if (m.articulo_id && miFurgoneta) {
+    const st = getStockFurgoneta(m.articulo_id);
+    if (m.cantidad > st.disponible) {
+      stockWarning = `<div style="font-size:10px;color:#DC2626;padding:4px 10px;background:#FEF2F2;border-radius:6px;margin-top:2px">⚠️ Stock insuficiente en furgoneta (disponible: ${st.disponible}) — se creará incidencia</div>`;
+    } else if (st.disponible > 0) {
+      stockBadge = `<span style="font-size:9px;color:var(--verde);font-weight:700">(${st.disponible})</span>`;
+    }
   }
 
+  // Tipo de consumo (consumo / merma / rotura)
+  const tipoTag = m._tipo && m._tipo !== 'consumo'
+    ? `<span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;background:${m._tipo==='merma'?'#FEF3C7;color:#92400E':'#FEE2E2;color:#991B1B'}">${m._tipo.toUpperCase()}</span>`
+    : '';
+
   return `<div class="mat-row">
-    <div class="mat-name">${m.nombre}${m.codigo ? ` <span style="color:var(--gris-400);font-size:10px">(${m.codigo})</span>` : ''}</div>
+    <div class="mat-name">${m.nombre}${m.codigo ? ` <span style="color:var(--gris-400);font-size:10px">(${m.codigo})</span>` : ''} ${stockBadge} ${tipoTag}</div>
     <input type="number" value="${m.cantidad}" min="0.01" step="0.01"
       style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:13px;font-family:var(--font)"
       onchange="wizUpdateMatQty(${idx},this.value)">
@@ -5639,6 +5889,26 @@ function wizUpdateMatPrice(idx, val) {
 
 function wizRemoveMat(idx) {
   _wiz.materiales.splice(idx, 1);
+  renderWizStep();
+}
+
+function wizAddMermaRotura(tipo) {
+  // Mostrar búsqueda de artículo para seleccionar merma/rotura
+  const nombre = prompt(`${tipo === 'merma' ? '⚠️ MERMA' : '💥 ROTURA'}\nDescribe el material (o búscalo después):`);
+  if (!nombre) return;
+  const motivo = prompt(`Motivo de la ${tipo}:`);
+  if (!motivo) { toast('El motivo es obligatorio para ' + tipo, 'error'); return; }
+  _wiz.materiales.push({
+    articulo_id: null,
+    nombre: nombre,
+    codigo: '',
+    cantidad: 1,
+    precio: 0,
+    unidad: 'ud',
+    total: 0,
+    _tipo: tipo,
+    _motivo: motivo
+  });
   renderWizStep();
 }
 
@@ -6387,6 +6657,22 @@ async function wizFinish() {
     // Actualizar local
     const p = misPartes.find(x => x.id === id);
     if (p) Object.assign(p, updateObj);
+
+    // 3b. Registrar consumos de material en BD (consumos_parte + stock + incidencias)
+    if (_wiz.materiales.length > 0 && navigator.onLine) {
+      const parteNum = p?.numero || '';
+      for (const mat of _wiz.materiales) {
+        if (mat.cantidad > 0) {
+          try {
+            const tipo = mat._tipo || 'consumo';
+            const motivo = mat._motivo || null;
+            await registrarConsumoMaterial(id, parteNum, mat, tipo, motivo);
+          } catch(e) { console.warn('[Consumo] Error registrando:', mat.nombre, e); }
+        }
+      }
+      // Recargar stock furgoneta después de los consumos
+      if (miFurgoneta) loadStockFurgoneta(miFurgoneta.id).catch(e => console.warn(e));
+    }
 
     _wizClearAutoSave(id);
     document.removeEventListener('click', _closeMaterialSearch);
