@@ -5484,9 +5484,11 @@ function renderWizStep() {
         <span style="font-weight:800;font-size:13px;color:var(--azul)">🔧 Materiales</span>
         ${miFurgoneta ? `<span style="font-size:10px;color:var(--gris-400)">🚐 ${miFurgoneta.nombre}</span>` : ''}
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px">
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('merma')" style="font-size:11px;color:#92400E;border-color:#FDE68A">⚠️ Merma</button>
         <button class="btn btn-ghost btn-sm" onclick="wizAddMermaRotura('rotura')" style="font-size:11px;color:#991B1B;border-color:#FECACA">💥 Rotura</button>
+        <button class="btn btn-ghost btn-sm" onclick="wizOCRScan()" style="font-size:11px;color:#1D4ED8;border-color:#93C5FD" id="btnOcrScan">📷 Escanear albarán</button>
+        <input type="file" id="ocrWizFileInput" accept="image/*" capture="environment" style="display:none" onchange="_wizOCRFileSelected(this)">
       </div>
       <div class="mat-search" style="margin-bottom:12px">
         <input id="wz_mat_buscar" type="text" placeholder="🔍 Buscar artículo o escribir nombre..."
@@ -5880,6 +5882,108 @@ function wizAddMatManual() {
   input.value = '';
   document.getElementById('wz_mat_results').classList.remove('show');
   renderWizStep();
+}
+
+// ── OCR: Escanear albarán desde el wizard de materiales ──
+function wizOCRScan() {
+  if (!EMPRESA?.anthropic_api_key) {
+    toast('⚠️ Configura la API key de IA en Ajustes del ERP', 'error');
+    return;
+  }
+  document.getElementById('ocrWizFileInput')?.click();
+}
+
+async function _wizOCRFileSelected(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  input.value = ''; // Reset para poder repetir
+
+  const btn = document.getElementById('btnOcrScan');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
+  toast('📷 Procesando imagen con IA...', '');
+
+  try {
+    // Convertir a base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const mimeMatch = base64.match(/^data:([^;]+);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const b64Data = base64.split(',')[1];
+
+    // Llamar Edge Function OCR
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': EMPRESA.anthropic_api_key },
+      body: JSON.stringify({
+        imagen_base64: b64Data,
+        media_type: mimeType,
+        tipo: 'albaran',
+        empresa_id: EMPRESA.id,
+        empresa_nombre: EMPRESA.nombre || '',
+        empresa_cif: EMPRESA.cif || ''
+      })
+    });
+
+    if (!resp.ok) throw new Error('Error ' + resp.status);
+    const result = await resp.json();
+
+    // Extraer líneas del resultado OCR
+    const lineas = result?.lineas || result?.data?.lineas || [];
+    if (!lineas.length) {
+      toast('⚠️ No se han detectado materiales en la imagen', 'warning');
+      return;
+    }
+
+    // Añadir materiales al parte — intentar vincular con catálogo existente
+    let added = 0;
+    for (const linea of lineas) {
+      const nombre = linea.descripcion || linea.nombre || '';
+      const codigo = linea.codigo || '';
+      const cantidad = parseFloat(linea.cantidad) || 1;
+      const precio = parseFloat(linea.precio_unitario) || 0;
+
+      // Buscar en catálogo por código o nombre
+      let artMatch = null;
+      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
+      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+
+      _wiz.materiales.push({
+        articulo_id: artMatch?.id || null,
+        nombre: artMatch?.nombre || nombre || 'Material OCR',
+        codigo: artMatch?.codigo || codigo,
+        cantidad: cantidad,
+        precio: artMatch?.precio_venta || precio,
+        unidad: linea.unidad || artMatch?.unidad || 'ud',
+        total: cantidad * (artMatch?.precio_venta || precio),
+        _ocr: true, // Marcar como añadido por OCR
+      });
+      added++;
+    }
+
+    // Guardar datos del proveedor/albarán como compra externa si tiene número
+    const numAlbaran = result?.numero_documento || result?.numero || '';
+    const proveedor = result?.proveedor?.nombre || result?.proveedor || '';
+    if (numAlbaran || proveedor) {
+      if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
+      _wiz.albaranes_compra.push({
+        numero: numAlbaran ? `${proveedor ? proveedor + ' - ' : ''}${numAlbaran}` : proveedor,
+        foto: base64, // Guardar la foto original
+      });
+    }
+
+    toast(`✅ ${added} material(es) añadido(s) desde albarán`, 'success');
+    renderWizStep();
+
+  } catch(e) {
+    console.error('[OCR Wizard]', e);
+    toast('Error procesando imagen: ' + (e.message || 'desconocido'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Escanear albarán'; }
+  }
 }
 
 function renderWizMatRow(m, idx) {
