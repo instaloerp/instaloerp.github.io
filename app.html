@@ -2477,6 +2477,19 @@ async function renderOperarioMas(el) {
       <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
     </div>
 
+    <div class="section-title" style="margin-top:16px">✍️ Mi Firma</div>
+    <div class="card" id="miFirmaCard">
+      <p style="font-size:12px;color:var(--gris-500);margin-bottom:10px">Guarda tu firma para que se use automáticamente al completar partes.</p>
+      <div id="miFirmaPreview" style="border:2px dashed var(--gris-200);border-radius:12px;padding:16px;text-align:center;background:var(--gris-50);min-height:60px;display:flex;align-items:center;justify-content:center;margin-bottom:10px">
+        ${CP?.firma_guardada
+          ? '<img src="'+CP.firma_guardada+'" style="max-width:100%;max-height:100px;border-radius:8px"><div style="color:var(--verde);font-weight:700;font-size:11px;margin-top:4px">✅ Firma guardada</div>'
+          : '<span style="color:var(--gris-400);font-size:13px">Sin firma guardada</span>'}
+      </div>
+      <button onclick="abrirFirmaGuardada()" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--violeta);color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+        ${CP?.firma_guardada ? '✍️ Cambiar firma' : '✍️ Guardar mi firma'}
+      </button>
+    </div>
+
     <div class="section-title" style="margin-top:16px">🔒 Sesión</div>
     <div class="card" onclick="doLogout()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🚪</span>
@@ -2812,6 +2825,19 @@ async function renderJefeMas(el) {
     <div class="card" onclick="forceCacheClear()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🗑️</span>
       <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px">✍️ Mi Firma</div>
+    <div class="card" id="miFirmaCardJefe">
+      <p style="font-size:12px;color:var(--gris-500);margin-bottom:10px">Guarda tu firma para que se use automáticamente al completar partes.</p>
+      <div id="miFirmaPreviewJefe" style="border:2px dashed var(--gris-200);border-radius:12px;padding:16px;text-align:center;background:var(--gris-50);min-height:60px;display:flex;align-items:center;justify-content:center;margin-bottom:10px">
+        ${CP?.firma_guardada
+          ? '<img src="'+CP.firma_guardada+'" style="max-width:100%;max-height:100px;border-radius:8px"><div style="color:var(--verde);font-weight:700;font-size:11px;margin-top:4px">✅ Firma guardada</div>'
+          : '<span style="color:var(--gris-400);font-size:13px">Sin firma guardada</span>'}
+      </div>
+      <button onclick="abrirFirmaGuardada()" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--violeta);color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+        ${CP?.firma_guardada ? '✍️ Cambiar firma' : '✍️ Guardar mi firma'}
+      </button>
     </div>
 
     <div class="section-title" style="margin-top:16px">🔒 Sesión</div>
@@ -6240,6 +6266,13 @@ function cerrarFirmaFullscreen(guardar) {
       _wiz.firmaData = dataUrl;
       _wiz.firmaData_validated = true;
       toast('✅ Firma validada', 'success');
+    } else if (_fsTipo === 'guardada') {
+      // Guardar firma del operario en su perfil (Supabase)
+      _guardarFirmaPerfil(dataUrl);
+      const overlay = document.getElementById('firmaFullscreenOverlay');
+      if (overlay) overlay.remove();
+      document.body.style.overflow = '';
+      return; // No re-render wizard
     } else {
       _wiz.firmaOperario = dataUrl;
       _wiz.firmaOperario_validated = true;
@@ -6252,7 +6285,93 @@ function cerrarFirmaFullscreen(guardar) {
   document.body.style.overflow = '';
 
   // Re-render para actualizar estado visual (verde/check)
-  renderWizStep();
+  if (typeof renderWizStep === 'function' && _wiz?.parteId) renderWizStep();
+}
+
+// ── FIRMA GUARDADA EN PERFIL ──
+function abrirFirmaGuardada() {
+  _fsTipo = 'guardada';
+  _fsDrawing = false;
+  _fsHasTouched = false;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'firma-fullscreen';
+  overlay.id = 'firmaFullscreenOverlay';
+  overlay.innerHTML = `
+    <div class="firma-fs-header" style="background:var(--violeta)">
+      <h3>Mi firma (se usará en todos los partes)</h3>
+      <button onclick="cerrarFirmaFullscreen(false)" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 14px;border-radius:6px;font-weight:700;font-size:14px">✕ Cancelar</button>
+    </div>
+    <div class="firma-fs-canvas-wrap">
+      <canvas id="firmaFSCanvas"></canvas>
+      <div class="firma-fs-placeholder" id="firmaFSPlaceholder">Firme aquí con el dedo</div>
+    </div>
+    <div class="firma-fs-actions">
+      <button onclick="limpiarFirmaFS()" style="flex:1;padding:14px;border-radius:8px;border:2px solid var(--gris-300);background:#fff;font-weight:700;font-size:15px;cursor:pointer">🗑️ Borrar</button>
+      <button onclick="cerrarFirmaFullscreen(true)" style="flex:2;padding:14px;border-radius:8px;border:none;background:var(--verde);color:#fff;font-weight:700;font-size:15px;cursor:pointer">✅ Guardar firma</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+
+  setTimeout(() => {
+    const canvas = document.getElementById('firmaFSCanvas');
+    const wrap = canvas.parentElement;
+    canvas.width = wrap.offsetWidth * 2;
+    canvas.height = wrap.offsetHeight * 2;
+    canvas.style.width = wrap.offsetWidth + 'px';
+    canvas.style.height = wrap.offsetHeight + 'px';
+    _fsCtx = canvas.getContext('2d');
+    _fsCtx.scale(2, 2);
+    _fsCtx.strokeStyle = '#1E293B';
+    _fsCtx.lineWidth = 2.5;
+    _fsCtx.lineCap = 'round';
+    _fsCtx.lineJoin = 'round';
+    // Si ya tiene firma previa, dibujarla
+    if (CP?.firma_guardada) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        _fsCtx.drawImage(img, 0, 0, wrap.offsetWidth, wrap.offsetHeight);
+        _fsHasTouched = true;
+        document.getElementById('firmaFSPlaceholder').style.display = 'none';
+      };
+      img.src = CP.firma_guardada;
+    }
+    canvas.addEventListener('touchstart', _fsStart, { passive: false });
+    canvas.addEventListener('touchmove', _fsMove, { passive: false });
+    canvas.addEventListener('touchend', _fsEnd);
+    canvas.addEventListener('mousedown', _fsStart);
+    canvas.addEventListener('mousemove', _fsMove);
+    canvas.addEventListener('mouseup', _fsEnd);
+    canvas.addEventListener('mouseleave', _fsEnd);
+  }, 50);
+}
+
+async function _guardarFirmaPerfil(dataUrl) {
+  toast('Guardando firma...', '');
+  try {
+    const eid = EMPRESA?.id || 'default';
+    const blob = await (await fetch(dataUrl)).blob();
+    const filename = `${eid}/firmas/firma_${CP.id}_${Date.now()}.png`;
+    const { error: upErr } = await sb.storage.from('fotos-partes').upload(filename, blob, { upsert: true });
+    if (upErr) { toast('Error subiendo firma: ' + upErr.message, 'error'); return; }
+    const { data: urlData } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+    const firmaUrl = urlData?.publicUrl;
+    if (!firmaUrl) { toast('Error obteniendo URL', 'error'); return; }
+
+    // Guardar en perfil
+    const { error } = await sb.from('perfiles').update({ firma_guardada: firmaUrl }).eq('id', CP.id);
+    if (error) { toast('Error guardando: ' + error.message, 'error'); return; }
+
+    CP.firma_guardada = firmaUrl;
+    toast('✅ Firma guardada correctamente', 'success');
+    // Refrescar la pestaña
+    navigateTo('mas');
+  } catch(e) {
+    console.error('Error guardando firma:', e);
+    toast('Error: ' + e.message, 'error');
+  }
 }
 
 function wizSetEmailMode(mode) {
@@ -7462,9 +7581,9 @@ function openInformarWizard(id) {
     _wiz = Object.assign(_saved, {
       parteId: id,
       firmaData: null,
-      firmaOperario: null,
+      firmaOperario: CP?.firma_guardada || null,
       firmaData_validated: false,
-      firmaOperario_validated: false,
+      firmaOperario_validated: !!CP?.firma_guardada,
       fotosNuevas: [],
     });
     // Mantener manoObra calculada si no tenía guardada
@@ -7504,9 +7623,9 @@ function openInformarWizard(id) {
       albaranes_compra: p.albaranes_compra ? [...p.albaranes_compra] : [],
       manoObra: autoManoObra,
       firmaData: null,
-      firmaOperario: null,
+      firmaOperario: CP?.firma_guardada || null,
       firmaData_validated: false,
-      firmaOperario_validated: false,
+      firmaOperario_validated: !!CP?.firma_guardada,
       clienteEmailMode: 'si',
       clienteEmail: _prefillEmail,
       clienteNombre: '',
