@@ -26,7 +26,7 @@ function _cargarOperariosAlmacen(selectedId) {
   const sel = document.getElementById('alm_operario');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Sin asignar —</option>';
-  (usuarios||[]).filter(u => u.activo).forEach(u => {
+  (todosUsuarios||[]).filter(u => u.activo !== false).forEach(u => {
     const opt = document.createElement('option');
     opt.value = u.id;
     opt.textContent = u.nombre || u.email;
