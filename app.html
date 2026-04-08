@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#3b82f6">
+<meta name="theme-color" content="#ffffff">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -60,18 +60,15 @@ a{color:var(--azul);text-decoration:none}
 
 /* ── APP SHELL ── */
 #s-app{background:var(--gris-50)}
-.safe-top-bar{position:sticky;top:0;z-index:101;background:#3b82f6;height:var(--safe-top);min-height:0}
-.app-header{position:sticky;top:var(--safe-top);z-index:100;background:#3b82f6;padding:10px 16px;display:flex;align-items:center;gap:12px;color:#fff}
-.app-header .info h2{color:#fff}
-.app-header .info span{color:rgba(255,255,255,.7)}
-.app-header .hdr-btn{background:rgba(255,255,255,.2);color:#fff}
-.app-header .avatar{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
+.safe-top-bar{display:none}
+.app-header{position:sticky;top:0;z-index:100;background:#fff;padding:calc(var(--safe-top) + 10px) 16px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--gris-200)}
+.app-header .avatar{width:42px;height:42px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
 .app-header .info{flex:1;min-width:0}
-.app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gris-900)}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
 .app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px;background:rgba(255,255,255,.2);color:#fff}
-.hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);font-size:10px;font-weight:700;color:#fff;cursor:pointer;flex-shrink:0;letter-spacing:.3px}
+.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px;background:var(--azul);color:#fff}
+.hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--gris-100);border:1px solid var(--gris-200);font-size:10px;font-weight:700;color:var(--gris-600);cursor:pointer;flex-shrink:0;letter-spacing:.3px}
 .hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
 .app-body{flex:1;padding:12px 16px;padding-bottom:calc(80px + var(--safe-bottom))}
@@ -114,17 +111,21 @@ a{color:var(--azul);text-decoration:none}
 .agenda-title{font-size:13.5px;font-weight:700}
 .agenda-sub{font-size:11.5px;color:var(--gris-400);margin-top:2px}
 
-/* ── MODAL ── */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+/* ── MODAL (FULLSCREEN) ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:#fff;z-index:200;flex-direction:column}
 .modal-overlay.active{display:flex}
-.modal-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:88dvh;overflow-y:auto;padding:20px 16px calc(20px + var(--safe-bottom));animation:slideUp .3s ease;display:flex;flex-direction:column}
+.modal-sheet{background:#fff;border-radius:0;width:100%;max-width:100%;flex:1;overflow-y:auto;padding:0 16px calc(20px + var(--safe-bottom));animation:slideUp .25s ease;display:flex;flex-direction:column}
+.modal-blue-bar{background:#3b82f6;padding:calc(var(--safe-top) + 10px) 16px 10px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.modal-blue-bar h3{flex:1;font-size:16px;font-weight:800;color:#fff;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-blue-bar .modal-x{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.modal-blue-bar .modal-x:active{background:rgba(255,255,255,.35)}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes pulsoEnCurso{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
 .en-curso-dot{display:inline-block;width:9px;height:9px;background:#D97706;border-radius:50%;animation:pulsoEnCurso 1.4s ease-in-out infinite;flex-shrink:0}
 .en-curso-banner{background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:2px solid #F59E0B;border-radius:14px;padding:12px 14px;margin-bottom:14px}
-.modal-handle{width:40px;height:4px;background:var(--gris-300);border-radius:4px;margin:0 auto 16px}
+.modal-handle{display:none}
 .modal-title{font-size:18px;font-weight:800;margin-bottom:16px}
-.wiz-nav{position:sticky;bottom:-20px;background:#fff;padding:12px 0;border-top:1px solid var(--gris-200);z-index:5;margin-top:auto}
+.wiz-nav{position:sticky;bottom:0;background:#fff;padding:12px 0;border-top:1px solid var(--gris-200);z-index:5;margin-top:auto}
 .firma-container{max-height:160px;position:relative}
 .firma-container canvas{max-height:140px}
 
@@ -329,13 +330,14 @@ input[type=number]{-moz-appearance:textfield}
     <div class="avatar" id="hdrAvatar">J</div>
     <div class="info">
       <h2 id="hdrNombre">—</h2>
-      <span id="hdrLastSync" style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600"></span>
+      <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600"></span>
     </div>
     <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
     <div style="position:relative;display:inline-flex">
-      <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot" style="background:#fff"></span> OK</div>
+      <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> OK</div>
       <span id="syncBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;text-align:center;line-height:16px">0</span>
     </div>
+    <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">⏻</button>
   </div>
 
   <!-- Body (content rendered by JS) -->
@@ -359,10 +361,13 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 <!-- ═══════════ MODALS ═══════════ -->
-<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this){if(document.getElementById('btnCerrarEnvio')&&!_envioRealizado){toast('⚠️ Debes enviar el parte al cliente','error');return;}closeModal()}">
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal-blue-bar" id="modalBlueBar">
+    <h3 id="modalBarTitle"></h3>
+    <button class="modal-x" onclick="closeModal()" id="modalBarX">✕</button>
+  </div>
   <div class="modal-sheet" id="modalSheet">
-    <div class="modal-handle"></div>
-    <div id="modalContent"></div>
+    <div id="modalContent" style="padding-top:16px"></div>
   </div>
 </div>
 
@@ -3482,7 +3487,7 @@ function _openParteForm() {
 
     <div id="ppContent"></div>
   `;
-  openModal();
+  openModal('Nuevo Parte');
 
   // Restaurar estado del toggle
   _ppSetModo(_ppModo, true);
@@ -4201,7 +4206,7 @@ function _openDocEditor(tipo) {
       </div>
     </div>
   `;
-  openModal();
+  openModal(titles[tipo] || tipo);
 
   // Cerrar dropdown al tocar fuera
   document.getElementById('docClienteBuscar')?.addEventListener('blur', () => {
@@ -4861,7 +4866,7 @@ function _openOCRUpload() {
     <button id="ocrSendBtn" class="btn btn-primary" onclick="_uploadOCR()" style="display:none">Subir documento</button>
     <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:8px">Cancelar</button>
   `;
-  openModal();
+  openModal('Subir Documento');
 }
 
 let _ocrSelectedFile = null;
@@ -5343,7 +5348,7 @@ function openParteDetail(id) {
   `;
 
   document.getElementById('modalContent').innerHTML = html;
-  openModal();
+  openModal('Parte ' + (p.numero || ''));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5610,7 +5615,7 @@ function renderWizStep() {
       ${isEditMode && !isLast ? `<button class="btn btn-primary" onclick="wizFinishEdit()" style="background:var(--gris-600)">💾 Guardar</button>` : ''}
     </div>
   `;
-  openModal();
+  openModal('Informar Parte');
 
   // Canvas firma se inicializa al abrir cada panel (toggleFirmaPanel)
 
@@ -6496,122 +6501,103 @@ async function wizFinish() {
       toast('⚠️ El operario debe firmar y validar su firma', 'error'); return;
     }
 
-    toast('📍 Obteniendo ubicación final...', '');
+    toast('📍 Enviando informe...', '');
 
     const id = _wiz.parteId;
     const eid = EMPRESA?.id || 'default';
     const _isOffline = !navigator.onLine;
 
-    // 0. Capturar ubicación final (GPS)
-    // ONLINE: obligatorio | OFFLINE: opcional (usa caché de hasta 5 min)
-    let ubicacionFin = null;
-    try {
-      if (navigator.geolocation) {
-        ubicacionFin = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-            (err) => reject(err),
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: _isOffline ? 300000 : 0 }
-          );
-        });
+    // 0. GPS + km en paralelo (no bloquean la subida de archivos)
+    const gpsPromise = new Promise(resolve => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        (err) => { console.warn('GPS final:', err.message); resolve(null); },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: _isOffline ? 300000 : 60000 }
+      );
+    });
+
+    // Recalcular minutos trabajados
+    const parteActual = misPartes.find(x => x.id === id);
+    if (parteActual && _wiz.manoObra && parteActual.inicio_at) {
+      const moTrabajo = _wiz.manoObra.find(mo => !mo.es_desplazamiento);
+      if (moTrabajo) {
+        const diffMs = new Date() - new Date(parteActual.inicio_at);
+        moTrabajo.minutos = Math.max(1, Math.round(diffMs / (1000 * 60)));
+        moTrabajo.total = (moTrabajo.minutos / 60) * (moTrabajo.precio_hora || 35);
       }
-    } catch(e) {
-      console.warn('GPS final error:', e.message);
-      if (!_isOffline) {
-        toast('⚠️ Debes permitir el acceso a la ubicación para completar el parte. Activa el GPS e inténtalo de nuevo.', 'error');
-        return;
-      }
-      toast('⚠️ Sin GPS. Se guardará sin ubicación final.', 'warning');
     }
 
-    toast('Enviando informe...', '');
-
-    // 0b. Recalcular minutos trabajados (inicio_at → ahora) y km por carretera
-    const parteActual = misPartes.find(x => x.id === id);
-    if (parteActual && _wiz.manoObra) {
-      // Recalcular minutos
-      if (parteActual.inicio_at) {
-        const moTrabajo = _wiz.manoObra.find(mo => !mo.es_desplazamiento);
-        if (moTrabajo) {
-          const diffMs = new Date() - new Date(parteActual.inicio_at);
-          moTrabajo.minutos = Math.max(1, Math.round(diffMs / (1000 * 60)));
-          moTrabajo.total = (moTrabajo.minutos / 60) * (moTrabajo.precio_hora || 35);
-        }
-      }
-      // Recalcular km por carretera
+    // km por carretera (en paralelo con GPS)
+    const kmPromise = (async () => {
+      if (!parteActual || !_wiz.manoObra) return;
       const ubi = parteActual.ubicacion_inicio || parteActual.ubicacion;
       if (ubi && ubi.lat && ubi.lng) {
         try {
           const kmReal = await calcularKmCarretera(ubi.lat, ubi.lng);
           const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
-          if (despMO) {
-            despMO.km = kmReal;
-            despMO.total = kmReal * (despMO.precio_hora || 0.26);
-          }
-        } catch(e) { console.warn('[wizFinish] Error calculando km:', e); }
+          if (despMO) { despMO.km = kmReal; despMO.total = kmReal * (despMO.precio_hora || 0.26); }
+        } catch(e) { /* silent */ }
       }
+    })();
+
+    // Esperar GPS (necesario para el parte) — km puede tardar más pero no bloquea
+    const [ubicacionFin] = await Promise.all([gpsPromise, kmPromise]);
+    if (!ubicacionFin && !_isOffline) {
+      // Continuar sin GPS en vez de bloquear
+      console.warn('Sin ubicación GPS final');
     }
 
-    // 1. Subir fotos nuevas a Supabase Storage
-    let fotosUrls = [..._wiz.fotos]; // URLs existentes
-    for (const foto of (_wiz.fotosNuevas || [])) {
+    // 1+2. Subir TODAS las fotos y firmas EN PARALELO para máxima velocidad
+    const _uploadFile = async (dataOrUrl, prefix, ext) => {
+      if (!dataOrUrl || !dataOrUrl.startsWith('data:')) return dataOrUrl || null;
       try {
-        const blob = await (await fetch(foto.data)).blob();
-        const filename = `${eid}/${Date.now()}_${Math.random().toString(36).substr(2,9)}.jpg`;
+        const blob = await (await fetch(dataOrUrl)).blob();
+        const filename = `${eid}/${Date.now()}_${prefix}_${Math.random().toString(36).substr(2,6)}.${ext}`;
         const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
         if (!error) {
           const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-          fotosUrls.push(data.publicUrl);
-        } else { console.warn('Upload foto error:', error.message); }
-      } catch(e) { console.error('Error subiendo foto:', e); }
-    }
+          return data.publicUrl;
+        }
+        console.warn('Upload error:', error.message);
+      } catch(e) { console.error('Upload error:', e); }
+      return null;
+    };
 
-    // 1b. Subir fotos de albaranes de compra
+    // Preparar todas las subidas en paralelo
+    const uploadTasks = [];
+    const fotosNuevas = _wiz.fotosNuevas || [];
     const albaranesCompra = _wiz.albaranes_compra || [];
-    for (const alb of albaranesCompra) {
-      if (alb.foto && alb.foto.startsWith('data:')) {
-        try {
-          const blob = await (await fetch(alb.foto)).blob();
-          const filename = `${eid}/${Date.now()}_alb_${Math.random().toString(36).substr(2,6)}.jpg`;
-          const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-          if (!error) {
-            const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-            alb.foto = data.publicUrl;
-          } else { console.warn('Upload foto albarán error:', error.message); }
-        } catch(e) { console.error('Error subiendo foto albarán:', e); }
+
+    // Fotos del parte
+    for (const foto of fotosNuevas) {
+      uploadTasks.push(_uploadFile(foto.data, 'foto', 'jpg').then(url => ({ type:'foto', url })));
+    }
+    // Fotos de albaranes
+    for (let i = 0; i < albaranesCompra.length; i++) {
+      if (albaranesCompra[i].foto && albaranesCompra[i].foto.startsWith('data:')) {
+        uploadTasks.push(_uploadFile(albaranesCompra[i].foto, 'alb', 'jpg').then(url => ({ type:'albaran', idx:i, url })));
       }
     }
+    // Firma cliente
+    uploadTasks.push(_uploadFile(_wiz.firmaData, 'firma_cliente', 'png').then(url => ({ type:'firma_cli', url })));
+    // Firma operario
+    uploadTasks.push(_uploadFile(_wiz.firmaOperario, 'firma_op', 'png').then(url => ({ type:'firma_op', url })));
 
-    // 2. Subir firma cliente
-    let firmaUrl = null;
-    if (_wiz.firmaData && _wiz.firmaData.startsWith('data:')) {
-      try {
-        const blob = await (await fetch(_wiz.firmaData)).blob();
-        const filename = `${eid}/${Date.now()}_firma_cliente.png`;
-        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-        if (!error) {
-          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-          firmaUrl = data.publicUrl;
-        } else { console.warn('Upload firma cliente error:', error.message); }
-      } catch(e) { console.error('Error subiendo firma cliente:', e); }
-    } else if (_wiz.firmaData) {
-      firmaUrl = _wiz.firmaData;
-    }
+    // Ejecutar todas las subidas en paralelo
+    const uploadResults = await Promise.all(uploadTasks);
 
-    // 2b. Subir firma operario
-    let firmaOpUrl = null;
-    if (_wiz.firmaOperario && _wiz.firmaOperario.startsWith('data:')) {
-      try {
-        const blob = await (await fetch(_wiz.firmaOperario)).blob();
-        const filename = `${eid}/${Date.now()}_firma_operario.png`;
-        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-        if (!error) {
-          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-          firmaOpUrl = data.publicUrl;
-        } else { console.warn('Upload firma operario error:', error.message); }
-      } catch(e) { console.error('Error subiendo firma operario:', e); }
-    } else if (_wiz.firmaOperario) {
-      firmaOpUrl = _wiz.firmaOperario;
+    // Procesar resultados
+    let fotosUrls = [..._wiz.fotos]; // URLs existentes
+    let firmaUrl = (_wiz.firmaData && !_wiz.firmaData.startsWith('data:')) ? _wiz.firmaData : null;
+    let firmaOpUrl = (_wiz.firmaOperario && !_wiz.firmaOperario.startsWith('data:')) ? _wiz.firmaOperario : null;
+
+    for (const res of uploadResults) {
+      if (!res.url) continue;
+      if (res.type === 'foto') fotosUrls.push(res.url);
+      else if (res.type === 'albaran') albaranesCompra[res.idx].foto = res.url;
+      else if (res.type === 'firma_cli') firmaUrl = res.url;
+      else if (res.type === 'firma_op') firmaOpUrl = res.url;
     }
 
     // 3. Guardar todo en el parte — estado completado (bloqueado)
@@ -6674,18 +6660,13 @@ async function wizFinish() {
     const p = misPartes.find(x => x.id === id);
     if (p) Object.assign(p, updateObj);
 
-    // 3b. Registrar consumos de material en BD (consumos_parte + stock + incidencias)
+    // 3b. Registrar consumos de material en BD en paralelo
+    const _parteNum = p?.numero || '';
     if (_wiz.materiales.length > 0 && navigator.onLine) {
-      const parteNum = p?.numero || '';
-      for (const mat of _wiz.materiales) {
-        if (mat.cantidad > 0) {
-          try {
-            const tipo = mat._tipo || 'consumo';
-            const motivo = mat._motivo || null;
-            await registrarConsumoMaterial(id, parteNum, mat, tipo, motivo);
-          } catch(e) { console.warn('[Consumo] Error registrando:', mat.nombre, e); }
-        }
-      }
+      const consumoPromises = _wiz.materiales
+        .filter(mat => mat.cantidad > 0)
+        .map(mat => registrarConsumoMaterial(id, _parteNum, mat, mat._tipo || 'consumo', mat._motivo || null).catch(e => console.warn('[Consumo]', mat.nombre, e)));
+      await Promise.all(consumoPromises);
       // Recargar stock furgoneta después de los consumos
       if (miFurgoneta) loadStockFurgoneta(miFurgoneta.id).catch(e => console.warn(e));
     }
@@ -6707,17 +6688,16 @@ async function wizFinish() {
         }
       }
     }
-    // [DESACTIVADO] Comprobar si es el último parte del día → sugerir fichar salida
-    // _checkUltimoParteSalida();
+    // Mostrar modal de envío INMEDIATAMENTE — PDF se genera en background
+    mostrarModalEnvio(id, parteNum, cliTel, cliEmail, null);
 
-    // 4b. Generar PDF automáticamente y subirlo a Storage
-    toast('📄 Generando PDF...', '');
+    // 4b. Generar PDF en background (no bloquea la UI)
     const _trabajoLocal = p?.trabajo_id ? trabajos.find(t => t.id === p.trabajo_id) : null;
     const _tituloTrabajo = p?.trabajo_titulo || _trabajoLocal?.titulo || '';
     const _dirTrabajo    = p?.direccion     || _trabajoLocal?.direccion_obra_texto || '';
-    const pdfUrl = await generarPdfParte(id, { ...updateObj, numero: p?.numero }, EMPRESA?.nombre || 'Instalo', _tituloTrabajo, _dirTrabajo);
-
-    mostrarModalEnvio(id, parteNum, cliTel, cliEmail, pdfUrl);
+    generarPdfParte(id, { ...updateObj, numero: p?.numero }, EMPRESA?.nombre || 'Instalo', _tituloTrabajo, _dirTrabajo)
+      .then(url => { if (url) toast('📄 PDF generado', 'success'); })
+      .catch(e => console.warn('[PDF bg]', e));
   } catch(err) {
     console.error('[wizFinish] Error:', err);
     // Último recurso: guardar offline si hay cualquier error
@@ -6965,7 +6945,7 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdf
   `;
 
   document.getElementById('modalContent').innerHTML = content;
-  openModal();
+  openModal('Enviar Parte');
 }
 
 function _limpiarTelEnvio() {
@@ -7331,7 +7311,7 @@ function openOperarioDetail(uid) {
       ${tareasOp.slice(0,10).map(t => renderTareaItem(t)).join('')}
     ` : ''}
   `;
-  openModal();
+  openModal(op.nombre || 'Operario');
 }
 
 // ═══════════════════════════════════════════════
@@ -7596,30 +7576,34 @@ function showScreen(id) {
   document.getElementById(id)?.classList.add('active');
 }
 
-function openModal() {
+function openModal(title) {
+  const titleEl = document.getElementById('modalBarTitle');
+  if (titleEl) titleEl.textContent = title || '';
   document.getElementById('modalOverlay').classList.add('active');
-  _ajustarAlturaSheet();
+  // Scroll modal to top
+  const sheet = document.getElementById('modalSheet');
+  if (sheet) sheet.scrollTop = 0;
 }
 
 function closeModal() {
+  // Bloquear cierre si hay envío pendiente → redirigir a cerrarModalEnvio
+  if (document.getElementById('btnCerrarEnvio') && !_envioRealizado) {
+    if (typeof _mostrarDialogSinEnvio === 'function') _mostrarDialogSinEnvio();
+    else toast('⚠️ Debes enviar el parte al cliente', 'error');
+    return;
+  }
   const overlay = document.getElementById('modalOverlay');
-  const sheet   = document.getElementById('modalSheet');
   overlay.classList.remove('active');
-  // Limpiar estilos inline fijados por _ajustarAlturaSheet
-  if (overlay) { overlay.style.top = ''; overlay.style.height = ''; }
-  if (sheet)   { sheet.style.maxHeight = ''; }
 }
 
-// ── Ajuste de altura del sheet cuando aparece/desaparece el teclado (iOS) ──
+// ── Ajuste de altura del modal cuando aparece/desaparece el teclado (iOS) ──
 // En iOS el teclado no reduce el DVH: usamos visualViewport para saberlo.
 (function _initSheetKeyboardResize() {
   if (!window.visualViewport) return;
-  let _lastVvH = window.visualViewport.height;
 
   window.visualViewport.addEventListener('resize', () => {
     _ajustarAlturaSheet();
     _scrollInputVisible();
-    _lastVvH = window.visualViewport.height;
   });
 
   window.visualViewport.addEventListener('scroll', () => {
@@ -7630,20 +7614,23 @@ function closeModal() {
 function _ajustarAlturaSheet() {
   const overlay = document.getElementById('modalOverlay');
   const sheet   = document.getElementById('modalSheet');
+  const bar     = document.getElementById('modalBlueBar');
   if (!sheet || !overlay) return;
 
   const vv = window.visualViewport;
   if (!vv) return;
 
-  // Reposicionar el overlay para que coincida exactamente con el visual viewport
-  // (en iOS el teclado no mueve los elementos fixed — lo hacemos manualmente)
+  // Reposicionar el overlay para que coincida con el visual viewport (iOS keyboard fix)
   const offsetTop = vv.offsetTop || 0;
+  overlay.style.position = 'fixed';
   overlay.style.top    = offsetTop + 'px';
   overlay.style.height = vv.height + 'px';
+  overlay.style.left   = '0';
+  overlay.style.right  = '0';
 
-  // Dejar un mínimo de 80 px libres encima del sheet para cerrar con tap
-  const GAP_ARRIBA = 80;
-  sheet.style.maxHeight = Math.floor(vv.height - GAP_ARRIBA) + 'px';
+  // El sheet ocupa todo el espacio menos la blue bar
+  const barH = bar ? bar.offsetHeight : 0;
+  sheet.style.maxHeight = Math.floor(vv.height - barH) + 'px';
 }
 
 // Hacer scroll para que el input activo quede visible sobre el teclado
@@ -7652,7 +7639,7 @@ function _scrollInputVisible() {
   if (!focused || !['INPUT','TEXTAREA','SELECT'].includes(focused.tagName)) return;
   setTimeout(() => {
     focused.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, 80);
+  }, 100);
 }
 
 function toast(msg, type) {
