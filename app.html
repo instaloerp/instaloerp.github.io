@@ -153,6 +153,13 @@ a{color:var(--azul);text-decoration:none}
 .empty-state .ico{font-size:48px;margin-bottom:12px}
 .empty-state p{font-size:14px}
 
+/* ── LOADING OVERLAY ── */
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50000;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.loading-overlay.active{display:flex}
+.loading-spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:#fff;font-size:15px;font-weight:700;text-align:center;max-width:80%}
+
 /* ── TOAST ── */
 .toast{position:fixed;top:calc(var(--safe-top) + 12px);left:50%;transform:translateX(-50%);background:var(--gris-800);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
@@ -297,6 +304,7 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ═══════════ TOAST ═══════════ -->
 <div id="appToast" class="toast"></div>
+<div id="loadingOverlay" class="loading-overlay"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">Procesando...</div></div>
 
 <!-- ═══════════ LOGIN SCREEN ═══════════ -->
 <div id="s-login" class="screen active">
@@ -5581,6 +5589,14 @@ function renderWizStep() {
           </div>
         </div>
       </div>
+
+      <!-- Firma remota (cliente ausente) -->
+      <div style="margin-top:16px;padding:14px;border:1.5px solid #F59E0B;border-radius:12px;background:#FFFBEB">
+        <p style="font-size:12px;color:#92400E;margin:0 0 8px;font-weight:600">¿El cliente no está presente para firmar?</p>
+        <button onclick="wizFirmaRemota()" style="width:100%;padding:12px;border:none;border-radius:10px;background:#F59E0B;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+          ✍️ Enviar enlace de firma remota
+        </button>
+      </div>
     `;
   }
 
@@ -5893,7 +5909,7 @@ async function _wizOCRFileSelected(input) {
 
   const btn = document.getElementById('btnOcrScan');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
-  toast('📷 Procesando imagen con IA...', '');
+  showLoading('📷 Procesando albarán con IA...');
 
   try {
     // Convertir a base64
@@ -5981,6 +5997,7 @@ async function _wizOCRFileSelected(input) {
     console.error('[OCR Wizard]', e);
     toast('Error procesando imagen: ' + (e.message || 'desconocido'), 'error');
   } finally {
+    hideLoading();
     if (btn) { btn.disabled = false; btn.textContent = '📷 Escanear albarán'; }
   }
 }
@@ -6721,7 +6738,7 @@ async function wizFinish() {
       toast('⚠️ El operario debe firmar y validar su firma', 'error'); return;
     }
 
-    toast('📍 Enviando informe...', '');
+    showLoading('Enviando informe...');
 
     const id = _wiz.parteId;
     const eid = EMPRESA?.id || 'default';
@@ -6854,6 +6871,7 @@ async function wizFinish() {
       await syncQueueAdd({ table:'partes_trabajo', action:'update_with_files', data: updateObj, match:{ id }, fotosNuevas: _wiz.fotosNuevas || [], timestamp: Date.now() });
       _wizClearAutoSave(id);
       document.removeEventListener('click', _closeMaterialSearch);
+      hideLoading();
       toast('✅ Parte guardado localmente. Se enviará automáticamente al recuperar conexión.', 'success');
       closeModal();
       navigateTo(currentTab);
@@ -6870,6 +6888,7 @@ async function wizFinish() {
       await syncQueueAdd({ table:'partes_trabajo', action:'update_with_files', data: updateObj, match:{ id }, fotosNuevas: _wiz.fotosNuevas || [], timestamp: Date.now() });
       _wizClearAutoSave(id);
       document.removeEventListener('click', _closeMaterialSearch);
+      hideLoading();
       toast('✅ Parte guardado localmente (error de red). Se sincronizará al volver la conexión.', 'warning');
       closeModal();
       navigateTo(currentTab);
@@ -6909,6 +6928,7 @@ async function wizFinish() {
       }
     }
     // Mostrar modal de envío INMEDIATAMENTE — PDF se genera en background
+    hideLoading();
     mostrarModalEnvio(id, parteNum, cliTel, cliEmail, null);
 
     // 4b. Generar PDF en background (no bloquea la UI)
@@ -6930,6 +6950,7 @@ async function wizFinish() {
         await syncQueueAdd({ table:'partes_trabajo', action:'update', data:{ estado:'completado', completado_at: p.completado_at }, match:{ id: _wiz.parteId }, timestamp: Date.now() });
       }
     } catch(e2) { console.error('Error guardando offline:', e2); }
+    hideLoading();
     toast('⚠️ Error: ' + (err.message || 'Sin conexión') + '. Datos guardados localmente.', 'warning');
     closeModal();
     navigateTo(currentTab);
@@ -7150,14 +7171,6 @@ function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdf
         <p style="font-size:11px;color:var(--gris-400);margin:4px 0 0;font-style:italic">Se envía desde el ERP directamente al cliente.</p>
       </div>
 
-      <!-- Firma remota (cliente ausente) -->
-      <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px">
-        <p style="font-size:11px;color:var(--gris-400);margin:0 0 8px;text-align:center">¿El cliente no está presente para firmar?</p>
-        <button onclick="iniciarFirmaRemota(${parteId},'${parteNum}','${empresa}')" style="width:100%;padding:12px;border:1.5px solid #F59E0B;border-radius:10px;background:#FFFBEB;color:#B45309;font-size:14px;font-weight:700;cursor:pointer">
-          ✍️ Enviar enlace de firma remota al cliente
-        </button>
-      </div>
-
       <button id="btnCerrarEnvio" onclick="cerrarModalEnvio()" style="width:100%;padding:12px;background:var(--gris-200);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gris-400);margin-top:10px" disabled>
         Envía el parte al cliente para poder cerrar
       </button>
@@ -7299,11 +7312,54 @@ async function _salirSinEnvioConTarea(parteId) {
     toast('Tarea de seguimiento creada 📋', 'info');
   }
 
+  // Marcar como enviado para permitir cerrar el modal
+  _envioRealizado = true;
   closeModal();
   navigateTo(currentTab);
 }
 
 // ── FIRMA REMOTA — El cliente firma desde su móvil sin estar presente ──
+// Firma remota desde el wizard (paso firma, cliente ausente)
+async function wizFirmaRemota() {
+  const parteId = _wiz.parteId;
+  const p = misPartes.find(x => x.id === parteId);
+  if (!p) return;
+  const parteNum = p.numero || parteId;
+  const empresa = EMPRESA?.nombre || 'Instalo';
+
+  // Pedir teléfono
+  const tel = prompt('Teléfono del cliente (WhatsApp):');
+  if (!tel || tel.replace(/\D/g,'').length < 9) {
+    toast('⚠️ Teléfono no válido', 'error');
+    return;
+  }
+  const telClean = tel.replace(/[\s\-\.\(\)]/g, '');
+  let telFull = telClean;
+  if (/^[679]\d{8}$/.test(telFull)) telFull = '34' + telFull;
+
+  toast('Preparando firma remota...', '');
+
+  // Generar token
+  const token = (Date.now().toString(36) + Math.random().toString(36).substring(2)).toUpperCase().substring(0, 12);
+
+  const { error } = await sb.from('partes_trabajo').update({
+    firma_token: token,
+    firma_remota_enviado_at: new Date().toISOString()
+  }).eq('id', parteId);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (p) p.firma_token = token;
+
+  const baseUrl = window.location.origin;
+  const enlaceFirma = `${baseUrl}/parte.html?token=${token}`;
+  const msg = encodeURIComponent(
+    `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
+    `Puede revisar y firmarlo aquí:\n${enlaceFirma}\n\nGracias.`
+  );
+  window.open(`https://wa.me/${telFull}?text=${msg}`, '_blank');
+  toast('✍️ Enlace de firma remota enviado por WhatsApp', 'success');
+}
+
 async function iniciarFirmaRemota(parteId, parteNum, empresa) {
   const tel = _limpiarTelEnvio();
   if (!tel || tel.length < 9) {
@@ -7879,6 +7935,17 @@ function toast(msg, type) {
   el.className = 'toast show' + (type ? ' ' + type : '');
   clearTimeout(el._t);
   el._t = setTimeout(() => el.className = 'toast', 2500);
+}
+
+function showLoading(msg) {
+  const el = document.getElementById('loadingOverlay');
+  const txt = document.getElementById('loadingText');
+  if (txt) txt.textContent = msg || 'Procesando...';
+  if (el) el.classList.add('active');
+}
+function hideLoading() {
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.classList.remove('active');
 }
 
 // ═══════════════════════════════════════════════
