@@ -6822,7 +6822,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
       // Recargar lista de artículos en memoria para que sean buscables
       if (_artCreados > 0) {
         const { data: artFresh } = await sb.from('articulos').select('*').eq('empresa_id', eid).eq('es_activo', true).order('nombre');
-        if (artFresh) { articulos = artFresh; await idbClear('articulos'); for (const a of artFresh) await idbPut('articulos', a); }
+        if (artFresh) { articulos = artFresh; await idbSaveAll('articulos', artFresh); }
       }
     } else {
       toast('⚠️ No hay furgoneta asignada (almacenId null)', 'error');
