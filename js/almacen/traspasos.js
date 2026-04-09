@@ -591,12 +591,15 @@ async function generarReposicion() {
 
       for (const s of stockFurg) {
         const minimo = s.stock_minimo || 0;
+        const maximo = s.stock_maximo || 0;
         if (minimo <= 0) continue; // Sin mínimo definido, saltar
 
         const actual = (s.cantidad || 0) + (s.stock_provisional || 0);
-        if (actual >= minimo) continue; // Tiene suficiente
+        if (actual >= minimo) continue; // Tiene suficiente, no reponer
 
-        const falta = minimo - actual;
+        // Reponer hasta el máximo (o hasta el mínimo si no hay máximo definido)
+        const objetivo = maximo > minimo ? maximo : minimo;
+        const falta = objetivo - actual;
         if (falta <= 0) continue;
 
         // Verificar si hay en el central
@@ -609,6 +612,9 @@ async function generarReposicion() {
           nombre: art.nombre || 'Artículo ' + s.articulo_id,
           cantidad: Math.min(falta, enCentral), // No pedir más de lo que hay
           cantidad_necesaria: falta,
+          stock_actual: actual,
+          stock_minimo: minimo,
+          stock_maximo: objetivo,
           cantidad_disponible_central: enCentral,
           precio: art.precio_coste || 0
         });

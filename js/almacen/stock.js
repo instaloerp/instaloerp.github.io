@@ -383,7 +383,7 @@ async function calcularMinimos() {
     const dias = _calcMinPeriodo;
 
     // Cargar stock actual para comparar
-    let stockQuery = sb.from('stock').select('articulo_id, almacen_id, cantidad, stock_minimo, stock_provisional')
+    let stockQuery = sb.from('stock').select('articulo_id, almacen_id, cantidad, stock_minimo, stock_maximo, stock_provisional')
       .eq('empresa_id', EMPRESA.id);
     if (_calcMinAlmacenId) stockQuery = stockQuery.eq('almacen_id', _calcMinAlmacenId);
     const { data: stockActual } = await stockQuery;
@@ -397,9 +397,12 @@ async function calcularMinimos() {
       const porDia = dias > 0 ? (item.total_consumido / dias) : 0;
       // Mínimo sugerido: consumo de 1 semana (redondeado arriba)
       const minimoSugerido = Math.max(1, porSemana);
+      // Máximo sugerido: consumo de 2 semanas (para que no se reponga inmediatamente)
+      const maximoSugerido = Math.max(minimoSugerido + 1, Math.ceil(porSemana * 2));
       const stockKey = `${item.articulo_id}_${item.almacen_id}`;
       const stk = stockMap[stockKey];
       const minimoActual = stk?.stock_minimo || 0;
+      const maximoActual = stk?.stock_maximo || 0;
       const cantidadActual = (stk?.cantidad || 0) + (stk?.stock_provisional || 0);
       const alm = almacenes.find(a => a.id === item.almacen_id);
 
@@ -410,9 +413,11 @@ async function calcularMinimos() {
         por_dia: porDia,
         por_semana: porSemana,
         minimo_sugerido: minimoSugerido,
+        maximo_sugerido: maximoSugerido,
         minimo_actual: minimoActual,
+        maximo_actual: maximoActual,
         cantidad_actual: cantidadActual,
-        aplicar: minimoActual !== minimoSugerido // preseleccionar si difiere
+        aplicar: minimoActual !== minimoSugerido || maximoActual !== maximoSugerido
       };
     });
 
@@ -434,11 +439,15 @@ function _renderCalcMinTabla() {
 
   tbody.innerHTML = _calcMinData.map((d, idx) => {
     const iconAlm = d.almacen_tipo === 'furgoneta' ? '🚐' : d.almacen_tipo === 'externo' ? '📦' : '🏭';
-    const cambio = d.minimo_sugerido !== d.minimo_actual;
-    const diffClass = cambio ? (d.minimo_sugerido > d.minimo_actual ? 'color:var(--naranja);font-weight:700' : 'color:var(--verde);font-weight:700') : 'color:var(--gris-400)';
+    const cambioMin = d.minimo_sugerido !== d.minimo_actual;
+    const cambioMax = d.maximo_sugerido !== d.maximo_actual;
+    const diffMinClass = cambioMin ? 'color:#F97316;font-weight:700' : 'color:#888';
+    const diffMaxClass = cambioMax ? 'color:#3B82F6;font-weight:700' : 'color:#888';
     const stockStatus = d.cantidad_actual < d.minimo_sugerido
       ? '<span style="color:red;font-weight:700">BAJO</span>'
-      : '<span style="color:var(--verde)">OK</span>';
+      : d.cantidad_actual >= d.maximo_sugerido
+      ? '<span style="color:#16A34A">OK</span>'
+      : '<span style="color:#F97316">MEDIO</span>';
 
     return `<tr>
       <td><input type="checkbox" ${d.aplicar ? 'checked' : ''} onchange="_calcMinData[${idx}].aplicar=this.checked;_updateCalcMinResumen()"></td>
@@ -447,10 +456,13 @@ function _renderCalcMinTabla() {
       <td style="font-size:12px">${iconAlm} ${d.almacen_nombre}</td>
       <td style="text-align:right;font-weight:700">${d.total_consumido}</td>
       <td style="text-align:right;font-weight:700">${d.por_semana}/sem</td>
-      <td style="text-align:right;font-size:12px">${d.minimo_actual || '—'}</td>
-      <td style="text-align:center">
-        <input type="number" min="0" value="${d.minimo_sugerido}" style="width:60px;text-align:center;padding:3px 6px;border:1px solid var(--gris-200);border-radius:5px;font-weight:700;font-size:13px;${diffClass}"
+      <td style="text-align:right;font-size:12px">${d.minimo_actual || '—'} / ${d.maximo_actual || '—'}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <input type="number" min="0" value="${d.minimo_sugerido}" style="width:50px;text-align:center;padding:3px 4px;border:1px solid #ddd;border-radius:5px;font-weight:700;font-size:12px;${diffMinClass}"
           onchange="_calcMinData[${idx}].minimo_sugerido=parseInt(this.value)||0;_updateCalcMinResumen()">
+        <span style="color:#888;font-size:11px">/</span>
+        <input type="number" min="0" value="${d.maximo_sugerido}" style="width:50px;text-align:center;padding:3px 4px;border:1px solid #ddd;border-radius:5px;font-weight:700;font-size:12px;${diffMaxClass}"
+          onchange="_calcMinData[${idx}].maximo_sugerido=parseInt(this.value)||0;_updateCalcMinResumen()">
       </td>
       <td style="text-align:center">${stockStatus}</td>
     </tr>`;
@@ -469,15 +481,15 @@ function _updateCalcMinResumen() {
 }
 
 async function aplicarMinimosCalculados() {
-  const cambios = _calcMinData.filter(d => d.aplicar && d.minimo_sugerido !== d.minimo_actual);
+  const cambios = _calcMinData.filter(d => d.aplicar && (d.minimo_sugerido !== d.minimo_actual || d.maximo_sugerido !== d.maximo_actual));
   if (!cambios.length) {
     toast('No hay cambios que aplicar', 'warning');
     return;
   }
 
-  if (!confirm(`¿Aplicar stock mínimo a ${cambios.length} artículo(s)?`)) return;
+  if (!confirm(`¿Aplicar stock mínimo/máximo a ${cambios.length} artículo(s)?`)) return;
 
-  toast(`🔄 Aplicando ${cambios.length} mínimos...`, 'info');
+  toast(`🔄 Aplicando ${cambios.length} mínimos/máximos...`, 'info');
   let ok = 0, errores = 0;
 
   for (const d of cambios) {
@@ -493,12 +505,12 @@ async function aplicarMinimosCalculados() {
 
     if (existe?.length) {
       const { error } = await sb.from('stock')
-        .update({ stock_minimo: d.minimo_sugerido })
+        .update({ stock_minimo: d.minimo_sugerido, stock_maximo: d.maximo_sugerido })
         .eq('empresa_id', EMPRESA.id)
         .eq('articulo_id', d.articulo_id)
         .eq('almacen_id', d.almacen_id);
       if (error) { errores++; console.error(error); }
-      else { ok++; d.minimo_actual = d.minimo_sugerido; }
+      else { ok++; d.minimo_actual = d.minimo_sugerido; d.maximo_actual = d.maximo_sugerido; }
     } else {
       // Crear registro de stock con mínimo (sin cantidad)
       const { error } = await sb.from('stock').insert({

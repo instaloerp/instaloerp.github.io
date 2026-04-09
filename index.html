@@ -2689,7 +2689,7 @@
 <!-- Modal Cálculo de Mínimos -->
 <div class="overlay" id="modal-calculo-minimos">
   <div class="modal" style="max-width:1100px">
-    <div class="modal-h"><span>📊</span><h2>Calcular Stock Mínimo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-calculo-minimos')">✕</button></div>
+    <div class="modal-h"><span>📊</span><h2>Calcular Mínimos y Máximos</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-calculo-minimos')">✕</button></div>
     <div class="modal-b" style="max-height:70vh;overflow-y:auto">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
         <div>
@@ -2707,17 +2707,17 @@
         </div>
         <div style="margin-left:auto;font-size:12px;color:var(--gris-500)" id="calc-min-resumen">—</div>
       </div>
-      <p style="font-size:11px;color:var(--gris-400);margin-bottom:12px">El mínimo sugerido = consumo medio por semana (redondeado arriba). Puedes ajustarlo manualmente antes de aplicar.</p>
+      <p style="font-size:11px;color:var(--gris-400);margin-bottom:12px">Mínimo = consumo 1 semana (dispara reposición). Máximo = consumo 2 semanas (se repone hasta aquí). Ajusta manualmente antes de aplicar.</p>
       <div class="tw"><table class="dt"><thead><tr>
         <th style="width:30px"><input type="checkbox" checked onchange="_calcMinData.forEach(d=>d.aplicar=this.checked);_renderCalcMinTabla();_updateCalcMinResumen()"></th>
         <th>Código</th><th>Artículo</th><th>Almacén</th>
         <th style="text-align:right">Consumido</th><th style="text-align:right">Media</th>
-        <th style="text-align:right">Mín. actual</th><th style="text-align:center">Mín. sugerido</th><th style="text-align:center">Estado</th>
+        <th style="text-align:right">Actual (mín/máx)</th><th style="text-align:center">Sugerido (mín/máx)</th><th style="text-align:center">Estado</th>
       </tr></thead><tbody id="calc-min-tabla"></tbody></table></div>
     </div>
     <div class="modal-f" style="display:flex;justify-content:space-between;align-items:center">
       <button class="btn btn-secondary" onclick="closeModal('modal-calculo-minimos')">Cancelar</button>
-      <button class="btn btn-primary" id="btn-aplicar-minimos" onclick="aplicarMinimosCalculados()" disabled>✅ Aplicar mínimos seleccionados</button>
+      <button class="btn btn-primary" id="btn-aplicar-minimos" onclick="aplicarMinimosCalculados()" disabled>✅ Aplicar mínimos/máximos seleccionados</button>
     </div>
   </div>
 </div>
