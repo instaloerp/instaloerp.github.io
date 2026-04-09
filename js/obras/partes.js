@@ -245,6 +245,11 @@ function nuevoParteModal(preselObraId) {
   const elFin = document.getElementById('pt_fin');
   if (elFin && !elFin.value) elFin.value = _finStr;
 
+  // Resetear firma opcional
+  const chkFirma = document.getElementById('pt_firma_opcional');
+  if (chkFirma) { chkFirma.checked = false; }
+  pt_toggleFirmaOpcional(false);
+
   document.getElementById('mParteTit').textContent = 'Nuevo Parte de Trabajo';
   window._pt_presupuesto_id = null;
   window._pt_presupuesto_numero = null;
@@ -438,6 +443,13 @@ async function editarParte(id) {
   pt_renderChecklist();
   pt_renderMateriales();
   pt_renderFotos();
+  // Firma opcional
+  const chkFirma = document.getElementById('pt_firma_opcional');
+  if (chkFirma) {
+    chkFirma.checked = !!parte.firma_opcional;
+    pt_toggleFirmaOpcional(!!parte.firma_opcional);
+  }
+
   if (parte.firma_url) {
     document.getElementById('pt_canvas').style.display = 'none';
     document.getElementById('pt_firma_preview').innerHTML = `<img src="${parte.firma_url}" style="max-width:200px;border:1px solid var(--gris-200);border-radius:4px">`;
@@ -771,6 +783,18 @@ function guardarFirma() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// FIRMA OPCIONAL - Toggle
+// ═══════════════════════════════════════════════════════════════════════
+
+function pt_toggleFirmaOpcional(checked) {
+  const container = document.getElementById('pt_firma_container');
+  if (container) {
+    container.style.opacity = checked ? '0.35' : '1';
+    container.style.pointerEvents = checked ? 'none' : 'auto';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // GUARDAR PARTE - BD
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -836,20 +860,25 @@ async function guardarParte(estado = 'borrador') {
       }
     }
 
+    // Firma opcional
+    const firmaOpcional = document.getElementById('pt_firma_opcional')?.checked || false;
+
     // Firma
     let firma_url = null;
-    const firma_data = guardarFirma();
-    if (firma_data) {
-      try {
-        const blob = await (await fetch(firma_data)).blob();
-        const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
-        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
-        if (!error) {
-          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
-          firma_url = data.publicUrl;
+    if (!firmaOpcional) {
+      const firma_data = guardarFirma();
+      if (firma_data) {
+        try {
+          const blob = await (await fetch(firma_data)).blob();
+          const filename = `${EMPRESA.id}/${Date.now()}_firma.png`;
+          const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+          if (!error) {
+            const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+            firma_url = data.publicUrl;
+          }
+        } catch (e) {
+          console.error('Error subiendo firma:', e);
         }
-      } catch (e) {
-        console.error('Error subiendo firma:', e);
       }
     }
 
@@ -868,6 +897,7 @@ async function guardarParte(estado = 'borrador') {
       materiales: materiales.length > 0 ? materiales : null,
       fotos: fotos_urls.length > 0 ? fotos_urls : null,
       firma_url,
+      firma_opcional: firmaOpcional,
       estado,
       observaciones: v('pt_observaciones') || null,
       // Nuevos campos fase programación

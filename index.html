@@ -2749,10 +2749,18 @@
         <div id="pt_fotos_list"></div>
       </div>
       <div style="margin-bottom:4px">
-        <label style="font-size:12px;font-weight:700;color:var(--gris-600);display:block;margin-bottom:6px">✍️ Firma del cliente</label>
-        <canvas id="pt_canvas" width="300" height="120" style="border:1px solid var(--gris-200);border-radius:6px;cursor:crosshair;touch-action:none"></canvas>
-        <div id="pt_firma_preview" style="display:none"></div>
-        <button class="btn btn-ghost btn-sm" onclick="limpiarFirma()" style="font-size:11px;margin-top:4px">🔄 Limpiar firma</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:12px;font-weight:700;color:var(--gris-600)">✍️ Firma del cliente</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--gris-500)">
+            <input type="checkbox" id="pt_firma_opcional" onchange="pt_toggleFirmaOpcional(this.checked)" style="cursor:pointer;accent-color:var(--naranja)">
+            No requiere firma
+          </label>
+        </div>
+        <div id="pt_firma_container">
+          <canvas id="pt_canvas" width="300" height="120" style="border:1px solid var(--gris-200);border-radius:6px;cursor:crosshair;touch-action:none"></canvas>
+          <div id="pt_firma_preview" style="display:none"></div>
+          <button class="btn btn-ghost btn-sm" onclick="limpiarFirma()" style="font-size:11px;margin-top:4px">🔄 Limpiar firma</button>
+        </div>
       </div>
     </div>
     <div class="modal-f">

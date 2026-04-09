@@ -5810,6 +5810,18 @@ function renderWizStep() {
   // ── STEP 4: Firma ──
   if (step === 3) {
     const operarioNombre = CP?.nombre || 'Operario';
+    // Si el parte tiene firma_opcional, mostrar aviso y no pedir firmas
+    const _parteActual = misPartes.find(x => x.id === _wiz.parteId);
+    if (_parteActual?.firma_opcional) {
+      content = `
+        <div style="padding:30px 20px;text-align:center">
+          <div style="font-size:48px;margin-bottom:12px">✅</div>
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--gris-700)">Este parte no requiere firma</h3>
+          <p style="font-size:13px;color:var(--gris-500)">El administrador ha marcado este parte como exento de firma del cliente y operario.</p>
+          <p style="font-size:12px;color:var(--gris-400);margin-top:12px">Puedes completar directamente el parte pulsando el botón de abajo.</p>
+        </div>
+      `;
+    } else {
     content = `
       <div style="margin-bottom:12px">
         <p style="font-size:13px;color:var(--gris-500)">Firmas para cerrar el parte.</p>
@@ -5888,6 +5900,7 @@ function renderWizStep() {
         </button>
       </div>
     `;
+    } // cierre del else (firma_opcional)
   }
 
   // Render todo
@@ -7408,28 +7421,34 @@ async function wizFinish() {
       toast('⚠️ Describe el trabajo realizado', 'error'); return;
     }
 
-    // Validar nombre obligatorio (3+ palabras: nombre + primer apellido + segundo apellido)
-    const nombreWords = (_wiz.clienteNombre || '').trim().split(/\s+/).filter(w => w.length > 0);
-    if (nombreWords.length < 3) {
-      toast('⚠️ Introduce nombre y los dos apellidos del cliente', 'error'); return;
-    }
+    // Comprobar si el parte tiene firma_opcional
+    const _parteWiz = misPartes.find(x => x.id === _wiz.parteId);
+    const _firmaOpcional = _parteWiz?.firma_opcional || false;
 
-    // Validar DNI obligatorio
-    if (!_wiz.clienteDni) {
-      toast('⚠️ Introduce el DNI del cliente', 'error'); return;
-    }
-    const dniCheck = validarDNI(_wiz.clienteDni);
-    if (!dniCheck.valid) {
-      toast('⚠️ DNI no válido: ' + dniCheck.msg, 'error'); return;
-    }
+    if (!_firmaOpcional) {
+      // Validar nombre obligatorio (3+ palabras: nombre + primer apellido + segundo apellido)
+      const nombreWords = (_wiz.clienteNombre || '').trim().split(/\s+/).filter(w => w.length > 0);
+      if (nombreWords.length < 3) {
+        toast('⚠️ Introduce nombre y los dos apellidos del cliente', 'error'); return;
+      }
 
-    // Validar firma cliente validada
-    if (!_wiz.firmaData_validated) {
-      toast('⚠️ El cliente debe firmar y validar su firma', 'error'); return;
-    }
-    // Validar firma operario validada
-    if (!_wiz.firmaOperario_validated) {
-      toast('⚠️ El operario debe firmar y validar su firma', 'error'); return;
+      // Validar DNI obligatorio
+      if (!_wiz.clienteDni) {
+        toast('⚠️ Introduce el DNI del cliente', 'error'); return;
+      }
+      const dniCheck = validarDNI(_wiz.clienteDni);
+      if (!dniCheck.valid) {
+        toast('⚠️ DNI no válido: ' + dniCheck.msg, 'error'); return;
+      }
+
+      // Validar firma cliente validada
+      if (!_wiz.firmaData_validated) {
+        toast('⚠️ El cliente debe firmar y validar su firma', 'error'); return;
+      }
+      // Validar firma operario validada
+      if (!_wiz.firmaOperario_validated) {
+        toast('⚠️ El operario debe firmar y validar su firma', 'error'); return;
+      }
     }
 
     showLoading('Enviando informe...');
