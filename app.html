@@ -6671,10 +6671,15 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
 
     // 2. Meter TODOS los materiales como stock provisional en furgoneta
     // Extraer proveedor del OCR (si lo detectó)
-    const proveedorOcr = d.ocrResult?.proveedor || d.ocrResult?.emisor || null;
-    const cifOcr = d.ocrResult?.cif || d.ocrResult?.nif || null;
+    const _provRaw = d.ocrResult?.proveedor || d.ocrResult?.emisor || null;
+    const proveedorOcr = _provRaw
+      ? (typeof _provRaw === 'object' ? (_provRaw.nombre || _provRaw.name || '') : String(_provRaw)).trim()
+      : null;
+    const cifOcr = (typeof _provRaw === 'object' ? (_provRaw.cif || _provRaw.nif || '') : '')
+      || d.ocrResult?.cif || d.ocrResult?.nif || null;
     let proveedorId = null;
     if (proveedorOcr) {
+      toast(`🏭 Proveedor detectado: ${proveedorOcr}`, 'info');
       // Buscar proveedor existente por nombre (búsqueda flexible)
       const { data: provs } = await sb.from('proveedores').select('id,nombre')
         .eq('empresa_id', eid).ilike('nombre', `%${proveedorOcr}%`).limit(1);
@@ -6690,9 +6695,9 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
         }).select().single();
         if (!provErr && nuevoP) {
           proveedorId = nuevoP.id;
-          console.log('[OCR] Proveedor creado:', nuevoP.nombre, nuevoP.id);
+          toast(`✅ Proveedor creado: ${nuevoP.nombre}`, 'success');
         } else {
-          console.warn('[OCR] Error creando proveedor:', provErr?.message);
+          toast(`❌ Error proveedor: ${provErr?.message || 'desconocido'}`, 'error');
         }
       }
     }
@@ -6795,6 +6800,12 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
 
       toast(`📊 Resultado: ${_artCreados} creados, ${_artErrores} errores, ${_stockOk} stock OK`, _artErrores ? 'warning' : 'success');
       await loadStockFurgoneta(almacenId);
+
+      // Recargar lista de artículos en memoria para que sean buscables
+      if (_artCreados > 0) {
+        const { data: artFresh } = await sb.from('articulos').select('*').eq('empresa_id', eid).eq('es_activo', true).order('nombre');
+        if (artFresh) { articulos = artFresh; await idbClear('articulos'); for (const a of artFresh) await idbPut('articulos', a); }
+      }
     } else {
       toast('⚠️ No hay furgoneta asignada (almacenId null)', 'error');
     }

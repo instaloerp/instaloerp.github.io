@@ -826,10 +826,52 @@ function initRealtimePartes() {
         if (typeof loadDashboard === 'function') loadDashboard();
       }
     )
+    // Artículos — se crean desde OCR móvil
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'articulos', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        try {
+          const { data } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
+          if (data) articulos = data;
+          if (typeof renderArticulos === 'function') renderArticulos();
+        } catch(e) {}
+      }
+    )
+    // Stock — cambia desde OCR y consumos móvil
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'stock', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        try {
+          if (typeof cargarStock === 'function') cargarStock();
+        } catch(e) {}
+      }
+    )
+    // Proveedores — se crean desde OCR móvil
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'proveedores', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        try {
+          const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
+          if (data && typeof proveedores !== 'undefined') proveedores = data;
+          if (typeof renderProveedores === 'function') renderProveedores();
+        } catch(e) {}
+      }
+    )
+    // Clientes — por si se añaden desde otras fuentes
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'clientes', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        try {
+          const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
+          if (data) clientes = data;
+          if (typeof renderClientes === 'function') renderClientes();
+        } catch(e) {}
+      }
+    )
     .subscribe((status, err) => {
       console.log('[Realtime] Status:', status, err ? 'Error: ' + err.message : '');
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] ✅ Suscripción activa — escuchando: partes_trabajo, presupuestos, documentos_generados, tareas_obra, trabajos');
+        console.log('[Realtime] ✅ Suscripción activa — escuchando: partes, presupuestos, docs, tareas, trabajos, artículos, stock, proveedores, clientes');
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.error('[Realtime] ❌ Error de conexión. Verifica que las tablas están en la publicación supabase_realtime');
       }
