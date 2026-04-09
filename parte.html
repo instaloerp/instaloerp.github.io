@@ -7,8 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-.container{max-width:700px;margin:0 auto;padding:20px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh;padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.container{max-width:700px;margin:0 auto;padding:20px;padding-top:calc(20px + env(safe-area-inset-top, 0px))}
 
 /* Cards */
 .card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.10);padding:24px;margin-bottom:16px}
@@ -62,7 +62,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f
 .firma-line{border:none;border-bottom:2px solid #e2e8f0;margin:10px 0 4px;display:block}
 
 /* Botón PDF */
-.pdf-bar{display:flex;justify-content:flex-end;padding:0 0 12px}
+.pdf-bar{display:flex;justify-content:center;padding:0 0 12px}
 .btn-pdf{display:inline-flex;align-items:center;gap:7px;background:#1e40af;color:#fff;border:none;
   border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;
   box-shadow:0 2px 6px rgba(30,64,175,.25);transition:background .15s}
@@ -81,7 +81,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f
 @media(max-width:560px){
   .container{padding:12px}
   .info-grid{grid-template-columns:1fr}
-  .firma-grid{grid-template-columns:1fr}
+  .firma-grid{grid-template-columns:1fr 1fr}
   .doc-meta{flex-direction:column;align-items:flex-start;gap:8px}
   .doc-fecha-label,.doc-fecha{text-align:left}
 }
@@ -94,7 +94,7 @@ canvas#firmaCanvas{display:block;width:100%;height:180px}
 /* Print — ajustar todo a 1 sola página A4 */
 @media print{
   body{background:#fff;padding:0;margin:0;font-size:11px}
-  .container{max-width:100%;padding:8px 12px}
+  .container{max-width:100%;padding:8px 12px!important}
   .pdf-bar{display:none!important}
   .firma-remota-card{display:none!important}
   .card{box-shadow:none;border:1px solid #e2e8f0;page-break-inside:avoid;padding:10px 14px;margin-bottom:6px;border-radius:6px}
@@ -112,13 +112,14 @@ canvas#firmaCanvas{display:block;width:100%;height:180px}
   .info-label{font-size:8px;margin-bottom:1px}
   .info-value{font-size:11px}
   .desc-text{font-size:11px;line-height:1.5}
-  .firma-grid{gap:10px}
-  .firma-img{max-height:70px}
-  .firma-img-wrap{padding:3px}
-  .firma-label{font-size:8px;margin-bottom:4px}
-  .firma-nombre{font-size:11px;margin-top:4px}
-  .firma-dni{font-size:9px}
-  .firma-line{margin:6px 0 2px}
+  .firma-grid{grid-template-columns:1fr 1fr!important;gap:8px;margin-top:0}
+  .firma-img{max-height:55px}
+  .firma-img-wrap{padding:2px}
+  .firma-label{font-size:8px;margin-bottom:2px}
+  .firma-nombre{font-size:10px;margin-top:2px}
+  .firma-dni{font-size:8px}
+  .firma-line{margin:4px 0 1px}
+  .card:has(.firma-grid){padding:6px 10px 4px;margin-bottom:0}
   .footer{padding:2px 0 4px;font-size:9px}
   .badge{font-size:10px;padding:2px 8px}
   .pendiente-item{padding:4px 0;font-size:11px}
@@ -506,7 +507,7 @@ async function _firmaEnviar() {
     // Mostrar confirmación con enlace al parte firmado
     const parteUrl = window.location.href; // misma URL — ahora muestra el parte completo con firma
     document.getElementById('app').innerHTML = `
-      <div class="container" style="text-align:center;padding-top:max(60px, env(safe-area-inset-top, 60px));padding-bottom:max(20px, env(safe-area-inset-bottom, 20px))">
+      <div style="padding-top:calc(60px + env(safe-area-inset-top, 0px));padding-bottom:calc(20px + env(safe-area-inset-bottom, 0px));padding-left:20px;padding-right:20px;text-align:center">
         <div style="font-size:64px;margin-bottom:16px">✅</div>
         <h2 style="color:#15803d;margin:0 0 8px;font-size:22px">¡Firma registrada!</h2>
         <p style="color:#64748b;font-size:14px;line-height:1.6">Gracias, ${esc(nombre)}.<br>Su conformidad con el parte de trabajo ha quedado registrada correctamente.</p>
