@@ -438,6 +438,197 @@ function initTraspasos() {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// REPOSICIÓN AUTOMÁTICA — Genera traspasos desde almacén central
+// ════════════════════════════════════════════════════════════
+
+async function generarReposicion() {
+  if (!EMPRESA?.id) return;
+
+  try {
+    showLoading('Calculando reposición...');
+
+    // 1. Buscar almacén central (origen)
+    const central = almacenes.find(a => a.tipo === 'central' && a.activo !== false);
+    if (!central) {
+      toast('No se encontró un almacén central activo', 'error');
+      hideLoading();
+      return;
+    }
+
+    // 2. Buscar todas las furgonetas activas
+    const furgonetas = almacenes.filter(a => a.tipo === 'furgoneta' && a.activo !== false);
+    if (!furgonetas.length) {
+      toast('No hay furgonetas activas', 'warning');
+      hideLoading();
+      return;
+    }
+
+    // 3. Cargar todo el stock (con mínimos)
+    const { data: todoStock } = await sb.from('stock')
+      .select('*, articulos(id, codigo, nombre, precio_coste)')
+      .eq('empresa_id', EMPRESA.id);
+
+    if (!todoStock) {
+      toast('No se pudo cargar el stock', 'error');
+      hideLoading();
+      return;
+    }
+
+    // Stock del almacén central indexado por articulo_id
+    const stockCentral = {};
+    todoStock.filter(s => s.almacen_id === central.id).forEach(s => {
+      stockCentral[s.articulo_id] = s;
+    });
+
+    let traspasosCreados = 0;
+    let totalLineas = 0;
+
+    // 4. Para cada furgoneta, calcular qué falta
+    for (const furg of furgonetas) {
+      const stockFurg = todoStock.filter(s => s.almacen_id === furg.id);
+      const lineasRepo = [];
+
+      for (const s of stockFurg) {
+        const minimo = s.stock_minimo || 0;
+        if (minimo <= 0) continue; // Sin mínimo definido, saltar
+
+        const actual = (s.cantidad || 0) + (s.stock_provisional || 0);
+        if (actual >= minimo) continue; // Tiene suficiente
+
+        const falta = minimo - actual;
+        if (falta <= 0) continue;
+
+        // Verificar si hay en el central
+        const enCentral = stockCentral[s.articulo_id]?.cantidad || 0;
+        const art = s.articulos || {};
+
+        lineasRepo.push({
+          articulo_id: s.articulo_id,
+          codigo: art.codigo || '—',
+          nombre: art.nombre || 'Artículo ' + s.articulo_id,
+          cantidad: Math.min(falta, enCentral), // No pedir más de lo que hay
+          cantidad_necesaria: falta,
+          cantidad_disponible_central: enCentral,
+          precio: art.precio_coste || 0
+        });
+      }
+
+      // Filtrar líneas con cantidad > 0 (hay material en central)
+      const lineasConStock = lineasRepo.filter(l => l.cantidad > 0);
+      const lineasSinStock = lineasRepo.filter(l => l.cantidad <= 0);
+
+      if (lineasConStock.length === 0 && lineasSinStock.length === 0) continue;
+
+      // 5. Crear traspaso pendiente
+      const numero = `REPO-${new Date().toISOString().slice(0,10)}-${furg.nombre.replace(/\s+/g, '-').toUpperCase()}`;
+
+      // Verificar si ya existe un traspaso de reposición para hoy y esta furgoneta
+      const { data: existente } = await sb.from('traspasos')
+        .select('id')
+        .eq('empresa_id', EMPRESA.id)
+        .eq('estado', 'pendiente')
+        .like('numero', `REPO-${new Date().toISOString().slice(0,10)}-${furg.nombre.replace(/\s+/g, '-').toUpperCase()}%`)
+        .limit(1);
+
+      if (existente?.length) {
+        console.log(`[Reposición] Ya existe traspaso pendiente para ${furg.nombre} hoy`);
+        continue;
+      }
+
+      // Observaciones con detalles de lo que falta en central
+      let obs = `Reposición automática generada el ${new Date().toLocaleDateString()}`;
+      if (lineasSinStock.length > 0) {
+        obs += `\n\n⚠️ SIN STOCK EN CENTRAL (${lineasSinStock.length}):\n`;
+        obs += lineasSinStock.map(l => `• ${l.nombre}: necesita ${l.cantidad_necesaria}, central: 0`).join('\n');
+      }
+
+      const { error: errTrasp } = await sb.from('traspasos').insert({
+        empresa_id: EMPRESA.id,
+        numero: numero,
+        almacen_origen_id: central.id,
+        almacen_destino_id: furg.id,
+        almacen_origen_nombre: central.nombre,
+        almacen_destino_nombre: furg.nombre,
+        fecha: new Date().toISOString().split('T')[0],
+        estado: 'pendiente',
+        lineas: lineasConStock,
+        observaciones: obs,
+        usuario_id: CU?.id || null,
+        usuario_nombre: CU?.nombre || 'Sistema (reposición automática)'
+      });
+
+      if (!errTrasp) {
+        traspasosCreados++;
+        totalLineas += lineasConStock.length;
+      } else {
+        console.error(`[Reposición] Error creando traspaso para ${furg.nombre}:`, errTrasp.message);
+      }
+    }
+
+    // 6. Revisar stock central — alertas de bajo mínimo
+    const stockCentralItems = todoStock.filter(s => s.almacen_id === central.id);
+    const alertasCentral = [];
+
+    for (const s of stockCentralItems) {
+      const minimo = s.stock_minimo || 0;
+      if (minimo <= 0) continue;
+
+      // Calcular cuánto se va a sacar con los traspasos de reposición creados
+      // (el stock real aún no se descuenta, solo se mira la situación proyectada)
+      const cantActual = s.cantidad || 0;
+      if (cantActual < minimo) {
+        const art = s.articulos || {};
+        alertasCentral.push({
+          articulo_id: s.articulo_id,
+          codigo: art.codigo || '—',
+          nombre: art.nombre || 'Artículo',
+          cantidad_actual: cantActual,
+          stock_minimo: minimo,
+          faltan: minimo - cantActual
+        });
+      }
+    }
+
+    // Crear tareas pendientes para pedidos si hay alertas
+    if (alertasCentral.length > 0) {
+      const resumenAlerta = alertasCentral.map(a => `• ${a.nombre} (${a.codigo}): tiene ${a.cantidad_actual}, mín ${a.stock_minimo}, faltan ${a.faltan}`).join('\n');
+
+      await sb.from('tareas_pendientes').insert({
+        empresa_id: EMPRESA.id,
+        entidad_tipo: 'stock_bajo',
+        entidad_id: central.id,
+        entidad_nombre: central.nombre,
+        titulo: `⚠️ ${alertasCentral.length} artículo(s) bajo mínimo en ${central.nombre}`,
+        campos_faltantes: alertasCentral.map(a => `${a.nombre}: faltan ${a.faltan}`),
+        origen: 'auto',
+        rol_asignado: 'admin',
+        estado: 'pendiente',
+        usuario_creador_id: CU?.id || null
+      });
+    }
+
+    hideLoading();
+
+    if (traspasosCreados > 0) {
+      toast(`✅ ${traspasosCreados} traspaso(s) de reposición creado(s) con ${totalLineas} líneas`, 'success');
+      if (alertasCentral.length > 0) {
+        toast(`⚠️ ${alertasCentral.length} artículo(s) bajo mínimo en ${central.nombre} — revisar pedidos`, 'warning');
+      }
+      await loadTraspasos();
+    } else if (alertasCentral.length > 0) {
+      toast(`⚠️ Furgonetas OK, pero ${alertasCentral.length} artículo(s) bajo mínimo en ${central.nombre}`, 'warning');
+    } else {
+      toast('✅ Todo OK: no hay material bajo mínimo', 'success');
+    }
+
+  } catch(e) {
+    hideLoading();
+    console.error('[Reposición]', e);
+    toast('Error generando reposición: ' + (e.message || e), 'error');
+  }
+}
+
 // Auto-inicializar
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initTraspasos);

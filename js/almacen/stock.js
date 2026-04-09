@@ -300,6 +300,231 @@ function initStock() {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// CÁLCULO DE STOCK MÍNIMO basado en consumos históricos
+// ════════════════════════════════════════════════════════════
+
+let _calcMinData = []; // datos calculados
+let _calcMinPeriodo = 30; // días por defecto (1 mes)
+let _calcMinAlmacenId = null;
+
+async function abrirCalculoMinimos() {
+  openModal('modal-calculo-minimos');
+  // Por defecto: 1 mes, primera furgoneta
+  const selAlm = document.getElementById('calc-min-almacen');
+  const selPeriodo = document.getElementById('calc-min-periodo');
+  if (selAlm) {
+    const furgs = almacenes.filter(a => a.tipo === 'furgoneta' && a.activo !== false);
+    selAlm.innerHTML = '<option value="">Todas las furgonetas</option>' +
+      almacenes.filter(a => a.activo !== false).map(a => {
+        const icon = a.tipo === 'furgoneta' ? '🚐' : a.tipo === 'externo' ? '📦' : '🏭';
+        return `<option value="${a.id}">${icon} ${a.nombre}</option>`;
+      }).join('');
+  }
+  await calcularMinimos();
+}
+
+async function calcularMinimos() {
+  const selAlm = document.getElementById('calc-min-almacen');
+  const selPeriodo = document.getElementById('calc-min-periodo');
+  _calcMinAlmacenId = selAlm?.value ? parseInt(selAlm.value) : null;
+  _calcMinPeriodo = parseInt(selPeriodo?.value) || 30;
+
+  const tbody = document.getElementById('calc-min-tabla');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gris-400)">Cargando consumos...</td></tr>';
+
+  try {
+    // Fecha de corte
+    const desde = new Date();
+    desde.setDate(desde.getDate() - _calcMinPeriodo);
+    const desdeISO = desde.toISOString();
+
+    // Cargar consumos del periodo
+    let query = sb.from('consumos_parte')
+      .select('articulo_id, articulo_nombre, articulo_codigo, almacen_id, cantidad, tipo')
+      .eq('empresa_id', EMPRESA.id)
+      .gte('created_at', desdeISO)
+      .eq('tipo', 'consumo'); // Solo consumos reales, no mermas
+
+    if (_calcMinAlmacenId) {
+      query = query.eq('almacen_id', _calcMinAlmacenId);
+    }
+
+    const { data: consumos } = await query;
+    if (!consumos || !consumos.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--gris-400)">No hay consumos en este periodo</td></tr>';
+      _calcMinData = [];
+      _updateCalcMinResumen();
+      return;
+    }
+
+    // Agrupar por artículo + almacén
+    const mapa = {}; // key: articuloId_almacenId
+    consumos.forEach(c => {
+      const almId = c.almacen_id || 'sin';
+      const key = `${c.articulo_id}_${almId}`;
+      if (!mapa[key]) {
+        mapa[key] = {
+          articulo_id: c.articulo_id,
+          almacen_id: almId === 'sin' ? null : almId,
+          nombre: c.articulo_nombre || 'Sin nombre',
+          codigo: c.articulo_codigo || '—',
+          total_consumido: 0,
+          num_consumos: 0
+        };
+      }
+      mapa[key].total_consumido += (c.cantidad || 0);
+      mapa[key].num_consumos++;
+    });
+
+    // Calcular promedios y mínimos sugeridos
+    const semanas = _calcMinPeriodo / 7;
+    const dias = _calcMinPeriodo;
+
+    // Cargar stock actual para comparar
+    let stockQuery = sb.from('stock').select('articulo_id, almacen_id, cantidad, stock_minimo, stock_provisional')
+      .eq('empresa_id', EMPRESA.id);
+    if (_calcMinAlmacenId) stockQuery = stockQuery.eq('almacen_id', _calcMinAlmacenId);
+    const { data: stockActual } = await stockQuery;
+    const stockMap = {};
+    (stockActual || []).forEach(s => {
+      stockMap[`${s.articulo_id}_${s.almacen_id}`] = s;
+    });
+
+    _calcMinData = Object.values(mapa).map(item => {
+      const porSemana = semanas > 0 ? Math.ceil(item.total_consumido / semanas) : item.total_consumido;
+      const porDia = dias > 0 ? (item.total_consumido / dias) : 0;
+      // Mínimo sugerido: consumo de 1 semana (redondeado arriba)
+      const minimoSugerido = Math.max(1, porSemana);
+      const stockKey = `${item.articulo_id}_${item.almacen_id}`;
+      const stk = stockMap[stockKey];
+      const minimoActual = stk?.stock_minimo || 0;
+      const cantidadActual = (stk?.cantidad || 0) + (stk?.stock_provisional || 0);
+      const alm = almacenes.find(a => a.id === item.almacen_id);
+
+      return {
+        ...item,
+        almacen_nombre: alm?.nombre || 'Sin almacén',
+        almacen_tipo: alm?.tipo || '',
+        por_dia: porDia,
+        por_semana: porSemana,
+        minimo_sugerido: minimoSugerido,
+        minimo_actual: minimoActual,
+        cantidad_actual: cantidadActual,
+        aplicar: minimoActual !== minimoSugerido // preseleccionar si difiere
+      };
+    });
+
+    // Ordenar por consumo semanal descendente
+    _calcMinData.sort((a, b) => b.por_semana - a.por_semana);
+
+    _renderCalcMinTabla();
+    _updateCalcMinResumen();
+
+  } catch(e) {
+    console.error('[CalcMinimos]', e);
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:red">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function _renderCalcMinTabla() {
+  const tbody = document.getElementById('calc-min-tabla');
+  if (!tbody) return;
+
+  tbody.innerHTML = _calcMinData.map((d, idx) => {
+    const iconAlm = d.almacen_tipo === 'furgoneta' ? '🚐' : d.almacen_tipo === 'externo' ? '📦' : '🏭';
+    const cambio = d.minimo_sugerido !== d.minimo_actual;
+    const diffClass = cambio ? (d.minimo_sugerido > d.minimo_actual ? 'color:var(--naranja);font-weight:700' : 'color:var(--verde);font-weight:700') : 'color:var(--gris-400)';
+    const stockStatus = d.cantidad_actual < d.minimo_sugerido
+      ? '<span style="color:red;font-weight:700">BAJO</span>'
+      : '<span style="color:var(--verde)">OK</span>';
+
+    return `<tr>
+      <td><input type="checkbox" ${d.aplicar ? 'checked' : ''} onchange="_calcMinData[${idx}].aplicar=this.checked;_updateCalcMinResumen()"></td>
+      <td style="font-family:monospace;font-size:11px">${d.codigo}</td>
+      <td><div style="font-weight:600;font-size:12px">${d.nombre}</div></td>
+      <td style="font-size:12px">${iconAlm} ${d.almacen_nombre}</td>
+      <td style="text-align:right;font-weight:700">${d.total_consumido}</td>
+      <td style="text-align:right;font-weight:700">${d.por_semana}/sem</td>
+      <td style="text-align:right;font-size:12px">${d.minimo_actual || '—'}</td>
+      <td style="text-align:center">
+        <input type="number" min="0" value="${d.minimo_sugerido}" style="width:60px;text-align:center;padding:3px 6px;border:1px solid var(--gris-200);border-radius:5px;font-weight:700;font-size:13px;${diffClass}"
+          onchange="_calcMinData[${idx}].minimo_sugerido=parseInt(this.value)||0;_updateCalcMinResumen()">
+      </td>
+      <td style="text-align:center">${stockStatus}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _updateCalcMinResumen() {
+  const seleccionados = _calcMinData.filter(d => d.aplicar);
+  const cambios = seleccionados.filter(d => d.minimo_sugerido !== d.minimo_actual);
+  const el = document.getElementById('calc-min-resumen');
+  if (el) {
+    el.textContent = `${_calcMinData.length} artículos analizados · ${seleccionados.length} seleccionados · ${cambios.length} con cambios`;
+  }
+  const btn = document.getElementById('btn-aplicar-minimos');
+  if (btn) btn.disabled = cambios.length === 0;
+}
+
+async function aplicarMinimosCalculados() {
+  const cambios = _calcMinData.filter(d => d.aplicar && d.minimo_sugerido !== d.minimo_actual);
+  if (!cambios.length) {
+    toast('No hay cambios que aplicar', 'warning');
+    return;
+  }
+
+  if (!confirm(`¿Aplicar stock mínimo a ${cambios.length} artículo(s)?`)) return;
+
+  showLoading(`Aplicando ${cambios.length} mínimos...`);
+  let ok = 0, errores = 0;
+
+  for (const d of cambios) {
+    if (!d.almacen_id || !d.articulo_id) continue;
+
+    // Intentar actualizar el stock existente
+    const { data: existe } = await sb.from('stock')
+      .select('id')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('articulo_id', d.articulo_id)
+      .eq('almacen_id', d.almacen_id)
+      .limit(1);
+
+    if (existe?.length) {
+      const { error } = await sb.from('stock')
+        .update({ stock_minimo: d.minimo_sugerido })
+        .eq('empresa_id', EMPRESA.id)
+        .eq('articulo_id', d.articulo_id)
+        .eq('almacen_id', d.almacen_id);
+      if (error) { errores++; console.error(error); }
+      else { ok++; d.minimo_actual = d.minimo_sugerido; }
+    } else {
+      // Crear registro de stock con mínimo (sin cantidad)
+      const { error } = await sb.from('stock').insert({
+        empresa_id: EMPRESA.id,
+        articulo_id: d.articulo_id,
+        almacen_id: d.almacen_id,
+        cantidad: 0,
+        stock_minimo: d.minimo_sugerido,
+        stock_provisional: 0,
+        stock_reservado: 0
+      });
+      if (error) { errores++; console.error(error); }
+      else { ok++; d.minimo_actual = d.minimo_sugerido; }
+    }
+  }
+
+  hideLoading();
+  toast(`✅ ${ok} mínimo(s) aplicado(s)${errores ? `, ${errores} error(es)` : ''}`, errores ? 'warning' : 'success');
+  _renderCalcMinTabla();
+  _updateCalcMinResumen();
+
+  // Refrescar datos de stock
+  if (typeof loadStock === 'function') loadStock();
+  if (typeof _invalidarArtStockMap === 'function') _invalidarArtStockMap();
+}
+
 // Auto-inicializar cuando el DOM esté listo
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initStock);
