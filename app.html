@@ -6361,8 +6361,15 @@ function _ocrRenderPreview() {
 
   let html = '';
 
-  // Resumen
-  html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:10px;font-weight:600">${totalLineas} material${totalLineas > 1 ? 'es' : ''} — todos entrarán en furgoneta como provisional</div>`;
+  // Resumen — en modo wizard se puede seleccionar cuáles van al parte
+  const isWizMode = !d._fabMode;
+  if (isWizMode) {
+    const selCount = d.allLineas.filter(l => l.selected).length;
+    html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:4px;font-weight:600">📦 ${totalLineas} material${totalLineas > 1 ? 'es' : ''} → todos a furgoneta (provisional)</div>`;
+    html += `<div style="font-size:11px;color:#1D4ED8;margin-bottom:10px">✏️ Marca los que quieres añadir a este parte (<span id="ocrSelCount">${selCount}</span>/${totalLineas} seleccionados)</div>`;
+  } else {
+    html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:10px;font-weight:600">${totalLineas} material${totalLineas > 1 ? 'es' : ''} — todos entrarán en furgoneta como provisional</div>`;
+  }
 
   // Agrupar por página si hay varias
   if (numPages > 1) {
@@ -6381,7 +6388,12 @@ function _ocrRenderPreview() {
   // Botón confirmar
   const btn = document.getElementById('ocrPreviewConfirmBtn');
   if (btn) {
-    btn.textContent = `Confirmar ${totalLineas} material${totalLineas > 1 ? 'es' : ''}`;
+    if (isWizMode) {
+      const selCount = d.allLineas.filter(l => l.selected).length;
+      btn.textContent = `Confirmar (${selCount} al parte · ${totalLineas} a furgoneta)`;
+    } else {
+      btn.textContent = `Confirmar ${totalLineas} material${totalLineas > 1 ? 'es' : ''}`;
+    }
     btn.disabled = totalLineas === 0;
   }
 
@@ -6389,9 +6401,16 @@ function _ocrRenderPreview() {
 }
 
 function _ocrRenderLine(l) {
-  return `<div class="ocr-line-item selected" id="ocrLine${l.idx}">
+  const isWizMode = _ocrPreviewData && !_ocrPreviewData._fabMode;
+  const checked = l.selected ? 'checked' : '';
+  const dimStyle = (!l.selected && isWizMode) ? 'opacity:0.45;' : '';
+  return `<div class="ocr-line-item selected" id="ocrLine${l.idx}" style="${dimStyle}">
+    ${isWizMode ? `<label style="display:flex;align-items:center;padding:2px 6px 2px 0;cursor:pointer;flex-shrink:0">
+      <input type="checkbox" ${checked} onchange="_ocrToggleSel(${l.idx}, this.checked)"
+        style="width:18px;height:18px;accent-color:#1D4ED8;cursor:pointer">
+    </label>` : ''}
     <div class="ocr-line-detail" style="width:100%">
-      <div class="ocr-line-name">${l.nombre}</div>
+      <div class="ocr-line-name">${l.nombre}${l.artMatch ? ` <span style="font-size:9px;color:var(--verde);font-weight:700">✓ catálogo</span>` : ''}</div>
       <div class="ocr-line-qty">
         <span>Cant:</span>
         <input type="number" value="${l.cantidad}" min="0.01" step="any" onchange="_ocrUpdateQty(${l.idx}, this.value)">
@@ -6399,6 +6418,25 @@ function _ocrRenderLine(l) {
       </div>
     </div>
   </div>`;
+}
+
+function _ocrToggleSel(idx, checked) {
+  if (!_ocrPreviewData) return;
+  const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
+  if (l) l.selected = checked;
+  // Actualizar visual de la línea
+  const row = document.getElementById('ocrLine' + idx);
+  if (row) row.style.opacity = checked ? '1' : '0.45';
+  // Actualizar contador
+  const selCount = _ocrPreviewData.allLineas.filter(x => x.selected).length;
+  const cEl = document.getElementById('ocrSelCount');
+  if (cEl) cEl.textContent = selCount;
+  // Actualizar botón
+  const btn = document.getElementById('ocrPreviewConfirmBtn');
+  if (btn) {
+    const total = _ocrPreviewData.allLineas.length;
+    btn.textContent = `Confirmar (${selCount} al parte · ${total} a furgoneta)`;
+  }
 }
 
 function _ocrUpdateQty(idx, val) {
@@ -6495,7 +6533,7 @@ async function _ocrAddPageSelected(input) {
   }
 }
 
-function ocrPreviewConfirmar() {
+async function ocrPreviewConfirmar() {
   if (!_ocrPreviewData) return;
   const d = _ocrPreviewData;
   const todos = d.allLineas; // Siempre todos los materiales
@@ -6511,8 +6549,11 @@ function ocrPreviewConfirmar() {
     return;
   }
 
-  // ── Modo wizard: añadir materiales al parte ──
-  for (const l of todos) {
+  // ── Modo wizard: misma lógica que FAB (furgoneta + bandeja OCR) + añadir al parte ──
+
+  // 1. Añadir solo materiales SELECCIONADOS al parte de trabajo
+  const seleccionadosParte = todos.filter(l => l.selected);
+  for (const l of seleccionadosParte) {
     _wiz.materiales.push({
       articulo_id: l.artMatch?.id || null,
       nombre: l.nombre,
@@ -6525,58 +6566,38 @@ function ocrPreviewConfirmar() {
     });
   }
 
-  // Guardar UN solo documento con todas las fotos (multipágina)
+  // Guardar referencia del documento en el parte
   if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
   _wiz.albaranes_compra.push({
     numero: d.numDocumento || 'Sin número',
     fotos: d.pages.map(pg => pg.foto)
   });
 
-  // ── También subir a documentos_ocr para que aparezca en Bandeja OCR del ERP ──
-  try {
-    const eid = EMPRESA.id;
-    const fotosUrls = [];
-    for (let i = 0; i < d.pages.length; i++) {
-      const pg = d.pages[i];
-      if (pg.foto && pg.foto.startsWith('data:')) {
-        const blob = await (await fetch(pg.foto)).blob();
-        const fileName = `ocr_wiz_${Date.now()}_p${i}_${Math.random().toString(36).substr(2,4)}.jpg`;
-        const storagePath = `${eid}/ocr/${fileName}`;
-        const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: pg.mimeType || 'image/jpeg' });
-        if (!upErr) {
-          const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
-          fotosUrls.push(urlData?.publicUrl);
-        }
-      }
-    }
-    await sb.from('documentos_ocr').insert({
-      empresa_id: eid,
-      usuario_id: CP?.id,
-      archivo_path: fotosUrls[0] ? `${eid}/ocr/` : '',
-      archivo_nombre: `Albarán ${d.numDocumento || 'sin nº'} (desde parte)`,
-      estado: 'pendiente',
-      tipo_documento: 'albaran',
-      datos_extraidos: {
-        numero_documento: d.numDocumento || '',
-        lineas: todos.map(l => ({ descripcion: l.nombre, codigo: l.codigo, cantidad: l.cantidad, precio_unitario: l.precio, unidad: l.unidad })),
-        fotos_urls: fotosUrls,
-        operario: CP?.nombre || '',
-        origen: 'parte_trabajo',
-        parte_id: _wiz.parteId
-      },
-      created_at: new Date().toISOString()
-    });
-  } catch(e) { console.warn('documentos_ocr wizard insert:', e.message); }
+  // 2. Reutilizar el flujo FAB para: subir fotos + documentos_ocr + stock furgoneta + tarea oficina
+  // Inyectamos los datos necesarios en _fabOcrData temporalmente
+  const prevFabData = _fabOcrData;
+  _fabOcrData = {
+    numDocumento: d.numDocumento,
+    tipoDocumento: 'albaran',
+    proveedor: d.proveedor || '',
+    pages: d.pages,
+    allLineas: todos,
+    ocrResult: d.ocrResult || {}
+  };
+  await _fabOcrConfirmar(todos, true);
+  _fabOcrData = prevFabData;
 
-  toast(`✅ ${todos.length} material(es) añadido(s) al parte`, 'success');
-
+  // 3. Cerrar preview y refrescar wizard
+  const nParte = seleccionadosParte.length;
+  const nFurg = todos.length;
+  toast(`✅ ${nParte} al parte · ${nFurg} a furgoneta (provisional)`, 'success');
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
   _ocrPreviewData = null;
   renderWizStep();
 }
 
 // ── Modo FAB: subir a documentos_ocr + stock provisional en furgoneta ──
-async function _fabOcrConfirmar(seleccionados) {
+async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
   const d = _fabOcrData;
   if (!d) return;
 
@@ -6703,17 +6724,19 @@ async function _fabOcrConfirmar(seleccionados) {
       usuario_creador_id: CU?.id || null
     }).catch(() => {});
 
-    toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta`, 'success');
+    if (!_skipCleanup) {
+      toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta`, 'success');
 
-    // Cerrar overlay
-    document.getElementById('ocrPreviewOverlay').classList.remove('active');
-    _ocrPreviewData = null;
-    _fabOcrData = null;
+      // Cerrar overlay
+      document.getElementById('ocrPreviewOverlay').classList.remove('active');
+      _ocrPreviewData = null;
+      _fabOcrData = null;
 
-    // Refrescar vista si estamos en furgoneta
-    if (currentTab === 'inicio' || currentTab === 'furgoneta') {
-      const body = document.getElementById('appBody');
-      if (body) renderMiFurgoneta();
+      // Refrescar vista si estamos en furgoneta
+      if (currentTab === 'inicio' || currentTab === 'furgoneta') {
+        const body = document.getElementById('appBody');
+        if (body) renderMiFurgoneta();
+      }
     }
 
   } catch(e) {
@@ -6818,57 +6841,6 @@ function renderWizAlbaranRow(alb, idx) {
     ${fotoThumb}
     <button onclick="wizRemoveAlbaran(${idx})" style="background:none;border:none;font-size:16px;cursor:pointer;padding:4px">🗑️</button>
   </div>`;
-}
-
-function wizAddAlbaran() {
-  if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
-  _wiz.albaranes_compra.push({ numero: '', foto: null });
-  renderWizStep();
-}
-
-function wizUpdateAlbaranNum(idx, val) {
-  if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
-    _wiz.albaranes_compra[idx].numero = val.trim();
-  }
-}
-
-function wizCaptureAlbaranFoto(idx) {
-  const old = document.getElementById('wz_alb_foto_inp');
-  if (old) old.remove();
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.id = 'wz_alb_foto_inp';
-  inp.accept = 'image/*';
-  inp.capture = 'environment';
-  inp.style.display = 'none';
-  inp.onchange = function() {
-    const file = this.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
-        _wiz.albaranes_compra[idx].foto = e.target.result;
-        renderWizStep();
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-  document.body.appendChild(inp);
-  inp.click();
-}
-
-function wizRemoveAlbaranFoto(idx) {
-  if (_wiz.albaranes_compra && _wiz.albaranes_compra[idx]) {
-    _wiz.albaranes_compra[idx].foto = null;
-    renderWizStep();
-  }
-}
-
-function wizRemoveAlbaran(idx) {
-  if (_wiz.albaranes_compra) {
-    _wiz.albaranes_compra.splice(idx, 1);
-    renderWizStep();
-  }
 }
 
 // ── MANO DE OBRA ──

@@ -257,15 +257,30 @@ async function ocrPrevisualizar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
 
-  const imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
-  if (!imgUrl) { toast('Sin archivo para previsualizar', 'error'); return; }
+  let imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
+
+  // Documentos migrados: pueden tener fotos en datos_extraidos en lugar de archivo_path
+  const esMigrado = doc.datos_extraidos?.migrado_desde === 'partes_trabajo.albaranes_compra';
+  const fotosJson = doc.datos_extraidos?.fotos || doc.datos_extraidos?.fotos_urls || [];
+  const fotosMigradas = Array.isArray(fotosJson) ? fotosJson : [];
+
+  if (!imgUrl && !fotosMigradas.length) { toast('Sin archivo para previsualizar', 'error'); return; }
 
   const ext = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
   const esPdf = ext === 'pdf';
-  const est = { pendiente: '⏳ Pendiente', procesando: '⚙️ Procesando', completado: '✅ Completado', error: '❌ Error' };
+  const est = { pendiente: '⏳ Pendiente', procesando: '⚙️ Procesando', completado: '✅ Completado', error: '❌ Error', borrador: '📱 Subido App' };
 
   let contenido;
-  if (esPdf) {
+  if (fotosMigradas.length && !imgUrl) {
+    // Mostrar fotos embebidas del documento migrado (base64 o URLs)
+    contenido = fotosMigradas.map((foto, i) => {
+      const src = foto.startsWith && foto.startsWith('data:') ? foto
+        : foto.startsWith && foto.startsWith('http') ? foto
+        : sb.storage.from('documentos').getPublicUrl(foto).data.publicUrl;
+      return `<div style="margin-bottom:8px"><img src="${src}" style="max-width:100%;max-height:60vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)"><div style="font-size:10px;color:var(--gris-400);margin-top:4px">Página ${i+1}</div></div>`;
+    }).join('');
+    if (esMigrado) contenido = `<div style="padding:8px 12px;background:#FEF3C7;border-radius:8px;margin-bottom:10px;font-size:11px;color:#92400E">⚠️ Documento migrado desde parte — las fotos son del escaneo original</div>` + contenido;
+  } else if (esPdf) {
     contenido = `<iframe src="${imgUrl}" style="width:100%;height:70vh;border:none;border-radius:8px"></iframe>`;
   } else {
     contenido = `<img src="${imgUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
