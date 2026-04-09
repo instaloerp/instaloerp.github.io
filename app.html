@@ -7380,10 +7380,10 @@ async function wizFinish() {
       toast('⚠️ Describe el trabajo realizado', 'error'); return;
     }
 
-    // Validar nombre obligatorio (2+ palabras)
+    // Validar nombre obligatorio (3+ palabras: nombre + primer apellido + segundo apellido)
     const nombreWords = (_wiz.clienteNombre || '').trim().split(/\s+/).filter(w => w.length > 0);
-    if (nombreWords.length < 2) {
-      toast('⚠️ Introduce el nombre completo del cliente (mínimo 2 palabras)', 'error'); return;
+    if (nombreWords.length < 3) {
+      toast('⚠️ Introduce nombre y los dos apellidos del cliente', 'error'); return;
     }
 
     // Validar DNI obligatorio
@@ -7880,8 +7880,11 @@ function envioWhatsApp(parteId, parteNum, empresa, enlace) {
   }
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
   const msg = encodeURIComponent(_getMensajeEnvio(parteNum, empresa, enlace));
-  window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
-  _marcarEnvioRealizado();
+  // Cerrar modal ANTES de abrir WhatsApp — en iOS window.open bloquea el hilo
+  _envioRealizado = true;
+  closeModal();
+  navigateTo(currentTab);
+  setTimeout(() => { window.location.href = `https://wa.me/${telWA}?text=${msg}`; }, 150);
 }
 
 function envioSMS(parteId, parteNum, empresa, enlace) {
@@ -7892,19 +7895,35 @@ function envioSMS(parteId, parteNum, empresa, enlace) {
     return;
   }
   const msg = encodeURIComponent(_getMensajeEnvio(parteNum, empresa, enlace));
-  window.location.href = `sms:${tel}?body=${msg}`;
-  _marcarEnvioRealizado();
+  // Cerrar modal ANTES de abrir SMS
+  _envioRealizado = true;
+  closeModal();
+  navigateTo(currentTab);
+  setTimeout(() => { window.location.href = `sms:${tel}?body=${msg}`; }, 150);
 }
 
 function _marcarEnvioRealizado() {
   _envioRealizado = true;
-  const btn = document.getElementById('btnCerrarEnvio');
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = 'Cerrar';
-    btn.style.background = 'var(--gris-600)';
-    btn.style.color = '#fff';
-  }
+  // En iOS al abrir WhatsApp/SMS el timer se pausa — usar visibilitychange para cerrar al volver
+  const _cerrarAlVolver = () => {
+    if (document.visibilityState === 'visible' && _envioRealizado) {
+      document.removeEventListener('visibilitychange', _cerrarAlVolver);
+      // Pequeña espera para que iOS termine la transición
+      setTimeout(() => {
+        closeModal();
+        navigateTo(currentTab);
+      }, 300);
+    }
+  };
+  document.addEventListener('visibilitychange', _cerrarAlVolver);
+  // Fallback: si no salió de la app (ej: email mailto), cerrar directamente
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', _cerrarAlVolver);
+    if (_envioRealizado) {
+      closeModal();
+      navigateTo(currentTab);
+    }
+  }, 1500);
 }
 
 function copiarEnlaceParte() {
@@ -7933,7 +7952,10 @@ function enviarEmailDesdModal(parteId) {
     if (p) p.cliente_email = email;
   });
   enviarEmailParte(parteId, email);
-  _marcarEnvioRealizado();
+  // Cerrar modal directamente (email no abre app externa en iOS)
+  _envioRealizado = true;
+  closeModal();
+  navigateTo(currentTab);
 }
 
 function cerrarModalEnvio() {
@@ -8134,17 +8156,18 @@ async function wizFirmaRemotaEnviar(canal) {
 
     hideLoading();
 
-    // 5. Abrir canal de envío
+    // 5. Preparar URL de envío ANTES de cerrar la UI
+    let urlEnvio = null;
     if (canal === 'whatsapp') {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
       if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
-      window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+      urlEnvio = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
     } else if (canal === 'sms') {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
-      window.open(`sms:${tel}?body=${encodeURIComponent(mensaje)}`, '_blank');
+      urlEnvio = `sms:${tel}?body=${encodeURIComponent(mensaje)}`;
     } else if (canal === 'email') {
       const email = (document.getElementById('frEmailInput')?.value || '').trim();
-      window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
+      urlEnvio = `mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`;
     }
 
     // 6. Crear tarea pendiente para seguimiento
@@ -8164,11 +8187,17 @@ async function wizFirmaRemotaEnviar(canal) {
       }).catch(() => {});
     }
 
-    // 7. Cerrar wizard — parte ya está guardado completamente
+    // 7. Cerrar wizard PRIMERO — luego abrir app externa
+    //    En iOS, window.open bloquea el hilo y el closeModal nunca se ejecutaría después
     _envioRealizado = true;
     toast(`✅ Parte guardado · Firma remota enviada por ${canalLabel}`, 'success');
     closeModal();
     navigateTo(currentTab);
+
+    // 8. Abrir canal de envío DESPUÉS de cerrar la UI
+    if (urlEnvio) {
+      setTimeout(() => { window.location.href = urlEnvio; }, 150);
+    }
 
   } catch(e) {
     hideLoading();
@@ -8195,14 +8224,20 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
   );
 
   const telWA = tel.startsWith('+') ? tel.substring(1) : tel;
-  window.open(`https://wa.me/${telWA}?text=${msg}`, '_blank');
+  const urlWA = `https://wa.me/${telWA}?text=${msg}`;
 
-  _marcarEnvioRealizado();
+  // Cerrar modal ANTES de abrir WhatsApp — en iOS window.open bloquea el hilo
+  _envioRealizado = true;
   toast('✍️ Enlace de firma enviado · El parte queda pendiente de firma cliente', 'success');
+  closeModal();
+  navigateTo(currentTab);
+
+  // Abrir WhatsApp DESPUÉS de cerrar la UI
+  setTimeout(() => { window.location.href = urlWA; }, 150);
 
   // Crear tarea pendiente de firma
   if (EMPRESA?.id) {
-    await sb.from('tareas_pendientes').insert({
+    sb.from('tareas_pendientes').insert({
       empresa_id:    EMPRESA.id,
       entidad_tipo:  'parte',
       entidad_id:    parteId,
@@ -8213,7 +8248,7 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
       rol_asignado:  'admin',
       estado:        'pendiente',
       usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
-    });
+    }).catch(() => {});
   }
 }
 
