@@ -16,12 +16,17 @@ function _renderObraChromeTabs() {
   // Limpiar pestañas existentes
   bar.querySelectorAll('.obra-chrome-tab').forEach(t => t.remove());
   // Renderizar
-  _obrasTabs.forEach(tab => {
+  _obrasTabs.forEach((tab, idx) => {
     const el = document.createElement('div');
     el.className = 'obra-chrome-tab' + (tab.id === obraActualId ? ' active' : '');
     el.dataset.id = tab.id;
-    el.onclick = function() { _switchObraTab(tab.id); };
-    el.innerHTML = `<span class="oct-title">${tab.numero} · ${tab.cliente}</span><span class="oct-close" onclick="event.stopPropagation();_closeObraTab('${tab.id}')">✕</span>`;
+    el.onclick = function() { _switchObraTab(this.dataset.id); };
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'oct-close';
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = function(e) { e.stopPropagation(); _closeObraTab(this.parentElement.dataset.id); };
+    el.innerHTML = `<span class="oct-title">${tab.numero} · ${tab.cliente}</span>`;
+    el.appendChild(closeBtn);
     bar.insertBefore(el, addBtn);
   });
 }
@@ -70,38 +75,57 @@ function closeObraSearch() {
   document.getElementById('obraSearchOverlay')?.classList.remove('open');
 }
 
+let _obrasSearchCache = []; // Cache para resultados con datos enriquecidos
+
 function _filterObrasSearch(q) {
-  q = (q || '').toLowerCase();
+  q = (q || '').toLowerCase().trim();
   const results = document.getElementById('obraSearchResults');
-  let list = trabajos;
+
+  // Enriquecer obras con datos de cliente para búsqueda completa
+  _obrasSearchCache = trabajos.map(t => {
+    const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+    const cliNombre = cli?.nombre || t.cliente_nombre || '';
+    // Todos los campos buscables
+    const searchText = [
+      t.numero, t.titulo, t.descripcion, t.estado,
+      t.direccion, t.direccion_obra, t.direccion_obra_texto,
+      t.municipio, t.provincia, t.cp,
+      t.categoria, t.prioridad,
+      t.referencia_externa, t.codigo_externo,
+      cliNombre, cli?.telefono, cli?.email, cli?.cif,
+      cli?.direccion, cli?.municipio, cli?.provincia
+    ].filter(Boolean).join(' ').toLowerCase();
+    return { ...t, _cliNombre: cliNombre, _searchText: searchText };
+  });
+
+  let list = _obrasSearchCache;
   if (q) {
-    list = trabajos.filter(t => {
-      const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
-      const cliNombre = (cli?.nombre || t.cliente_nombre || '').toLowerCase();
-      return (t.numero || '').toLowerCase().includes(q) ||
-             (t.titulo || '').toLowerCase().includes(q) ||
-             cliNombre.includes(q);
-    });
+    const words = q.split(/\s+/);
+    list = list.filter(t => words.every(w => t._searchText.includes(w)));
   }
+
   if (!list.length) {
     results.innerHTML = '<div style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Sin resultados</div>';
     return;
   }
-  results.innerHTML = list.slice(0, 10).map(t => {
-    const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
-    const cliNombre = cli?.nombre || t.cliente_nombre || 'Sin cliente';
-    const est = t.estado ? t.estado.replace('_', ' ') : '—';
-    return `<div class="osb-item" onclick="_selectObraFromSearch('${t.id}')">
+  results.innerHTML = list.slice(0, 10).map((t, i) => {
+    return `<div class="osb-item" onclick="_selectObraFromSearch(${i})">
       <span class="osb-num">${t.numero || '—'}</span>
       <span class="osb-title">${t.titulo || '—'}</span>
-      <span class="osb-client">${cliNombre}</span>
+      <span class="osb-client">${t._cliNombre || '—'}</span>
     </div>`;
   }).join('');
+
+  // Guardar lista filtrada para referencia por índice
+  _obrasSearchCache._filtered = list.slice(0, 10);
 }
 
-function _selectObraFromSearch(id) {
+function _selectObraFromSearch(idx) {
+  const list = _obrasSearchCache._filtered;
+  if (!list || !list[idx]) return;
+  const obraId = list[idx].id;
   closeObraSearch();
-  abrirFichaObra(id);
+  abrirFichaObra(obraId);
 }
 
 // ESC para cerrar buscador
