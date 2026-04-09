@@ -6564,7 +6564,7 @@ async function ocrPreviewConfirmar() {
 
   // Bifurcar: modo flotante (FAB) vs modo wizard (parte)
   if (d._fabMode) {
-    _fabOcrConfirmar(todos);
+    await _fabOcrConfirmar(todos);
     return;
   }
 
@@ -6698,92 +6698,105 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
     }
 
     toast(`📦 Procesando ${seleccionados.length} materiales...`, 'info');
+    let _artCreados = 0, _artErrores = 0, _stockOk = 0;
     if (almacenId) {
-      for (const l of seleccionados) {
-        const artId = l.artMatch?.id || null;
-        let artIdFinal = artId;
+      for (let _idx = 0; _idx < seleccionados.length; _idx++) {
+        const l = seleccionados[_idx];
+        try {
+          toast(`🔄 Material ${_idx+1}/${seleccionados.length}: ${(l.nombre||'').substring(0,25)}...`, 'info');
+          const artId = l.artMatch?.id || null;
+          let artIdFinal = artId;
 
-        // Material SIN catálogo: crear artículo automáticamente
-        if (!artIdFinal) {
-          // Código único: OCR-{codigo_proveedor}-{sufijo aleatorio}
-          const _codigoBase = (l.codigo || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
-          const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
-          const codigoAuto = 'OCR-' + (_codigoBase ? _codigoBase + '-' + _sufijo : Date.now().toString(36).toUpperCase() + _sufijo);
+          // Material SIN catálogo: crear artículo automáticamente
+          if (!artIdFinal) {
+            const _codigoBase = (l.codigo || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+            const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
+            const codigoAuto = 'OCR-' + (_codigoBase ? _codigoBase + '-' + _sufijo : Date.now().toString(36).toUpperCase() + _sufijo);
 
-          const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
-            empresa_id: eid,
-            codigo: codigoAuto,
-            nombre: l.nombre || 'Material OCR',
-            ref_fabricante: l.codigo || null,
-            unidad_venta_id: null,
-            precio_coste: l.precioUnit || l.precio || 0,
-            precio_venta: 0,
-            es_activo: true,
-            activo: true,
-            observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
-          }).select().single();
+            const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
+              empresa_id: eid,
+              codigo: codigoAuto,
+              nombre: l.nombre || 'Material OCR',
+              referencia_fabricante: l.codigo || null,
+              precio_coste: l.precioUnit || l.precio || 0,
+              precio_venta: 0,
+              es_activo: true,
+              activo: true,
+              proveedor_id: proveedorId || null,
+              observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
+            }).select().single();
 
-          if (!artErr && nuevoArt) {
-            artIdFinal = nuevoArt.id;
-            l.artMatch = nuevoArt;
-            toast('✅ Artículo creado: ' + (nuevoArt.nombre||'').substring(0,30), 'success');
+            if (!artErr && nuevoArt) {
+              artIdFinal = nuevoArt.id;
+              l.artMatch = nuevoArt;
+              _artCreados++;
 
-            // Vincular artículo al proveedor con su ref y precio
-            if (proveedorId) {
-              await sb.from('articulos_proveedores').insert({
-                empresa_id: eid,
-                articulo_id: artIdFinal,
-                proveedor_id: proveedorId,
-                ref_proveedor: l.codigo || null,
-                precio_proveedor: l.precioUnit || l.precio || 0,
-                es_principal: true
-              }).catch(e => console.warn('Vincular proveedor:', e.message));
+              // Vincular artículo al proveedor con su ref y precio
+              if (proveedorId) {
+                await sb.from('articulos_proveedores').insert({
+                  empresa_id: eid,
+                  articulo_id: artIdFinal,
+                  proveedor_id: proveedorId,
+                  ref_proveedor: l.codigo || null,
+                  precio_proveedor: l.precioUnit || l.precio || 0,
+                  es_principal: true
+                }).catch(e => console.warn('Vincular proveedor:', e.message));
+              }
+            } else {
+              _artErrores++;
+              toast('❌ Error art [' + (_idx+1) + ']: ' + (artErr?.message||'desconocido'), 'error');
+              continue; // siguiente item
             }
-          } else {
-            console.warn('Error creando artículo OCR:', artErr?.message, 'codigo:', codigoAuto, 'nombre:', l.nombre);
-            toast('❌ Error art. ' + (l.nombre||'').substring(0,30) + ': ' + (artErr?.message||'desconocido'), 'error');
-          }
-        } else if (proveedorId) {
-          // Artículo existente: vincular proveedor si no lo tiene ya
-          const { data: existeVinc } = await sb.from('articulos_proveedores')
-            .select('id').eq('articulo_id', artIdFinal).eq('proveedor_id', proveedorId).eq('empresa_id', eid).limit(1);
-          if (!existeVinc?.length) {
-            await sb.from('articulos_proveedores').insert({
-              empresa_id: eid, articulo_id: artIdFinal, proveedor_id: proveedorId,
-              ref_proveedor: l.codigo || null, precio_proveedor: l.precioUnit || l.precio || 0,
-              es_principal: false
-            }).catch(() => {});
-          }
-        }
-
-        // Meter stock provisional en furgoneta (tanto existentes como recién creados)
-        if (artIdFinal) {
-          const stockExistente = miFurgonetaStock.find(s => s.articulo_id === artIdFinal);
-          if (stockExistente) {
-            const nuevoProvisional = (stockExistente.stock_provisional || 0) + l.cantidad;
-            await sb.from('stock').update({ stock_provisional: nuevoProvisional })
-              .eq('almacen_id', almacenId).eq('articulo_id', artIdFinal).eq('empresa_id', eid);
-          } else {
-            const { error: stockErr } = await sb.from('stock').insert({
-              empresa_id: eid, almacen_id: almacenId, articulo_id: artIdFinal,
-              cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
-            });
-            if (stockErr) { console.warn('Stock insert error:', stockErr.message); toast('⚠️ Stock: ' + stockErr.message, 'error'); }
+          } else if (proveedorId) {
+            const { data: existeVinc } = await sb.from('articulos_proveedores')
+              .select('id').eq('articulo_id', artIdFinal).eq('proveedor_id', proveedorId).eq('empresa_id', eid).limit(1);
+            if (!existeVinc?.length) {
+              await sb.from('articulos_proveedores').insert({
+                empresa_id: eid, articulo_id: artIdFinal, proveedor_id: proveedorId,
+                ref_proveedor: l.codigo || null, precio_proveedor: l.precioUnit || l.precio || 0,
+                es_principal: false
+              }).catch(() => {});
+            }
           }
 
-          await sb.from('movimientos_stock').insert({
-            empresa_id: eid, articulo_id: artIdFinal, almacen_id: almacenId,
-            tipo: 'entrada_provisional', cantidad: l.cantidad,
-            delta: l.cantidad,
-            notas: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
-            tipo_stock: 'provisional',
-            fecha: new Date().toISOString().slice(0,10),
-            usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
-          }).catch(e => console.warn('Mov stock error:', e.message));
+          // Meter stock provisional en furgoneta
+          if (artIdFinal) {
+            const stockExistente = miFurgonetaStock.find(s => s.articulo_id === artIdFinal);
+            if (stockExistente) {
+              const nuevoProvisional = (stockExistente.stock_provisional || 0) + l.cantidad;
+              await sb.from('stock').update({ stock_provisional: nuevoProvisional })
+                .eq('almacen_id', almacenId).eq('articulo_id', artIdFinal).eq('empresa_id', eid);
+              _stockOk++;
+            } else {
+              const { error: stockErr } = await sb.from('stock').insert({
+                empresa_id: eid, almacen_id: almacenId, articulo_id: artIdFinal,
+                cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
+              });
+              if (stockErr) { toast('⚠️ Stock [' + (_idx+1) + ']: ' + stockErr.message, 'error'); }
+              else { _stockOk++; }
+            }
+
+            await sb.from('movimientos_stock').insert({
+              empresa_id: eid, articulo_id: artIdFinal, almacen_id: almacenId,
+              tipo: 'entrada_provisional', cantidad: l.cantidad,
+              delta: l.cantidad,
+              notas: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
+              tipo_stock: 'provisional',
+              fecha: new Date().toISOString().slice(0,10),
+              usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
+            }).catch(e => console.warn('Mov stock error:', e.message));
+          }
+        } catch(loopErr) {
+          _artErrores++;
+          toast('💥 Error fatal item ' + (_idx+1) + ': ' + (loopErr.message||loopErr), 'error');
+          console.error('[OCR loop error] item', _idx, l.nombre, loopErr);
         }
       }
 
+      toast(`📊 Resultado: ${_artCreados} creados, ${_artErrores} errores, ${_stockOk} stock OK`, _artErrores ? 'warning' : 'success');
       await loadStockFurgoneta(almacenId);
+    } else {
+      toast('⚠️ No hay furgoneta asignada (almacenId null)', 'error');
     }
 
     // 3. Crear tarea pendiente para oficina
