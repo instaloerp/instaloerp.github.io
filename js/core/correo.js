@@ -412,6 +412,51 @@ function renderListaCorreos(list) {
 }
 
 // ═══════════════════════════════════════════════
+//  RENDERIZAR CONTENIDO DEL CORREO (sandboxed)
+// ═══════════════════════════════════════════════
+function _renderMailContent(c) {
+  if (c.cuerpo_html) {
+    // Crear iframe vacío; el contenido se escribirá programáticamente
+    // Esto aísla el HTML del email del DOM de la app (evita romper estilos/layout)
+    setTimeout(() => _writeMailIframe(c.cuerpo_html), 0);
+    return `<iframe id="mailIframe" sandbox="allow-same-origin" style="flex:1;border:none;width:100%;min-height:200px"></iframe>`;
+  }
+  if (c.cuerpo_texto) {
+    return `<div style="padding:20px;font-size:13.5px;line-height:1.7;color:var(--gris-700);overflow-y:auto;flex:1">${(c.cuerpo_texto || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g, '<br>')}</div>`;
+  }
+  return '<div style="padding:20px;color:var(--gris-400);text-align:center">(sin contenido)</div>';
+}
+
+function _writeMailIframe(html) {
+  const iframe = document.getElementById('mailIframe');
+  if (!iframe) return;
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    // Escribir el HTML completo del email dentro del iframe aislado
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>
+      body{margin:8px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13.5px;line-height:1.7;color:#374151;overflow-x:hidden;word-wrap:break-word}
+      img{max-width:100%;height:auto}
+      a{color:#2563eb}
+      table{max-width:100%!important}
+    </style></head><body>${html}</body></html>`);
+    doc.close();
+    // Auto-resize iframe al contenido
+    const resize = () => {
+      try {
+        const h = doc.documentElement.scrollHeight;
+        if (h > 0) iframe.style.height = h + 'px';
+      } catch(_){}
+    };
+    setTimeout(resize, 100);
+    setTimeout(resize, 500);
+    doc.querySelectorAll('img').forEach(img => {
+      if (!img.complete) img.addEventListener('load', resize);
+    });
+  } catch(e) { console.warn('Error writing mail iframe:', e); }
+}
+
+// ═══════════════════════════════════════════════
 //  ABRIR CORREO (con carga bajo demanda del cuerpo)
 // ═══════════════════════════════════════════════
 async function abrirCorreo(id) {
@@ -451,9 +496,9 @@ async function abrirCorreo(id) {
         <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo)">🗑️</button>
       </div>
     </div>
-    <div id="mailBody" style="flex:1;padding:20px;overflow-y:auto;font-size:13.5px;line-height:1.7;color:var(--gris-700)">
+    <div id="mailBody" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
       ${c.cuerpo_cacheado
-        ? (c.cuerpo_html || (c.cuerpo_texto || '').replace(/\n/g, '<br>') || '<span style="color:var(--gris-400)">(sin contenido)</span>')
+        ? _renderMailContent(c)
         : '<div style="text-align:center;padding:20px;color:var(--gris-400)"><div class="spinner" style="margin:0 auto 8px"></div>Cargando contenido del correo...</div>'
       }
     </div>
@@ -481,7 +526,7 @@ async function abrirCorreo(id) {
 
         const bodyEl = document.getElementById('mailBody');
         if (bodyEl && correoActual?.id === c.id) {
-          bodyEl.innerHTML = c.cuerpo_html || (c.cuerpo_texto || '').replace(/\n/g, '<br>') || '<span style="color:var(--gris-400)">(sin contenido)</span>';
+          bodyEl.innerHTML = _renderMailContent(c);
         }
       }
     } catch(e) {
