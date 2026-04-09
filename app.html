@@ -5014,8 +5014,16 @@ function _docNuevo() {
 let _fabOcrData = null; // { pages:[{foto,base64data,mime}], allLineas:[], numDocumento:'' }
 
 function _openOCRUpload() {
-  if (!EMPRESA?.anthropic_api_key) {
-    toast('⚠️ Configura la API key de IA en Ajustes del ERP', 'error');
+  if (!EMPRESA) {
+    toast('❌ EMPRESA no cargada — recarga la app', 'error');
+    return;
+  }
+  if (!EMPRESA.anthropic_api_key) {
+    toast('⚠️ Configura la API key de IA en Ajustes del ERP (falta anthropic_api_key)', 'error');
+    return;
+  }
+  if (!CU) {
+    toast('❌ No hay sesión de usuario activa', 'error');
     return;
   }
   // Lanzar cámara directamente
@@ -6618,12 +6626,22 @@ async function ocrPreviewConfirmar() {
 // ── Modo FAB: subir a documentos_ocr + stock provisional en furgoneta ──
 async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
   const d = _fabOcrData;
-  if (!d) return;
+  if (!d) { toast('❌ _fabOcrData es null — sin datos OCR', 'error'); return; }
 
+  toast(`🔧 OCR Confirmar: ${seleccionados.length} items, furgoneta=${miFurgoneta?.nombre||'NINGUNA'}`, 'info');
   showLoading('Guardando en furgoneta...');
 
   try {
     const eid = EMPRESA.id;
+
+    // Si miFurgoneta es null, intentar recargarla automáticamente
+    if (!miFurgoneta) {
+      toast('🔄 Recargando furgoneta...', 'info');
+      await loadMiFurgoneta();
+      if (miFurgoneta) {
+        toast(`✅ Furgoneta recuperada: ${miFurgoneta.nombre}`, 'success');
+      }
+    }
     const almacenId = miFurgoneta?.id;
 
     // 1. Subir fotos al Storage y crear registro documentos_ocr
@@ -6645,7 +6663,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
     // Registro en documentos_ocr — BORRADOR hasta que oficina valide
     const docInsert = {
       empresa_id: eid,
-      usuario_id: CP?.id,
+      usuario_id: CP?.id || CU?.id || null,
       archivo_path: fotosUrls[0]?.path || '',
       archivo_nombre: `Doc_OCR_${d.numDocumento || new Date().toISOString().slice(0,10)}`,
       estado: 'pendiente',
