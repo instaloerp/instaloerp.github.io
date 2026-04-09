@@ -91,13 +91,37 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f
 canvas#firmaCanvas{display:block;width:100%;height:180px}
 .firma-remota-card{background:linear-gradient(135deg,#fffbeb 0%,#fef9c3 100%);border:2px solid #F59E0B;border-radius:14px;padding:20px;margin-top:8px}
 
-/* Print */
+/* Print — ajustar todo a 1 sola página A4 */
 @media print{
-  body{background:#fff}
+  body{background:#fff;padding:0;margin:0;font-size:11px}
+  .container{max-width:100%;padding:8px 12px}
   .pdf-bar{display:none!important}
   .firma-remota-card{display:none!important}
-  .card{box-shadow:none;border:1px solid #e2e8f0;page-break-inside:avoid}
-  .card-header{border:1px solid #e2e8f0}
+  .card{box-shadow:none;border:1px solid #e2e8f0;page-break-inside:avoid;padding:10px 14px;margin-bottom:6px;border-radius:6px}
+  .card-header{border:1px solid #e2e8f0;padding:12px 14px 10px}
+  .empresa-nombre{font-size:16px;margin-bottom:2px}
+  .empresa-sub{font-size:10px}
+  .divider{margin:8px 0}
+  .doc-numero{font-size:16px}
+  .doc-tipo{font-size:9px}
+  .doc-fecha{font-size:12px}
+  .doc-fecha-label{font-size:9px}
+  .section-title{font-size:9px;margin-bottom:6px}
+  .info-grid{gap:6px;margin-top:8px}
+  .info-item{padding:6px 8px;border-radius:4px}
+  .info-label{font-size:8px;margin-bottom:1px}
+  .info-value{font-size:11px}
+  .desc-text{font-size:11px;line-height:1.5}
+  .firma-grid{gap:10px}
+  .firma-img{max-height:70px}
+  .firma-img-wrap{padding:3px}
+  .firma-label{font-size:8px;margin-bottom:4px}
+  .firma-nombre{font-size:11px;margin-top:4px}
+  .firma-dni{font-size:9px}
+  .firma-line{margin:6px 0 2px}
+  .footer{padding:2px 0 4px;font-size:9px}
+  .badge{font-size:10px;padding:2px 8px}
+  .pendiente-item{padding:4px 0;font-size:11px}
 }
 </style>
 </head>

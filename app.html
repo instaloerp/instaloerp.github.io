@@ -81,7 +81,7 @@ a{color:var(--azul);text-decoration:none}
 .hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--gris-100);border:1px solid var(--gris-200);font-size:10px;font-weight:700;color:var(--gris-600);cursor:pointer;flex-shrink:0;letter-spacing:.3px}
 .hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
-.app-body{flex:1;padding:12px 16px;padding-bottom:calc(80px + var(--safe-bottom))}
+.app-body{flex:1;padding:12px 16px;padding-bottom:calc(140px + var(--safe-bottom))}
 
 /* ── BOTTOM NAV ── */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--gris-200);display:flex;padding-bottom:var(--safe-bottom);z-index:100}
@@ -804,12 +804,13 @@ const GREMIOS = [
 
 // ─── Estados de partes ───
 const PT_ESTADOS = {
-  borrador:   { label:'Borrador',   color:'#9CA3AF', bg:'#F3F4F6', ico:'✏️' },
-  programado: { label:'Programado', color:'#3B82F6', bg:'#EFF6FF', ico:'📅' },
-  en_curso:   { label:'En curso',   color:'#D97706', bg:'#FFFBEB', ico:'🔧' },
-  completado: { label:'Completado', color:'#059669', bg:'#ECFDF5', ico:'✅' },
-  revisado:   { label:'Revisado',   color:'#10B981', bg:'#D1FAE5', ico:'👁️' },
-  facturado:  { label:'Facturado',  color:'#8B5CF6', bg:'#F5F3FF', ico:'🧾' },
+  borrador:                { label:'Borrador',       color:'#9CA3AF', bg:'#F3F4F6', ico:'✏️' },
+  programado:              { label:'Programado',     color:'#3B82F6', bg:'#EFF6FF', ico:'📅' },
+  en_curso:                { label:'En curso',       color:'#D97706', bg:'#FFFBEB', ico:'🔧' },
+  pendiente_firma_cliente: { label:'Pte. firma',     color:'#7C3AED', bg:'#F5F3FF', ico:'✍️' },
+  completado:              { label:'Completado',     color:'#059669', bg:'#ECFDF5', ico:'✅' },
+  revisado:                { label:'Revisado',       color:'#10B981', bg:'#D1FAE5', ico:'👁️' },
+  facturado:               { label:'Facturado',      color:'#8B5CF6', bg:'#F5F3FF', ico:'🧾' },
 };
 
 // ═══════════════════════════════════════════════
@@ -2784,7 +2785,7 @@ function renderJefeInicio(el) {
   const _ahora = new Date();
   const hoy = _ahora.getFullYear() + '-' + String(_ahora.getMonth()+1).padStart(2,'0') + '-' + String(_ahora.getDate()).padStart(2,'0');
   const partesHoy = misPartes.filter(p => p.fecha === hoy);
-  const pendRevision = misPartes.filter(p => p.estado === 'completado');
+  const pendRevision = misPartes.filter(p => p.estado === 'completado' || p.estado === 'pendiente_firma_cliente');
   const enCurso = misPartes.filter(p => p.estado === 'en_curso');
   const programados = misPartes.filter(p => p.estado === 'programado');
   const borradores = misPartes.filter(p => p.estado === 'borrador');
@@ -2835,6 +2836,7 @@ function renderJefeInicio(el) {
       let statusColor = 'var(--gris-400)';
       if (op.enCurso) { status = '🔧 Trabajando'; statusColor = 'var(--acento)'; }
       else if (op.partesHoy.some(p=>p.estado==='programado')) { status = '📅 Programado'; statusColor = 'var(--azul)'; }
+      else if (op.partesHoy.some(p=>p.estado==='pendiente_firma_cliente')) { status = '✍️ Pte. firma'; statusColor = '#7C3AED'; }
       else if (op.partesHoy.some(p=>p.estado==='completado')) { status = '✅ Completado'; statusColor = 'var(--verde)'; }
       return `<div class="operario-card" onclick="openOperarioDetail('${op.id}')">
         <div class="operario-av">${(op.nombre||'?')[0].toUpperCase()}</div>
@@ -5256,9 +5258,10 @@ function renderParteCard(p, showActions = false) {
       </div>`;
     } else {
       const nextActions = {
-        borrador:   {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
-        completado: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
-        revisado:   {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
+        borrador:                {label:'📅 Programar', estado:'programado', bg:'#3B82F6'},
+        pendiente_firma_cliente: {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
+        completado:              {label:'👁️ Revisar',   estado:'revisado',   bg:'#10B981'},
+        revisado:                {label:'🧾 Facturar',  estado:'facturado',  bg:'#8B5CF6'},
       };
       const next = nextActions[p.estado];
       if (next) {
@@ -5277,7 +5280,9 @@ function renderParteCard(p, showActions = false) {
   // Rojo         → programado pero ya pasó hora de FIN (caducado)
   let cardBg = '#fff';
   let cardBorder = 'var(--gris-100)';
-  if (['completado','revisado','facturado'].includes(p.estado)) {
+  if (p.estado === 'pendiente_firma_cliente') {
+    cardBg = '#F5F3FF'; cardBorder = '#DDD6FE'; // violeta suave
+  } else if (['completado','revisado','facturado'].includes(p.estado)) {
     cardBg = '#F0FDF4'; cardBorder = '#BBF7D0'; // verde suave
   } else if (p.estado === 'en_curso') {
     cardBg = '#EFF6FF'; cardBorder = '#BFDBFE'; // azul suave
@@ -5315,7 +5320,8 @@ function renderParteCard(p, showActions = false) {
   }
 
   // Borde izquierdo de color para refuerzo visual
-  const _borderLeftColor = (['completado','revisado','facturado'].includes(p.estado)) ? '#22C55E'
+  const _borderLeftColor = p.estado === 'pendiente_firma_cliente' ? '#7C3AED'
+    : (['completado','revisado','facturado'].includes(p.estado)) ? '#22C55E'
     : p.estado === 'en_curso' ? '#3B82F6'
     : cardBg === '#FEF2F2' ? '#EF4444'
     : cardBg === '#FFFBEB' ? '#F59E0B'
@@ -5363,11 +5369,12 @@ function openParteDetail(id) {
   const est = PT_ESTADOS[p.estado] || PT_ESTADOS.borrador;
 
   const nextActions = {
-    borrador:   {label:'📅 Programar cita', estado:'programado', bg:'#3B82F6'},
-    programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', bg:'var(--acento)'},
-    en_curso:   {label:'✅ Marcar completado', estado:'completado', bg:'var(--verde)'},
-    completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', bg:'#10B981'},
-    revisado:   {label:'🧾 Marcar facturado', estado:'facturado', bg:'#8B5CF6'},
+    borrador:                {label:'📅 Programar cita', estado:'programado', bg:'#3B82F6'},
+    programado:              {label:'🔧 Iniciar trabajo', estado:'en_curso', bg:'var(--acento)'},
+    en_curso:                {label:'✅ Marcar completado', estado:'completado', bg:'var(--verde)'},
+    pendiente_firma_cliente: {label:'👁️ Aprobar / Revisar', estado:'revisado', bg:'#10B981'},
+    completado:              {label:'👁️ Aprobar / Revisar', estado:'revisado', bg:'#10B981'},
+    revisado:                {label:'🧾 Marcar facturado', estado:'facturado', bg:'#8B5CF6'},
   };
   const next = nextActions[p.estado];
 
