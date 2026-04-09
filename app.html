@@ -67,10 +67,17 @@ a{color:var(--azul);text-decoration:none}
 .app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gris-900)}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
 .app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.modo-switcher{display:none;flex-shrink:0;background:rgba(255,255,255,.12);border-radius:20px;padding:2px;gap:2px}
-.modo-switcher.active{display:inline-flex}
-.modo-btn{border:none;padding:5px 10px;border-radius:18px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.3px;background:transparent;color:rgba(255,255,255,.55);transition:all .2s}
-.modo-btn.selected{color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.modo-user-area{display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;min-width:0;-webkit-tap-highlight-color:transparent}
+.modo-label{display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.modo-dropdown{display:none;position:absolute;top:100%;left:8px;right:8px;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);z-index:200;overflow:hidden;margin-top:6px}
+.modo-dropdown.open{display:block;animation:modoSlide .15s ease-out}
+@keyframes modoSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.modo-dropdown-item{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;transition:background .1s;font-size:14px;font-weight:600;color:#1E293B}
+.modo-dropdown-item:active{background:#F1F5F9}
+.modo-dropdown-item+.modo-dropdown-item{border-top:1px solid #F1F5F9}
+.modo-dropdown-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.modo-check{display:none;margin-left:auto;color:#22C55E;font-weight:800;font-size:16px}
+.modo-check.active{display:block}
 .hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--gris-100);border:1px solid var(--gris-200);font-size:10px;font-weight:700;color:var(--gris-600);cursor:pointer;flex-shrink:0;letter-spacing:.3px}
 .hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
@@ -173,8 +180,7 @@ a{color:var(--azul);text-decoration:none}
 .ocr-page-badge{background:#DBEAFE;color:#1E40AF;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:8px}
 .ocr-line-item{background:#F9FAFB;border:1.5px solid var(--gris-200);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:center;transition:border-color .2s,background .2s}
 .ocr-line-item.selected{border-color:#3b82f6;background:#EFF6FF}
-.ocr-line-item .ocr-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--gris-300);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;font-size:13px}
-.ocr-line-item.selected .ocr-check{background:#3b82f6;border-color:#3b82f6;color:#fff}
+.ocr-line-item.selected{border-color:#3b82f6;background:#EFF6FF}
 .ocr-line-detail{flex:1;min-width:0}
 .ocr-line-name{font-size:13px;font-weight:600;color:var(--gris-800);line-height:1.3}
 .ocr-line-qty{display:flex;align-items:center;gap:6px;margin-top:4px}
@@ -187,8 +193,6 @@ a{color:var(--azul);text-decoration:none}
 .ocr-btn-confirm{background:#3b82f6;color:#fff}
 .ocr-btn-confirm:disabled{opacity:.5}
 .ocr-btn-addpage{background:#F0FDF4;color:#15803D;border:1.5px solid #BBF7D0 !important}
-.ocr-select-all{display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--gris-600);cursor:pointer}
-.ocr-select-all input[type=checkbox]{width:18px;height:18px;accent-color:#3b82f6}
 
 /* ── TOAST ── */
 .toast{position:fixed;top:calc(var(--safe-top) + 12px);left:50%;transform:translateX(-50%);background:var(--gris-800);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%;text-align:center}
@@ -366,21 +370,37 @@ input[type=number]{-moz-appearance:textfield}
   <div class="safe-top-bar"></div>
   <!-- Header -->
   <div class="app-header">
-    <div class="avatar" id="hdrAvatar">J</div>
-    <div class="info">
-      <h2 id="hdrNombre">—</h2>
-      <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600"></span>
+    <div class="modo-user-area" onclick="toggleModoDropdown()" id="modoUserArea">
+      <div class="avatar" id="hdrAvatar">J</div>
+      <div class="info">
+        <h2 id="hdrNombre">—</h2>
+        <span id="hdrModoLabel" class="modo-label"></span>
+      </div>
     </div>
-    <div id="modoSwitcher" class="modo-switcher">
-      <button class="modo-btn" data-modo="operario" onclick="setModo('operario')">👷 OPER.</button>
-      <button class="modo-btn" data-modo="jefe" onclick="setModo('jefe')">⚙️ ADMIN</button>
-      <button class="modo-btn" data-modo="almacen" onclick="setModo('almacen')">📦 ALM.</button>
-    </div>
+    <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600;flex-shrink:0"></span>
     <div style="position:relative;display:inline-flex">
       <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> OK</div>
       <span id="syncBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;text-align:center;line-height:16px">0</span>
     </div>
     <button class="hdr-btn" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    <!-- Dropdown selector de modo -->
+    <div id="modoDropdown" class="modo-dropdown">
+      <div class="modo-dropdown-item" data-modo="operario" onclick="setModo('operario')">
+        <span class="modo-dropdown-ico" style="background:#F59E0B">👷</span>
+        <span>Operario</span>
+        <span class="modo-check" id="modoCheck_operario">✓</span>
+      </div>
+      <div class="modo-dropdown-item" data-modo="jefe" onclick="setModo('jefe')">
+        <span class="modo-dropdown-ico" style="background:#3B82F6">⚙️</span>
+        <span>Administrador</span>
+        <span class="modo-check" id="modoCheck_jefe">✓</span>
+      </div>
+      <div class="modo-dropdown-item" data-modo="almacen" onclick="setModo('almacen')">
+        <span class="modo-dropdown-ico" style="background:#10B981">📦</span>
+        <span>Almacén</span>
+        <span class="modo-check" id="modoCheck_almacen">✓</span>
+      </div>
+    </div>
   </div>
 
   <!-- Body (content rendered by JS) -->
@@ -1099,34 +1119,64 @@ function filtrarStockFurgoneta(q) {
 // ═══════════════════════════════════════════════
 function setModo(modo) {
   localStorage.setItem('instalo_modo', modo);
+  closeModoDropdown();
   showApp();
 }
 
-function _updateModoSwitcher(modoActual) {
-  const sw = document.getElementById('modoSwitcher');
+function toggleModoDropdown() {
+  const dd = document.getElementById('modoDropdown');
+  if (dd.classList.contains('open')) { closeModoDropdown(); return; }
+  // Solo abrir si tiene más de un modo disponible
   const esSuperAdmin = CP?.es_superadmin === true;
   const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
-  if (!esSuperAdmin && !tieneAlmacen) { sw.classList.remove('active'); return; }
-  sw.classList.add('active');
+  if (!esSuperAdmin && !tieneAlmacen) return; // Solo operario, no mostrar
+  dd.classList.add('open');
+  // Cerrar al tocar fuera
+  setTimeout(() => document.addEventListener('click', _closeModoOutside, { once: true }), 10);
+}
+function closeModoDropdown() { document.getElementById('modoDropdown')?.classList.remove('open'); }
+function _closeModoOutside(e) {
+  if (!document.getElementById('modoUserArea')?.contains(e.target)) closeModoDropdown();
+  else setTimeout(() => document.addEventListener('click', _closeModoOutside, { once: true }), 10);
+}
 
-  // Mostrar/ocultar botones según permisos
-  sw.querySelectorAll('.modo-btn').forEach(btn => {
-    const m = btn.dataset.modo;
-    // Admin solo visible para superadmin
-    if (m === 'jefe') btn.style.display = esSuperAdmin ? '' : 'none';
-    // Almacén visible para superadmin o acceso_almacen
-    if (m === 'almacen') btn.style.display = tieneAlmacen ? '' : 'none';
-    // Marcar seleccionado
-    const isSelected = m === modoActual;
-    btn.classList.toggle('selected', isSelected);
-    // Color de fondo del seleccionado
-    if (isSelected) {
-      if (m === 'operario') btn.style.background = '#F59E0B';
-      else if (m === 'jefe') btn.style.background = '#3B82F6';
-      else if (m === 'almacen') btn.style.background = '#10B981';
-    } else {
-      btn.style.background = 'transparent';
-    }
+function _updateModoUI(modoActual) {
+  const esSuperAdmin = CP?.es_superadmin === true;
+  const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
+  const label = document.getElementById('hdrModoLabel');
+  const userArea = document.getElementById('modoUserArea');
+
+  // Etiqueta del modo activo en la barra
+  const modos = {
+    operario: { text: 'Operario', bg: '#F59E0B', color: '#fff' },
+    jefe:     { text: 'Admin', bg: '#3B82F6', color: '#fff' },
+    almacen:  { text: 'Almacén', bg: '#10B981', color: '#fff' }
+  };
+  const m = modos[modoActual] || modos.operario;
+  label.textContent = m.text;
+  label.style.background = m.bg;
+  label.style.color = m.color;
+
+  // Mostrar etiqueta y cursor solo si puede cambiar de modo
+  if (esSuperAdmin || tieneAlmacen) {
+    label.style.display = '';
+    userArea.style.cursor = 'pointer';
+  } else {
+    label.style.display = 'none';
+    userArea.style.cursor = 'default';
+  }
+
+  // Dropdown: mostrar/ocultar opciones según permisos + check en el activo
+  const dd = document.getElementById('modoDropdown');
+  dd.querySelectorAll('.modo-dropdown-item').forEach(item => {
+    const modo = item.dataset.modo;
+    if (modo === 'jefe') item.style.display = esSuperAdmin ? '' : 'none';
+    if (modo === 'almacen') item.style.display = tieneAlmacen ? '' : 'none';
+  });
+  // Checks
+  ['operario','jefe','almacen'].forEach(k => {
+    const chk = document.getElementById('modoCheck_' + k);
+    if (chk) chk.classList.toggle('active', k === modoActual);
   });
 }
 
@@ -1149,8 +1199,8 @@ async function showApp() {
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
 
-  // Selector de modo: 3 botones con indicador activo
-  _updateModoSwitcher(esModoAlmacen ? 'almacen' : esJefe ? 'jefe' : 'operario');
+  // Etiqueta modo + dropdown
+  _updateModoUI(esModoAlmacen ? 'almacen' : esJefe ? 'jefe' : 'operario');
 
   // Bottom nav
   renderBottomNav();
@@ -6283,7 +6333,6 @@ function _ocrRenderPreview() {
 
   const body = document.getElementById('ocrPreviewBody');
   const totalLineas = d.allLineas.length;
-  const selectedCount = d.allLineas.filter(l => l.selected).length;
   const numPages = d.pages.length;
 
   // Título dinámico
@@ -6292,8 +6341,8 @@ function _ocrRenderPreview() {
 
   let html = '';
 
-  // Select all
-  html += `<label class="ocr-select-all"><input type="checkbox" ${selectedCount === totalLineas ? 'checked' : ''} onchange="_ocrToggleAll(this.checked)"> Seleccionar todo (${totalLineas})</label>`;
+  // Resumen
+  html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:10px;font-weight:600">${totalLineas} material${totalLineas > 1 ? 'es' : ''} — todos entrarán en furgoneta como provisional</div>`;
 
   // Agrupar por página si hay varias
   if (numPages > 1) {
@@ -6312,38 +6361,24 @@ function _ocrRenderPreview() {
   // Botón confirmar
   const btn = document.getElementById('ocrPreviewConfirmBtn');
   if (btn) {
-    btn.textContent = selectedCount > 0 ? `Añadir ${selectedCount} material${selectedCount > 1 ? 'es' : ''}` : 'Ninguno seleccionado';
-    btn.disabled = selectedCount === 0;
+    btn.textContent = `Confirmar ${totalLineas} material${totalLineas > 1 ? 'es' : ''}`;
+    btn.disabled = totalLineas === 0;
   }
 
   document.getElementById('ocrPreviewOverlay').classList.add('active');
 }
 
 function _ocrRenderLine(l) {
-  return `<div class="ocr-line-item ${l.selected ? 'selected' : ''}" onclick="_ocrToggleLine(${l.idx})" id="ocrLine${l.idx}">
-    <div class="ocr-check">${l.selected ? '✓' : ''}</div>
-    <div class="ocr-line-detail">
+  return `<div class="ocr-line-item selected" id="ocrLine${l.idx}">
+    <div class="ocr-line-detail" style="width:100%">
       <div class="ocr-line-name">${l.nombre}</div>
       <div class="ocr-line-qty">
         <span>Cant:</span>
-        <input type="number" value="${l.cantidad}" min="0.01" step="any" onclick="event.stopPropagation()" onchange="_ocrUpdateQty(${l.idx}, this.value)">
+        <input type="number" value="${l.cantidad}" min="0.01" step="any" onchange="_ocrUpdateQty(${l.idx}, this.value)">
         <span>${l.unidad}</span>
       </div>
     </div>
   </div>`;
-}
-
-function _ocrToggleLine(idx) {
-  if (!_ocrPreviewData) return;
-  const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
-  if (l) l.selected = !l.selected;
-  _ocrRenderPreview();
-}
-
-function _ocrToggleAll(checked) {
-  if (!_ocrPreviewData) return;
-  _ocrPreviewData.allLineas.forEach(l => l.selected = checked);
-  _ocrRenderPreview();
 }
 
 function _ocrUpdateQty(idx, val) {
@@ -6443,21 +6478,21 @@ async function _ocrAddPageSelected(input) {
 function ocrPreviewConfirmar() {
   if (!_ocrPreviewData) return;
   const d = _ocrPreviewData;
-  const seleccionados = d.allLineas.filter(l => l.selected);
+  const todos = d.allLineas; // Siempre todos los materiales
 
-  if (!seleccionados.length) {
-    toast('⚠️ No has seleccionado ningún material', 'warning');
+  if (!todos.length) {
+    toast('⚠️ No se detectaron materiales', 'warning');
     return;
   }
 
   // Bifurcar: modo flotante (FAB) vs modo wizard (parte)
   if (d._fabMode) {
-    _fabOcrConfirmar(seleccionados);
+    _fabOcrConfirmar(todos);
     return;
   }
 
   // ── Modo wizard: añadir materiales al parte ──
-  for (const l of seleccionados) {
+  for (const l of todos) {
     _wiz.materiales.push({
       articulo_id: l.artMatch?.id || null,
       nombre: l.nombre,
@@ -6477,7 +6512,7 @@ function ocrPreviewConfirmar() {
     fotos: d.pages.map(pg => pg.foto)
   });
 
-  toast(`✅ ${seleccionados.length} material(es) añadido(s) al parte`, 'success');
+  toast(`✅ ${todos.length} material(es) añadido(s) al parte`, 'success');
 
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
   _ocrPreviewData = null;
@@ -6533,43 +6568,64 @@ async function _fabOcrConfirmar(seleccionados) {
       },
       created_at: new Date().toISOString()
     };
-    const { data: docCreado } = await sb.from('documentos_ocr').insert(docInsert).select('id').single().catch(e => {
-      console.warn('documentos_ocr insert:', e.message);
-      return { data: null };
-    });
+    let docCreado = null;
+    const { data: docData, error: docErr } = await sb.from('documentos_ocr').insert(docInsert).select().single();
+    if (docErr) { console.warn('documentos_ocr insert:', docErr.message); }
+    else { docCreado = docData; }
 
     // 2. Meter TODOS los materiales como stock provisional en furgoneta
     if (almacenId) {
       for (const l of seleccionados) {
         const artId = l.artMatch?.id || null;
 
-        if (artId) {
-          // Material con catálogo: stock_provisional en registro existente o nuevo
-          const stockExistente = miFurgonetaStock.find(s => s.articulo_id === artId);
+        let artIdFinal = artId;
+
+        // Material SIN catálogo: crear artículo automáticamente
+        if (!artIdFinal) {
+          const codigoAuto = 'OCR-' + (l.codigo || Date.now().toString(36) + Math.random().toString(36).substr(2,3)).toUpperCase();
+          const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
+            empresa_id: eid,
+            codigo: codigoAuto,
+            nombre: l.nombre || 'Material OCR',
+            unidad_venta_id: null,
+            precio_coste: 0,
+            precio_venta: 0,
+            es_activo: true,
+            activo: true,
+            observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
+          }).select().single();
+          if (!artErr && nuevoArt) {
+            artIdFinal = nuevoArt.id;
+            l.artMatch = nuevoArt; // Marcar como creado
+          } else {
+            console.warn('Error creando artículo OCR:', artErr?.message);
+          }
+        }
+
+        // Meter stock provisional en furgoneta (tanto existentes como recién creados)
+        if (artIdFinal) {
+          const stockExistente = miFurgonetaStock.find(s => s.articulo_id === artIdFinal);
           if (stockExistente) {
             const nuevoProvisional = (stockExistente.stock_provisional || 0) + l.cantidad;
             await sb.from('stock').update({ stock_provisional: nuevoProvisional })
-              .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', eid);
+              .eq('almacen_id', almacenId).eq('articulo_id', artIdFinal).eq('empresa_id', eid);
           } else {
             await sb.from('stock').insert({
-              empresa_id: eid, almacen_id: almacenId, articulo_id: artId,
+              empresa_id: eid, almacen_id: almacenId, articulo_id: artIdFinal,
               cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
             }).catch(() => {});
           }
 
           await sb.from('movimientos_stock').insert({
-            empresa_id: eid, articulo_id: artId, almacen_id: almacenId,
+            empresa_id: eid, articulo_id: artIdFinal, almacen_id: almacenId,
             tipo: 'entrada_provisional', cantidad: l.cantidad,
-            cantidad_anterior: (miFurgonetaStock.find(s => s.articulo_id === artId)?.stock_provisional) || 0,
-            cantidad_nueva: ((miFurgonetaStock.find(s => s.articulo_id === artId)?.stock_provisional) || 0) + l.cantidad,
+            cantidad_anterior: (stockExistente?.stock_provisional) || 0,
+            cantidad_nueva: ((stockExistente?.stock_provisional) || 0) + l.cantidad,
             motivo: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
             tipo_stock: 'provisional',
             usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
           }).catch(() => {});
-
         }
-        // Materiales sin catálogo: no se puede meter en stock (no tienen articulo_id)
-        // Quedan registrados en datos_extraidos del documento OCR para que oficina los cree
       }
 
       await loadStockFurgoneta(almacenId);
@@ -6584,19 +6640,14 @@ async function _fabOcrConfirmar(seleccionados) {
       entidad_id: docCreado?.id || null,
       entidad_nombre: `${tipoLabel} ${numDocLabel}`,
       titulo: `📷 Nuevo documento escaneado: ${tipoLabel} ${numDocLabel} (${CP?.nombre || 'operario'})`,
-      campos_faltantes: seleccionados.filter(l => !l.artMatch).length > 0
-        ? ['validar_materiales', 'crear_articulos_nuevos', 'vincular_proveedor']
-        : ['validar_materiales', 'vincular_proveedor'],
+      campos_faltantes: ['validar_materiales', 'revisar_articulos_ocr', 'vincular_proveedor'],
       origen: 'auto',
       rol_asignado: 'admin',
       estado: 'pendiente',
       usuario_creador_id: CU?.id || null
     }).catch(() => {});
 
-    const sinCatalogo = seleccionados.filter(l => !l.artMatch);
-    let msgExtra = sinCatalogo.length ? ` · ${sinCatalogo.length} pendientes de crear en catálogo` : '';
-    const conCatalogo = seleccionados.filter(l => l.artMatch);
-    toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta${msgExtra}`, 'success');
+    toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta`, 'success');
 
     // Cerrar overlay
     document.getElementById('ocrPreviewOverlay').classList.remove('active');
