@@ -6697,6 +6697,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
       }
     }
 
+    toast(`📦 Procesando ${seleccionados.length} materiales...`, 'info');
     if (almacenId) {
       for (const l of seleccionados) {
         const artId = l.artMatch?.id || null;
@@ -6725,6 +6726,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
           if (!artErr && nuevoArt) {
             artIdFinal = nuevoArt.id;
             l.artMatch = nuevoArt;
+            toast('✅ Artículo creado: ' + (nuevoArt.nombre||'').substring(0,30), 'success');
 
             // Vincular artículo al proveedor con su ref y precio
             if (proveedorId) {
@@ -6738,7 +6740,8 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
               }).catch(e => console.warn('Vincular proveedor:', e.message));
             }
           } else {
-            console.warn('Error creando artículo OCR:', artErr?.message);
+            console.warn('Error creando artículo OCR:', artErr?.message, 'codigo:', codigoAuto, 'nombre:', l.nombre);
+            toast('❌ Error art. ' + (l.nombre||'').substring(0,30) + ': ' + (artErr?.message||'desconocido'), 'error');
           }
         } else if (proveedorId) {
           // Artículo existente: vincular proveedor si no lo tiene ya
