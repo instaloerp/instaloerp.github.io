@@ -497,7 +497,7 @@ let articulos = [];
 // Furgoneta del operario
 let miFurgoneta = null;       // objeto almacen con tipo='furgoneta' asignado al operario
 let miFurgonetaStock = [];    // stock de la furgoneta [{articulo_id, cantidad, stock_provisional, stock_reservado, articulo:{nombre,codigo}}]
-let misReposiciones = [];     // traspasos pendientes/en_transito para mi furgoneta
+let misReposiciones = [];     // traspasos pendientes/preparado para mi furgoneta
 
 // Fichaje
 let misFichajesHoy = [];
@@ -976,7 +976,7 @@ async function loadMisReposiciones() {
   const { data } = await sb.from('traspasos').select('*')
     .eq('empresa_id', EMPRESA.id)
     .eq('almacen_destino_id', miFurgoneta.id)
-    .in('estado', ['pendiente','en_transito'])
+    .in('estado', ['pendiente','preparado'])
     .order('created_at', { ascending: false });
   misReposiciones = data || [];
 }
@@ -998,7 +998,7 @@ function verDetalleReposicion(traspId) {
       <div style="font-size:12px;color:#888;margin-bottom:12px">
         ${new Date(trasp.fecha).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}
         · Desde: <strong>${trasp.almacen_origen_nombre}</strong>
-        · Estado: <span style="color:${trasp.estado==='en_transito'?'#3B82F6':'#F97316'};font-weight:700">${trasp.estado==='en_transito'?'En Tránsito':'Pendiente'}</span>
+        · Estado: <span style="color:${trasp.estado==='preparado'?'#3B82F6':'#F97316'};font-weight:700">${trasp.estado==='preparado'?'Preparado':'Pendiente'}</span>
       </div>
       <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Artículos (${lineas.length})</div>
       ${lineas.map((l,i) => `
@@ -1036,7 +1036,7 @@ async function confirmarReposicion(traspId) {
 
   try {
     toast('⏳ Procesando recepción...','info');
-    const yaDescontado = (trasp.estado === 'en_transito');
+    const yaDescontado = (trasp.estado === 'preparado');
 
     for (const linea of lineas) {
       // Si viene de pendiente, restar del origen
@@ -2153,13 +2153,13 @@ function renderOperarioInicio(el) {
       ${misReposiciones.map(r => {
         const lineas = r.lineas || [];
         const totalItems = lineas.reduce((s,l) => s+(l.cantidad||0), 0);
-        const esTransito = r.estado === 'en_transito';
+        const esPreparado = r.estado === 'preparado';
         return `
-        <div style="background:#fff;border:2px solid ${esTransito?'#3B82F6':'#F97316'};border-radius:14px;padding:14px;margin-bottom:10px">
+        <div style="background:#fff;border:2px solid ${esPreparado?'#3B82F6':'#F97316'};border-radius:14px;padding:14px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div>
-              <span style="font-size:11px;font-weight:700;color:${esTransito?'#3B82F6':'#F97316'};background:${esTransito?'#EFF6FF':'#FFF7ED'};padding:2px 8px;border-radius:8px">
-                ${esTransito?'🚚 EN CAMINO':'⏳ PENDIENTE'}
+              <span style="font-size:11px;font-weight:700;color:${esPreparado?'#3B82F6':'#F97316'};background:${esPreparado?'#EFF6FF':'#FFF7ED'};padding:2px 8px;border-radius:8px">
+                ${esPreparado?'📦 PREPARADO':'⏳ PENDIENTE'}
               </span>
               <span style="font-size:11px;color:#888;margin-left:6px">${r.numero}</span>
             </div>

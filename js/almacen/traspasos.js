@@ -33,8 +33,8 @@ function renderTraspasos(list) {
   if (!tbody) return;
 
   tbody.innerHTML = list.map(row => {
-    const badgeColors = { pendiente:'#F97316', en_transito:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
-    const badgeLabels = { pendiente:'Pendiente', en_transito:'🚚 En Tránsito', completado:'✅ Completado', anulado:'Anulado' };
+    const badgeColors = { pendiente:'#F97316', preparado:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
+    const badgeLabels = { pendiente:'Pendiente', preparado:'📦 Preparado', completado:'✅ Completado', anulado:'Anulado' };
 
     const lineCount = (row.lineas || []).length;
     const totalQty = (row.lineas || []).reduce((sum, l) => sum + (l.cantidad || 0), 0);
@@ -267,12 +267,12 @@ async function guardarTraspaso() {
 }
 
 // Marcar traspaso como en tránsito
-async function marcarEnTransito(traspId) {
+async function marcarPreparado(traspId) {
   const id = traspId || _detalleTraspId;
   if (!id) return;
   const trasp = traspasosData.find(t => t.id === id);
-  if (!trasp || trasp.estado !== 'pendiente') { toast('Solo se pueden enviar traspasos pendientes','warning'); return; }
-  if (!confirm('¿Marcar como En Tránsito? El material sale del almacén central.')) return;
+  if (!trasp || trasp.estado !== 'pendiente') { toast('Solo se pueden preparar traspasos pendientes','warning'); return; }
+  if (!confirm('¿Marcar como Preparado? El material se descuenta del central y se deja en la estantería del operario.')) return;
 
   try {
     // Al marcar en tránsito: restamos del central (sale el material)
@@ -297,8 +297,8 @@ async function marcarEnTransito(traspId) {
       }
     }
 
-    await sb.from('traspasos').update({ estado: 'en_transito' }).eq('id', id);
-    toast('🚚 Traspaso marcado En Tránsito — stock descontado del central', 'success');
+    await sb.from('traspasos').update({ estado: 'preparado' }).eq('id', id);
+    toast('📦 Traspaso preparado — stock descontado del central, material en estantería', 'success');
     closeModal('modal-detalle-trasp');
     await loadTraspasos();
   } catch (e) {
@@ -318,10 +318,10 @@ async function completarTraspaso(traspId) {
   if (!confirm('¿Completar traspaso? Se sumará el stock en el almacén destino.')) return;
 
   try {
-    const yaDescontadoOrigen = (trasp.estado === 'en_transito');
+    const yaDescontadoOrigen = (trasp.estado === 'preparado');
 
     for (const linea of trasp.lineas || []) {
-      // Si viene de pendiente (no pasó por en_transito), restar del origen
+      // Si viene de pendiente (no pasó por preparado), restar del origen
       if (!yaDescontadoOrigen) {
         const { data: stockOrigen } = await sb.from('stock').select('*')
           .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
@@ -391,7 +391,7 @@ async function anularTraspaso(traspId) {
 
   try {
     // Si estaba en tránsito, devolver stock al origen
-    if (trasp.estado === 'en_transito') {
+    if (trasp.estado === 'preparado') {
       for (const linea of trasp.lineas || []) {
         const { data: stockOrigen } = await sb.from('stock').select('*')
           .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
@@ -458,8 +458,8 @@ function editTraspaso(traspId) {
   // Badge de estado
   const dtEstado = document.getElementById('dt-estado');
   if (dtEstado) {
-    const colores = { pendiente:'#F97316', en_transito:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
-    const etiquetas = { pendiente:'Pendiente', en_transito:'En Tránsito', completado:'Completado', anulado:'Anulado' };
+    const colores = { pendiente:'#F97316', preparado:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
+    const etiquetas = { pendiente:'Pendiente', preparado:'Preparado', completado:'Completado', anulado:'Anulado' };
     dtEstado.innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:12px;color:#fff;font-size:12px;font-weight:700;background:${colores[trasp.estado]||'#888'}">${etiquetas[trasp.estado]||trasp.estado}</span>`;
   }
 
@@ -490,7 +490,7 @@ function editTraspaso(traspId) {
   const btnCompletar = document.getElementById('dt-btn-completar');
   const btnAnular = document.getElementById('dt-btn-anular');
   if (btnTransito) btnTransito.style.display = trasp.estado === 'pendiente' ? '' : 'none';
-  if (btnCompletar) btnCompletar.style.display = (trasp.estado === 'pendiente' || trasp.estado === 'en_transito') ? '' : 'none';
+  if (btnCompletar) btnCompletar.style.display = (trasp.estado === 'pendiente' || trasp.estado === 'preparado') ? '' : 'none';
   if (btnAnular) btnAnular.style.display = (trasp.estado !== 'completado' && trasp.estado !== 'anulado') ? '' : 'none';
 
   openModal('modal-detalle-trasp');
