@@ -6670,31 +6670,86 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
     else { docCreado = docData; toast('📤 Documento enviado a Bandeja OCR del ERP', 'success'); }
 
     // 2. Meter TODOS los materiales como stock provisional en furgoneta
+    // Extraer proveedor del OCR (si lo detectó)
+    const proveedorOcr = d.ocrResult?.proveedor || d.ocrResult?.emisor || null;
+    const cifOcr = d.ocrResult?.cif || d.ocrResult?.nif || null;
+    let proveedorId = null;
+    if (proveedorOcr) {
+      // Buscar proveedor existente por nombre (búsqueda flexible)
+      const { data: provs } = await sb.from('proveedores').select('id,nombre')
+        .eq('empresa_id', eid).ilike('nombre', `%${proveedorOcr}%`).limit(1);
+      if (provs?.length) {
+        proveedorId = provs[0].id;
+      } else {
+        // CREAR proveedor automáticamente si no existe
+        const { data: nuevoP, error: provErr } = await sb.from('proveedores').insert({
+          empresa_id: eid,
+          nombre: proveedorOcr,
+          cif: cifOcr || null,
+          observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
+        }).select().single();
+        if (!provErr && nuevoP) {
+          proveedorId = nuevoP.id;
+          console.log('[OCR] Proveedor creado:', nuevoP.nombre, nuevoP.id);
+        } else {
+          console.warn('[OCR] Error creando proveedor:', provErr?.message);
+        }
+      }
+    }
+
     if (almacenId) {
       for (const l of seleccionados) {
         const artId = l.artMatch?.id || null;
-
         let artIdFinal = artId;
 
         // Material SIN catálogo: crear artículo automáticamente
         if (!artIdFinal) {
-          const codigoAuto = 'OCR-' + (l.codigo || Date.now().toString(36) + Math.random().toString(36).substr(2,3)).toUpperCase();
+          // Código único: OCR-{codigo_proveedor}-{sufijo aleatorio}
+          const _codigoBase = (l.codigo || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+          const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
+          const codigoAuto = 'OCR-' + (_codigoBase ? _codigoBase + '-' + _sufijo : Date.now().toString(36).toUpperCase() + _sufijo);
+
           const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
             empresa_id: eid,
             codigo: codigoAuto,
             nombre: l.nombre || 'Material OCR',
+            ref_fabricante: l.codigo || null,
             unidad_venta_id: null,
-            precio_coste: 0,
+            precio_coste: l.precioUnit || l.precio || 0,
             precio_venta: 0,
             es_activo: true,
             activo: true,
             observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
           }).select().single();
+
           if (!artErr && nuevoArt) {
             artIdFinal = nuevoArt.id;
-            l.artMatch = nuevoArt; // Marcar como creado
+            l.artMatch = nuevoArt;
+
+            // Vincular artículo al proveedor con su ref y precio
+            if (proveedorId) {
+              await sb.from('articulos_proveedores').insert({
+                empresa_id: eid,
+                articulo_id: artIdFinal,
+                proveedor_id: proveedorId,
+                ref_proveedor: l.codigo || null,
+                precio_proveedor: l.precioUnit || l.precio || 0,
+                es_principal: true
+              }).catch(e => console.warn('Vincular proveedor:', e.message));
+            }
           } else {
             console.warn('Error creando artículo OCR:', artErr?.message);
+          }
+        } else if (proveedorId) {
+          // Artículo existente: vincular proveedor si no lo tiene ya
+          const { data: existeVinc } = await sb.from('articulos_proveedores')
+            .select('id').eq('articulo_id', artIdFinal).eq('proveedor_id', proveedorId).eq('empresa_id', eid).limit(1);
+          if (!existeVinc?.length) {
+            await sb.from('articulos_proveedores').insert({
+              empresa_id: eid, articulo_id: artIdFinal, proveedor_id: proveedorId,
+              ref_proveedor: l.codigo || null, precio_proveedor: l.precioUnit || l.precio || 0,
+              es_principal: false
+            }).catch(() => {});
           }
         }
 
@@ -6706,10 +6761,11 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
             await sb.from('stock').update({ stock_provisional: nuevoProvisional })
               .eq('almacen_id', almacenId).eq('articulo_id', artIdFinal).eq('empresa_id', eid);
           } else {
-            await sb.from('stock').insert({
+            const { error: stockErr } = await sb.from('stock').insert({
               empresa_id: eid, almacen_id: almacenId, articulo_id: artIdFinal,
               cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
-            }).catch(() => {});
+            });
+            if (stockErr) console.warn('Stock insert error:', stockErr.message);
           }
 
           await sb.from('movimientos_stock').insert({
