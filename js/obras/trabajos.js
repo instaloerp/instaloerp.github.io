@@ -15,16 +15,16 @@ function _renderObraChromeTabs() {
   const addBtn = bar.querySelector('.obra-chrome-tab-add');
   // Limpiar pestañas existentes
   bar.querySelectorAll('.obra-chrome-tab').forEach(t => t.remove());
-  // Renderizar
+  // Renderizar — usar closures para capturar el ID con su tipo original (evita dataset que siempre devuelve string)
   _obrasTabs.forEach((tab, idx) => {
+    const tabId = tab.id; // closure: mantiene el tipo original (int/string)
     const el = document.createElement('div');
-    el.className = 'obra-chrome-tab' + (tab.id === obraActualId ? ' active' : '');
-    el.dataset.id = tab.id;
-    el.onclick = function() { _switchObraTab(this.dataset.id); };
+    el.className = 'obra-chrome-tab' + (tabId == obraActualId ? ' active' : '');
+    el.onclick = function() { _switchObraTab(tabId); };
     const closeBtn = document.createElement('span');
     closeBtn.className = 'oct-close';
     closeBtn.textContent = '✕';
-    closeBtn.onclick = function(e) { e.stopPropagation(); _closeObraTab(this.parentElement.dataset.id); };
+    closeBtn.onclick = function(e) { e.stopPropagation(); _closeObraTab(tabId); };
     el.innerHTML = `<span class="oct-title">${tab.numero} · ${tab.cliente}</span>`;
     el.appendChild(closeBtn);
     bar.insertBefore(el, addBtn);
@@ -32,30 +32,30 @@ function _renderObraChromeTabs() {
 }
 
 function _addObraTab(id) {
-  const t = trabajos.find(x => x.id === id);
+  const t = trabajos.find(x => x.id == id);
   if (!t) return;
   const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
   const cliNombre = cli?.nombre || t.cliente_nombre || 'Sin cliente';
-  // No duplicar
-  if (!_obrasTabs.find(tab => tab.id === id)) {
-    _obrasTabs.push({ id, numero: t.numero, cliente: cliNombre });
+  // No duplicar (== para tolerar int vs string)
+  if (!_obrasTabs.find(tab => tab.id == id)) {
+    _obrasTabs.push({ id: t.id, numero: t.numero, cliente: cliNombre });
   }
   _renderObraChromeTabs();
 }
 
 function _switchObraTab(id) {
-  if (id === obraActualId) return;
+  if (id == obraActualId) return;
   abrirFichaObra(id);
 }
 
 function _closeObraTab(id) {
-  _obrasTabs = _obrasTabs.filter(tab => tab.id !== id);
+  _obrasTabs = _obrasTabs.filter(tab => tab.id != id);
   if (_obrasTabs.length === 0) {
     cerrarFichaObra();
     return;
   }
   // Si cerramos la activa, abrir la primera que quede
-  if (id === obraActualId) {
+  if (id == obraActualId) {
     abrirFichaObra(_obrasTabs[0].id);
   } else {
     _renderObraChromeTabs();
@@ -312,7 +312,7 @@ function renderTrabajos(list) {
     list.map(t=>{
       const _fDate = t.fecha || (t.created_at ? t.created_at.substring(0,10) : null);
       const _fShow = _fDate ? new Date(_fDate).toLocaleDateString('es-ES') : '—';
-      return `<tr style="cursor:pointer" onclick="abrirFichaObra(${t.id})">
+      return `<tr style="cursor:pointer" onclick="abrirFichaObra('${t.id}')">
       <td style="font-family:monospace;font-size:11.5px;font-weight:700;color:var(--azul)">${t.numero}</td>
       <td style="font-weight:700">${t.titulo}</td>
       <td>${t.cliente_nombre||'—'}</td>
@@ -350,7 +350,7 @@ function cerrarFichaObra() {
 // ═══════════════════════════════════════════════
 async function abrirFichaObra(id, _esAccesoDirecto) {
   obraActualId = id;
-  const t = trabajos.find(x=>x.id===id);
+  const t = trabajos.find(x=>x.id==id);
   if (!t) { toast('Obra no encontrada','error'); return; }
 
   // Registrar acceso solo cuando es apertura directa (no refresh interno)
@@ -397,7 +397,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   // Datos del cliente (panel izquierdo)
   const cli = t.cliente_id ? clientes.find(c=>c.id===t.cliente_id) : null;
   document.getElementById('fichaObraCliente').innerHTML = cli ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer" onclick="abrirFicha(${cli.id})">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer" onclick="abrirFicha('${cli.id}')">
       <div class="av av-sm" style="background:${avC(cli.nombre)};width:30px;height:30px;font-size:11px">${ini(cli.nombre)}</div>
       <div>
         <div style="font-weight:700;font-size:12.5px;color:var(--azul)">${cli.nombre}</div>
