@@ -8173,18 +8173,20 @@ async function wizFirmaRemotaEnviar(canal) {
     // 6. Crear tarea pendiente para seguimiento
     const canalLabel = canal === 'whatsapp' ? 'WhatsApp' : canal === 'sms' ? 'SMS' : 'Email';
     if (EMPRESA?.id) {
-      await sb.from('tareas_pendientes').insert({
-        empresa_id: EMPRESA.id,
-        entidad_tipo: 'parte',
-        entidad_id: parteId,
-        entidad_nombre: parteNum,
-        titulo: `Pendiente firma remota del cliente: ${parteNum} (${canalLabel})`,
-        campos_faltantes: ['firma_cliente_remota'],
-        origen: 'auto',
-        rol_asignado: 'admin',
-        estado: 'pendiente',
-        usuario_creador_id: CU?.id || null
-      }).catch(() => {});
+      try {
+        await sb.from('tareas_pendientes').insert({
+          empresa_id: EMPRESA.id,
+          entidad_tipo: 'parte',
+          entidad_id: parteId,
+          entidad_nombre: parteNum,
+          titulo: `Pendiente firma remota del cliente: ${parteNum} (${canalLabel})`,
+          campos_faltantes: ['firma_cliente_remota'],
+          origen: 'auto',
+          rol_asignado: 'admin',
+          estado: 'pendiente',
+          usuario_creador_id: CU?.id || null
+        });
+      } catch(_e) {}
     }
 
     // 7. Cerrar wizard PRIMERO — luego abrir app externa
@@ -8237,18 +8239,20 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
 
   // Crear tarea pendiente de firma
   if (EMPRESA?.id) {
-    sb.from('tareas_pendientes').insert({
-      empresa_id:    EMPRESA.id,
-      entidad_tipo:  'parte',
-      entidad_id:    parteId,
-      entidad_nombre: parteNum,
-      titulo:        `Pendiente firma remota del cliente: ${parteNum}`,
-      campos_faltantes: ['firma_cliente'],
-      origen:        'manual',
-      rol_asignado:  'admin',
-      estado:        'pendiente',
-      usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
-    }).catch(() => {});
+    try {
+      await sb.from('tareas_pendientes').insert({
+        empresa_id:    EMPRESA.id,
+        entidad_tipo:  'parte',
+        entidad_id:    parteId,
+        entidad_nombre: parteNum,
+        titulo:        `Pendiente firma remota del cliente: ${parteNum}`,
+        campos_faltantes: ['firma_cliente'],
+        origen:        'manual',
+        rol_asignado:  'admin',
+        estado:        'pendiente',
+        usuario_creador_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+      });
+    } catch(_e) {}
   }
 }
 
