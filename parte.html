@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .container{max-width:700px;margin:0 auto;padding:20px}
 
 /* Cards */
@@ -301,12 +301,12 @@ function renderFormFirmaRemota(p) {
     </div>
 
     <div style="margin-bottom:12px">
-      <label for="frNombre" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nombre completo *</label>
-      <input id="frNombre" type="text" autocomplete="name" placeholder="Nombre y apellidos"
+      <label for="frNombre" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nombre y apellidos *</label>
+      <input id="frNombre" type="text" autocomplete="name" placeholder="Nombre + primer apellido + segundo apellido"
         style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
     </div>
     <div style="margin-bottom:12px">
-      <label for="frDni" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">DNI / NIE (opcional)</label>
+      <label for="frDni" style="font-size:11px;font-weight:700;color:#78350f;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">DNI / NIE *</label>
       <input id="frDni" type="text" placeholder="12345678A"
         style="width:100%;padding:10px 12px;border:1.5px solid #F59E0B;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box;background:#fff">
     </div>
@@ -412,7 +412,29 @@ function _firmaLimpiar() {
 async function _firmaEnviar() {
   const nombre = document.getElementById('frNombre')?.value.trim();
   const dni    = document.getElementById('frDni')?.value.trim() || null;
-  if (!nombre) { alert('Por favor, introduce tu nombre completo antes de firmar.'); return; }
+
+  // Validar nombre completo (mínimo 3 palabras: nombre + 2 apellidos)
+  const nombreWords = (nombre || '').split(/\s+/).filter(w => w.length > 0);
+  if (nombreWords.length < 3) {
+    alert('Por favor, introduce tu nombre y dos apellidos.\nEjemplo: Juan García López');
+    document.getElementById('frNombre')?.focus();
+    return;
+  }
+
+  // Validar DNI/NIE obligatorio y formato
+  if (!dni) {
+    alert('Por favor, introduce tu DNI o NIE.');
+    document.getElementById('frDni')?.focus();
+    return;
+  }
+  const dniClean = dni.toUpperCase().replace(/[\s\-\.]/g, '');
+  const dniValid = /^[0-9]{8}[A-Z]$/.test(dniClean) || /^[XYZ][0-9]{7}[A-Z]$/.test(dniClean);
+  if (!dniValid) {
+    alert('El formato del DNI/NIE no es válido.\nEjemplos: 12345678A o X1234567B');
+    document.getElementById('frDni')?.focus();
+    return;
+  }
+
   if (!_firmaTieneTrazo) { alert('Por favor, dibuja tu firma en el recuadro.'); return; }
 
   const btn = document.getElementById('btnFirmaEnviar');
@@ -446,14 +468,21 @@ async function _firmaEnviar() {
 
     if (error) throw error;
 
-    // Mostrar confirmación
+    // Mostrar confirmación con enlace al parte firmado
+    const parteUrl = window.location.href; // misma URL — ahora muestra el parte completo con firma
     document.getElementById('app').innerHTML = `
-      <div class="container" style="text-align:center;padding-top:60px">
+      <div class="container" style="text-align:center;padding-top:max(60px, env(safe-area-inset-top, 60px));padding-bottom:max(20px, env(safe-area-inset-bottom, 20px))">
         <div style="font-size:64px;margin-bottom:16px">✅</div>
         <h2 style="color:#15803d;margin:0 0 8px;font-size:22px">¡Firma registrada!</h2>
         <p style="color:#64748b;font-size:14px;line-height:1.6">Gracias, ${esc(nombre)}.<br>Su conformidad con el parte de trabajo ha quedado registrada correctamente.</p>
         <div style="margin-top:24px;padding:16px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;display:inline-block">
           <p style="margin:0;font-size:12px;color:#15803d;font-weight:600">📄 ${esc(parteData.numero) || 'Parte'} · Firmado el ${new Date().toLocaleDateString('es-ES')}</p>
+        </div>
+        <div style="margin-top:28px">
+          <a href="${esc(parteUrl)}" onclick="event.preventDefault();location.reload()" style="display:inline-flex;align-items:center;gap:8px;background:#1e40af;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(30,64,175,.25)">
+            📄 Ver parte de trabajo firmado
+          </a>
+          <p style="margin:12px 0 0;font-size:12px;color:#94a3b8">Puede imprimir o guardar como PDF desde el parte</p>
         </div>
       </div>`;
 
