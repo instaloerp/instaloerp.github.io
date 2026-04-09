@@ -7514,9 +7514,12 @@ async function wizFinish() {
     }
 
     // 3. Guardar todo en el parte — estado completado (bloqueado)
+    // Generar firma_token para el enlace público seguro
+    const _firmaToken = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2));
     const updateObj = {
       estado: 'completado',
       completado_at: new Date().toISOString(),
+      firma_token: _firmaToken,
       descripcion: _wiz.desc || null,
       trabajos_pendientes: _wiz.pendientes || null,
       gremios_pendientes: (_wiz.gremios_pendientes && Object.keys(_wiz.gremios_pendientes).length > 0) ? _wiz.gremios_pendientes : null,
@@ -7605,7 +7608,7 @@ async function wizFinish() {
     }
     // Mostrar modal de envío INMEDIATAMENTE — PDF se genera en background
     hideLoading();
-    mostrarModalEnvio(id, parteNum, cliTel, cliEmail, null);
+    mostrarModalEnvio(id, parteNum, cliTel, cliEmail, null, _firmaToken);
 
     // 4b. Generar PDF en background (no bloquea la UI)
     const _trabajoLocal = p?.trabajo_id ? trabajos.find(t => t.id === p.trabajo_id) : null;
@@ -7800,12 +7803,12 @@ async function enviarEmailParte(parteId, email) {
 let _envioRealizado = false; // Track si se envió por al menos 1 vía
 window._envioParteId = null; // ID del parte actual en el modal de envío
 
-function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdfUrl = null) {
+function mostrarModalEnvio(parteId, parteNum, telefonoCliente, emailCliente, pdfUrl = null, firmaToken = null) {
   _envioRealizado = false;
   window._envioParteId = parteId;
   const baseUrl = window.location.origin;
-  // Siempre usar la URL limpia de parte.html para el cliente — el PDF se guarda internamente
-  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+  // Usar token seguro para el enlace público (evita exponer IDs y problemas de RLS)
+  const enlace = firmaToken ? `${baseUrl}/parte.html?token=${firmaToken}` : `${baseUrl}/parte.html?id=${parteId}`;
   const empresa = EMPRESA?.nombre || 'Instalo';
 
   // Campos siempre vacíos — el operario debe escribirlos expresamente
@@ -7996,6 +7999,7 @@ async function _salirSinEnvioConTarea(parteId) {
 
 // ── FIRMA REMOTA — El cliente firma desde su móvil sin estar presente ──
 // Firma remota desde el wizard (paso firma, cliente ausente)
+// Guarda TODOS los datos del wizard + genera firma_token + envía enlace seguro
 async function wizFirmaRemotaEnviar(canal) {
   const parteId = _wiz.parteId;
   const p = misPartes.find(x => x.id === parteId);
@@ -8021,16 +8025,116 @@ async function wizFirmaRemotaEnviar(canal) {
     }
   }
 
-  showLoading('Preparando firma remota...');
+  // Validar que al menos la descripción esté rellenada
+  wizSaveCurrentStep();
+  if (!_wiz.desc.trim()) {
+    toast('⚠️ Describe el trabajo realizado antes de enviar', 'error'); return;
+  }
+  // Validar firma operario
+  if (!_wiz.firmaOperario_validated) {
+    toast('⚠️ El operario debe firmar antes de enviar la firma remota', 'error'); return;
+  }
+
+  showLoading('Guardando parte y preparando firma remota...');
 
   try {
-    // Generar enlace real al parte (misma URL que usa el envío normal)
+    const id = parteId;
+    const eid = EMPRESA?.id || 'default';
+
+    // 1. Generar firma_token UUID seguro
+    const firmaToken = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2));
+
+    // 2. Subir fotos y firma operario (como hace wizFinish)
+    const _uploadFile = async (dataOrUrl, prefix, ext) => {
+      if (!dataOrUrl || !dataOrUrl.startsWith('data:')) return dataOrUrl || null;
+      try {
+        const blob = await (await fetch(dataOrUrl)).blob();
+        const filename = `${eid}/${Date.now()}_${prefix}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+        const { error } = await sb.storage.from('fotos-partes').upload(filename, blob);
+        if (!error) {
+          const { data } = sb.storage.from('fotos-partes').getPublicUrl(filename);
+          return data.publicUrl;
+        }
+      } catch(e) { console.error('Upload error:', e); }
+      return null;
+    };
+
+    const uploadTasks = [];
+    const fotosNuevas = _wiz.fotosNuevas || [];
+    const albaranesCompra = _wiz.albaranes_compra || [];
+
+    for (const foto of fotosNuevas) {
+      uploadTasks.push(_uploadFile(foto.data, 'foto', 'jpg').then(url => ({ type:'foto', url })));
+    }
+    for (let i = 0; i < albaranesCompra.length; i++) {
+      const alb = albaranesCompra[i];
+      if (alb.fotos && Array.isArray(alb.fotos)) {
+        for (let j = 0; j < alb.fotos.length; j++) {
+          if (alb.fotos[j] && alb.fotos[j].startsWith('data:')) {
+            uploadTasks.push(_uploadFile(alb.fotos[j], 'alb', 'jpg').then(url => ({ type:'albaran_multi', idx:i, pageIdx:j, url })));
+          }
+        }
+      } else if (alb.foto && alb.foto.startsWith('data:')) {
+        uploadTasks.push(_uploadFile(alb.foto, 'alb', 'jpg').then(url => ({ type:'albaran', idx:i, url })));
+      }
+    }
+    // Firma operario
+    uploadTasks.push(_uploadFile(_wiz.firmaOperario, 'firma_op', 'png').then(url => ({ type:'firma_op', url })));
+
+    const uploadResults = await Promise.all(uploadTasks);
+
+    let fotosUrls = [..._wiz.fotos];
+    let firmaOpUrl = (_wiz.firmaOperario && !_wiz.firmaOperario.startsWith('data:')) ? _wiz.firmaOperario : null;
+
+    for (const res of uploadResults) {
+      if (!res.url) continue;
+      if (res.type === 'foto') fotosUrls.push(res.url);
+      else if (res.type === 'albaran') albaranesCompra[res.idx].foto = res.url;
+      else if (res.type === 'albaran_multi') { if (albaranesCompra[res.idx]?.fotos) albaranesCompra[res.idx].fotos[res.pageIdx] = res.url; }
+      else if (res.type === 'firma_op') firmaOpUrl = res.url;
+    }
+
+    // 3. Guardar TODO en el parte con estado pendiente_firma_cliente + token
+    const updateObj = {
+      estado: 'pendiente_firma_cliente',
+      firma_token: firmaToken,
+      descripcion: _wiz.desc || null,
+      trabajos_pendientes: _wiz.pendientes || null,
+      gremios_pendientes: (_wiz.gremios_pendientes && Object.keys(_wiz.gremios_pendientes).length > 0) ? _wiz.gremios_pendientes : null,
+      observaciones: _wiz.observaciones || null,
+      fotos: fotosUrls.length > 0 ? fotosUrls : null,
+      materiales: _wiz.materiales.length > 0 ? _wiz.materiales : null,
+      albaranes_compra: albaranesCompra.length > 0 ? albaranesCompra : null,
+      mano_obra: (_wiz.manoObra && _wiz.manoObra.length > 0) ? _wiz.manoObra : null,
+      firma_operario_url: firmaOpUrl && !firmaOpUrl.startsWith('data:') ? firmaOpUrl : null,
+      operario_nombre_firma: CP?.nombre || null,
+    };
+
+    const { error: updateError } = await sb.from('partes_trabajo').update(updateObj).eq('id', id);
+    if (updateError) throw updateError;
+
+    // Actualizar en memoria
+    if (p) Object.assign(p, updateObj);
+
+    // Registrar consumos de material
+    if (_wiz.materiales.length > 0 && navigator.onLine) {
+      const consumoPromises = _wiz.materiales
+        .filter(mat => mat.cantidad > 0)
+        .map(mat => registrarConsumoMaterial(id, parteNum, mat, mat._tipo || 'consumo', mat._motivo || null).catch(e => console.warn('[Consumo]', mat.nombre, e)));
+      await Promise.all(consumoPromises);
+      if (miFurgoneta) loadStockFurgoneta(miFurgoneta.id).catch(e => console.warn(e));
+    }
+
+    _wizClearAutoSave(id);
+
+    // 4. Generar enlace seguro con token (NO con id)
     const baseUrl = window.location.origin;
-    const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+    const enlace = `${baseUrl}/parte.html?token=${firmaToken}`;
     const mensaje = `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\nPuede consultar los detalles y firmar aquí:\n${enlace}\n\nGracias por confiar en nosotros.`;
 
     hideLoading();
 
+    // 5. Abrir canal de envío
     if (canal === 'whatsapp') {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
       if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
@@ -8043,16 +8147,8 @@ async function wizFirmaRemotaEnviar(canal) {
       window.open(`mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`, '_blank');
     }
 
-    // Marcar parte como pendiente de firma cliente
+    // 6. Crear tarea pendiente para seguimiento
     const canalLabel = canal === 'whatsapp' ? 'WhatsApp' : canal === 'sms' ? 'SMS' : 'Email';
-    await sb.from('partes_trabajo').update({
-      estado: 'pendiente_firma_cliente'
-    }).eq('id', parteId).catch(() => {});
-
-    // Actualizar en memoria
-    if (p) p.estado = 'pendiente_firma_cliente';
-
-    // Crear tarea pendiente para seguimiento desde oficina
     if (EMPRESA?.id) {
       await sb.from('tareas_pendientes').insert({
         empresa_id: EMPRESA.id,
@@ -8068,9 +8164,9 @@ async function wizFirmaRemotaEnviar(canal) {
       }).catch(() => {});
     }
 
-    // Marcar envío como realizado y cerrar todo
+    // 7. Cerrar wizard — parte ya está guardado completamente
     _envioRealizado = true;
-    toast(`✍️ Firma remota enviada por ${canalLabel} · Pendiente de firma`, 'success');
+    toast(`✅ Parte guardado · Firma remota enviada por ${canalLabel}`, 'success');
     closeModal();
     navigateTo(currentTab);
 
@@ -8088,9 +8184,11 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
     return;
   }
 
-  // Enlace real al parte
+  // Enlace seguro al parte — usar token si existe
   const baseUrl = window.location.origin;
-  const enlace = `${baseUrl}/parte.html?id=${parteId}`;
+  const _p = misPartes.find(x => x.id === parteId);
+  const _token = _p?.firma_token || null;
+  const enlace = _token ? `${baseUrl}/parte.html?token=${_token}` : `${baseUrl}/parte.html?id=${parteId}`;
   const msg = encodeURIComponent(
     `Hola, le enviamos desde ${empresa} el parte de trabajo nº ${parteNum} para su revisión y firma digital.\n\n` +
     `Puede consultar los detalles y firmar aquí:\n${enlace}\n\nGracias por confiar en nosotros.`
