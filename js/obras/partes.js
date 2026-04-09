@@ -166,6 +166,19 @@ function filtrarPartes() {
 // ═══════════════════════════════════════════════════════════════════════
 
 function nuevoParteModal(preselObraId) {
+  // Sin obra preseleccionada → abrir planificador directamente
+  if (!preselObraId) {
+    goPage('planificador');
+    return;
+  }
+  // Con obra → abrir planificador fullscreen con la obra fijada
+  if (typeof abrirPlanificadorDesdeObra === 'function') {
+    const obra = (typeof trabajos !== 'undefined' ? trabajos : []).find(t => t.id === preselObraId);
+    abrirPlanificadorDesdeObra(preselObraId, obra?.titulo || '');
+    return;
+  }
+
+  // Fallback: modal clásico (solo si planificador no está disponible)
   pt_edicion = null;
   pt_materiales = [];
   pt_fotos = [];
