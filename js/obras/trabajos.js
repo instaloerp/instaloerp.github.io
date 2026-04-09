@@ -5,6 +5,111 @@
 // Docs attached to work
 let trDocsFiles = [];
 let obraActualId = null;
+
+// ═══ PESTAÑAS CHROME OBRAS ═══
+let _obrasTabs = []; // [{id, numero, cliente}]
+
+function _renderObraChromeTabs() {
+  const bar = document.getElementById('obraChromeTabsBar');
+  if (!bar) return;
+  const addBtn = bar.querySelector('.obra-chrome-tab-add');
+  // Limpiar pestañas existentes
+  bar.querySelectorAll('.obra-chrome-tab').forEach(t => t.remove());
+  // Renderizar
+  _obrasTabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'obra-chrome-tab' + (tab.id === obraActualId ? ' active' : '');
+    el.dataset.id = tab.id;
+    el.onclick = function() { _switchObraTab(tab.id); };
+    el.innerHTML = `<span class="oct-title">${tab.numero} · ${tab.cliente}</span><span class="oct-close" onclick="event.stopPropagation();_closeObraTab('${tab.id}')">✕</span>`;
+    bar.insertBefore(el, addBtn);
+  });
+}
+
+function _addObraTab(id) {
+  const t = trabajos.find(x => x.id === id);
+  if (!t) return;
+  const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+  const cliNombre = cli?.nombre || t.cliente_nombre || 'Sin cliente';
+  // No duplicar
+  if (!_obrasTabs.find(tab => tab.id === id)) {
+    _obrasTabs.push({ id, numero: t.numero, cliente: cliNombre });
+  }
+  _renderObraChromeTabs();
+}
+
+function _switchObraTab(id) {
+  if (id === obraActualId) return;
+  abrirFichaObra(id);
+}
+
+function _closeObraTab(id) {
+  _obrasTabs = _obrasTabs.filter(tab => tab.id !== id);
+  if (_obrasTabs.length === 0) {
+    cerrarFichaObra();
+    return;
+  }
+  // Si cerramos la activa, abrir la primera que quede
+  if (id === obraActualId) {
+    abrirFichaObra(_obrasTabs[0].id);
+  } else {
+    _renderObraChromeTabs();
+  }
+}
+
+function openObraSearch() {
+  const overlay = document.getElementById('obraSearchOverlay');
+  overlay.classList.add('open');
+  const input = document.getElementById('obraSearchInput');
+  input.value = '';
+  input.focus();
+  _filterObrasSearch('');
+}
+
+function closeObraSearch() {
+  document.getElementById('obraSearchOverlay')?.classList.remove('open');
+}
+
+function _filterObrasSearch(q) {
+  q = (q || '').toLowerCase();
+  const results = document.getElementById('obraSearchResults');
+  let list = trabajos;
+  if (q) {
+    list = trabajos.filter(t => {
+      const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+      const cliNombre = (cli?.nombre || t.cliente_nombre || '').toLowerCase();
+      return (t.numero || '').toLowerCase().includes(q) ||
+             (t.titulo || '').toLowerCase().includes(q) ||
+             cliNombre.includes(q);
+    });
+  }
+  if (!list.length) {
+    results.innerHTML = '<div style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">Sin resultados</div>';
+    return;
+  }
+  results.innerHTML = list.slice(0, 10).map(t => {
+    const cli = t.cliente_id ? clientes.find(c => c.id === t.cliente_id) : null;
+    const cliNombre = cli?.nombre || t.cliente_nombre || 'Sin cliente';
+    const est = t.estado ? t.estado.replace('_', ' ') : '—';
+    return `<div class="osb-item" onclick="_selectObraFromSearch('${t.id}')">
+      <span class="osb-num">${t.numero || '—'}</span>
+      <span class="osb-title">${t.titulo || '—'}</span>
+      <span class="osb-client">${cliNombre}</span>
+    </div>`;
+  }).join('');
+}
+
+function _selectObraFromSearch(id) {
+  closeObraSearch();
+  abrirFichaObra(id);
+}
+
+// ESC para cerrar buscador
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('obraSearchOverlay')?.classList.contains('open')) {
+    closeObraSearch();
+  }
+});
 let obraActualPresupuestos = [];
 let obraTabActual = 'presupuestos'; // recordar pestaña activa
 
@@ -209,6 +314,8 @@ function setObraVista(vista) {
 
 function cerrarFichaObra() {
   obraActualId = null;
+  _obrasTabs = [];
+  _renderObraChromeTabs();
   setObraVista('lista');
   document.getElementById('pgTitle').textContent = '🏗️ Obras';
   document.getElementById('pgSub').textContent = _fechaHoraActual();
@@ -232,6 +339,9 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     goPage('trabajos');
   }
   setObraVista('ficha');
+
+  // Registrar pestaña chrome
+  _addObraTab(id);
 
   // Cabecera — cliente en grande, obra en subtítulo
   const _cli = t.cliente_id ? clientes.find(c=>c.id===t.cliente_id) : null;

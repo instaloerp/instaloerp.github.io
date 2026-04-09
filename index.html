@@ -587,6 +587,23 @@
 
         <!-- Vista ficha obra -->
         <div id="trVista-ficha" style="display:none">
+          <!-- Pestañas tipo Chrome -->
+          <div class="obra-chrome-tabs" id="obraChromeTabsBar">
+            <!-- Se rellena dinámicamente -->
+            <button class="obra-chrome-tab-add" onclick="openObraSearch()" title="Buscar y abrir otra obra">+</button>
+          </div>
+          <!-- Buscador flotante de obras -->
+          <div class="obra-search-overlay" id="obraSearchOverlay" onclick="if(event.target===this)closeObraSearch()">
+            <div class="obra-search-box">
+              <div class="osb-input">
+                <span style="font-size:18px;color:#94A3B8">🔍</span>
+                <input type="text" id="obraSearchInput" placeholder="Buscar obra por nº, título o cliente..." oninput="_filterObrasSearch(this.value)">
+                <span style="font-size:10px;font-weight:700;color:#94A3B8;background:#F1F5F9;padding:3px 8px;border-radius:4px;cursor:pointer" onclick="closeObraSearch()">ESC</span>
+              </div>
+              <div class="osb-results" id="obraSearchResults"></div>
+              <div class="osb-footer">Selecciona una obra para abrirla en nueva pestaña</div>
+            </div>
+          </div>
           <!-- Cabecera -->
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="cerrarFichaObra()" style="padding:4px 10px">← Volver</button>

@@ -204,6 +204,33 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .sc .sl{font-size:10px;color:var(--gris-400);margin-top:2px}
 
 /* ─── Ficha cliente: KPIs clicables ─── */
+/* ═══ PESTAÑAS CHROME OBRAS ═══ */
+.obra-chrome-tabs{background:#E8ECF1;display:flex;align-items:flex-end;padding:6px 8px 0;gap:2px;overflow-x:auto;margin-bottom:0;border-radius:8px 8px 0 0}
+.obra-chrome-tabs::-webkit-scrollbar{height:0}
+.obra-chrome-tab{display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:11.5px;font-weight:600;color:#5F6B7A;cursor:pointer;border-radius:8px 8px 0 0;background:#DDE3EA;white-space:nowrap;max-width:220px;min-width:0;transition:all .12s;border:1px solid transparent;border-bottom:none}
+.obra-chrome-tab:hover{background:#EDF0F4;color:#1E293B}
+.obra-chrome-tab.active{background:#fff;color:#1E293B;border-color:#E2E8F0;z-index:2;box-shadow:0 -1px 4px rgba(0,0,0,.04)}
+.obra-chrome-tab .oct-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.obra-chrome-tab .oct-close{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94A3B8;flex-shrink:0;transition:all .1s}
+.obra-chrome-tab .oct-close:hover{background:#FEE2E2;color:#EF4444}
+.obra-chrome-tab-add{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:#64748B;font-size:18px;cursor:pointer;margin:0 4px 4px;flex-shrink:0}
+.obra-chrome-tab-add:hover{background:rgba(0,0,0,.08);color:#1E293B}
+/* Buscador flotante obras */
+.obra-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:flex-start;justify-content:center;padding-top:12vh}
+.obra-search-overlay.open{display:flex}
+.obra-search-box{background:#fff;border-radius:14px;width:520px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;animation:obraSearchIn .12s ease-out}
+@keyframes obraSearchIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.obra-search-box .osb-input{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #F1F5F9}
+.obra-search-box .osb-input input{flex:1;border:none;outline:none;font-size:15px;font-weight:500;color:#1E293B}
+.obra-search-box .osb-input input::placeholder{color:#CBD5E1}
+.obra-search-box .osb-results{max-height:340px;overflow-y:auto}
+.obra-search-box .osb-item{display:flex;align-items:center;gap:10px;padding:10px 18px;cursor:pointer;transition:background .08s;border-bottom:1px solid #F8FAFC}
+.obra-search-box .osb-item:hover{background:#F8FAFC}
+.obra-search-box .osb-item .osb-num{font-family:monospace;font-weight:800;font-size:11px;color:var(--azul);min-width:90px}
+.obra-search-box .osb-item .osb-title{font-size:12.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obra-search-box .osb-item .osb-client{font-size:10.5px;color:#94A3B8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obra-search-box .osb-footer{padding:8px 18px;font-size:10px;color:#94A3B8;text-align:center;border-top:1px solid #F1F5F9}
+
 .ficha-kpi{opacity:.65;border-color:var(--gris-200)}
 .ficha-kpi:hover{opacity:.85;box-shadow:var(--sh-md)}
 .ficha-kpi.ficha-kpi-active{opacity:1;border-color:var(--c,var(--azul));box-shadow:0 0 0 2px color-mix(in srgb,var(--c,var(--azul)) 25%,transparent),var(--sh-md);transform:scale(1)}
