@@ -477,7 +477,7 @@ async function aplicarMinimosCalculados() {
 
   if (!confirm(`¿Aplicar stock mínimo a ${cambios.length} artículo(s)?`)) return;
 
-  showLoading(`Aplicando ${cambios.length} mínimos...`);
+  toast(`🔄 Aplicando ${cambios.length} mínimos...`, 'info');
   let ok = 0, errores = 0;
 
   for (const d of cambios) {
@@ -515,7 +515,7 @@ async function aplicarMinimosCalculados() {
     }
   }
 
-  hideLoading();
+  // loading done
   toast(`✅ ${ok} mínimo(s) aplicado(s)${errores ? `, ${errores} error(es)` : ''}`, errores ? 'warning' : 'success');
   _renderCalcMinTabla();
   _updateCalcMinResumen();

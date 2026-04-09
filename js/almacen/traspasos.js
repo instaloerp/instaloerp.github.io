@@ -446,13 +446,13 @@ async function generarReposicion() {
   if (!EMPRESA?.id) return;
 
   try {
-    showLoading('Calculando reposición...');
+    toast('🔄 Calculando reposición...', 'info');
 
     // 1. Buscar almacén central (origen)
     const central = almacenes.find(a => a.tipo === 'central' && a.activo !== false);
     if (!central) {
       toast('No se encontró un almacén central activo', 'error');
-      hideLoading();
+      // loading done
       return;
     }
 
@@ -460,7 +460,7 @@ async function generarReposicion() {
     const furgonetas = almacenes.filter(a => a.tipo === 'furgoneta' && a.activo !== false);
     if (!furgonetas.length) {
       toast('No hay furgonetas activas', 'warning');
-      hideLoading();
+      // loading done
       return;
     }
 
@@ -471,7 +471,7 @@ async function generarReposicion() {
 
     if (!todoStock) {
       toast('No se pudo cargar el stock', 'error');
-      hideLoading();
+      // loading done
       return;
     }
 
@@ -608,7 +608,7 @@ async function generarReposicion() {
       });
     }
 
-    hideLoading();
+    // loading done
 
     if (traspasosCreados > 0) {
       toast(`✅ ${traspasosCreados} traspaso(s) de reposición creado(s) con ${totalLineas} líneas`, 'success');
@@ -623,7 +623,7 @@ async function generarReposicion() {
     }
 
   } catch(e) {
-    hideLoading();
+    // loading done
     console.error('[Reposición]', e);
     toast('Error generando reposición: ' + (e.message || e), 'error');
   }
