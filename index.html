@@ -1165,6 +1165,7 @@
       <!-- STOCK -->
       <div class="page" id="page-stock">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
+            <button class="btn btn-sm" style="background:var(--verde);color:#fff;font-weight:700" onclick="abrirCalculoMinimos()">📊 Calcular Mínimos</button>
             <button class="btn btn-secondary btn-sm" onclick="exportStock()">📊 Excel</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
@@ -1285,6 +1286,7 @@
       <!-- TRASPASOS -->
       <div class="page" id="page-traspasos">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
+            <button class="btn btn-sm" style="background:var(--verde);color:#fff;font-weight:700" onclick="abrirCalculoMinimos()">📊 Calcular Mínimos</button>
             <button class="btn btn-sm" style="background:var(--naranja);color:#fff;font-weight:700" onclick="generarReposicion()">🔄 Generar Reposición</button>
             <button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo Traspaso</button>
             <button class="btn btn-secondary btn-sm" onclick="exportTraspasos()">📊 Excel</button>
@@ -2600,6 +2602,42 @@
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('modal-movimientos-stock')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cálculo de Mínimos -->
+<div class="overlay" id="modal-calculo-minimos">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-h"><span>📊</span><h2>Calcular Stock Mínimo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-calculo-minimos')">✕</button></div>
+    <div class="modal-b" style="max-height:70vh;overflow-y:auto">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">ALMACÉN</label>
+          <select id="calc-min-almacen" onchange="calcularMinimos()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px"></select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">PERIODO</label>
+          <select id="calc-min-periodo" onchange="calcularMinimos()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px">
+            <option value="30">Último mes</option>
+            <option value="90">Últimos 3 meses</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Último año</option>
+          </select>
+        </div>
+        <div style="margin-left:auto;font-size:12px;color:var(--gris-500)" id="calc-min-resumen">—</div>
+      </div>
+      <p style="font-size:11px;color:var(--gris-400);margin-bottom:12px">El mínimo sugerido = consumo medio por semana (redondeado arriba). Puedes ajustarlo manualmente antes de aplicar.</p>
+      <div class="tw"><table class="dt"><thead><tr>
+        <th style="width:30px"><input type="checkbox" checked onchange="_calcMinData.forEach(d=>d.aplicar=this.checked);_renderCalcMinTabla();_updateCalcMinResumen()"></th>
+        <th>Código</th><th>Artículo</th><th>Almacén</th>
+        <th style="text-align:right">Consumido</th><th style="text-align:right">Media</th>
+        <th style="text-align:right">Mín. actual</th><th style="text-align:center">Mín. sugerido</th><th style="text-align:center">Estado</th>
+      </tr></thead><tbody id="calc-min-tabla"></tbody></table></div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:space-between;align-items:center">
+      <button class="btn btn-secondary" onclick="closeModal('modal-calculo-minimos')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-aplicar-minimos" onclick="aplicarMinimosCalculados()" disabled>✅ Aplicar mínimos seleccionados</button>
     </div>
   </div>
 </div>
