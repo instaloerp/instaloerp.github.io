@@ -29,7 +29,7 @@ async function loadTraspasos() {
 
 // Renderizar tabla de traspasos
 function renderTraspasos(list) {
-  const tbody = document.querySelector('#traspasos-table tbody');
+  const tbody = document.getElementById('traspasos-table');
   if (!tbody) return;
 
   tbody.innerHTML = list.map(row => {
