@@ -373,7 +373,7 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-cell-halfnolab-bot.plan-cell-finde{background:linear-gradient(to bottom,rgba(100,116,139,.14) 50%,rgba(100,116,139,.18) 50%)}
 .plan-parte{border-radius:5px;padding:2px 5px;font-size:10px;font-weight:600;overflow:hidden;cursor:grab;z-index:2;box-sizing:border-box;line-height:1.3}
 .plan-parte:hover{box-shadow:0 2px 8px rgba(0,0,0,.25)}
-.plan-empty{text-align:center;padding:20px;color:var(--gris-400);font-size:13px;grid-column:1/-1}
+.plan-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;padding:20px;color:var(--gris-400);font-size:13px;z-index:5;pointer-events:none}
 .plan-day-header.plan-today{background:var(--azul-light)}
 .plan-day-header.plan-today .plan-day-name,.plan-day-header.plan-today .plan-day-date{color:var(--azul)}
 .plan-day-header.plan-nolab-day{background:rgba(100,116,139,.14)}

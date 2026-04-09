@@ -263,8 +263,9 @@ async function cargarUsuarios() {
   if (!sb || !EMPRESA) return;
   try {
     const { data } = await sb.from('perfiles')
-      .select('id,nombre,apellidos')
+      .select('id,nombre,apellidos,disponible_partes')
       .eq('empresa_id', EMPRESA.id)
+      .eq('disponible_partes', true)
       .order('nombre', { ascending: true });
     planUsuarios = data || [];
     renderFiltroOperarios();
@@ -594,6 +595,18 @@ function renderGridTo(containerId) {
 
   // ── Línea roja de hora actual (solo si hoy está visible) ──
   _renderNowLine(container, hoyStr);
+
+  // ── Auto-scroll al inicio del horario laboral si no hay now-line ──
+  const scrollParent = container.parentElement;
+  if (scrollParent) {
+    const laboralTopPx = (PLAN_HORA_LABORAL_INI - PLAN_HORAS_INICIO) * planHoraHeight;
+    // Solo scroll si no se hizo ya por la now-line
+    requestAnimationFrame(() => {
+      if (scrollParent.scrollTop < 5) {
+        scrollParent.scrollTop = Math.max(0, laboralTopPx - 10);
+      }
+    });
+  }
 
   // ── Event delegation (usar asignación directa, NO addEventListener) ──
   container.onclick = (e) => {
