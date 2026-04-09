@@ -6532,6 +6532,42 @@ function ocrPreviewConfirmar() {
     fotos: d.pages.map(pg => pg.foto)
   });
 
+  // ── También subir a documentos_ocr para que aparezca en Bandeja OCR del ERP ──
+  try {
+    const eid = EMPRESA.id;
+    const fotosUrls = [];
+    for (let i = 0; i < d.pages.length; i++) {
+      const pg = d.pages[i];
+      if (pg.foto && pg.foto.startsWith('data:')) {
+        const blob = await (await fetch(pg.foto)).blob();
+        const fileName = `ocr_wiz_${Date.now()}_p${i}_${Math.random().toString(36).substr(2,4)}.jpg`;
+        const storagePath = `${eid}/ocr/${fileName}`;
+        const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: pg.mimeType || 'image/jpeg' });
+        if (!upErr) {
+          const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+          fotosUrls.push(urlData?.publicUrl);
+        }
+      }
+    }
+    await sb.from('documentos_ocr').insert({
+      empresa_id: eid,
+      usuario_id: CP?.id,
+      archivo_path: fotosUrls[0] ? `${eid}/ocr/` : '',
+      archivo_nombre: `Albarán ${d.numDocumento || 'sin nº'} (desde parte)`,
+      estado: 'pendiente',
+      tipo_documento: 'albaran',
+      datos_extraidos: {
+        numero_documento: d.numDocumento || '',
+        lineas: todos.map(l => ({ descripcion: l.nombre, codigo: l.codigo, cantidad: l.cantidad, precio_unitario: l.precio, unidad: l.unidad })),
+        fotos_urls: fotosUrls,
+        operario: CP?.nombre || '',
+        origen: 'parte_trabajo',
+        parte_id: _wiz.parteId
+      },
+      created_at: new Date().toISOString()
+    });
+  } catch(e) { console.warn('documentos_ocr wizard insert:', e.message); }
+
   toast(`✅ ${todos.length} material(es) añadido(s) al parte`, 'success');
 
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
@@ -6572,7 +6608,7 @@ async function _fabOcrConfirmar(seleccionados) {
       usuario_id: CP?.id,
       archivo_path: fotosUrls[0]?.path || '',
       archivo_nombre: `Doc_OCR_${d.numDocumento || new Date().toISOString().slice(0,10)}`,
-      estado: 'borrador',
+      estado: 'pendiente',
       tipo_documento: d.tipoDocumento || 'albaran',
       datos_extraidos: {
         ...d.ocrResult,
@@ -6590,8 +6626,8 @@ async function _fabOcrConfirmar(seleccionados) {
     };
     let docCreado = null;
     const { data: docData, error: docErr } = await sb.from('documentos_ocr').insert(docInsert).select().single();
-    if (docErr) { console.warn('documentos_ocr insert:', docErr.message); }
-    else { docCreado = docData; }
+    if (docErr) { console.warn('documentos_ocr insert:', docErr.message); toast('⚠️ No se pudo enviar al ERP: ' + docErr.message, 'error'); }
+    else { docCreado = docData; toast('📤 Documento enviado a Bandeja OCR del ERP', 'success'); }
 
     // 2. Meter TODOS los materiales como stock provisional en furgoneta
     if (almacenId) {

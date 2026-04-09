@@ -103,7 +103,10 @@ async function updateOCRBadge() {
 async function loadOCRInbox() {
   const tbody = document.getElementById('ocrTableBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gris-400)">Cargando documentos OCR...</td></tr>';
+  // Solo mostrar "Cargando..." si la tabla está vacía (primera carga)
+  if (!tbody.children.length || (tbody.children.length === 1 && tbody.querySelector('[colspan]'))) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gris-400)">Cargando documentos OCR...</td></tr>';
+  }
 
   const filtro = document.getElementById('ocrFiltroEstado')?.value || '';
 
@@ -126,8 +129,8 @@ async function loadOCRInbox() {
   }
 
   _ocrDocs = data || [];
-  // Inicializar huella para que el polling no detecte un cambio falso en el primer ciclo
-  _ocrLastFingerprint = _ocrDocs.map(r => `${r.id}:${r.estado}`).join(',');
+  // Inicializar huella (DEBE coincidir con el orden de _ocrGetFingerprint: id ASC)
+  _ocrLastFingerprint = [..._ocrDocs].sort((a,b) => a.id - b.id).map(r => `${r.id}:${r.estado}`).join(',');
   _ocrUpdateKpis();
   _ocrRenderTable(_ocrDocs);
   updateOCRBadge();
