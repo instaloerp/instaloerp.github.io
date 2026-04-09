@@ -832,8 +832,15 @@ function initRealtimePartes() {
       async () => {
         try {
           const { data } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
-          if (data) articulos = data;
-          if (typeof renderArticulos === 'function') renderArticulos();
+          if (data) {
+            articulos = data;
+            if (typeof _invalidarArtProvMap === 'function') _invalidarArtProvMap();
+            // Solo re-renderizar si estamos en la página de artículos
+            const pageArt = document.getElementById('page-articulos');
+            if (pageArt && pageArt.classList.contains('active') && typeof renderArticulos === 'function') {
+              renderArticulos(articulos);
+            }
+          }
         } catch(e) {}
       }
     )
@@ -842,7 +849,8 @@ function initRealtimePartes() {
       { event: '*', schema: 'public', table: 'stock', filter: `empresa_id=eq.${EMPRESA.id}` },
       async () => {
         try {
-          if (typeof cargarStock === 'function') cargarStock();
+          const pageStock = document.getElementById('page-stock');
+          if (pageStock && pageStock.classList.contains('active') && typeof cargarStock === 'function') cargarStock();
         } catch(e) {}
       }
     )
@@ -852,8 +860,12 @@ function initRealtimePartes() {
       async () => {
         try {
           const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
-          if (data && typeof proveedores !== 'undefined') proveedores = data;
-          if (typeof renderProveedores === 'function') renderProveedores();
+          if (data && typeof proveedores !== 'undefined') {
+            proveedores = data;
+            if (typeof _invalidarArtProvMap === 'function') _invalidarArtProvMap();
+            const pageProv = document.getElementById('page-proveedores');
+            if (pageProv && pageProv.classList.contains('active') && typeof renderProveedores === 'function') renderProveedores(proveedores);
+          }
         } catch(e) {}
       }
     )
@@ -863,8 +875,11 @@ function initRealtimePartes() {
       async () => {
         try {
           const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
-          if (data) clientes = data;
-          if (typeof renderClientes === 'function') renderClientes();
+          if (data) {
+            clientes = data;
+            const pageCli = document.getElementById('page-clientes');
+            if (pageCli && pageCli.classList.contains('active') && typeof renderClientes === 'function') renderClientes(clientes);
+          }
         } catch(e) {}
       }
     )
