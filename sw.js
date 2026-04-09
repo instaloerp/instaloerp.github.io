@@ -1,5 +1,5 @@
 // Instalo App — Service Worker v2 (Offline-capable)
-const CACHE_NAME = 'instalo-app-v88';
+const CACHE_NAME = 'instalo-app-v89';
 const STATIC_ASSETS = [
   '/app.html',
   '/assets/icon.svg',
