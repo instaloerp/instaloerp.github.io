@@ -13,6 +13,10 @@ let artFotoFile = null;   // archivo foto pendiente de subir
 let _artProvMap = {}; // { articuloId: ['Proveedor A', 'Proveedor B'] }
 let _artProvMapLoaded = false;
 
+// Mapa artículo_id → [{almacen_nombre, cantidad, stock_provisional, stock_reservado, tipo}] para columna Ubicación
+let _artStockMap = {}; // { articuloId: [{almacen_nombre, cantidad, ...}] }
+let _artStockMapLoaded = false;
+
 async function _cargarArtProvMap() {
   if (_artProvMapLoaded || !EMPRESA?.id) return;
   const { data } = await sb.from('articulos_proveedores')
@@ -31,6 +35,31 @@ async function _cargarArtProvMap() {
 
 // Invalida el mapa cuando se vincula un nuevo proveedor a un artículo
 function _invalidarArtProvMap() { _artProvMapLoaded = false; }
+
+// ─── Cargar mapa de stock por artículo (ubicaciones) ───
+async function _cargarArtStockMap() {
+  if (_artStockMapLoaded || !EMPRESA?.id) return;
+  const { data } = await sb.from('stock')
+    .select('articulo_id, almacen_id, cantidad, stock_provisional, stock_reservado')
+    .eq('empresa_id', EMPRESA.id);
+  if (!data) return;
+  _artStockMap = {};
+  // Necesitamos los nombres de almacenes (variable global 'almacenes' cargada en app.js)
+  const alms = (typeof almacenes !== 'undefined' && almacenes) || [];
+  data.forEach(s => {
+    const alm = alms.find(a => a.id === s.almacen_id);
+    if (!_artStockMap[s.articulo_id]) _artStockMap[s.articulo_id] = [];
+    _artStockMap[s.articulo_id].push({
+      almacen_nombre: alm?.nombre || 'Almacén ' + s.almacen_id,
+      tipo: alm?.tipo || 'central',
+      cantidad: s.cantidad || 0,
+      stock_provisional: s.stock_provisional || 0,
+      stock_reservado: s.stock_reservado || 0
+    });
+  });
+  _artStockMapLoaded = true;
+}
+function _invalidarArtStockMap() { _artStockMapLoaded = false; }
 
 // ─── Toggle datos sensibles (Coste, Dto, Valor stock) ───
 function toggleDatosSensibles() {
@@ -70,9 +99,14 @@ async function renderArticulos(list) {
   artFiltrados = list;
   document.getElementById('artCount').textContent = `${list.length} de ${articulos.length} artículos`;
 
-  // Cargar mapa proveedor→artículo la primera vez (asíncrono, re-renderiza al terminar)
-  if (!_artProvMapLoaded && EMPRESA?.id) {
-    _cargarArtProvMap().then(() => {
+  // Cargar mapas proveedor y stock la primera vez (asíncrono, re-renderiza al terminar)
+  const _needsProvMap = !_artProvMapLoaded && EMPRESA?.id;
+  const _needsStockMap = !_artStockMapLoaded && EMPRESA?.id;
+  if (_needsProvMap || _needsStockMap) {
+    Promise.all([
+      _needsProvMap ? _cargarArtProvMap() : Promise.resolve(),
+      _needsStockMap ? _cargarArtStockMap() : Promise.resolve()
+    ]).then(() => {
       const tbody = document.getElementById('artTable');
       if (tbody) _renderArticulosTabla(artFiltrados);
     });
@@ -117,6 +151,25 @@ function _renderArticulosTabla(list) {
         provCell = `<span style="font-size:12px;color:var(--gris-600)" title="${provNombres.join('\n')}">${provNombres[0]} <span style="color:var(--gris-300);font-size:11px">+${provNombres.length - 1}</span></span>`;
       }
 
+      // Columna Ubicación (stock por almacén)
+      const stockLocs = _artStockMap[a.id] || [];
+      let ubicCell = '<span style="color:var(--gris-300);font-size:12px">Sin stock</span>';
+      if (stockLocs.length === 1) {
+        const s = stockLocs[0];
+        const icon = s.tipo === 'furgoneta' ? '🚐' : s.tipo === 'externo' ? '📦' : '🏭';
+        const total = s.cantidad + s.stock_provisional;
+        const provTag = s.stock_provisional > 0 ? ` <span style="color:var(--naranja);font-size:10px" title="Provisional">(+${s.stock_provisional} prov)</span>` : '';
+        ubicCell = `<div style="font-size:12px">${icon} ${s.almacen_nombre}</div><div style="font-size:11px;font-weight:700;color:var(--verde)">${total} ud${provTag}</div>`;
+      } else if (stockLocs.length > 1) {
+        const totalGlobal = stockLocs.reduce((sum, s) => sum + s.cantidad + s.stock_provisional, 0);
+        const detalle = stockLocs.map(s => {
+          const icon = s.tipo === 'furgoneta' ? '🚐' : s.tipo === 'externo' ? '📦' : '🏭';
+          const t = s.cantidad + s.stock_provisional;
+          return `${icon} ${s.almacen_nombre}: ${t}`;
+        }).join('\n');
+        ubicCell = `<div style="font-size:12px;cursor:help" title="${detalle}">${stockLocs.length} ubicaciones</div><div style="font-size:11px;font-weight:700;color:var(--verde)">${totalGlobal} ud total</div>`;
+      }
+
       return `<tr style="cursor:pointer" onclick="artRowClick(event,'${a.id}')" ondblclick="artRowDblClick(event,'${a.id}')">
         <td style="font-family:monospace;font-weight:700;font-size:12px;color:var(--azul)">${fotoMini} ${a.codigo || '—'}</td>
         <td>
@@ -130,6 +183,7 @@ function _renderArticulosTabla(list) {
         <td class="td-sensible" style="font-weight:600">${fmtE(a.precio_coste)}</td>
         <td class="td-sensible">${dto > 0 ? dto + '%' : '—'}</td>
         <td>${iva ? iva.porcentaje + '%' : '—'}</td>
+        <td>${ubicCell}</td>
         <td>${a.activo !== false ? '<span class="badge bg-green">Sí</span>' : '<span class="badge bg-gray">No</span>'}</td>
         <td><div style="display:flex;gap:4px">
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editArticulo('${a.id}')" title="Abrir ficha">✏️</button>
@@ -138,7 +192,7 @@ function _renderArticulosTabla(list) {
         </div></td>
       </tr>`;
     }).join('') :
-    '<tr><td colspan="10"><div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div></td></tr>';
+    '<tr><td colspan="11"><div class="empty"><div class="ei">📦</div><h3>Sin artículos</h3><p>Añade tu catálogo de artículos o importa desde Excel</p></div></td></tr>';
 }
 
 // ─── KPIs ──────────────────────────────────────

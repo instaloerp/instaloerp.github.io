@@ -170,14 +170,11 @@ async function guardarAjuste() {
       almacen_id: almacenId,
       tipo: 'ajuste',
       cantidad: cantidad,
-      cantidad_anterior: cantidadAnterior,
-      cantidad_nueva: cantidadNueva,
-      motivo: motivo,
-      documento_tipo: null,
-      documento_id: null,
+      delta: cantidad,
+      notas: motivo,
+      fecha: new Date().toISOString().slice(0,10),
       usuario_id: CU.id,
-      usuario_nombre: CU.nombre,
-      created_at: new Date().toISOString()
+      usuario_nombre: CU.nombre
     });
 
     if (errMov) throw errMov;
@@ -217,12 +214,10 @@ async function verMovimientos(articuloId, almacenId) {
 
     tbody.innerHTML = (data || []).map(mov => `
       <tr>
-        <td>${new Date(mov.created_at).toLocaleDateString()}</td>
+        <td>${mov.fecha || new Date(mov.created_at).toLocaleDateString()}</td>
         <td>${mov.tipo}</td>
-        <td class="text-right">${mov.cantidad_anterior}</td>
-        <td class="text-right">${mov.cantidad}</td>
-        <td class="text-right">${mov.cantidad_nueva}</td>
-        <td>${mov.motivo || '—'}</td>
+        <td class="text-right">${mov.delta || mov.cantidad || 0}</td>
+        <td>${mov.notas || '—'}</td>
         <td>${mov.usuario_nombre || 'N/A'}</td>
       </tr>
     `).join('');

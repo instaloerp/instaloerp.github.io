@@ -267,12 +267,11 @@ async function guardarCargaStock() {
       almacen_id: _cargaAlmacenId,
       tipo: 'carga_inicial',
       cantidad: cantidad,
-      cantidad_anterior: existing?.cantidad || 0,
-      cantidad_nueva: (existing?.cantidad || 0) + cantidad,
-      motivo: 'Carga inicial de stock',
+      delta: cantidad,
+      notas: 'Carga inicial de stock',
+      fecha: new Date().toISOString().slice(0,10),
       usuario_id: CU.id,
-      usuario_nombre: CP?.nombre || CU.email,
-      created_at: new Date().toISOString()
+      usuario_nombre: CP?.nombre || CU.email
     });
 
     closeModal('modal-carga-stock');

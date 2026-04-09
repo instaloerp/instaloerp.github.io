@@ -1013,13 +1013,11 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
       almacen_id: almacenId,
       tipo: tipo === 'consumo' ? 'consumo' : 'merma',
       cantidad: -material.cantidad,
-      cantidad_anterior: stock.cantidad,
-      cantidad_nueva: nuevaCant,
-      motivo: tipo === 'consumo'
+      delta: -material.cantidad,
+      notas: tipo === 'consumo'
         ? `Consumo en parte ${parteNumero}`
         : `${tipo.charAt(0).toUpperCase()+tipo.slice(1)}: ${motivoMerma || ''} (parte ${parteNumero})`,
-      parte_id: parteId,
-      parte_numero: parteNumero,
+      fecha: new Date().toISOString().slice(0,10),
       tipo_stock: 'real',
       usuario_id: CU.id,
       usuario_nombre: CP?.nombre || CU.email

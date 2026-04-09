@@ -270,15 +270,12 @@ async function completarTraspaso(traspId) {
           articulo_id: linea.articulo_id,
           almacen_id: trasp.almacen_origen_id,
           tipo: 'traspaso',
-          cantidad: linea.cantidad,
-          cantidad_anterior: stockOrigen.cantidad,
-          cantidad_nueva: cantidadNueva,
-          motivo: `Traspaso a ${trasp.almacen_destino_nombre}`,
-          documento_tipo: 'traspaso',
-          documento_id: trasp.id,
+          cantidad: -linea.cantidad,
+          delta: -linea.cantidad,
+          notas: `Traspaso a ${trasp.almacen_destino_nombre}`,
+          fecha: new Date().toISOString().slice(0,10),
           usuario_id: CU.id,
-          usuario_nombre: CU.nombre,
-          created_at: new Date().toISOString()
+          usuario_nombre: CU.nombre
         });
       }
 
@@ -316,14 +313,11 @@ async function completarTraspaso(traspId) {
         almacen_id: trasp.almacen_destino_id,
         tipo: 'traspaso',
         cantidad: linea.cantidad,
-        cantidad_anterior: stockDestino?.cantidad || 0,
-        cantidad_nueva: (stockDestino?.cantidad || 0) + linea.cantidad,
-        motivo: `Traspaso desde ${trasp.almacen_origen_nombre}`,
-        documento_tipo: 'traspaso',
-        documento_id: trasp.id,
+        delta: linea.cantidad,
+        notas: `Traspaso desde ${trasp.almacen_origen_nombre}`,
+        fecha: new Date().toISOString().slice(0,10),
         usuario_id: CU.id,
-        usuario_nombre: CU.nombre,
-        created_at: new Date().toISOString()
+        usuario_nombre: CU.nombre
       });
     }
 

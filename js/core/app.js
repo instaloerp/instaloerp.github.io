@@ -849,8 +849,15 @@ function initRealtimePartes() {
       { event: '*', schema: 'public', table: 'stock', filter: `empresa_id=eq.${EMPRESA.id}` },
       async () => {
         try {
+          if (typeof _invalidarArtStockMap === 'function') _invalidarArtStockMap();
           const pageStock = document.getElementById('page-stock');
           if (pageStock && pageStock.classList.contains('active') && typeof cargarStock === 'function') cargarStock();
+          // Refrescar artículos si están visibles (para actualizar columna Ubicación)
+          const pageArt = document.getElementById('page-articulos');
+          if (pageArt && pageArt.classList.contains('active') && typeof renderArticulos === 'function' && typeof articulos !== 'undefined') {
+            await _cargarArtStockMap();
+            _renderArticulosTabla(artFiltrados || articulos);
+          }
         } catch(e) {}
       }
     )
