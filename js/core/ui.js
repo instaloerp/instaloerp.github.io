@@ -390,6 +390,7 @@ function goPage(id, opts){
   if(id==='planificador' && typeof initPlanificador==='function') initPlanificador();
   if(id==='calendario' && typeof renderCalendario==='function') renderCalendario();
   if(id==='mistareas' && typeof cargarMisTareas==='function') cargarMisTareas();
+  if(id==='articulos' && typeof renderArticulos==='function') renderArticulos(articulos);
   if(id==='stock') loadStock();
   if(id==='consumos' && typeof loadConsumos==='function') loadConsumos();
   if(id==='incidencias-stock' && typeof loadIncidencias==='function') loadIncidencias();

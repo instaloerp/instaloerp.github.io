@@ -419,6 +419,7 @@ body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display: none"],
 body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display:none"]{display:none!important}
 /* Claude y usuario compactos */
 body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 12px);margin:4px 6px}
+body.sb-collapsed .sb-claude div{display:none}
 body.sb-collapsed .sb-user{flex-direction:column;justify-content:center;align-items:center;padding:8px 4px;gap:6px;min-height:auto}
 body.sb-collapsed .sb-user .logout{padding:5px;font-size:14px}
 body.sb-collapsed .sb-nav{padding:2px 0}
@@ -453,6 +454,7 @@ body.sb-hover-expanded .sb-fav-item span:not(:first-child){display:revert}
 body.sb-hover-expanded .sb-fav-item [id$="-badge"]{position:static!important;top:auto;right:auto;min-width:18px;height:18px;padding:0 5px!important;font-size:10px!important;border-radius:9px}
 body.sb-hover-expanded .sb-favoritos{padding:6px 8px}
 body.sb-hover-expanded .sb-claude{justify-content:initial;padding:10px 11px;margin:7px 8px;width:calc(100% - 16px)}
+body.sb-hover-expanded .sb-claude div{display:block}
 body.sb-hover-expanded .sb-user{flex-direction:row;padding:10px 12px;gap:8px;min-height:54px}
 body.sb-hover-expanded .sb-user .logout{padding:6px;font-size:16px}
 body.sb-hover-expanded .sb-nav{padding:6px 8px}

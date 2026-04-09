@@ -167,8 +167,8 @@
         <div id="sbFavList" class="sb-favoritos"></div>
       </div>
 
-      <!-- COMERCIAL -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)"><span class="sb-sec-ico">💼</span><span class="sb-sec-label">Comercial</span></div>
+      <!-- VENTAS -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)"><span class="sb-sec-ico">💼</span><span class="sb-sec-label">Ventas</span></div>
       <div class="sb-section-items" id="sec-comercial">
         <button class="sb-item" onclick="goPage('clientes')"><span class="ico">👥</span> Clientes</button>
         <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
@@ -211,8 +211,14 @@
         <button class="sb-item" onclick="goPage('mistareas')" id="sb-mistareas"><span class="ico">✅</span> Tareas<span id="sbBadgeTareas" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span><span class="sb-beta">beta</span></button>
       </div>
 
-      <!-- COMUNICACIÓN -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)"><span class="sb-sec-ico">💬</span><span class="sb-sec-label">Comunicación</span></div>
+      <!-- COMPAÑÍAS -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-companias',this)"><span class="sb-sec-ico">🏢</span><span class="sb-sec-label">Compañías</span></div>
+      <div class="sb-section-items" id="sec-companias">
+        <div style="padding:12px 16px;color:rgba(255,255,255,.4);font-size:12px;font-style:italic">Próximamente</div>
+      </div>
+
+      <!-- COMUNICACIONES -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)"><span class="sb-sec-ico">💬</span><span class="sb-sec-label">Comunicaciones</span></div>
       <div class="sb-section-items" id="sec-comunicacion">
         <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span id="correo-badge" style="display:none;background:var(--rojo);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px"></span></button>
       </div>
@@ -225,7 +231,7 @@
 
       <!-- ADMINISTRACIÓN -->
       <div id="adminSection" style="display:none">
-        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)"><span class="sb-sec-ico">⚙️</span><span class="sb-sec-label">Administración</span></div>
+        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)"><span class="sb-sec-ico">⚙️</span><span class="sb-sec-label">Configuración</span></div>
         <div class="sb-section-items" id="sec-admin">
           <button class="sb-item" onclick="openModal('mEmpresas')"><span class="ico">🏢</span> Empresas</button>
           <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios<span class="sb-beta">beta</span></button>
