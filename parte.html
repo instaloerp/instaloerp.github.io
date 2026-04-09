@@ -421,16 +421,27 @@ async function _firmaEnviar() {
     return;
   }
 
-  // Validar DNI/NIE obligatorio y formato
+  // Validar DNI/NIE obligatorio con verificación de letra
   if (!dni) {
     alert('Por favor, introduce tu DNI o NIE.');
     document.getElementById('frDni')?.focus();
     return;
   }
   const dniClean = dni.toUpperCase().replace(/[\s\-\.]/g, '');
-  const dniValid = /^[0-9]{8}[A-Z]$/.test(dniClean) || /^[XYZ][0-9]{7}[A-Z]$/.test(dniClean);
-  if (!dniValid) {
-    alert('El formato del DNI/NIE no es válido.\nEjemplos: 12345678A o X1234567B');
+  const _letras = 'TRWAGMYFPDXBNJZSQVHLCKE';
+  let _dniOk = false;
+  if (/^[0-9]{8}[A-Z]$/.test(dniClean)) {
+    // DNI español: verificar letra
+    const num = parseInt(dniClean.substring(0, 8), 10);
+    _dniOk = dniClean[8] === _letras[num % 23];
+  } else if (/^[XYZ][0-9]{7}[A-Z]$/.test(dniClean)) {
+    // NIE: X=0, Y=1, Z=2 + 7 dígitos + letra
+    const prefix = { X: '0', Y: '1', Z: '2' }[dniClean[0]];
+    const num = parseInt(prefix + dniClean.substring(1, 8), 10);
+    _dniOk = dniClean[8] === _letras[num % 23];
+  }
+  if (!_dniOk) {
+    alert('El DNI/NIE no es válido. Comprueba el número y la letra.\nEjemplos: 12345678Z o X1234567L');
     document.getElementById('frDni')?.focus();
     return;
   }
