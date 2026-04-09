@@ -33,34 +33,28 @@ function renderTraspasos(list) {
   if (!tbody) return;
 
   tbody.innerHTML = list.map(row => {
-    const badgeClass = {
-      'pendiente': 'badge-warning',
-      'en_transito': 'badge-info',
-      'completado': 'badge-success',
-      'anulado': 'badge-danger'
-    }[row.estado] || 'badge-secondary';
+    const badgeColors = { pendiente:'#F97316', en_transito:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
+    const badgeLabels = { pendiente:'Pendiente', en_transito:'🚚 En Tránsito', completado:'✅ Completado', anulado:'Anulado' };
 
     const lineCount = (row.lineas || []).length;
     const totalQty = (row.lineas || []).reduce((sum, l) => sum + (l.cantidad || 0), 0);
 
     return `
-      <tr>
+      <tr style="cursor:pointer" onclick="editTraspaso(${row.id})">
         <td><strong>${row.numero}</strong></td>
         <td>${new Date(row.fecha).toLocaleDateString()}</td>
         <td>${row.almacen_origen_nombre}</td>
         <td>→</td>
         <td>${row.almacen_destino_nombre}</td>
-        <td class="text-right">${lineCount} líneas / ${totalQty} items</td>
+        <td style="text-align:right">${lineCount} líneas / ${totalQty} uds</td>
         <td>
-          <span class="badge ${badgeClass}">
-            ${row.estado.charAt(0).toUpperCase() + row.estado.slice(1)}
+          <span style="display:inline-block;padding:3px 10px;border-radius:12px;color:#fff;font-size:11px;font-weight:700;background:${badgeColors[row.estado]||'#888'}">
+            ${badgeLabels[row.estado]||row.estado}
           </span>
         </td>
-        <td class="text-center">
-          <button class="btn-sm" onclick="editTraspaso(${row.id})" title="Ver detalle">Detalle</button>
-          ${row.estado === 'pendiente' ? `<button class="btn-sm btn-success" onclick="completarTraspaso(${row.id})">Completar</button>` : ''}
-          ${row.estado !== 'completado' && row.estado !== 'anulado' ? `<button class="btn-sm btn-danger" onclick="anularTraspaso(${row.id})">Anular</button>` : ''}
-          <button class="btn-sm btn-outline" onclick="delTraspaso(${row.id})">Borrar</button>
+        <td class="text-center" onclick="event.stopPropagation()">
+          <button class="btn-sm" onclick="editTraspaso(${row.id})">📋 Detalle</button>
+          <button class="btn-sm btn-outline" onclick="delTraspaso(${row.id})">🗑️</button>
         </td>
       </tr>
     `;
@@ -103,12 +97,11 @@ function updateTrasposKPIs() {
     }, 0));
   }, 0);
 
-  setVal({
-    'kpi-total-traspasos': totalTraspasos,
-    'kpi-pendientes': pendientes,
-    'kpi-completados-mes': completadosMes,
-    'kpi-valor-traspasos': fmtE(valorTraspasos)
-  });
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('kpi-total-traspasos', totalTraspasos);
+  _s('kpi-pendientes', pendientes);
+  _s('kpi-completados-mes', completadosMes);
+  _s('kpi-valor-traspasos', fmtE(valorTraspasos));
 }
 
 // Abrir modal para nuevo traspaso
@@ -273,116 +266,161 @@ async function guardarTraspaso() {
   }
 }
 
-// Completar traspaso
-async function completarTraspaso(traspId) {
-  if (!confirm('¿Completar este traspaso? Se actualizará el stock en ambos almacenes.')) return;
+// Marcar traspaso como en tránsito
+async function marcarEnTransito(traspId) {
+  const id = traspId || _detalleTraspId;
+  if (!id) return;
+  const trasp = traspasosData.find(t => t.id === id);
+  if (!trasp || trasp.estado !== 'pendiente') { toast('Solo se pueden enviar traspasos pendientes','warning'); return; }
+  if (!confirm('¿Marcar como En Tránsito? El material sale del almacén central.')) return;
 
   try {
-    const trasp = traspasosData.find(t => t.id === traspId);
-    if (!trasp) return;
-
-    // Procesar cada línea
+    // Al marcar en tránsito: restamos del central (sale el material)
     for (const linea of trasp.lineas || []) {
-      // Restar del almacén origen
-      const { data: stockOrigen } = await sb
-        .from('stock')
-        .select('*')
-        .eq('empresa_id', EMPRESA.id)
-        .eq('articulo_id', linea.articulo_id)
-        .eq('almacen_id', trasp.almacen_origen_id)
-        .single();
+      const { data: stockOrigen } = await sb.from('stock').select('*')
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+        .eq('almacen_id', trasp.almacen_origen_id).single();
 
       if (stockOrigen) {
-        const cantidadNueva = Math.max(0, (stockOrigen.cantidad || 0) - linea.cantidad);
         await sb.from('stock').update({
-          cantidad: cantidadNueva,
+          cantidad: Math.max(0, (stockOrigen.cantidad||0) - linea.cantidad),
           updated_at: new Date().toISOString()
         }).eq('id', stockOrigen.id);
 
-        // Movimiento de salida
         await sb.from('movimientos_stock').insert({
-          empresa_id: EMPRESA.id,
-          articulo_id: linea.articulo_id,
-          almacen_id: trasp.almacen_origen_id,
-          tipo: 'traspaso',
-          cantidad: -linea.cantidad,
-          delta: -linea.cantidad,
-          notas: `Traspaso a ${trasp.almacen_destino_nombre}`,
+          empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+          almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
+          delta: -linea.cantidad, notas: `Salida traspaso → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
           fecha: new Date().toISOString().slice(0,10),
-          usuario_id: CU.id,
-          usuario_nombre: CU.nombre
+          usuario_id: CU?.id||null, usuario_nombre: CU?.nombre||'Sistema'
         });
       }
+    }
 
-      // Sumar al almacén destino
-      const { data: stockDestino } = await sb
-        .from('stock')
-        .select('*')
-        .eq('empresa_id', EMPRESA.id)
-        .eq('articulo_id', linea.articulo_id)
-        .eq('almacen_id', trasp.almacen_destino_id)
-        .single();
+    await sb.from('traspasos').update({ estado: 'en_transito' }).eq('id', id);
+    toast('🚚 Traspaso marcado En Tránsito — stock descontado del central', 'success');
+    closeModal('modal-detalle-trasp');
+    await loadTraspasos();
+  } catch (e) {
+    console.error('Error marcando en tránsito:', e);
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Completar traspaso (recepción en destino)
+async function completarTraspaso(traspId) {
+  const id = traspId || _detalleTraspId;
+  if (!id) return;
+  const trasp = traspasosData.find(t => t.id === id);
+  if (!trasp) return;
+
+  if (trasp.estado === 'completado') { toast('Ya está completado','warning'); return; }
+  if (!confirm('¿Completar traspaso? Se sumará el stock en el almacén destino.')) return;
+
+  try {
+    const yaDescontadoOrigen = (trasp.estado === 'en_transito');
+
+    for (const linea of trasp.lineas || []) {
+      // Si viene de pendiente (no pasó por en_transito), restar del origen
+      if (!yaDescontadoOrigen) {
+        const { data: stockOrigen } = await sb.from('stock').select('*')
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+          .eq('almacen_id', trasp.almacen_origen_id).single();
+
+        if (stockOrigen) {
+          await sb.from('stock').update({
+            cantidad: Math.max(0, (stockOrigen.cantidad||0) - linea.cantidad),
+            updated_at: new Date().toISOString()
+          }).eq('id', stockOrigen.id);
+
+          await sb.from('movimientos_stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+            almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
+            delta: -linea.cantidad, notas: `Salida traspaso → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
+            fecha: new Date().toISOString().slice(0,10),
+            usuario_id: CU?.id||null, usuario_nombre: CU?.nombre||'Sistema'
+          });
+        }
+      }
+
+      // Sumar al destino
+      const { data: stockDestino } = await sb.from('stock').select('*')
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+        .eq('almacen_id', trasp.almacen_destino_id).single();
 
       if (stockDestino) {
-        const cantidadNueva = (stockDestino.cantidad || 0) + linea.cantidad;
         await sb.from('stock').update({
-          cantidad: cantidadNueva,
+          cantidad: (stockDestino.cantidad||0) + linea.cantidad,
           updated_at: new Date().toISOString()
         }).eq('id', stockDestino.id);
       } else {
         await sb.from('stock').insert({
-          empresa_id: EMPRESA.id,
-          articulo_id: linea.articulo_id,
-          almacen_id: trasp.almacen_destino_id,
-          cantidad: linea.cantidad,
-          stock_minimo: 0,
-          ubicacion: '',
-          updated_at: new Date().toISOString()
+          empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+          almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad,
+          stock_minimo: 0, updated_at: new Date().toISOString()
         });
       }
 
-      // Movimiento de entrada
       await sb.from('movimientos_stock').insert({
-        empresa_id: EMPRESA.id,
-        articulo_id: linea.articulo_id,
-        almacen_id: trasp.almacen_destino_id,
-        tipo: 'traspaso',
-        cantidad: linea.cantidad,
-        delta: linea.cantidad,
-        notas: `Traspaso desde ${trasp.almacen_origen_nombre}`,
+        empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+        almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
+        delta: linea.cantidad, notas: `Entrada traspaso ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
         fecha: new Date().toISOString().slice(0,10),
-        usuario_id: CU.id,
-        usuario_nombre: CU.nombre
+        usuario_id: CU?.id||null, usuario_nombre: CU?.nombre||'Sistema'
       });
     }
 
-    // Actualizar estado del traspaso
-    await sb.from('traspasos').update({
-      estado: 'completado'
-    }).eq('id', traspId);
-
-    toast('Traspaso completado', 'success');
+    await sb.from('traspasos').update({ estado: 'completado' }).eq('id', id);
+    toast('✅ Traspaso completado — stock actualizado en destino', 'success');
+    closeModal('modal-detalle-trasp');
     await loadTraspasos();
   } catch (e) {
     console.error('Error completando traspaso:', e);
-    toast('Error completando traspaso: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
   }
 }
 
 // Anular traspaso
 async function anularTraspaso(traspId) {
+  const id = traspId || _detalleTraspId;
+  if (!id) return;
+  const trasp = traspasosData.find(t => t.id === id);
+  if (!trasp) return;
+  if (trasp.estado === 'completado') { toast('No se puede anular un traspaso completado','warning'); return; }
   if (!confirm('¿Anular este traspaso?')) return;
 
   try {
-    await sb.from('traspasos').update({
-      estado: 'anulado'
-    }).eq('id', traspId);
+    // Si estaba en tránsito, devolver stock al origen
+    if (trasp.estado === 'en_transito') {
+      for (const linea of trasp.lineas || []) {
+        const { data: stockOrigen } = await sb.from('stock').select('*')
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+          .eq('almacen_id', trasp.almacen_origen_id).single();
 
+        if (stockOrigen) {
+          await sb.from('stock').update({
+            cantidad: (stockOrigen.cantidad||0) + linea.cantidad,
+            updated_at: new Date().toISOString()
+          }).eq('id', stockOrigen.id);
+
+          await sb.from('movimientos_stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+            almacen_id: trasp.almacen_origen_id, tipo: 'anulacion_traspaso',
+            delta: linea.cantidad, notas: `Anulación traspaso ${trasp.numero} — stock devuelto`,
+            fecha: new Date().toISOString().slice(0,10),
+            usuario_id: CU?.id||null, usuario_nombre: CU?.nombre||'Sistema'
+          });
+        }
+      }
+    }
+
+    await sb.from('traspasos').update({ estado: 'anulado' }).eq('id', id);
     toast('Traspaso anulado', 'success');
+    closeModal('modal-detalle-trasp');
     await loadTraspasos();
   } catch (e) {
     console.error('Error anulando traspaso:', e);
-    toast('Error anulando traspaso: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
   }
 }
 
@@ -401,32 +439,59 @@ async function delTraspaso(traspId) {
   }
 }
 
+// Variable para el traspaso que se está viendo en detalle
+let _detalleTraspId = null;
+
 // Editar/Ver detalle del traspaso
-async function editTraspaso(traspId) {
+function editTraspaso(traspId) {
   const trasp = traspasosData.find(t => t.id === traspId);
-  if (!trasp) return;
+  if (!trasp) { toast('Traspaso no encontrado','error'); return; }
+  _detalleTraspId = traspId;
 
-  setVal({
-    'det-numero': trasp.numero,
-    'det-fecha': new Date(trasp.fecha).toLocaleDateString(),
-    'det-origen': trasp.almacen_origen_nombre,
-    'det-destino': trasp.almacen_destino_nombre,
-    'det-estado': trasp.estado,
-    'det-usuario': trasp.usuario_nombre,
-    'det-observaciones': trasp.observaciones || ''
-  });
+  const _t = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _t('dt-numero', trasp.numero);
+  _t('dt-origen', trasp.almacen_origen_nombre);
+  _t('dt-destino', trasp.almacen_destino_nombre);
+  _t('dt-fecha', new Date(trasp.fecha).toLocaleDateString());
+  _t('dt-usuario', trasp.usuario_nombre || 'Sistema');
 
-  const tbody = document.querySelector('#detalle-traspasos-lineas tbody');
-  if (tbody) {
-    tbody.innerHTML = (trasp.lineas || []).map(linea => `
-      <tr>
-        <td>${linea.codigo}</td>
-        <td>${linea.nombre}</td>
-        <td class="text-right">${linea.cantidad}</td>
-        <td class="text-right">${fmtE((articulos.find(a => a.id === linea.articulo_id)?.costo || 0) * linea.cantidad)}</td>
-      </tr>
-    `).join('');
+  // Badge de estado
+  const dtEstado = document.getElementById('dt-estado');
+  if (dtEstado) {
+    const colores = { pendiente:'#F97316', en_transito:'#3B82F6', completado:'#16A34A', anulado:'#DC2626' };
+    const etiquetas = { pendiente:'Pendiente', en_transito:'En Tránsito', completado:'Completado', anulado:'Anulado' };
+    dtEstado.innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:12px;color:#fff;font-size:12px;font-weight:700;background:${colores[trasp.estado]||'#888'}">${etiquetas[trasp.estado]||trasp.estado}</span>`;
   }
+
+  // Líneas
+  const tbody = document.getElementById('dt-lineas-tbody');
+  if (tbody) {
+    tbody.innerHTML = (trasp.lineas || []).map(l => `<tr>
+      <td style="font-family:monospace;font-size:12px">${l.codigo||'—'}</td>
+      <td>${l.nombre||'—'}</td>
+      <td style="text-align:right;font-weight:600">${l.cantidad||0}</td>
+      <td style="text-align:right;color:#888">${l.cantidad_necesaria!=null?l.cantidad_necesaria:'—'}</td>
+      <td style="text-align:right;color:#888">${l.cantidad_disponible_central!=null?l.cantidad_disponible_central:'—'}</td>
+    </tr>`).join('');
+  }
+  const totalQty = (trasp.lineas||[]).reduce((s,l) => s+(l.cantidad||0), 0);
+  _t('dt-total-qty', totalQty);
+
+  // Observaciones
+  const obsWrap = document.getElementById('dt-observaciones-wrap');
+  const obsDiv = document.getElementById('dt-observaciones');
+  if (obsWrap && obsDiv) {
+    if (trasp.observaciones) { obsWrap.style.display = ''; obsDiv.textContent = trasp.observaciones; }
+    else { obsWrap.style.display = 'none'; }
+  }
+
+  // Mostrar/ocultar botones según estado
+  const btnTransito = document.getElementById('dt-btn-transito');
+  const btnCompletar = document.getElementById('dt-btn-completar');
+  const btnAnular = document.getElementById('dt-btn-anular');
+  if (btnTransito) btnTransito.style.display = trasp.estado === 'pendiente' ? '' : 'none';
+  if (btnCompletar) btnCompletar.style.display = (trasp.estado === 'pendiente' || trasp.estado === 'en_transito') ? '' : 'none';
+  if (btnAnular) btnAnular.style.display = (trasp.estado !== 'completado' && trasp.estado !== 'anulado') ? '' : 'none';
 
   openModal('modal-detalle-trasp');
 }

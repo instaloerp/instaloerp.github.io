@@ -497,6 +497,7 @@ let articulos = [];
 // Furgoneta del operario
 let miFurgoneta = null;       // objeto almacen con tipo='furgoneta' asignado al operario
 let miFurgonetaStock = [];    // stock de la furgoneta [{articulo_id, cantidad, stock_provisional, stock_reservado, articulo:{nombre,codigo}}]
+let misReposiciones = [];     // traspasos pendientes/en_transito para mi furgoneta
 
 // Fichaje
 let misFichajesHoy = [];
@@ -934,10 +935,12 @@ async function loadMiFurgoneta() {
 
     if (miFurgoneta) {
       await loadStockFurgoneta(miFurgoneta.id);
-      console.log(`[Furgoneta] ${miFurgoneta.nombre} — ${miFurgonetaStock.length} artículos`);
+      await loadMisReposiciones();
+      console.log(`[Furgoneta] ${miFurgoneta.nombre} — ${miFurgonetaStock.length} artículos, ${misReposiciones.length} reposiciones`);
     } else {
       console.log('[Furgoneta] No hay furgoneta asignada al operario');
       miFurgonetaStock = [];
+      misReposiciones = [];
     }
   } catch(e) {
     console.error('[Furgoneta] Error:', e);
@@ -965,6 +968,125 @@ function getStockFurgoneta(articuloId) {
     reservado: s.stock_reservado || 0,
     disponible: s.stock_disponible || 0
   };
+}
+
+// Cargar reposiciones pendientes para mi furgoneta
+async function loadMisReposiciones() {
+  if (!EMPRESA || !miFurgoneta) { misReposiciones = []; return; }
+  const { data } = await sb.from('traspasos').select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('almacen_destino_id', miFurgoneta.id)
+    .in('estado', ['pendiente','en_transito'])
+    .order('created_at', { ascending: false });
+  misReposiciones = data || [];
+}
+
+// Confirmar recepción de reposición (completar traspaso desde app móvil)
+function verDetalleReposicion(traspId) {
+  const trasp = misReposiciones.find(t => t.id === traspId);
+  if (!trasp) return;
+  const lineas = trasp.lineas || [];
+  const body = document.getElementById('appBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div style="margin-bottom:16px">
+      <button onclick="navigateTo('inicio')" style="background:none;border:none;color:#3B82F6;font-weight:700;font-size:14px;cursor:pointer;padding:0;font-family:var(--font)">← Volver al inicio</button>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:16px;border:1px solid var(--gris-200)">
+      <h3 style="margin:0 0 4px 0;font-size:16px">🚚 ${trasp.numero}</h3>
+      <div style="font-size:12px;color:#888;margin-bottom:12px">
+        ${new Date(trasp.fecha).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}
+        · Desde: <strong>${trasp.almacen_origen_nombre}</strong>
+        · Estado: <span style="color:${trasp.estado==='en_transito'?'#3B82F6':'#F97316'};font-weight:700">${trasp.estado==='en_transito'?'En Tránsito':'Pendiente'}</span>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Artículos (${lineas.length})</div>
+      ${lineas.map((l,i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;${i===0?'border-top:1px solid #f0f0f0':''}">
+          <div>
+            <div style="font-size:14px;font-weight:600">${l.nombre}</div>
+            <div style="font-size:11px;color:#888;font-family:monospace">${l.codigo||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:800;color:#333">${l.cantidad}</div>
+            <div style="font-size:10px;color:#888">unidades</div>
+          </div>
+        </div>
+      `).join('')}
+      <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:15px">
+        <span>Total</span>
+        <span>${lineas.reduce((s,l)=>s+(l.cantidad||0),0)} uds</span>
+      </div>
+      ${trasp.observaciones ? `<div style="background:#FFF7ED;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;white-space:pre-wrap">${trasp.observaciones}</div>` : ''}
+      <button onclick="confirmarReposicion(${trasp.id})" style="width:100%;padding:14px;border:none;background:#16A34A;color:#fff;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:16px;font-family:var(--font)">
+        ✅ Confirmar recepción completa
+      </button>
+    </div>
+  `;
+}
+
+async function confirmarReposicion(traspId) {
+  const trasp = misReposiciones.find(t => t.id === traspId);
+  if (!trasp) { toast('Reposición no encontrada','error'); return; }
+
+  // Mostrar detalle para confirmar
+  const lineas = (trasp.lineas || []);
+  const listaHtml = lineas.map(l => `• ${l.nombre}: ${l.cantidad} uds`).join('\n');
+  if (!confirm(`¿Confirmar recepción de ${lineas.length} artículos?\n\n${listaHtml}\n\n¿Todo correcto?`)) return;
+
+  try {
+    toast('⏳ Procesando recepción...','info');
+    const yaDescontado = (trasp.estado === 'en_transito');
+
+    for (const linea of lineas) {
+      // Si viene de pendiente, restar del origen
+      if (!yaDescontado) {
+        const { data: stOrig } = await sb.from('stock').select('*')
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+          .eq('almacen_id', trasp.almacen_origen_id).single();
+        if (stOrig) {
+          await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad) }).eq('id', stOrig.id);
+          await sb.from('movimientos_stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+            almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
+            delta: -linea.cantidad, notas: `Salida → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
+            fecha: new Date().toISOString().slice(0,10),
+            usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
+          });
+        }
+      }
+
+      // Sumar al destino (mi furgoneta)
+      const { data: stDest } = await sb.from('stock').select('*')
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+        .eq('almacen_id', trasp.almacen_destino_id).single();
+      if (stDest) {
+        await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad }).eq('id', stDest.id);
+      } else {
+        await sb.from('stock').insert({
+          empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+          almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad,
+          stock_minimo: 0
+        });
+      }
+      await sb.from('movimientos_stock').insert({
+        empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+        almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
+        delta: linea.cantidad, notas: `Entrada ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
+        fecha: new Date().toISOString().slice(0,10),
+        usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
+      });
+    }
+
+    await sb.from('traspasos').update({ estado: 'completado' }).eq('id', traspId);
+    toast('✅ Reposición confirmada — stock actualizado en tu furgoneta', 'success');
+    await loadMisReposiciones();
+    if (miFurgoneta) await loadStockFurgoneta(miFurgoneta.id);
+    navigateTo('inicio');
+  } catch(e) {
+    console.error('Error confirmando reposición:', e);
+    toast('Error: '+e.message, 'error');
+  }
 }
 
 // Registrar consumo de material en la BD (consumos_parte + movimiento + incidencia si procede)
@@ -2021,6 +2143,49 @@ function renderOperarioInicio(el) {
         <div class="stat-label">Buscar</div>
       </div>
     </div>
+
+    ${misReposiciones.length ? `
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:18px">🚚</span>
+        <span style="font-size:12px;font-weight:800;color:#3B82F6;text-transform:uppercase;letter-spacing:.5px">Reposiciones pendientes (${misReposiciones.length})</span>
+      </div>
+      ${misReposiciones.map(r => {
+        const lineas = r.lineas || [];
+        const totalItems = lineas.reduce((s,l) => s+(l.cantidad||0), 0);
+        const esTransito = r.estado === 'en_transito';
+        return `
+        <div style="background:#fff;border:2px solid ${esTransito?'#3B82F6':'#F97316'};border-radius:14px;padding:14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <span style="font-size:11px;font-weight:700;color:${esTransito?'#3B82F6':'#F97316'};background:${esTransito?'#EFF6FF':'#FFF7ED'};padding:2px 8px;border-radius:8px">
+                ${esTransito?'🚚 EN CAMINO':'⏳ PENDIENTE'}
+              </span>
+              <span style="font-size:11px;color:#888;margin-left:6px">${r.numero}</span>
+            </div>
+            <span style="font-size:11px;color:#888">${new Date(r.fecha).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}</span>
+          </div>
+          <div style="font-size:13px;color:#333;margin-bottom:8px">
+            <strong>${lineas.length}</strong> artículos · <strong>${totalItems}</strong> unidades desde <strong>${r.almacen_origen_nombre}</strong>
+          </div>
+          <div style="font-size:12px;color:#666;margin-bottom:10px;max-height:80px;overflow:hidden">
+            ${lineas.slice(0,4).map(l => `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #f0f0f0">
+              <span>${l.nombre}</span><span style="font-weight:600">${l.cantidad} uds</span>
+            </div>`).join('')}
+            ${lineas.length > 4 ? `<div style="color:#888;font-style:italic;padding-top:4px">+${lineas.length-4} artículos más...</div>` : ''}
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="verDetalleReposicion(${r.id})" style="flex:1;padding:10px;border:1.5px solid #3B82F6;background:#fff;color:#3B82F6;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font)">
+              📋 Ver detalle
+            </button>
+            <button onclick="confirmarReposicion(${r.id})" style="flex:1;padding:10px;border:none;background:#16A34A;color:#fff;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font)">
+              ✅ Confirmar recepción
+            </button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ` : ''}
 
     <!-- Buscador de partes realizados -->
     <div id="buscadorPartes" style="display:none;margin-bottom:16px;background:#fff;border:1px solid var(--gris-200);border-radius:12px;padding:12px">
