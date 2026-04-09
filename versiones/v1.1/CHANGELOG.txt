@@ -1,0 +1,118 @@
+===============================================================
+ INSTALO ERP - REGISTRO DE CAMBIOS (CHANGELOG)
+===============================================================
+
+---------------------------------------------------------------
+ v1.2.2 (2026-04-04)
+ Planificador interactivo completo
+---------------------------------------------------------------
+NUEVO:
+- Crear parte desde planificador: click en celda vacia abre
+  modal para seleccionar obra e instrucciones, crear como
+  borrador o programado directamente
+- Confirmacion antes de mover: al arrastrar un parte se pide
+  confirmacion con modal (evita movimientos accidentales)
+- Modo fullscreen: funcion abrirPlanificadorDesdeObra() para
+  abrir el planificador a pantalla completa desde ficha de obra
+
+CORREGIDO/MEJORADO:
+- Altura dinamica: las filas se calculan automaticamente para
+  llenar todo el espacio disponible (sin hueco blanco abajo)
+- Partes ocupan su rango real de horas completo
+  (ej: 3:00-10:00 ocupa 7 filas, no solo la primera)
+- Huecos pequenos: muestran numero de parte/obra en vez de la
+  hora (la hora ya se sabe por la posicion en la rejilla)
+- Partes completados/revisados/facturados NO se pueden arrastrar
+  (solo programados y en_curso son arrastrables)
+- Filtro muestra UN operario a la vez (sin opcion "Todos")
+- Colores de estado iguales a partes.js
+- Drag & drop actualiza fecha + preserva duracion con minutos
+- Borradores: al arrastrar al grid pasan a programado
+
+ARCHIVOS MODIFICADOS (respecto a v1.2.0):
+- js/obras/planificador.js (reescritura completa)
+- css/styles.css (fullscreen, bordes, grid relative)
+- index.html (version bump a v1.2.1)
+- app.html (version bump a v1.2.1)
+
+---------------------------------------------------------------
+ v1.2.0 (2026-04-04)
+ Planificador profesional + horario laboral + festivos
+---------------------------------------------------------------
+CORREGIDO:
+- Planificador: tabla usuarios corregida ('perfiles' no 'usuarios')
+- Planificador: variable renombrada a planUsuarios (colision
+  con usuarios.js causaba pantalla en blanco)
+- Planificador: referencias globales (sb, EMPRESA) corregidas
+- Layout shift (reflow): CSS anti-reflow con translateZ(0)
+
+NUEVO - PLANIFICADOR:
+- Horario extendido: de 6:00 a 00:00 (antes 7:00-19:00)
+- Todos los partes en la rejilla EXCEPTO borradores
+  (borradores van en seccion aparte debajo)
+- Scroll sincronizado: horas se mueven con la rejilla
+- Horario laboral: celdas blancas dentro, oscuras fuera
+  (por defecto 7:00-19:00, configurable desde admin)
+- Fines de semana: columnas con fondo gris
+- Festivos: columnas oscuras + badge rojo "Festivo"
+  (configurables desde admin -> config -> festivos)
+- Aviso toast al hacer click fuera de horario laboral
+- Highlight dia de hoy en azul claro
+- Icono de estado en cada parte de la rejilla
+- Config se carga desde empresas.config (JSON):
+  { hora_laboral_ini, hora_laboral_fin, festivos:[] }
+
+MEJORADO:
+- Sidebar colapsado: secciones se abren para mostrar iconos
+- Sidebar colapsado: iconos mas grandes (18px)
+
+ARCHIVOS MODIFICADOS (respecto a v1.1.0):
+- js/obras/planificador.js (reescritura completa)
+- css/styles.css (planificador + sidebar collapsed)
+- index.html (div planSinHora + version bump)
+- app.html (version bump)
+- CHANGELOG.txt (nuevo)
+
+---------------------------------------------------------------
+ v1.1.0 (2026-04-04)
+ Planificador Semanal + Sidebar colapsable
+---------------------------------------------------------------
+NUEVO:
+- Planificador Semanal: vista de rejilla 7 dias x 12 horas
+  con navegacion por semanas y filtro por operario
+- Sidebar colapsable: boton para colapsar/expandir el menu
+  lateral, mostrando solo iconos cuando esta colapsado
+- Estado persistente del sidebar en localStorage
+
+ARCHIVOS NUEVOS:
+- js/obras/planificador.js (modulo completo planificador)
+
+ARCHIVOS MODIFICADOS (respecto a v1.0.3):
+- index.html (pagina planificador, menu item, sidebar toggle)
+- css/styles.css (CSS planificador + CSS sidebar colapsable)
+- js/core/ui.js (toggleSidebar, initPlanificador en goPage)
+
+NOTA: CSS original de v1.0.3 NO modificado. Solo se añadieron
+reglas nuevas al final del archivo.
+
+---------------------------------------------------------------
+ v1.0.3 (2026-04-03)
+ Version base estable
+---------------------------------------------------------------
+- Version de referencia estable
+- Modulos: Clientes, Presupuestos, Albaranes, Facturas,
+  Proveedores, Articulos, Obras, Partes, Calendario,
+  Usuarios, Configuracion, etc.
+- Primera version con todas las funcionalidades basicas
+  del ERP operativas
+
+===============================================================
+ NOTAS PARA DESPLIEGUE EN GITHUB
+===============================================================
+- Subir siempre el CONTENIDO de la carpeta de version,
+  NO la carpeta en si (causa 404)
+- Ejemplo: arrastrar el contenido de v1.2.0/ a GitHub,
+  no la carpeta v1.2.0/
+- Este archivo CHANGELOG.txt no afecta al funcionamiento
+  de la aplicacion
+===============================================================
