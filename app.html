@@ -3945,6 +3945,10 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
         <input type="checkbox" id="qf_borrador" style="width:18px;height:18px;cursor:pointer;accent-color:var(--azul)">
         <span style="font-size:13px;color:var(--gris-600)">Guardar como borrador (pendiente de confirmar)</span>
       </label>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;cursor:pointer">
+        <input type="checkbox" id="qf_firma_opcional" style="width:18px;height:18px;cursor:pointer;accent-color:#F59E0B">
+        <span style="font-size:13px;color:#92400E">No requiere firma del cliente</span>
+      </label>
       <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:10px">Crear parte</button>
     </div>
   `;
@@ -4252,6 +4256,7 @@ async function _saveParteForm() {
 
     // Estado: programado por defecto (tiene fecha); borrador si el check está marcado
     const esBorrador = document.getElementById('qf_borrador')?.checked || false;
+    const firmaOpcional = document.getElementById('qf_firma_opcional')?.checked || false;
     const record = {
       empresa_id:     EMPRESA.id,
       estado:         esBorrador ? 'borrador' : 'programado',
@@ -4267,6 +4272,7 @@ async function _saveParteForm() {
       hora_inicio:    document.getElementById('qf_hora_ini')?.value || '08:00',
       hora_fin:       document.getElementById('qf_hora_fin')?.value || '14:00',
       instrucciones:  descripcion + (document.getElementById('qf_desc')?.value?.trim() ? '\n' + document.getElementById('qf_desc').value.trim() : ''),
+      firma_opcional: firmaOpcional,
       horas: 0
     };
 
