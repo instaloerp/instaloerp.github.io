@@ -1010,9 +1010,16 @@ function abrirCrearParteRapido(fecha, hora) {
 
     <div id="planMultiDiaInfo" style="display:none;padding:8px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:11.5px;color:#1E40AF;margin-bottom:12px"></div>
 
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:10px">
       <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Instrucciones (opcional)</label>
       <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Instrucciones para el operario..."></textarea>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#6B7280">
+        <input type="checkbox" id="planFirmaOpcional" style="width:16px;height:16px;cursor:pointer;accent-color:#F59E0B">
+        <span style="font-weight:600">No requiere firma del cliente</span>
+      </label>
     </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1403,6 +1410,7 @@ async function crearPartesDesdeModal(estado) {
   const horaIni = esMultiDia ? '08:30:00' : ((document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00');
   const horaFin = esMultiDia ? '16:30:00' : ((document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00');
   const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
+  const firmaOpcional = document.getElementById('planFirmaOpcional')?.checked || false;
 
   // Título: si es libre usa la descripción; si es obra usa el título de la obra
   const trabajo_titulo = esLibre
@@ -1471,6 +1479,7 @@ async function crearPartesDesdeModal(estado) {
       hora_fin: horaFin,
       horas: horasDia,
       estado,
+      firma_opcional: firmaOpcional,
       instrucciones: dias.length > 1
         ? `[Día ${i + 1}/${dias.length}] ${instrucciones || ''}`
         : instrucciones,
