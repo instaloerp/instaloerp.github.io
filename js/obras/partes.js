@@ -149,6 +149,15 @@ function filtrarPartes() {
     (!trabajo_id || p.trabajo_id === parseInt(trabajo_id))
   );
 
+  // Ordenación
+  const orden = document.getElementById('pt-filter-orden')?.value || 'created_at';
+  partesFiltrados.sort((a, b) => {
+    const va = a[orden] || '';
+    const vb = b[orden] || '';
+    if (orden === 'numero') return vb.localeCompare(va, undefined, { numeric: true });
+    return vb > va ? 1 : vb < va ? -1 : 0; // Descendente (más reciente primero)
+  });
+
   renderPartes(partesFiltrados);
 }
 

@@ -425,6 +425,8 @@ input[type=number]{-moz-appearance:textfield}
   </div>
 </div>
 <input type="file" id="ocrAddPageInput" accept="image/*" capture="environment" style="display:none" onchange="_ocrAddPageSelected(this)">
+<input type="file" id="fabOcrFileInput" accept="image/*" capture="environment" style="display:none" onchange="_onFabOCRFileSelected(this)">
+<input type="file" id="fabOcrPageInput" accept="image/*" capture="environment" style="display:none" onchange="_fabOcrAddPageSelected(this)">
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -1005,7 +1007,7 @@ function renderMiFurgoneta() {
     return;
   }
 
-  const stockItems = miFurgonetaStock.filter(s => s.stock_disponible > 0 || s.cantidad > 0);
+  const stockItems = miFurgonetaStock.filter(s => s.stock_disponible > 0 || s.cantidad > 0 || (s.stock_provisional || 0) > 0);
   const totalRefs = stockItems.length;
   const bajosStock = stockItems.filter(s => s.stock_minimo && s.cantidad <= s.stock_minimo).length;
 
@@ -4924,93 +4926,225 @@ function _docNuevo() {
 }
 
 // ═══════════════════════════════════════════════
-// OCR: Subida de foto para procesamiento
+// OCR FLOTANTE: Escanear documento → OCR → preview → stock furgoneta
 // ═══════════════════════════════════════════════
+let _fabOcrData = null; // { pages:[{foto,base64data,mime}], allLineas:[], numDocumento:'' }
+
 function _openOCRUpload() {
-  document.getElementById('modalContent').innerHTML = `
-    <div class="modal-title">📷 Subir foto para OCR</div>
-    <p style="font-size:13px;color:var(--gris-500);margin-bottom:16px">Saca una foto a un documento (factura, albarán, etc.) y se subirá al ERP pendiente de procesar.</p>
-    <div style="text-align:center;margin-bottom:16px">
-      <label class="foto-add" style="width:100%;aspect-ratio:auto;padding:40px 20px;cursor:pointer">
-        <input type="file" accept="image/*,application/pdf" id="ocrFileInput" style="display:none" onchange="_onOCRFileSelected(this)">
-        <span style="font-size:40px">📷</span>
-        <span>Cámara, galería o archivo</span>
-      </label>
-    </div>
-    <div id="ocrPreview" style="display:none;text-align:center;margin-bottom:16px">
-      <img id="ocrPreviewImg" style="max-width:100%;max-height:300px;border-radius:12px;border:2px solid var(--gris-200)">
-      <p id="ocrFileName" style="font-size:11px;color:var(--gris-400);margin-top:6px"></p>
-    </div>
-    <button id="ocrSendBtn" class="btn btn-primary" onclick="_uploadOCR()" style="display:none">Subir documento</button>
-    <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:8px">Cancelar</button>
-  `;
-  openModal('Subir Documento');
+  if (!EMPRESA?.anthropic_api_key) {
+    toast('⚠️ Configura la API key de IA en Ajustes del ERP', 'error');
+    return;
+  }
+  // Lanzar cámara directamente
+  _fabOcrData = null;
+  document.getElementById('fabOcrFileInput')?.click();
 }
 
-let _ocrSelectedFile = null;
-
-function _onOCRFileSelected(input) {
-  const file = input.files[0];
+async function _onFabOCRFileSelected(input) {
+  const file = input.files?.[0];
   if (!file) return;
-  _ocrSelectedFile = file;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    document.getElementById('ocrPreviewImg').src = e.target.result;
-    document.getElementById('ocrPreview').style.display = '';
-    document.getElementById('ocrFileName').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
-    document.getElementById('ocrSendBtn').style.display = '';
-  };
-  reader.readAsDataURL(file);
-}
+  input.value = '';
 
-async function _uploadOCR() {
-  if (!_ocrSelectedFile || !EMPRESA) return;
-  const btn = document.getElementById('ocrSendBtn');
-  btn.textContent = 'Subiendo...';
-  btn.disabled = true;
+  showLoading('📷 Procesando documento con IA...');
 
   try {
-    // 1. Subir imagen al bucket de Supabase Storage
-    const ext = _ocrSelectedFile.name.split('.').pop() || 'jpg';
-    const ahora = new Date();
-    const fechaStr = ahora.toISOString().slice(0,10); // 2026-04-06
-    const horaStr = ahora.toTimeString().slice(0,5).replace(':','-'); // 09-17
-    const uid = Math.random().toString(36).substring(2,6); // 4 chars aleatorios
-    const fileName = `ocr_${fechaStr}_${horaStr}_${uid}.${ext}`;
-    const nombreVisible = `Doc_OCR_${fechaStr}_${horaStr}.${ext}`;
-    const storagePath = `${EMPRESA.id}/ocr/${fileName}`;
+    // Convertir a base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const mimeMatch = base64.match(/^data:([^;]+);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const b64Data = base64.split(',')[1];
 
-    const { data: uploadData, error: uploadErr } = await sb.storage
-      .from('documentos')
-      .upload(storagePath, _ocrSelectedFile, { contentType: _ocrSelectedFile.type });
+    // Decodificar API key
+    let apiKey;
+    try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { apiKey = EMPRESA.anthropic_api_key; }
 
-    if (uploadErr) throw uploadErr;
-
-    // 2. Crear registro en tabla documentos_ocr
-    const { error: dbErr } = await sb.from('documentos_ocr').insert({
-      empresa_id: EMPRESA.id,
-      usuario_id: CP?.id,
-      archivo_path: storagePath,
-      archivo_nombre: nombreVisible,
-      estado: 'pendiente',
-      created_at: new Date().toISOString()
+    // Llamar Edge Function OCR
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
+      body: JSON.stringify({
+        imagen_base64: b64Data, media_type: mimeType, tipo: 'albaran',
+        empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || ''
+      })
     });
 
-    if (dbErr) {
-      console.warn('Tabla documentos_ocr no existe o error:', dbErr.message);
-      // Si la tabla no existe, al menos la foto está en Storage
-      toast('Foto subida a Storage (tabla OCR no disponible)','warning');
-    } else {
-      toast('Documento subido correctamente. Pendiente de procesar.','success');
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Error procesando documento');
+
+    const data = result.data || {};
+    const lineas = data.lineas || [];
+    if (!lineas.length) {
+      toast('⚠️ No se han detectado materiales en el documento', 'warning');
+      return;
     }
 
-    closeModal();
-    _ocrSelectedFile = null;
+    // Detectar número de documento y comprobar duplicados
+    const numDoc = (data.numero_documento || data.numero || '').trim();
+    if (numDoc) {
+      const dup = await _fabOcrCheckDuplicado(numDoc);
+      if (dup) { toast(dup, 'error'); return; }
+    }
+
+    // Preparar líneas con match de catálogo
+    const lineasProcesadas = lineas.map((linea, i) => {
+      const nombre = linea.descripcion || linea.nombre || '';
+      const codigo = linea.codigo || '';
+      const cantidad = parseFloat(linea.cantidad) || 1;
+      const precio = parseFloat(linea.precio_unitario) || 0;
+
+      let artMatch = null;
+      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
+      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+
+      return {
+        idx: i, page: 0,
+        nombre: artMatch?.nombre || nombre || 'Material OCR',
+        codigo: artMatch?.codigo || codigo,
+        cantidad, precio: artMatch?.precio_venta || precio,
+        unidad: linea.unidad || artMatch?.unidad || 'ud',
+        artMatch, selected: true
+      };
+    });
+
+    // Inicializar estructura multipágina
+    _fabOcrData = {
+      numDocumento: numDoc,
+      tipoDocumento: data.tipo_documento || 'albaran',
+      proveedor: data.proveedor?.nombre || (typeof data.proveedor === 'string' ? data.proveedor : '') || '',
+      pages: [{ foto: base64, b64Data, mimeType }],
+      allLineas: lineasProcesadas,
+      ocrResult: data
+    };
+
+    // Reutilizar el overlay de preview (mismo que wizard)
+    _ocrPreviewData = {
+      numDocumento: numDoc,
+      pages: [{ foto: base64 }],
+      allLineas: lineasProcesadas,
+      _fabMode: true // Flag: estamos en modo flotante, no wizard
+    };
+    _ocrRenderPreview();
+
   } catch(e) {
-    console.error('OCR upload error:', e);
-    toast('Error al subir: ' + (e.message||e),'error');
-    btn.textContent = 'Subir documento';
-    btn.disabled = false;
+    console.error('[FAB OCR]', e);
+    toast('Error procesando: ' + (e.message || 'desconocido'), 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// Comprobar duplicado en tablas de compra + OCR pendientes + partes
+async function _fabOcrCheckDuplicado(numDoc) {
+  try {
+    const eid = EMPRESA.id;
+    const [resRecep, resFactProv, resPedidos, resPresCom, resOcr, resPartes] = await Promise.all([
+      sb.from('recepciones').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+      sb.from('facturas_proveedor').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+      sb.from('pedidos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+      sb.from('presupuestos_compra').select('id,numero').eq('empresa_id', eid).eq('numero', numDoc).limit(1),
+      sb.from('documentos_ocr').select('id,estado,datos_extraidos').eq('empresa_id', eid).in('estado', ['completado','procesando','pendiente']),
+      sb.from('partes_trabajo').select('id,numero,albaranes_compra').eq('empresa_id', eid).not('albaranes_compra', 'is', null)
+    ]);
+    if (resRecep.data?.length) return `⚠️ Ya existe una recepción nº ${numDoc}`;
+    if (resFactProv.data?.length) return `⚠️ Ya existe una factura de proveedor nº ${numDoc}`;
+    if (resPedidos.data?.length) return `⚠️ Ya existe un pedido de compra nº ${numDoc}`;
+    if (resPresCom.data?.length) return `⚠️ Ya existe un presupuesto de compra nº ${numDoc}`;
+    if (resOcr.data) {
+      for (const doc of resOcr.data) {
+        const ext = doc.datos_extraidos;
+        if (ext && (ext.numero_documento === numDoc || ext.numero === numDoc))
+          return `⚠️ Documento nº ${numDoc} ya escaneado (pendiente de validar)`;
+      }
+    }
+    if (resPartes.data) {
+      for (const pt of resPartes.data) {
+        const albs = Array.isArray(pt.albaranes_compra) ? pt.albaranes_compra : [];
+        if (albs.find(a => a.numero && a.numero === numDoc))
+          return `⚠️ Documento nº ${numDoc} ya en parte ${pt.numero || pt.id}`;
+      }
+    }
+  } catch(e) { console.warn('Error comprobando duplicados:', e); }
+  return null; // Sin duplicado
+}
+
+// Añadir página extra al OCR flotante
+async function _fabOcrAddPageSelected(input) {
+  const file = input.files?.[0];
+  if (!file || !_fabOcrData) return;
+  input.value = '';
+
+  showLoading('📷 Procesando página adicional...');
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const mimeMatch = base64.match(/^data:([^;]+);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const b64Data = base64.split(',')[1];
+
+    let apiKey;
+    try { apiKey = decodeURIComponent(escape(atob(EMPRESA.anthropic_api_key))); }
+    catch(_) { apiKey = EMPRESA.anthropic_api_key; }
+
+    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
+      body: JSON.stringify({
+        imagen_base64: b64Data, media_type: mimeType, tipo: 'albaran',
+        empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || ''
+      })
+    });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Error procesando documento');
+
+    const data = result.data || {};
+    const lineas = data.lineas || [];
+    if (!lineas.length) { toast('⚠️ No se detectaron materiales en esta página', 'warning'); return; }
+
+    const pageIdx = _fabOcrData.pages.length;
+    _fabOcrData.pages.push({ foto: base64, b64Data, mimeType });
+
+    const baseIdx = _fabOcrData.allLineas.length;
+    lineas.forEach((linea, i) => {
+      const nombre = linea.descripcion || linea.nombre || '';
+      const codigo = linea.codigo || '';
+      const cantidad = parseFloat(linea.cantidad) || 1;
+      const precio = parseFloat(linea.precio_unitario) || 0;
+
+      let artMatch = null;
+      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
+      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+
+      _fabOcrData.allLineas.push({
+        idx: baseIdx + i, page: pageIdx,
+        nombre: artMatch?.nombre || nombre || 'Material OCR',
+        codigo: artMatch?.codigo || codigo,
+        cantidad, precio: artMatch?.precio_venta || precio,
+        unidad: linea.unidad || artMatch?.unidad || 'ud',
+        artMatch, selected: true
+      });
+    });
+
+    // Sincronizar con el overlay de preview
+    _ocrPreviewData.pages.push({ foto: base64 });
+    _ocrPreviewData.allLineas = _fabOcrData.allLineas;
+    toast(`✅ Página ${pageIdx + 1}: ${lineas.length} material(es) detectado(s)`, 'success');
+    _ocrRenderPreview();
+
+  } catch(e) {
+    console.error('[FAB OCR AddPage]', e);
+    toast('Error procesando página: ' + (e.message || 'desconocido'), 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -6197,11 +6331,16 @@ function _ocrUpdateQty(idx, val) {
 function ocrPreviewCerrar() {
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
   _ocrPreviewData = null;
+  _fabOcrData = null;
 }
 
 // ── Añadir otra página al mismo documento ──
 function ocrPreviewAddPage() {
-  document.getElementById('ocrAddPageInput')?.click();
+  if (_ocrPreviewData?._fabMode) {
+    document.getElementById('fabOcrPageInput')?.click();
+  } else {
+    document.getElementById('ocrAddPageInput')?.click();
+  }
 }
 
 async function _ocrAddPageSelected(input) {
@@ -6287,7 +6426,13 @@ function ocrPreviewConfirmar() {
     return;
   }
 
-  // Añadir materiales seleccionados al parte
+  // Bifurcar: modo flotante (FAB) vs modo wizard (parte)
+  if (d._fabMode) {
+    _fabOcrConfirmar(seleccionados);
+    return;
+  }
+
+  // ── Modo wizard: añadir materiales al parte ──
   for (const l of seleccionados) {
     _wiz.materiales.push({
       articulo_id: l.artMatch?.id || null,
@@ -6305,7 +6450,7 @@ function ocrPreviewConfirmar() {
   if (!_wiz.albaranes_compra) _wiz.albaranes_compra = [];
   _wiz.albaranes_compra.push({
     numero: d.numDocumento || 'Sin número',
-    fotos: d.pages.map(pg => pg.foto) // Array de fotos (1 por página)
+    fotos: d.pages.map(pg => pg.foto)
   });
 
   toast(`✅ ${seleccionados.length} material(es) añadido(s) al parte`, 'success');
@@ -6313,6 +6458,139 @@ function ocrPreviewConfirmar() {
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
   _ocrPreviewData = null;
   renderWizStep();
+}
+
+// ── Modo FAB: subir a documentos_ocr + stock provisional en furgoneta ──
+async function _fabOcrConfirmar(seleccionados) {
+  const d = _fabOcrData;
+  if (!d) return;
+
+  showLoading('Guardando en furgoneta...');
+
+  try {
+    const eid = EMPRESA.id;
+    const almacenId = miFurgoneta?.id;
+
+    // 1. Subir fotos al Storage y crear registro documentos_ocr
+    const fotosUrls = [];
+    for (let i = 0; i < d.pages.length; i++) {
+      const pg = d.pages[i];
+      const blob = await (await fetch(pg.foto)).blob();
+      const ahora = new Date();
+      const fileName = `ocr_${ahora.toISOString().slice(0,10)}_${ahora.toTimeString().slice(0,5).replace(':','-')}_p${i}_${Math.random().toString(36).substr(2,4)}.jpg`;
+      const storagePath = `${eid}/ocr/${fileName}`;
+
+      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: pg.mimeType || 'image/jpeg' });
+      if (!upErr) {
+        const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+        fotosUrls.push({ path: storagePath, url: urlData?.publicUrl });
+      }
+    }
+
+    // Registro en documentos_ocr — BORRADOR hasta que oficina valide
+    const docInsert = {
+      empresa_id: eid,
+      usuario_id: CP?.id,
+      archivo_path: fotosUrls[0]?.path || '',
+      archivo_nombre: `Doc_OCR_${d.numDocumento || new Date().toISOString().slice(0,10)}`,
+      estado: 'borrador',
+      tipo_documento: d.tipoDocumento || 'albaran',
+      datos_extraidos: {
+        ...d.ocrResult,
+        paginas: d.pages.length,
+        fotos_urls: fotosUrls.map(f => f.url),
+        operario: CP?.nombre || CU?.email || '',
+        furgoneta: miFurgoneta?.nombre || '',
+        materiales_seleccionados: seleccionados.map(l => ({
+          nombre: l.nombre, codigo: l.codigo, cantidad: l.cantidad,
+          unidad: l.unidad, articulo_id: l.artMatch?.id || null,
+          en_catalogo: !!l.artMatch
+        }))
+      },
+      created_at: new Date().toISOString()
+    };
+    const { data: docCreado } = await sb.from('documentos_ocr').insert(docInsert).select('id').single().catch(e => {
+      console.warn('documentos_ocr insert:', e.message);
+      return { data: null };
+    });
+
+    // 2. Meter TODOS los materiales como stock provisional en furgoneta
+    if (almacenId) {
+      for (const l of seleccionados) {
+        const artId = l.artMatch?.id || null;
+
+        if (artId) {
+          // Material con catálogo: stock_provisional en registro existente o nuevo
+          const stockExistente = miFurgonetaStock.find(s => s.articulo_id === artId);
+          if (stockExistente) {
+            const nuevoProvisional = (stockExistente.stock_provisional || 0) + l.cantidad;
+            await sb.from('stock').update({ stock_provisional: nuevoProvisional })
+              .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', eid);
+          } else {
+            await sb.from('stock').insert({
+              empresa_id: eid, almacen_id: almacenId, articulo_id: artId,
+              cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
+            }).catch(() => {});
+          }
+
+          await sb.from('movimientos_stock').insert({
+            empresa_id: eid, articulo_id: artId, almacen_id: almacenId,
+            tipo: 'entrada_provisional', cantidad: l.cantidad,
+            cantidad_anterior: (miFurgonetaStock.find(s => s.articulo_id === artId)?.stock_provisional) || 0,
+            cantidad_nueva: ((miFurgonetaStock.find(s => s.articulo_id === artId)?.stock_provisional) || 0) + l.cantidad,
+            motivo: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
+            tipo_stock: 'provisional',
+            usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
+          }).catch(() => {});
+
+        }
+        // Materiales sin catálogo: no se puede meter en stock (no tienen articulo_id)
+        // Quedan registrados en datos_extraidos del documento OCR para que oficina los cree
+      }
+
+      await loadStockFurgoneta(almacenId);
+    }
+
+    // 3. Crear tarea pendiente para oficina
+    const numDocLabel = d.numDocumento || 'sin número';
+    const tipoLabel = d.tipoDocumento === 'factura' ? 'Factura' : 'Albarán';
+    await sb.from('tareas_pendientes').insert({
+      empresa_id: eid,
+      entidad_tipo: 'documento_ocr',
+      entidad_id: docCreado?.id || null,
+      entidad_nombre: `${tipoLabel} ${numDocLabel}`,
+      titulo: `📷 Nuevo documento escaneado: ${tipoLabel} ${numDocLabel} (${CP?.nombre || 'operario'})`,
+      campos_faltantes: seleccionados.filter(l => !l.artMatch).length > 0
+        ? ['validar_materiales', 'crear_articulos_nuevos', 'vincular_proveedor']
+        : ['validar_materiales', 'vincular_proveedor'],
+      origen: 'auto',
+      rol_asignado: 'admin',
+      estado: 'pendiente',
+      usuario_creador_id: CU?.id || null
+    }).catch(() => {});
+
+    const sinCatalogo = seleccionados.filter(l => !l.artMatch);
+    let msgExtra = sinCatalogo.length ? ` · ${sinCatalogo.length} pendientes de crear en catálogo` : '';
+    const conCatalogo = seleccionados.filter(l => l.artMatch);
+    toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta${msgExtra}`, 'success');
+
+    // Cerrar overlay
+    document.getElementById('ocrPreviewOverlay').classList.remove('active');
+    _ocrPreviewData = null;
+    _fabOcrData = null;
+
+    // Refrescar vista si estamos en furgoneta
+    if (currentTab === 'inicio' || currentTab === 'furgoneta') {
+      const body = document.getElementById('appBody');
+      if (body) renderMiFurgoneta();
+    }
+
+  } catch(e) {
+    console.error('[FAB OCR Confirmar]', e);
+    toast('Error: ' + (e.message || 'desconocido'), 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 function renderWizMatRow(m, idx) {

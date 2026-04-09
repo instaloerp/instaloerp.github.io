@@ -270,6 +270,10 @@
         <!-- ALERTAS: Incidencias stock -->
         <div id="dash-incidencias" style="display:none;margin-bottom:16px"></div>
 
+        <!-- ALERTAS: Partes completados + Documentos OCR pendientes -->
+        <div id="dash-partes-completados" style="display:none;margin-bottom:16px"></div>
+        <div id="dash-docs-ocr" style="display:none;margin-bottom:16px"></div>
+
         <!-- FILA 3: Mis Tareas + Tablas -->
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
           <div class="card">
@@ -1312,13 +1316,23 @@
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-          <input type="text" id="pt-filter-texto" placeholder="Buscar..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
-          <select id="pt-filter-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+          <input type="text" id="pt-filter-texto" placeholder="Buscar..." oninput="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
+          <select id="pt-filter-estado" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los estados</option>
-            <option value="borrador">Borrador</option>
-            <option value="enviado">Enviado</option>
-            <option value="revisado">Revisado</option>
-            <option value="facturado">Facturado</option>
+            <option value="programado">📅 Programado</option>
+            <option value="en_curso">🔧 En curso</option>
+            <option value="completado">✅ Cumplimentado</option>
+            <option value="pendiente_firma_cliente">✍️ Pte. firma cliente</option>
+            <option value="borrador">✏️ Borrador</option>
+            <option value="enviado">📤 Enviado</option>
+            <option value="revisado">👁️ Revisado</option>
+            <option value="facturado">🧾 Facturado</option>
+          </select>
+          <select id="pt-filter-orden" onchange="filtrarPartes()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <option value="created_at">Ordenar: Fecha creación ↓</option>
+            <option value="updated_at">Ordenar: Fecha recepción ↓</option>
+            <option value="fecha">Ordenar: Fecha programada ↓</option>
+            <option value="numero">Ordenar: Número ↓</option>
           </select>
         </div>
         <div class="card" style="padding:0;overflow:hidden">

@@ -115,6 +115,12 @@ async function loadDashboard() {
     }
   } catch(e) { /* silent */ }
 
+  // ── PARTES COMPLETADOS PENDIENTES DE REVISAR ──
+  await loadDashboardPartesCompletados();
+
+  // ── DOCUMENTOS OCR PENDIENTES ──
+  await loadDashboardDocsOcr();
+
   // ── BADGE CORREO NO LEÍDO ──
   if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
 
@@ -248,4 +254,114 @@ async function loadDashboardPartesGremio() {
   });
 
   el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// PARTES COMPLETADOS — Pendientes de revisar
+// ═══════════════════════════════════════════════
+async function loadDashboardPartesCompletados() {
+  const el = document.getElementById('dash-partes-completados');
+  if (!el) return;
+
+  const { data } = await sb.from('partes_trabajo')
+    .select('id,numero,estado,operario_nombre,trabajo_titulo,updated_at,created_at,cliente_nombre')
+    .eq('empresa_id', EMPRESA.id)
+    .in('estado', ['completado', 'pendiente_firma_cliente'])
+    .order('updated_at', { ascending: false });
+
+  const partes = data || [];
+  if (!partes.length) { el.style.display = 'none'; return; }
+
+  el.style.display = '';
+  el.innerHTML = `<div class="card" style="padding:14px;border-left:4px solid var(--azul)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:24px">📋</div>
+        <div>
+          <div style="font-weight:800;font-size:14px">${partes.length} parte${partes.length>1?'s':''} completado${partes.length>1?'s':''} pendiente${partes.length>1?'s':''} de revisar</div>
+          <div style="font-size:11px;color:var(--gris-400)">Enviados desde la app móvil · Ordenados por fecha de recepción</div>
+        </div>
+      </div>
+      <span class="badge bg-blue">${partes.length}</span>
+    </div>
+    <div style="max-height:250px;overflow-y:auto">
+      ${partes.slice(0, 10).map(p => {
+        const fecha = p.updated_at ? new Date(p.updated_at).toLocaleString('es-ES', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+        const estadoBadge = p.estado === 'pendiente_firma_cliente'
+          ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#FEF3C7;color:#92400E;font-weight:700">Pend. firma</span>'
+          : '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#DBEAFE;color:#1E40AF;font-weight:700">Completado</span>';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="goPage('partes');setTimeout(()=>verDetalleParte(${p.id}),400)">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px">${p.numero || '—'} <span style="color:var(--gris-400);font-weight:400;font-size:11px">· ${p.operario_nombre || ''}</span></div>
+            <div style="font-size:11px;color:var(--gris-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.trabajo_titulo || p.cliente_nombre || '—'}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:10px;color:var(--gris-400)">${fecha}</div>
+            ${estadoBadge}
+          </div>
+        </div>`;
+      }).join('')}
+      ${partes.length > 10 ? `<div style="text-align:center;padding:8px"><button class="btn btn-secondary btn-sm" onclick="goPage('partes')">Ver los ${partes.length} partes</button></div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// DOCUMENTOS OCR — Pendientes de validar
+// ═══════════════════════════════════════════════
+async function loadDashboardDocsOcr() {
+  const el = document.getElementById('dash-docs-ocr');
+  if (!el) return;
+
+  const { data } = await sb.from('documentos_ocr')
+    .select('id,archivo_nombre,estado,tipo_documento,datos_extraidos,created_at')
+    .eq('empresa_id', EMPRESA.id)
+    .in('estado', ['borrador', 'pendiente', 'completado'])
+    .order('created_at', { ascending: false });
+
+  const docs = data || [];
+  if (!docs.length) { el.style.display = 'none'; return; }
+
+  const borradores = docs.filter(d => d.estado === 'borrador');
+  const pendientes = docs.filter(d => d.estado === 'pendiente');
+  const completados = docs.filter(d => d.estado === 'completado');
+
+  el.style.display = '';
+  el.innerHTML = `<div class="card" style="padding:14px;border-left:4px solid var(--acento)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:24px">📷</div>
+        <div>
+          <div style="font-weight:800;font-size:14px">${docs.length} documento${docs.length>1?'s':''} OCR pendiente${docs.length>1?'s':''}</div>
+          <div style="font-size:11px;color:var(--gris-400)">
+            ${borradores.length ? `${borradores.length} borrador${borradores.length>1?'es':''} · ` : ''}
+            ${pendientes.length ? `${pendientes.length} sin procesar · ` : ''}
+            ${completados.length ? `${completados.length} procesado${completados.length>1?'s':''} sin validar` : ''}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="badge bg-orange">${docs.length}</span>
+        <button class="btn btn-secondary btn-sm" onclick="goPage('ocr')">Gestionar</button>
+      </div>
+    </div>
+    <div style="max-height:200px;overflow-y:auto">
+      ${docs.slice(0, 8).map(d => {
+        const fecha = d.created_at ? new Date(d.created_at).toLocaleString('es-ES', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+        const numDoc = d.datos_extraidos?.numero_documento || d.datos_extraidos?.numero || '';
+        const operario = d.datos_extraidos?.operario || '';
+        const tipoIco = d.tipo_documento === 'factura' ? '🧾' : '📄';
+        const estadoColor = d.estado === 'borrador' ? '#FEF3C7' : d.estado === 'pendiente' ? '#FEE2E2' : '#D1FAE5';
+        const estadoText = d.estado === 'borrador' ? '#92400E' : d.estado === 'pendiente' ? '#991B1B' : '#065F46';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="goPage('ocr')">
+          <span style="font-size:16px">${tipoIco}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:12px">${numDoc || d.archivo_nombre || 'Documento'} ${operario ? `<span style="color:var(--gris-400);font-weight:400;font-size:10px">· ${operario}</span>` : ''}</div>
+          </div>
+          <div style="font-size:10px;color:var(--gris-400)">${fecha}</div>
+          <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${estadoColor};color:${estadoText};font-weight:700">${d.estado}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
 }
