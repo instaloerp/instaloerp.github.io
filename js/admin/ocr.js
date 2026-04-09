@@ -87,7 +87,7 @@ async function updateOCRBadge() {
     const { count, error } = await sb.from('documentos_ocr')
       .select('*', { count: 'exact', head: true })
       .eq('empresa_id', EMPRESA.id)
-      .eq('estado', 'pendiente');
+      .in('estado', ['pendiente', 'borrador']);
     const badge = document.getElementById('ocrBadge');
     if (!badge) return;
     if (!error && count > 0) {
@@ -116,7 +116,8 @@ async function loadOCRInbox() {
     .order('created_at', { ascending: false })
     .limit(200);
 
-  if (filtro) q = q.eq('estado', filtro);
+  if (filtro === 'pendiente') q = q.in('estado', ['pendiente', 'borrador']);
+  else if (filtro) q = q.eq('estado', filtro);
 
   const { data, error } = await q;
 
@@ -146,10 +147,10 @@ function _ocrUpdateKpis() {
     .eq('empresa_id', EMPRESA.id)
     .then(({ data }) => {
       if (!data) return;
-      const counts = { pendiente: 0, procesando: 0, completado: 0, error: 0 };
+      const counts = { pendiente: 0, borrador: 0, procesando: 0, completado: 0, error: 0 };
       data.forEach(d => { if (counts[d.estado] !== undefined) counts[d.estado]++; });
       const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-      el('ocrKpiPend', counts.pendiente);
+      el('ocrKpiPend', counts.pendiente + counts.borrador);
       el('ocrKpiProc', counts.procesando);
       el('ocrKpiComp', counts.completado);
       el('ocrKpiErr', counts.error);
@@ -173,6 +174,7 @@ function _ocrRenderTable(docs) {
 
   const estadoConfig = {
     pendiente:  { ico: '⏳', color: '#92400e', bg: '#fef3c7', label: 'PENDIENTE' },
+    borrador:   { ico: '📱', color: '#6D28D9', bg: '#F5F3FF', label: 'SUBIDO APP' },
     procesando: { ico: '⚙️', color: '#1e40af', bg: '#dbeafe', label: 'PROCESANDO' },
     completado: { ico: '✅', color: '#065f46', bg: '#d1fae5', label: 'COMPLETADO' },
     error:      { ico: '❌', color: '#991b1b', bg: '#fee2e2', label: 'ERROR' }
