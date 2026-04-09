@@ -6768,18 +6768,18 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
               empresa_id: eid, almacen_id: almacenId, articulo_id: artIdFinal,
               cantidad: 0, stock_provisional: l.cantidad, stock_reservado: 0
             });
-            if (stockErr) console.warn('Stock insert error:', stockErr.message);
+            if (stockErr) { console.warn('Stock insert error:', stockErr.message); toast('⚠️ Stock: ' + stockErr.message, 'error'); }
           }
 
           await sb.from('movimientos_stock').insert({
             empresa_id: eid, articulo_id: artIdFinal, almacen_id: almacenId,
             tipo: 'entrada_provisional', cantidad: l.cantidad,
-            cantidad_anterior: (stockExistente?.stock_provisional) || 0,
-            cantidad_nueva: ((stockExistente?.stock_provisional) || 0) + l.cantidad,
-            motivo: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
+            delta: l.cantidad,
+            notas: `OCR provisional: ${l.nombre} — doc ${d.numDocumento || 'sin nº'}`,
             tipo_stock: 'provisional',
+            fecha: new Date().toISOString().slice(0,10),
             usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
-          }).catch(() => {});
+          }).catch(e => console.warn('Mov stock error:', e.message));
         }
       }
 
