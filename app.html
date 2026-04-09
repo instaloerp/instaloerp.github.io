@@ -67,7 +67,10 @@ a{color:var(--azul);text-decoration:none}
 .app-header .info h2{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gris-900)}
 .app-header .info span{font-size:11px;color:var(--gris-400);font-weight:600}
 .app-header .hdr-btn{width:36px;height:36px;border-radius:50%;background:var(--gris-100);border:none;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.app-header .hdr-btn-modo{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.3px;background:var(--azul);color:#fff}
+.modo-switcher{display:none;flex-shrink:0;background:rgba(255,255,255,.12);border-radius:20px;padding:2px;gap:2px}
+.modo-switcher.active{display:inline-flex}
+.modo-btn{border:none;padding:5px 10px;border-radius:18px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.3px;background:transparent;color:rgba(255,255,255,.55);transition:all .2s}
+.modo-btn.selected{color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .hdr-live{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--gris-100);border:1px solid var(--gris-200);font-size:10px;font-weight:700;color:var(--gris-600);cursor:pointer;flex-shrink:0;letter-spacing:.3px}
 .hdr-live .live-dot{width:7px;height:7px;border-radius:50%;background:#10B981}
 
@@ -368,7 +371,11 @@ input[type=number]{-moz-appearance:textfield}
       <h2 id="hdrNombre">—</h2>
       <span id="hdrLastSync" style="font-size:10px;color:var(--gris-400);font-weight:600"></span>
     </div>
-    <button id="btnModo" class="hdr-btn-modo" onclick="toggleModo()" title="Cambiar modo"></button>
+    <div id="modoSwitcher" class="modo-switcher">
+      <button class="modo-btn" data-modo="operario" onclick="setModo('operario')">👷 OPER.</button>
+      <button class="modo-btn" data-modo="jefe" onclick="setModo('jefe')">⚙️ ADMIN</button>
+      <button class="modo-btn" data-modo="almacen" onclick="setModo('almacen')">📦 ALM.</button>
+    </div>
     <div style="position:relative;display:inline-flex">
       <div id="hdrLive" class="hdr-live" onclick="doRefresh()" title="Toca para actualizar"><span class="live-dot"></span> OK</div>
       <span id="syncBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#F59E0B;color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;text-align:center;line-height:16px">0</span>
@@ -436,6 +443,18 @@ input[type=number]{-moz-appearance:textfield}
 const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ─── Session timeout (30 min inactividad → re-login) ───
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos
+function _touchSession() { try { localStorage.setItem('instalo_last_active', Date.now().toString()); } catch(e){} }
+function _isSessionExpired() {
+  const last = parseInt(localStorage.getItem('instalo_last_active') || '0');
+  return !last || (Date.now() - last > SESSION_TIMEOUT_MS);
+}
+// Actualizar timestamp con cada interacción
+document.addEventListener('visibilitychange', () => { if (!document.hidden) return; _touchSession(); });
+document.addEventListener('touchstart', _touchSession, { passive: true });
+document.addEventListener('click', _touchSession, { passive: true });
 
 // ─── Config Desplazamiento ───
 const OFICINA_LAT = 43.686648;
@@ -793,13 +812,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
-    CU = session.user;
-    await loadProfile();
-    if (CP?.empresa_id) {
-      await loadEmpresa(CP.empresa_id);
-      showApp();
-    } else {
+    // Si la sesión ha expirado por inactividad → forzar re-login
+    if (_isSessionExpired()) {
+      await sb.auth.signOut();
+      CU = null; CP = null; EMPRESA = null;
+      // Pre-rellenar email para que solo meta la contraseña
+      const savedEmail = session.user?.email || '';
+      if (savedEmail) document.getElementById('lEmail').value = savedEmail;
       showScreen('s-login');
+    } else {
+      CU = session.user;
+      await loadProfile();
+      if (CP?.empresa_id) {
+        await loadEmpresa(CP.empresa_id);
+        _touchSession(); // Marcar actividad al entrar
+        showApp();
+      } else {
+        showScreen('s-login');
+      }
     }
   }
 });
@@ -824,6 +854,7 @@ async function doLogin() {
   await loadProfile();
   if (!CP?.empresa_id) { errEl.textContent = 'Sin empresa asignada'; errEl.style.display = 'block'; return; }
   await loadEmpresa(CP.empresa_id);
+  _touchSession(); // Marcar actividad al hacer login
   showApp();
 }
 
@@ -1066,25 +1097,37 @@ function filtrarStockFurgoneta(q) {
 // ═══════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════
-function toggleModo() {
-  const actual = localStorage.getItem('instalo_modo');
+function setModo(modo) {
+  localStorage.setItem('instalo_modo', modo);
+  showApp();
+}
+
+function _updateModoSwitcher(modoActual) {
+  const sw = document.getElementById('modoSwitcher');
   const esSuperAdmin = CP?.es_superadmin === true;
   const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
+  if (!esSuperAdmin && !tieneAlmacen) { sw.classList.remove('active'); return; }
+  sw.classList.add('active');
 
-  if (esSuperAdmin) {
-    // Ciclo: jefe → almacen → operario → jefe
-    if (actual === 'operario') {
-      localStorage.setItem('instalo_modo', 'jefe');
-    } else if (actual === 'almacen') {
-      localStorage.setItem('instalo_modo', 'operario');
+  // Mostrar/ocultar botones según permisos
+  sw.querySelectorAll('.modo-btn').forEach(btn => {
+    const m = btn.dataset.modo;
+    // Admin solo visible para superadmin
+    if (m === 'jefe') btn.style.display = esSuperAdmin ? '' : 'none';
+    // Almacén visible para superadmin o acceso_almacen
+    if (m === 'almacen') btn.style.display = tieneAlmacen ? '' : 'none';
+    // Marcar seleccionado
+    const isSelected = m === modoActual;
+    btn.classList.toggle('selected', isSelected);
+    // Color de fondo del seleccionado
+    if (isSelected) {
+      if (m === 'operario') btn.style.background = '#F59E0B';
+      else if (m === 'jefe') btn.style.background = '#3B82F6';
+      else if (m === 'almacen') btn.style.background = '#10B981';
     } else {
-      localStorage.setItem('instalo_modo', 'almacen');
+      btn.style.background = 'transparent';
     }
-  } else if (tieneAlmacen) {
-    // Encargado almacén: toggle operario ↔ almacen
-    localStorage.setItem('instalo_modo', actual === 'almacen' ? 'operario' : 'almacen');
-  }
-  showApp();
+  });
 }
 
 async function showApp() {
@@ -1106,29 +1149,8 @@ async function showApp() {
   document.getElementById('hdrAvatar').textContent = (CP?.nombre || '?')[0].toUpperCase();
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
 
-  // Botón cambio de modo: visible a superadmin o a encargado almacén
-  const btnModo = document.getElementById('btnModo');
-  if (CP?.es_superadmin || CP?.acceso_almacen) {
-    btnModo.style.display = '';
-    if (esModoAlmacen) {
-      btnModo.innerHTML = '📦 ALMACÉN';
-      btnModo.style.background = '#10B981';
-      btnModo.style.color = '#fff';
-      btnModo.title = CP?.es_superadmin ? 'Cambiar a modo Operario' : 'Volver a modo Operario';
-    } else if (esJefe) {
-      btnModo.innerHTML = '⚙️ ADMIN';
-      btnModo.style.background = '#3B82F6';
-      btnModo.style.color = '#fff';
-      btnModo.title = CP?.acceso_almacen ? 'Cambiar a modo Almacén' : 'Cambiar a modo Operario';
-    } else {
-      btnModo.innerHTML = '👷 OPERARIO';
-      btnModo.style.background = '#F59E0B';
-      btnModo.style.color = '#fff';
-      btnModo.title = CP?.es_superadmin ? 'Cambiar a modo Administrador' : 'Cambiar a modo Almacén';
-    }
-  } else {
-    btnModo.style.display = 'none';
-  }
+  // Selector de modo: 3 botones con indicador activo
+  _updateModoSwitcher(esModoAlmacen ? 'almacen' : esJefe ? 'jefe' : 'operario');
 
   // Bottom nav
   renderBottomNav();
