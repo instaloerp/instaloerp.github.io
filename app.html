@@ -1494,11 +1494,14 @@ async function loadAllData() {
     await cacheDataOffline();
     _updateConnIndicator();
 
-    // Cargar furgoneta del operario (no bloqueante)
-    loadMiFurgoneta().catch(e => console.warn('[Furgoneta]', e));
-
-    // Cargar fichajes de hoy (no bloqueante — en paralelo con el resto)
-    loadMisFichajesHoy().catch(e => console.warn('[Fichajes]', e));
+    // Cargar furgoneta + reposiciones y fichajes en paralelo, re-render al terminar
+    Promise.all([
+      loadMiFurgoneta().catch(e => console.warn('[Furgoneta]', e)),
+      loadMisFichajesHoy().catch(e => console.warn('[Fichajes]', e))
+    ]).then(() => {
+      // Re-render inicio si estamos en esa pestaña (para mostrar reposiciones y fichaje)
+      if (currentTab === 'inicio') navigateTo('inicio');
+    });
 
   } catch(e) {
     console.error('Error loading data:', e);
