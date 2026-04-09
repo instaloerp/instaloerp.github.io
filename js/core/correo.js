@@ -62,7 +62,9 @@ async function loadCorreos() {
 
   // Auto-sincronizar si tiene sync habilitada
   if (_correoCuentaActiva.sync_habilitada) {
-    sincronizarCorreo(true); // silencioso
+    // Primera vez (0 correos en BD): descarga completa del buzón
+    const esPrimeraCarga = correos.length === 0;
+    sincronizarCorreo(true, esPrimeraCarga); // silencioso, full si es primera vez
   }
 
   // Iniciar auto-sync cada 2 minutos
@@ -106,7 +108,7 @@ function detenerAutoSyncCorreo() {
 // ═══════════════════════════════════════════════
 //  SINCRONIZACIÓN IMAP
 // ═══════════════════════════════════════════════
-async function sincronizarCorreo(silencioso = false) {
+async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
   if (_correoSyncing) return;
   if (!_correoCuentaActiva) {
     if (!silencioso) toast('No hay cuenta de correo configurada', 'error');
@@ -117,41 +119,86 @@ async function sincronizarCorreo(silencioso = false) {
   const syncBtn = document.getElementById('mailSyncBtn');
   if (syncBtn) {
     syncBtn.disabled = true;
-    syncBtn.innerHTML = '⏳ Sincronizando...';
+    syncBtn.innerHTML = cargaCompleta ? '⏳ Descargando buzón...' : '⏳ Sincronizando...';
   }
 
-  // Sincronizar múltiples carpetas IMAP
+  // Lotes de 100 para no exceder timeout de Edge Function (~60s)
+  const maxPorLote = 100;
   const carpetasIMAP = ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash'];
   let totalNuevos = 0;
 
   try {
-    for (const folder of carpetasIMAP) {
-      try {
-        const { data, error } = await sb.functions.invoke('sync-correo', {
-          body: {
-            empresa_id: EMPRESA.id,
-            cuenta_correo_id: _correoCuentaActiva.id,
-            folder,
-            max_mensajes: 50
-          }
-        });
-        if (!error && data?.success && data.nuevos > 0) totalNuevos += data.nuevos;
-      } catch (_) {} // Carpeta puede no existir en el servidor
+    if (cargaCompleta) {
+      // Carga completa: descargar todo el buzón en lotes de 100
+      // 250 pasadas × 100 = hasta 25.000 correos por carpeta
+      let sigueHabiendo = true;
+      let pasada = 0;
+      while (sigueHabiendo && pasada < 250) {
+        pasada++;
+        if (syncBtn) syncBtn.innerHTML = `⏳ Descargando... (${totalNuevos} correos)`;
+        let nuevosEnPasada = 0;
+        for (const folder of carpetasIMAP) {
+          try {
+            const { data, error } = await sb.functions.invoke('sync-correo', {
+              body: {
+                empresa_id: EMPRESA.id,
+                cuenta_correo_id: _correoCuentaActiva.id,
+                folder,
+                max_mensajes: maxPorLote,
+                direccion: 'ambos'
+              }
+            });
+            if (!error && data?.success && data.nuevos > 0) {
+              nuevosEnPasada += data.nuevos;
+              totalNuevos += data.nuevos;
+            }
+          } catch (_) {}
+        }
+        // Si no trajo nada nuevo → ya descargó todo → parar
+        sigueHabiendo = nuevosEnPasada > 0;
+
+        // Actualizar lista en tiempo real cada 5 pasadas
+        if (pasada % 5 === 0 && totalNuevos > 0) {
+          const { data: parcial } = await sb.from('correos')
+            .select('*').eq('empresa_id', EMPRESA.id)
+            .order('fecha', { ascending: false });
+          correos = parcial || [];
+          filtrarCorreos();
+          actualizarBadgeCorreo();
+        }
+      }
+    } else {
+      // Sincronización normal: un solo lote por carpeta
+      for (const folder of carpetasIMAP) {
+        try {
+          const { data, error } = await sb.functions.invoke('sync-correo', {
+            body: {
+              empresa_id: EMPRESA.id,
+              cuenta_correo_id: _correoCuentaActiva.id,
+              folder,
+              max_mensajes: maxPorLote
+            }
+          });
+          if (!error && data?.success && data.nuevos > 0) totalNuevos += data.nuevos;
+        } catch (_) {}
+      }
     }
 
     if (totalNuevos > 0) {
       if (!silencioso) toast(`📬 ${totalNuevos} correo${totalNuevos > 1 ? 's' : ''} nuevo${totalNuevos > 1 ? 's' : ''}`, 'success');
-      // Recargar lista completa
-      const { data: nuevos } = await sb.from('correos')
-        .select('*')
-        .eq('empresa_id', EMPRESA.id)
-        .order('fecha', { ascending: false });
-      correos = nuevos || [];
-      filtrarCorreos();
-      actualizarBadgeCorreo();
     } else if (!silencioso) {
       toast('📭 No hay correos nuevos', 'info');
     }
+
+    // Siempre recargar lista después de sync
+    const { data: todos } = await sb.from('correos')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .order('fecha', { ascending: false });
+    correos = todos || [];
+    filtrarCorreos();
+    actualizarBadgeCorreo();
+
   } catch(e) {
     if (!silencioso) toast('⚠️ Error de sincronización: ' + (e.message || 'Error desconocido'), 'error');
     console.error('Error sync correo:', e);
@@ -160,8 +207,63 @@ async function sincronizarCorreo(silencioso = false) {
   _correoSyncing = false;
   if (syncBtn) {
     syncBtn.disabled = false;
-    syncBtn.innerHTML = '🔄 Sincronizar';
+    syncBtn.innerHTML = '🔄';
   }
+}
+
+// Cargar correos más antiguos (bajo demanda)
+async function cargarCorreosAntiguos() {
+  if (_correoSyncing || !_correoCuentaActiva) return;
+  _correoSyncing = true;
+
+  const btn = document.getElementById('btnCargarAntiguos');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Cargando antiguos...'; }
+
+  let totalNuevos = 0;
+  const carpetasIMAP = ['INBOX', 'Sent', 'Drafts'];
+  const lotes = 10; // 10 pasadas × 100 = hasta 1000 correos más
+
+  try {
+    for (let p = 0; p < lotes; p++) {
+      let nuevosEnPasada = 0;
+      for (const folder of carpetasIMAP) {
+        try {
+          const { data, error } = await sb.functions.invoke('sync-correo', {
+            body: {
+              empresa_id: EMPRESA.id,
+              cuenta_correo_id: _correoCuentaActiva.id,
+              folder,
+              max_mensajes: 100,
+              direccion: 'antiguos'
+            }
+          });
+          if (!error && data?.success && data.nuevos > 0) {
+            nuevosEnPasada += data.nuevos;
+            totalNuevos += data.nuevos;
+          }
+        } catch (_) {}
+      }
+      if (btn) btn.textContent = `⏳ ${totalNuevos} cargados...`;
+      if (nuevosEnPasada === 0) break; // No quedan más antiguos
+    }
+
+    if (totalNuevos > 0) {
+      toast(`📬 ${totalNuevos} correo${totalNuevos > 1 ? 's' : ''} antiguo${totalNuevos > 1 ? 's' : ''} cargado${totalNuevos > 1 ? 's' : ''}`, 'success');
+      const { data } = await sb.from('correos')
+        .select('*').eq('empresa_id', EMPRESA.id)
+        .order('fecha', { ascending: false });
+      correos = data || [];
+      filtrarCorreos();
+      actualizarBadgeCorreo();
+    } else {
+      toast('📭 No hay correos más antiguos', 'info');
+    }
+  } catch(e) {
+    toast('⚠️ Error: ' + (e.message || 'desconocido'), 'error');
+  }
+
+  _correoSyncing = false;
+  if (btn) { btn.disabled = false; btn.textContent = '📥 Cargar más antiguos'; }
 }
 
 // ═══════════════════════════════════════════════
@@ -298,6 +400,13 @@ function renderListaCorreos(list) {
       </div>
     </div>`;
   }).join('');
+
+  // Botón "Cargar más antiguos" al final de la lista
+  if (carpetaActual === 'inbox' && _correoCuentaActiva && list.length > 0) {
+    container.innerHTML += `<div style="text-align:center;padding:12px">
+      <button id="btnCargarAntiguos" class="btn btn-ghost btn-sm" onclick="cargarCorreosAntiguos()" style="font-size:11px;color:var(--gris-500)">📥 Cargar más antiguos</button>
+    </div>`;
+  }
 
   _actualizarBarraSeleccion();
 }
