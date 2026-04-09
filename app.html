@@ -1259,7 +1259,7 @@ function renderBottomNav() {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
-      <button class="nav-item" data-tab="furgoneta" onclick="navigateTo('furgoneta')"><span class="ico">🚐</span><span class="lbl">Furgoneta</span></button>
+      <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Calendario</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
     if (fab) {
@@ -1986,7 +1986,7 @@ function renderOperarioInicio(el) {
     });
 
   const numCaducados = caducados.reduce((s,d) => s+d.partes.length, 0);
-  const enCurso = misPartes.filter(p => p.estado === 'en_curso');
+  const pteFirma = misPartes.filter(p => p.estado === 'pendiente_firma_cliente');
 
   el.innerHTML = `
     <div style="margin-bottom:16px">
@@ -2009,9 +2009,9 @@ function renderOperarioInicio(el) {
         <div class="stat-num" style="color:var(--verde)">${misTareas.filter(t=>t.estado==='completada').length}/${misTareas.length}</div>
         <div class="stat-label">Tareas</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-num" style="color:var(--azul)">${enCurso.length}</div>
-        <div class="stat-label">En curso</div>
+      <div class="stat-card" onclick="navigateTo('partes');setTimeout(()=>setSearchFilter('pendiente_firma_cliente'),100)" style="cursor:pointer;${pteFirma.length > 0 ? 'border-color:#7C3AED;background:#F5F3FF' : ''}">
+        <div class="stat-num" style="color:#7C3AED">${pteFirma.length}</div>
+        <div class="stat-label">Pte. firma</div>
       </div>
       <div class="stat-card">
         <div class="stat-num" style="color:var(--azul)">0</div>
@@ -2034,6 +2034,7 @@ function renderOperarioInicio(el) {
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
         <button class="search-filter active" data-filter="todos" onclick="setSearchFilter('todos')">Todos</button>
         <button class="search-filter" data-filter="completado" onclick="setSearchFilter('completado')">Completados</button>
+        <button class="search-filter" data-filter="pendiente_firma_cliente" onclick="setSearchFilter('pendiente_firma_cliente')">Pte. firma</button>
         <button class="search-filter" data-filter="programado" onclick="setSearchFilter('programado')">Programados</button>
         <button class="search-filter" data-filter="en_curso" onclick="setSearchFilter('en_curso')">En curso</button>
       </div>
@@ -2604,6 +2605,13 @@ async function renderOperarioMas(el) {
     <div class="card" onclick="forceCacheClear()" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🗑️</span>
       <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px">🚐 Furgoneta</div>
+    <div class="card" onclick="navigateTo('furgoneta')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🚐</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px">Mi furgoneta</div><div style="font-size:12px;color:var(--gris-400)">Ver stock y materiales del vehículo</div></div>
+      <span style="color:var(--gris-400);font-size:18px">›</span>
     </div>
 
     <div class="section-title" style="margin-top:16px">✍️ Mi Firma</div>
@@ -5605,12 +5613,12 @@ function openParteDetail(id) {
       </div>` : ''}
     </div>` : ''}
 
-    ${['completado','revisado','facturado'].includes(p.estado) && p.firma_url ? `<div style="margin-bottom:12px">
+    ${['completado','revisado','facturado','pendiente_firma_cliente'].includes(p.estado) && p.firma_url ? `<div style="margin-bottom:12px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">✍️ Firma cliente${p.cliente_nombre_firma ? ' — ' + p.cliente_nombre_firma : ''}${p.cliente_dni ? ' · ' + p.cliente_dni : ''}</div>
       <img src="${p.firma_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
     </div>` : ''}
 
-    ${['completado','revisado','facturado'].includes(p.estado) && p.firma_operario_url ? `<div style="margin-bottom:12px">
+    ${['completado','revisado','facturado','pendiente_firma_cliente'].includes(p.estado) && p.firma_operario_url ? `<div style="margin-bottom:12px">
       <div style="font-weight:700;font-size:12px;margin-bottom:4px">👷 Firma operario${p.operario_nombre_firma ? ' — ' + p.operario_nombre_firma : ''}</div>
       <img src="${p.firma_operario_url}" style="max-width:100%;max-height:120px;border:1px solid var(--gris-200);border-radius:8px;background:#fff">
     </div>` : ''}
@@ -5630,6 +5638,16 @@ function openParteDetail(id) {
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-200)">
     ${(p.estado === 'programado' || p.estado === 'borrador') ? `<button class="btn btn-primary" style="background:var(--acento)" onclick="iniciarParteConGPS(${p.id})">🔧 Iniciar trabajo</button>` : ''}
     ${p.estado === 'en_curso' ? `<button class="btn btn-primary" style="background:var(--verde)" onclick="openInformarWizard(${p.id})">📋 Informar parte</button>` : ''}
+    ${p.estado === 'pendiente_firma_cliente' ? `
+      <div style="padding:14px;background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:12px;margin-bottom:8px">
+        <div style="text-align:center;margin-bottom:10px">
+          <span style="font-size:28px">✍️</span>
+          <div style="font-weight:800;font-size:14px;color:#7C3AED;margin-top:4px">Pendiente de firma del cliente</div>
+          <div style="font-size:12px;color:var(--gris-500);margin-top:2px">El enlace de firma fue enviado${p.firma_remota_enviado_at ? ' el ' + new Date(p.firma_remota_enviado_at).toLocaleDateString('es-ES') : ''}</div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;background:#7C3AED" onclick="reenviarFirmaRemota(${p.id})">📱 Reenviar enlace de firma por WhatsApp</button>
+      </div>
+    ` : ''}
     ${['completado','revisado','facturado'].includes(p.estado) ? `<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:13px;font-style:italic">🔒 Parte informado — no editable</div>` : ''}
     ${esJefe && p.estado !== 'facturado' ? `
       <select onchange="if(this.value){cambiarEstado(${p.id},this.value)}" style="padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font)">
@@ -7793,16 +7811,34 @@ async function generarPdfParte(parteId, parteData, empresaNombre, trabajoTitulo,
 }
 
 // ── ENVIAR EMAIL (via Supabase Edge Function) ──
-async function enviarEmailParte(parteId, email) {
+async function enviarEmailParte(parteId, email, asuntoCustom = null, cuerpoCustom = null) {
+  const p = misPartes.find(x => x.id === parteId);
+  const parteNum = p?.numero || parteId;
+  const empresa = EMPRESA?.nombre || 'Instalo';
+  const baseUrl = window.location.origin;
+  const token = p?.firma_token || null;
+  const enlace = token ? `${baseUrl}/parte.html?token=${token}` : `${baseUrl}/parte.html?id=${parteId}`;
+
+  const asunto = asuntoCustom || `Parte de trabajo ${parteNum} - ${empresa}`;
+  const cuerpo = cuerpoCustom || `Estimado/a cliente,\n\nDesde ${empresa} le informamos que se ha completado el parte de trabajo nº ${parteNum}.\n\nPuede consultar los detalles en el siguiente enlace:\n${enlace}\n\nUn cordial saludo,\n${empresa}${EMPRESA?.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`;
+
   try {
-    const { data, error } = await sb.functions.invoke('enviar-parte-email', {
-      body: { parteId, email, empresaId: EMPRESA.id }
+    const { data, error } = await sb.functions.invoke('enviar-correo', {
+      body: {
+        empresa_id: EMPRESA?.id,
+        para: email,
+        asunto: asunto,
+        cuerpo_texto: cuerpo,
+        vinculado_tipo: 'parte',
+        vinculado_id: parteId,
+        vinculado_ref: parteNum
+      }
     });
-    if (error) { console.error('Error enviando email:', error); }
-    else { toast('📧 Copia enviada a ' + email, 'success'); }
+    if (error) throw error;
+    return { ok: true };
   } catch(e) {
-    console.warn('Edge Function no disponible aún:', e.message);
-    toast('📧 Email pendiente (Edge Function no configurada)', 'warning');
+    console.error('Error enviando email:', e);
+    return { ok: false, error: e.message || 'Error desconocido' };
   }
 }
 
@@ -7946,23 +7982,35 @@ function copiarEnlaceParte() {
   }
 }
 
-function enviarEmailDesdModal(parteId) {
+async function enviarEmailDesdModal(parteId) {
   const email = document.getElementById('envioEmailInput')?.value?.trim();
   if (!email || !email.includes('@') || !email.includes('.')) {
     toast('⚠️ Introduce un email válido', 'error');
     document.getElementById('envioEmailInput')?.focus();
     return;
   }
+
+  // Mostrar loading
+  showLoading('Enviando email al cliente...');
+
   // Guardar email en el parte
   sb.from('partes_trabajo').update({ cliente_email: email }).eq('id', parteId).then(() => {
     const p = misPartes.find(x => x.id === parteId);
     if (p) p.cliente_email = email;
   });
-  enviarEmailParte(parteId, email);
-  // Cerrar modal directamente (email no abre app externa en iOS)
-  _envioRealizado = true;
-  closeModal();
-  navigateTo(currentTab);
+
+  // Enviar por Edge Function (desde el servidor, no desde el móvil)
+  const result = await enviarEmailParte(parteId, email);
+  hideLoading();
+
+  if (result.ok) {
+    toast('📧 Email enviado correctamente a ' + email, 'success');
+    _envioRealizado = true;
+    closeModal();
+    navigateTo(currentTab);
+  } else {
+    toast('⚠️ Error al enviar email: ' + (result.error || 'Revisa la configuración'), 'error');
+  }
 }
 
 function cerrarModalEnvio() {
@@ -8173,8 +8221,15 @@ async function wizFirmaRemotaEnviar(canal) {
       let tel = (document.getElementById('frTelInput')?.value || '').replace(/[\s\-\.\(\)]/g, '');
       urlEnvio = `sms:${tel}?body=${encodeURIComponent(mensaje)}`;
     } else if (canal === 'email') {
+      // Email se envía por Edge Function, no por mailto
       const email = (document.getElementById('frEmailInput')?.value || '').trim();
-      urlEnvio = `mailto:${email}?subject=Firma parte ${parteNum} - ${empresa}&body=${encodeURIComponent(mensaje)}`;
+      urlEnvio = null; // No abrir app externa
+      // Enviar por servidor
+      const asunto = `Firma parte ${parteNum} - ${empresa}`;
+      enviarEmailParte(id, email, asunto, mensaje).then(result => {
+        if (result.ok) toast('📧 Email enviado a ' + email, 'success');
+        else toast('⚠️ Error al enviar email', 'error');
+      });
     }
 
     // 6. Crear tarea pendiente para seguimiento
@@ -8261,6 +8316,41 @@ async function iniciarFirmaRemota(parteId, parteNum, empresa) {
       });
     } catch(_e) {}
   }
+}
+
+// ── REENVIAR FIRMA REMOTA ──
+function reenviarFirmaRemota(parteId) {
+  const p = misPartes.find(x => x.id === parteId);
+  if (!p || !p.firma_token) { toast('⚠️ Este parte no tiene enlace de firma', 'error'); return; }
+
+  const empresa = EMPRESA?.nombre || 'Instalo';
+  const parteNum = p.numero || parteId;
+  const baseUrl = window.location.origin;
+  const enlace = `${baseUrl}/parte.html?token=${p.firma_token}`;
+  const mensaje = `Hola, le recordamos desde ${empresa} que tiene pendiente la firma del parte de trabajo nº ${parteNum}.\n\nPuede firmar aquí:\n${enlace}\n\nGracias.`;
+
+  // Buscar teléfono del cliente
+  let tel = p.cliente_telefono || '';
+  if (!tel) {
+    // Buscar en cliente asociado
+    let cli = null;
+    if (p.cliente_id) cli = clientes.find(c => c.id === p.cliente_id);
+    if (!cli && p.trabajo_id) {
+      const trab = trabajos.find(t => t.id === p.trabajo_id);
+      if (trab?.cliente_id) cli = clientes.find(c => c.id === trab.cliente_id);
+    }
+    if (cli) tel = cli.telefono || '';
+  }
+  tel = (tel || '').replace(/[\s\-\.\(\)]/g, '');
+  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+
+  // Cerrar modal primero, luego abrir WhatsApp
+  closeModal();
+  navigateTo(currentTab);
+  toast('📱 Reenviando enlace de firma...', 'success');
+
+  const urlWA = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
+  setTimeout(() => { window.location.href = urlWA; }, 150);
 }
 
 // ── ADD WORK INFO (wizard completo sin cambiar estado) ──

@@ -52,7 +52,7 @@ const PT_ESTADOS = {
   programado:              { label:'Programado',           color:'#3B82F6', bg:'#EFF6FF',  ico:'📅' },
   en_curso:                { label:'En curso',             color:'#D97706', bg:'#FFFBEB',  ico:'🔧' },
   completado:              { label:'Cumplimentado',        color:'#059669', bg:'#ECFDF5',  ico:'✅' },
-  pendiente_firma_cliente: { label:'Pte. firma cliente',  color:'#F59E0B', bg:'#FEF3C7',  ico:'✍️' },
+  pendiente_firma_cliente: { label:'Pte. firma cliente',  color:'#7C3AED', bg:'#F5F3FF',  ico:'✍️' },
   revisado:                { label:'Revisado',             color:'#10B981', bg:'#D1FAE5',  ico:'👁️' },
   facturado:               { label:'Facturado',            color:'#8B5CF6', bg:'#F5F3FF',  ico:'🧾' },
   borrador:                { label:'Borrador',             color:'#9CA3AF', bg:'#F3F4F6',  ico:'✏️' },
@@ -1225,11 +1225,12 @@ async function verDetalleParte(id) {
 
   // Siguiente acción según estado
   const nextAction = {
-    borrador:   {label:'📅 Programar cita', estado:'programado', color:'#3B82F6'},
-    programado: {label:'🔧 Iniciar trabajo', estado:'en_curso', color:'var(--acento)'},
-    en_curso:   {label:'✅ Cumplimentar', estado:'completado', color:'var(--verde)'},
-    completado: {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
-    revisado:   {label:'🧾 Marcar facturado', estado:'facturado', color:'#8B5CF6'},
+    borrador:                {label:'📅 Programar cita', estado:'programado', color:'#3B82F6'},
+    programado:              {label:'🔧 Iniciar trabajo', estado:'en_curso', color:'var(--acento)'},
+    en_curso:                {label:'✅ Cumplimentar', estado:'completado', color:'var(--verde)'},
+    pendiente_firma_cliente: {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
+    completado:              {label:'👁️ Aprobar / Revisar', estado:'revisado', color:'#10B981'},
+    revisado:                {label:'🧾 Marcar facturado', estado:'facturado', color:'#8B5CF6'},
   };
   const next = nextAction[parte.estado];
 
@@ -1365,6 +1366,16 @@ async function verDetalleParte(id) {
       <button onclick="parteLibreCrearObra(${parte.id})" style="white-space:nowrap;padding:8px 12px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🏗️ Crear obra</button>
     </div>` : ''}
 
+    ${parte.estado === 'pendiente_firma_cliente' && parte.firma_token ? `
+    <div style="margin:16px 0;padding:14px;background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:800;font-size:13px;color:#7C3AED">✍️ Pendiente de firma del cliente</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:2px">Enlace enviado${parte.firma_remota_enviado_at ? ' el ' + new Date(parte.firma_remota_enviado_at).toLocaleDateString('es-ES') : ''}</div>
+      </div>
+      <button onclick="reenviarFirmaRemotaERP(${parte.id})" class="btn btn-sm" style="background:#7C3AED;color:#fff;font-weight:700;white-space:nowrap">📱 Reenviar enlace por WhatsApp</button>
+      <button onclick="copiarEnlaceFirmaERP(${parte.id})" class="btn btn-sm btn-secondary" style="white-space:nowrap">📋 Copiar enlace</button>
+    </div>` : ''}
+
     <div style="margin:20px 0;padding-top:20px;border-top:1px solid var(--gris-200);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       ${next && parte.estado !== 'completado' ? `<button onclick="avanzarEstadoParte(${parte.id},'${next.estado}')" class="btn btn-sm" style="background:${next.color};color:#fff;font-weight:700">${next.label}</button>` : ''}
       <button onclick="editarParte(${parte.id});closeModal('dtlPartes')" class="btn btn-secondary btn-sm">✏️ Editar</button>
@@ -1382,6 +1393,53 @@ async function verDetalleParte(id) {
 
   document.getElementById('dtlPartesContent').innerHTML = html;
   openModal('dtlPartes');
+}
+
+// ── Reenviar firma remota desde ERP escritorio ──
+function reenviarFirmaRemotaERP(parteId) {
+  const parte = partesData.find(p => p.id === parteId);
+  if (!parte || !parte.firma_token) { showToast('Este parte no tiene enlace de firma', 'error'); return; }
+
+  const empresa = window.EMPRESA?.nombre || 'Instalo';
+  const parteNum = parte.numero || parteId;
+  const baseUrl = window.location.origin;
+  const enlace = `${baseUrl}/parte.html?token=${parte.firma_token}`;
+  const mensaje = `Hola, le recordamos desde ${empresa} que tiene pendiente la firma del parte de trabajo nº ${parteNum}.\n\nPuede firmar aquí:\n${enlace}\n\nGracias.`;
+
+  // Buscar teléfono del cliente
+  let tel = parte.cliente_telefono || '';
+  if (!tel && parte.trabajo_id) {
+    const trab = (window.trabajosData || []).find(t => t.id === parte.trabajo_id);
+    if (trab?.cliente_id) {
+      const cli = (window.clientesData || []).find(c => c.id === trab.cliente_id);
+      if (cli) tel = cli.telefono || '';
+    }
+  }
+  if (!tel && parte.cliente_id) {
+    const cli = (window.clientesData || []).find(c => c.id === parte.cliente_id);
+    if (cli) tel = cli.telefono || '';
+  }
+  tel = (tel || '').replace(/[\s\-\.\(\)]/g, '');
+  if (/^[679]\d{8}$/.test(tel)) tel = '34' + tel;
+
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+  showToast('📱 Enlace de firma reenviado por WhatsApp', 'success');
+}
+
+function copiarEnlaceFirmaERP(parteId) {
+  const parte = partesData.find(p => p.id === parteId);
+  if (!parte || !parte.firma_token) return;
+  const enlace = `${window.location.origin}/parte.html?token=${parte.firma_token}`;
+  navigator.clipboard.writeText(enlace).then(() => {
+    showToast('📋 Enlace de firma copiado al portapapeles', 'success');
+  }).catch(() => {
+    // Fallback
+    const inp = document.createElement('input');
+    inp.value = enlace; document.body.appendChild(inp);
+    inp.select(); document.execCommand('copy');
+    document.body.removeChild(inp);
+    showToast('📋 Enlace copiado', 'success');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
