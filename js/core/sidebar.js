@@ -37,9 +37,7 @@ const ALL_PAGES = [
 ];
 
 // Páginas marcadas como "pronto" — se ocultan automáticamente del sidebar
-const PAGES_PRONTO = new Set([
-  'traspasos','activos','mantenimientos','etiquetas-qr'
-]);
+const PAGES_PRONTO = new Set([]);
 
 // Páginas en modo BETA — vacío, todo es estable en v1.0
 const PAGES_BETA = new Set([]);
