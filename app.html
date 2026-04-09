@@ -6763,7 +6763,8 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
                   ref_proveedor: l.codigo || null,
                   precio_proveedor: l.precioUnit || l.precio || 0,
                   es_principal: true
-                }).catch(e => console.warn('Vincular proveedor:', e.message));
+                });
+                // ignorar error de vinculación
               }
             } else {
               _artErrores++;
@@ -6778,7 +6779,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
                 empresa_id: eid, articulo_id: artIdFinal, proveedor_id: proveedorId,
                 ref_proveedor: l.codigo || null, precio_proveedor: l.precioUnit || l.precio || 0,
                 es_principal: false
-              }).catch(() => {});
+              });
             }
           }
 
@@ -6807,7 +6808,8 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
               tipo_stock: 'provisional',
               fecha: new Date().toISOString().slice(0,10),
               usuario_id: CU?.id, usuario_nombre: CP?.nombre || CU?.email
-            }).catch(e => console.warn('Mov stock error:', e.message));
+            });
+            // ignorar error de movimiento stock
           }
         } catch(loopErr) {
           _artErrores++;
@@ -6831,7 +6833,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
     // 3. Crear tarea pendiente para oficina
     const numDocLabel = d.numDocumento || 'sin número';
     const tipoLabel = d.tipoDocumento === 'factura' ? 'Factura' : 'Albarán';
-    await sb.from('tareas_pendientes').insert({
+    const { error: tareaErr } = await sb.from('tareas_pendientes').insert({
       empresa_id: eid,
       entidad_tipo: 'documento_ocr',
       entidad_id: docCreado?.id || null,
@@ -6842,7 +6844,8 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
       rol_asignado: 'admin',
       estado: 'pendiente',
       usuario_creador_id: CU?.id || null
-    }).catch(() => {});
+    });
+    if (tareaErr) console.warn('Tarea pendiente:', tareaErr.message);
 
     if (!_skipCleanup) {
       toast(`✅ ${seleccionados.length} material(es) provisional(es) en furgoneta`, 'success');
