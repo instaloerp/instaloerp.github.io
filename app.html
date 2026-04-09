@@ -7647,6 +7647,24 @@ async function wizFinish() {
 
     // 4. Mostrar modal de éxito con opciones de envío (email, WhatsApp, SMS)
     const parteNum = p?.numero || id;
+
+    // Si firma_opcional → cerrar directamente sin pedir envío al cliente
+    if (_firmaOpcional) {
+      hideLoading();
+      toast(`✅ Parte ${parteNum} completado correctamente (sin firma requerida)`, 'success');
+      closeModal();
+      navigateTo(currentTab);
+
+      // Generar PDF en background
+      const _trabajoLocal = p?.trabajo_id ? trabajos.find(t => t.id === p.trabajo_id) : null;
+      const _tituloTrabajo = p?.trabajo_titulo || _trabajoLocal?.titulo || '';
+      const _dirTrabajo    = p?.direccion     || _trabajoLocal?.direccion_obra_texto || '';
+      generarPdfParte(id, { ...updateObj, numero: p?.numero }, EMPRESA?.nombre || 'Instalo', _tituloTrabajo, _dirTrabajo)
+        .then(url => { if (url) toast('📄 PDF generado', 'success'); })
+        .catch(e => console.warn('[PDF bg]', e));
+      return;
+    }
+
     let cliTel = p?.cliente_telefono || '';
     let cliEmail = _wiz.clienteEmail || p?.cliente_email || '';
     if (p?.trabajo_id) {

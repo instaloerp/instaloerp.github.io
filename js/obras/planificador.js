@@ -73,6 +73,28 @@ async function initPlanificador() {
     }, 150);
   };
   window.addEventListener('resize', _planResizeHandler);
+
+  // ── Realtime: auto-refresh cuando se crean/modifican partes desde otro dispositivo ──
+  if (!window._planRealtimeSub) {
+    window._planRealtimeSub = sb.channel('plan-partes-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'partes_trabajo',
+        filter: `empresa_id=eq.${EMPRESA.id}`
+      }, () => {
+        // Solo refrescar si la página del planificador está visible
+        const page = document.getElementById('page-planificador');
+        const fsOverlay = document.getElementById('planFullscreenOverlay');
+        if ((page && page.classList.contains('active')) || fsOverlay) {
+          cargarPartesParaPlanificador().then(() => {
+            if (fsOverlay) renderPlanificadorFS();
+            else renderPlanificador();
+          });
+        }
+      })
+      .subscribe();
+  }
 }
 
 // Versión fullscreen para abrir desde ficha de obra
