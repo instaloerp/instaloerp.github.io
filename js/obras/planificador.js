@@ -936,7 +936,7 @@ function abrirCrearParteRapido(fecha, hora) {
   });
 
   const horaStr = String(Math.floor(iniMin / 60)).padStart(2, '0') + ':' + String(iniMin % 60).padStart(2, '0');
-  // Hora fin = inicio + 2h (duración mínima)
+  // Hora fin = inicio + 2h (valor por defecto, modificable)
   const _finMin = iniMin + 120;
   const _finH = Math.min(Math.floor(_finMin / 60), 23);
   const _finM = _finMin % 60;
@@ -1445,12 +1445,12 @@ async function crearPartesDesdeModal(estado) {
 
   if (!fechaIni) { toast('Selecciona una fecha', 'error'); return; }
 
-  // Validar duración mínima 2h en día normal
+  // Validar que hora fin > hora inicio
   if (!esMultiDia) {
     const [hiH,hiM] = horaIni.split(':').map(Number);
     const [hfH,hfM] = horaFin.split(':').map(Number);
     const diffMins = (hfH*60+hfM) - (hiH*60+hiM);
-    if (diffMins < 120) { toast('La duración mínima es de 2 horas', 'error'); return; }
+    if (diffMins <= 0) { toast('La hora de fin debe ser posterior a la de inicio', 'error'); return; }
   }
 
   // Validar solapamiento — aplica siempre (día simple y multiday primer día)
