@@ -2589,6 +2589,55 @@
   </div>
 </div>
 
+<!-- Modal Nuevo Traspaso -->
+<div class="overlay" id="modal-nuevo-trasp">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-h"><span>🔄</span><h2>Nuevo Traspaso</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('modal-nuevo-trasp')">✕</button></div>
+    <div class="modal-b" style="max-height:65vh;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">ORIGEN</label>
+          <select id="trasp-origen" style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px">
+            <option value="">Seleccionar almacén origen...</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--gris-500)">DESTINO</label>
+          <select id="trasp-destino" style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px">
+            <option value="">Seleccionar almacén destino...</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500)">AÑADIR MATERIAL</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="trasp-articulo-buscar" placeholder="Buscar artículo..." oninput="tr_buscarArticulo(this.value)" style="flex:1;padding:8px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px" autocomplete="off">
+          <input type="hidden" id="trasp-articulo-id">
+          <input type="number" id="trasp-cantidad" placeholder="Cant." min="1" value="1" style="width:80px;padding:8px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px;text-align:center">
+          <button class="btn btn-primary btn-sm" onclick="tr_addLineaTrasp()">+ Añadir</button>
+        </div>
+        <div id="trasp-articulo-sugerencias" style="position:relative"></div>
+      </div>
+      <div class="tw"><table class="dt"><thead><tr>
+        <th>Código</th><th>Artículo</th><th style="text-align:right">Cantidad</th><th style="text-align:center;width:80px">Quitar</th>
+      </tr></thead>
+      <tbody>
+        <tr id="traspasos-lineas-empty"><td colspan="4" style="text-align:center;padding:20px;color:var(--gris-400)">Añade artículos al traspaso</td></tr>
+      </tbody>
+      </table></div>
+      <div id="traspasos-lineas-tabla"><table class="dt" style="margin-top:-1px"><tbody></tbody></table></div>
+      <div style="margin-top:12px">
+        <label style="font-size:11px;font-weight:700;color:var(--gris-500)">OBSERVACIONES</label>
+        <textarea id="trasp-observaciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px;resize:vertical" placeholder="Notas opcionales..."></textarea>
+      </div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:space-between">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nuevo-trasp')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTraspaso()">💾 Crear Traspaso</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Movimientos Stock -->
 <div class="overlay" id="modal-movimientos-stock">
   <div class="modal modal-lg">

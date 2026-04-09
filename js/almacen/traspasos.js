@@ -114,13 +114,48 @@ function updateTrasposKPIs() {
 // Abrir modal para nuevo traspaso
 function nuevoTraspasoModal() {
   lineasTrasp = [];
+  // Poblar selects de almacenes
+  const opts = almacenes.filter(a => a.activo !== false).map(a => {
+    const icon = a.tipo === 'furgoneta' ? '🚐' : a.tipo === 'externo' ? '📦' : '🏭';
+    return `<option value="${a.id}">${icon} ${a.nombre}</option>`;
+  }).join('');
+  const selOrigen = document.getElementById('trasp-origen');
+  const selDestino = document.getElementById('trasp-destino');
+  if (selOrigen) selOrigen.innerHTML = '<option value="">Seleccionar origen...</option>' + opts;
+  if (selDestino) selDestino.innerHTML = '<option value="">Seleccionar destino...</option>' + opts;
   setVal({
     'trasp-origen': '',
     'trasp-destino': '',
-    'trasp-observaciones': ''
+    'trasp-observaciones': '',
+    'trasp-articulo-buscar': '',
+    'trasp-articulo-id': '',
+    'trasp-cantidad': '1'
   });
   tr_renderLineasTrasp();
   openModal('modal-nuevo-trasp');
+}
+
+// Buscar artículo para traspaso
+function tr_buscarArticulo(texto) {
+  const cont = document.getElementById('trasp-articulo-sugerencias');
+  if (!cont) return;
+  if (!texto || texto.length < 2) { cont.innerHTML = ''; return; }
+  const txt = texto.toLowerCase();
+  const results = articulos.filter(a => a.activo !== false &&
+    ((a.nombre||'').toLowerCase().includes(txt) || (a.codigo||'').toLowerCase().includes(txt))
+  ).slice(0, 8);
+  cont.innerHTML = results.length ? `<div style="position:absolute;z-index:100;background:#fff;border:1px solid var(--gris-200);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);width:100%;max-height:200px;overflow-y:auto">
+    ${results.map(a => `<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gris-100)"
+      onclick="tr_selArticulo(${a.id},'${(a.nombre||'').replace(/'/g,"\\'")}','${a.codigo||''}')">
+      <span style="font-family:monospace;color:var(--azul);font-weight:700;font-size:11px">${a.codigo}</span> ${a.nombre}
+    </div>`).join('')}
+  </div>` : '';
+}
+
+function tr_selArticulo(id, nombre, codigo) {
+  setVal({ 'trasp-articulo-id': id, 'trasp-articulo-buscar': `${codigo} — ${nombre}` });
+  document.getElementById('trasp-articulo-sugerencias').innerHTML = '';
+  document.getElementById('trasp-cantidad')?.focus();
 }
 
 // Agregar línea a traspaso
