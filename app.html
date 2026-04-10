@@ -6446,6 +6446,8 @@ function _ocrFindArticulo(nombre, codigo) {
   const codLow = (codigo || '').toLowerCase().trim();
   const nomLow = (nombre || '').toLowerCase().trim();
   const normBusca = _ocrNormalizeName(nombre);
+  // Código limpio para comparación fuzzy (sin puntuación ni espacios)
+  const codLimpio = codLow.replace(/[\s\-_./\\,;:()[\]{}'"]/g, '');
 
   // 1. Match exacto por código de artículo → seguro
   if (codLow) {
@@ -6453,10 +6455,15 @@ function _ocrFindArticulo(nombre, codigo) {
     if (byCode) return byCode;
   }
 
-  // 2. Match por referencia_fabricante (código del proveedor en el albarán)
+  // 2. Match por referencia_fabricante (código del proveedor en el albarán) — exacto + fuzzy
   if (codLow) {
     const byRef = articulos.find(a => a.referencia_fabricante && a.referencia_fabricante.toLowerCase().trim() === codLow);
     if (byRef) return byRef;
+    // Fuzzy: limpiar puntuación y comparar
+    if (codLimpio) {
+      const byRefFuzzy = articulos.find(a => a.referencia_fabricante && a.referencia_fabricante.replace(/[\s\-_./\\,;:()[\]{}'"]/g, '').toLowerCase() === codLimpio);
+      if (byRefFuzzy) return byRefFuzzy;
+    }
   }
 
   // 3. Scoring multicritério: código proveedor + nombre normalizado
@@ -7086,35 +7093,53 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
           if (!artIdFinal) {
             const _normNombre = _ocrNormalizeName(l.nombre);
             const _codBusca = (l.codigo || '').trim().toLowerCase();
+            // Código limpio sin puntuación/espacios para comparación fuzzy
+            const _codLimpio = _codBusca.replace(/[\s\-_./\\,;:()[\]{}'"]/g, '');
 
-            // A) Buscar por referencia_fabricante (código del proveedor)
+            // A) Buscar por referencia_fabricante (exacto + fuzzy)
             if (_codBusca) {
               const { data: byRef } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
-                .eq('empresa_id', eid).eq('activo', true).ilike('referencia_fabricante', _codBusca).limit(1);
+                .eq('empresa_id', eid).eq('activo', true).ilike('referencia_fabricante', `%${_codBusca}%`).limit(5);
               if (byRef?.length) {
-                artIdFinal = byRef[0].id;
-                l.artMatch = byRef[0];
-                toast(`🔗 "${l.nombre}" → por ref: ${byRef[0].nombre}`, 'info');
+                // Preferir match exacto, sino el primero que coincida limpiando puntuación
+                const exacto = byRef.find(a => (a.referencia_fabricante||'').trim().toLowerCase() === _codBusca);
+                const fuzzy = !exacto && _codLimpio ? byRef.find(a => (a.referencia_fabricante||'').replace(/[\s\-_./\\,;:()[\]{}'"]/g, '').toLowerCase() === _codLimpio) : null;
+                const found = exacto || fuzzy || byRef[0];
+                artIdFinal = found.id;
+                l.artMatch = found;
+                toast(`🔗 "${l.nombre}" → por ref: ${found.nombre}`, 'info');
               }
             }
 
             // B) Buscar por ref en articulos_proveedores
             if (!artIdFinal && _codBusca) {
               const { data: byApRef } = await sb.from('articulos_proveedores').select('articulo_id,articulos(id,nombre,codigo)')
-                .eq('empresa_id', eid).ilike('ref_proveedor', _codBusca).limit(1);
-              if (byApRef?.length && byApRef[0].articulos) {
-                artIdFinal = byApRef[0].articulos.id;
-                l.artMatch = byApRef[0].articulos;
-                toast(`🔗 "${l.nombre}" → por ref prov: ${byApRef[0].articulos.nombre}`, 'info');
+                .eq('empresa_id', eid).ilike('ref_proveedor', `%${_codBusca}%`).limit(5);
+              if (byApRef?.length) {
+                const found = byApRef.find(a => a.articulos && (a.articulos.codigo||'').toLowerCase().includes(_codLimpio)) || byApRef[0];
+                if (found?.articulos) {
+                  artIdFinal = found.articulos.id;
+                  l.artMatch = found.articulos;
+                  toast(`🔗 "${l.nombre}" → por ref prov: ${found.articulos.nombre}`, 'info');
+                }
               }
             }
 
-            // C) Buscar por nombre normalizado
+            // C) Buscar por nombre normalizado (más flexible: incluye parcial)
             if (!artIdFinal && _normNombre.length >= 5) {
+              const searchTerm = (l.nombre || '').substring(0, Math.min(15, (l.nombre||'').length));
               const { data: candidatos } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
-                .eq('empresa_id', eid).eq('activo', true).ilike('nombre', `%${(l.nombre || '').substring(0, 12)}%`).limit(10);
+                .eq('empresa_id', eid).eq('activo', true).ilike('nombre', `%${searchTerm}%`).limit(15);
               if (candidatos?.length) {
-                const dup = candidatos.find(c => _ocrNormalizeName(c.nombre) === _normNombre);
+                // Primero match exacto normalizado
+                let dup = candidatos.find(c => _ocrNormalizeName(c.nombre) === _normNombre);
+                // Segundo: match parcial (uno contiene al otro)
+                if (!dup && _normNombre.length >= 10) {
+                  dup = candidatos.find(c => {
+                    const normC = _ocrNormalizeName(c.nombre);
+                    return normC.length >= 8 && (normC.includes(_normNombre) || _normNombre.includes(normC));
+                  });
+                }
                 if (dup) {
                   artIdFinal = dup.id;
                   l.artMatch = dup;
