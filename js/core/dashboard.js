@@ -313,55 +313,35 @@ async function loadDashboardDocsOcr() {
   const el = document.getElementById('dash-docs-ocr');
   if (!el) return;
 
+  // Solo documentos que requieren acción: pendientes (sin procesar) y borradores (de app)
   const { data } = await sb.from('documentos_ocr')
     .select('id,archivo_nombre,estado,tipo_documento,datos_extraidos,created_at')
     .eq('empresa_id', EMPRESA.id)
-    .in('estado', ['borrador', 'pendiente', 'completado'])
-    .order('created_at', { ascending: false });
+    .in('estado', ['borrador', 'pendiente'])
+    .order('created_at', { ascending: false })
+    .limit(5);
 
   const docs = data || [];
   if (!docs.length) { el.style.display = 'none'; return; }
 
-  const borradores = docs.filter(d => d.estado === 'borrador');
-  const pendientes = docs.filter(d => d.estado === 'pendiente');
-  const completados = docs.filter(d => d.estado === 'completado');
-
   el.style.display = '';
-  el.innerHTML = `<div class="card" style="padding:14px;border-left:4px solid var(--acento)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:24px">📷</div>
-        <div>
-          <div style="font-weight:800;font-size:14px">${docs.length} documento${docs.length>1?'s':''} OCR pendiente${docs.length>1?'s':''}</div>
-          <div style="font-size:11px;color:var(--gris-400)">
-            ${borradores.length ? `${borradores.length} borrador${borradores.length>1?'es':''} · ` : ''}
-            ${pendientes.length ? `${pendientes.length} sin procesar · ` : ''}
-            ${completados.length ? `${completados.length} procesado${completados.length>1?'s':''} sin validar` : ''}
-          </div>
-        </div>
+  el.innerHTML = `<div class="card" style="padding:10px 14px;border-left:3px solid var(--acento)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${docs.length > 1 ? '8' : '0'}px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">📷</span>
+        <span style="font-weight:700;font-size:13px">${docs.length} doc${docs.length>1?'s':''} pendiente${docs.length>1?'s':''}</span>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span class="badge bg-orange">${docs.length}</span>
-        <button class="btn btn-secondary btn-sm" onclick="goPage('ocr')">Gestionar</button>
-      </div>
+      <button class="btn btn-secondary btn-sm" onclick="goPage('ocr')" style="font-size:11px;padding:4px 10px">Gestionar</button>
     </div>
-    <div style="max-height:200px;overflow-y:auto">
-      ${docs.slice(0, 8).map(d => {
-        const fecha = d.created_at ? new Date(d.created_at).toLocaleString('es-ES', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
-        const numDoc = d.datos_extraidos?.numero_documento || d.datos_extraidos?.numero || '';
-        const operario = d.datos_extraidos?.operario || '';
-        const tipoIco = d.tipo_documento === 'factura' ? '🧾' : '📄';
-        const estadoColor = d.estado === 'borrador' ? '#FEF3C7' : d.estado === 'pendiente' ? '#FEE2E2' : '#D1FAE5';
-        const estadoText = d.estado === 'borrador' ? '#92400E' : d.estado === 'pendiente' ? '#991B1B' : '#065F46';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="goPage('ocr')">
-          <span style="font-size:16px">${tipoIco}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:12px">${numDoc || d.archivo_nombre || 'Documento'} ${operario ? `<span style="color:var(--gris-400);font-weight:400;font-size:10px">· ${operario}</span>` : ''}</div>
-          </div>
-          <div style="font-size:10px;color:var(--gris-400)">${fecha}</div>
-          <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${estadoColor};color:${estadoText};font-weight:700">${d.estado}</span>
+    ${docs.length > 1 ? `<div style="max-height:120px;overflow-y:auto">
+      ${docs.slice(0, 5).map(d => {
+        const fecha = d.created_at ? new Date(d.created_at).toLocaleString('es-ES', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+        const nombre = d.datos_extraidos?.numero_documento || d.archivo_nombre || 'Documento';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--gris-100);font-size:11px;cursor:pointer" onclick="goPage('ocr')">
+          <span style="flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</span>
+          <span style="color:var(--gris-400);flex-shrink:0">${fecha}</span>
         </div>`;
       }).join('')}
-    </div>
+    </div>` : ''}
   </div>`;
 }
