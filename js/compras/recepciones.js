@@ -281,13 +281,62 @@ async function guardarRecepcion() {
 
     if (rcEditId) {
       await sb.from('recepciones').update(obj).eq('id', rcEditId);
+      closeModal('mRecepcion');
+      loadRecepciones();
+      toast('Albarán actualizado ✓', 'success');
     } else {
-      await sb.from('recepciones').insert(obj);
-    }
+      // Nuevo albarán: guardar + entrada de stock automática
+      obj.estado = 'almacenada';
+      const { data: inserted, error: insErr } = await sb.from('recepciones').insert(obj).select().single();
+      if (insErr) { toast('Error al guardar: ' + insErr.message, 'error'); return; }
 
-    closeModal('mRecepcion');
-    loadRecepciones();
-    toast('Albarán guardado ✓', 'success');
+      // Entrada de stock para cada línea
+      let _stockOk = 0;
+      for (const linea of rcLineas) {
+        const artId = linea.articulo_id || linea._artId;
+        if (!artId) continue;
+        const cant = linea.cantidad_recibida || linea.cantidad || 0;
+        if (cant <= 0) continue;
+
+        try {
+          // Buscar stock existente en almacén destino
+          const { data: stockExist } = await sb.from('stock').select('*')
+            .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
+
+          if (stockExist?.length) {
+            const s = stockExist[0];
+            // Si hay stock provisional (viene de app móvil), limpiarlo
+            const provLimpiar = Math.min(s.stock_provisional || 0, cant);
+            await sb.from('stock').update({
+              cantidad: (s.cantidad || 0) + cant,
+              stock_provisional: Math.max(0, (s.stock_provisional || 0) - provLimpiar)
+            }).eq('id', s.id);
+          } else {
+            await sb.from('stock').insert({
+              empresa_id: EMPRESA.id, almacen_id: almacenId,
+              articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
+            });
+          }
+
+          // Registrar movimiento
+          await sb.from('movimientos_stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almacenId,
+            tipo: 'entrada', cantidad: cant, delta: cant,
+            notas: 'Albarán proveedor nº ' + numero,
+            tipo_stock: 'real', fecha: v('rc_fecha') || new Date().toISOString().slice(0, 10),
+            usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
+          });
+          _stockOk++;
+        } catch(e) {
+          console.error('[Stock albarán] Error:', artId, e);
+          toast('⚠️ Stock error: ' + (e.message || ''), 'warning');
+        }
+      }
+
+      closeModal('mRecepcion');
+      loadRecepciones();
+      toast('Albarán guardado + stock actualizado (' + _stockOk + ' artículos) ✓', 'success');
+    }
   } finally {
     _creando = false;
   }
@@ -307,26 +356,43 @@ async function verificarRecepcion(id) {
 // ALMACENAR RECEPCIÓN (ACTUALIZAR STOCK)
 // ═══════════════════════════════════════════════
 async function almacenarRecepcion(id) {
-  if (!confirm('¿Almacenar y actualizar stock?')) return;
-
   const r = recepciones.find(x => x.id === id);
   if (!r) return;
+
+  // Si ya está almacenada, no duplicar stock
+  if (r.estado === 'almacenada') {
+    toast('Este albarán ya tiene el stock actualizado', 'info');
+    return;
+  }
+  if (!confirm('¿Almacenar y actualizar stock?')) return;
 
   // Actualizar stock en almacén
   for (const linea of (r.lineas||[])) {
     if (linea.articulo_id) {
-      const {data:stock} = await sb.from('stock').select('*').eq('almacen_id', r.almacen_destino_id).eq('articulo_id', linea.articulo_id);
+      const cant = linea.cantidad_recibida || linea.cantidad || 0;
+      const {data:stock} = await sb.from('stock').select('*').eq('almacen_id', r.almacen_destino_id).eq('articulo_id', linea.articulo_id).eq('empresa_id', EMPRESA.id).limit(1);
       if (stock && stock.length > 0) {
-        const nuevoStock = (stock[0].cantidad||0) + linea.cantidad_recibida;
-        await sb.from('stock').update({cantidad:nuevoStock}).eq('id', stock[0].id);
+        const provLimpiar = Math.min(stock[0].stock_provisional || 0, cant);
+        await sb.from('stock').update({
+          cantidad: (stock[0].cantidad||0) + cant,
+          stock_provisional: Math.max(0, (stock[0].stock_provisional || 0) - provLimpiar)
+        }).eq('id', stock[0].id);
       } else {
         await sb.from('stock').insert({
           empresa_id: EMPRESA.id,
           almacen_id: r.almacen_destino_id,
           articulo_id: linea.articulo_id,
-          cantidad: linea.cantidad_recibida
+          cantidad: cant, stock_provisional: 0, stock_reservado: 0
         });
       }
+      // Registrar movimiento
+      await sb.from('movimientos_stock').insert({
+        empresa_id: EMPRESA.id, articulo_id: linea.articulo_id, almacen_id: r.almacen_destino_id,
+        tipo: 'entrada', cantidad: cant, delta: cant,
+        notas: 'Albarán proveedor nº ' + (r.numero || r.id),
+        tipo_stock: 'real', fecha: r.fecha || new Date().toISOString().slice(0, 10),
+        usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
+      });
     }
   }
 

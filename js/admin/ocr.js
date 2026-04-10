@@ -1018,37 +1018,7 @@ async function _ocrConfirmarValidacion() {
           }
         }
 
-        // Stock: provisional → real (solo si hay stock provisional — flujo app móvil)
-        const { data: stockRows } = await sb.from('stock')
-          .select('id, almacen_id, cantidad, stock_provisional, almacenes(nombre, tipo)')
-          .eq('empresa_id', EMPRESA.id).eq('articulo_id', articuloId).gt('stock_provisional', 0);
-        if (stockRows?.length) {
-          const stk = stockRows[0];
-          const cantOriginal = m.cantidad || 0;
-          const mover = Math.min(ed.cantidad, stk.stock_provisional || 0);
-
-          await sb.from('stock').update({
-            cantidad: (stk.cantidad || 0) + mover,
-            stock_provisional: Math.max(0, (stk.stock_provisional || 0) - cantOriginal)
-          }).eq('id', stk.id);
-
-          await sb.from('movimientos_stock').insert({
-            empresa_id: EMPRESA.id, articulo_id: articuloId, almacen_id: stk.almacen_id,
-            tipo: 'entrada', cantidad: mover, delta: mover,
-            notas: 'Validación OCR: ' + (ed.nombre || '?') + ' — doc ' + (numDocEdit || doc.id),
-            tipo_stock: 'real', fecha: new Date().toISOString().slice(0, 10),
-            usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
-          });
-
-          if (ed.cantidad < cantOriginal) {
-            await sb.from('movimientos_stock').insert({
-              empresa_id: EMPRESA.id, articulo_id: articuloId, almacen_id: stk.almacen_id,
-              tipo: 'ajuste', cantidad: -(cantOriginal - ed.cantidad), delta: -(cantOriginal - ed.cantidad),
-              notas: 'Ajuste validación: ' + cantOriginal + ' → ' + ed.cantidad, tipo_stock: 'provisional',
-              fecha: new Date().toISOString().slice(0, 10), usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
-            });
-          }
-        }
+        // Stock NO se toca aquí — entra al guardar el albarán/factura
         okCount++;
       } catch(e) {
         errCount++;
@@ -1084,7 +1054,7 @@ async function _ocrConfirmarValidacion() {
     };
 
     closeModal('mOcrValidar');
-    toast('✅ Stock validado: ' + okCount + ' materiales. Generando documento...', 'success');
+    toast('✅ Validado: ' + okCount + ' materiales. Generando documento...', 'success');
 
     if (tipoDoc === 'factura' && typeof iaRellenarFactura === 'function') {
       await iaRellenarFactura(docData, proveedorId);

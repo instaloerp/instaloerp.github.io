@@ -383,6 +383,63 @@ async function guardarFacturaProv(estado) {
       }
     }
 
+    // --- Entrada de stock para facturas SIN albarán asociado ---
+    // Si la factura NO viene de un albarán, sus líneas deben crear stock
+    // (compra directa facturada sin pasar por albarán)
+    const facturaObj = fpEditId
+      ? (facturasProv||[]).find(f => f.id === fpEditId)
+      : null;
+    const tieneAlbaran = facturaObj?.recepcion_id || facturaObj?.recepcion_ids?.length;
+    const esNueva = !fpEditId;
+
+    if (esNueva && !tieneAlbaran) {
+      // Factura nueva sin albarán: entrada de stock en almacén principal
+      const { data: almPrincipal } = await sb.from('almacenes').select('id')
+        .eq('empresa_id', EMPRESA.id).eq('tipo', 'principal').limit(1);
+      const almId = almPrincipal?.[0]?.id;
+
+      if (almId) {
+        let _fStockOk = 0;
+        for (const linea of fpLineas) {
+          const artId = linea.articulo_id || linea._artId;
+          if (!artId) continue;
+          const cant = linea.cantidad || 0;
+          if (cant <= 0) continue;
+
+          try {
+            const { data: stockExist } = await sb.from('stock').select('*')
+              .eq('almacen_id', almId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
+
+            if (stockExist?.length) {
+              const s = stockExist[0];
+              const provLimpiar = Math.min(s.stock_provisional || 0, cant);
+              await sb.from('stock').update({
+                cantidad: (s.cantidad || 0) + cant,
+                stock_provisional: Math.max(0, (s.stock_provisional || 0) - provLimpiar)
+              }).eq('id', s.id);
+            } else {
+              await sb.from('stock').insert({
+                empresa_id: EMPRESA.id, almacen_id: almId,
+                articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
+              });
+            }
+
+            await sb.from('movimientos_stock').insert({
+              empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almId,
+              tipo: 'entrada', cantidad: cant, delta: cant,
+              notas: 'Factura proveedor nº ' + numero + ' (sin albarán)',
+              tipo_stock: 'real', fecha: fecha || new Date().toISOString().slice(0, 10),
+              usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
+            });
+            _fStockOk++;
+          } catch(e) {
+            console.error('[Stock factura] Error:', artId, e);
+          }
+        }
+        if (_fStockOk > 0) toast('Stock actualizado: ' + _fStockOk + ' artículos ✓', 'info');
+      }
+    }
+
     closeModal('mFacturaProv');
     loadFacturasProv();
     toast('Factura guardada ✓', 'success');
