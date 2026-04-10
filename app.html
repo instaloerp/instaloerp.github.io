@@ -1094,7 +1094,8 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
   if (!EMPRESA || !CU) return;
   const almacenId = miFurgoneta?.id || null;
   const stock = getStockFurgoneta(material.articulo_id);
-  const sinStock = material.articulo_id ? (stock.disponible < material.cantidad) : false;
+  // sinStock solo para info/incidencias — NO bloquea la deducción (se permite negativo)
+  const sinStock = material.articulo_id ? (stock.cantidad < material.cantidad) : false;
   const esFacturable = (tipo === 'consumo');
 
   // 1. Insertar consumo_parte
@@ -1122,7 +1123,8 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
   // 2. Descontar stock REAL de furgoneta (puede ir a negativo si aún no se validó)
   //    El provisional se mantiene intacto — se convertirá a real al validar.
   //    Así los movimientos cuadran: entrada +10 (validación) / salida -5 (consumo) = 5 real
-  if (almacenId && material.articulo_id && !sinStock) {
+  //    NO se comprueba sinStock — siempre se descuenta, permitiendo negativos
+  if (almacenId && material.articulo_id) {
     const { data: stFresh } = await sb.from('stock').select('*')
       .eq('almacen_id', almacenId).eq('articulo_id', material.articulo_id)
       .eq('empresa_id', EMPRESA.id).limit(1);
@@ -1131,6 +1133,13 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
       const nuevaCant = (stFresh[0].cantidad || 0) - material.cantidad;
       await sb.from('stock').update({ cantidad: nuevaCant })
         .eq('id', stFresh[0].id);
+    } else {
+      // Crear registro de stock con cantidad negativa (se regularizará al validar albarán)
+      await sb.from('stock').insert({
+        empresa_id: EMPRESA.id, almacen_id: almacenId,
+        articulo_id: material.articulo_id,
+        cantidad: -material.cantidad, stock_provisional: 0, stock_reservado: 0
+      });
     }
 
     // Registrar movimiento de salida
@@ -2830,7 +2839,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 114
+      instaloERP v1.1 · build 115
     </div>
   `;
 }
@@ -3180,7 +3189,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 114
+      instaloERP v1.1 · build 115
     </div>
   `;
 }
@@ -3530,7 +3539,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 114
+        instaloERP v1.1 · build 115
       </div>
     </div>`;
 }
