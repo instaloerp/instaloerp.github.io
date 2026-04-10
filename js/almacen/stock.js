@@ -67,8 +67,12 @@ function renderStock(list) {
     const status = row.cantidad <= 0 ? 'agotado' : (minimo > 0 && row.cantidad < minimo) ? 'bajo' : 'ok';
     const cost = (art?.precio_coste || 0) * row.cantidad;
     const prov = row.stock_provisional || 0;
-    const badgeMap = { ok: 'bg-green', bajo: 'bg-orange', agotado: 'bg-red' };
-    const labelMap = { ok: '✓ OK', bajo: '⚠️ Bajo', agotado: '✗ Agotado' };
+    const pillStyle = {
+      ok:      'color:#16A34A;background:#DCFCE7',
+      bajo:    'color:#D97706;background:#FEF3C7',
+      agotado: 'color:#DC2626;background:#FEE2E2'
+    };
+    const labelMap = { ok: '✓ OK', bajo: '⚠ Bajo', agotado: '✗ Agotado' };
 
     return `<tr>
       <td><div style="font-weight:600;font-size:12.5px">${art?.nombre || 'Sin nombre'}</div></td>
@@ -78,7 +82,7 @@ function renderStock(list) {
       <td style="text-align:right;font-weight:700;font-size:13px">${row.cantidad}</td>
       <td style="text-align:right;font-size:12px;color:${prov > 0 ? 'var(--naranja)' : 'var(--gris-300)'}">${prov > 0 ? prov + ' prov.' : '—'}</td>
       <td style="text-align:right;font-size:12px;color:var(--gris-400)">${minimo}</td>
-      <td><span class="badge ${badgeMap[status]}" style="font-size:11px">${labelMap[status]}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;${pillStyle[status]}">${labelMap[status]}</span></td>
       <td style="text-align:right;font-weight:600;font-size:12px">${fmtE(cost)}</td>
       <td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center">
         <button class="btn btn-ghost btn-sm" onclick="ajustarStock(${row.articulo_id}, ${row.almacen_id})" title="Ajustar stock">✏️</button>

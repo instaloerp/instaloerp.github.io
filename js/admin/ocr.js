@@ -1186,6 +1186,41 @@ async function _ocrConfirmarValidacion() {
       }
     }
 
+    // Paso 1b: limpiar materiales DESELECCIONADOS (la app móvil ya los creó)
+    const _desdeApp = !!(datos.operario || datos.furgoneta);
+    if (_desdeApp) {
+      for (let i = 0; i < materiales.length; i++) {
+        const isChecked = document.querySelector(`[data-validar-select="${i}"]`)?.checked || false;
+        if (isChecked) continue; // solo limpiar los NO seleccionados
+        const m = materiales[i];
+        const artId = m.articulo_id;
+        if (!artId) continue;
+        try {
+          // Borrar stock provisional de la furgoneta
+          const furgId = datos.furgoneta_id || null;
+          if (furgId) {
+            await sb.from('stock').delete()
+              .eq('empresa_id', EMPRESA.id).eq('articulo_id', artId).eq('almacen_id', furgId);
+            await sb.from('movimientos_stock').delete()
+              .eq('empresa_id', EMPRESA.id).eq('articulo_id', artId).eq('almacen_id', furgId);
+          }
+          // Si el artículo es auto-creado por OCR (código empieza por OCR-), borrar
+          const { data: artCheck } = await sb.from('articulos').select('id,codigo')
+            .eq('id', artId).limit(1);
+          if (artCheck?.[0]?.codigo?.startsWith('OCR-')) {
+            // Borrar stock en TODOS los almacenes (por si se creó en más sitios)
+            await sb.from('stock').delete().eq('empresa_id', EMPRESA.id).eq('articulo_id', artId);
+            await sb.from('movimientos_stock').delete().eq('empresa_id', EMPRESA.id).eq('articulo_id', artId);
+            await sb.from('articulos_proveedores').delete().eq('empresa_id', EMPRESA.id).eq('articulo_id', artId);
+            await sb.from('articulos').delete().eq('id', artId);
+            toast('🗑️ Eliminado: ' + (m.nombre || '').substring(0,30), 'info');
+          }
+        } catch(cleanErr) {
+          console.warn('[OCR cleanup]', m.nombre, cleanErr);
+        }
+      }
+    }
+
     // Paso 2: marcar doc OCR completado
     await sb.from('documentos_ocr').update({
       estado: 'completado',
