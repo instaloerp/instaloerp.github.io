@@ -1244,7 +1244,7 @@ async function iaCrearArticulo(lineaOCR, provId) {
     precio_venta: Math.round(pvp * 100) / 100,
     descuento: 0,
     tipo_iva_id: _iaGetTipoIvaId(lineaOCR.iva_pct || 21),
-    activo: true
+    es_activo: false, activo: true
   };
 
   const { data, error } = await sb.from('articulos').insert(nuevo).select().single();

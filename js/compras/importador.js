@@ -234,7 +234,7 @@ async function confirmarImport(tipo) {
         referencia_fabricante: row.referencia_fabricante||null,
         codigo_barras: row.codigo_barras||null,
         observaciones: row.observaciones||null,
-        activo: true,
+        es_activo: false, activo: true,
       });
       error ? err++ : ok++;
     }

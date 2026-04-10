@@ -1064,13 +1064,19 @@ async function _ocrConfirmarValidacion() {
           if (artExiste) {
             articuloId = artExiste.id;
           } else {
-            // Crear artículo nuevo como definitivo (es_activo:true porque el admin ya lo está validando)
+            // Crear artículo nuevo — es_activo:false (se marca manualmente), activo:true para que aparezca
             const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
             const codigoAuto = 'OCR-' + ((ed.codigo||'').replace(/[^a-zA-Z0-9-]/g,'').toUpperCase() || Date.now().toString(36).toUpperCase()) + '-' + _sufijo;
+            // Calcular precio neto (con descuentos) como precio_coste, y el bruto como precio_venta
+            const _pvpBruto = ed.precio || 0;
+            const _d1 = (ed.dto1_pct || 0) / 100, _d2 = (ed.dto2_pct || 0) / 100;
+            const _precioNeto = _pvpBruto * (1 - _d1) * (1 - _d2);
             const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
               empresa_id: EMPRESA.id, codigo: codigoAuto, nombre: ed.nombre || 'Material OCR',
-              referencia_fabricante: ed.codigo || null, precio_coste: ed.precio || 0,
-              precio_venta: 0, es_activo: true, activo: true,
+              referencia_fabricante: ed.codigo || null,
+              precio_coste: Math.round(_precioNeto * 100) / 100,
+              precio_venta: Math.round(_pvpBruto * 100) / 100,
+              es_activo: false, activo: true,
               proveedor_id: proveedorId || null,
               observaciones: 'Creado desde validación OCR — doc ' + (numDocEdit || doc.id)
             }).select().single();

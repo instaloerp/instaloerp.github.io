@@ -526,11 +526,9 @@ async function saveArticulo() {
 
   toast(id ? 'Artículo actualizado ✓' : 'Artículo creado ✓', 'success');
 
-  // Si es nuevo, recargar proveedores/historial (ahora se pueden añadir)
-  if (!id && savedId) {
-    loadArtProveedores(savedId);
-    loadArtHistorial(savedId);
-  }
+  // Cerrar modal y volver a la lista
+  closeModal('mArticulo');
+  filtrarArticulos();
 }
 
 // ─── ELIMINAR ──────────────────────────────────
@@ -1033,7 +1031,7 @@ async function importarArticulosExcel() {
       referencia_fabricante: r['Ref. fabricante'] || r['ref_fabricante'] || null,
       codigo_barras: r['Código barras'] || r['codigo_barras'] || r['EAN'] || null,
       stock_minimo: parseFloat(r['Stock mínimo'] || r['stock_minimo'] || 0) || 0,
-      activo: true
+      es_activo: false, activo: true
     };
 
     const ivaDefault = tiposIva.find(i => i.por_defecto);
