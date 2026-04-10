@@ -543,17 +543,55 @@ async function _confirmarRecepcion() {
 // ═══════════════════════════════════════════════
 // INCIDENCIA EN ALBARÁN
 // ═══════════════════════════════════════════════
-async function incidenciaAlbaran(id) {
+let _incAlbaranId = null;
+
+function incidenciaAlbaran(id) {
   const r = recepciones.find(x => x.id === id);
   if (!r) return;
 
-  const motivo = prompt('Describe la incidencia (mercancía dañada, faltan unidades, etc.):');
-  if (!motivo) return;
+  _incAlbaranId = id;
+  document.getElementById('incInfo').innerHTML = `<strong>${r.numero}</strong> — ${r.proveedor_nombre} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length!==1?'s':''} · ${fmtE((r.lineas||[]).reduce((s,l) => s + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0))}`;
+  document.getElementById('incTipo').value = '';
+  document.getElementById('incDescripcion').value = '';
+  document.getElementById('incAccion').value = 'reclamar';
+  openModal('mIncidencia');
+}
 
-  const obs = (r.observaciones || '') + '\n⚠️ INCIDENCIA (' + new Date().toLocaleDateString('es-ES') + '): ' + motivo;
-  await sb.from('recepciones').update({ estado: 'incidencia', observaciones: obs.trim() }).eq('id', id);
+async function _confirmarIncidencia() {
+  const tipo = document.getElementById('incTipo').value;
+  const desc = document.getElementById('incDescripcion').value.trim();
+  if (!tipo) { toast('Selecciona el tipo de incidencia', 'error'); return; }
+  if (!desc) { toast('Describe la incidencia', 'error'); return; }
+
+  const accion = document.getElementById('incAccion').value;
+  const tipoLabel = document.getElementById('incTipo').selectedOptions[0]?.textContent || tipo;
+  const accionLabel = document.getElementById('incAccion').selectedOptions[0]?.textContent || accion;
+
+  const r = recepciones.find(x => x.id === _incAlbaranId);
+  if (!r) return;
+
+  const incidencia = {
+    fecha: new Date().toISOString(),
+    tipo, descripcion: desc, accion,
+    usuario: CP?.nombre || CU?.email || 'admin',
+    resuelta: false
+  };
+
+  // Guardar incidencias como array en el campo observaciones (structured)
+  const incidencias = r.incidencias || [];
+  incidencias.push(incidencia);
+
+  const obsAdd = '\n⚠️ ' + tipoLabel + ' (' + new Date().toLocaleDateString('es-ES') + '): ' + desc + ' → ' + accionLabel;
+
+  await sb.from('recepciones').update({
+    estado: 'incidencia',
+    incidencias: incidencias,
+    observaciones: ((r.observaciones || '') + obsAdd).trim()
+  }).eq('id', _incAlbaranId);
+
+  closeModal('mIncidencia');
   loadRecepciones();
-  toast('Albarán marcado con incidencia', 'warning');
+  toast('Incidencia registrada — ' + accionLabel, 'warning');
 }
 
 // ═══════════════════════════════════════════════
