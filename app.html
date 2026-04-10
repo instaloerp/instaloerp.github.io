@@ -903,6 +903,14 @@ async function loadEmpresa(id) {
 }
 
 // ═══════════════════════════════════════════════
+// CONFIG HELPERS — Tarifas configurables
+// ═══════════════════════════════════════════════
+function cfgTarifaHora() { return (EMPRESA?.config_partes?.tarifa_hora) ?? 35; }
+function cfgTarifaKm()   { return (EMPRESA?.config_partes?.tarifa_km) ?? 0.26; }
+function cfgMargenOcr()  { return (EMPRESA?.config_partes?.margen_ocr ?? 30) / 100; }
+function cfgIvaPartes()  { return (EMPRESA?.config_partes?.iva_partes) ?? 21; }
+
+// ═══════════════════════════════════════════════
 // FURGONETA — Stock del operario
 // ═══════════════════════════════════════════════
 async function loadMiFurgoneta() {
@@ -2839,7 +2847,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 118
+      instaloERP v1.1 · build 119
     </div>
   `;
 }
@@ -3189,7 +3197,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 118
+      instaloERP v1.1 · build 119
     </div>
   `;
 }
@@ -3539,7 +3547,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 118
+        instaloERP v1.1 · build 119
       </div>
     </div>`;
 }
@@ -7185,7 +7193,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
               nombre: l.nombre || 'Material OCR',
               referencia_fabricante: l.codigo || null,
               precio_coste: _precioCosteOcr,
-              precio_venta: Math.round(_precioCosteOcr * 1.3 * 100) / 100,
+              precio_venta: Math.round(_precioCosteOcr * (1 + cfgMargenOcr()) * 100) / 100,
               es_activo: false,
               activo: true,
               proveedor_id: proveedorId || null,
@@ -7434,7 +7442,7 @@ function renderWizMORow(mo, idx) {
             style="width:60px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:center;font-size:12px;font-family:var(--font)"
             onchange="wizUpdateMO(${idx},'km',this.value)">
           ${esJefe ? `<label style="font-size:10px;color:var(--gris-500);white-space:nowrap">€/km:</label>
-          <input type="number" value="${mo.precio_hora||0.26}" min="0" step="0.01"
+          <input type="number" value="${mo.precio_hora||cfgTarifaKm()}" min="0" step="0.01"
             style="width:55px;padding:6px;border:1px solid var(--gris-200);border-radius:6px;text-align:right;font-size:12px;font-family:var(--font)"
             onchange="wizUpdateMO(${idx},'precio_hora',this.value)">
           <span style="font-size:12px;font-weight:700;color:var(--amarillo);min-width:60px;text-align:right">${(parseFloat(mo.total)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}</span>` : ''}
@@ -7469,8 +7477,8 @@ function wizAddManoObra() {
   _wiz.manoObra.push({
     descripcion: 'Trabajo realizado',
     minutos: 60,
-    precio_hora: esJefe ? 35 : 0,
-    total: esJefe ? 35 : 0,
+    precio_hora: esJefe ? cfgTarifaHora() : 0,
+    total: esJefe ? cfgTarifaHora() : 0,
   });
   renderWizStep();
 }
@@ -7482,7 +7490,7 @@ function wizUpdateMO(idx, field, val) {
     mo.descripcion = val;
   } else if (field === 'km') {
     mo.km = parseFloat(val) || 0;
-    mo.total = mo.km * (mo.precio_hora || 0.26);
+    mo.total = mo.km * (mo.precio_hora || cfgTarifaKm());
   } else if (field === 'minutos') {
     mo.minutos = parseFloat(val) || 0;
     const horas = mo.minutos / 60;
@@ -8039,7 +8047,7 @@ async function wizFinish() {
       if (moTrabajo) {
         const diffMs = new Date() - new Date(parteActual.inicio_at);
         moTrabajo.minutos = Math.max(1, Math.round(diffMs / (1000 * 60)));
-        moTrabajo.total = (moTrabajo.minutos / 60) * (moTrabajo.precio_hora || 35);
+        moTrabajo.total = (moTrabajo.minutos / 60) * (moTrabajo.precio_hora || cfgTarifaHora());
       }
     }
 
@@ -8051,7 +8059,7 @@ async function wizFinish() {
         try {
           const kmReal = await calcularKmCarretera(ubi.lat, ubi.lng);
           const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
-          if (despMO) { despMO.km = kmReal; despMO.total = kmReal * (despMO.precio_hora || 0.26); }
+          if (despMO) { despMO.km = kmReal; despMO.total = kmReal * (despMO.precio_hora || cfgTarifaKm()); }
         } catch(e) { /* silent */ }
       }
     })();
@@ -9243,8 +9251,8 @@ function openInformarWizard(id) {
     autoManoObra.push({
       descripcion: 'Trabajo realizado',
       minutos: diffMinutos,
-      precio_hora: 35,
-      total: (diffMinutos / 60) * 35,
+      precio_hora: cfgTarifaHora(),
+      total: (diffMinutos / 60) * cfgTarifaHora(),
     });
   }
 
@@ -9253,7 +9261,7 @@ function openInformarWizard(id) {
     autoManoObra.push({
       descripcion: 'Desplazamiento',
       minutos: 0,
-      precio_hora: 0.26,
+      precio_hora: cfgTarifaKm(),
       total: 0,
       km: 0,
       es_desplazamiento: true,
@@ -9265,7 +9273,7 @@ function openInformarWizard(id) {
         const despMO = _wiz.manoObra.find(mo => mo.es_desplazamiento);
         if (despMO) {
           despMO.km = km;
-          despMO.total = km * (despMO.precio_hora || 0.26);
+          despMO.total = km * (despMO.precio_hora || cfgTarifaKm());
           renderWizStep();
         }
       }).catch(() => {});

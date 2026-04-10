@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 118</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 119</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1810,6 +1810,7 @@
             <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
             <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
             <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
+            <button class="cfg-menu-item" onclick="cfgTab('partes',this)"><span class="ico">🔧</span> Partes de trabajo</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -2091,6 +2092,51 @@
                   📦 Importar albaranes de proveedor desde foto/PDF<br>
                   📋 Importar presupuestos de compra desde foto/PDF<br>
                   📧 Detección automática de documentos en emails (próximamente)
+                </div>
+              </div>
+            </div>
+
+            <!-- Partes de trabajo -->
+            <div class="cfg-panel card" id="cfg-partes">
+              <div class="card-h">
+                <h3>🔧 Partes de trabajo</h3>
+                <div class="card-ha">
+                  <button class="btn btn-primary btn-sm" onclick="guardarCfgPartes()">💾 Guardar</button>
+                </div>
+              </div>
+              <div class="card-b" style="padding:20px">
+                <div style="background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(217,119,6,.08));border-radius:10px;padding:16px;margin-bottom:20px">
+                  <div style="font-weight:700;font-size:14px;color:var(--acento);margin-bottom:6px">Tarifas por defecto</div>
+                  <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                    Estos valores se usarán como precio por defecto al crear partes de trabajo desde la app móvil. Cada parte puede ajustarse individualmente.
+                  </div>
+                </div>
+                <div class="fg-row" style="margin-bottom:16px">
+                  <div class="fg">
+                    <label>👷 Tarifa mano de obra (€/hora)</label>
+                    <input id="cfg_tarifa_hora" type="number" min="0" step="0.5" placeholder="35.00" style="font-size:15px;font-weight:700">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Precio por hora de operario que se aplica por defecto en los partes</small>
+                  </div>
+                  <div class="fg">
+                    <label>🚗 Tarifa desplazamiento (€/km)</label>
+                    <input id="cfg_tarifa_km" type="number" min="0" step="0.01" placeholder="0.26" style="font-size:15px;font-weight:700">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Precio por kilómetro de desplazamiento al domicilio del cliente</small>
+                  </div>
+                </div>
+                <div class="fg-row" style="margin-bottom:16px">
+                  <div class="fg">
+                    <label>📈 Margen artículos OCR (%)</label>
+                    <input id="cfg_margen_ocr" type="number" min="0" step="1" placeholder="30" style="font-size:15px;font-weight:700">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Margen que se aplica sobre el precio de coste para calcular el precio de venta cuando se crean artículos desde OCR</small>
+                  </div>
+                  <div class="fg">
+                    <label>📏 IVA por defecto partes (%)</label>
+                    <input id="cfg_iva_partes" type="number" min="0" step="1" placeholder="21" style="font-size:15px;font-weight:700">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Tipo de IVA que se aplica por defecto en albaranes generados desde partes</small>
+                  </div>
+                </div>
+                <div style="padding:14px;background:var(--gris-50);border-radius:8px;font-size:11px;color:var(--gris-500);line-height:1.7;margin-top:8px">
+                  <strong>Estos valores se sincronizan con la app móvil.</strong> Los operarios verán los precios actualizados la próxima vez que abran un parte.
                 </div>
               </div>
             </div>

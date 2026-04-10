@@ -247,6 +247,7 @@ function cfgTab(id,el){
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
   if (id === 'correo') cargarCuentasCorreoConfig();
   if (id === 'ia') loadConfigIA();
+  if (id === 'partes') cargarCfgPartes();
 }
 
 // ═══════════════════════════════════════════════
@@ -1326,4 +1327,37 @@ async function testApiKeyIA() {
   } catch(e) {
     if(result) { result.textContent = '❌ Error de conexión: ' + e.message + '. ¿Está desplegada la Edge Function ocr-documento?'; result.style.color = 'var(--rojo)'; }
   }
+}
+
+// ═══════════════════════════════════════════════
+//  CONFIGURACIÓN PARTES DE TRABAJO
+// ═══════════════════════════════════════════════
+
+function cargarCfgPartes() {
+  const cfg = EMPRESA.config_partes || {};
+  const elHora = document.getElementById('cfg_tarifa_hora');
+  const elKm = document.getElementById('cfg_tarifa_km');
+  const elMargen = document.getElementById('cfg_margen_ocr');
+  const elIva = document.getElementById('cfg_iva_partes');
+  if (elHora) elHora.value = cfg.tarifa_hora ?? 35;
+  if (elKm) elKm.value = cfg.tarifa_km ?? 0.26;
+  if (elMargen) elMargen.value = cfg.margen_ocr ?? 30;
+  if (elIva) elIva.value = cfg.iva_partes ?? 21;
+}
+
+async function guardarCfgPartes() {
+  const cfg = {
+    tarifa_hora: parseFloat(document.getElementById('cfg_tarifa_hora')?.value) || 35,
+    tarifa_km: parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0.26,
+    margen_ocr: parseFloat(document.getElementById('cfg_margen_ocr')?.value) || 30,
+    iva_partes: parseFloat(document.getElementById('cfg_iva_partes')?.value) || 21,
+  };
+  const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
+  if (error) {
+    console.warn('No se pudo guardar config_partes en BD:', error.message);
+    toast('❌ Error guardando: ' + error.message, 'error');
+    return;
+  }
+  EMPRESA.config_partes = cfg;
+  toast('✅ Configuración de partes guardada', 'success');
 }

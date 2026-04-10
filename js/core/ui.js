@@ -2,6 +2,12 @@
 // UI HELPERS - Screen, modal, page, and form utilities
 // ═══════════════════════════════════════════════
 
+// ── Config helpers — Tarifas y parámetros configurables ──
+function cfgTarifaHora() { return (EMPRESA?.config_partes?.tarifa_hora) ?? 35; }
+function cfgTarifaKm()   { return (EMPRESA?.config_partes?.tarifa_km) ?? 0.26; }
+function cfgMargenOcr()  { return (EMPRESA?.config_partes?.margen_ocr ?? 30) / 100; }
+function cfgIvaPartes()  { return (EMPRESA?.config_partes?.iva_partes) ?? 21; }
+
 // ── Fecha y hora para el topbar ──
 function _fechaHoraActual() {
   const now = new Date();

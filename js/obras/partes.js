@@ -1204,7 +1204,7 @@ async function verDetalleParte(id) {
               return `<tr style="border-bottom:1px solid var(--gris-100);background:#FFFBEB">
                 <td style="padding:8px">🚗 ${mo.descripcion||'Desplazamiento'}</td>
                 <td style="padding:8px;text-align:center">${mo.km||0} km</td>
-                <td style="padding:8px;text-align:right">${fmtE(mo.precio_hora||0.26)}/km</td>
+                <td style="padding:8px;text-align:right">${fmtE(mo.precio_hora||cfgTarifaKm())}/km</td>
                 <td style="padding:8px;text-align:right;font-weight:700">${fmtE(mo.total||0)}</td>
               </tr>`;
             }
