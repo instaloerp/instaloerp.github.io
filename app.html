@@ -6548,8 +6548,11 @@ async function _wizOCRFileSelected(input) {
     // Inicializar estructura multipágina — un solo documento con N fotos
     _ocrPreviewData = {
       numDocumento: numDoc,
-      pages: [{ foto: base64 }],
-      allLineas: lineasProcesadas
+      pages: [{ foto: base64, b64Data, mimeType }],
+      allLineas: lineasProcesadas,
+      ocrResult: data,
+      proveedor: data.proveedor?.nombre || (typeof data.proveedor === 'string' ? data.proveedor : '') || '',
+      tipoDocumento: data.tipo_documento || 'albaran'
     };
 
     // Mostrar pantalla de preview
@@ -6936,7 +6939,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
               referencia_fabricante: l.codigo || null,
               precio_coste: l.precioUnit || l.precio || 0,
               precio_venta: 0,
-              es_activo: true,
+              es_activo: false,
               activo: true,
               proveedor_id: proveedorId || null,
               observaciones: `Creado automáticamente desde OCR — doc ${d.numDocumento || 'sin nº'}`
@@ -7016,7 +7019,7 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
 
       // Recargar lista de artículos en memoria para que sean buscables
       if (_artCreados > 0) {
-        const { data: artFresh } = await sb.from('articulos').select('*').eq('empresa_id', eid).eq('es_activo', true).order('nombre');
+        const { data: artFresh } = await sb.from('articulos').select('*').eq('empresa_id', eid).eq('activo', true).order('nombre');
         if (artFresh) { articulos = artFresh; await idbSaveAll('articulos', artFresh); }
       }
     } else {
