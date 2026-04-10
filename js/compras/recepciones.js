@@ -49,28 +49,52 @@ function rcCheckChanged() {
 function renderRecepciones(list) {
   const btnMulti = document.getElementById('rcFacturarMulti');
   if (btnMulti) btnMulti.style.display = 'none';
+
+  const estadoCfg = {
+    pendiente:    { ico:'⏳', label:'Pendiente',    color:'#92400e', bg:'#fef3c7' },
+    recepcionado: { ico:'📦', label:'Recepcionado', color:'#065f46', bg:'#d1fae5' },
+    incidencia:   { ico:'⚠️', label:'Incidencia',   color:'#9a3412', bg:'#ffedd5' },
+    facturado:    { ico:'🧾', label:'Facturado',    color:'#1e40af', bg:'#dbeafe' }
+  };
+
   const html = list.length ? list.map(r => {
-    const estadoMap = {pendiente:'⏳ Pendiente', recepcionado:'📦 Recepcionado', incidencia:'⚠️ Incidencia', facturado:'🧾 Facturado'};
-    const estadoBg = {pendiente:'var(--gris-100)', recepcionado:'#e8f5e9', incidencia:'#fff3e0', facturado:'#e3f2fd'};
-    const estadoTxt = estadoMap[r.estado] || r.estado;
-    return `<tr>
-      <td style="text-align:center;width:30px">${r.exportado_bloqueado ? '' : `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">`}</td>
-      <td><div style="font-weight:700">${r.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div></td>
-      <td><div style="font-weight:600">${r.proveedor_nombre}</div></td>
-      <td>${r.usuario_nombre||'—'}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${estadoBg[r.estado]||'var(--gris-100)'};font-size:12px">${estadoTxt}</span></td>
-      <td style="text-align:right;font-weight:600">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirRecepcion(${r.id})" title="Imprimir">🖨️</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarRecepcionEmail(${r.id})" title="Enviar por email">📧</button>
-        <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
-        ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="recepcionarAlbaran(${r.id})" title="Recepcionar (entrada stock)">📦</button><button class="btn btn-ghost btn-sm" onclick="incidenciaAlbaran(${r.id})" title="Marcar incidencia">⚠️</button>`:''}
-        ${r.estado==='incidencia'?`<button class="btn btn-ghost btn-sm" onclick="recepcionarAlbaran(${r.id})" title="Recepcionar tras resolver">📦</button>`:''}
-        ${r.exportado_bloqueado ? '<span title="Exportado a factura" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
-        <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
-      </div></td>
+    const ec = estadoCfg[r.estado] || { ico:'?', label:r.estado, color:'var(--gris-500)', bg:'var(--gris-100)' };
+    const total = r.lineas ? r.lineas.reduce((s,l) => s + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0) : 0;
+    const nLineas = (r.lineas||[]).length;
+    const almNombre = (almacenes||[]).find(a => a.id === r.almacen_destino_id)?.nombre || '';
+
+    // Botones contextuales según estado
+    let acciones = '';
+    if (r.estado === 'pendiente') {
+      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #d1fae5;background:#ecfdf5;cursor:pointer;font-size:11px;font-weight:600;color:#065f46" title="Verificar mercancía y dar entrada al stock">📦 Recepcionar</button>`;
+      acciones += `<button onclick="event.stopPropagation();incidenciaAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #ffedd5;background:#fff7ed;cursor:pointer;font-size:11px;font-weight:600;color:#9a3412" title="Mercancía dañada, faltan unidades, etc.">⚠️ Incidencia</button>`;
+    }
+    if (r.estado === 'incidencia') {
+      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #d1fae5;background:#ecfdf5;cursor:pointer;font-size:11px;font-weight:600;color:#065f46" title="Recepcionar tras resolver incidencia">📦 Recepcionar</button>`;
+    }
+    if ((r.estado === 'recepcionado') && !r.exportado_bloqueado) {
+      acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;cursor:pointer;font-size:11px;font-weight:600;color:#1e40af">🧾 Facturar</button>`;
+    }
+    if (r.exportado_bloqueado) {
+      acciones += `<span style="padding:4px 10px;border-radius:6px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700">✅ Facturado</span>`;
+    }
+
+    // Checkbox para facturación múltiple (solo recepcionados no bloqueados)
+    const showCheck = r.estado === 'recepcionado' && !r.exportado_bloqueado;
+
+    return `<tr style="cursor:pointer" onclick="editarRecepcion(${r.id})">
+      <td onclick="event.stopPropagation()" style="text-align:center;width:30px">${showCheck ? `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">` : ''}</td>
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">
+        <div>${r.numero}</div>
+        <div style="font-size:11px;color:var(--gris-400);font-family:inherit">${new Date(r.fecha).toLocaleDateString('es-ES')}</div>
+      </td>
+      <td><div style="font-weight:600">${r.proveedor_nombre}</div><div style="font-size:11px;color:var(--gris-400)">${almNombre}</div></td>
+      <td style="font-size:12px;color:var(--gris-500)">${nLineas} línea${nLineas!==1?'s':''}</td>
+      <td style="text-align:right;font-weight:700;font-size:12.5px">${fmtE(total)}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${ec.color};background:${ec.bg}">${ec.ico} ${ec.label}</span></td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px;flex-wrap:wrap">${acciones}</div></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📥</div><h3>Sin albaranes de proveedor</h3></div></td></tr>';
+  }).join('') : '<tr><td colspan="7"><div class="empty"><div class="ei">📥</div><h3>Sin albaranes de proveedor</h3></div></td></tr>';
   document.getElementById('rcTable').innerHTML = html;
 }
 
