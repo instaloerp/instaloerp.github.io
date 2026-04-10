@@ -1501,6 +1501,8 @@ async function loadAllData() {
     ]).then(() => {
       // Re-render inicio si estamos en esa pestaña (para mostrar reposiciones y fichaje)
       if (currentTab === 'inicio') navigateTo('inicio');
+      // Iniciar realtime para traspasos ahora que miFurgoneta está cargada
+      _initRealtimeTraspasos();
     });
 
   } catch(e) {
@@ -1539,22 +1541,32 @@ function initAutoRefresh() {
   if (_pollInterval) clearInterval(_pollInterval);
   _pollInterval = setInterval(() => _silentRefresh(), POLL_MS);
   _updateSyncIndicator();
+}
 
-  // Realtime para traspasos — actualización inmediata cuando cambian
-  if (EMPRESA?.id && miFurgoneta?.id) {
-    sb.channel('app-traspasos')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'traspasos', filter: `empresa_id=eq.${EMPRESA.id}` },
-        async () => {
-          console.log('[Realtime] Cambio en traspasos detectado');
-          await loadMisReposiciones();
-          if (currentTab === 'inicio') navigateTo('inicio');
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') console.log('[Realtime] ✅ Escuchando traspasos');
-      });
-  }
+let _rtTraspasosInit = false;
+function _initRealtimeTraspasos() {
+  if (_rtTraspasosInit || !EMPRESA?.id) return;
+  _rtTraspasosInit = true;
+
+  sb.channel('app-traspasos')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'traspasos', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        console.log('[Realtime] Cambio en traspasos detectado');
+        await loadMisReposiciones();
+        if (currentTab === 'inicio') navigateTo('inicio');
+      }
+    )
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'stock', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async () => {
+        console.log('[Realtime] Cambio en stock detectado');
+        if (miFurgoneta) await loadStockFurgoneta(miFurgoneta.id);
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') console.log('[Realtime] ✅ Escuchando traspasos + stock');
+    });
 }
 
 async function _silentRefresh() {
