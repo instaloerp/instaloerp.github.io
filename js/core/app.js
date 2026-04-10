@@ -854,7 +854,7 @@ function initRealtimePartes() {
         try {
           if (typeof _invalidarArtStockMap === 'function') _invalidarArtStockMap();
           const pageStock = document.getElementById('page-stock');
-          if (pageStock && pageStock.classList.contains('active') && typeof cargarStock === 'function') cargarStock();
+          if (pageStock && pageStock.classList.contains('active') && typeof loadStock === 'function') loadStock();
           // Refrescar artículos si están visibles (para actualizar columna Ubicación)
           const pageArt = document.getElementById('page-articulos');
           if (pageArt && pageArt.classList.contains('active') && typeof renderArticulos === 'function' && typeof articulos !== 'undefined') {

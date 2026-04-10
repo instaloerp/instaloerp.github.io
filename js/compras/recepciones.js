@@ -353,39 +353,44 @@ async function _entradaStockAlbaran(recepcionId, almacenId, lineas, numero, fech
     if (cant <= 0) continue;
 
     try {
-      // 1. Dar entrada de stock REAL en el almacén destino del albarán
-      const { data: stockExist } = await sb.from('stock').select('*')
-        .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
+      // 1. Buscar si hay stock provisional en CUALQUIER almacén para este artículo
+      //    (OCR pudo crearlo en la furgoneta del operario)
+      const { data: todosStocks } = await sb.from('stock').select('*')
+        .eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).gt('stock_provisional', 0);
 
-      if (stockExist?.length) {
-        const s = stockExist[0];
-        const provLimpiar = Math.min(s.stock_provisional || 0, cant);
-        await sb.from('stock').update({
-          cantidad: (s.cantidad || 0) + cant,
-          stock_provisional: Math.max(0, (s.stock_provisional || 0) - provLimpiar)
-        }).eq('id', s.id);
+      let almacenReal = almacenId; // por defecto: almacén destino del albarán
+
+      if (todosStocks?.length) {
+        // Hay provisional → convertir a real EN ESE MISMO almacén (no moverlo)
+        for (const sp of todosStocks) {
+          const convertir = Math.min(sp.stock_provisional, cant);
+          if (convertir > 0) {
+            await sb.from('stock').update({
+              cantidad: (sp.cantidad || 0) + convertir,
+              stock_provisional: Math.max(0, sp.stock_provisional - convertir)
+            }).eq('id', sp.id);
+            almacenReal = sp.almacen_id; // registrar movimiento en el almacén donde estaba
+          }
+        }
       } else {
-        await sb.from('stock').insert({
-          empresa_id: EMPRESA.id, almacen_id: almacenId,
-          articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
-        });
-      }
+        // No hay provisional → entrada normal en almacén destino
+        const { data: stockDest } = await sb.from('stock').select('*')
+          .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
 
-      // 2. Limpiar provisional en OTROS almacenes (por si el OCR lo creó en otro sitio)
-      const { data: otrosProvisionales } = await sb.from('stock').select('*')
-        .eq('articulo_id', artId).eq('empresa_id', EMPRESA.id)
-        .neq('almacen_id', almacenId).gt('stock_provisional', 0);
-      for (const sp of (otrosProvisionales || [])) {
-        const limpiar = Math.min(sp.stock_provisional, cant);
-        if (limpiar > 0) {
+        if (stockDest?.length) {
           await sb.from('stock').update({
-            stock_provisional: Math.max(0, sp.stock_provisional - limpiar)
-          }).eq('id', sp.id);
+            cantidad: (stockDest[0].cantidad || 0) + cant
+          }).eq('id', stockDest[0].id);
+        } else {
+          await sb.from('stock').insert({
+            empresa_id: EMPRESA.id, almacen_id: almacenId,
+            articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
+          });
         }
       }
 
       await sb.from('movimientos_stock').insert({
-        empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almacenId,
+        empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almacenReal,
         tipo: 'entrada', cantidad: cant, delta: cant,
         notas: 'Albarán proveedor nº ' + numero,
         tipo_stock: 'real', fecha: fecha || new Date().toISOString().slice(0, 10),

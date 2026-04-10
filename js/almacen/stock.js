@@ -29,7 +29,7 @@ async function loadStock() {
 
 // Renderizar tabla de stock
 function renderStock(list) {
-  const tbody = document.querySelector('#stock-table tbody');
+  const tbody = document.getElementById('stock-table');
   if (!tbody) return;
 
   tbody.innerHTML = list.map(row => {
@@ -37,7 +37,7 @@ function renderStock(list) {
     const fam = familias.find(f => f.id === art?.familia_id);
     const alm = almacenes.find(a => a.id === row.almacen_id);
     const status = row.cantidad <= 0 ? 'agotado' : row.cantidad < row.stock_minimo ? 'bajo' : 'ok';
-    const cost = (art?.costo || 0) * row.cantidad;
+    const cost = (art?.precio_coste || 0) * row.cantidad;
 
     return `
       <tr class="status-${status}">
@@ -90,7 +90,7 @@ function updateStockKPIs() {
   const bajoMinimo = stockData.filter(s => s.cantidad < s.stock_minimo).length;
   const valorStock = stockData.reduce((sum, s) => {
     const art = articulos.find(a => a.id === s.articulo_id);
-    return sum + ((art?.costo || 0) * s.cantidad);
+    return sum + ((art?.precio_coste || 0) * s.cantidad);
   }, 0);
   const almacenesActivos = new Set(stockData.map(s => s.almacen_id)).size;
 
@@ -243,8 +243,8 @@ function exportStock() {
       'Cantidad': row.cantidad,
       'Mínimo': row.stock_minimo,
       'Estado': status,
-      'Costo Unitario': fmtE(art?.costo || 0),
-      'Valor Total': fmtE((art?.costo || 0) * row.cantidad),
+      'Costo Unitario': fmtE(art?.precio_coste || 0),
+      'Valor Total': fmtE((art?.precio_coste || 0) * row.cantidad),
       'Actualizado': new Date(row.updated_at).toLocaleDateString()
     };
   });
