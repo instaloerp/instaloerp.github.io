@@ -668,6 +668,14 @@ let _ocrValidarDoc = null;
 let _ocrValidarProvMatch = null;
 let _ocrValidarProvExiste = false;
 
+// Helper function to toggle all material selection checkboxes
+function _ocrToggleSelectAll(checked) {
+  const checkboxes = document.querySelectorAll('[data-validar-select]');
+  checkboxes.forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
 async function ocrValidar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
@@ -806,7 +814,10 @@ async function ocrValidar(id) {
     // en_catalogo viene del móvil: true si el artículo ya existía antes del escaneo
     const enCatalogo = !!m.en_catalogo;
 
-    return `<tr data-idx="${idx}" style="border-bottom:1px solid var(--gris-100)">
+    return `<tr data-idx="${idx}" style="border-bottom:1px solid var(--gris-100)" data-validar-row="${idx}">
+      <td style="text-align:center;padding:6px">
+        <input type="checkbox" data-validar-select="${idx}" checked style="width:18px;height:18px;cursor:pointer;accent-color:#10B981">
+      </td>
       <td style="padding:6px 8px">
         <input type="text" value="${nombreDisplay.replace(/"/g, '&quot;')}" data-validar-nombre="${idx}"
           style="width:100%;border:1px solid ${enCatalogo ? 'var(--gris-200)' : '#FDE68A'};border-radius:5px;padding:4px 6px;font-size:12px;font-weight:600;background:${enCatalogo ? '#fff' : '#FFFBEB'}">
@@ -936,6 +947,9 @@ async function ocrValidar(id) {
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;z-index:2">
               <tr style="background:var(--gris-50);font-size:9px;font-weight:700;color:var(--gris-500);text-transform:uppercase">
+                <th style="padding:6px;text-align:center;width:35px">
+                  <input type="checkbox" id="ocrValSelectAll" onchange="_ocrToggleSelectAll(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#10B981">
+                </th>
                 <th style="padding:6px 8px;text-align:left">Material / Código</th>
                 <th style="padding:6px;text-align:center;width:55px">Leído</th>
                 <th style="padding:6px;text-align:center;width:40px">Ud</th>
@@ -992,12 +1006,14 @@ async function _ocrConfirmarValidacion() {
     unidad: (document.querySelector(`[data-validar-unidad="${idx}"]`)?.value || m.unidad || 'ud').trim(),
     dto1_pct: parseFloat(document.querySelector(`[data-validar-dto1="${idx}"]`)?.value) || 0,
     dto2_pct: parseFloat(document.querySelector(`[data-validar-dto2="${idx}"]`)?.value) || 0,
-    iva_pct: parseFloat(document.querySelector(`[data-validar-iva="${idx}"]`)?.value ?? 21)
+    iva_pct: parseFloat(document.querySelector(`[data-validar-iva="${idx}"]`)?.value ?? 21),
+    seleccionado: document.querySelector(`[data-validar-select="${idx}"]`)?.checked || false
   }));
 
   const tipoLabels = {factura:'factura',albaran:'albarán',pedido:'pedido',presupuesto:'presupuesto'};
   const tipoLabel = tipoLabels[tipoDoc] || 'albarán';
-  if (!confirm(`¿Confirmar la validación?\n\n• Se generará ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}\n• Se crearán artículos/proveedor nuevos si no existen`)) {
+  const seleccionados = ediciones.filter(e => e.seleccionado).length;
+  if (!confirm(`¿Confirmar la validación?\n\n• Se procesarán ${seleccionados} de ${materiales.length} artículo(s)\n• Se generará ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}\n• Se crearán artículos/proveedor nuevos si no existen`)) {
     if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
     return;
   }
@@ -1051,6 +1067,9 @@ async function _ocrConfirmarValidacion() {
     for (let i = 0; i < materiales.length; i++) {
       const m = materiales[i];
       const ed = ediciones[i];
+      // Skip unchecked materials
+      const isChecked = document.querySelector(`[data-validar-select="${i}"]`)?.checked || false;
+      if (!isChecked) continue;
       if (ed.cantidad <= 0) continue;
       try {
         let articuloId = m.articulo_id;
@@ -1125,21 +1144,15 @@ async function _ocrConfirmarValidacion() {
           }
         }
 
-        // Stock PROVISIONAL — se crea aquí, se convierte en real al recepcionar el albarán
-        if (articuloId && ed.cantidad > 0) {
+        // Stock PROVISIONAL — solo si NO viene de la app del operario
+        // (la app ya crea stock provisional en la furgoneta via _fabOcrConfirmar)
+        const _desdeApp = !!(datos.operario || datos.furgoneta);
+        if (articuloId && ed.cantidad > 0 && !_desdeApp) {
           try {
-            // Determinar almacén: si viene de app operario → su furgoneta, si no → almacén principal
+            // Determinar almacén principal
             let _almProvId = null;
-            if (datos.operario_id) {
-              // Buscar furgoneta del operario
-              const _furgo = (almacenes||[]).find(a => a.tipo === 'furgoneta' && a.operario_id === datos.operario_id);
-              _almProvId = _furgo?.id || null;
-            }
-            if (!_almProvId) {
-              // Almacén principal
-              const _princ = (almacenes||[]).find(a => a.tipo === 'principal');
-              _almProvId = _princ?.id || (almacenes||[])[0]?.id || null;
-            }
+            const _princ = (almacenes||[]).find(a => a.tipo === 'principal');
+            _almProvId = _princ?.id || (almacenes||[])[0]?.id || null;
             if (_almProvId) {
               const { data: stEx } = await sb.from('stock').select('*')
                 .eq('almacen_id', _almProvId).eq('articulo_id', articuloId).eq('empresa_id', EMPRESA.id).limit(1);
@@ -1184,15 +1197,18 @@ async function _ocrConfirmarValidacion() {
       estado: 'completada', fecha_completada: new Date().toISOString()
     }).eq('entidad_tipo', 'documento_ocr').eq('entidad_id', doc.id).eq('empresa_id', EMPRESA.id);
 
-    // Paso 3: generar documento de compra
-    const lineasDoc = ediciones.map((ed, i) => ({
-      _artId: materiales[i].articulo_id, _artCodigo: ed.codigo,
-      descripcion: ed.nombre, codigo: ed.codigo, cantidad: ed.cantidad,
-      unidad: ed.unidad || 'ud',
-      precio_unitario: ed.precio,
-      dto1_pct: ed.dto1_pct || 0, dto2_pct: ed.dto2_pct || 0, dto3_pct: 0,
-      iva_pct: ed.iva_pct ?? 21
-    }));
+    // Paso 3: generar documento de compra (solo items seleccionados)
+    const lineasDoc = ediciones.filter(ed => ed.seleccionado).map((ed, i) => {
+      const origIdx = ediciones.findIndex(e => e === ed);
+      return {
+        _artId: materiales[origIdx].articulo_id, _artCodigo: ed.codigo,
+        descripcion: ed.nombre, codigo: ed.codigo, cantidad: ed.cantidad,
+        unidad: ed.unidad || 'ud',
+        precio_unitario: ed.precio,
+        dto1_pct: ed.dto1_pct || 0, dto2_pct: ed.dto2_pct || 0, dto3_pct: 0,
+        iva_pct: ed.iva_pct ?? 21
+      };
+    });
     const docData = {
       numero_documento: numDocEdit, fecha: fechaEdit, fecha_vencimiento: '',
       notas: notasEdit || ('Validado desde OCR' + (datos.operario ? ' — operario: ' + datos.operario : '')),

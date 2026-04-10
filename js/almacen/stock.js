@@ -19,6 +19,8 @@ async function loadStock() {
 
     if (error) throw error;
     stockData = data || [];
+    // Reset filters when loading new data
+    stockFilters = { almacen: '', familia: '', texto: '', estado: 'all' };
     renderStock(stockData);
     updateStockKPIs();
   } catch (e) {
@@ -76,9 +78,21 @@ function filtrarStock() {
     const art = articulos.find(a => a.id === row.articulo_id);
     const status = row.cantidad <= 0 ? 'agotado' : row.cantidad < row.stock_minimo ? 'bajo' : 'ok';
 
+    // Almacén filter
     if (stockFilters.almacen && row.almacen_id !== parseInt(stockFilters.almacen)) return false;
+
+    // Familia filter
     if (stockFilters.familia && art?.familia_id !== parseInt(stockFilters.familia)) return false;
-    if (stockFilters.texto && !art?.nombre.toLowerCase().includes(stockFilters.texto)) return false;
+
+    // Texto filter - search by article name or code
+    if (stockFilters.texto) {
+      const searchText = stockFilters.texto;
+      const matchName = art?.nombre?.toLowerCase()?.includes(searchText) || false;
+      const matchCode = art?.codigo?.toLowerCase()?.includes(searchText) || false;
+      if (!matchName && !matchCode) return false;
+    }
+
+    // Estado filter - match status (ok, bajo, agotado)
     if (stockFilters.estado !== 'all' && status !== stockFilters.estado) return false;
 
     return true;
@@ -260,25 +274,28 @@ function exportStock() {
 function populateStockFilters() {
   // Almacenes
   const selAlm = document.getElementById('filter-almacen');
-  if (selAlm && typeof almacenes !== 'undefined') {
+  if (selAlm && typeof almacenes !== 'undefined' && almacenes.length) {
     const current = selAlm.value;
     selAlm.innerHTML = '<option value="">Todos los almacenes</option>';
     almacenes.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.id;
-      opt.textContent = a.nombre;
+      opt.textContent = a.nombre || 'Sin nombre';
       if (String(a.id) === current) opt.selected = true;
       selAlm.appendChild(opt);
     });
   }
+
   // Familias
   const selFam = document.getElementById('filter-familia');
-  if (selFam && typeof familias !== 'undefined') {
+  if (selFam && typeof familias !== 'undefined' && familias.length) {
+    const current = selFam.value;
     selFam.innerHTML = '<option value="">Todas las familias</option>';
     familias.forEach(f => {
       const opt = document.createElement('option');
       opt.value = f.id;
-      opt.textContent = f.nombre;
+      opt.textContent = f.nombre || 'Sin nombre';
+      if (String(f.id) === current) opt.selected = true;
       selFam.appendChild(opt);
     });
   }
@@ -291,14 +308,28 @@ function initStock() {
     populateStockFilters();
     loadStock();
 
-    // Listeners de filtros
-    ['filter-almacen', 'filter-familia', 'filter-texto', 'filter-estado'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', filtrarStock);
-    });
+    // Wire up filter change events
+    const filterAlmacen = document.getElementById('filter-almacen');
+    if (filterAlmacen) {
+      filterAlmacen.addEventListener('change', filtrarStock);
+    }
 
-    const searchEl = document.getElementById('filter-texto');
-    if (searchEl) searchEl.addEventListener('keyup', filtrarStock);
+    const filterFamilia = document.getElementById('filter-familia');
+    if (filterFamilia) {
+      filterFamilia.addEventListener('change', filtrarStock);
+    }
+
+    const filterEstado = document.getElementById('filter-estado');
+    if (filterEstado) {
+      filterEstado.addEventListener('change', filtrarStock);
+    }
+
+    // Wire up text search input
+    const filterTexto = document.getElementById('filter-texto');
+    if (filterTexto) {
+      filterTexto.addEventListener('input', filtrarStock);
+      filterTexto.addEventListener('keyup', filtrarStock);
+    }
   }
 }
 
