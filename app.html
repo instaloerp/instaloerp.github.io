@@ -2825,7 +2825,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 93
+      instaloERP v1.1 · build 94
     </div>
   `;
 }
@@ -3175,7 +3175,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 93
+      instaloERP v1.1 · build 94
     </div>
   `;
 }
@@ -3525,7 +3525,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 93
+        instaloERP v1.1 · build 94
       </div>
     </div>`;
 }
@@ -5285,9 +5285,7 @@ async function _onFabOCRFileSelected(input) {
       const cantidad = parseFloat(linea.cantidad) || 1;
       const precio = parseFloat(linea.precio_unitario) || 0;
 
-      let artMatch = null;
-      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
-      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+      let artMatch = _ocrFindArticulo(nombre, codigo);
 
       return {
         idx: i, page: 0,
@@ -5407,9 +5405,7 @@ async function _fabOcrAddPageSelected(input) {
       const cantidad = parseFloat(linea.cantidad) || 1;
       const precio = parseFloat(linea.precio_unitario) || 0;
 
-      let artMatch = null;
-      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
-      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+      let artMatch = _ocrFindArticulo(nombre, codigo);
 
       _fabOcrData.allLineas.push({
         idx: baseIdx + i, page: pageIdx,
@@ -6406,6 +6402,66 @@ function wizAddMatManual() {
   renderWizStep();
 }
 
+// ── OCR: Normalizar nombre para matching flexible ──
+function _ocrNormalizeName(str) {
+  if (!str) return '';
+  return str
+    .toUpperCase()
+    .replace(/[\/\\\-_.·,:;()[\]{}'"´`]/g, '') // quitar puntuación y separadores
+    .replace(/\s+/g, ' ')                        // colapsar espacios
+    .trim();
+}
+
+function _ocrFindArticulo(nombre, codigo) {
+  const codLow = (codigo || '').toLowerCase().trim();
+  const nomLow = (nombre || '').toLowerCase().trim();
+  const normBusca = _ocrNormalizeName(nombre);
+
+  // 1. Match exacto por código de artículo → seguro
+  if (codLow) {
+    const byCode = articulos.find(a => a.codigo && a.codigo.toLowerCase().trim() === codLow);
+    if (byCode) return byCode;
+  }
+
+  // 2. Match por referencia_fabricante (código del proveedor en el albarán)
+  if (codLow) {
+    const byRef = articulos.find(a => a.referencia_fabricante && a.referencia_fabricante.toLowerCase().trim() === codLow);
+    if (byRef) return byRef;
+  }
+
+  // 3. Scoring multicritério: código proveedor + nombre normalizado
+  //    Si coinciden 2+ criterios → match seguro
+  let bestMatch = null, bestScore = 0;
+  for (const a of articulos) {
+    let score = 0;
+    // Criterio A: código coincide con referencia_fabricante
+    if (codLow && a.referencia_fabricante && a.referencia_fabricante.toLowerCase().trim() === codLow) score++;
+    // Criterio B: código coincide con código artículo
+    if (codLow && a.codigo && a.codigo.toLowerCase().trim() === codLow) score++;
+    // Criterio C: nombre normalizado coincide
+    if (normBusca.length >= 5) {
+      const normArt = _ocrNormalizeName(a.nombre);
+      if (normArt === normBusca || (normArt.length >= 5 && (normArt.includes(normBusca) || normBusca.includes(normArt)))) score++;
+    }
+    // Criterio D: nombre parcial (primeros 15 chars)
+    if (nomLow.length >= 8 && a.nombre && a.nombre.toLowerCase().includes(nomLow.substring(0, 15))) score++;
+
+    if (score >= 2 && score > bestScore) { bestScore = score; bestMatch = a; }
+  }
+  if (bestMatch) return bestMatch;
+
+  // 4. Fallback: match solo por nombre normalizado (1 criterio, pero fuerte)
+  if (normBusca.length >= 8) {
+    const byNorm = articulos.find(a => {
+      const normArt = _ocrNormalizeName(a.nombre);
+      return normArt === normBusca;
+    });
+    if (byNorm) return byNorm;
+  }
+
+  return null;
+}
+
 // ── OCR: Escanear documento desde el wizard de materiales ──
 function wizOCRScan() {
   if (!EMPRESA?.anthropic_api_key) {
@@ -6534,9 +6590,7 @@ async function _wizOCRFileSelected(input) {
       const cantidad = parseFloat(linea.cantidad) || 1;
       const precio = parseFloat(linea.precio_unitario) || 0;
 
-      let artMatch = null;
-      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
-      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+      let artMatch = _ocrFindArticulo(nombre, codigo);
 
       return {
         idx: i, page: 0,
@@ -6766,9 +6820,7 @@ async function _ocrAddPageSelected(input) {
       const cantidad = parseFloat(linea.cantidad) || 1;
       const precio = parseFloat(linea.precio_unitario) || 0;
 
-      let artMatch = null;
-      if (codigo) artMatch = articulos.find(a => a.codigo && a.codigo.toLowerCase() === codigo.toLowerCase());
-      if (!artMatch && nombre) artMatch = articulos.find(a => a.nombre && a.nombre.toLowerCase().includes(nombre.toLowerCase().substring(0, 15)));
+      let artMatch = _ocrFindArticulo(nombre, codigo);
 
       _ocrPreviewData.allLineas.push({
         idx: baseIdx + i,
@@ -6965,7 +7017,47 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
           const artId = l.artMatch?.id || null;
           let artIdFinal = artId;
 
-          // Material SIN catálogo: crear artículo automáticamente
+          // Material SIN catálogo: buscar duplicado en BD (nombre normalizado + ref proveedor)
+          if (!artIdFinal) {
+            const _normNombre = _ocrNormalizeName(l.nombre);
+            const _codBusca = (l.codigo || '').trim().toLowerCase();
+
+            // A) Buscar por referencia_fabricante (código del proveedor)
+            if (_codBusca) {
+              const { data: byRef } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
+                .eq('empresa_id', eid).eq('activo', true).ilike('referencia_fabricante', _codBusca).limit(1);
+              if (byRef?.length) {
+                artIdFinal = byRef[0].id;
+                l.artMatch = byRef[0];
+                toast(`🔗 "${l.nombre}" → por ref: ${byRef[0].nombre}`, 'info');
+              }
+            }
+
+            // B) Buscar por ref en articulos_proveedores
+            if (!artIdFinal && _codBusca) {
+              const { data: byApRef } = await sb.from('articulos_proveedores').select('articulo_id,articulos(id,nombre,codigo)')
+                .eq('empresa_id', eid).ilike('ref_proveedor', _codBusca).limit(1);
+              if (byApRef?.length && byApRef[0].articulos) {
+                artIdFinal = byApRef[0].articulos.id;
+                l.artMatch = byApRef[0].articulos;
+                toast(`🔗 "${l.nombre}" → por ref prov: ${byApRef[0].articulos.nombre}`, 'info');
+              }
+            }
+
+            // C) Buscar por nombre normalizado
+            if (!artIdFinal && _normNombre.length >= 5) {
+              const { data: candidatos } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
+                .eq('empresa_id', eid).eq('activo', true).ilike('nombre', `%${(l.nombre || '').substring(0, 12)}%`).limit(10);
+              if (candidatos?.length) {
+                const dup = candidatos.find(c => _ocrNormalizeName(c.nombre) === _normNombre);
+                if (dup) {
+                  artIdFinal = dup.id;
+                  l.artMatch = dup;
+                  toast(`🔗 "${l.nombre}" → existente: ${dup.nombre}`, 'info');
+                }
+              }
+            }
+          }
           if (!artIdFinal) {
             const _codigoBase = (l.codigo || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
             const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
