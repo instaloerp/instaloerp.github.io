@@ -647,7 +647,7 @@ async function ocrValidar(id) {
     const realActual = stocks.reduce((sum, s) => sum + (s.cantidad || 0), 0);
     const nombreDisplay = art ? art.nombre : (m.nombre || '?');
     const codigoDisplay = art ? (art.codigo || '') : (m.codigo || '');
-    const precioCoste = art?.precio_coste || 0;
+    const precioCoste = m.precio || art?.precio_coste || 0;
     const enCatalogo = m.en_catalogo || !!art;
 
     return `<tr data-idx="${idx}" style="border-bottom:1px solid var(--gris-100)">
@@ -661,7 +661,10 @@ async function ocrValidar(id) {
         </div>
       </td>
       <td style="text-align:center;padding:6px;font-weight:700;font-size:14px">${m.cantidad}</td>
-      <td style="text-align:center;padding:6px;font-size:11px;color:var(--gris-500)">${m.unidad || 'ud'}</td>
+      <td style="text-align:center;padding:6px">
+        <input type="text" value="${(m.unidad || 'ud').replace(/"/g, '&quot;')}" data-validar-unidad="${idx}"
+          style="width:45px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:11px;color:var(--gris-600)">
+      </td>
       <td style="text-align:center;padding:6px">
         <input type="number" value="${precioCoste}" min="0" step="0.01" data-validar-precio="${idx}"
           style="width:70px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:12px">
@@ -714,6 +717,8 @@ async function ocrValidar(id) {
             <select id="ocrValTipoDoc" style="padding:4px 10px;border:1.5px solid var(--azul);border-radius:8px;font-size:13px;font-weight:700;color:var(--azul);background:#eef2ff;cursor:pointer">
               <option value="albaran" ${tipoDoc === 'albaran' ? 'selected' : ''}>📥 Albarán de proveedor</option>
               <option value="factura" ${tipoDoc === 'factura' ? 'selected' : ''}>🧾 Factura de proveedor</option>
+              <option value="presupuesto" ${tipoDoc === 'presupuesto' ? 'selected' : ''}>📝 Presupuesto de proveedor</option>
+              <option value="pedido" ${tipoDoc === 'pedido' ? 'selected' : ''}>📦 Pedido a proveedor</option>
             </select>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
@@ -794,7 +799,8 @@ async function _ocrConfirmarValidacion() {
     nombre: (document.querySelector(`[data-validar-nombre="${idx}"]`)?.value || m.nombre).trim(),
     codigo: (document.querySelector(`[data-validar-codigo="${idx}"]`)?.value || m.codigo || '').trim(),
     cantidad: parseFloat(document.querySelector(`[data-validar-qty="${idx}"]`)?.value) || 0,
-    precio: parseFloat(document.querySelector(`[data-validar-precio="${idx}"]`)?.value) || 0
+    precio: parseFloat(document.querySelector(`[data-validar-precio="${idx}"]`)?.value) || 0,
+    unidad: (document.querySelector(`[data-validar-unidad="${idx}"]`)?.value || m.unidad || 'ud').trim()
   }));
 
   const tipoLabel = tipoDoc === 'factura' ? 'factura' : 'albarán';
@@ -858,7 +864,7 @@ async function _ocrConfirmarValidacion() {
 
         // Stock: provisional → real
         const { data: stockRows } = await sb.from('stock')
-          .select('id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
+          .select('id, almacen_id, cantidad, stock_provisional, almacenes(nombre, tipo)')
           .eq('empresa_id', EMPRESA.id).eq('articulo_id', m.articulo_id).gt('stock_provisional', 0);
         if (!stockRows?.length) { toast('⚠️ ' + (ed.nombre||'').substring(0,20) + ': sin stock provisional', 'warning'); continue; }
 
@@ -910,6 +916,7 @@ async function _ocrConfirmarValidacion() {
     const lineasDoc = ediciones.map((ed, i) => ({
       _artId: materiales[i].articulo_id, _artCodigo: ed.codigo,
       descripcion: ed.nombre, codigo: ed.codigo, cantidad: ed.cantidad,
+      unidad: ed.unidad || 'ud',
       precio_unitario: ed.precio, dto1_pct: 0, dto2_pct: 0, dto3_pct: 0, iva_pct: 21
     }));
     const docData = {
@@ -923,6 +930,10 @@ async function _ocrConfirmarValidacion() {
 
     if (tipoDoc === 'factura' && typeof iaRellenarFactura === 'function') {
       await iaRellenarFactura(docData, proveedorId);
+    } else if (tipoDoc === 'pedido' && typeof iaRellenarPedido === 'function') {
+      await iaRellenarPedido(docData, proveedorId);
+    } else if (tipoDoc === 'presupuesto' && typeof iaRellenarPresupuestoCompra === 'function') {
+      await iaRellenarPresupuestoCompra(docData, proveedorId);
     } else if (typeof iaRellenarAlbaran === 'function') {
       await iaRellenarAlbaran(docData, proveedorId);
     } else {
