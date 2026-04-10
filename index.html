@@ -1622,7 +1622,7 @@
               <option value="error">Con error</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="loadOCRInbox()">🔄 Actualizar</button>
-            <input type="file" id="ocrFileUpload" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple style="display:none" onchange="ocrSubirArchivos(this.files)">
+            <input type="file" id="ocrFileUpload" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none" onchange="ocrSubirArchivos(this.files)">
             <button class="btn btn-primary btn-sm" onclick="document.getElementById('ocrFileUpload').click()">📄 Nuevo documento</button>
           </div>
         </div>

@@ -1205,42 +1205,42 @@ async function ocrSubirArchivos(files) {
   const eid = EMPRESA?.id;
   if (!eid) { toast('Error: empresa no cargada', 'error'); return; }
 
-  let okCount = 0;
-  for (const file of files) {
-    try {
-      toast('📤 Subiendo ' + file.name + '...', 'info');
-      const ext = file.name.split('.').pop().toLowerCase();
-      const ts = Date.now();
-      const storagePath = `${eid}/ocr/manual_${ts}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+  // Solo procesamos el primer archivo (la IA trabaja de uno en uno)
+  const file = files[0];
+  try {
+    toast('📤 Subiendo ' + file.name + '...', 'info');
+    const ext = file.name.split('.').pop().toLowerCase();
+    const ts = Date.now();
+    const storagePath = `${eid}/ocr/manual_${ts}_${Math.random().toString(36).substr(2,6)}.${ext}`;
 
-      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, file, {
-        contentType: file.type || 'application/octet-stream'
-      });
-      if (upErr) { toast('❌ Error subiendo ' + file.name + ': ' + upErr.message, 'error'); continue; }
+    const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, file, {
+      contentType: file.type || 'application/octet-stream'
+    });
+    if (upErr) { toast('❌ Error subiendo ' + file.name + ': ' + upErr.message, 'error'); return; }
 
-      const { error: insErr } = await sb.from('documentos_ocr').insert({
-        empresa_id: eid,
-        usuario_id: CP?.id || CU?.id || null,
-        archivo_path: storagePath,
-        archivo_nombre: file.name,
-        estado: 'pendiente',
-        tipo_documento: 'albaran',
-        datos_extraidos: null,
-        created_at: new Date().toISOString()
-      });
-      if (insErr) { toast('❌ Error registrando ' + file.name + ': ' + insErr.message, 'error'); continue; }
-      okCount++;
-    } catch(e) {
-      toast('❌ ' + file.name + ': ' + e.message, 'error');
-    }
-  }
-  // Limpiar input
-  const inp = document.getElementById('ocrFileUpload');
-  if (inp) inp.value = '';
+    const { data: docData, error: insErr } = await sb.from('documentos_ocr').insert({
+      empresa_id: eid,
+      usuario_id: CP?.id || CU?.id || null,
+      archivo_path: storagePath,
+      archivo_nombre: file.name,
+      estado: 'pendiente',
+      tipo_documento: 'albaran',
+      datos_extraidos: null,
+      created_at: new Date().toISOString()
+    }).select().single();
+    if (insErr || !docData) { toast('❌ Error registrando ' + file.name + ': ' + (insErr?.message || ''), 'error'); return; }
 
-  if (okCount > 0) {
-    toast('✅ ' + okCount + ' documento(s) subido(s) a la bandeja', 'success');
+    // Limpiar input
+    const inp = document.getElementById('ocrFileUpload');
+    if (inp) inp.value = '';
+
+    // Lanzar procesado IA directamente
+    toast('🤖 Procesando con IA...', 'info');
     loadOCRInbox();
+    ocrGestionar(docData.id);
+
+  } catch(e) {
+    toast('❌ ' + file.name + ': ' + e.message, 'error');
   }
 }
 
