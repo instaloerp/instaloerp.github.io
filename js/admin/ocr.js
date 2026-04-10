@@ -578,9 +578,33 @@ async function ocrValidar(id) {
   if (!materiales.length) { toast('Este documento no tiene materiales registrados', 'warning'); return; }
   _ocrValidarDoc = doc;
 
-  // Imagen
-  let imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
-  const fotosArr = datos.fotos_urls || [];
+  // Imagen — usar signed URLs para buckets privados
+  let imgUrl = '';
+  if (doc.archivo_path) {
+    const { data: signedData } = await sb.storage.from('documentos').createSignedUrl(doc.archivo_path, 3600);
+    imgUrl = signedData?.signedUrl || '';
+    if (!imgUrl) {
+      // Fallback a public URL
+      imgUrl = sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data?.publicUrl || '';
+    }
+  }
+  // fotos_urls del móvil pueden ser public URLs — verificar y convertir a signed si es necesario
+  let fotosArr = [];
+  const rawFotos = datos.fotos_urls || [];
+  if (rawFotos.length) {
+    // Las URLs guardadas pueden no funcionar si el bucket es privado, generar signed URLs desde archivo_path
+    // Extraer los paths de storage desde las URLs o usar archivo_path base
+    for (const url of rawFotos) {
+      // Intentar extraer el path del storage de la URL pública
+      const match = url.match(/\/documentos\/(.+?)(\?|$)/);
+      if (match) {
+        const { data: sf } = await sb.storage.from('documentos').createSignedUrl(decodeURIComponent(match[1]), 3600);
+        fotosArr.push(sf?.signedUrl || url);
+      } else {
+        fotosArr.push(url); // usar la URL tal cual
+      }
+    }
+  }
 
   // Stock provisional actual
   const artIds = materiales.filter(m => m.articulo_id).map(m => m.articulo_id);
@@ -662,8 +686,15 @@ async function ocrValidar(id) {
       </td>
       <td style="text-align:center;padding:6px;font-weight:700;font-size:14px">${m.cantidad}</td>
       <td style="text-align:center;padding:6px">
-        <input type="text" value="${(m.unidad || 'ud').replace(/"/g, '&quot;')}" data-validar-unidad="${idx}"
-          style="width:45px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:11px;color:var(--gris-600)">
+        <select data-validar-unidad="${idx}" style="width:55px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:11px;color:var(--gris-600);background:#fff;cursor:pointer">
+          ${(typeof unidades !== 'undefined' ? unidades : []).map(u => {
+            const abr = u.abreviatura || u.nombre || '';
+            const sel = abr.toLowerCase() === (m.unidad || 'ud').toLowerCase() ? 'selected' : '';
+            return '<option value="' + abr.replace(/"/g, '&quot;') + '" ' + sel + '>' + abr + '</option>';
+          }).join('')}
+          ${(typeof unidades !== 'undefined' && !unidades.some(u => (u.abreviatura||u.nombre||'').toLowerCase() === (m.unidad||'ud').toLowerCase()))
+            ? '<option value="' + (m.unidad||'ud').replace(/"/g,'&quot;') + '" selected>' + (m.unidad||'ud') + '</option>' : ''}
+        </select>
       </td>
       <td style="text-align:center;padding:6px">
         <input type="number" value="${precioCoste}" min="0" step="0.01" data-validar-precio="${idx}"
