@@ -1110,6 +1110,7 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
   const consumo = {
     empresa_id: EMPRESA.id,
     parte_id: parteId,
+    parte_numero: parteNumero,
     articulo_id: material.articulo_id,
     articulo_codigo: material.codigo || null,
     articulo_nombre: material.nombre,
@@ -2932,7 +2933,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 119
+      instaloERP v1.1 · build 120
     </div>
   `;
 }
@@ -3282,7 +3283,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 119
+      instaloERP v1.1 · build 120
     </div>
   `;
 }
@@ -3632,7 +3633,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 119
+        instaloERP v1.1 · build 120
       </div>
     </div>`;
 }

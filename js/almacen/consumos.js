@@ -16,6 +16,19 @@ async function loadConsumos() {
 
     if (error) throw error;
     consumosData = data || [];
+
+    // Enriquecer: si parte_numero está vacío, intentar obtenerlo del parte_id
+    const sinNumero = consumosData.filter(c => !c.parte_numero && c.parte_id);
+    if (sinNumero.length) {
+      const parteIds = [...new Set(sinNumero.map(c => c.parte_id))];
+      const { data: partes } = await sb.from('partes').select('id,numero').in('id', parteIds);
+      if (partes) {
+        const map = {};
+        partes.forEach(p => { map[p.id] = p.numero; });
+        consumosData.forEach(c => { if (!c.parte_numero && c.parte_id) c.parte_numero = map[c.parte_id] || null; });
+      }
+    }
+
     renderConsumos(consumosData);
     updateConsumosKPIs(consumosData);
   } catch (e) {
@@ -23,6 +36,12 @@ async function loadConsumos() {
     toast('Error cargando consumos: ' + e.message, 'error');
   }
 }
+
+const _CONSUMO_TIPO = {
+  consumo: { label:'Consumo', ico:'🔧', color:'#1e40af', bg:'#dbeafe' },
+  merma:   { label:'Merma',   ico:'⚠️', color:'#92400e', bg:'#fef3c7' },
+  rotura:  { label:'Rotura',  ico:'💥', color:'#991b1b', bg:'#fee2e2' }
+};
 
 function renderConsumos(list) {
   const tbody = document.getElementById('consumos-table');
@@ -35,11 +54,10 @@ function renderConsumos(list) {
 
   tbody.innerHTML = list.map(c => {
     const fecha = c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : '—';
-    const tipoColor = c.tipo === 'merma' ? 'var(--naranja)' : c.tipo === 'rotura' ? 'var(--rojo)' : 'var(--azul)';
-    const tipoLabel = c.tipo === 'merma' ? '⚠️ Merma' : c.tipo === 'rotura' ? '💥 Rotura' : '🔧 Consumo';
-    const stockBadge = c.sin_stock
-      ? '<span class="badge bg-red" style="font-size:10px">Sin stock</span>'
-      : '<span class="badge bg-green" style="font-size:10px">OK</span>';
+    const t = _CONSUMO_TIPO[c.tipo] || _CONSUMO_TIPO.consumo;
+    const stockCfg = c.sin_stock
+      ? { label:'Sin stock', color:'#991b1b', bg:'#fee2e2' }
+      : { label:'OK', color:'#065f46', bg:'#d1fae5' };
 
     return `<tr>
       <td style="font-size:12px">${fecha}</td>
@@ -48,14 +66,17 @@ function renderConsumos(list) {
         <div style="font-weight:600;font-size:12.5px">${c.articulo_nombre || 'N/A'}</div>
         <div style="font-size:10.5px;color:var(--gris-400)">${c.articulo_codigo || ''}</div>
       </td>
-      <td><span style="color:${tipoColor};font-weight:600;font-size:12px">${tipoLabel}</span>
-        ${c.motivo_merma ? `<div style="font-size:10px;color:var(--gris-400)">${c.motivo_merma}</div>` : ''}
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${t.color};background:${t.bg}">${t.ico} ${t.label}</span>
+        ${c.motivo_merma ? `<div style="font-size:10px;color:var(--gris-400);margin-top:2px">${c.motivo_merma}</div>` : ''}
       </td>
-      <td class="text-right" style="font-weight:700">${c.cantidad} ${c.unidad || 'ud'}</td>
+      <td class="text-right" style="font-weight:700">${c.cantidad} ${(c.unidad || 'ud').toUpperCase()}</td>
       <td class="text-right">${fmtE(c.precio_unitario || 0)}</td>
       <td class="text-right" style="font-weight:700">${fmtE(c.total || 0)}</td>
       <td style="font-size:12px">${c.usuario_nombre || '—'}</td>
-      <td style="text-align:center">${stockBadge}</td>
+      <td style="text-align:center">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${stockCfg.color};background:${stockCfg.bg}">${stockCfg.label}</span>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -115,7 +136,6 @@ function exportConsumos() {
     'Motivo': c.motivo_merma || ''
   }));
 
-  // CSV export
   const headers = Object.keys(rows[0]);
   const csv = [headers.join(';'), ...rows.map(r => headers.map(h => `"${r[h]}"`).join(';'))].join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
