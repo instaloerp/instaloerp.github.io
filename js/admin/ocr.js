@@ -1018,7 +1018,46 @@ async function _ocrConfirmarValidacion() {
           }
         }
 
-        // Stock NO se toca aquí — entra al guardar el albarán/factura
+        // Stock PROVISIONAL — se crea aquí, se convierte en real al recepcionar el albarán
+        if (articuloId && ed.cantidad > 0) {
+          try {
+            // Determinar almacén: si viene de app operario → su furgoneta, si no → almacén principal
+            let _almProvId = null;
+            if (datos.operario_id) {
+              // Buscar furgoneta del operario
+              const _furgo = (almacenes||[]).find(a => a.tipo === 'furgoneta' && a.operario_id === datos.operario_id);
+              _almProvId = _furgo?.id || null;
+            }
+            if (!_almProvId) {
+              // Almacén principal
+              const _princ = (almacenes||[]).find(a => a.tipo === 'principal');
+              _almProvId = _princ?.id || (almacenes||[])[0]?.id || null;
+            }
+            if (_almProvId) {
+              const { data: stEx } = await sb.from('stock').select('*')
+                .eq('almacen_id', _almProvId).eq('articulo_id', articuloId).eq('empresa_id', EMPRESA.id).limit(1);
+              if (stEx?.length) {
+                await sb.from('stock').update({
+                  stock_provisional: (stEx[0].stock_provisional || 0) + ed.cantidad
+                }).eq('id', stEx[0].id);
+              } else {
+                await sb.from('stock').insert({
+                  empresa_id: EMPRESA.id, almacen_id: _almProvId, articulo_id: articuloId,
+                  cantidad: 0, stock_provisional: ed.cantidad, stock_reservado: 0
+                });
+              }
+              await sb.from('movimientos_stock').insert({
+                empresa_id: EMPRESA.id, articulo_id: articuloId, almacen_id: _almProvId,
+                tipo: 'entrada_provisional', cantidad: ed.cantidad, delta: ed.cantidad,
+                notas: 'OCR provisional: ' + (ed.nombre||'').substring(0,40) + ' — doc ' + (numDocEdit || doc.id),
+                tipo_stock: 'provisional', fecha: new Date().toISOString().slice(0, 10),
+                usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
+              });
+            }
+          } catch(stockErr) {
+            console.error('[OCR provisional stock]', articuloId, stockErr);
+          }
+        }
         okCount++;
       } catch(e) {
         errCount++;

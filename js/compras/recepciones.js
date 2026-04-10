@@ -53,6 +53,7 @@ function renderRecepciones(list) {
   const estadoCfg = {
     pendiente:    { ico:'⏳', label:'Pendiente',    color:'#92400e', bg:'#fef3c7' },
     recepcionado: { ico:'📦', label:'Recepcionado', color:'#065f46', bg:'#d1fae5' },
+    parcial:      { ico:'📦', label:'Parcial',      color:'#7c2d12', bg:'#fed7aa' },
     incidencia:   { ico:'⚠️', label:'Incidencia',   color:'#9a3412', bg:'#ffedd5' },
     facturado:    { ico:'🧾', label:'Facturado',    color:'#1e40af', bg:'#dbeafe' }
   };
@@ -72,7 +73,7 @@ function renderRecepciones(list) {
     if (r.estado === 'incidencia') {
       acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #d1fae5;background:#ecfdf5;cursor:pointer;font-size:11px;font-weight:600;color:#065f46" title="Recepcionar tras resolver incidencia">📦 Recepcionar</button>`;
     }
-    if ((r.estado === 'recepcionado') && !r.exportado_bloqueado) {
+    if ((r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado) {
       acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;cursor:pointer;font-size:11px;font-weight:600;color:#1e40af">🧾 Facturar</button>`;
     }
     if (r.exportado_bloqueado) {
@@ -80,7 +81,7 @@ function renderRecepciones(list) {
     }
 
     // Checkbox para facturación múltiple (solo recepcionados no bloqueados)
-    const showCheck = r.estado === 'recepcionado' && !r.exportado_bloqueado;
+    const showCheck = (r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado;
 
     return `<tr style="cursor:pointer" onclick="editarRecepcion(${r.id})">
       <td onclick="event.stopPropagation()" style="text-align:center;width:30px">${showCheck ? `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">` : ''}</td>
@@ -109,7 +110,7 @@ function actualizarKpisRecepciones() {
   document.getElementById('rcKpiTotal').textContent = fmtE(total);
   document.getElementById('rcKpiPend').textContent = pendientes;
   document.getElementById('rcKpiMes').textContent = esteMes;
-  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0));
+  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='parcial' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0) : 0), 0));
 }
 
 // ═══════════════════════════════════════════════
@@ -349,6 +350,7 @@ async function _entradaStockAlbaran(recepcionId, almacenId, lineas, numero, fech
     if (cant <= 0) continue;
 
     try {
+      // 1. Dar entrada de stock REAL en el almacén destino del albarán
       const { data: stockExist } = await sb.from('stock').select('*')
         .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
 
@@ -364,6 +366,19 @@ async function _entradaStockAlbaran(recepcionId, almacenId, lineas, numero, fech
           empresa_id: EMPRESA.id, almacen_id: almacenId,
           articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
         });
+      }
+
+      // 2. Limpiar provisional en OTROS almacenes (por si el OCR lo creó en otro sitio)
+      const { data: otrosProvisionales } = await sb.from('stock').select('*')
+        .eq('articulo_id', artId).eq('empresa_id', EMPRESA.id)
+        .neq('almacen_id', almacenId).gt('stock_provisional', 0);
+      for (const sp of (otrosProvisionales || [])) {
+        const limpiar = Math.min(sp.stock_provisional, cant);
+        if (limpiar > 0) {
+          await sb.from('stock').update({
+            stock_provisional: Math.max(0, sp.stock_provisional - limpiar)
+          }).eq('id', sp.id);
+        }
       }
 
       await sb.from('movimientos_stock').insert({
@@ -383,9 +398,12 @@ async function _entradaStockAlbaran(recepcionId, almacenId, lineas, numero, fech
 }
 
 // ═══════════════════════════════════════════════
-// RECEPCIONAR ALBARÁN (VERIFICAR + ENTRADA STOCK)
+// RECEPCIONAR ALBARÁN — MODAL CON CANTIDADES EDITABLES
 // ═══════════════════════════════════════════════
-async function recepcionarAlbaran(id) {
+let _rcpRecepcionId = null;
+let _rcpLineas = []; // copia de líneas con cantidad_a_recibir editable
+
+function recepcionarAlbaran(id) {
   const r = recepciones.find(x => x.id === id);
   if (!r) return;
 
@@ -393,12 +411,130 @@ async function recepcionarAlbaran(id) {
     toast('Este albarán ya está recepcionado', 'info');
     return;
   }
-  if (!confirm('¿Recepcionar albarán y dar entrada al stock?')) return;
 
-  const _stockOk = await _entradaStockAlbaran(r.id, r.almacen_destino_id, r.lineas, r.numero, r.fecha);
-  await sb.from('recepciones').update({ estado: 'recepcionado' }).eq('id', id);
+  _rcpRecepcionId = id;
+  _rcpLineas = (r.lineas || []).map(l => ({
+    ...l,
+    cantidad_esperada: l.cantidad_recibida || l.cantidad || 0,
+    cantidad_a_recibir: l.cantidad_recibida || l.cantidad || 0
+  }));
+
+  document.getElementById('rcpNumero').textContent = r.numero;
+  document.getElementById('rcpProveedor').textContent = r.proveedor_nombre;
+  document.getElementById('rcpAlmacen').textContent = (almacenes||[]).find(a => a.id === r.almacen_destino_id)?.nombre || '—';
+  _rcpRenderLineas();
+  openModal('mRecepcionar');
+}
+
+function _rcpRenderLineas() {
+  let hayDiferencia = false;
+  const html = _rcpLineas.map((l, i) => {
+    const esperada = l.cantidad_esperada;
+    const recibir = l.cantidad_a_recibir;
+    const pendiente = Math.max(0, esperada - recibir);
+    if (pendiente > 0) hayDiferencia = true;
+    const bgRow = pendiente > 0 ? 'background:#fff7ed' : '';
+    return `<tr style="border-top:1px solid var(--gris-100);${bgRow}">
+      <td style="padding:8px 10px">
+        <div style="font-weight:600;font-size:13px">${l.nombre || 'Sin nombre'}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${l.codigo || ''}</div>
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${esperada}</td>
+      <td style="padding:8px 6px;text-align:right">
+        <input type="number" value="${recibir}" min="0" max="${esperada}" step="0.01"
+          onchange="_rcpUpdateCant(${i}, this.value)"
+          style="width:80px;border:1.5px solid var(--gris-300);border-radius:6px;padding:5px 8px;font-size:13px;text-align:right;font-weight:700;outline:none">
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px;font-weight:700;color:${pendiente > 0 ? '#9a3412' : '#065f46'}">${pendiente > 0 ? pendiente : '✓'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('rcpLineas').innerHTML = html;
+
+  const resumen = document.getElementById('rcpResumen');
+  if (hayDiferencia) {
+    const totalPend = _rcpLineas.reduce((s, l) => s + Math.max(0, l.cantidad_esperada - l.cantidad_a_recibir), 0);
+    resumen.style.display = 'block';
+    resumen.innerHTML = '⚠️ Hay <strong>' + totalPend + '</strong> unidades pendientes. Se creará un <strong>nuevo albarán pendiente</strong> con las cantidades no recibidas.';
+  } else {
+    resumen.style.display = 'none';
+  }
+}
+
+function _rcpUpdateCant(idx, val) {
+  const v = parseFloat(val) || 0;
+  _rcpLineas[idx].cantidad_a_recibir = Math.min(v, _rcpLineas[idx].cantidad_esperada);
+  _rcpRenderLineas();
+}
+
+async function _confirmarRecepcion() {
+  const r = recepciones.find(x => x.id === _rcpRecepcionId);
+  if (!r) return;
+
+  // Separar líneas recibidas y pendientes
+  const lineasRecibidas = [];
+  const lineasPendientes = [];
+
+  for (const l of _rcpLineas) {
+    const recibida = l.cantidad_a_recibir || 0;
+    const pendiente = Math.max(0, l.cantidad_esperada - recibida);
+
+    if (recibida > 0) {
+      lineasRecibidas.push({ ...l, cantidad_recibida: recibida, cantidad: recibida });
+    }
+    if (pendiente > 0) {
+      lineasPendientes.push({
+        articulo_id: l.articulo_id, codigo: l.codigo, nombre: l.nombre,
+        cantidad_pedida: pendiente, cantidad_recibida: pendiente, cantidad: pendiente,
+        precio: l.precio, dto1: l.dto1 || 0, dto2: l.dto2 || 0, dto3: l.dto3 || 0
+      });
+    }
+  }
+
+  if (lineasRecibidas.length === 0) {
+    toast('No has marcado ninguna cantidad recibida', 'error');
+    return;
+  }
+
+  // 1. Dar entrada de stock con las cantidades realmente recibidas
+  const _stockOk = await _entradaStockAlbaran(r.id, r.almacen_destino_id, lineasRecibidas, r.numero, r.fecha);
+
+  // 2. Actualizar albarán original con las líneas recibidas
+  const esParcial = lineasPendientes.length > 0;
+  const nuevoEstado = esParcial ? 'parcial' : 'recepcionado';
+  const obsAdd = esParcial ? '\n📦 Recepción parcial (' + new Date().toLocaleDateString('es-ES') + '): ' + lineasRecibidas.length + ' líneas recibidas, ' + lineasPendientes.length + ' pendientes' : '';
+
+  await sb.from('recepciones').update({
+    estado: nuevoEstado,
+    lineas: lineasRecibidas,
+    observaciones: ((r.observaciones || '') + obsAdd).trim()
+  }).eq('id', r.id);
+
+  // 3. Si es parcial, crear nuevo albarán con las cantidades pendientes
+  if (esParcial) {
+    const numParcial = r.numero + '-P';
+    const { error: insErr } = await sb.from('recepciones').insert({
+      empresa_id: EMPRESA.id,
+      numero: numParcial,
+      pedido_compra_id: r.pedido_compra_id || null,
+      proveedor_id: r.proveedor_id,
+      proveedor_nombre: r.proveedor_nombre,
+      almacen_destino_id: r.almacen_destino_id,
+      fecha: r.fecha,
+      estado: 'pendiente',
+      lineas: lineasPendientes,
+      observaciones: 'Pendiente de recepción parcial — origen: ' + r.numero,
+      usuario_nombre: CP?.nombre || CU?.email
+    });
+    if (insErr) {
+      toast('⚠️ Stock OK pero error creando albarán pendiente: ' + insErr.message, 'warning');
+    } else {
+      toast('📦 Recibido parcialmente — albarán pendiente ' + numParcial + ' creado', 'info');
+    }
+  }
+
+  closeModal('mRecepcionar');
   loadRecepciones();
-  toast('Albarán recepcionado + stock actualizado (' + _stockOk + ' artículos) ✓', 'success');
+  toast('Albarán recepcionado + stock (' + _stockOk + ' artículos) ✓', 'success');
 }
 
 // ═══════════════════════════════════════════════
