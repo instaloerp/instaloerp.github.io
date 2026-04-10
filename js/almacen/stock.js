@@ -6,6 +6,7 @@ let stockData = [];
 let stockFilters = { almacen: '', familia: '', texto: '', estado: 'all' };
 let articulosModal = null;
 let movimientosModal = null;
+let _stockInited = false;
 
 // Cargar stock desde Supabase
 async function loadStock() {
@@ -19,8 +20,16 @@ async function loadStock() {
 
     if (error) throw error;
     stockData = data || [];
-    // Reset filters when loading new data
-    stockFilters = { almacen: '', familia: '', texto: '', estado: 'all' };
+
+    // Poblar filtros cada vez (almacenes puede haber cambiado)
+    populateStockFilters();
+
+    // Inicializar eventos solo una vez
+    if (!_stockInited) {
+      _stockInited = true;
+      _wireStockEvents();
+    }
+
     renderStock(stockData);
     updateStockKPIs();
   } catch (e) {
@@ -29,13 +38,24 @@ async function loadStock() {
   }
 }
 
+// Conectar eventos de filtros
+function _wireStockEvents() {
+  const ids = ['filter-almacen', 'filter-familia', 'filter-estado'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', filtrarStock);
+  });
+  const txt = document.getElementById('filter-texto');
+  if (txt) txt.addEventListener('input', filtrarStock);
+}
+
 // Renderizar tabla de stock
 function renderStock(list) {
   const tbody = document.getElementById('stock-table');
   if (!tbody) return;
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="ei">📦</div><h3>Sin stock registrado</h3></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="ei">📦</div><h3>SIN STOCK REGISTRADO</h3></div></td></tr>';
     return;
   }
 
@@ -43,7 +63,8 @@ function renderStock(list) {
     const art = articulos.find(a => a.id === row.articulo_id);
     const fam = familias.find(f => f.id === art?.familia_id);
     const alm = almacenes.find(a => a.id === row.almacen_id);
-    const status = row.cantidad <= 0 ? 'agotado' : (row.stock_minimo > 0 && row.cantidad < row.stock_minimo) ? 'bajo' : 'ok';
+    const minimo = row.stock_minimo || art?.stock_minimo || 0;
+    const status = row.cantidad <= 0 ? 'agotado' : (minimo > 0 && row.cantidad < minimo) ? 'bajo' : 'ok';
     const cost = (art?.precio_coste || 0) * row.cantidad;
     const prov = row.stock_provisional || 0;
     const badgeMap = { ok: 'bg-green', bajo: 'bg-orange', agotado: 'bg-red' };
@@ -56,7 +77,7 @@ function renderStock(list) {
       <td style="font-size:12px">${alm?.nombre || '—'}</td>
       <td style="text-align:right;font-weight:700;font-size:13px">${row.cantidad}</td>
       <td style="text-align:right;font-size:12px;color:${prov > 0 ? 'var(--naranja)' : 'var(--gris-300)'}">${prov > 0 ? prov + ' prov.' : '—'}</td>
-      <td style="text-align:right;font-size:12px;color:var(--gris-400)">${row.stock_minimo || 0}</td>
+      <td style="text-align:right;font-size:12px;color:var(--gris-400)">${minimo}</td>
       <td><span class="badge ${badgeMap[status]}" style="font-size:11px">${labelMap[status]}</span></td>
       <td style="text-align:right;font-weight:600;font-size:12px">${fmtE(cost)}</td>
       <td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center">
@@ -69,31 +90,39 @@ function renderStock(list) {
 
 // Filtrar stock según criterios
 function filtrarStock() {
-  stockFilters.almacen = v('filter-almacen');
-  stockFilters.familia = v('filter-familia');
-  stockFilters.texto = v('filter-texto').toLowerCase();
-  stockFilters.estado = v('filter-estado');
+  const gv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  stockFilters.almacen = gv('filter-almacen');
+  stockFilters.familia = gv('filter-familia');
+  stockFilters.texto = (gv('filter-texto') || '').toLowerCase();
+  stockFilters.estado = gv('filter-estado') || 'all';
 
   let filtered = stockData.filter(row => {
     const art = articulos.find(a => a.id === row.articulo_id);
-    const status = row.cantidad <= 0 ? 'agotado' : row.cantidad < row.stock_minimo ? 'bajo' : 'ok';
+    const minimo = row.stock_minimo || art?.stock_minimo || 0;
+    const status = row.cantidad <= 0 ? 'agotado' : (minimo > 0 && row.cantidad < minimo) ? 'bajo' : 'ok';
 
     // Almacén filter
-    if (stockFilters.almacen && row.almacen_id !== parseInt(stockFilters.almacen)) return false;
+    if (stockFilters.almacen) {
+      const almId = parseInt(stockFilters.almacen);
+      if (row.almacen_id !== almId) return false;
+    }
 
     // Familia filter
-    if (stockFilters.familia && art?.familia_id !== parseInt(stockFilters.familia)) return false;
+    if (stockFilters.familia) {
+      const famId = parseInt(stockFilters.familia);
+      if (art?.familia_id !== famId) return false;
+    }
 
-    // Texto filter - search by article name or code
+    // Texto filter
     if (stockFilters.texto) {
-      const searchText = stockFilters.texto;
-      const matchName = art?.nombre?.toLowerCase()?.includes(searchText) || false;
-      const matchCode = art?.codigo?.toLowerCase()?.includes(searchText) || false;
+      const txt = stockFilters.texto;
+      const matchName = (art?.nombre || '').toLowerCase().includes(txt);
+      const matchCode = (art?.codigo || '').toLowerCase().includes(txt);
       if (!matchName && !matchCode) return false;
     }
 
-    // Estado filter - match status (ok, bajo, agotado)
-    if (stockFilters.estado !== 'all' && status !== stockFilters.estado) return false;
+    // Estado filter
+    if (stockFilters.estado && stockFilters.estado !== 'all' && status !== stockFilters.estado) return false;
 
     return true;
   });
@@ -104,18 +133,59 @@ function filtrarStock() {
 // KPIs del stock
 function updateStockKPIs() {
   const totalRefs = new Set(stockData.map(s => s.articulo_id)).size;
-  const bajoMinimo = stockData.filter(s => s.cantidad < s.stock_minimo).length;
+  const bajoMinimo = stockData.filter(s => {
+    const art = articulos.find(a => a.id === s.articulo_id);
+    const min = s.stock_minimo || art?.stock_minimo || 0;
+    return min > 0 && s.cantidad < min;
+  }).length;
   const valorStock = stockData.reduce((sum, s) => {
     const art = articulos.find(a => a.id === s.articulo_id);
-    return sum + ((art?.precio_coste || 0) * s.cantidad);
+    return sum + ((art?.precio_coste || 0) * Math.max(0, s.cantidad));
   }, 0);
-  const almacenesActivos = new Set(stockData.map(s => s.almacen_id)).size;
+  // Almacenes: mostrar total configurados, no solo los que tienen stock
+  const almacenesTotal = (typeof almacenes !== 'undefined' && almacenes.length) ? almacenes.length : 0;
 
-  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   _s('kpi-total-refs', totalRefs);
   _s('kpi-bajo-minimo', bajoMinimo);
   _s('kpi-valor-stock', fmtE(valorStock));
-  _s('kpi-almacenes', almacenesActivos);
+  _s('kpi-almacenes', almacenesTotal);
+}
+
+// Poblar filtros dropdowns
+function populateStockFilters() {
+  // Almacenes
+  const selAlm = document.getElementById('filter-almacen');
+  if (selAlm) {
+    const current = selAlm.value;
+    selAlm.innerHTML = '<option value="">Todos los almacenes</option>';
+    if (typeof almacenes !== 'undefined' && almacenes.length) {
+      almacenes.forEach(a => {
+        const icon = a.tipo === 'furgoneta' ? '🚐 ' : a.tipo === 'externo' ? '📦 ' : '🏭 ';
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = icon + (a.nombre || 'Sin nombre');
+        if (String(a.id) === current) opt.selected = true;
+        selAlm.appendChild(opt);
+      });
+    }
+  }
+
+  // Familias
+  const selFam = document.getElementById('filter-familia');
+  if (selFam) {
+    const current = selFam.value;
+    selFam.innerHTML = '<option value="">Todas las familias</option>';
+    if (typeof familias !== 'undefined' && familias.length) {
+      familias.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = f.nombre || 'Sin nombre';
+        if (String(f.id) === current) opt.selected = true;
+        selFam.appendChild(opt);
+      });
+    }
+  }
 }
 
 // Abrir modal para ajustar stock
@@ -145,25 +215,13 @@ async function guardarAjuste() {
   const cantidad = parseFloat(v('ajuste-cantidad')) || 0;
   const motivo = v('ajuste-motivo').trim();
 
-  if (cantidad <= 0) {
-    toast('Ingrese una cantidad válida', 'warning');
-    return;
-  }
-
-  if (!motivo) {
-    toast('Ingrese el motivo del ajuste', 'warning');
-    return;
-  }
+  if (cantidad <= 0) { toast('Ingrese una cantidad válida', 'warning'); return; }
+  if (!motivo) { toast('Ingrese el motivo del ajuste', 'warning'); return; }
 
   try {
     const stock = stockData.find(s => s.articulo_id === articuloId && s.almacen_id === almacenId);
     const cantidadAnterior = stock?.cantidad || 0;
     const cantidadNueva = tipo === 'entrada' ? cantidadAnterior + cantidad : cantidadAnterior - cantidad;
-
-    if (cantidadNueva < 0) {
-      toast('Stock insuficiente para salida', 'warning');
-      return;
-    }
 
     // Actualizar stock
     const { error: errStock } = await sb.from('stock').upsert({
@@ -176,24 +234,21 @@ async function guardarAjuste() {
       ubicacion: stock?.ubicacion || '',
       updated_at: new Date().toISOString()
     });
-
     if (errStock) throw errStock;
 
     // Registrar movimiento
-    const { error: errMov } = await sb.from('movimientos_stock').insert({
+    await sb.from('movimientos_stock').insert({
       empresa_id: EMPRESA.id,
       articulo_id: articuloId,
       almacen_id: almacenId,
       tipo: 'ajuste',
       cantidad: cantidad,
-      delta: cantidad,
+      delta: tipo === 'entrada' ? cantidad : -cantidad,
       notas: motivo,
       fecha: new Date().toISOString().slice(0,10),
-      usuario_id: CU.id,
-      usuario_nombre: CU.nombre
+      usuario_id: CP?.id || CU?.id || null,
+      usuario_nombre: CP?.nombre || CU?.email || 'admin'
     });
-
-    if (errMov) throw errMov;
 
     toast('Ajuste guardado correctamente', 'success');
     closeModal('modal-ajuste-stock');
@@ -221,9 +276,8 @@ async function verMovimientos(articuloId, almacenId) {
     const art = articulos.find(a => a.id === articuloId);
     const alm = almacenes.find(a => a.id === almacenId);
 
-    setVal({
-      'movimientos-titulo': `${art?.nombre} - ${alm?.nombre}`
-    });
+    const titleEl = document.getElementById('movimientos-titulo');
+    if (titleEl) titleEl.textContent = `${art?.nombre || '?'} - ${alm?.nombre || '?'}`;
 
     const tbody = document.querySelector('#movimientos-table tbody');
     if (!tbody) return;
@@ -251,7 +305,6 @@ function exportStock() {
     const art = articulos.find(a => a.id === row.articulo_id);
     const alm = almacenes.find(a => a.id === row.almacen_id);
     const status = row.cantidad <= 0 ? 'Agotado' : row.cantidad < row.stock_minimo ? 'Bajo' : 'OK';
-
     return {
       'Artículo': art?.nombre || 'N/A',
       'Código': art?.codigo || 'N/A',
@@ -264,90 +317,22 @@ function exportStock() {
       'Actualizado': new Date(row.updated_at).toLocaleDateString()
     };
   });
-
-  // Exportar usando librería externa (SheetJS, etc.)
   console.log('Exportar:', data);
   toast('Exportación preparada (ver consola)', 'success');
-}
-
-// Poblar filtros dropdowns
-function populateStockFilters() {
-  // Almacenes
-  const selAlm = document.getElementById('filter-almacen');
-  if (selAlm && typeof almacenes !== 'undefined' && almacenes.length) {
-    const current = selAlm.value;
-    selAlm.innerHTML = '<option value="">Todos los almacenes</option>';
-    almacenes.forEach(a => {
-      const opt = document.createElement('option');
-      opt.value = a.id;
-      opt.textContent = a.nombre || 'Sin nombre';
-      if (String(a.id) === current) opt.selected = true;
-      selAlm.appendChild(opt);
-    });
-  }
-
-  // Familias
-  const selFam = document.getElementById('filter-familia');
-  if (selFam && typeof familias !== 'undefined' && familias.length) {
-    const current = selFam.value;
-    selFam.innerHTML = '<option value="">Todas las familias</option>';
-    familias.forEach(f => {
-      const opt = document.createElement('option');
-      opt.value = f.id;
-      opt.textContent = f.nombre || 'Sin nombre';
-      if (String(f.id) === current) opt.selected = true;
-      selFam.appendChild(opt);
-    });
-  }
-}
-
-// Inicializar módulo al cargar página
-function initStock() {
-  const pageStock = document.getElementById('page-stock');
-  if (pageStock) {
-    populateStockFilters();
-    loadStock();
-
-    // Wire up filter change events
-    const filterAlmacen = document.getElementById('filter-almacen');
-    if (filterAlmacen) {
-      filterAlmacen.addEventListener('change', filtrarStock);
-    }
-
-    const filterFamilia = document.getElementById('filter-familia');
-    if (filterFamilia) {
-      filterFamilia.addEventListener('change', filtrarStock);
-    }
-
-    const filterEstado = document.getElementById('filter-estado');
-    if (filterEstado) {
-      filterEstado.addEventListener('change', filtrarStock);
-    }
-
-    // Wire up text search input
-    const filterTexto = document.getElementById('filter-texto');
-    if (filterTexto) {
-      filterTexto.addEventListener('input', filtrarStock);
-      filterTexto.addEventListener('keyup', filtrarStock);
-    }
-  }
 }
 
 // ════════════════════════════════════════════════════════════
 // CÁLCULO DE STOCK MÍNIMO basado en consumos históricos
 // ════════════════════════════════════════════════════════════
 
-let _calcMinData = []; // datos calculados
-let _calcMinPeriodo = 30; // días por defecto (1 mes)
+let _calcMinData = [];
+let _calcMinPeriodo = 30;
 let _calcMinAlmacenId = null;
 
 async function abrirCalculoMinimos() {
   openModal('modal-calculo-minimos');
-  // Por defecto: 1 mes, primera furgoneta
   const selAlm = document.getElementById('calc-min-almacen');
-  const selPeriodo = document.getElementById('calc-min-periodo');
   if (selAlm) {
-    const furgs = almacenes.filter(a => a.tipo === 'furgoneta' && a.activo !== false);
     selAlm.innerHTML = '<option value="">Todas las furgonetas</option>' +
       almacenes.filter(a => a.activo !== false).map(a => {
         const icon = a.tipo === 'furgoneta' ? '🚐' : a.tipo === 'externo' ? '📦' : '🏭';
@@ -368,21 +353,17 @@ async function calcularMinimos() {
   tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gris-400)">Cargando consumos...</td></tr>';
 
   try {
-    // Fecha de corte
     const desde = new Date();
     desde.setDate(desde.getDate() - _calcMinPeriodo);
     const desdeISO = desde.toISOString();
 
-    // Cargar consumos del periodo
     let query = sb.from('consumos_parte')
       .select('articulo_id, articulo_nombre, articulo_codigo, almacen_id, cantidad, tipo')
       .eq('empresa_id', EMPRESA.id)
       .gte('created_at', desdeISO)
-      .eq('tipo', 'consumo'); // Solo consumos reales, no mermas
+      .eq('tipo', 'consumo');
 
-    if (_calcMinAlmacenId) {
-      query = query.eq('almacen_id', _calcMinAlmacenId);
-    }
+    if (_calcMinAlmacenId) query = query.eq('almacen_id', _calcMinAlmacenId);
 
     const { data: consumos } = await query;
     if (!consumos || !consumos.length) {
@@ -392,8 +373,7 @@ async function calcularMinimos() {
       return;
     }
 
-    // Agrupar por artículo + almacén
-    const mapa = {}; // key: articuloId_almacenId
+    const mapa = {};
     consumos.forEach(c => {
       const almId = c.almacen_id || 'sin';
       const key = `${c.articulo_id}_${almId}`;
@@ -411,32 +391,22 @@ async function calcularMinimos() {
       mapa[key].num_consumos++;
     });
 
-    // Calcular promedios y mínimos sugeridos
     const semanas = _calcMinPeriodo / 7;
     const dias = _calcMinPeriodo;
 
-    // Cargar stock actual para comparar
     let stockQuery = sb.from('stock').select('articulo_id, almacen_id, cantidad, stock_minimo, stock_maximo, stock_provisional')
       .eq('empresa_id', EMPRESA.id);
     if (_calcMinAlmacenId) stockQuery = stockQuery.eq('almacen_id', _calcMinAlmacenId);
     const { data: stockActual } = await stockQuery;
     const stockMap = {};
-    (stockActual || []).forEach(s => {
-      stockMap[`${s.articulo_id}_${s.almacen_id}`] = s;
-    });
+    (stockActual || []).forEach(s => { stockMap[`${s.articulo_id}_${s.almacen_id}`] = s; });
 
     _calcMinData = Object.values(mapa).map(item => {
       const porSemana = semanas > 0 ? Math.ceil(item.total_consumido / semanas) : item.total_consumido;
       const porDia = dias > 0 ? (item.total_consumido / dias) : 0;
-      // Mínimo sugerido: consumo de 1 semana (redondeado arriba)
       const minimoSugerido = Math.max(1, porSemana);
-      // Máximo sugerido: consumo de 2 semanas (para que no se reponga inmediatamente)
       const maximoSugerido = Math.max(minimoSugerido + 1, Math.ceil(porSemana * 2));
-      const stockKey = `${item.articulo_id}_${item.almacen_id}`;
-      const stk = stockMap[stockKey];
-      const minimoActual = stk?.stock_minimo || 0;
-      const maximoActual = stk?.stock_maximo || 0;
-      const cantidadActual = (stk?.cantidad || 0) + (stk?.stock_provisional || 0);
+      const stk = stockMap[`${item.articulo_id}_${item.almacen_id}`];
       const alm = almacenes.find(a => a.id === item.almacen_id);
 
       return {
@@ -447,16 +417,14 @@ async function calcularMinimos() {
         por_semana: porSemana,
         minimo_sugerido: minimoSugerido,
         maximo_sugerido: maximoSugerido,
-        minimo_actual: minimoActual,
-        maximo_actual: maximoActual,
-        cantidad_actual: cantidadActual,
-        aplicar: minimoActual !== minimoSugerido || maximoActual !== maximoSugerido
+        minimo_actual: stk?.stock_minimo || 0,
+        maximo_actual: stk?.stock_maximo || 0,
+        cantidad_actual: (stk?.cantidad || 0) + (stk?.stock_provisional || 0),
+        aplicar: (stk?.stock_minimo || 0) !== minimoSugerido || (stk?.stock_maximo || 0) !== maximoSugerido
       };
     });
 
-    // Ordenar por consumo semanal descendente
     _calcMinData.sort((a, b) => b.por_semana - a.por_semana);
-
     _renderCalcMinTabla();
     _updateCalcMinResumen();
 
@@ -506,20 +474,14 @@ function _updateCalcMinResumen() {
   const seleccionados = _calcMinData.filter(d => d.aplicar);
   const cambios = seleccionados.filter(d => d.minimo_sugerido !== d.minimo_actual);
   const el = document.getElementById('calc-min-resumen');
-  if (el) {
-    el.textContent = `${_calcMinData.length} artículos analizados · ${seleccionados.length} seleccionados · ${cambios.length} con cambios`;
-  }
+  if (el) el.textContent = `${_calcMinData.length} artículos analizados · ${seleccionados.length} seleccionados · ${cambios.length} con cambios`;
   const btn = document.getElementById('btn-aplicar-minimos');
   if (btn) btn.disabled = cambios.length === 0;
 }
 
 async function aplicarMinimosCalculados() {
   const cambios = _calcMinData.filter(d => d.aplicar && (d.minimo_sugerido !== d.minimo_actual || d.maximo_sugerido !== d.maximo_actual));
-  if (!cambios.length) {
-    toast('No hay cambios que aplicar', 'warning');
-    return;
-  }
-
+  if (!cambios.length) { toast('No hay cambios que aplicar', 'warning'); return; }
   if (!confirm(`¿Aplicar stock mínimo/máximo a ${cambios.length} artículo(s)?`)) return;
 
   toast(`🔄 Aplicando ${cambios.length} mínimos/máximos...`, 'info');
@@ -527,52 +489,25 @@ async function aplicarMinimosCalculados() {
 
   for (const d of cambios) {
     if (!d.almacen_id || !d.articulo_id) continue;
-
-    // Intentar actualizar el stock existente
-    const { data: existe } = await sb.from('stock')
-      .select('id')
-      .eq('empresa_id', EMPRESA.id)
-      .eq('articulo_id', d.articulo_id)
-      .eq('almacen_id', d.almacen_id)
-      .limit(1);
+    const { data: existe } = await sb.from('stock').select('id')
+      .eq('empresa_id', EMPRESA.id).eq('articulo_id', d.articulo_id).eq('almacen_id', d.almacen_id).limit(1);
 
     if (existe?.length) {
       const { error } = await sb.from('stock')
         .update({ stock_minimo: d.minimo_sugerido, stock_maximo: d.maximo_sugerido })
-        .eq('empresa_id', EMPRESA.id)
-        .eq('articulo_id', d.articulo_id)
-        .eq('almacen_id', d.almacen_id);
-      if (error) { errores++; console.error(error); }
-      else { ok++; d.minimo_actual = d.minimo_sugerido; d.maximo_actual = d.maximo_sugerido; }
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', d.articulo_id).eq('almacen_id', d.almacen_id);
+      if (error) { errores++; } else { ok++; d.minimo_actual = d.minimo_sugerido; d.maximo_actual = d.maximo_sugerido; }
     } else {
-      // Crear registro de stock con mínimo (sin cantidad)
       const { error } = await sb.from('stock').insert({
-        empresa_id: EMPRESA.id,
-        articulo_id: d.articulo_id,
-        almacen_id: d.almacen_id,
-        cantidad: 0,
-        stock_minimo: d.minimo_sugerido,
-        stock_provisional: 0,
-        stock_reservado: 0
+        empresa_id: EMPRESA.id, articulo_id: d.articulo_id, almacen_id: d.almacen_id,
+        cantidad: 0, stock_minimo: d.minimo_sugerido, stock_provisional: 0, stock_reservado: 0
       });
-      if (error) { errores++; console.error(error); }
-      else { ok++; d.minimo_actual = d.minimo_sugerido; }
+      if (error) { errores++; } else { ok++; d.minimo_actual = d.minimo_sugerido; }
     }
   }
 
-  // loading done
   toast(`✅ ${ok} mínimo(s) aplicado(s)${errores ? `, ${errores} error(es)` : ''}`, errores ? 'warning' : 'success');
   _renderCalcMinTabla();
   _updateCalcMinResumen();
-
-  // Refrescar datos de stock
   if (typeof loadStock === 'function') loadStock();
-  if (typeof _invalidarArtStockMap === 'function') _invalidarArtStockMap();
-}
-
-// Auto-inicializar cuando el DOM esté listo
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initStock);
-} else {
-  initStock();
 }
