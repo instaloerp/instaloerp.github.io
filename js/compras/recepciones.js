@@ -511,7 +511,10 @@ async function _confirmarRecepcion() {
 
   // 3. Si es parcial, crear nuevo albarán con las cantidades pendientes
   if (esParcial) {
-    const numParcial = r.numero + '-P';
+    // Buscar si ya existen parciales de este albarán para numerar secuencialmente
+    const numBase = r.numero.replace(/\/P\d+$/, ''); // quitar /P1, /P2... si ya es un parcial
+    const existentes = recepciones.filter(x => x.numero.startsWith(numBase + '/P')).length;
+    const numParcial = numBase + '/P' + (existentes + 1);
     const { error: insErr } = await sb.from('recepciones').insert({
       empresa_id: EMPRESA.id,
       numero: numParcial,
