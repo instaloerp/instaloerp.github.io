@@ -670,7 +670,10 @@ function _populatePresCache(lista) {
 }
 
 function initRealtimePartes() {
-  if (!EMPRESA || !CP?.es_superadmin) return;
+  if (!EMPRESA) return;
+  // Realtime activo para admin, jefe y superadmin (no solo superadmin)
+  const _rolRT = CP?.rol || '';
+  if (!CP?.es_superadmin && _rolRT !== 'admin' && _rolRT !== 'jefe') return;
   if (_rtChannel) { sb.removeChannel(_rtChannel); _rtChannel = null; }
 
   // Poblar caches iniciales
