@@ -786,7 +786,21 @@ function iaPreviewMostrar() {
 
   // --- Izquierda: mostrar documento original ---
   if (_iaFileMime === 'application/pdf') {
-    docEl.innerHTML = `<iframe src="data:application/pdf;base64,${_iaFileBase64}" style="width:100%;height:100%;border:none"></iframe>`;
+    docEl.innerHTML = `<div id="iaPreviewPdfPages" style="width:100%;height:100%;overflow-y:auto;background:var(--gris-100);padding:8px;border-radius:8px"></div>`;
+    // Renderizar PDF con PDF.js (sin controles del navegador)
+    setTimeout(() => {
+      if (typeof _renderPdfPages === 'function') {
+        _renderPdfPages(`data:application/pdf;base64,${_iaFileBase64}`, 'iaPreviewPdfPages');
+      } else {
+        // Fallback: convertir base64 a blob URL
+        const byteChars = atob(_iaFileBase64);
+        const byteNums = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([new Uint8Array(byteNums)], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        docEl.innerHTML = `<iframe src="${blobUrl}" style="width:100%;height:100%;border:none"></iframe>`;
+      }
+    }, 50);
   } else {
     docEl.innerHTML = `<img src="data:${_iaFileMime};base64,${_iaFileBase64}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">`;
   }

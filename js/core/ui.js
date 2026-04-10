@@ -17,93 +17,14 @@ setInterval(() => {
   }
 }, 60000);
 
-// ── Sidebar: colapsado por defecto, hover con delay para expandir ──
-let _sbHoverTimer = null;
-let _sbCollapseTimer = null;
-let _sbLocked = false; // si el usuario hizo click, no colapsar con mouseleave
-
-function _sbCollapse() {
-  document.body.classList.add('sb-collapsed');
-  document.body.classList.remove('sb-hover-expanded');
-  _sbLocked = false;
-  // Cerrar todas las secciones
-  document.querySelectorAll('.sb-section-items').forEach(s => s.classList.add('collapsed'));
-  document.querySelectorAll('.sb-sec').forEach(s => s.classList.add('collapsed'));
-}
-
-function _sbExpand() {
-  clearTimeout(_sbHoverTimer);
-  clearTimeout(_sbCollapseTimer);
-  document.body.classList.add('sb-hover-expanded');
-  document.body.classList.remove('sb-collapsed');
-  // Al expandir, todas las secciones cerradas hasta que el usuario interactúe
-  document.querySelectorAll('.sb-section-items').forEach(s => s.classList.add('collapsed'));
-  document.querySelectorAll('.sb-sec').forEach(s => s.classList.add('collapsed'));
-}
-
+// ── Sidebar: siempre visible, con opción de pantalla completa ──
 function toggleSidebar() {
-  if (document.body.classList.contains('sb-hover-expanded') || !document.body.classList.contains('sb-collapsed')) {
-    _sbCollapse();
-  } else {
-    _sbExpand();
-    _sbLocked = true; // Click manual → mantener abierto
-  }
+  document.body.classList.toggle('sb-fullscreen');
 }
 
-(function initSmartSidebar() {
-  _sbCollapse();
-
-  const sidebar = document.getElementById('sidebar');
-  if (!sidebar) return;
-
-  // ── HOVER DEL SIDEBAR: delay de 400ms para abrir, 500ms para cerrar ──
-  sidebar.addEventListener('mouseenter', () => {
-    clearTimeout(_sbCollapseTimer);
-    // Solo abrir con hover si NO está ya abierto
-    if (!document.body.classList.contains('sb-hover-expanded')) {
-      clearTimeout(_sbHoverTimer);
-      _sbHoverTimer = setTimeout(() => {
-        _sbExpand();
-      }, 400); // 400ms de delay antes de abrir
-    }
-  });
-
-  sidebar.addEventListener('mouseleave', () => {
-    clearTimeout(_sbHoverTimer); // Cancelar apertura pendiente
-    if (_sbLocked) return; // Si el usuario hizo click, no cerrar
-    clearTimeout(_sbCollapseTimer);
-    _sbCollapseTimer = setTimeout(_sbCollapse, 500); // 500ms antes de cerrar
-  });
-
-  // ── SECCIONES: click para abrir/cerrar (no hover) ──
-  sidebar.querySelectorAll('.sb-sec').forEach(sec => {
-    const items = sec.nextElementSibling;
-    if (!items || !items.classList.contains('sb-section-items')) return;
-
-    // Click en cabecera de sección → toggle
-    sec.addEventListener('click', (e) => {
-      if (!document.body.classList.contains('sb-hover-expanded')) return;
-      e.stopPropagation();
-
-      const estaAbierta = !items.classList.contains('collapsed');
-      // Cerrar todas
-      sidebar.querySelectorAll('.sb-section-items').forEach(s => s.classList.add('collapsed'));
-      sidebar.querySelectorAll('.sb-sec').forEach(s => s.classList.add('collapsed'));
-      // Si estaba cerrada, abrir esta
-      if (!estaAbierta) {
-        items.classList.remove('collapsed');
-        sec.classList.remove('collapsed');
-      }
-    });
-  });
-
-  // ── Click fuera del sidebar → cerrar si está expandido ──
-  document.addEventListener('click', (e) => {
-    if (!document.body.classList.contains('sb-hover-expanded')) return;
-    if (!sidebar.contains(e.target)) {
-      _sbCollapse();
-    }
-  });
+// Aplicar secciones colapsadas desde preferencias guardadas
+(function initSidebar() {
+  if (typeof applySbCollapsed === 'function') applySbCollapsed();
 })();
 
 // ═══════════════════════════════════════════════

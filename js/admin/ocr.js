@@ -10,13 +10,21 @@ let _ocrDocs = []; // cache local para filtro de búsqueda
 async function _renderPdfPages(url, containerId) {
   const container = document.getElementById(containerId);
   if (!container || typeof pdfjsLib === 'undefined') {
-    // Fallback: iframe clásico
-    if (container) container.innerHTML = `<iframe src="${url}" style="width:100%;height:65vh;border:none;border-radius:8px"></iframe>`;
+    if (container) container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--gris-400)">PDF.js no disponible</div>`;
     return;
   }
   container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--gris-400)">Cargando PDF...</div>';
   try {
-    const pdf = await pdfjsLib.getDocument(url).promise;
+    // Soportar data:application/pdf;base64,... convirtiéndolo a Uint8Array para pdfjsLib
+    let pdfSource = url;
+    if (url.startsWith('data:application/pdf;base64,')) {
+      const b64 = url.split(',')[1];
+      const binStr = atob(b64);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+      pdfSource = { data: bytes };
+    }
+    const pdf = await pdfjsLib.getDocument(pdfSource).promise;
     container.innerHTML = '';
     const scale = 1.5;
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -25,15 +33,14 @@ async function _renderPdfPages(url, containerId) {
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      canvas.style.cssText = 'width:100%;border-radius:6px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1)';
-      canvas.title = 'Página ' + i + ' de ' + pdf.numPages + ' — click para ampliar';
-      canvas.onclick = () => window.open(url, '_blank');
+      canvas.style.cssText = 'width:100%;border-radius:6px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)';
+      canvas.title = 'Página ' + i + ' de ' + pdf.numPages;
       container.appendChild(canvas);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
     }
   } catch(e) {
     console.error('[PDF render]', e);
-    container.innerHTML = `<iframe src="${url}" style="width:100%;height:65vh;border:none;border-radius:8px"></iframe>`;
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rojo)">Error renderizando PDF: ${e.message}</div>`;
   }
 }
 
@@ -477,14 +484,38 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
 
     const tipo = document.getElementById('ia_tipo_doc').value || 'factura';
 
-    const resp = await fetch('https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey },
-      body: JSON.stringify({ imagen_base64: _iaFileBase64, media_type: _iaFileMime, tipo, empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || '' })
-    });
+    // Llamada con reintentos automáticos (máx 3 intentos, espera progresiva)
+    const _ocrBody = JSON.stringify({ imagen_base64: _iaFileBase64, media_type: _iaFileMime, tipo, empresa_id: EMPRESA.id, empresa_nombre: EMPRESA.nombre || '', empresa_cif: EMPRESA.cif || '' });
+    const _ocrHeaders = { 'Content-Type': 'application/json', 'x-anthropic-key': apiKey };
+    const _ocrUrl = 'https://gskkqqhbpnycvuioqetj.supabase.co/functions/v1/ocr-documento';
 
-    const result = await resp.json();
-    if (!result.success) throw new Error(result.error || 'Error procesando documento');
+    let result = null;
+    const maxIntentos = 3;
+    for (let intento = 1; intento <= maxIntentos; intento++) {
+      try {
+        const resp = await fetch(_ocrUrl, { method: 'POST', headers: _ocrHeaders, body: _ocrBody });
+        const json = await resp.json();
+        if (json.success) { result = json; break; }
+        // Error de API (529 overloaded, 500, etc.) — reintentar
+        const esRetryable = resp.status === 529 || resp.status === 500 || resp.status === 503 || (json.error && /overloaded|rate.?limit|timeout|busy/i.test(json.error));
+        if (esRetryable && intento < maxIntentos) {
+          const espera = intento * 5; // 5s, 10s
+          toast(`⏳ Servidor IA ocupado — reintentando en ${espera}s (${intento}/${maxIntentos})...`, 'warning');
+          await new Promise(r => setTimeout(r, espera * 1000));
+          continue;
+        }
+        throw new Error(json.error || 'Error procesando documento');
+      } catch(fetchErr) {
+        if (intento < maxIntentos && /overloaded|fetch|network|timeout/i.test(fetchErr.message)) {
+          const espera = intento * 5;
+          toast(`⏳ Error de conexión — reintentando en ${espera}s (${intento}/${maxIntentos})...`, 'warning');
+          await new Promise(r => setTimeout(r, espera * 1000));
+          continue;
+        }
+        throw fetchErr;
+      }
+    }
+    if (!result) throw new Error('No se pudo procesar el documento después de ' + maxIntentos + ' intentos. Inténtalo de nuevo más tarde.');
 
     const data = _ocrSanitizeNumeros(result.data);
 
@@ -532,7 +563,13 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
     ocrValidar(ocrDocId);
 
   } catch(e) {
-    toast('Error al procesar: ' + e.message, 'error');
+    // Mensaje amigable para errores comunes
+    let msgUser = e.message;
+    if (/overloaded|529/i.test(msgUser)) msgUser = 'Servidor IA ocupado. Inténtalo de nuevo en unos minutos.';
+    else if (/rate.?limit|429/i.test(msgUser)) msgUser = 'Límite de uso de IA alcanzado. Espera unos minutos.';
+    else if (/timeout|network|fetch/i.test(msgUser)) msgUser = 'Error de conexión. Verifica tu internet e inténtalo de nuevo.';
+    else if (/api.?key|unauthorized|401|403/i.test(msgUser)) msgUser = 'API Key inválida o sin permisos. Revisa la configuración de IA.';
+    toast('❌ ' + msgUser, 'error');
     await sb.from('documentos_ocr').update({
       estado: 'error',
       notas: 'Error OCR: ' + e.message,
@@ -1157,6 +1194,53 @@ async function _ocrConfirmarValidacion() {
     console.error('[Validar OCR] Error general:', e);
     toast('Error en validación: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Subir archivos manualmente desde Bandeja OCR (desktop)
+// ═══════════════════════════════════════════════
+async function ocrSubirArchivos(files) {
+  if (!files || !files.length) return;
+  const eid = EMPRESA?.id;
+  if (!eid) { toast('Error: empresa no cargada', 'error'); return; }
+
+  let okCount = 0;
+  for (const file of files) {
+    try {
+      toast('📤 Subiendo ' + file.name + '...', 'info');
+      const ext = file.name.split('.').pop().toLowerCase();
+      const ts = Date.now();
+      const storagePath = `${eid}/ocr/manual_${ts}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+
+      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, file, {
+        contentType: file.type || 'application/octet-stream'
+      });
+      if (upErr) { toast('❌ Error subiendo ' + file.name + ': ' + upErr.message, 'error'); continue; }
+
+      const { error: insErr } = await sb.from('documentos_ocr').insert({
+        empresa_id: eid,
+        usuario_id: CP?.id || CU?.id || null,
+        archivo_path: storagePath,
+        archivo_nombre: file.name,
+        estado: 'pendiente',
+        tipo_documento: 'albaran',
+        datos_extraidos: null,
+        created_at: new Date().toISOString()
+      });
+      if (insErr) { toast('❌ Error registrando ' + file.name + ': ' + insErr.message, 'error'); continue; }
+      okCount++;
+    } catch(e) {
+      toast('❌ ' + file.name + ': ' + e.message, 'error');
+    }
+  }
+  // Limpiar input
+  const inp = document.getElementById('ocrFileUpload');
+  if (inp) inp.value = '';
+
+  if (okCount > 0) {
+    toast('✅ ' + okCount + ' documento(s) subido(s) a la bandeja', 'success');
+    loadOCRInbox();
   }
 }
 

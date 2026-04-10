@@ -12,7 +12,7 @@ input[type="number"]{-moz-appearance:textfield}
   --gris-50:#F8FAFC;--gris-100:#F1F5F9;--gris-200:#E2E8F0;
   --gris-300:#CBD5E1;--gris-400:#94A3B8;--gris-500:#64748B;
   --gris-600:#475569;--gris-700:#334155;--gris-800:#1E293B;--gris-900:#0F172A;
-  --sidebar-w:248px;--r:10px;
+  --sidebar-w:180px;--r:10px;
   --sh:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
   --sh-md:0 4px 16px rgba(0,0,0,.09);
   --sh-lg:0 10px 40px rgba(0,0,0,.13);
@@ -59,35 +59,36 @@ a{text-decoration:none;color:inherit}
 /* ══ APP LAYOUT ══ */
 #s-app{flex-direction:row}
 #sidebar{width:var(--sidebar-w);flex-shrink:0;background:#1e2540;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
-.sb-logo{padding:16px 14px 13px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:9px;cursor:pointer}
-.sb-logo .mark{width:42px;height:42px;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--azul);flex-shrink:0;overflow:hidden;border:1px solid rgba(255,255,255,.15)}
-.sb-logo .brand strong{color:#fff;font-size:16px;display:block;line-height:1.3;font-weight:800}
-.sb-logo .brand span{color:rgba(255,255,255,.6);font-size:12px}
-.sb-emp-selector{margin:10px 10px 6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 11px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .12s}
+.sb-logo{padding:12px 10px 10px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:7px;cursor:pointer}
+.sb-logo .mark{width:32px;height:32px;background:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--azul);flex-shrink:0;overflow:hidden;border:1px solid rgba(255,255,255,.15)}
+.sb-logo .brand strong{color:#fff;font-size:14px;display:block;line-height:1.3;font-weight:800}
+.sb-logo .brand span{color:rgba(255,255,255,.6);font-size:10px}
+.sb-emp-selector{margin:6px 6px 4px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:7px;padding:7px 8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .12s}
 .sb-emp-selector:hover{background:rgba(255,255,255,.07)}
-.sb-emp-selector .emp-av{width:32px;height:32px;border-radius:7px;background:var(--azul);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
-.sb-emp-selector .emp-info strong{color:#fff;font-size:15px;display:block;font-weight:700}
-.sb-emp-selector .emp-info small{color:rgba(255,255,255,.7);font-size:13px}
+.sb-emp-selector .emp-av{width:26px;height:26px;border-radius:6px;background:var(--azul);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+.sb-emp-selector .emp-info strong{color:#fff;font-size:12px;display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-emp-selector .emp-info small{color:rgba(255,255,255,.7);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.sb-emp-selector .emp-info{min-width:0;overflow:hidden}
 .sb-emp-selector .chev{margin-left:auto;color:var(--gris-500);font-size:12px}
-.sb-nav{flex:1;overflow-y:auto;padding:6px 8px;scrollbar-width:none}
+.sb-nav{flex:1;overflow-y:auto;padding:4px 6px;scrollbar-width:none}
 .sb-nav::-webkit-scrollbar{display:none}
-.sb-sec{font-size:13px;font-weight:800;color:#fff;letter-spacing:.1em;text-transform:uppercase;padding:20px 10px 6px;display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;transition:color .15s;border-top:1px solid rgba(255,255,255,.06)}.sb-sec:first-child{border-top:none}.sb-sec:hover{color:#fff}.sb-sec::after{content:"▾";font-size:11px;margin-left:auto;transition:transform .2s}.sb-sec.collapsed::after{transform:rotate(-90deg)}
-.sb-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;color:#fff;font-size:15px;font-weight:500;cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left;height:38px;box-sizing:border-box}
+.sb-sec{font-size:10px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;padding:14px 8px 4px;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;transition:color .15s;border-top:1px solid rgba(255,255,255,.06)}.sb-sec:first-child{border-top:none}.sb-sec:hover{color:#fff}.sb-sec::after{content:"▾";font-size:9px;margin-left:auto;transition:transform .2s}.sb-sec.collapsed::after{transform:rotate(-90deg)}
+.sb-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;color:rgba(255,255,255,.85);font-size:13px;font-weight:500;cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left;height:32px;box-sizing:border-box}
 .sb-item:hover{background:rgba(255,255,255,.12);color:#fff}
 .sb-item.active{background:var(--azul);color:#fff}
-.sb-item .ico{font-size:18px;width:21px;text-align:center;flex-shrink:0}
-.sb-item .sb-beta{font-size:8px;background:rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:1px 5px;border-radius:4px;margin-left:auto;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.sb-item .ico{font-size:15px;width:18px;text-align:center;flex-shrink:0}
+.sb-item .sb-beta{font-size:7px;background:rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:1px 4px;border-radius:3px;margin-left:auto;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .sb-item.indent{padding-left:28px;font-size:12px}
-.sb-claude{margin:7px 8px;background:linear-gradient(135deg,var(--violeta),#4F46E5);border-radius:9px;padding:10px 11px;cursor:pointer;border:none;display:flex;align-items:center;gap:8px;width:calc(100% - 16px);transition:opacity .15s}
+.sb-claude{margin:5px 6px;background:linear-gradient(135deg,var(--violeta),#4F46E5);border-radius:7px;padding:8px 9px;cursor:pointer;border:none;display:flex;align-items:center;gap:6px;width:calc(100% - 12px);transition:opacity .15s}
 .sb-claude:hover{opacity:.88}
-.sb-claude strong{color:#fff;font-size:11.5px;display:block}
-.sb-claude small{color:rgba(255,255,255,.55);font-size:10px}
-.sb-user{padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px;min-height:54px}
-.sb-user .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0}
+.sb-claude strong{color:#fff;font-size:10.5px;display:block}
+.sb-claude small{color:rgba(255,255,255,.55);font-size:9px}
+.sb-user{padding:8px 10px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:6px;min-height:44px}
+.sb-user .av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px;flex-shrink:0}
 .sb-user .sb-user-info{flex:1;min-width:0;overflow:hidden}
-.sb-user strong{color:#fff;font-size:14px;display:block;line-height:1.3;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-user small{color:rgba(255,255,255,.7);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-.sb-user .logout{flex-shrink:0;background:none;border:none;color:rgba(239,68,68,.8);cursor:pointer;padding:6px;font-size:16px;border-radius:6px;line-height:1;transition:color .15s,background .15s}
+.sb-user strong{color:#fff;font-size:12px;display:block;line-height:1.3;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-user small{color:rgba(255,255,255,.7);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.sb-user .logout{flex-shrink:0;background:none;border:none;color:rgba(239,68,68,.8);cursor:pointer;padding:4px;font-size:14px;border-radius:6px;line-height:1;transition:color .15s,background .15s}
 .sb-user .logout:hover{color:#EF4444;background:rgba(239,68,68,.15)}
 
 #main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
@@ -286,11 +287,11 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 
 .sb-section-items{}
 .sb-section-items.collapsed{display:none}
-.sb-favoritos{padding:6px 8px}
-.sb-fav-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;color:#fff;font-size:15px;font-weight:500;cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left;height:38px;box-sizing:border-box}
+.sb-favoritos{padding:4px 6px}
+.sb-fav-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;color:rgba(255,255,255,.85);font-size:13px;font-weight:500;cursor:pointer;transition:background .12s,color .12s;border:none;background:none;width:100%;text-align:left;height:32px;box-sizing:border-box}
 .sb-fav-item:hover{background:rgba(255,255,255,.12);color:#fff}
-.sb-fav-titulo{font-size:13px;font-weight:800;color:#fff;letter-spacing:.1em;text-transform:uppercase;padding:14px 10px 5px;display:flex;align-items:center;justify-content:space-between}
-.sb-fav-titulo button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}.sb-fav-titulo button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.sb-fav-titulo{font-size:10px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;padding:10px 8px 4px;display:flex;align-items:center;justify-content:space-between}
+.sb-fav-titulo button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:4px}.sb-fav-titulo button:hover{color:#fff;background:rgba(255,255,255,.08)}
 
 /* Drag & Drop reorder */
 .sb-item[draggable="true"]{cursor:grab}
@@ -386,82 +387,20 @@ body.ocultar-sensibles .kpi-sensible .sl::after{content:' (oculto)';font-style:i
 .plan-now-line::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;background:#EF4444;border-radius:50%}
 /* GPU layers eliminados — causaban bug de compositing en sidebar */
 
-/* ══ SIDEBAR COLAPSABLE ══ */
-.sb-toggle{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 8px;padding:8px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;font-size:13px}
-.sb-toggle:hover{background:rgba(255,255,255,.12);color:#fff}
-.sb-toggle-ico{font-size:12px;display:inline-block}
-body.sb-collapsed .sb-toggle-ico{transform:rotate(180deg)}
-body.sb-collapsed #sidebar{width:60px;overflow:visible}
-body.sb-collapsed #main{margin-left:60px}
-/* Colapsado: ocultar textos, mostrar iconos de seccion */
-body.sb-collapsed .sb-logo .brand,
-body.sb-collapsed .sb-section-items,
-body.sb-collapsed .sb-hide-collapsed,
-body.sb-collapsed .sb-user .sb-user-info,
-body.sb-collapsed #sbFavSection .sb-fav-titulo,
-body.sb-collapsed .sb-toggle,
-body.sb-collapsed .sb-sec-label{display:none!important}
-body.sb-collapsed .sb-logo{justify-content:center;padding:14px 8px 10px}
-body.sb-collapsed .sb-logo .mark{width:36px;height:36px}
-/* Secciones: solo icono centrado */
-body.sb-collapsed .sb-sec{display:flex!important;justify-content:center;align-items:center;padding:10px 0;margin:1px 6px;border-radius:8px;font-size:0;position:relative;cursor:pointer}
-body.sb-collapsed .sb-sec:hover{background:rgba(255,255,255,.12)}
-body.sb-collapsed .sb-sec-ico{font-size:20px!important;line-height:1;display:inline-block!important}
-/* Favoritos como iconos centrados */
-body.sb-collapsed .sb-favoritos{padding:4px 0}
-body.sb-collapsed .sb-fav-item{position:relative;justify-content:center;padding:10px 0;font-size:0;line-height:0;height:42px;box-sizing:border-box;border-radius:8px;margin:1px 6px}
-body.sb-collapsed .sb-fav-item:hover{background:rgba(255,255,255,.12);font-size:0}
-body.sb-collapsed .sb-fav-item span:first-child{font-size:20px!important;line-height:42px;margin:0}
-body.sb-collapsed .sb-fav-item span:not(:first-child):not([id]){display:none}
-/* Badges en favoritos colapsados */
-body.sb-collapsed .sb-fav-item [id$="-badge"]{position:absolute!important;top:4px;right:2px;min-width:16px;height:16px;padding:0 4px!important;font-size:9px!important;border-radius:8px;display:inline-flex!important;align-items:center;justify-content:center;line-height:1}
-body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display: none"],
-body.sb-collapsed .sb-fav-item [id$="-badge"][style*="display:none"]{display:none!important}
-/* Claude y usuario compactos */
-body.sb-collapsed .sb-claude{justify-content:center;padding:10px;width:calc(100% - 12px);margin:4px 6px}
-body.sb-collapsed .sb-claude div{display:none}
-body.sb-collapsed .sb-user{flex-direction:column;justify-content:center;align-items:center;padding:8px 4px;gap:6px;min-height:auto}
-body.sb-collapsed .sb-user .logout{padding:5px;font-size:14px}
-body.sb-collapsed .sb-nav{padding:2px 0}
-
-/* Icono de seccion normal (expandido): ocultar el icono redundante */
+/* ══ SIDEBAR — siempre visible ══ */
 .sb-sec-ico{display:none}
-body.sb-collapsed .sb-sec-ico{display:inline-block!important}
+.sb-section-items.collapsed{display:none}
+.sb-toggle{display:none}
 
-/* ── Hover expand: sidebar completo como overlay ── */
-body.sb-hover-expanded #sidebar{width:var(--sidebar-w);overflow-y:auto;overflow-x:hidden;z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.35)}
-body.sb-hover-expanded #main{margin-left:60px}
-body.sb-hover-expanded .sb-logo .brand,
-body.sb-hover-expanded .sb-sec-label,
-body.sb-hover-expanded .sb-hide-collapsed,
-body.sb-hover-expanded .sb-user .sb-user-info,
-body.sb-hover-expanded #sbFavSection .sb-fav-titulo,
-body.sb-hover-expanded .sb-toggle{display:revert!important}
-body.sb-hover-expanded .sb-sec{display:flex!important;justify-content:initial;padding:11px 14px;font-size:10px;margin:0;cursor:pointer;border-radius:6px}
-body.sb-hover-expanded .sb-sec:hover{background:rgba(255,255,255,.08)}
-body.sb-hover-expanded .sb-sec-ico{display:none!important}
-body.sb-hover-expanded .sb-section-items{display:block!important;position:static!important;background:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;min-width:auto!important}
-body.sb-hover-expanded .sb-section-items.collapsed{display:none!important}
-body.sb-hover-expanded .sb-item{justify-content:initial;padding:9px 11px 9px 24px;font-size:14px;line-height:normal;height:auto}
-body.sb-hover-expanded .sb-item span:not(.ico),
-body.sb-hover-expanded .sb-item .sb-beta{display:revert}
-body.sb-hover-expanded .sb-item .ico{margin:0;font-size:16px;line-height:normal;margin-right:8px}
-body.sb-hover-expanded .sb-logo{justify-content:initial;padding:16px 14px 13px}
-body.sb-hover-expanded .sb-logo .mark{width:42px;height:42px}
-body.sb-hover-expanded .sb-fav-item{position:relative;justify-content:initial;padding:9px 11px;font-size:14px;line-height:normal;height:auto;margin:0}
-body.sb-hover-expanded .sb-fav-item span:first-child{font-size:16px!important;line-height:normal;margin-right:8px}
-body.sb-hover-expanded .sb-fav-item span:not(:first-child){display:revert}
-body.sb-hover-expanded .sb-fav-item [id$="-badge"]{position:static!important;top:auto;right:auto;min-width:18px;height:18px;padding:0 5px!important;font-size:10px!important;border-radius:9px}
-body.sb-hover-expanded .sb-favoritos{padding:6px 8px}
-body.sb-hover-expanded .sb-claude{justify-content:initial;padding:10px 11px;margin:7px 8px;width:calc(100% - 16px)}
-body.sb-hover-expanded .sb-claude div{display:block}
-body.sb-hover-expanded .sb-user{flex-direction:row;padding:10px 12px;gap:8px;min-height:54px}
-body.sb-hover-expanded .sb-user .logout{padding:6px;font-size:16px}
-body.sb-hover-expanded .sb-nav{padding:6px 8px}
+/* ── Fullscreen: ocultar sidebar temporalmente ── */
+body.sb-fullscreen #sidebar{transform:translateX(-100%)}
+body.sb-fullscreen #main{margin-left:0}
+.sb-fs-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--gris-400);padding:4px 6px;border-radius:6px;line-height:1;transition:color .15s,background .15s}
+.sb-fs-btn:hover{color:var(--gris-700);background:var(--gris-100)}
 
 /* Transición suave del sidebar */
-#sidebar{transition:width .3s cubic-bezier(.4,0,.2,1),box-shadow .3s ease}
-#main{transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
+#sidebar{transition:transform .25s cubic-bezier(.4,0,.2,1)}
+#main{transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
 
 /* ══ FICHA OBRA — filas de docs y partes ══ */
 /* parte-row: hover INSTANTÁNEO — cero transiciones, cero reflow */
