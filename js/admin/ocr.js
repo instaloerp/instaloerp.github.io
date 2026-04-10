@@ -1096,7 +1096,7 @@ async function _ocrConfirmarValidacion() {
           if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
           if (ed.precio > 0) updateFields.precio_coste = ed.precio;
           if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
-          if (!m.en_catalogo) updateFields.es_activo = true; // provisional → definitivo
+          // es_activo NO se toca automáticamente — solo se marca manualmente
           if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', articuloId);
         }
 
