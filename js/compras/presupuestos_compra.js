@@ -486,7 +486,8 @@ async function imprimirPresupuestoCompra(id) {
     const cant = l.cantidad||l.cant||0;
     const precio = l.precio||0;
     const iva = l.iva !== undefined ? l.iva : 21;
-    const sub = cant * precio;
+    const bruto = cant * precio;
+    const sub = bruto * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
     const ivaAmt = sub * (iva/100);
     baseCalc += sub;
     ivaCalc += ivaAmt;
@@ -524,7 +525,7 @@ async function imprimirPresupuestoCompra(id) {
       if(prov?.direccion){doc.text(prov.direccion,ML,y);y+=6;}else{y+=4;}
       y+=4;
       const headers=[['Descripción','Cant.','Precio','IVA','Total']];
-      const rows=lineas.map(l=>{const cant=l.cantidad||l.cant||0;const precio=l.precio||0;const iva=l.iva!==undefined?l.iva:21;const sub=cant*precio;const total=sub+sub*(iva/100);return[l.nombre||l.desc||l.descripcion||'',String(cant),precio.toFixed(2)+' €',iva+'%',total.toFixed(2)+' €'];});
+      const rows=lineas.map(l=>{const cant=l.cantidad||l.cant||0;const precio=l.precio||0;const iva=l.iva!==undefined?l.iva:21;const bruto=cant*precio;const sub=bruto*(1-(l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);const total=sub+sub*(iva/100);return[l.nombre||l.desc||l.descripcion||'',String(cant),precio.toFixed(2)+' €',iva+'%',total.toFixed(2)+' €'];});
       doc.autoTable({startY:y,head:headers,body:rows,styles:{fontSize:9},headStyles:{fillColor:[146,64,14]},margin:{left:ML,right:MR}});
       y=doc.lastAutoTable.finalY+8;
       doc.setFontSize(10);doc.setFont(undefined,'normal');doc.setTextColor(146,64,14);

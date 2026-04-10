@@ -229,7 +229,7 @@ function verDetalleAlbaran(id) {
   const lineas = a.lineas || [];
   let total = 0;
   document.getElementById('abDetLineas').innerHTML = lineas.map(l => {
-    const sub = (l.cant||0)*(l.precio||0); total += sub;
+    const _br = (l.cant||0)*(l.precio||0); const sub = _br*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100); total += sub;
     return `<tr style="border-top:1px solid var(--gris-100)">
       <td style="padding:8px 10px;font-size:13px">${l.desc||'—'}</td>
       <td style="padding:8px 10px;text-align:right;font-size:13px">${l.cant||0}</td>
@@ -359,7 +359,8 @@ async function facturarAlbaranesMulti() {
       lineasTodas.push({ desc: `── ${a.numero} (${a.fecha||''}) ──`, cant: 0, precio: 0, _separator: true });
       (a.lineas || []).forEach(l => {
         lineasTodas.push({ ...l });
-        totalGlobal += (l.cant || 0) * (l.precio || 0);
+        const _br2 = (l.cant || 0) * (l.precio || 0);
+        totalGlobal += _br2*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);
       });
     });
 
@@ -462,7 +463,8 @@ function imprimirAlbaran(id) {
   let htmlLineas = '';
   let total = 0;
   lineas.forEach(l => {
-    const sub = (l.cant||1)*(l.precio||0);
+    const _br3 = (l.cant||1)*(l.precio||0);
+    const sub = _br3*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);
     total += sub;
     htmlLineas += `<tr><td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||'—'}</td>
       <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cant||0}</td>
@@ -587,7 +589,7 @@ function generarPdfAlbaran(idOrObj) {
   // Tabla líneas
   const lineas=a.lineas||[];
   const tableBody=lineas.map(l=>{
-    const sub=(l.cant||0)*(l.precio||0);
+    const _br4=(l.cant||0)*(l.precio||0);const sub=_br4*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);
     return [l.desc||'',{content:String(l.cant||0),styles:{halign:'right'}},{content:fmtE(l.precio||0),styles:{halign:'right'}},{content:fmtE(sub),styles:{halign:'right',fontStyle:'bold'}}];
   });
   doc.autoTable({startY:y,margin:{left:ML,right:MR},head:[['Descripción','Cant.','Precio','Total']],body:tableBody,headStyles:{fillColor:azul,textColor:[255,255,255],fontSize:8.5,fontStyle:'bold',cellPadding:3},bodyStyles:{fontSize:8.5,textColor:negro,cellPadding:2.5},alternateRowStyles:{fillColor:[248,250,252]},columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:20,halign:'right'},2:{cellWidth:28,halign:'right'},3:{cellWidth:30,halign:'right'}},theme:'grid',styles:{lineColor:[226,232,240],lineWidth:0.3}});

@@ -60,7 +60,10 @@ function renderRecepciones(list) {
 
   const html = list.length ? list.map(r => {
     const ec = estadoCfg[r.estado] || { ico:'?', label:r.estado, color:'var(--gris-500)', bg:'var(--gris-100)' };
-    const total = r.lineas ? r.lineas.reduce((s,l) => s + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0) : 0;
+    const total = r.lineas ? r.lineas.reduce((s,l) => {
+      const bruto = (l.cantidad_recibida||l.cantidad||0) * (l.precio||0);
+      return s + bruto * (1 - (l.dto1||l.dto1_pct||0)/100) * (1 - (l.dto2||l.dto2_pct||0)/100) * (1 - (l.dto3||l.dto3_pct||0)/100);
+    }, 0) : 0;
     const nLineas = (r.lineas||[]).length;
     const almNombre = (almacenes||[]).find(a => a.id === r.almacen_destino_id)?.nombre || '';
 
@@ -100,7 +103,7 @@ function renderRecepciones(list) {
 }
 
 function actualizarKpisRecepciones() {
-  const total = recepciones.reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0);
+  const total = recepciones.reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => {const bruto=(l.cantidad_recibida||l.cantidad||0)*(l.precio||0);return sum+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : 0), 0);
   const pendientes = recepciones.filter(r => r.estado === 'pendiente').length;
   const esteMes = recepciones.filter(r => {
     const f = new Date(r.fecha);
@@ -110,7 +113,7 @@ function actualizarKpisRecepciones() {
   document.getElementById('rcKpiTotal').textContent = fmtE(total);
   document.getElementById('rcKpiPend').textContent = pendientes;
   document.getElementById('rcKpiMes').textContent = esteMes;
-  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='parcial' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0) : 0), 0));
+  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='parcial' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => {const bruto=(l.cantidad_recibida||l.cantidad||0)*(l.precio||0);return sum+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : 0), 0));
 }
 
 // ═══════════════════════════════════════════════
@@ -550,7 +553,7 @@ function incidenciaAlbaran(id) {
   if (!r) return;
 
   _incAlbaranId = id;
-  document.getElementById('incInfo').innerHTML = `<strong>${r.numero}</strong> — ${r.proveedor_nombre} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length!==1?'s':''} · ${fmtE((r.lineas||[]).reduce((s,l) => s + ((l.cantidad_recibida||l.cantidad||0) * (l.precio||0)), 0))}`;
+  document.getElementById('incInfo').innerHTML = `<strong>${r.numero}</strong> — ${r.proveedor_nombre} · ${(r.lineas||[]).length} línea${(r.lineas||[]).length!==1?'s':''} · ${fmtE((r.lineas||[]).reduce((s,l) => {const bruto=(l.cantidad_recibida||l.cantidad||0)*(l.precio||0);return s+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0))}`;
   document.getElementById('incTipo').value = '';
   document.getElementById('incDescripcion').value = '';
   document.getElementById('incAccion').value = 'reclamar';
@@ -633,7 +636,7 @@ async function recepcionToFacturaProv(id) {
     if (!confirm(`¿Crear factura de proveedor desde el albarán ${r.numero}?`)) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-    const total = r.lineas ? r.lineas.reduce((s, l) => s + ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0)), 0) : (r.total || 0);
+    const total = r.lineas ? r.lineas.reduce((s, l) => {const bruto=(l.cantidad_recibida||l.cant||0)*(l.precio||0);return s+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : (r.total || 0);
     const { error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
@@ -681,7 +684,8 @@ async function facturarRecepcionesMulti() {
       lineasTodas.push({ desc: `── ${r.numero} (${r.fecha || ''}) ──`, cant: 0, precio: 0, _separator: true });
       (r.lineas || []).forEach(l => {
         lineasTodas.push({ ...l });
-        totalGlobal += ((l.cantidad_recibida || l.cant || 0) * (l.precio || 0));
+        const _br = (l.cantidad_recibida || l.cant || 0) * (l.precio || 0);
+        totalGlobal += _br*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);
       });
     });
 

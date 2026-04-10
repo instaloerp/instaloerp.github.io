@@ -674,7 +674,7 @@ async function presToAlbaran(id) {
     const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
       desc:l.desc||'', cant:l.cant||1, precio:l.precio||0
     }));
-    let total=0; lineas.forEach(l=>total+=l.cant*l.precio);
+    let total=0; lineas.forEach(l=>{const bruto=l.cant*l.precio;total+=bruto*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);});
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
     // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
     const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);

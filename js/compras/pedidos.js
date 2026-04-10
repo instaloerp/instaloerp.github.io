@@ -407,7 +407,7 @@ async function imprimirPedidoCompra(id) {
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
   const lineas = p.lineas||[];
   let htmlLineas='', total=0;
-  lineas.forEach(l=>{const sub=(l.cantidad||l.cant||0)*(l.precio||0);total+=sub;htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||l.descripcion||''}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cantidad||l.cant||0}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${(l.precio||0).toFixed(2)} €</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${sub.toFixed(2)} €</td></tr>`;});
+  lineas.forEach(l=>{const bruto=(l.cantidad||l.cant||0)*(l.precio||0);const sub=bruto*(1-(l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);total+=sub;htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||l.descripcion||''}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cantidad||l.cant||0}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${(l.precio||0).toFixed(2)} €</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${sub.toFixed(2)} €</td></tr>`;});
   const dirEmpresa=[EMPRESA?.direccion,[EMPRESA?.cp,EMPRESA?.municipio].filter(Boolean).join(' '),EMPRESA?.provincia].filter(Boolean).join(', ');
   const logoHtml=EMPRESA?.logo_url?`<img src="${EMPRESA.logo_url}" style="width:50px;height:50px;object-fit:contain;border-radius:8px">`:`<div style="width:50px;height:50px;background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff">${(EMPRESA?.nombre||'E').substring(0,2).toUpperCase()}</div>`;
   const win=window.open('','_blank','width=850,height=800');
@@ -437,7 +437,7 @@ async function imprimirPedidoCompra(id) {
       if(prov?.direccion){doc.text(prov.direccion,ML,y);y+=6;}else{y+=4;}
       y+=4;
       const headers=[['Descripción','Cant.','Precio','Total']];
-      const rows=lineas.map(l=>{const sub=(l.cantidad||l.cant||0)*(l.precio||0);return[l.desc||l.descripcion||'',String(l.cantidad||l.cant||0),(l.precio||0).toFixed(2)+' €',sub.toFixed(2)+' €'];});
+      const rows=lineas.map(l=>{const bruto=(l.cantidad||l.cant||0)*(l.precio||0);const sub=bruto*(1-(l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);return[l.desc||l.descripcion||'',String(l.cantidad||l.cant||0),(l.precio||0).toFixed(2)+' €',sub.toFixed(2)+' €'];});
       doc.autoTable({startY:y,head:headers,body:rows,styles:{fontSize:9},headStyles:{fillColor:[146,64,14]},margin:{left:ML,right:MR}});
       y=doc.lastAutoTable.finalY+8;
       doc.setFontSize(13);doc.setFont(undefined,'bold');doc.setTextColor(146,64,14);

@@ -522,7 +522,7 @@ function imprimirFacturaProv(id) {
   let htmlLineas='', base=0;
   lineas.forEach(l=>{
     if(l._separator){htmlLineas+=`<tr><td colspan="4" style="padding:6px 10px;background:#f1f5f9;font-weight:700;font-size:10px;color:#475569;border-bottom:1px solid #e2e8f0">${l.desc||''}</td></tr>`;return;}
-    const sub=(l.cantidad||l.cant||0)*(l.precio||0);base+=sub;
+    const bruto=(l.cantidad||l.cant||0)*(l.precio||0);const sub=bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);base+=sub;
     htmlLineas+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px">${l.desc||l.descripcion||''}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${l.cantidad||l.cant||0}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px">${(l.precio||0).toFixed(2)} €</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:700">${sub.toFixed(2)} €</td></tr>`;
   });
   const logoHtml=EMPRESA?.logo_url?`<img src="${EMPRESA.logo_url}" style="width:50px;height:50px;object-fit:contain;border-radius:8px">`:`<div style="width:50px;height:50px;background:linear-gradient(135deg,#1e40af,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff">${(EMPRESA?.nombre||'E').substring(0,2).toUpperCase()}</div>`;
