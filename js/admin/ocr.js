@@ -6,6 +6,37 @@
 
 let _ocrDocs = []; // cache local para filtro de búsqueda
 
+// ─── Renderizar PDF como imágenes (sin visor del navegador) ───
+async function _renderPdfPages(url, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || typeof pdfjsLib === 'undefined') {
+    // Fallback: iframe clásico
+    if (container) container.innerHTML = `<iframe src="${url}" style="width:100%;height:65vh;border:none;border-radius:8px"></iframe>`;
+    return;
+  }
+  container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--gris-400)">Cargando PDF...</div>';
+  try {
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    container.innerHTML = '';
+    const scale = 1.5;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.cssText = 'width:100%;border-radius:6px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.1)';
+      canvas.title = 'Página ' + i + ' de ' + pdf.numPages + ' — click para ampliar';
+      canvas.onclick = () => window.open(url, '_blank');
+      container.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }
+  } catch(e) {
+    console.error('[PDF render]', e);
+    container.innerHTML = `<iframe src="${url}" style="width:100%;height:65vh;border:none;border-radius:8px"></iframe>`;
+  }
+}
+
 // ─── Realtime + Polling — actualización automática de la bandeja ───
 let _ocrChannel        = null;
 let _ocrReloadTimer    = null;
@@ -285,7 +316,9 @@ async function ocrPrevisualizar(id) {
     }).join('');
     if (esMigrado) contenido = `<div style="padding:8px 12px;background:#FEF3C7;border-radius:8px;margin-bottom:10px;font-size:11px;color:#92400E">⚠️ Documento migrado desde parte — las fotos son del escaneo original</div>` + contenido;
   } else if (esPdf) {
-    contenido = `<iframe src="${imgUrl}" style="width:100%;height:70vh;border:none;border-radius:8px"></iframe>`;
+    contenido = `<div id="ocrPdfPages" style="width:100%;max-height:70vh;overflow-y:auto;border-radius:8px;background:var(--gris-100);padding:8px"></div>`;
+    // Renderizar PDF con PDF.js después de insertar el HTML
+    setTimeout(() => _renderPdfPages(imgUrl, 'ocrPdfPages'), 50);
   } else {
     contenido = `<img src="${imgUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
   }
@@ -781,9 +814,13 @@ async function ocrValidar(id) {
     </tr>`;
   }).join('');
 
-  // Imágenes
+  // Imágenes / PDF
   let imgHtml = '';
-  if (fotosArr.length) {
+  const _extVal = (doc.archivo_nombre || '').split('.').pop().toLowerCase();
+  const _esPdfVal = _extVal === 'pdf';
+  if (_esPdfVal && imgUrl) {
+    imgHtml = `<div id="ocrValPdfPages" style="width:100%"></div>`;
+  } else if (fotosArr.length) {
     imgHtml = fotosArr.map(url =>
       `<img src="${url}" style="max-width:100%;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:8px;cursor:pointer" onclick="window.open('${url}','_blank')" title="Click para ampliar">`
     ).join('');
@@ -879,6 +916,11 @@ async function ocrValidar(id) {
     </div>
   `;
   openModal('mOcrValidar');
+
+  // Si es PDF, renderizar páginas como imágenes (sin controles del navegador)
+  if (_esPdfVal && imgUrl) {
+    setTimeout(() => _renderPdfPages(imgUrl, 'ocrValPdfPages'), 100);
+  }
 }
 
 // ─── Confirmar: stock provisional→real + actualizar artículos + generar documento ───
