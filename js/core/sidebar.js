@@ -14,6 +14,7 @@ const ALL_PAGES = [
   {id:'albaranes-proveedor',ico:'📥',label:'Albaranes prov.'},
   {id:'facturas-proveedor',ico:'📑',label:'Facturas prov.'},
   {id:'calendario-pagos',ico:'📅',label:'Calendario pagos'},
+  {id:'ocr',ico:'🤖',label:'Bandeja OCR'},
   {id:'articulos',ico:'📦',label:'Artículos'},
   {id:'almacenes',ico:'🏪',label:'Almacenes'},
   {id:'stock',ico:'📊',label:'Stock'},
@@ -46,6 +47,8 @@ let sbCollapsed = JSON.parse(localStorage.getItem('sb_collapsed')||'{}');
 let sbFavoritos = JSON.parse(localStorage.getItem('sb_favoritos')||'["dashboard","correo","mistareas","clientes"]');
 let sbHidden = JSON.parse(localStorage.getItem('sb_hidden')||'[]');
 let sbShown = JSON.parse(localStorage.getItem('sb_shown')||'[]');
+let sbItemOrder = JSON.parse(localStorage.getItem('sb_item_order')||'{}');
+let sbSectionOrder = JSON.parse(localStorage.getItem('sb_section_order')||'[]');
 if (!sbFavoritos.includes('dashboard')) { sbFavoritos.unshift('dashboard'); localStorage.setItem('sb_favoritos', JSON.stringify(sbFavoritos)); }
 let favEditMode = false;
 
@@ -64,7 +67,9 @@ function _sbSaveToSupabase() {
         favoritos: sbFavoritos,
         hidden: sbHidden,
         shown: sbShown,
-        collapsed: sbCollapsed
+        collapsed: sbCollapsed,
+        itemOrder: sbItemOrder,
+        sectionOrder: sbSectionOrder
       };
       await sb.from('perfiles').update({ preferencias_sidebar: prefs }).eq('id', CU.id);
     } catch (e) { console.warn('sidebar: no se pudo guardar prefs en Supabase', e); }
@@ -96,13 +101,25 @@ async function sbCargarPrefsSupabase() {
         sbCollapsed = p.collapsed;
         localStorage.setItem('sb_collapsed', JSON.stringify(sbCollapsed));
       }
+      if (p.itemOrder && typeof p.itemOrder === 'object') {
+        sbItemOrder = p.itemOrder;
+        localStorage.setItem('sb_item_order', JSON.stringify(sbItemOrder));
+      }
+      if (Array.isArray(p.sectionOrder) && p.sectionOrder.length) {
+        sbSectionOrder = p.sectionOrder;
+        localStorage.setItem('sb_section_order', JSON.stringify(sbSectionOrder));
+      }
+      applySbOrder();
       renderFavoritos();
       applySbCollapsed();
     }
   } catch (e) { console.warn('sidebar: no se pudieron cargar prefs de Supabase', e); }
 }
 
+let _sbWasDragging = false;
 function toggleSbSection(id, el) {
+  // No toggle si acaba de hacer drag
+  if (_sbWasDragging) { _sbWasDragging = false; return; }
   const sec = document.getElementById(id);
   if (!sec) return;
   const isCollapsed = sec.classList.toggle('collapsed');
@@ -226,6 +243,7 @@ function userCanAccess(pageId) {
     'albaranes-proveedor': 'facturas',
     'facturas-proveedor': 'facturas',
     'calendario-pagos': 'facturas',
+    'ocr': 'facturas',
     'articulos': 'stock',
     'stock': 'stock',
     'consumos': 'stock',
@@ -351,3 +369,290 @@ function toggleShowProonto(id) {
   _sbSaveToSupabase();
   renderFavoritos();
 }
+
+// ═══════════════════════════════════════════════
+// REORDENAR — Drag & drop de items y secciones
+// ═══════════════════════════════════════════════
+
+// Helper: extraer pageId de un .sb-item
+function _sbGetPageId(item) {
+  const m = item.getAttribute('onclick')?.match(/goPage\('([^']+)'\)/);
+  return m ? m[1] : null;
+}
+
+// Helper: obtener el secId (id del .sb-section-items) de un .sb-item
+function _sbGetSectionOf(item) {
+  const parent = item.closest('.sb-section-items');
+  return parent ? parent.id : null;
+}
+
+// ── Aplicar orden guardado al DOM ──
+function applySbOrder() {
+  const nav = document.getElementById('sbNav');
+  if (!nav) return;
+
+  // 1. Reordenar items dentro de sus secciones
+  for (const [secId, order] of Object.entries(sbItemOrder)) {
+    const sec = document.getElementById(secId);
+    if (!sec || !Array.isArray(order)) continue;
+    const items = Array.from(sec.querySelectorAll('.sb-item'));
+    const itemMap = {};
+    items.forEach(item => {
+      const pid = _sbGetPageId(item);
+      if (pid) itemMap[pid] = item;
+    });
+    // Append in saved order (items not in order stay at the end)
+    for (const pid of order) {
+      if (itemMap[pid]) {
+        sec.appendChild(itemMap[pid]);
+        delete itemMap[pid];
+      }
+    }
+    // Remaining items (new pages not yet in saved order)
+    for (const item of Object.values(itemMap)) {
+      sec.appendChild(item);
+    }
+  }
+
+  // 2. Reordenar secciones
+  if (sbSectionOrder.length) {
+    // Recoger los "grupos" de sección: header + items (o #adminSection wrapper)
+    const groups = {};
+    const children = Array.from(nav.children);
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i];
+      if (el.id === 'sbFavSection') continue; // Favoritos siempre primero
+      if (el.id === 'adminSection') {
+        const secItems = el.querySelector('.sb-section-items');
+        if (secItems) groups[secItems.id] = [el];
+      } else if (el.classList.contains('sb-sec')) {
+        const next = children[i + 1];
+        if (next && next.classList.contains('sb-section-items')) {
+          groups[next.id] = [el, next];
+          i++;
+        }
+      }
+    }
+    // Append en orden guardado
+    for (const secId of sbSectionOrder) {
+      if (groups[secId]) {
+        groups[secId].forEach(el => nav.appendChild(el));
+        delete groups[secId];
+      }
+    }
+    // Secciones que no estaban en el orden guardado (nuevas)
+    for (const els of Object.values(groups)) {
+      els.forEach(el => nav.appendChild(el));
+    }
+  }
+}
+
+// ── Guardar orden actual del DOM ──
+function _sbSaveCurrentOrder() {
+  const nav = document.getElementById('sbNav');
+  if (!nav) return;
+
+  // Items dentro de cada sección
+  const newItemOrder = {};
+  nav.querySelectorAll('.sb-section-items').forEach(sec => {
+    const order = [];
+    sec.querySelectorAll('.sb-item').forEach(item => {
+      const pid = _sbGetPageId(item);
+      if (pid) order.push(pid);
+    });
+    if (order.length) newItemOrder[sec.id] = order;
+  });
+  sbItemOrder = newItemOrder;
+  localStorage.setItem('sb_item_order', JSON.stringify(sbItemOrder));
+
+  // Orden de secciones
+  const newSectionOrder = [];
+  const children = Array.from(nav.children);
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i];
+    if (el.id === 'sbFavSection') continue;
+    if (el.id === 'adminSection') {
+      const secItems = el.querySelector('.sb-section-items');
+      if (secItems) newSectionOrder.push(secItems.id);
+    } else if (el.classList.contains('sb-section-items')) {
+      newSectionOrder.push(el.id);
+    }
+  }
+  sbSectionOrder = newSectionOrder;
+  localStorage.setItem('sb_section_order', JSON.stringify(sbSectionOrder));
+
+  _sbSaveToSupabase();
+}
+
+// ── Drag & drop — ITEMS dentro de secciones ──
+let _sbDragItem = null;
+let _sbDragSec = null;
+
+function _sbItemDragStart(e) {
+  _sbDragItem = e.currentTarget;
+  _sbDragSec = _sbGetSectionOf(_sbDragItem);
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', 'item');
+  setTimeout(() => _sbDragItem.classList.add('sb-dragging'), 0);
+}
+
+function _sbItemDragOver(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  if (!_sbDragItem || target === _sbDragItem) return;
+  // Solo permitir drop dentro de la misma sección
+  if (_sbGetSectionOf(target) !== _sbDragSec) return;
+  e.dataTransfer.dropEffect = 'move';
+  // Mostrar indicador arriba/abajo
+  const rect = target.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  target.classList.remove('sb-drop-above', 'sb-drop-below');
+  target.classList.add(e.clientY < midY ? 'sb-drop-above' : 'sb-drop-below');
+}
+
+function _sbItemDragLeave(e) {
+  e.currentTarget.classList.remove('sb-drop-above', 'sb-drop-below');
+}
+
+function _sbItemDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  target.classList.remove('sb-drop-above', 'sb-drop-below');
+  if (!_sbDragItem || target === _sbDragItem) return;
+  if (_sbGetSectionOf(target) !== _sbDragSec) return;
+
+  const parent = target.parentElement;
+  const rect = target.getBoundingClientRect();
+  const before = e.clientY < rect.top + rect.height / 2;
+  if (before) {
+    parent.insertBefore(_sbDragItem, target);
+  } else {
+    parent.insertBefore(_sbDragItem, target.nextSibling);
+  }
+  _sbSaveCurrentOrder();
+}
+
+function _sbItemDragEnd(e) {
+  if (_sbDragItem) {
+    _sbDragItem.classList.remove('sb-dragging');
+    // Prevenir que el click del drop navegue a otra página
+    _sbDragItem.addEventListener('click', _sbPreventClick, { once: true, capture: true });
+    setTimeout(() => _sbDragItem?.removeEventListener('click', _sbPreventClick, { capture: true }), 100);
+  }
+  document.querySelectorAll('.sb-drop-above,.sb-drop-below').forEach(el => {
+    el.classList.remove('sb-drop-above', 'sb-drop-below');
+  });
+  _sbDragItem = null;
+  _sbDragSec = null;
+}
+
+function _sbPreventClick(e) { e.stopPropagation(); e.preventDefault(); }
+
+// ── Drag & drop — SECCIONES ──
+let _sbDragSecHeader = null;
+
+function _sbSecDragStart(e) {
+  _sbDragSecHeader = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', 'section');
+  setTimeout(() => _sbDragSecHeader.classList.add('sb-dragging'), 0);
+}
+
+function _sbSecDragOver(e) {
+  e.preventDefault();
+  if (!_sbDragSecHeader) return;
+  const target = e.currentTarget;
+  if (target === _sbDragSecHeader) return;
+  e.dataTransfer.dropEffect = 'move';
+  const rect = target.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  target.classList.remove('sb-drop-above', 'sb-drop-below');
+  target.classList.add(e.clientY < midY ? 'sb-drop-above' : 'sb-drop-below');
+}
+
+function _sbSecDragLeave(e) {
+  e.currentTarget.classList.remove('sb-drop-above', 'sb-drop-below');
+}
+
+function _sbSecDrop(e) {
+  e.preventDefault();
+  const targetHeader = e.currentTarget;
+  targetHeader.classList.remove('sb-drop-above', 'sb-drop-below');
+  if (!_sbDragSecHeader || targetHeader === _sbDragSecHeader) return;
+
+  const nav = document.getElementById('sbNav');
+  if (!nav) return;
+
+  // Obtener elementos a mover (header + items, o adminSection wrapper)
+  const dragEls = _sbGetSectionEls(_sbDragSecHeader);
+  const targetEls = _sbGetSectionEls(targetHeader);
+  if (!dragEls.length || !targetEls.length) return;
+
+  const rect = targetHeader.getBoundingClientRect();
+  const before = e.clientY < rect.top + rect.height / 2;
+  const refEl = before ? targetEls[0] : targetEls[targetEls.length - 1].nextSibling;
+
+  // Mover todos los elementos del grupo
+  dragEls.forEach(el => {
+    if (refEl) nav.insertBefore(el, refEl);
+    else nav.appendChild(el);
+  });
+
+  _sbSaveCurrentOrder();
+}
+
+function _sbSecDragEnd() {
+  if (_sbDragSecHeader) {
+    _sbDragSecHeader.classList.remove('sb-dragging');
+    _sbWasDragging = true; // Evitar que el click toggle la sección
+    setTimeout(() => { _sbWasDragging = false; }, 100);
+  }
+  document.querySelectorAll('.sb-drop-above,.sb-drop-below').forEach(el => {
+    el.classList.remove('sb-drop-above', 'sb-drop-below');
+  });
+  _sbDragSecHeader = null;
+}
+
+// Helper: obtener los elementos DOM de una sección (header + items, o adminSection)
+function _sbGetSectionEls(header) {
+  // Admin section está envuelto en #adminSection
+  const adminWrap = header.closest('#adminSection');
+  if (adminWrap) return [adminWrap];
+  // Normal: header + siguiente .sb-section-items
+  const next = header.nextElementSibling;
+  if (next && next.classList.contains('sb-section-items')) return [header, next];
+  return [header];
+}
+
+// ── Inicializar drag & drop en el sidebar ──
+function initSbDragDrop() {
+  // Items: hacer draggable cada .sb-item
+  document.querySelectorAll('.sb-section-items .sb-item').forEach(item => {
+    if (item._sbDragInit) return;
+    item._sbDragInit = true;
+    item.draggable = true;
+    item.addEventListener('dragstart', _sbItemDragStart);
+    item.addEventListener('dragover', _sbItemDragOver);
+    item.addEventListener('dragleave', _sbItemDragLeave);
+    item.addEventListener('drop', _sbItemDrop);
+    item.addEventListener('dragend', _sbItemDragEnd);
+  });
+
+  // Secciones: hacer draggable cada .sb-sec header
+  document.querySelectorAll('#sbNav .sb-sec').forEach(sec => {
+    if (sec._sbDragInit) return;
+    sec._sbDragInit = true;
+    sec.draggable = true;
+    sec.addEventListener('dragstart', _sbSecDragStart);
+    sec.addEventListener('dragover', _sbSecDragOver);
+    sec.addEventListener('dragleave', _sbSecDragLeave);
+    sec.addEventListener('drop', _sbSecDrop);
+    sec.addEventListener('dragend', _sbSecDragEnd);
+  });
+}
+
+// Inicializar al cargar
+document.addEventListener('DOMContentLoaded', () => {
+  applySbOrder();
+  initSbDragDrop();
+});
