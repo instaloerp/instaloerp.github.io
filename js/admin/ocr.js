@@ -257,7 +257,7 @@ function _ocrRenderTable(docs) {
       </td>
       <td style="padding:8px;white-space:nowrap" onclick="event.stopPropagation()">
         ${doc.estado === 'completado'
-          ? `<span style="font-size:11px;color:var(--gris-400)">Ya validado</span><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo);margin-left:6px" title="Eliminar">✕</button>`
+          ? `<span style="font-size:11px;color:var(--gris-400)">Ya validado</span>`
           : doc.documento_vinculado_id
           ? `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="font-size:11px;margin-right:4px">Ver doc.</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Eliminar">🗑️</button>`
           : datos?.materiales_seleccionados
@@ -344,8 +344,10 @@ async function ocrPrevisualizar(id) {
       ${contenido}
     </div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
-      ${doc.documento_vinculado_id
-        ? `<button class="btn btn-secondary" onclick="closeModal('mOcrPreview');ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`
+      ${doc.estado === 'completado'
+        ? (doc.documento_vinculado_id
+            ? `<button class="btn btn-secondary" onclick="closeModal('mOcrPreview');ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`
+            : `<div style="color:var(--verde);font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">✅ Documento ya validado</div>`)
         : doc.datos_extraidos?.materiales_seleccionados
           ? `<button class="btn btn-primary" onclick="closeModal('mOcrPreview');ocrValidar(${doc.id})" style="background:linear-gradient(135deg,#059669,#10B981);border:none;font-weight:600">✅ Validar materiales</button>
              <button class="btn btn-ghost" onclick="closeModal('mOcrPreview');ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
@@ -365,6 +367,12 @@ let _ocrCurrentDocId = null;
 async function ocrGestionar(id) {
   if (!EMPRESA?.anthropic_api_key) {
     toast('Configura primero la API Key de Anthropic en Configuración > Inteligencia Artificial', 'warning');
+    return;
+  }
+  // Bloquear si ya está completado
+  const { data: _chk } = await sb.from('documentos_ocr').select('estado').eq('id', id).single();
+  if (_chk?.estado === 'completado') {
+    toast('Este documento ya fue validado', 'info');
     return;
   }
 
@@ -663,6 +671,7 @@ let _ocrValidarProvExiste = false;
 async function ocrValidar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
+  if (doc.estado === 'completado') { toast('Este documento ya fue validado', 'info'); return; }
   const datos = doc.datos_extraidos || {};
   const materiales = datos.materiales_seleccionados || [];
   if (!materiales.length) { toast('Este documento no tiene materiales registrados', 'warning'); return; }
