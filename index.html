@@ -1163,47 +1163,42 @@
 
       <!-- STOCK -->
       <div class="page" id="page-stock">
-        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
-            <button class="btn btn-sm" style="background:#16A34A;color:#fff;font-weight:700" onclick="abrirCalculoMinimos()">📊 Calcular Mínimos</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportStock()">📊 Excel</button>
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)">
+            <div class="si">📦</div><div class="sv" id="kpi-total-refs">0</div><div class="sl">Referencias</div></div>
+          <div class="sc" style="--c:var(--naranja);--bg:var(--amarillo-light)">
+            <div class="si">⚠️</div><div class="sv" id="kpi-bajo-minimo">0</div><div class="sl">Bajo mínimo</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)">
+            <div class="si">💰</div><div class="sv" id="kpi-valor-stock">0 €</div><div class="sl">Valor stock</div></div>
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)">
+            <div class="si">🏢</div><div class="sv" id="kpi-almacenes">0</div><div class="sl">Almacenes</div></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Referencias</div>
-            <div id="kpi-total-refs" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Bajo Mínimo</div>
-            <div id="kpi-bajo-minimo" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Valor Stock</div>
-            <div id="kpi-valor-stock" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Almacenes</div>
-            <div id="kpi-almacenes" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
-          </div>
+        <!-- Acciones -->
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
+          <button class="btn btn-sm" style="background:#16A34A;color:#fff;font-weight:700" onclick="abrirCalculoMinimos()">📊 Calcular Mínimos</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportStock()">📊 Excel</button>
         </div>
-        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-          <select id="filter-almacen" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <option value="">Todos los almacenes</option>
-          </select>
-          <select id="filter-familia" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <option value="">Todas las familias</option>
-          </select>
-          <input type="text" id="filter-texto" placeholder="Buscar artículo..." style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;flex:1;max-width:300px">
-          <select id="filter-estado" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <option value="all">Todos</option>
-            <option value="ok">OK</option>
-            <option value="bajo">Bajo</option>
-            <option value="agotado">Agotado</option>
-          </select>
-        </div>
-        <div class="card" style="padding:0;overflow:hidden">
+        <!-- Tabla -->
+        <div class="card">
+          <div class="card-h" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="filter-almacen" onchange="filtrarStock()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+              <option value="">Todos los almacenes</option>
+            </select>
+            <select id="filter-familia" onchange="filtrarStock()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+              <option value="">Todas las familias</option>
+            </select>
+            <input type="text" id="filter-texto" placeholder="🔍 Buscar artículo..." oninput="filtrarStock()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;width:260px;outline:none">
+            <select id="filter-estado" onchange="filtrarStock()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+              <option value="all">Todos</option>
+              <option value="ok">OK</option>
+              <option value="bajo">Bajo mínimo</option>
+              <option value="agotado">Agotado</option>
+            </select>
+          </div>
           <div class="tw"><table class="dt"><thead><tr>
-            <th>Artículo</th><th>Código</th><th>Familia</th><th>Almacén</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Mínimo</th><th>Estado</th><th style="text-align:right">Valor</th><th style="text-align:center">Acciones</th>
-          </tr></thead><tbody id="stock-table"><tr></tr></tbody></table></div>
+            <th>Artículo</th><th>Código</th><th>Familia</th><th>Almacén</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Provisional</th><th style="text-align:right">Mínimo</th><th>Estado</th><th style="text-align:right">Valor</th><th style="text-align:center;width:80px"></th>
+          </tr></thead><tbody id="stock-table"></tbody></table></div>
         </div>
       </div>
 

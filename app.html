@@ -1119,16 +1119,21 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
   };
   await sb.from('consumos_parte').insert(consumo);
 
-  // 2. Descontar stock de furgoneta (si hay furgoneta y artículo del catálogo)
+  // 2. Descontar stock REAL de furgoneta (puede ir a negativo si aún no se validó)
+  //    El provisional se mantiene intacto — se convertirá a real al validar.
+  //    Así los movimientos cuadran: entrada +10 (validación) / salida -5 (consumo) = 5 real
   if (almacenId && material.articulo_id && !sinStock) {
-    const nuevaCant = Math.max(0, stock.cantidad - material.cantidad);
-    await sb.from('stock')
-      .update({ cantidad: nuevaCant })
-      .eq('almacen_id', almacenId)
-      .eq('articulo_id', material.articulo_id)
-      .eq('empresa_id', EMPRESA.id);
+    const { data: stFresh } = await sb.from('stock').select('*')
+      .eq('almacen_id', almacenId).eq('articulo_id', material.articulo_id)
+      .eq('empresa_id', EMPRESA.id).limit(1);
 
-    // Registrar movimiento
+    if (stFresh?.[0]) {
+      const nuevaCant = (stFresh[0].cantidad || 0) - material.cantidad;
+      await sb.from('stock').update({ cantidad: nuevaCant })
+        .eq('id', stFresh[0].id);
+    }
+
+    // Registrar movimiento de salida
     await sb.from('movimientos_stock').insert({
       empresa_id: EMPRESA.id,
       articulo_id: material.articulo_id,

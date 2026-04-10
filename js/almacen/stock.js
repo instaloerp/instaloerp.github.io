@@ -32,33 +32,36 @@ function renderStock(list) {
   const tbody = document.getElementById('stock-table');
   if (!tbody) return;
 
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="ei">📦</div><h3>Sin stock registrado</h3></div></td></tr>';
+    return;
+  }
+
   tbody.innerHTML = list.map(row => {
     const art = articulos.find(a => a.id === row.articulo_id);
     const fam = familias.find(f => f.id === art?.familia_id);
     const alm = almacenes.find(a => a.id === row.almacen_id);
-    const status = row.cantidad <= 0 ? 'agotado' : row.cantidad < row.stock_minimo ? 'bajo' : 'ok';
+    const status = row.cantidad <= 0 ? 'agotado' : (row.stock_minimo > 0 && row.cantidad < row.stock_minimo) ? 'bajo' : 'ok';
     const cost = (art?.precio_coste || 0) * row.cantidad;
+    const prov = row.stock_provisional || 0;
+    const badgeMap = { ok: 'bg-green', bajo: 'bg-orange', agotado: 'bg-red' };
+    const labelMap = { ok: '✓ OK', bajo: '⚠️ Bajo', agotado: '✗ Agotado' };
 
-    return `
-      <tr class="status-${status}">
-        <td>${art?.nombre || 'N/A'}</td>
-        <td>${art?.codigo || 'N/A'}</td>
-        <td>${fam?.nombre || 'N/A'}</td>
-        <td>${alm?.nombre || 'N/A'}</td>
-        <td class="text-right">${row.cantidad}</td>
-        <td class="text-right">${row.stock_minimo}</td>
-        <td>
-          <span class="badge badge-${status}">
-            ${status === 'ok' ? 'OK' : status === 'bajo' ? 'Bajo' : 'Agotado'}
-          </span>
-        </td>
-        <td class="text-right">${fmtE(cost)}</td>
-        <td class="text-center">
-          <button class="btn-sm" onclick="ajustarStock(${row.articulo_id}, ${row.almacen_id})">Ajustar</button>
-          <button class="btn-sm" onclick="verMovimientos(${row.articulo_id}, ${row.almacen_id})">Ver</button>
-        </td>
-      </tr>
-    `;
+    return `<tr>
+      <td><div style="font-weight:600;font-size:12.5px">${art?.nombre || 'Sin nombre'}</div></td>
+      <td><span style="font-family:monospace;font-size:11px;color:var(--azul)">${art?.codigo || '—'}</span></td>
+      <td style="font-size:12px;color:var(--gris-500)">${fam?.nombre || '—'}</td>
+      <td style="font-size:12px">${alm?.nombre || '—'}</td>
+      <td style="text-align:right;font-weight:700;font-size:13px">${row.cantidad}</td>
+      <td style="text-align:right;font-size:12px;color:${prov > 0 ? 'var(--naranja)' : 'var(--gris-300)'}">${prov > 0 ? prov + ' prov.' : '—'}</td>
+      <td style="text-align:right;font-size:12px;color:var(--gris-400)">${row.stock_minimo || 0}</td>
+      <td><span class="badge ${badgeMap[status]}" style="font-size:11px">${labelMap[status]}</span></td>
+      <td style="text-align:right;font-weight:600;font-size:12px">${fmtE(cost)}</td>
+      <td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center">
+        <button class="btn btn-ghost btn-sm" onclick="ajustarStock(${row.articulo_id}, ${row.almacen_id})" title="Ajustar stock">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="verMovimientos(${row.articulo_id}, ${row.almacen_id})" title="Ver movimientos">📋</button>
+      </div></td>
+    </tr>`;
   }).join('');
 }
 
@@ -94,12 +97,11 @@ function updateStockKPIs() {
   }, 0);
   const almacenesActivos = new Set(stockData.map(s => s.almacen_id)).size;
 
-  setVal({
-    'kpi-total-refs': totalRefs,
-    'kpi-bajo-minimo': bajoMinimo,
-    'kpi-valor-stock': fmtE(valorStock),
-    'kpi-almacenes': almacenesActivos
-  });
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('kpi-total-refs', totalRefs);
+  _s('kpi-bajo-minimo', bajoMinimo);
+  _s('kpi-valor-stock', fmtE(valorStock));
+  _s('kpi-almacenes', almacenesActivos);
 }
 
 // Abrir modal para ajustar stock
