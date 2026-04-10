@@ -6588,8 +6588,8 @@ function _ocrRenderPreview() {
   const isWizMode = !d._fabMode;
   if (isWizMode) {
     const selCount = d.allLineas.filter(l => l.selected).length;
-    html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:4px;font-weight:600">📦 ${totalLineas} material${totalLineas > 1 ? 'es' : ''} → todos a furgoneta (provisional)</div>`;
-    html += `<div style="font-size:11px;color:#1D4ED8;margin-bottom:10px">✏️ Marca los que quieres añadir a este parte (<span id="ocrSelCount">${selCount}</span>/${totalLineas} seleccionados)</div>`;
+    html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:4px;font-weight:600">📦 ${totalLineas} material${totalLineas > 1 ? 'es' : ''} → todos a furgoneta (cantidad recibida)</div>`;
+    html += `<div style="font-size:11px;color:#1D4ED8;margin-bottom:10px">🔧 Marca los que van a este parte y ajusta la cantidad (<span id="ocrSelCount">${selCount}</span>/${totalLineas})</div>`;
   } else {
     html += `<div style="font-size:12px;color:var(--gris-500);margin-bottom:10px;font-weight:600">${totalLineas} material${totalLineas > 1 ? 'es' : ''} — todos entrarán en furgoneta como provisional</div>`;
   }
@@ -6627,6 +6627,8 @@ function _ocrRenderLine(l) {
   const isWizMode = _ocrPreviewData && !_ocrPreviewData._fabMode;
   const checked = l.selected ? 'checked' : '';
   const dimStyle = (!l.selected && isWizMode) ? 'opacity:0.45;' : '';
+  // En modo wizard: cantidadParte = lo que va al parte (por defecto = cantidad)
+  if (isWizMode && l.cantidadParte === undefined) l.cantidadParte = l.cantidad;
   return `<div class="ocr-line-item selected" id="ocrLine${l.idx}" style="${dimStyle}">
     ${isWizMode ? `<label style="display:flex;align-items:center;padding:2px 6px 2px 0;cursor:pointer;flex-shrink:0">
       <input type="checkbox" ${checked} onchange="_ocrToggleSel(${l.idx}, this.checked)"
@@ -6634,11 +6636,26 @@ function _ocrRenderLine(l) {
     </label>` : ''}
     <div class="ocr-line-detail" style="width:100%">
       <div class="ocr-line-name">${l.nombre}${l.artMatch ? ` <span style="font-size:9px;color:var(--verde);font-weight:700">✓ catálogo</span>` : ''}</div>
+      ${isWizMode ? `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <div class="ocr-line-qty" style="flex:1">
+          <span style="font-size:11px;color:#666">📦 Recibido:</span>
+          <input type="number" value="${l.cantidad}" min="0.01" step="any" onchange="_ocrUpdateQty(${l.idx}, this.value)"
+            style="width:60px">
+          <span>${l.unidad}</span>
+        </div>
+        <div class="ocr-line-qty" style="flex:1">
+          <span style="font-size:11px;color:#1D4ED8">🔧 Al parte:</span>
+          <input type="number" value="${l.cantidadParte}" min="0" step="any" onchange="_ocrUpdateQtyParte(${l.idx}, this.value)"
+            style="width:60px;border-color:#1D4ED8">
+          <span>${l.unidad}</span>
+        </div>
+      </div>` : `
       <div class="ocr-line-qty">
         <span>Cant:</span>
         <input type="number" value="${l.cantidad}" min="0.01" step="any" onchange="_ocrUpdateQty(${l.idx}, this.value)">
         <span>${l.unidad}</span>
-      </div>
+      </div>`}
     </div>
   </div>`;
 }
@@ -6665,7 +6682,23 @@ function _ocrToggleSel(idx, checked) {
 function _ocrUpdateQty(idx, val) {
   if (!_ocrPreviewData) return;
   const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
-  if (l) l.cantidad = parseFloat(val) || 1;
+  if (l) {
+    l.cantidad = parseFloat(val) || 1;
+    // Si cantidadParte > cantidad recibida, ajustar
+    if (l.cantidadParte !== undefined && l.cantidadParte > l.cantidad) {
+      l.cantidadParte = l.cantidad;
+    }
+  }
+}
+
+function _ocrUpdateQtyParte(idx, val) {
+  if (!_ocrPreviewData) return;
+  const l = _ocrPreviewData.allLineas.find(x => x.idx === idx);
+  if (l) {
+    let v = parseFloat(val) || 0;
+    if (v > l.cantidad) v = l.cantidad; // No puede superar lo recibido
+    l.cantidadParte = v;
+  }
 }
 
 function ocrPreviewCerrar() {
@@ -6774,17 +6807,18 @@ async function ocrPreviewConfirmar() {
 
   // ── Modo wizard: misma lógica que FAB (furgoneta + bandeja OCR) + añadir al parte ──
 
-  // 1. Añadir solo materiales SELECCIONADOS al parte de trabajo
-  const seleccionadosParte = todos.filter(l => l.selected);
+  // 1. Añadir solo materiales SELECCIONADOS al parte de trabajo (con cantidadParte)
+  const seleccionadosParte = todos.filter(l => l.selected && (l.cantidadParte || 0) > 0);
   for (const l of seleccionadosParte) {
+    const qParte = l.cantidadParte || l.cantidad;
     _wiz.materiales.push({
       articulo_id: l.artMatch?.id || null,
       nombre: l.nombre,
       codigo: l.codigo,
-      cantidad: l.cantidad,
+      cantidad: qParte,
       precio: l.precio,
       unidad: l.unidad,
-      total: l.cantidad * l.precio,
+      total: qParte * l.precio,
       _ocr: true,
     });
   }
@@ -6813,7 +6847,9 @@ async function ocrPreviewConfirmar() {
   // 3. Cerrar preview y refrescar wizard
   const nParte = seleccionadosParte.length;
   const nFurg = todos.length;
-  toast(`✅ ${nParte} al parte · ${nFurg} a furgoneta (provisional)`, 'success');
+  const qParte = seleccionadosParte.reduce((s, l) => s + (l.cantidadParte || l.cantidad), 0);
+  const qFurg = todos.reduce((s, l) => s + l.cantidad, 0);
+  toast(`✅ ${nParte} material(es) al parte (${qParte} uds) · ${nFurg} a furgoneta (${qFurg} uds)`, 'success');
   document.getElementById('ocrPreviewOverlay').classList.remove('active');
   _ocrPreviewData = null;
   renderWizStep();
