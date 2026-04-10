@@ -411,6 +411,19 @@ body.sb-fullscreen #main{margin-left:0}
 #sidebar{transition:transform .25s cubic-bezier(.4,0,.2,1)}
 #main{transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
 
+/* ══ DASHBOARD — tarjetas con pestaña de color ══ */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dash-card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);border-left:4px solid var(--gris-200);overflow:hidden;resize:vertical;min-height:80px}
+.dash-card--orange{border-left-color:var(--acento)}
+.dash-card--green{border-left-color:var(--verde)}
+.dash-card--blue{border-left-color:var(--azul)}
+.dash-card--red{border-left-color:var(--rojo)}
+.dash-card--yellow{border-left-color:var(--amarillo)}
+.dash-card--violet{border-left-color:var(--violeta)}
+.dash-card .card-h{padding:12px 14px 8px}
+.dash-card .card-b{padding:0 14px 12px}
+@media(max-width:900px){.dash-grid{grid-template-columns:1fr}}
+
 /* ══ FICHA OBRA — filas de docs y partes ══ */
 /* parte-row: hover INSTANTÁNEO — cero transiciones, cero reflow */
 .parte-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--gris-100);cursor:pointer;border-radius:6px;margin-bottom:4px;border-left:3px solid var(--gris-100)}

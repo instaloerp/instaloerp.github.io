@@ -291,32 +291,26 @@
           <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="d-vencidas">—</div><div class="sl">Facturas vencidas</div></div>
         </div>
 
-        <!-- ALERTAS: Incidencias stock -->
+        <!-- ALERTAS -->
         <div id="dash-incidencias" style="display:none;margin-bottom:16px"></div>
-
-        <!-- ALERTAS: Partes completados + Documentos OCR pendientes -->
         <div id="dash-partes-completados" style="display:none;margin-bottom:16px"></div>
-        <div id="dash-docs-ocr" style="display:none;margin-bottom:16px"></div>
 
-        <!-- FILA 3: Mis Tareas + Tablas -->
-        <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
-          <div class="card">
+        <!-- TARJETAS con pestaña de color y resize -->
+        <div class="dash-grid">
+          <div class="dash-card dash-card--orange" id="dash-docs-ocr" style="display:none"></div>
+          <div class="dash-card dash-card--green">
             <div class="card-h"><h3>✅ Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
-            <div class="card-b" id="d-tareas-list" style="max-height:320px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
+            <div class="card-b" id="d-tareas-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
           </div>
-          <div class="card">
+          <div class="dash-card dash-card--blue">
             <div class="card-h"><h3>🏗️ Obras activas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('trabajos')">Ver todos</button></div></div>
-            <div class="card-b" id="d-trabajos-list"><div class="empty"><div class="ei">🏗️</div><p>Sin obras</p></div></div>
+            <div class="card-b" id="d-trabajos-list"><div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div></div>
           </div>
-        </div>
-
-        <!-- FILA 4: Facturas + Presupuestos -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="card">
+          <div class="dash-card dash-card--red">
             <div class="card-h"><h3>🧾 Facturas pendientes cobro</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas')">Ver todas</button></div></div>
-            <div class="card-b" id="d-fact-list"><div class="empty"><div class="ei">🧾</div><p>Sin facturas pendientes</p></div></div>
+            <div class="card-b" id="d-fact-list"><div class="empty"><div class="ei">✅</div><p>Todo cobrado</p></div></div>
           </div>
-          <div class="card">
+          <div class="dash-card dash-card--yellow">
             <div class="card-h"><h3>📋 Presupuestos pendientes</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('presupuestos')">Ver todos</button></div></div>
             <div class="card-b" id="d-presup-list"><div class="empty"><div class="ei">📋</div><p>Sin presupuestos</p></div></div>
           </div>

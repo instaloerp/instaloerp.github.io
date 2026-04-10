@@ -325,23 +325,18 @@ async function loadDashboardDocsOcr() {
   if (!docs.length) { el.style.display = 'none'; return; }
 
   el.style.display = '';
-  el.innerHTML = `<div class="card" style="padding:10px 14px;border-left:3px solid var(--acento)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${docs.length > 1 ? '8' : '0'}px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:18px">📷</span>
-        <span style="font-weight:700;font-size:13px">${docs.length} doc${docs.length>1?'s':''} pendiente${docs.length>1?'s':''}</span>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="goPage('ocr')" style="font-size:11px;padding:4px 10px">Gestionar</button>
-    </div>
-    ${docs.length > 1 ? `<div style="max-height:120px;overflow-y:auto">
-      ${docs.slice(0, 5).map(d => {
+  el.innerHTML = `
+    <div class="card-h"><h3>📷 Documentos OCR pendientes</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('ocr')">Gestionar</button></div></div>
+    <div class="card-b" style="max-height:200px;overflow-y:auto">
+      ${docs.map(d => {
         const fecha = d.created_at ? new Date(d.created_at).toLocaleString('es-ES', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
         const nombre = d.datos_extraidos?.numero_documento || d.archivo_nombre || 'Documento';
-        return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--gris-100);font-size:11px;cursor:pointer" onclick="goPage('ocr')">
+        return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--gris-100);font-size:12px;cursor:pointer" onclick="goPage('ocr')">
+          <span style="font-size:14px">📄</span>
           <span style="flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</span>
-          <span style="color:var(--gris-400);flex-shrink:0">${fecha}</span>
+          <span style="color:var(--gris-400);flex-shrink:0;font-size:10px">${fecha}</span>
+          <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:#FEE2E2;color:#991B1B;font-weight:700">${d.estado}</span>
         </div>`;
       }).join('')}
-    </div>` : ''}
-  </div>`;
+    </div>`;
 }
