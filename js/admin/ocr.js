@@ -564,154 +564,209 @@ async function ocrEliminar(id) {
 // ═══════════════════════════════════════════════
 // VALIDAR — Documentos que vienen de la app móvil
 // El operario ya escaneó, creó artículos y metió stock provisional.
-// Admin revisa y confirma: provisional → real stock.
+// Admin revisa datos + confirma stock + genera albarán/factura.
+// Pantalla completa split-screen.
 // ═══════════════════════════════════════════════
-let _ocrValidarDoc = null; // doc actual en validación
+let _ocrValidarDoc = null;
+let _ocrValidarProvMatch = null;
 
 async function ocrValidar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
   if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
-
   const datos = doc.datos_extraidos || {};
   const materiales = datos.materiales_seleccionados || [];
-
-  if (!materiales.length) {
-    toast('Este documento no tiene materiales registrados', 'warning');
-    return;
-  }
-
+  if (!materiales.length) { toast('Este documento no tiene materiales registrados', 'warning'); return; }
   _ocrValidarDoc = doc;
 
-  // Obtener imagen del documento
+  // Imagen
   let imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
   const fotosArr = datos.fotos_urls || [];
 
-  // Obtener info actual de stock provisional para cada material
+  // Stock provisional actual
   const artIds = materiales.filter(m => m.articulo_id).map(m => m.articulo_id);
   let stockMap = {};
   if (artIds.length) {
     const { data: stockRows } = await sb.from('stock')
-      .select('articulo_id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
-      .eq('empresa_id', EMPRESA.id)
-      .in('articulo_id', artIds);
-    if (stockRows) {
-      stockRows.forEach(s => {
-        if (!stockMap[s.articulo_id]) stockMap[s.articulo_id] = [];
-        stockMap[s.articulo_id].push(s);
-      });
-    }
+      .select('articulo_id, almacen_id, cantidad, stock_provisional, almacenes(nombre, tipo)')
+      .eq('empresa_id', EMPRESA.id).in('articulo_id', artIds);
+    if (stockRows) stockRows.forEach(s => {
+      if (!stockMap[s.articulo_id]) stockMap[s.articulo_id] = [];
+      stockMap[s.articulo_id].push(s);
+    });
   }
 
-  // Obtener nombres de artículos actualizados
-  let artNombreMap = {};
+  // Nombres actualizados
+  let artMap = {};
   if (artIds.length) {
-    const { data: arts } = await sb.from('articulos').select('id,nombre,codigo').in('id', artIds);
-    if (arts) arts.forEach(a => { artNombreMap[a.id] = a; });
+    const { data: arts } = await sb.from('articulos').select('id,nombre,codigo,precio_coste').in('id', artIds);
+    if (arts) arts.forEach(a => { artMap[a.id] = a; });
   }
 
-  // Buscar nombre de usuario
+  // Usuarios
   const userMap = {};
-  if (typeof todosUsuarios !== 'undefined' && todosUsuarios) {
-    todosUsuarios.forEach(u => { userMap[u.id] = u.nombre || u.email || '—'; });
-  }
+  if (typeof todosUsuarios !== 'undefined' && todosUsuarios) todosUsuarios.forEach(u => { userMap[u.id] = u.nombre || u.email || '—'; });
   const operarioNombre = datos.operario || userMap[doc.usuario_id] || '—';
   const furgonetaNombre = datos.furgoneta || '—';
-  const fechaDoc = new Date(doc.created_at).toLocaleString('es-ES');
 
-  // Resumen del documento OCR
-  const provNombre = datos.proveedor?.nombre || (typeof datos.proveedor === 'string' ? datos.proveedor : '') || '—';
-  const numDoc = datos.numero || datos.numero_documento || '—';
+  // Proveedor
+  const provRaw = datos.proveedor || null;
+  const provNombre = provRaw?.nombre || (typeof provRaw === 'string' ? provRaw : '') || '';
+  const provCif = provRaw?.cif || provRaw?.nif || datos.cif || datos.nif || '';
+  const numDoc = datos.numero || datos.numero_documento || '';
+  const fechaOcr = datos.fecha || new Date(doc.created_at).toISOString().split('T')[0];
+  const tipoDoc = doc.tipo_documento || datos.tipo_documento || 'albaran';
 
-  // Construir filas de materiales
+  _ocrValidarProvMatch = typeof _iaBuscarProveedorExistente === 'function'
+    ? _iaBuscarProveedorExistente(typeof provRaw === 'object' ? provRaw : { nombre: provNombre, cif: provCif })
+    : null;
+  const provExiste = !!_ocrValidarProvMatch;
+
+  // HTML proveedor
+  const provHtml = `
+    <div style="background:${provExiste ? '#F0FDF4' : '#FEF3C7'};border:1px solid ${provExiste ? '#BBF7D0' : '#FDE68A'};border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:${provExiste ? '#065F46' : '#92400E'}">
+        🏭 Proveedor ${provExiste ? '✓ ' + _ocrValidarProvMatch.nombre : '— NO encontrado'}
+      </div>
+      ${provExiste
+        ? '<div style="font-size:11px;color:var(--gris-500)">' + (_ocrValidarProvMatch.cif ? 'CIF: ' + _ocrValidarProvMatch.cif : '') + '</div>'
+        : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+            '<div><label style="font-size:10px;font-weight:600">Nombre</label>' +
+              '<input type="text" id="ocrValProvNombre" value="' + provNombre.replace(/"/g, '&quot;') + '" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600"></div>' +
+            '<div><label style="font-size:10px;font-weight:600">CIF/NIF</label>' +
+              '<input type="text" id="ocrValProvCif" value="' + provCif.replace(/"/g, '&quot;') + '" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>' +
+          '</div>'}
+    </div>`;
+
+  // Filas materiales
   const filasHtml = materiales.map((m, idx) => {
-    const art = m.articulo_id ? artNombreMap[m.articulo_id] : null;
+    const art = m.articulo_id ? artMap[m.articulo_id] : null;
     const stocks = m.articulo_id ? (stockMap[m.articulo_id] || []) : [];
-    const furgStock = stocks.find(s => s.almacenes?.tipo === 'furgoneta');
-    const provActual = furgStock ? (furgStock.stock_provisional || 0) : 0;
-    const realActual = furgStock ? (furgStock.cantidad || 0) : 0;
-
-    const nombreDisplay = art ? art.nombre : (m.nombre || 'Material desconocido');
+    // Buscar registro con stock provisional (puede ser furgoneta u otro almacén)
+    const furgStock = stocks.find(s => s.almacenes?.tipo === 'furgoneta') || stocks.find(s => (s.stock_provisional || 0) > 0) || stocks[0];
+    const provActual = stocks.reduce((sum, s) => sum + (s.stock_provisional || 0), 0);
+    const realActual = stocks.reduce((sum, s) => sum + (s.cantidad || 0), 0);
+    const nombreDisplay = art ? art.nombre : (m.nombre || '?');
     const codigoDisplay = art ? (art.codigo || '') : (m.codigo || '');
+    const precioCoste = art?.precio_coste || 0;
     const enCatalogo = m.en_catalogo || !!art;
 
-    return `<tr data-idx="${idx}">
-      <td style="padding:8px 10px;font-size:12px">
-        <div style="font-weight:600">${nombreDisplay}</div>
-        ${codigoDisplay ? `<div style="font-size:10px;color:var(--gris-400)">${codigoDisplay}</div>` : ''}
-        ${!enCatalogo ? `<span style="font-size:9px;background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:8px;font-weight:600">NUEVO</span>` : ''}
+    return `<tr data-idx="${idx}" style="border-bottom:1px solid var(--gris-100)">
+      <td style="padding:6px 8px">
+        <input type="text" value="${nombreDisplay.replace(/"/g, '&quot;')}" data-validar-nombre="${idx}"
+          style="width:100%;border:1px solid ${enCatalogo ? 'var(--gris-200)' : '#FDE68A'};border-radius:5px;padding:4px 6px;font-size:12px;font-weight:600;background:${enCatalogo ? '#fff' : '#FFFBEB'}">
+        <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
+          <input type="text" value="${codigoDisplay.replace(/"/g, '&quot;')}" data-validar-codigo="${idx}" placeholder="Código"
+            style="width:100px;border:1px solid var(--gris-200);border-radius:4px;padding:2px 5px;font-size:10px;color:var(--gris-500)">
+          ${!enCatalogo ? '<span style="font-size:9px;background:#FEF3C7;color:#92400E;padding:1px 5px;border-radius:8px;font-weight:600">NUEVO</span>' : '<span style="font-size:9px;background:#D1FAE5;color:#065F46;padding:1px 5px;border-radius:8px;font-weight:600">CATÁLOGO</span>'}
+        </div>
       </td>
-      <td style="text-align:center;padding:8px;font-weight:700;font-size:14px">${m.cantidad}</td>
-      <td style="text-align:center;padding:8px;font-size:12px">${m.unidad || 'ud'}</td>
-      <td style="text-align:center;padding:8px">
+      <td style="text-align:center;padding:6px;font-weight:700;font-size:14px">${m.cantidad}</td>
+      <td style="text-align:center;padding:6px;font-size:11px;color:var(--gris-500)">${m.unidad || 'ud'}</td>
+      <td style="text-align:center;padding:6px">
+        <input type="number" value="${precioCoste}" min="0" step="0.01" data-validar-precio="${idx}"
+          style="width:70px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:12px">
+      </td>
+      <td style="text-align:center;padding:6px">
         <span style="color:var(--naranja);font-weight:700">${provActual}</span>
-        <span style="font-size:10px;color:var(--gris-400)"> prov</span>
+        <span style="font-size:9px;color:var(--gris-400)">prov</span>
       </td>
-      <td style="text-align:center;padding:8px">
-        <span style="font-weight:600">${realActual}</span>
-        <span style="font-size:10px;color:var(--gris-400)"> real</span>
+      <td style="text-align:center;padding:6px">
+        <span style="font-weight:700">${realActual}</span>
+        <span style="font-size:9px;color:var(--gris-400)">real</span>
       </td>
-      <td style="text-align:center;padding:8px">
-        <input type="number" value="${m.cantidad}" min="0" step="1"
-          style="width:60px;text-align:center;border:1px solid var(--gris-200);border-radius:6px;padding:4px;font-size:13px;font-weight:700"
-          data-validar-qty="${idx}">
+      <td style="text-align:center;padding:6px">
+        <input type="number" value="${m.cantidad}" min="0" step="1" data-validar-qty="${idx}"
+          style="width:60px;text-align:center;border:2px solid #10B981;border-radius:8px;padding:5px;font-size:13px;font-weight:700">
       </td>
     </tr>`;
   }).join('');
 
-  // Imagen principal (primera foto o archivo_path)
+  // Imágenes
   let imgHtml = '';
   if (fotosArr.length) {
-    imgHtml = fotosArr.map((url, i) => `<img src="${url}" style="max-width:100%;max-height:250px;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:4px">`).join('');
+    imgHtml = fotosArr.map(url =>
+      `<img src="${url}" style="max-width:100%;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:8px;cursor:pointer" onclick="window.open('${url}','_blank')" title="Click para ampliar">`
+    ).join('');
   } else if (imgUrl) {
-    imgHtml = `<img src="${imgUrl}" style="max-width:100%;max-height:350px;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
+    imgHtml = `<img src="${imgUrl}" style="max-width:100%;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200);cursor:pointer" onclick="window.open('${imgUrl}','_blank')" title="Click para ampliar">`;
   }
 
   const container = document.getElementById('ocrValidarContent');
   container.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;padding:8px 0">
-      <!-- Columna izquierda: foto + info -->
-      <div>
-        <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:12px;text-align:center">
-          ${imgHtml || '<div style="padding:40px;color:var(--gris-400)">Sin imagen</div>'}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;height:100%;overflow:hidden">
+      <!-- COL IZQUIERDA: foto -->
+      <div style="overflow-y:auto;padding:16px;background:#f8f9fa;border-right:1px solid var(--gris-200)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:700;font-size:14px">📄 Documento escaneado</div>
+          ${imgUrl ? '<button class="btn btn-ghost btn-sm" onclick="window.open(\'' + imgUrl + '\',\'_blank\')" style="font-size:11px">🔗 Abrir en pestaña</button>' : ''}
         </div>
-        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:12px;font-size:12px">
-          <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#065F46">📋 Información del documento</div>
-          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Operario:</span> <strong>${operarioNombre}</strong></div>
-          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Furgoneta:</span> <strong>${furgonetaNombre}</strong></div>
-          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Proveedor:</span> <strong>${provNombre}</strong></div>
-          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Nº documento:</span> <strong>${numDoc}</strong></div>
-          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Fecha:</span> <strong>${fechaDoc}</strong></div>
-          <div><span style="color:var(--gris-500)">Materiales:</span> <strong>${materiales.length}</strong></div>
+        <div style="text-align:center">
+          ${imgHtml || '<div style="padding:60px;color:var(--gris-400)">Sin imagen</div>'}
         </div>
       </div>
 
-      <!-- Columna derecha: tabla de materiales -->
-      <div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:8px">📦 Materiales escaneados por el operario</div>
-        <div style="font-size:11px;color:var(--gris-500);margin-bottom:10px">
-          Revisa las cantidades. Al validar, el stock <strong>provisional</strong> se convertirá en stock <strong>real</strong>.
+      <!-- COL DERECHA: datos + materiales -->
+      <div style="overflow-y:auto;padding:16px;display:flex;flex-direction:column">
+        <!-- Tipo + datos documento -->
+        <div style="margin-bottom:12px">
+          <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+            📋 Tipo de documento:
+            <select id="ocrValTipoDoc" style="padding:4px 10px;border:1.5px solid var(--azul);border-radius:8px;font-size:13px;font-weight:700;color:var(--azul);background:#eef2ff;cursor:pointer">
+              <option value="albaran" ${tipoDoc === 'albaran' ? 'selected' : ''}>📥 Albarán de proveedor</option>
+              <option value="factura" ${tipoDoc === 'factura' ? 'selected' : ''}>🧾 Factura de proveedor</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Nº documento</label>
+              <input type="text" id="ocrValNumero" value="${numDoc.replace(/"/g, '&quot;')}" class="input" style="margin-top:2px;font-size:13px;font-weight:600">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Fecha</label>
+              <input type="date" id="ocrValFecha" value="${fechaOcr}" class="input" style="margin-top:2px;font-size:13px">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Operario / Furgoneta</label>
+              <div class="input" style="margin-top:2px;font-size:12px;background:var(--gris-50);padding:6px 8px;color:var(--gris-600)">👷 ${operarioNombre} · 🚐 ${furgonetaNombre}</div>
+            </div>
+          </div>
+          <div style="margin-top:6px">
+            <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Observaciones</label>
+            <input type="text" id="ocrValNotas" value="" class="input" style="margin-top:2px;font-size:12px" placeholder="Notas adicionales...">
+          </div>
         </div>
-        <div style="overflow-x:auto;border:1px solid var(--gris-200);border-radius:10px">
+
+        <!-- Proveedor -->
+        <div style="margin-bottom:12px">${provHtml}</div>
+
+        <!-- Materiales -->
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📦 Materiales — ${materiales.length} artículo(s)</div>
+        <div style="font-size:10px;color:var(--gris-500);margin-bottom:6px">
+          Edita nombre, código, precio y cantidad. Al validar se confirma el stock y se genera el documento de compra.
+        </div>
+        <div style="flex:1;overflow-y:auto;border:1px solid var(--gris-200);border-radius:10px;min-height:120px">
           <table style="width:100%;border-collapse:collapse">
-            <thead>
-              <tr style="background:var(--gris-50);font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase">
-                <th style="padding:8px 10px;text-align:left">Material</th>
-                <th style="padding:8px;text-align:center">Escaneado</th>
-                <th style="padding:8px;text-align:center">Unidad</th>
-                <th style="padding:8px;text-align:center">Stock prov.</th>
-                <th style="padding:8px;text-align:center">Stock real</th>
-                <th style="padding:8px;text-align:center">Validar</th>
+            <thead style="position:sticky;top:0;z-index:2">
+              <tr style="background:var(--gris-50);font-size:9px;font-weight:700;color:var(--gris-500);text-transform:uppercase">
+                <th style="padding:6px 8px;text-align:left">Material / Código</th>
+                <th style="padding:6px;text-align:center;width:55px">Leído</th>
+                <th style="padding:6px;text-align:center;width:40px">Ud</th>
+                <th style="padding:6px;text-align:center;width:75px">Precio</th>
+                <th style="padding:6px;text-align:center;width:60px">Prov.</th>
+                <th style="padding:6px;text-align:center;width:55px">Real</th>
+                <th style="padding:6px;text-align:center;width:65px">Validar</th>
               </tr>
             </thead>
             <tbody>${filasHtml}</tbody>
           </table>
         </div>
 
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;flex-wrap:wrap">
+        <!-- Botones -->
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;flex-shrink:0;padding-bottom:4px">
           <button class="btn btn-ghost" onclick="closeModal('mOcrValidar')" style="font-size:12px">Cancelar</button>
-          <button class="btn" onclick="closeModal('mOcrValidar');ocrEliminar(${doc.id})" style="font-size:12px;color:var(--rojo);background:transparent;border:1px solid var(--rojo)">✕ Rechazar documento</button>
-          <button class="btn btn-primary" onclick="_ocrConfirmarValidacion()" style="font-size:13px;background:linear-gradient(135deg,#059669,#10B981);border:none;font-weight:700;padding:8px 24px">
-            ✅ Validar y confirmar stock
+          <button class="btn" onclick="closeModal('mOcrValidar');ocrEliminar(${doc.id})" style="font-size:12px;color:var(--rojo);background:transparent;border:1px solid var(--rojo)">✕ Rechazar</button>
+          <button class="btn btn-primary" id="ocrBtnValidar" onclick="_ocrConfirmarValidacion()" style="font-size:14px;background:linear-gradient(135deg,#059669,#10B981);border:none;font-weight:700;padding:10px 28px">
+            ✅ Validar, confirmar stock y generar documento
           </button>
         </div>
       </div>
@@ -720,121 +775,169 @@ async function ocrValidar(id) {
   openModal('mOcrValidar');
 }
 
-// ─── Confirmar validación: provisional → real ───
+// ─── Confirmar: stock provisional→real + actualizar artículos + generar documento ───
 async function _ocrConfirmarValidacion() {
   if (!_ocrValidarDoc) return;
+  const btn = document.getElementById('ocrBtnValidar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Validando...'; }
 
   const doc = _ocrValidarDoc;
   const datos = doc.datos_extraidos || {};
   const materiales = datos.materiales_seleccionados || [];
 
-  // Leer cantidades validadas por el admin
-  const cantidadesValidadas = materiales.map((m, idx) => {
-    const input = document.querySelector(`[data-validar-qty="${idx}"]`);
-    return input ? parseFloat(input.value) || 0 : m.cantidad;
-  });
+  const tipoDoc = document.getElementById('ocrValTipoDoc')?.value || 'albaran';
+  const numDocEdit = document.getElementById('ocrValNumero')?.value?.trim() || '';
+  const fechaEdit = document.getElementById('ocrValFecha')?.value || new Date().toISOString().split('T')[0];
+  const notasEdit = document.getElementById('ocrValNotas')?.value?.trim() || '';
 
-  if (!confirm(`¿Confirmar la validación de ${materiales.length} materiales?\n\nEl stock provisional se convertirá en stock real.`)) return;
+  const ediciones = materiales.map((m, idx) => ({
+    nombre: (document.querySelector(`[data-validar-nombre="${idx}"]`)?.value || m.nombre).trim(),
+    codigo: (document.querySelector(`[data-validar-codigo="${idx}"]`)?.value || m.codigo || '').trim(),
+    cantidad: parseFloat(document.querySelector(`[data-validar-qty="${idx}"]`)?.value) || 0,
+    precio: parseFloat(document.querySelector(`[data-validar-precio="${idx}"]`)?.value) || 0
+  }));
 
-  toast('Validando materiales...', 'info');
-  let okCount = 0, errCount = 0;
-
-  for (let i = 0; i < materiales.length; i++) {
-    const m = materiales[i];
-    const cantValidada = cantidadesValidadas[i];
-    const cantOriginal = m.cantidad || 0;
-
-    if (!m.articulo_id || cantValidada <= 0) continue;
-
-    try {
-      // Buscar stock actual en furgoneta (almacén tipo furgoneta que tenga este artículo con provisional)
-      const { data: stockRows } = await sb.from('stock')
-        .select('id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
-        .eq('empresa_id', EMPRESA.id)
-        .eq('articulo_id', m.articulo_id)
-        .gt('stock_provisional', 0);
-
-      if (!stockRows?.length) {
-        // Sin stock provisional — puede que ya se haya validado, saltar
-        toast(`⚠️ ${(m.nombre||'').substring(0,20)}: sin stock provisional`, 'warning');
-        continue;
-      }
-
-      // Tomar el primer registro con stock provisional (debería ser la furgoneta)
-      const stk = stockRows[0];
-      const provActual = stk.stock_provisional || 0;
-      const realActual = stk.cantidad || 0;
-
-      // Calcular: la cantidad validada se mueve de provisional a real
-      // Si admin validó menos que lo escaneado, la diferencia se descarta del provisional
-      const mover = Math.min(cantValidada, provActual);
-      const nuevoProvisional = provActual - cantOriginal; // Quitar TODO lo provisional de este doc (no solo lo validado)
-      const nuevoReal = realActual + mover;
-
-      await sb.from('stock').update({
-        cantidad: nuevoReal,
-        stock_provisional: Math.max(0, nuevoProvisional)
-      }).eq('id', stk.id);
-
-      // Registrar movimiento de entrada real
-      await sb.from('movimientos_stock').insert({
-        empresa_id: EMPRESA.id,
-        articulo_id: m.articulo_id,
-        almacen_id: stk.almacen_id,
-        tipo: 'entrada',
-        cantidad: mover,
-        delta: mover,
-        notas: `Validación OCR: ${m.nombre || '?'} — doc ${datos.numero || datos.numero_documento || doc.id}`,
-        tipo_stock: 'real',
-        fecha: new Date().toISOString().slice(0, 10),
-        usuario_id: CP?.id || null,
-        usuario_nombre: CP?.nombre || 'admin'
-      });
-
-      // Si admin validó menos, registrar ajuste
-      if (cantValidada < cantOriginal) {
-        const descarte = cantOriginal - cantValidada;
-        await sb.from('movimientos_stock').insert({
-          empresa_id: EMPRESA.id,
-          articulo_id: m.articulo_id,
-          almacen_id: stk.almacen_id,
-          tipo: 'ajuste',
-          cantidad: -descarte,
-          delta: -descarte,
-          notas: `Ajuste validación OCR: admin corrigió ${cantOriginal} → ${cantValidada} — doc ${datos.numero || datos.numero_documento || doc.id}`,
-          tipo_stock: 'provisional',
-          fecha: new Date().toISOString().slice(0, 10),
-          usuario_id: CP?.id || null,
-          usuario_nombre: CP?.nombre || 'admin'
-        });
-      }
-
-      okCount++;
-    } catch(e) {
-      errCount++;
-      console.error('[Validar OCR] Error material', i, m.nombre, e);
-      toast(`❌ Error: ${(m.nombre||'').substring(0,25)}: ${e.message}`, 'error');
-    }
+  const tipoLabel = tipoDoc === 'factura' ? 'factura' : 'albarán';
+  if (!confirm(`¿Confirmar la validación?\n\n• Stock provisional → real\n• Se genera ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}`)) {
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
+    return;
   }
 
-  // Marcar documento como completado
-  await sb.from('documentos_ocr').update({
-    estado: 'completado',
-    notas: `Validado por ${CP?.nombre || 'admin'} — ${okCount} materiales confirmados${errCount ? ', ' + errCount + ' errores' : ''}`,
-    updated_at: new Date().toISOString()
-  }).eq('id', doc.id);
+  try {
+    toast('Validando materiales...', 'info');
+    let okCount = 0, errCount = 0;
 
-  // Marcar tarea pendiente como completada (si existe)
-  await sb.from('tareas_pendientes').update({
-    estado: 'completada',
-    fecha_completada: new Date().toISOString()
-  }).eq('entidad_tipo', 'documento_ocr').eq('entidad_id', doc.id).eq('empresa_id', EMPRESA.id);
+    // Paso 0: proveedor
+    let proveedorId = _ocrValidarProvMatch?.id || null;
+    if (!proveedorId) {
+      const pNombre = document.getElementById('ocrValProvNombre')?.value?.trim() || '';
+      const pCif = document.getElementById('ocrValProvCif')?.value?.trim() || '';
+      if (pNombre) {
+        if (typeof iaCrearProveedor === 'function') {
+          proveedorId = await iaCrearProveedor({ nombre: pNombre, cif: pCif || null,
+            observaciones: 'Creado desde validación OCR — doc ' + (numDocEdit || doc.id) });
+        } else {
+          const { data: nuevoP, error: provErr } = await sb.from('proveedores').insert({
+            empresa_id: EMPRESA.id, nombre: pNombre, cif: pCif || null, activo: true,
+            observaciones: 'Creado desde validación OCR'
+          }).select().single();
+          if (!provErr && nuevoP) {
+            proveedorId = nuevoP.id;
+            if (typeof proveedores !== 'undefined' && Array.isArray(proveedores)) proveedores.push(nuevoP);
+            toast('✅ Proveedor creado: ' + nuevoP.nombre, 'success');
+          }
+        }
+      }
+    }
 
-  closeModal('mOcrValidar');
-  _ocrValidarDoc = null;
+    // Paso 1: procesar materiales (stock + artículos)
+    for (let i = 0; i < materiales.length; i++) {
+      const m = materiales[i];
+      const ed = ediciones[i];
+      if (!m.articulo_id || ed.cantidad <= 0) continue;
+      try {
+        // Actualizar artículo
+        const updateFields = {};
+        if (ed.nombre && ed.nombre !== (m.nombre || '')) updateFields.nombre = ed.nombre;
+        if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
+        if (ed.precio > 0) updateFields.precio_coste = ed.precio;
+        if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
+        if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', m.articulo_id);
 
-  toast(`✅ Validación completada: ${okCount} materiales confirmados${errCount ? ' (' + errCount + ' errores)' : ''}`, okCount > 0 ? 'success' : 'warning');
-  loadOCRInbox();
+        // Vincular proveedor
+        if (proveedorId) {
+          const { data: existeVinc } = await sb.from('articulos_proveedores')
+            .select('id').eq('articulo_id', m.articulo_id).eq('proveedor_id', proveedorId).eq('empresa_id', EMPRESA.id).limit(1);
+          if (!existeVinc?.length) {
+            await sb.from('articulos_proveedores').insert({
+              empresa_id: EMPRESA.id, articulo_id: m.articulo_id, proveedor_id: proveedorId,
+              ref_proveedor: ed.codigo || m.codigo || null, precio_proveedor: ed.precio || 0, es_principal: !m.en_catalogo
+            });
+          }
+        }
+
+        // Stock: provisional → real
+        const { data: stockRows } = await sb.from('stock')
+          .select('id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', m.articulo_id).gt('stock_provisional', 0);
+        if (!stockRows?.length) { toast('⚠️ ' + (ed.nombre||'').substring(0,20) + ': sin stock provisional', 'warning'); continue; }
+
+        const stk = stockRows[0];
+        const cantOriginal = m.cantidad || 0;
+        const mover = Math.min(ed.cantidad, stk.stock_provisional || 0);
+
+        await sb.from('stock').update({
+          cantidad: (stk.cantidad || 0) + mover,
+          stock_provisional: Math.max(0, (stk.stock_provisional || 0) - cantOriginal)
+        }).eq('id', stk.id);
+
+        await sb.from('movimientos_stock').insert({
+          empresa_id: EMPRESA.id, articulo_id: m.articulo_id, almacen_id: stk.almacen_id,
+          tipo: 'entrada', cantidad: mover, delta: mover,
+          notas: 'Validación OCR: ' + (ed.nombre || '?') + ' — doc ' + (numDocEdit || doc.id),
+          tipo_stock: 'real', fecha: new Date().toISOString().slice(0, 10),
+          usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
+        });
+
+        if (ed.cantidad < cantOriginal) {
+          await sb.from('movimientos_stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: m.articulo_id, almacen_id: stk.almacen_id,
+            tipo: 'ajuste', cantidad: -(cantOriginal - ed.cantidad), delta: -(cantOriginal - ed.cantidad),
+            notas: 'Ajuste validación: ' + cantOriginal + ' → ' + ed.cantidad, tipo_stock: 'provisional',
+            fecha: new Date().toISOString().slice(0, 10), usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
+          });
+        }
+        okCount++;
+      } catch(e) {
+        errCount++;
+        console.error('[Validar OCR] Error material', i, ed.nombre, e);
+        toast('❌ ' + (ed.nombre||'').substring(0,25) + ': ' + e.message, 'error');
+      }
+    }
+
+    // Paso 2: marcar doc OCR completado
+    await sb.from('documentos_ocr').update({
+      estado: 'completado',
+      notas: 'Validado por ' + (CP?.nombre || 'admin') + ' — ' + okCount + ' OK' + (errCount ? ', ' + errCount + ' err' : ''),
+      updated_at: new Date().toISOString()
+    }).eq('id', doc.id);
+
+    await sb.from('tareas_pendientes').update({
+      estado: 'completada', fecha_completada: new Date().toISOString()
+    }).eq('entidad_tipo', 'documento_ocr').eq('entidad_id', doc.id).eq('empresa_id', EMPRESA.id);
+
+    // Paso 3: generar documento de compra
+    const lineasDoc = ediciones.map((ed, i) => ({
+      _artId: materiales[i].articulo_id, _artCodigo: ed.codigo,
+      descripcion: ed.nombre, codigo: ed.codigo, cantidad: ed.cantidad,
+      precio_unitario: ed.precio, dto1_pct: 0, dto2_pct: 0, dto3_pct: 0, iva_pct: 21
+    }));
+    const docData = {
+      numero_documento: numDocEdit, fecha: fechaEdit, fecha_vencimiento: '',
+      notas: notasEdit || ('Validado desde OCR móvil — operario: ' + (datos.operario || '?')),
+      lineas: lineasDoc
+    };
+
+    closeModal('mOcrValidar');
+    toast('✅ Stock validado: ' + okCount + ' materiales. Generando documento...', 'success');
+
+    if (tipoDoc === 'factura' && typeof iaRellenarFactura === 'function') {
+      await iaRellenarFactura(docData, proveedorId);
+    } else if (typeof iaRellenarAlbaran === 'function') {
+      await iaRellenarAlbaran(docData, proveedorId);
+    } else {
+      toast('⚠️ No se pudo abrir el formulario de ' + tipoDoc + '. Créalo manualmente.', 'warning');
+    }
+
+    _ocrValidarDoc = null;
+    _ocrValidarProvMatch = null;
+    loadOCRInbox();
+
+  } catch(e) {
+    console.error('[Validar OCR] Error general:', e);
+    toast('Error en validación: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
+  }
 }
 
 // ─── Hook: update badge on app init ───
