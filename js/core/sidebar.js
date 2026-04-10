@@ -122,9 +122,25 @@ function toggleSbSection(id, el) {
   if (_sbWasDragging) { _sbWasDragging = false; return; }
   const sec = document.getElementById(id);
   if (!sec) return;
-  const isCollapsed = sec.classList.toggle('collapsed');
-  el.classList.toggle('collapsed', isCollapsed);
-  sbCollapsed[id] = isCollapsed;
+  const yaAbierta = !sec.classList.contains('collapsed');
+
+  // Cerrar TODAS las secciones primero
+  document.querySelectorAll('.sb-section-items').forEach(s => {
+    s.classList.add('collapsed');
+    const hdr = s.previousElementSibling;
+    if (hdr && hdr.classList.contains('sb-sec')) hdr.classList.add('collapsed');
+  });
+
+  // Si estaba cerrada, abrirla (si estaba abierta, queda todo cerrado = acordeón)
+  if (!yaAbierta) {
+    sec.classList.remove('collapsed');
+    el.classList.remove('collapsed');
+  }
+
+  // Guardar estado
+  document.querySelectorAll('.sb-section-items').forEach(s => {
+    sbCollapsed[s.id] = s.classList.contains('collapsed');
+  });
   localStorage.setItem('sb_collapsed', JSON.stringify(sbCollapsed));
   _sbSaveToSupabase();
 }
