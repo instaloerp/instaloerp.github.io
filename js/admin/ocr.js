@@ -1057,13 +1057,26 @@ async function _ocrConfirmarValidacion() {
 
         // Si no tiene articulo_id (viene de IA sin crear), crear o buscar el artículo
         if (!articuloId) {
-          // Buscar por código
+          // Buscar primero en caché local
           const artExiste = typeof _iaBuscarArticuloExistente === 'function'
             ? _iaBuscarArticuloExistente({ codigo: ed.codigo, descripcion: ed.nombre })
             : null;
           if (artExiste) {
             articuloId = artExiste.id;
-          } else {
+          }
+          // Si no encontró localmente, buscar en BD (protección anti-duplicados)
+          if (!articuloId && ed.codigo) {
+            const _codBusca = (ed.codigo || '').trim();
+            const { data: dbByRef } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
+              .eq('empresa_id', EMPRESA.id).eq('activo', true).ilike('referencia_fabricante', _codBusca).limit(1);
+            if (dbByRef?.length) { articuloId = dbByRef[0].id; toast('🔗 BD: ' + dbByRef[0].nombre, 'info'); }
+            if (!articuloId) {
+              const { data: dbByAP } = await sb.from('articulos_proveedores').select('articulo_id,articulos(id,nombre)')
+                .eq('empresa_id', EMPRESA.id).ilike('ref_proveedor', _codBusca).limit(1);
+              if (dbByAP?.length && dbByAP[0].articulos) { articuloId = dbByAP[0].articulos.id; toast('🔗 BD prov: ' + dbByAP[0].articulos.nombre, 'info'); }
+            }
+          }
+          if (!articuloId) {
             // Crear artículo nuevo — es_activo:false (se marca manualmente), activo:true para que aparezca
             const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
             const codigoAuto = 'OCR-' + ((ed.codigo||'').replace(/[^a-zA-Z0-9-]/g,'').toUpperCase() || Date.now().toString(36).toUpperCase()) + '-' + _sufijo;

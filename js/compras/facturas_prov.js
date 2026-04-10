@@ -755,10 +755,18 @@ function _iaBuscarArticuloExistente(lineaOCR) {
   const desc = (lineaOCR.descripcion || '').trim();
   const codigo = (lineaOCR.codigo || '').trim();
   if (!desc && !codigo) return null;
+  const codLow = codigo.toLowerCase();
+  // Código limpio para comparación fuzzy
+  const codLimpio = codLow.replace(/[\s\-_./\\,;:()[\]{}'"]/g, '');
 
   let art = null;
   if (codigo) {
-    art = (articulos || []).find(a => a.codigo && a.codigo.trim().toLowerCase() === codigo.toLowerCase());
+    // Por código artículo
+    art = (articulos || []).find(a => a.codigo && a.codigo.trim().toLowerCase() === codLow);
+    // Por referencia_fabricante (exacto)
+    if (!art) art = (articulos || []).find(a => a.referencia_fabricante && a.referencia_fabricante.trim().toLowerCase() === codLow);
+    // Por referencia_fabricante (fuzzy — sin puntuación)
+    if (!art && codLimpio) art = (articulos || []).find(a => a.referencia_fabricante && a.referencia_fabricante.replace(/[\s\-_./\\,;:()[\]{}'"]/g, '').toLowerCase() === codLimpio);
   }
   if (!art && desc) {
     const dn = desc.toLowerCase();
@@ -1230,6 +1238,22 @@ async function iaCrearArticulo(lineaOCR, provId) {
   const codigo = (lineaOCR.codigo || '').trim();
   if (!desc && !codigo) return null;
 
+  // ── Protección anti-duplicados: buscar en BD antes de crear ──
+  if (codigo) {
+    // Por código exacto
+    const { data: byCode } = await sb.from('articulos').select('*')
+      .eq('empresa_id', EMPRESA.id).eq('activo', true).ilike('codigo', codigo).limit(1);
+    if (byCode?.length) { toast('🔗 Artículo existente (código): ' + byCode[0].nombre, 'info'); return byCode[0]; }
+    // Por referencia_fabricante
+    const { data: byRef } = await sb.from('articulos').select('*')
+      .eq('empresa_id', EMPRESA.id).eq('activo', true).ilike('referencia_fabricante', codigo).limit(1);
+    if (byRef?.length) { toast('🔗 Artículo existente (ref): ' + byRef[0].nombre, 'info'); return byRef[0]; }
+    // Por ref_proveedor en articulos_proveedores
+    const { data: byAP } = await sb.from('articulos_proveedores').select('articulo_id,articulos(*)')
+      .eq('empresa_id', EMPRESA.id).ilike('ref_proveedor', codigo).limit(1);
+    if (byAP?.length && byAP[0].articulos) { toast('🔗 Artículo existente (ref prov): ' + byAP[0].articulos.nombre, 'info'); return byAP[0].articulos; }
+  }
+
   const pvp = lineaOCR.precio_unitario || 0;
   const d1 = lineaOCR.dto1_pct || 0;
   const d2 = lineaOCR.dto2_pct || 0;
@@ -1240,6 +1264,7 @@ async function iaCrearArticulo(lineaOCR, provId) {
     empresa_id: EMPRESA.id,
     nombre: desc || codigo,
     codigo: codigo || null,
+    referencia_fabricante: codigo || null,
     precio_coste: Math.round(precioCoste * 100) / 100,
     precio_venta: Math.round(pvp * 100) / 100,
     descuento: 0,

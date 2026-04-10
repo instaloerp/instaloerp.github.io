@@ -7149,6 +7149,29 @@ async function _fabOcrConfirmar(seleccionados, _skipCleanup) {
             }
           }
           if (!artIdFinal) {
+            // ── ÚLTIMA PROTECCIÓN: buscar en BD por código proveedor antes de crear ──
+            const _codRef = (l.codigo || '').trim();
+            if (_codRef) {
+              const { data: dbCheck } = await sb.from('articulos').select('id,nombre,codigo,referencia_fabricante')
+                .eq('empresa_id', eid).eq('activo', true).ilike('referencia_fabricante', _codRef).limit(1);
+              if (dbCheck?.length) {
+                artIdFinal = dbCheck[0].id;
+                l.artMatch = dbCheck[0];
+                toast(`🔗 BD: "${l.nombre}" → ${dbCheck[0].nombre}`, 'info');
+              }
+              // También buscar en articulos_proveedores
+              if (!artIdFinal) {
+                const { data: apCheck } = await sb.from('articulos_proveedores').select('articulo_id,articulos(id,nombre)')
+                  .eq('empresa_id', eid).ilike('ref_proveedor', _codRef).limit(1);
+                if (apCheck?.length && apCheck[0].articulos) {
+                  artIdFinal = apCheck[0].articulos.id;
+                  l.artMatch = apCheck[0].articulos;
+                  toast(`🔗 BD prov: "${l.nombre}" → ${apCheck[0].articulos.nombre}`, 'info');
+                }
+              }
+            }
+          }
+          if (!artIdFinal) {
             const _codigoBase = (l.codigo || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
             const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
             const codigoAuto = 'OCR-' + (_codigoBase ? _codigoBase + '-' + _sufijo : Date.now().toString(36).toUpperCase() + _sufijo);
