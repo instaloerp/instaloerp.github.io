@@ -668,13 +668,16 @@ async function ocrValidar(id) {
   const provExiste = !!_ocrValidarProvMatch && !_provAutoOcr;
   _ocrValidarProvExiste = provExiste;
 
-  // HTML proveedor
-  const _provDisplayNombre = _ocrValidarProvMatch ? _ocrValidarProvMatch.nombre : provNombre;
-  const _provDisplayCif = _ocrValidarProvMatch ? (_ocrValidarProvMatch.cif || '') : provCif;
+  // HTML proveedor — datos del match o del OCR/IA
+  const _pm = _ocrValidarProvMatch || {}; // proveedor match (BD)
+  const _pr = (typeof provRaw === 'object' ? provRaw : {}) || {}; // proveedor raw (OCR/IA)
+  const _pv = (f) => (_pm[f] || _pr[f] || '').toString().replace(/"/g, '&quot;'); // campo con fallback
+  const _pvNombre = _pm.nombre || provNombre;
+
   const provHtml = provExiste
     ? `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px">
         <div style="font-weight:700;font-size:12px;color:#065F46">🏭 Proveedor ✓ ${_ocrValidarProvMatch.nombre}</div>
-        <div style="font-size:11px;color:var(--gris-500)">${_ocrValidarProvMatch.cif ? 'CIF: ' + _ocrValidarProvMatch.cif : ''}</div>
+        <div style="font-size:11px;color:var(--gris-500)">${_ocrValidarProvMatch.cif ? 'CIF: ' + _ocrValidarProvMatch.cif : ''}${_ocrValidarProvMatch.telefono ? ' · Tel: ' + _ocrValidarProvMatch.telefono : ''}</div>
       </div>`
     : `<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;padding:10px">
         <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#92400E">
@@ -682,9 +685,25 @@ async function ocrValidar(id) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
           <div><label style="font-size:10px;font-weight:600">Nombre</label>
-            <input type="text" id="ocrValProvNombre" value="${_provDisplayNombre.replace(/"/g, '&quot;')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600"></div>
+            <input type="text" id="ocrValProvNombre" value="${_pvNombre.replace(/"/g, '&quot;')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600"></div>
           <div><label style="font-size:10px;font-weight:600">CIF/NIF</label>
-            <input type="text" id="ocrValProvCif" value="${_provDisplayCif.replace(/"/g, '&quot;')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+            <input type="text" id="ocrValProvCif" value="${_pv('cif') || _pv('nif')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Dirección</label>
+            <input type="text" id="ocrValProvDir" value="${_pv('direccion')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Municipio</label>
+            <input type="text" id="ocrValProvMun" value="${_pv('municipio')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">CP</label>
+            <input type="text" id="ocrValProvCp" value="${_pv('cp')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Provincia</label>
+            <input type="text" id="ocrValProvProvincia" value="${_pv('provincia')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Teléfono</label>
+            <input type="text" id="ocrValProvTel" value="${_pv('telefono')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Email</label>
+            <input type="text" id="ocrValProvEmail" value="${_pv('email')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">Web</label>
+            <input type="text" id="ocrValProvWeb" value="${_pv('web')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+          <div><label style="font-size:10px;font-weight:600">IBAN</label>
+            <input type="text" id="ocrValProvIban" value="${_pv('iban')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
         </div>
       </div>`;
 
@@ -888,8 +907,9 @@ async function _ocrConfirmarValidacion() {
     iva_pct: parseFloat(document.querySelector(`[data-validar-iva="${idx}"]`)?.value ?? 21)
   }));
 
-  const tipoLabel = tipoDoc === 'factura' ? 'factura' : 'albarán';
-  if (!confirm(`¿Confirmar la validación?\n\n• Stock provisional → real\n• Se genera ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}`)) {
+  const tipoLabels = {factura:'factura',albaran:'albarán',pedido:'pedido',presupuesto:'presupuesto'};
+  const tipoLabel = tipoLabels[tipoDoc] || 'albarán';
+  if (!confirm(`¿Confirmar la validación?\n\n• Se generará ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}\n• Se crearán artículos/proveedor nuevos si no existen`)) {
     if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
     return;
   }
@@ -898,24 +918,36 @@ async function _ocrConfirmarValidacion() {
     toast('Validando materiales...', 'info');
     let okCount = 0, errCount = 0;
 
-    // Paso 0: proveedor
+    // Paso 0: proveedor — leer todos los campos del formulario
     let proveedorId = _ocrValidarProvMatch?.id || null;
     const pNombre = document.getElementById('ocrValProvNombre')?.value?.trim() || '';
     const pCif = document.getElementById('ocrValProvCif')?.value?.trim() || '';
+    const pProvData = {
+      nombre: pNombre, cif: pCif || null,
+      direccion: document.getElementById('ocrValProvDir')?.value?.trim() || null,
+      municipio: document.getElementById('ocrValProvMun')?.value?.trim() || null,
+      cp: document.getElementById('ocrValProvCp')?.value?.trim() || null,
+      provincia: document.getElementById('ocrValProvProvincia')?.value?.trim() || null,
+      telefono: document.getElementById('ocrValProvTel')?.value?.trim() || null,
+      email: document.getElementById('ocrValProvEmail')?.value?.trim() || null,
+      web: document.getElementById('ocrValProvWeb')?.value?.trim() || null,
+      iban: document.getElementById('ocrValProvIban')?.value?.trim() || null
+    };
     if (proveedorId && pNombre && !_ocrValidarProvExiste) {
-      // Proveedor auto-creado por OCR: actualizar nombre/CIF con los datos editados por admin
-      const updateProv = { nombre: pNombre, observaciones: 'Validado por admin desde OCR' };
-      if (pCif) updateProv.cif = pCif;
+      // Proveedor auto-creado por OCR: actualizar con todos los datos editados por admin
+      const updateProv = { ...pProvData, observaciones: 'Validado por admin desde OCR' };
+      // Limpiar nulls para no sobreescribir datos existentes con null
+      Object.keys(updateProv).forEach(k => { if (updateProv[k] === null || updateProv[k] === '') delete updateProv[k]; });
       await sb.from('proveedores').update(updateProv).eq('id', proveedorId);
       toast('✏️ Proveedor actualizado: ' + pNombre, 'success');
     } else if (!proveedorId) {
       if (pNombre) {
         if (typeof iaCrearProveedor === 'function') {
-          proveedorId = await iaCrearProveedor({ nombre: pNombre, cif: pCif || null,
+          proveedorId = await iaCrearProveedor({ ...pProvData,
             observaciones: 'Creado desde validación OCR — doc ' + (numDocEdit || doc.id) });
         } else {
           const { data: nuevoP, error: provErr } = await sb.from('proveedores').insert({
-            empresa_id: EMPRESA.id, nombre: pNombre, cif: pCif || null, activo: true,
+            empresa_id: EMPRESA.id, ...pProvData, activo: true,
             observaciones: 'Creado desde validación OCR'
           }).select().single();
           if (!provErr && nuevoP) {
