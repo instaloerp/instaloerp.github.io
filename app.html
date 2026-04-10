@@ -2839,7 +2839,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 115
+      instaloERP v1.1 · build 116
     </div>
   `;
 }
@@ -3189,7 +3189,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.1 · build 115
+      instaloERP v1.1 · build 116
     </div>
   `;
 }
@@ -3539,7 +3539,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 115
+        instaloERP v1.1 · build 116
       </div>
     </div>`;
 }
@@ -6928,6 +6928,14 @@ async function ocrPreviewConfirmar() {
   };
   await _fabOcrConfirmar(todos, true);
   _fabOcrData = prevFabData;
+
+  // 2b. Actualizar articulo_id en _wiz.materiales (se crearon DESPUÉS del push)
+  for (const l of seleccionadosParte) {
+    if (l.artMatch?.id) {
+      const matWiz = _wiz.materiales.find(m => m._ocr && m.codigo === l.codigo && m.nombre === l.nombre && !m.articulo_id);
+      if (matWiz) matWiz.articulo_id = l.artMatch.id;
+    }
+  }
 
   // 3. Cerrar preview y refrescar wizard
   const nParte = seleccionadosParte.length;
