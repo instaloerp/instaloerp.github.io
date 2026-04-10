@@ -218,9 +218,11 @@ function _ocrRenderTable(docs) {
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap;display:inline-block">${est.ico} ${est.label}</span>
       </td>
       <td style="padding:8px;white-space:nowrap" onclick="event.stopPropagation()">
-        ${!doc.documento_vinculado_id
-          ? `<button class="btn btn-sm" onclick="ocrGestionar(${doc.id})" style="font-size:11px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600;margin-right:4px">🤖 Importar con IA</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Rechazar">✕</button>`
-          : `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="font-size:11px;margin-right:4px">Ver doc.</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Eliminar">🗑️</button>`}
+        ${doc.documento_vinculado_id
+          ? `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="font-size:11px;margin-right:4px">Ver doc.</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Eliminar">🗑️</button>`
+          : datos?.materiales_seleccionados
+            ? `<button class="btn btn-sm" onclick="ocrValidar(${doc.id})" style="font-size:11px;background:linear-gradient(135deg,#059669,#10B981);color:#fff;border:none;font-weight:600;margin-right:4px">✅ Validar</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Rechazar">✕</button>`
+            : `<button class="btn btn-sm" onclick="ocrGestionar(${doc.id})" style="font-size:11px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600;margin-right:4px">🤖 Importar con IA</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Rechazar">✕</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -300,10 +302,13 @@ async function ocrPrevisualizar(id) {
       ${contenido}
     </div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
-      ${!doc.documento_vinculado_id
-        ? `<button class="btn btn-primary" onclick="closeModal('mOcrPreview');ocrGestionar(${doc.id})" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
-           <button class="btn btn-ghost" onclick="closeModal('mOcrPreview');ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
-        : `<button class="btn btn-secondary" onclick="closeModal('mOcrPreview');ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`}
+      ${doc.documento_vinculado_id
+        ? `<button class="btn btn-secondary" onclick="closeModal('mOcrPreview');ocrVerVinculado(${doc.id})">📄 Ver documento creado</button>`
+        : doc.datos_extraidos?.materiales_seleccionados
+          ? `<button class="btn btn-primary" onclick="closeModal('mOcrPreview');ocrValidar(${doc.id})" style="background:linear-gradient(135deg,#059669,#10B981);border:none;font-weight:600">✅ Validar materiales</button>
+             <button class="btn btn-ghost" onclick="closeModal('mOcrPreview');ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`
+          : `<button class="btn btn-primary" onclick="closeModal('mOcrPreview');ocrGestionar(${doc.id})" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;font-weight:600">🤖 Importar con IA</button>
+             <button class="btn btn-ghost" onclick="closeModal('mOcrPreview');ocrEliminar(${doc.id})" style="color:var(--rojo)">✕ Rechazar</button>`}
       <button class="btn btn-secondary" onclick="closeModal('mOcrPreview')">Cerrar</button>
     </div>
   `;
@@ -554,6 +559,282 @@ async function ocrEliminar(id) {
   toast('Documento OCR eliminado', 'success');
   updateOCRBadge();
   // No llamamos loadOCRInbox() — ya está actualizado con el borrado optimista
+}
+
+// ═══════════════════════════════════════════════
+// VALIDAR — Documentos que vienen de la app móvil
+// El operario ya escaneó, creó artículos y metió stock provisional.
+// Admin revisa y confirma: provisional → real stock.
+// ═══════════════════════════════════════════════
+let _ocrValidarDoc = null; // doc actual en validación
+
+async function ocrValidar(id) {
+  const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
+  if (error || !doc) { toast('Error al cargar documento', 'error'); return; }
+
+  const datos = doc.datos_extraidos || {};
+  const materiales = datos.materiales_seleccionados || [];
+
+  if (!materiales.length) {
+    toast('Este documento no tiene materiales registrados', 'warning');
+    return;
+  }
+
+  _ocrValidarDoc = doc;
+
+  // Obtener imagen del documento
+  let imgUrl = doc.archivo_path ? sb.storage.from('documentos').getPublicUrl(doc.archivo_path).data.publicUrl : '';
+  const fotosArr = datos.fotos_urls || [];
+
+  // Obtener info actual de stock provisional para cada material
+  const artIds = materiales.filter(m => m.articulo_id).map(m => m.articulo_id);
+  let stockMap = {};
+  if (artIds.length) {
+    const { data: stockRows } = await sb.from('stock')
+      .select('articulo_id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
+      .eq('empresa_id', EMPRESA.id)
+      .in('articulo_id', artIds);
+    if (stockRows) {
+      stockRows.forEach(s => {
+        if (!stockMap[s.articulo_id]) stockMap[s.articulo_id] = [];
+        stockMap[s.articulo_id].push(s);
+      });
+    }
+  }
+
+  // Obtener nombres de artículos actualizados
+  let artNombreMap = {};
+  if (artIds.length) {
+    const { data: arts } = await sb.from('articulos').select('id,nombre,codigo').in('id', artIds);
+    if (arts) arts.forEach(a => { artNombreMap[a.id] = a; });
+  }
+
+  // Buscar nombre de usuario
+  const userMap = {};
+  if (typeof todosUsuarios !== 'undefined' && todosUsuarios) {
+    todosUsuarios.forEach(u => { userMap[u.id] = u.nombre || u.email || '—'; });
+  }
+  const operarioNombre = datos.operario || userMap[doc.usuario_id] || '—';
+  const furgonetaNombre = datos.furgoneta || '—';
+  const fechaDoc = new Date(doc.created_at).toLocaleString('es-ES');
+
+  // Resumen del documento OCR
+  const provNombre = datos.proveedor?.nombre || (typeof datos.proveedor === 'string' ? datos.proveedor : '') || '—';
+  const numDoc = datos.numero || datos.numero_documento || '—';
+
+  // Construir filas de materiales
+  const filasHtml = materiales.map((m, idx) => {
+    const art = m.articulo_id ? artNombreMap[m.articulo_id] : null;
+    const stocks = m.articulo_id ? (stockMap[m.articulo_id] || []) : [];
+    const furgStock = stocks.find(s => s.almacenes?.tipo === 'furgoneta');
+    const provActual = furgStock ? (furgStock.stock_provisional || 0) : 0;
+    const realActual = furgStock ? (furgStock.cantidad || 0) : 0;
+
+    const nombreDisplay = art ? art.nombre : (m.nombre || 'Material desconocido');
+    const codigoDisplay = art ? (art.codigo || '') : (m.codigo || '');
+    const enCatalogo = m.en_catalogo || !!art;
+
+    return `<tr data-idx="${idx}">
+      <td style="padding:8px 10px;font-size:12px">
+        <div style="font-weight:600">${nombreDisplay}</div>
+        ${codigoDisplay ? `<div style="font-size:10px;color:var(--gris-400)">${codigoDisplay}</div>` : ''}
+        ${!enCatalogo ? `<span style="font-size:9px;background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:8px;font-weight:600">NUEVO</span>` : ''}
+      </td>
+      <td style="text-align:center;padding:8px;font-weight:700;font-size:14px">${m.cantidad}</td>
+      <td style="text-align:center;padding:8px;font-size:12px">${m.unidad || 'ud'}</td>
+      <td style="text-align:center;padding:8px">
+        <span style="color:var(--naranja);font-weight:700">${provActual}</span>
+        <span style="font-size:10px;color:var(--gris-400)"> prov</span>
+      </td>
+      <td style="text-align:center;padding:8px">
+        <span style="font-weight:600">${realActual}</span>
+        <span style="font-size:10px;color:var(--gris-400)"> real</span>
+      </td>
+      <td style="text-align:center;padding:8px">
+        <input type="number" value="${m.cantidad}" min="0" step="1"
+          style="width:60px;text-align:center;border:1px solid var(--gris-200);border-radius:6px;padding:4px;font-size:13px;font-weight:700"
+          data-validar-qty="${idx}">
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Imagen principal (primera foto o archivo_path)
+  let imgHtml = '';
+  if (fotosArr.length) {
+    imgHtml = fotosArr.map((url, i) => `<img src="${url}" style="max-width:100%;max-height:250px;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:4px">`).join('');
+  } else if (imgUrl) {
+    imgHtml = `<img src="${imgUrl}" style="max-width:100%;max-height:350px;object-fit:contain;border-radius:8px;border:1px solid var(--gris-200)">`;
+  }
+
+  const container = document.getElementById('ocrValidarContent');
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;padding:8px 0">
+      <!-- Columna izquierda: foto + info -->
+      <div>
+        <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:12px;text-align:center">
+          ${imgHtml || '<div style="padding:40px;color:var(--gris-400)">Sin imagen</div>'}
+        </div>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:12px;font-size:12px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#065F46">📋 Información del documento</div>
+          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Operario:</span> <strong>${operarioNombre}</strong></div>
+          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Furgoneta:</span> <strong>${furgonetaNombre}</strong></div>
+          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Proveedor:</span> <strong>${provNombre}</strong></div>
+          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Nº documento:</span> <strong>${numDoc}</strong></div>
+          <div style="margin-bottom:4px"><span style="color:var(--gris-500)">Fecha:</span> <strong>${fechaDoc}</strong></div>
+          <div><span style="color:var(--gris-500)">Materiales:</span> <strong>${materiales.length}</strong></div>
+        </div>
+      </div>
+
+      <!-- Columna derecha: tabla de materiales -->
+      <div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px">📦 Materiales escaneados por el operario</div>
+        <div style="font-size:11px;color:var(--gris-500);margin-bottom:10px">
+          Revisa las cantidades. Al validar, el stock <strong>provisional</strong> se convertirá en stock <strong>real</strong>.
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--gris-200);border-radius:10px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="background:var(--gris-50);font-size:11px;font-weight:700;color:var(--gris-500);text-transform:uppercase">
+                <th style="padding:8px 10px;text-align:left">Material</th>
+                <th style="padding:8px;text-align:center">Escaneado</th>
+                <th style="padding:8px;text-align:center">Unidad</th>
+                <th style="padding:8px;text-align:center">Stock prov.</th>
+                <th style="padding:8px;text-align:center">Stock real</th>
+                <th style="padding:8px;text-align:center">Validar</th>
+              </tr>
+            </thead>
+            <tbody>${filasHtml}</tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="closeModal('mOcrValidar')" style="font-size:12px">Cancelar</button>
+          <button class="btn" onclick="closeModal('mOcrValidar');ocrEliminar(${doc.id})" style="font-size:12px;color:var(--rojo);background:transparent;border:1px solid var(--rojo)">✕ Rechazar documento</button>
+          <button class="btn btn-primary" onclick="_ocrConfirmarValidacion()" style="font-size:13px;background:linear-gradient(135deg,#059669,#10B981);border:none;font-weight:700;padding:8px 24px">
+            ✅ Validar y confirmar stock
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  openModal('mOcrValidar');
+}
+
+// ─── Confirmar validación: provisional → real ───
+async function _ocrConfirmarValidacion() {
+  if (!_ocrValidarDoc) return;
+
+  const doc = _ocrValidarDoc;
+  const datos = doc.datos_extraidos || {};
+  const materiales = datos.materiales_seleccionados || [];
+
+  // Leer cantidades validadas por el admin
+  const cantidadesValidadas = materiales.map((m, idx) => {
+    const input = document.querySelector(`[data-validar-qty="${idx}"]`);
+    return input ? parseFloat(input.value) || 0 : m.cantidad;
+  });
+
+  if (!confirm(`¿Confirmar la validación de ${materiales.length} materiales?\n\nEl stock provisional se convertirá en stock real.`)) return;
+
+  toast('Validando materiales...', 'info');
+  let okCount = 0, errCount = 0;
+
+  for (let i = 0; i < materiales.length; i++) {
+    const m = materiales[i];
+    const cantValidada = cantidadesValidadas[i];
+    const cantOriginal = m.cantidad || 0;
+
+    if (!m.articulo_id || cantValidada <= 0) continue;
+
+    try {
+      // Buscar stock actual en furgoneta (almacén tipo furgoneta que tenga este artículo con provisional)
+      const { data: stockRows } = await sb.from('stock')
+        .select('id, almacen_id, cantidad, stock_provisional, almacenes!inner(nombre, tipo)')
+        .eq('empresa_id', EMPRESA.id)
+        .eq('articulo_id', m.articulo_id)
+        .gt('stock_provisional', 0);
+
+      if (!stockRows?.length) {
+        // Sin stock provisional — puede que ya se haya validado, saltar
+        toast(`⚠️ ${(m.nombre||'').substring(0,20)}: sin stock provisional`, 'warning');
+        continue;
+      }
+
+      // Tomar el primer registro con stock provisional (debería ser la furgoneta)
+      const stk = stockRows[0];
+      const provActual = stk.stock_provisional || 0;
+      const realActual = stk.cantidad || 0;
+
+      // Calcular: la cantidad validada se mueve de provisional a real
+      // Si admin validó menos que lo escaneado, la diferencia se descarta del provisional
+      const mover = Math.min(cantValidada, provActual);
+      const nuevoProvisional = provActual - cantOriginal; // Quitar TODO lo provisional de este doc (no solo lo validado)
+      const nuevoReal = realActual + mover;
+
+      await sb.from('stock').update({
+        cantidad: nuevoReal,
+        stock_provisional: Math.max(0, nuevoProvisional)
+      }).eq('id', stk.id);
+
+      // Registrar movimiento de entrada real
+      await sb.from('movimientos_stock').insert({
+        empresa_id: EMPRESA.id,
+        articulo_id: m.articulo_id,
+        almacen_id: stk.almacen_id,
+        tipo: 'entrada',
+        cantidad: mover,
+        delta: mover,
+        notas: `Validación OCR: ${m.nombre || '?'} — doc ${datos.numero || datos.numero_documento || doc.id}`,
+        tipo_stock: 'real',
+        fecha: new Date().toISOString().slice(0, 10),
+        usuario_id: CP?.id || null,
+        usuario_nombre: CP?.nombre || 'admin'
+      });
+
+      // Si admin validó menos, registrar ajuste
+      if (cantValidada < cantOriginal) {
+        const descarte = cantOriginal - cantValidada;
+        await sb.from('movimientos_stock').insert({
+          empresa_id: EMPRESA.id,
+          articulo_id: m.articulo_id,
+          almacen_id: stk.almacen_id,
+          tipo: 'ajuste',
+          cantidad: -descarte,
+          delta: -descarte,
+          notas: `Ajuste validación OCR: admin corrigió ${cantOriginal} → ${cantValidada} — doc ${datos.numero || datos.numero_documento || doc.id}`,
+          tipo_stock: 'provisional',
+          fecha: new Date().toISOString().slice(0, 10),
+          usuario_id: CP?.id || null,
+          usuario_nombre: CP?.nombre || 'admin'
+        });
+      }
+
+      okCount++;
+    } catch(e) {
+      errCount++;
+      console.error('[Validar OCR] Error material', i, m.nombre, e);
+      toast(`❌ Error: ${(m.nombre||'').substring(0,25)}: ${e.message}`, 'error');
+    }
+  }
+
+  // Marcar documento como completado
+  await sb.from('documentos_ocr').update({
+    estado: 'completado',
+    notas: `Validado por ${CP?.nombre || 'admin'} — ${okCount} materiales confirmados${errCount ? ', ' + errCount + ' errores' : ''}`,
+    updated_at: new Date().toISOString()
+  }).eq('id', doc.id);
+
+  // Marcar tarea pendiente como completada (si existe)
+  await sb.from('tareas_pendientes').update({
+    estado: 'completada',
+    fecha_completada: new Date().toISOString()
+  }).eq('entidad_tipo', 'documento_ocr').eq('entidad_id', doc.id).eq('empresa_id', EMPRESA.id);
+
+  closeModal('mOcrValidar');
+  _ocrValidarDoc = null;
+
+  toast(`✅ Validación completada: ${okCount} materiales confirmados${errCount ? ' (' + errCount + ' errores)' : ''}`, okCount > 0 ? 'success' : 'warning');
+  loadOCRInbox();
 }
 
 // ─── Hook: update badge on app init ───
