@@ -218,7 +218,9 @@ function _ocrRenderTable(docs) {
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap;display:inline-block">${est.ico} ${est.label}</span>
       </td>
       <td style="padding:8px;white-space:nowrap" onclick="event.stopPropagation()">
-        ${doc.documento_vinculado_id
+        ${doc.estado === 'completado'
+          ? `<span style="font-size:11px;color:var(--gris-400)">Ya validado</span><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo);margin-left:6px" title="Eliminar">✕</button>`
+          : doc.documento_vinculado_id
           ? `<button class="btn btn-secondary btn-sm" onclick="ocrVerVinculado(${doc.id})" style="font-size:11px;margin-right:4px">Ver doc.</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Eliminar">🗑️</button>`
           : datos?.materiales_seleccionados
             ? `<button class="btn btn-sm" onclick="ocrValidar(${doc.id})" style="font-size:11px;background:linear-gradient(135deg,#059669,#10B981);color:#fff;border:none;font-weight:600;margin-right:4px">✅ Validar</button><button class="btn btn-ghost btn-sm" onclick="ocrEliminar(${doc.id})" style="font-size:11px;color:var(--rojo)" title="Rechazar">✕</button>`
@@ -454,30 +456,47 @@ async function _ocrProcesarDirecto(ocrDocId, doc) {
     const data = _ocrSanitizeNumeros(result.data);
 
     // Usar tipo detectado por la IA (data.tipo_documento) o fallback
-    const tipoDetectado = data.tipo_documento || tipo || 'factura';
+    let tipoDetectado = data.tipo_documento || tipo || 'factura';
+    if (tipoDetectado === 'albaran_prov') tipoDetectado = 'albaran';
+    if (tipoDetectado === 'factura_prov') tipoDetectado = 'factura';
+
+    // Convertir líneas IA al formato materiales_seleccionados unificado
+    const lineas = data.lineas || [];
+    const matSel = lineas.map(l => {
+      const artMatch = typeof _iaBuscarArticuloExistente === 'function' ? _iaBuscarArticuloExistente(l) : null;
+      return {
+        nombre: l.descripcion || l.nombre || '',
+        codigo: l.codigo || '',
+        cantidad: l.cantidad || 1,
+        unidad: l.unidad || 'ud',
+        precio: l.precio_unitario || 0,
+        dto1_pct: l.dto1_pct || 0,
+        dto2_pct: l.dto2_pct || 0,
+        dto3_pct: l.dto3_pct || 0,
+        iva_pct: l.iva_pct ?? 21,
+        articulo_id: artMatch?.id || null,
+        en_catalogo: !!artMatch
+      };
+    });
+
+    // Guardar con formato unificado — estado pendiente para que el admin valide
+    const datosUnificados = {
+      ...data,
+      materiales_seleccionados: matSel,
+      origen_ia: true // marcar que viene de importación IA (no de app móvil)
+    };
 
     await sb.from('documentos_ocr').update({
-      estado: 'completado',
+      estado: 'pendiente',
       tipo_documento: tipoDetectado,
-      datos_extraidos: data,
+      datos_extraidos: datosUnificados,
       updated_at: new Date().toISOString()
     }).eq('id', ocrDocId);
 
-    _iaPreviewData = data;
-    // Normalizar para el preview
-    let tipoPreview = tipoDetectado;
-    if (tipoPreview === 'albaran_prov') tipoPreview = 'albaran';
-    if (tipoPreview === 'factura_prov') tipoPreview = 'factura';
-    _iaPreviewTipo = tipoPreview;
-    _iaPreviewProvMatch = _iaBuscarProveedorExistente(data.proveedor);
-    if (data.lineas) {
-      for (const linea of data.lineas) {
-        linea._artMatch = _iaBuscarArticuloExistente(linea);
-      }
-    }
-
-    iaPreviewMostrar();
-    toast('Documento procesado correctamente', 'success');
+    toast('Documento procesado. Abriendo validación...', 'success');
+    loadOCRInbox();
+    // Abrir el modal de validación unificado
+    ocrValidar(ocrDocId);
 
   } catch(e) {
     toast('Error al procesar: ' + e.message, 'error');
@@ -569,6 +588,7 @@ async function ocrEliminar(id) {
 // ═══════════════════════════════════════════════
 let _ocrValidarDoc = null;
 let _ocrValidarProvMatch = null;
+let _ocrValidarProvExiste = false;
 
 async function ocrValidar(id) {
   const { data: doc, error } = await sb.from('documentos_ocr').select('*').eq('id', id).single();
@@ -643,23 +663,36 @@ async function ocrValidar(id) {
   _ocrValidarProvMatch = typeof _iaBuscarProveedorExistente === 'function'
     ? _iaBuscarProveedorExistente(typeof provRaw === 'object' ? provRaw : { nombre: provNombre, cif: provCif })
     : null;
-  const provExiste = !!_ocrValidarProvMatch;
+  // Si fue auto-creado por OCR móvil, tratarlo como "nuevo editable"
+  const _provAutoOcr = _ocrValidarProvMatch && /creado autom/i.test(_ocrValidarProvMatch.observaciones || '');
+  const provExiste = !!_ocrValidarProvMatch && !_provAutoOcr;
+  _ocrValidarProvExiste = provExiste;
 
   // HTML proveedor
-  const provHtml = `
-    <div style="background:${provExiste ? '#F0FDF4' : '#FEF3C7'};border:1px solid ${provExiste ? '#BBF7D0' : '#FDE68A'};border-radius:10px;padding:10px">
-      <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:${provExiste ? '#065F46' : '#92400E'}">
-        🏭 Proveedor ${provExiste ? '✓ ' + _ocrValidarProvMatch.nombre : '— NO encontrado'}
-      </div>
-      ${provExiste
-        ? '<div style="font-size:11px;color:var(--gris-500)">' + (_ocrValidarProvMatch.cif ? 'CIF: ' + _ocrValidarProvMatch.cif : '') + '</div>'
-        : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
-            '<div><label style="font-size:10px;font-weight:600">Nombre</label>' +
-              '<input type="text" id="ocrValProvNombre" value="' + provNombre.replace(/"/g, '&quot;') + '" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600"></div>' +
-            '<div><label style="font-size:10px;font-weight:600">CIF/NIF</label>' +
-              '<input type="text" id="ocrValProvCif" value="' + provCif.replace(/"/g, '&quot;') + '" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>' +
-          '</div>'}
-    </div>`;
+  const _provDisplayNombre = _ocrValidarProvMatch ? _ocrValidarProvMatch.nombre : provNombre;
+  const _provDisplayCif = _ocrValidarProvMatch ? (_ocrValidarProvMatch.cif || '') : provCif;
+  const provHtml = provExiste
+    ? `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px">
+        <div style="font-weight:700;font-size:12px;color:#065F46">🏭 Proveedor ✓ ${_ocrValidarProvMatch.nombre}</div>
+        <div style="font-size:11px;color:var(--gris-500)">${_ocrValidarProvMatch.cif ? 'CIF: ' + _ocrValidarProvMatch.cif : ''}</div>
+      </div>`
+    : `<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;padding:10px">
+        <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#92400E">
+          🏭 Proveedor ${_provAutoOcr ? '⚠️ Auto-creado por OCR — revisa los datos' : '— NO encontrado (se creará)'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div><label style="font-size:10px;font-weight:600">Nombre</label>
+            <input type="text" id="ocrValProvNombre" value="${_provDisplayNombre.replace(/"/g, '&quot;')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600"></div>
+          <div><label style="font-size:10px;font-weight:600">CIF/NIF</label>
+            <input type="text" id="ocrValProvCif" value="${_provDisplayCif.replace(/"/g, '&quot;')}" style="width:100%;border:1px solid #FDE68A;border-radius:6px;padding:4px 8px;font-size:12px"></div>
+        </div>
+      </div>`;
+
+  // Detectar si hay campos de descuento/IVA (importación IA) vs simple (app móvil)
+  const esImportIA = !!datos.origen_ia;
+  const tieneDtos = materiales.some(m => (m.dto1_pct || 0) > 0 || (m.dto2_pct || 0) > 0 || (m.dto3_pct || 0) > 0);
+  const tieneIvaVariado = materiales.some(m => m.iva_pct !== undefined && m.iva_pct !== 21);
+  const mostrarDtoIva = esImportIA || tieneDtos || tieneIvaVariado;
 
   // Filas materiales
   const filasHtml = materiales.map((m, idx) => {
@@ -672,7 +705,8 @@ async function ocrValidar(id) {
     const nombreDisplay = art ? art.nombre : (m.nombre || '?');
     const codigoDisplay = art ? (art.codigo || '') : (m.codigo || '');
     const precioCoste = m.precio || art?.precio_coste || 0;
-    const enCatalogo = m.en_catalogo || !!art;
+    // en_catalogo viene del móvil: true si el artículo ya existía antes del escaneo
+    const enCatalogo = !!m.en_catalogo;
 
     return `<tr data-idx="${idx}" style="border-bottom:1px solid var(--gris-100)">
       <td style="padding:6px 8px">
@@ -681,7 +715,7 @@ async function ocrValidar(id) {
         <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
           <input type="text" value="${codigoDisplay.replace(/"/g, '&quot;')}" data-validar-codigo="${idx}" placeholder="Código"
             style="width:100px;border:1px solid var(--gris-200);border-radius:4px;padding:2px 5px;font-size:10px;color:var(--gris-500)">
-          ${!enCatalogo ? '<span style="font-size:9px;background:#FEF3C7;color:#92400E;padding:1px 5px;border-radius:8px;font-weight:600">NUEVO</span>' : '<span style="font-size:9px;background:#D1FAE5;color:#065F46;padding:1px 5px;border-radius:8px;font-weight:600">CATÁLOGO</span>'}
+          ${!enCatalogo ? '<span style="font-size:9px;background:#FEF3C7;color:#92400E;padding:1px 5px;border-radius:8px;font-weight:600">PROVISIONAL</span>' : '<span style="font-size:9px;background:#D1FAE5;color:#065F46;padding:1px 5px;border-radius:8px;font-weight:600">CATÁLOGO</span>'}
         </div>
       </td>
       <td style="text-align:center;padding:6px;font-weight:700;font-size:14px">${m.cantidad}</td>
@@ -700,6 +734,19 @@ async function ocrValidar(id) {
         <input type="number" value="${precioCoste}" min="0" step="0.01" data-validar-precio="${idx}"
           style="width:70px;text-align:center;border:1px solid var(--gris-200);border-radius:5px;padding:3px;font-size:12px">
       </td>
+      ${mostrarDtoIva ? `
+      <td style="text-align:center;padding:4px">
+        <input type="number" value="${m.dto1_pct || 0}" min="0" max="100" step="0.5" data-validar-dto1="${idx}"
+          style="width:42px;text-align:center;border:1px solid var(--gris-200);border-radius:4px;padding:2px;font-size:11px">
+      </td>
+      <td style="text-align:center;padding:4px">
+        <input type="number" value="${m.dto2_pct || 0}" min="0" max="100" step="0.5" data-validar-dto2="${idx}"
+          style="width:42px;text-align:center;border:1px solid var(--gris-200);border-radius:4px;padding:2px;font-size:11px">
+      </td>
+      <td style="text-align:center;padding:4px">
+        <input type="number" value="${m.iva_pct ?? 21}" min="0" max="100" step="1" data-validar-iva="${idx}"
+          style="width:42px;text-align:center;border:1px solid var(--gris-200);border-radius:4px;padding:2px;font-size:11px">
+      </td>` : ''}
       <td style="text-align:center;padding:6px">
         <span style="color:var(--naranja);font-weight:700">${provActual}</span>
         <span style="font-size:9px;color:var(--gris-400)">prov</span>
@@ -788,6 +835,7 @@ async function ocrValidar(id) {
                 <th style="padding:6px;text-align:center;width:55px">Leído</th>
                 <th style="padding:6px;text-align:center;width:40px">Ud</th>
                 <th style="padding:6px;text-align:center;width:75px">Precio</th>
+                ${mostrarDtoIva ? '<th style="padding:6px;text-align:center;width:45px">Dto1%</th><th style="padding:6px;text-align:center;width:45px">Dto2%</th><th style="padding:6px;text-align:center;width:45px">IVA%</th>' : ''}
                 <th style="padding:6px;text-align:center;width:60px">Prov.</th>
                 <th style="padding:6px;text-align:center;width:55px">Real</th>
                 <th style="padding:6px;text-align:center;width:65px">Validar</th>
@@ -831,7 +879,10 @@ async function _ocrConfirmarValidacion() {
     codigo: (document.querySelector(`[data-validar-codigo="${idx}"]`)?.value || m.codigo || '').trim(),
     cantidad: parseFloat(document.querySelector(`[data-validar-qty="${idx}"]`)?.value) || 0,
     precio: parseFloat(document.querySelector(`[data-validar-precio="${idx}"]`)?.value) || 0,
-    unidad: (document.querySelector(`[data-validar-unidad="${idx}"]`)?.value || m.unidad || 'ud').trim()
+    unidad: (document.querySelector(`[data-validar-unidad="${idx}"]`)?.value || m.unidad || 'ud').trim(),
+    dto1_pct: parseFloat(document.querySelector(`[data-validar-dto1="${idx}"]`)?.value) || 0,
+    dto2_pct: parseFloat(document.querySelector(`[data-validar-dto2="${idx}"]`)?.value) || 0,
+    iva_pct: parseFloat(document.querySelector(`[data-validar-iva="${idx}"]`)?.value ?? 21)
   }));
 
   const tipoLabel = tipoDoc === 'factura' ? 'factura' : 'albarán';
@@ -846,9 +897,15 @@ async function _ocrConfirmarValidacion() {
 
     // Paso 0: proveedor
     let proveedorId = _ocrValidarProvMatch?.id || null;
-    if (!proveedorId) {
-      const pNombre = document.getElementById('ocrValProvNombre')?.value?.trim() || '';
-      const pCif = document.getElementById('ocrValProvCif')?.value?.trim() || '';
+    const pNombre = document.getElementById('ocrValProvNombre')?.value?.trim() || '';
+    const pCif = document.getElementById('ocrValProvCif')?.value?.trim() || '';
+    if (proveedorId && pNombre && !_ocrValidarProvExiste) {
+      // Proveedor auto-creado por OCR: actualizar nombre/CIF con los datos editados por admin
+      const updateProv = { nombre: pNombre, observaciones: 'Validado por admin desde OCR' };
+      if (pCif) updateProv.cif = pCif;
+      await sb.from('proveedores').update(updateProv).eq('id', proveedorId);
+      toast('✏️ Proveedor actualizado: ' + pNombre, 'success');
+    } else if (!proveedorId) {
       if (pNombre) {
         if (typeof iaCrearProveedor === 'function') {
           proveedorId = await iaCrearProveedor({ nombre: pNombre, cif: pCif || null,
@@ -873,12 +930,13 @@ async function _ocrConfirmarValidacion() {
       const ed = ediciones[i];
       if (!m.articulo_id || ed.cantidad <= 0) continue;
       try {
-        // Actualizar artículo
+        // Actualizar artículo — si es nuevo (no catálogo), activarlo como definitivo
         const updateFields = {};
         if (ed.nombre && ed.nombre !== (m.nombre || '')) updateFields.nombre = ed.nombre;
         if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
         if (ed.precio > 0) updateFields.precio_coste = ed.precio;
         if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
+        if (!m.en_catalogo) updateFields.es_activo = true; // provisional → definitivo
         if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', m.articulo_id);
 
         // Vincular proveedor
@@ -948,7 +1006,9 @@ async function _ocrConfirmarValidacion() {
       _artId: materiales[i].articulo_id, _artCodigo: ed.codigo,
       descripcion: ed.nombre, codigo: ed.codigo, cantidad: ed.cantidad,
       unidad: ed.unidad || 'ud',
-      precio_unitario: ed.precio, dto1_pct: 0, dto2_pct: 0, dto3_pct: 0, iva_pct: 21
+      precio_unitario: ed.precio,
+      dto1_pct: ed.dto1_pct || 0, dto2_pct: ed.dto2_pct || 0, dto3_pct: 0,
+      iva_pct: ed.iva_pct ?? 21
     }));
     const docData = {
       numero_documento: numDocEdit, fecha: fechaEdit, fecha_vencimiento: '',
