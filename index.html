@@ -156,7 +156,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 103</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 105</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1047,8 +1047,9 @@
           <select id="rcFiltroEstado" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
-            <option value="verificada">Verificado</option>
-            <option value="almacenada">Almacenado</option>
+            <option value="recepcionado">Recepcionado</option>
+            <option value="incidencia">Incidencia</option>
+            <option value="facturado">Facturado</option>
           </select>
           <select id="rcFiltroProveedor" onchange="filtrarRecepciones()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <option value="">Todos los proveedores</option>
@@ -3315,7 +3316,8 @@
     </div>
     <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mRecepcion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarRecepcion()">💾 Guardar albarán</button>
+      <button class="btn btn-primary" onclick="guardarRecepcion()" style="background:var(--gris-600)">💾 Guardar pendiente</button>
+      <button class="btn btn-primary" onclick="guardarRecepcion(true)">📦 Guardar y recepcionar</button>
     </div>
   </div>
 </div>

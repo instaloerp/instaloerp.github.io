@@ -50,20 +50,22 @@ function renderRecepciones(list) {
   const btnMulti = document.getElementById('rcFacturarMulti');
   if (btnMulti) btnMulti.style.display = 'none';
   const html = list.length ? list.map(r => {
-    const estado = {pendiente:'⏳', verificada:'✓', almacenada:'📦'}[r.estado]||'?';
+    const estadoMap = {pendiente:'⏳ Pendiente', recepcionado:'📦 Recepcionado', incidencia:'⚠️ Incidencia', facturado:'🧾 Facturado'};
+    const estadoBg = {pendiente:'var(--gris-100)', recepcionado:'#e8f5e9', incidencia:'#fff3e0', facturado:'#e3f2fd'};
+    const estadoTxt = estadoMap[r.estado] || r.estado;
     return `<tr>
       <td style="text-align:center;width:30px">${r.exportado_bloqueado ? '' : `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">`}</td>
       <td><div style="font-weight:700">${r.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(r.fecha).toLocaleDateString('es-ES')}</div></td>
       <td><div style="font-weight:600">${r.proveedor_nombre}</div></td>
       <td>${r.usuario_nombre||'—'}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${r.estado}</span></td>
+      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${estadoBg[r.estado]||'var(--gris-100)'};font-size:12px">${estadoTxt}</span></td>
       <td style="text-align:right;font-weight:600">${r.lineas ? fmtE(r.lineas.reduce((s,l) => s + (l.cantidad_recibida * l.precio), 0)) : '0'}</td>
       <td><div style="display:flex;gap:4px">
         <button class="btn btn-ghost btn-sm" onclick="imprimirRecepcion(${r.id})" title="Imprimir">🖨️</button>
         <button class="btn btn-ghost btn-sm" onclick="enviarRecepcionEmail(${r.id})" title="Enviar por email">📧</button>
         <button class="btn btn-ghost btn-sm" onclick="editarRecepcion(${r.id})">✏️</button>
-        ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="verificarRecepcion(${r.id})">✓</button>`:''}
-        ${r.estado==='verificada'?`<button class="btn btn-ghost btn-sm" onclick="almacenarRecepcion(${r.id})">📦</button>`:''}
+        ${r.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="recepcionarAlbaran(${r.id})" title="Recepcionar (entrada stock)">📦</button><button class="btn btn-ghost btn-sm" onclick="incidenciaAlbaran(${r.id})" title="Marcar incidencia">⚠️</button>`:''}
+        ${r.estado==='incidencia'?`<button class="btn btn-ghost btn-sm" onclick="recepcionarAlbaran(${r.id})" title="Recepcionar tras resolver">📦</button>`:''}
         ${r.exportado_bloqueado ? '<span title="Exportado a factura" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="recepcionToFacturaProv(${r.id})" title="Crear factura proveedor">🧾</button>
         <button class="btn btn-ghost btn-sm" onclick="delRecepcion(${r.id})">🗑️</button>`}
       </div></td>
@@ -83,7 +85,7 @@ function actualizarKpisRecepciones() {
   document.getElementById('rcKpiTotal').textContent = fmtE(total);
   document.getElementById('rcKpiPend').textContent = pendientes;
   document.getElementById('rcKpiMes').textContent = esteMes;
-  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='almacenada').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0));
+  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => sum + (l.cantidad_recibida * l.precio), 0) : 0), 0));
 }
 
 // ═══════════════════════════════════════════════
@@ -251,7 +253,7 @@ function rc_renderLineas() {
 // ═══════════════════════════════════════════════
 // GUARDAR RECEPCIÓN
 // ═══════════════════════════════════════════════
-async function guardarRecepcion() {
+async function guardarRecepcion(conRecepcion = false) {
   if (_creando) return;
   _creando = true;
   try {
@@ -265,6 +267,7 @@ async function guardarRecepcion() {
     if (rcLineas.length === 0) {toast('Agrega al menos una línea','error');return;}
 
     const prov = (proveedores||[]).find(p => p.id === provId);
+    const estadoNuevo = conRecepcion ? 'recepcionado' : 'pendiente';
     const obj = {
       empresa_id: EMPRESA.id,
       numero,
@@ -273,7 +276,7 @@ async function guardarRecepcion() {
       proveedor_nombre: prov?.nombre || '',
       almacen_destino_id: almacenId,
       fecha: v('rc_fecha'),
-      estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : 'pendiente',
+      estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : estadoNuevo,
       lineas: rcLineas,
       observaciones: v('rc_observaciones'),
       usuario_nombre: CP?.nombre || CU.email
@@ -285,57 +288,25 @@ async function guardarRecepcion() {
       loadRecepciones();
       toast('Albarán actualizado ✓', 'success');
     } else {
-      // Nuevo albarán: guardar + entrada de stock automática
-      obj.estado = 'almacenada';
+      // Nuevo albarán
       const { data: inserted, error: insErr } = await sb.from('recepciones').insert(obj).select().single();
       if (insErr) { toast('Error al guardar: ' + insErr.message, 'error'); return; }
 
-      // Entrada de stock para cada línea
-      let _stockOk = 0;
-      for (const linea of rcLineas) {
-        const artId = linea.articulo_id || linea._artId;
-        if (!artId) continue;
-        const cant = linea.cantidad_recibida || linea.cantidad || 0;
-        if (cant <= 0) continue;
-
-        try {
-          // Buscar stock existente en almacén destino
-          const { data: stockExist } = await sb.from('stock').select('*')
-            .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
-
-          if (stockExist?.length) {
-            const s = stockExist[0];
-            // Si hay stock provisional (viene de app móvil), limpiarlo
-            const provLimpiar = Math.min(s.stock_provisional || 0, cant);
-            await sb.from('stock').update({
-              cantidad: (s.cantidad || 0) + cant,
-              stock_provisional: Math.max(0, (s.stock_provisional || 0) - provLimpiar)
-            }).eq('id', s.id);
-          } else {
-            await sb.from('stock').insert({
-              empresa_id: EMPRESA.id, almacen_id: almacenId,
-              articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
-            });
-          }
-
-          // Registrar movimiento
-          await sb.from('movimientos_stock').insert({
-            empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almacenId,
-            tipo: 'entrada', cantidad: cant, delta: cant,
-            notas: 'Albarán proveedor nº ' + numero,
-            tipo_stock: 'real', fecha: v('rc_fecha') || new Date().toISOString().slice(0, 10),
-            usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
-          });
-          _stockOk++;
-        } catch(e) {
-          console.error('[Stock albarán] Error:', artId, e);
-          toast('⚠️ Stock error: ' + (e.message || ''), 'warning');
-        }
+      // Si se pidió recepcionar, dar entrada de stock
+      if (conRecepcion && inserted) {
+        const _stockOk = await _entradaStockAlbaran(inserted.id, almacenId, rcLineas, numero, v('rc_fecha'));
+        closeModal('mRecepcion');
+        const _fEst = document.getElementById('rcFiltroEstado');
+        if (_fEst) _fEst.value = '';
+        loadRecepciones();
+        toast('Albarán recepcionado + stock actualizado (' + _stockOk + ' artículos) ✓', 'success');
+      } else {
+        closeModal('mRecepcion');
+        const _fEst = document.getElementById('rcFiltroEstado');
+        if (_fEst) _fEst.value = '';
+        loadRecepciones();
+        toast('Albarán guardado como pendiente ✓', 'success');
       }
-
-      closeModal('mRecepcion');
-      loadRecepciones();
-      toast('Albarán guardado + stock actualizado (' + _stockOk + ' artículos) ✓', 'success');
     }
   } finally {
     _creando = false;
@@ -343,62 +314,83 @@ async function guardarRecepcion() {
 }
 
 // ═══════════════════════════════════════════════
-// VERIFICAR RECEPCIÓN
+// FUNCIÓN AUXILIAR: ENTRADA DE STOCK PARA ALBARÁN
 // ═══════════════════════════════════════════════
-async function verificarRecepcion(id) {
-  if (!confirm('¿Verificar albarán?')) return;
-  await sb.from('recepciones').update({estado:'verificada'}).eq('id', id);
-  loadRecepciones();
-  toast('Albarán verificado ✓', 'success');
+async function _entradaStockAlbaran(recepcionId, almacenId, lineas, numero, fecha) {
+  let _stockOk = 0;
+  for (const linea of (lineas || [])) {
+    const artId = linea.articulo_id || linea._artId;
+    if (!artId) continue;
+    const cant = linea.cantidad_recibida || linea.cantidad || 0;
+    if (cant <= 0) continue;
+
+    try {
+      const { data: stockExist } = await sb.from('stock').select('*')
+        .eq('almacen_id', almacenId).eq('articulo_id', artId).eq('empresa_id', EMPRESA.id).limit(1);
+
+      if (stockExist?.length) {
+        const s = stockExist[0];
+        const provLimpiar = Math.min(s.stock_provisional || 0, cant);
+        await sb.from('stock').update({
+          cantidad: (s.cantidad || 0) + cant,
+          stock_provisional: Math.max(0, (s.stock_provisional || 0) - provLimpiar)
+        }).eq('id', s.id);
+      } else {
+        await sb.from('stock').insert({
+          empresa_id: EMPRESA.id, almacen_id: almacenId,
+          articulo_id: artId, cantidad: cant, stock_provisional: 0, stock_reservado: 0
+        });
+      }
+
+      await sb.from('movimientos_stock').insert({
+        empresa_id: EMPRESA.id, articulo_id: artId, almacen_id: almacenId,
+        tipo: 'entrada', cantidad: cant, delta: cant,
+        notas: 'Albarán proveedor nº ' + numero,
+        tipo_stock: 'real', fecha: fecha || new Date().toISOString().slice(0, 10),
+        usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
+      });
+      _stockOk++;
+    } catch(e) {
+      console.error('[Stock albarán] Error:', artId, e);
+      toast('⚠️ Stock error: ' + (e.message || ''), 'warning');
+    }
+  }
+  return _stockOk;
 }
 
 // ═══════════════════════════════════════════════
-// ALMACENAR RECEPCIÓN (ACTUALIZAR STOCK)
+// RECEPCIONAR ALBARÁN (VERIFICAR + ENTRADA STOCK)
 // ═══════════════════════════════════════════════
-async function almacenarRecepcion(id) {
+async function recepcionarAlbaran(id) {
   const r = recepciones.find(x => x.id === id);
   if (!r) return;
 
-  // Si ya está almacenada, no duplicar stock
-  if (r.estado === 'almacenada') {
-    toast('Este albarán ya tiene el stock actualizado', 'info');
+  if (r.estado === 'recepcionado' || r.estado === 'facturado') {
+    toast('Este albarán ya está recepcionado', 'info');
     return;
   }
-  if (!confirm('¿Almacenar y actualizar stock?')) return;
+  if (!confirm('¿Recepcionar albarán y dar entrada al stock?')) return;
 
-  // Actualizar stock en almacén
-  for (const linea of (r.lineas||[])) {
-    if (linea.articulo_id) {
-      const cant = linea.cantidad_recibida || linea.cantidad || 0;
-      const {data:stock} = await sb.from('stock').select('*').eq('almacen_id', r.almacen_destino_id).eq('articulo_id', linea.articulo_id).eq('empresa_id', EMPRESA.id).limit(1);
-      if (stock && stock.length > 0) {
-        const provLimpiar = Math.min(stock[0].stock_provisional || 0, cant);
-        await sb.from('stock').update({
-          cantidad: (stock[0].cantidad||0) + cant,
-          stock_provisional: Math.max(0, (stock[0].stock_provisional || 0) - provLimpiar)
-        }).eq('id', stock[0].id);
-      } else {
-        await sb.from('stock').insert({
-          empresa_id: EMPRESA.id,
-          almacen_id: r.almacen_destino_id,
-          articulo_id: linea.articulo_id,
-          cantidad: cant, stock_provisional: 0, stock_reservado: 0
-        });
-      }
-      // Registrar movimiento
-      await sb.from('movimientos_stock').insert({
-        empresa_id: EMPRESA.id, articulo_id: linea.articulo_id, almacen_id: r.almacen_destino_id,
-        tipo: 'entrada', cantidad: cant, delta: cant,
-        notas: 'Albarán proveedor nº ' + (r.numero || r.id),
-        tipo_stock: 'real', fecha: r.fecha || new Date().toISOString().slice(0, 10),
-        usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || CU?.email || 'admin'
-      });
-    }
-  }
-
-  await sb.from('recepciones').update({estado:'almacenada'}).eq('id', id);
+  const _stockOk = await _entradaStockAlbaran(r.id, r.almacen_destino_id, r.lineas, r.numero, r.fecha);
+  await sb.from('recepciones').update({ estado: 'recepcionado' }).eq('id', id);
   loadRecepciones();
-  toast('Albarán almacenado y stock actualizado ✓', 'success');
+  toast('Albarán recepcionado + stock actualizado (' + _stockOk + ' artículos) ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// INCIDENCIA EN ALBARÁN
+// ═══════════════════════════════════════════════
+async function incidenciaAlbaran(id) {
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+
+  const motivo = prompt('Describe la incidencia (mercancía dañada, faltan unidades, etc.):');
+  if (!motivo) return;
+
+  const obs = (r.observaciones || '') + '\n⚠️ INCIDENCIA (' + new Date().toLocaleDateString('es-ES') + '): ' + motivo;
+  await sb.from('recepciones').update({ estado: 'incidencia', observaciones: obs.trim() }).eq('id', id);
+  loadRecepciones();
+  toast('Albarán marcado con incidencia', 'warning');
 }
 
 // ═══════════════════════════════════════════════
@@ -456,9 +448,9 @@ async function recepcionToFacturaProv(id) {
       pedido_compra_id: r.pedido_compra_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
-    await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
-    const rr = recepciones.find(x=>x.id===id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
-    toast('🧾 Factura proveedor creada — albarán bloqueado', 'success');
+    await sb.from('recepciones').update({ estado: 'facturado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
+    const rr = recepciones.find(x=>x.id===id); if(rr) { rr.estado='facturado'; rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+    toast('🧾 Factura proveedor creada — albarán facturado', 'success');
     goPage('facturas-proveedor');
   } finally {
     _creando = false;
@@ -510,8 +502,8 @@ async function facturarRecepcionesMulti() {
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     // Marcar todos como bloqueados
     for (const r of recs) {
-      await sb.from('recepciones').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);
-      const rr = recepciones.find(x=>x.id===r.id); if(rr) { rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
+      await sb.from('recepciones').update({ estado: 'facturado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);
+      const rr = recepciones.find(x=>x.id===r.id); if(rr) { rr.estado='facturado'; rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
     }
     toast(`🧾 Factura ${numero} creada con ${recs.length} albaranes — bloqueados`, 'success');
     goPage('facturas-proveedor');
