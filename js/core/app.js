@@ -894,9 +894,8 @@ function initRealtimePartes() {
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'traspasos', filter: `empresa_id=eq.${EMPRESA.id}` },
       () => {
-        // Refrescar lista de traspasos si estamos en esa página
-        const pageTrasp = document.getElementById('page-traspasos');
-        if (pageTrasp && pageTrasp.classList.contains('active') && typeof loadTraspasos === 'function') loadTraspasos();
+        console.log('[Realtime] Cambio en traspasos detectado');
+        if (typeof loadTraspasos === 'function') loadTraspasos();
       }
     )
     .subscribe((status, err) => {
