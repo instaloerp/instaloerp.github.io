@@ -808,10 +808,13 @@ async function ocrValidar(id) {
               <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Fecha</label>
               <input type="date" id="ocrValFecha" value="${fechaOcr}" class="input" style="margin-top:2px;font-size:13px">
             </div>
-            <div>
+            ${operarioNombre !== '—' ? `<div>
               <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Operario / Furgoneta</label>
               <div class="input" style="margin-top:2px;font-size:12px;background:var(--gris-50);padding:6px 8px;color:var(--gris-600)">👷 ${operarioNombre} · 🚐 ${furgonetaNombre}</div>
-            </div>
+            </div>` : `<div>
+              <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Origen</label>
+              <div class="input" style="margin-top:2px;font-size:12px;background:var(--gris-50);padding:6px 8px;color:var(--gris-600)">🤖 Importación IA</div>
+            </div>`}
           </div>
           <div style="margin-top:6px">
             <label style="font-size:10px;font-weight:600;color:var(--gris-500)">Observaciones</label>
@@ -928,59 +931,91 @@ async function _ocrConfirmarValidacion() {
     for (let i = 0; i < materiales.length; i++) {
       const m = materiales[i];
       const ed = ediciones[i];
-      if (!m.articulo_id || ed.cantidad <= 0) continue;
+      if (ed.cantidad <= 0) continue;
       try {
-        // Actualizar artículo — si es nuevo (no catálogo), activarlo como definitivo
-        const updateFields = {};
-        if (ed.nombre && ed.nombre !== (m.nombre || '')) updateFields.nombre = ed.nombre;
-        if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
-        if (ed.precio > 0) updateFields.precio_coste = ed.precio;
-        if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
-        if (!m.en_catalogo) updateFields.es_activo = true; // provisional → definitivo
-        if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', m.articulo_id);
+        let articuloId = m.articulo_id;
+
+        // Si no tiene articulo_id (viene de IA sin crear), crear o buscar el artículo
+        if (!articuloId) {
+          // Buscar por código
+          const artExiste = typeof _iaBuscarArticuloExistente === 'function'
+            ? _iaBuscarArticuloExistente({ codigo: ed.codigo, descripcion: ed.nombre })
+            : null;
+          if (artExiste) {
+            articuloId = artExiste.id;
+          } else {
+            // Crear artículo nuevo como definitivo (es_activo:true porque el admin ya lo está validando)
+            const _sufijo = Math.random().toString(36).substr(2, 4).toUpperCase();
+            const codigoAuto = 'OCR-' + ((ed.codigo||'').replace(/[^a-zA-Z0-9-]/g,'').toUpperCase() || Date.now().toString(36).toUpperCase()) + '-' + _sufijo;
+            const { data: nuevoArt, error: artErr } = await sb.from('articulos').insert({
+              empresa_id: EMPRESA.id, codigo: codigoAuto, nombre: ed.nombre || 'Material OCR',
+              referencia_fabricante: ed.codigo || null, precio_coste: ed.precio || 0,
+              precio_venta: 0, es_activo: true, activo: true,
+              proveedor_id: proveedorId || null,
+              observaciones: 'Creado desde validación OCR — doc ' + (numDocEdit || doc.id)
+            }).select().single();
+            if (!artErr && nuevoArt) {
+              articuloId = nuevoArt.id;
+              toast('✅ Artículo creado: ' + nuevoArt.nombre, 'info');
+            } else {
+              toast('❌ Error creando artículo: ' + (artErr?.message || ''), 'error');
+              errCount++; continue;
+            }
+          }
+          m.articulo_id = articuloId; // actualizar para las líneas del documento
+        } else {
+          // Artículo ya existe — actualizar campos si es nuevo (no catálogo)
+          const updateFields = {};
+          if (ed.nombre && ed.nombre !== (m.nombre || '')) updateFields.nombre = ed.nombre;
+          if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
+          if (ed.precio > 0) updateFields.precio_coste = ed.precio;
+          if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
+          if (!m.en_catalogo) updateFields.es_activo = true; // provisional → definitivo
+          if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', articuloId);
+        }
 
         // Vincular proveedor
-        if (proveedorId) {
+        if (proveedorId && articuloId) {
           const { data: existeVinc } = await sb.from('articulos_proveedores')
-            .select('id').eq('articulo_id', m.articulo_id).eq('proveedor_id', proveedorId).eq('empresa_id', EMPRESA.id).limit(1);
+            .select('id').eq('articulo_id', articuloId).eq('proveedor_id', proveedorId).eq('empresa_id', EMPRESA.id).limit(1);
           if (!existeVinc?.length) {
             await sb.from('articulos_proveedores').insert({
-              empresa_id: EMPRESA.id, articulo_id: m.articulo_id, proveedor_id: proveedorId,
+              empresa_id: EMPRESA.id, articulo_id: articuloId, proveedor_id: proveedorId,
               ref_proveedor: ed.codigo || m.codigo || null, precio_proveedor: ed.precio || 0, es_principal: !m.en_catalogo
             });
           }
         }
 
-        // Stock: provisional → real
+        // Stock: provisional → real (solo si hay stock provisional — flujo app móvil)
         const { data: stockRows } = await sb.from('stock')
           .select('id, almacen_id, cantidad, stock_provisional, almacenes(nombre, tipo)')
-          .eq('empresa_id', EMPRESA.id).eq('articulo_id', m.articulo_id).gt('stock_provisional', 0);
-        if (!stockRows?.length) { toast('⚠️ ' + (ed.nombre||'').substring(0,20) + ': sin stock provisional', 'warning'); continue; }
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', articuloId).gt('stock_provisional', 0);
+        if (stockRows?.length) {
+          const stk = stockRows[0];
+          const cantOriginal = m.cantidad || 0;
+          const mover = Math.min(ed.cantidad, stk.stock_provisional || 0);
 
-        const stk = stockRows[0];
-        const cantOriginal = m.cantidad || 0;
-        const mover = Math.min(ed.cantidad, stk.stock_provisional || 0);
+          await sb.from('stock').update({
+            cantidad: (stk.cantidad || 0) + mover,
+            stock_provisional: Math.max(0, (stk.stock_provisional || 0) - cantOriginal)
+          }).eq('id', stk.id);
 
-        await sb.from('stock').update({
-          cantidad: (stk.cantidad || 0) + mover,
-          stock_provisional: Math.max(0, (stk.stock_provisional || 0) - cantOriginal)
-        }).eq('id', stk.id);
-
-        await sb.from('movimientos_stock').insert({
-          empresa_id: EMPRESA.id, articulo_id: m.articulo_id, almacen_id: stk.almacen_id,
-          tipo: 'entrada', cantidad: mover, delta: mover,
-          notas: 'Validación OCR: ' + (ed.nombre || '?') + ' — doc ' + (numDocEdit || doc.id),
-          tipo_stock: 'real', fecha: new Date().toISOString().slice(0, 10),
-          usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
-        });
-
-        if (ed.cantidad < cantOriginal) {
           await sb.from('movimientos_stock').insert({
-            empresa_id: EMPRESA.id, articulo_id: m.articulo_id, almacen_id: stk.almacen_id,
-            tipo: 'ajuste', cantidad: -(cantOriginal - ed.cantidad), delta: -(cantOriginal - ed.cantidad),
-            notas: 'Ajuste validación: ' + cantOriginal + ' → ' + ed.cantidad, tipo_stock: 'provisional',
-            fecha: new Date().toISOString().slice(0, 10), usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
+            empresa_id: EMPRESA.id, articulo_id: articuloId, almacen_id: stk.almacen_id,
+            tipo: 'entrada', cantidad: mover, delta: mover,
+            notas: 'Validación OCR: ' + (ed.nombre || '?') + ' — doc ' + (numDocEdit || doc.id),
+            tipo_stock: 'real', fecha: new Date().toISOString().slice(0, 10),
+            usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
           });
+
+          if (ed.cantidad < cantOriginal) {
+            await sb.from('movimientos_stock').insert({
+              empresa_id: EMPRESA.id, articulo_id: articuloId, almacen_id: stk.almacen_id,
+              tipo: 'ajuste', cantidad: -(cantOriginal - ed.cantidad), delta: -(cantOriginal - ed.cantidad),
+              notas: 'Ajuste validación: ' + cantOriginal + ' → ' + ed.cantidad, tipo_stock: 'provisional',
+              fecha: new Date().toISOString().slice(0, 10), usuario_id: CP?.id || null, usuario_nombre: CP?.nombre || 'admin'
+            });
+          }
         }
         okCount++;
       } catch(e) {
@@ -1012,7 +1047,7 @@ async function _ocrConfirmarValidacion() {
     }));
     const docData = {
       numero_documento: numDocEdit, fecha: fechaEdit, fecha_vencimiento: '',
-      notas: notasEdit || ('Validado desde OCR móvil — operario: ' + (datos.operario || '?')),
+      notas: notasEdit || ('Validado desde OCR' + (datos.operario ? ' — operario: ' + datos.operario : '')),
       lineas: lineasDoc
     };
 
