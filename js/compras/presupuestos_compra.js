@@ -15,7 +15,7 @@ let _prcKpiFilterActivo = '';
 
 const PRC_ESTADOS = {
   borrador:   { label:'Borrador',   ico:'📝', color:'var(--gris-500)',   bg:'var(--gris-100)' },
-  enviado:    { label:'Enviado',    ico:'✉️', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
+  pendiente:  { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
   aceptado:   { label:'Aceptado',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
   caducado:   { label:'Caducado',   ico:'⏰', color:'var(--rojo)',       bg:'var(--rojo-light)' },
   rechazado:  { label:'Rechazado',  ico:'❌', color:'var(--rojo)',       bg:'var(--rojo-light)' },
@@ -32,7 +32,7 @@ async function loadPresupuestosCompra() {
   // Auto-caducar: si valido_hasta < hoy y estado es borrador/enviado → caducado
   const hoy = new Date().toISOString().split('T')[0];
   for (const p of presupuestosCompra) {
-    if (p.valido_hasta && p.valido_hasta < hoy && (p.estado === 'borrador' || p.estado === 'enviado')) {
+    if (p.valido_hasta && p.valido_hasta < hoy && (p.estado === 'borrador' || p.estado === 'pendiente')) {
       p.estado = 'caducado';
       sb.from('presupuestos_compra').update({estado:'caducado'}).eq('id', p.id).then(()=>{});
     }
@@ -115,7 +115,7 @@ function renderPresupuestosCompra(list) {
         <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
         <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     } else {
-      // borrador o enviado
+      // borrador o pendiente
       acciones = `
         <button onclick="prcAceptar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">✅ Aceptar</button>
         <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
@@ -148,10 +148,10 @@ function actualizarKpisPrc() {
   const el = id => document.getElementById(id);
   if (el('prcKpiTotal'))    el('prcKpiTotal').textContent = noAnulados.length;
   if (el('prcKpiAcept'))    el('prcKpiAcept').textContent = presupuestosCompra.filter(p => p.estado === 'aceptado').length;
-  if (el('prcKpiEnv'))      el('prcKpiEnv').textContent = presupuestosCompra.filter(p => p.estado === 'enviado').length;
+  if (el('prcKpiPend'))     el('prcKpiPend').textContent = presupuestosCompra.filter(p => p.estado === 'pendiente').length;
   if (el('prcKpiCad'))      el('prcKpiCad').textContent = presupuestosCompra.filter(p => p.estado === 'caducado').length;
   if (el('prcKpiBorr'))     el('prcKpiBorr').textContent = presupuestosCompra.filter(p => p.estado === 'borrador').length;
-  if (el('prcKpiImpPend'))  el('prcKpiImpPend').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='borrador'||p.estado==='enviado').reduce((s,p) => s+parseFloat(p.total||0),0));
+  if (el('prcKpiImpPend'))  el('prcKpiImpPend').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='borrador'||p.estado==='pendiente').reduce((s,p) => s+parseFloat(p.total||0),0));
   if (el('prcKpiImpAcep'))  el('prcKpiImpAcep').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='aceptado').reduce((s,p) => s+parseFloat(p.total||0),0));
 }
 
@@ -164,10 +164,10 @@ async function prcAceptar(id) {
 }
 
 async function prcReactivar(id) {
-  if (!confirm('¿Reactivar este presupuesto? Se volverá a poner como enviado.')) return;
+  if (!confirm('¿Reactivar este presupuesto? Se volverá a poner como pendiente.')) return;
   // Extender validez 30 días
   const v = new Date(); v.setDate(v.getDate() + 30);
-  await sb.from('presupuestos_compra').update({estado:'enviado', valido_hasta: v.toISOString().split('T')[0]}).eq('id', id);
+  await sb.from('presupuestos_compra').update({estado:'pendiente', valido_hasta: v.toISOString().split('T')[0]}).eq('id', id);
   await loadPresupuestosCompra();
   toast('🔄 Presupuesto reactivado con nueva validez', 'success');
 }
@@ -176,21 +176,45 @@ function prcCambiarEstadoMenu(event, id) {
   event.stopPropagation();
   const p = presupuestosCompra.find(x => x.id === id);
   if (!p) return;
-  const estados = ['borrador','enviado','aceptado','rechazado'];
+  const estados = ['borrador','pendiente','aceptado','rechazado'];
   const next = estados[(estados.indexOf(p.estado) + 1) % estados.length];
   if (confirm(`¿Cambiar estado a "${next}"?`)) {
     cambiarEstadoPrc(id, next);
   }
 }
 
-async function prcAsignarObra(id) {
+function prcAsignarObra(id) {
   const obras = (typeof trabajos !== 'undefined' ? trabajos : []).filter(t => t.estado !== 'finalizada' && t.estado !== 'cancelada');
   if (!obras.length) { toast('No hay obras activas', 'info'); return; }
-  const opciones = obras.map(t => `${t.id}: ${t.numero||''} — ${t.titulo||t.cliente_nombre||''}`).join('\n');
-  const sel = prompt('Selecciona obra (introduce el ID):\n\n' + opciones);
-  if (!sel) return;
-  const obraId = parseInt(sel);
-  if (!obraId) return;
+
+  // Crear modal mini para seleccionar obra
+  let overlay = document.getElementById('prcObraOverlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'prcObraOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center';
+  const opts = obras.map(t => `<option value="${t.id}">${t.numero||''} — ${t.titulo||t.cliente_nombre||''}</option>`).join('');
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:24px 28px;min-width:380px;max-width:500px;box-shadow:0 12px 40px rgba(0,0,0,0.18)">
+      <h3 style="margin:0 0 16px;font-size:16px;color:var(--gris-700)">🏗️ Asignar obra</h3>
+      <select id="prcObraSelect" style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        <option value="">— Selecciona obra —</option>
+        ${opts}
+      </select>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+        <button onclick="document.getElementById('prcObraOverlay').remove()" style="padding:8px 18px;border-radius:8px;border:1.5px solid var(--gris-200);background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--gris-500)">Cancelar</button>
+        <button onclick="prcConfirmarObra(${id})" style="padding:8px 18px;border-radius:8px;border:none;background:var(--verde);color:#fff;cursor:pointer;font-size:13px;font-weight:600">Asignar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function prcConfirmarObra(id) {
+  const sel = document.getElementById('prcObraSelect');
+  const obraId = parseInt(sel?.value);
+  if (!obraId) { toast('Selecciona una obra', 'info'); return; }
+  document.getElementById('prcObraOverlay')?.remove();
   await sb.from('presupuestos_compra').update({trabajo_id: obraId}).eq('id', id);
   await propagarObraCompras(obraId, { presupuesto_compra_id: id });
   await loadPresupuestosCompra();
@@ -219,6 +243,10 @@ async function nuevoPresupuestoCompra() {
   document.getElementById('prc_observaciones').value = '';
   document.getElementById('mPRCTit').textContent = 'Nuevo Presupuesto de Compra';
   poblarSelectorObra('prc_obra', null);
+
+  // Mostrar botón borrador en nuevo
+  const btnBorr = document.getElementById('prcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = '';
 
   prc_addLinea();
   openModal('mPresupuestoCompra');
@@ -252,6 +280,10 @@ async function editarPresupuestoCompra(id) {
   poblarSelectorObra('prc_obra', p.trabajo_id);
 
   document.getElementById('mPRCTit').textContent = 'Editar Presupuesto de Compra';
+
+  // Ocultar botón borrador al editar (ya está guardado)
+  const btnBorr = document.getElementById('prcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = 'none';
 
   if (prcLineas.length === 0) prc_addLinea();
   prc_renderLineas();

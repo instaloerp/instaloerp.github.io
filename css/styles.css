@@ -8,7 +8,7 @@ input[type="number"]{-moz-appearance:textfield}
   --rojo:#DC2626;--rojo-light:#FEE2E2;
   --amarillo:#D97706;--amarillo-light:#FEF3C7;
   --violeta:#7C3AED;--violeta-light:#EDE9FE;
-  --acento:#F97316;
+  --naranja:#F97316;--naranja-light:#FFF7ED;--acento:#F97316;
   --gris-50:#F8FAFC;--gris-100:#F1F5F9;--gris-200:#E2E8F0;
   --gris-300:#CBD5E1;--gris-400:#94A3B8;--gris-500:#64748B;
   --gris-600:#475569;--gris-700:#334155;--gris-800:#1E293B;--gris-900:#0F172A;
