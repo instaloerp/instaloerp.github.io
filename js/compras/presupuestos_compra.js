@@ -126,6 +126,7 @@ async function nuevoPresupuestoCompra() {
   document.getElementById('prc_numero').value = await generarNumeroDoc('presupuesto_compra');
   document.getElementById('prc_observaciones').value = '';
   document.getElementById('mPRCTit').textContent = 'Nuevo Presupuesto de Compra';
+  poblarSelectorObra('prc_obra', null);
 
   prc_addLinea();
   openModal('mPresupuestoCompra');
@@ -156,6 +157,7 @@ async function editarPresupuestoCompra(id) {
   document.getElementById('prc_fecha').value = p.fecha || '';
   document.getElementById('prc_validez').value = p.valido_hasta || '';
   document.getElementById('prc_observaciones').value = p.observaciones || '';
+  poblarSelectorObra('prc_obra', p.trabajo_id);
 
   document.getElementById('mPRCTit').textContent = 'Editar Presupuesto de Compra';
 
@@ -301,7 +303,8 @@ async function guardarPresupuestoCompra(estado) {
       total_iva: ivaTotal,
       total: base + ivaTotal,
       lineas: prcLineas,
-      observaciones: v('prc_observaciones')
+      observaciones: v('prc_observaciones'),
+      trabajo_id: parseInt(document.getElementById('prc_obra')?.value) || null
     };
 
     let err;
@@ -314,6 +317,11 @@ async function guardarPresupuestoCompra(estado) {
     }
 
     if (err) { toast('Error: ' + err.message, 'error'); return; }
+
+    // Propagar obra a toda la cadena si se ha asignado
+    if (obj.trabajo_id && prcEditId) {
+      await propagarObraCompras(obj.trabajo_id, { presupuesto_compra_id: prcEditId });
+    }
 
     closeModal('mPresupuestoCompra');
     await loadPresupuestosCompra();
@@ -395,6 +403,7 @@ async function prcToPedido(id) {
       total_iva: p.total_iva || 0,
       total: p.total,
       presupuesto_compra_id: p.id,
+      trabajo_id: p.trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'pedido', exportado_bloqueado:true }).eq('id', id);
@@ -427,6 +436,7 @@ async function prcToRecepcion(id) {
       lineas,
       total: p.total,
       presupuesto_compra_id: p.id,
+      trabajo_id: p.trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'recepcion', exportado_bloqueado:true }).eq('id', id);
@@ -461,6 +471,7 @@ async function prcToFacturaProv(id) {
       observaciones: p.observaciones,
       lineas: p.lineas,
       presupuesto_compra_id: p.id,
+      trabajo_id: p.trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);

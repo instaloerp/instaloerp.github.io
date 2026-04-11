@@ -98,6 +98,7 @@ async function nuevoPedidoCompra() {
   document.getElementById('pc_numero').value = await generarNumeroDoc('pedido_compra');
   document.getElementById('pc_observaciones').value = '';
   document.getElementById('mPCTit').textContent = 'Nuevo Pedido de Compra';
+  poblarSelectorObra('pc_obra', null);
 
   pc_addLinea();
   openModal('mPedidoCompra');
@@ -125,6 +126,7 @@ async function editarPedidoCompra(id) {
   });
 
   document.getElementById('mPCTit').textContent = 'Editar Pedido de Compra';
+  poblarSelectorObra('pc_obra', pc.trabajo_id);
   pc_renderLineas();
   openModal('mPedidoCompra');
 }
@@ -265,13 +267,23 @@ async function guardarPedidoCompra(estado) {
       total_iva: ivaTotal,
       total: base + ivaTotal,
       lineas: pcLineas,
-      observaciones: v('pc_observaciones')
+      observaciones: v('pc_observaciones'),
+      trabajo_id: parseInt(document.getElementById('pc_obra')?.value) || null
     };
 
     if (pcEditId) {
       await sb.from('pedidos_compra').update(obj).eq('id', pcEditId);
     } else {
       await sb.from('pedidos_compra').insert(obj);
+    }
+
+    // Propagar obra a toda la cadena si se ha asignado
+    if (obj.trabajo_id && pcEditId) {
+      const pc = pedidosCompra.find(x => x.id === pcEditId);
+      await propagarObraCompras(obj.trabajo_id, {
+        presupuesto_compra_id: pc?.presupuesto_compra_id,
+        pedido_compra_id: pcEditId
+      });
     }
 
     closeModal('mPedidoCompra');
@@ -321,7 +333,8 @@ async function pedidoToRecepcion(id) {
       estado: 'pendiente',
       lineas,
       observaciones: '',
-      usuario_nombre: CP?.nombre || CU.email
+      usuario_nombre: CP?.nombre || CU.email,
+      trabajo_id: pc.trabajo_id || null
     };
 
     await sb.from('recepciones').insert(obj);
@@ -386,6 +399,7 @@ async function pedidoToFacturaProv(id) {
       observaciones: pc.observaciones,
       lineas: pc.lineas,
       pedido_compra_id: pc.id,
+      trabajo_id: pc.trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     await sb.from('pedidos_compra').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);

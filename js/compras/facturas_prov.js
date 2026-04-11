@@ -110,6 +110,7 @@ async function nuevaFacturaProv() {
   document.getElementById('fp_vencimiento').value = v1.toISOString().split('T')[0];
   document.getElementById('fp_observaciones').value = '';
   document.getElementById('mFPTit').textContent = 'Nueva Factura de Proveedor';
+  poblarSelectorObra('fp_obra', null);
 
   fp_addLinea();
   openModal('mFacturaProv');
@@ -178,6 +179,7 @@ async function editarFacturaProv(id) {
   });
 
   document.getElementById('mFPTit').textContent = 'Editar Factura de Proveedor';
+  poblarSelectorObra('fp_obra', fp.trabajo_id);
   fp_renderLineas();
   openModal('mFacturaProv');
 }
@@ -325,12 +327,23 @@ async function guardarFacturaProv(estado) {
       total: base + ivaTotal,
       estado,
       lineas: fpLineas,
-      observaciones: v('fp_observaciones')
+      observaciones: v('fp_observaciones'),
+      trabajo_id: parseInt(document.getElementById('fp_obra')?.value) || null
     };
 
     let facturaId = fpEditId;
     if (fpEditId) {
       await sb.from('facturas_proveedor').update(obj).eq('id', fpEditId);
+      // Propagar obra a toda la cadena si se ha asignado
+      if (obj.trabajo_id) {
+        const fp = facturasProveedor.find(x => x.id === fpEditId);
+        await propagarObraCompras(obj.trabajo_id, {
+          presupuesto_compra_id: fp?.presupuesto_compra_id,
+          pedido_compra_id: fp?.pedido_compra_id,
+          recepcion_id: fp?.recepcion_id,
+          factura_proveedor_id: fpEditId
+        });
+      }
     } else {
       const { data: inserted, error: insErr } = await sb.from('facturas_proveedor').insert(obj).select().single();
       if (insErr) throw new Error(insErr.message);

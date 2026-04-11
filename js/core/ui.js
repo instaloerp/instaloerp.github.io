@@ -8,6 +8,55 @@ function cfgTarifaKm()   { return (EMPRESA?.config_partes?.tarifa_km) ?? 0.26; }
 function cfgMargenOcr()  { return (EMPRESA?.config_partes?.margen_ocr ?? 30) / 100; }
 function cfgIvaPartes()  { return (EMPRESA?.config_partes?.iva_partes) ?? 21; }
 
+// ── Helper: poblar selector de obras en modales de compras ──
+function poblarSelectorObra(selectId, selectedId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const obras = (typeof trabajos !== 'undefined' ? trabajos : []).filter(t => t.estado !== 'finalizada' && t.estado !== 'cancelada');
+  sel.innerHTML = '<option value="">— Sin asignar —</option>' +
+    obras.map(t => `<option value="${t.id}" ${t.id == selectedId ? 'selected' : ''}>${t.numero || ''} — ${t.titulo || t.cliente_nombre || ''}</option>`).join('');
+}
+
+// ── Propagación bidireccional de obra en cadena de compras ──
+async function propagarObraCompras(trabajo_id, refs) {
+  // refs = { presupuesto_compra_id, pedido_compra_id, recepcion_id, factura_proveedor_id }
+  const tid = trabajo_id || null;
+  const updates = [];
+
+  // 1. Recopilar toda la cadena hacia arriba
+  let prcId = refs.presupuesto_compra_id || null;
+  let pcId = refs.pedido_compra_id || null;
+  let rcId = refs.recepcion_id || null;
+
+  // Si tenemos recepción pero no pedido, buscar el pedido
+  if (rcId && !pcId) {
+    const {data} = await sb.from('recepciones').select('pedido_compra_id,presupuesto_compra_id').eq('id', rcId).single();
+    if (data) { pcId = data.pedido_compra_id || pcId; prcId = data.presupuesto_compra_id || prcId; }
+  }
+  // Si tenemos pedido pero no presupuesto, buscar el presupuesto
+  if (pcId && !prcId) {
+    const {data} = await sb.from('pedidos_compra').select('presupuesto_compra_id').eq('id', pcId).single();
+    if (data) prcId = data.presupuesto_compra_id || prcId;
+  }
+
+  // 2. Actualizar toda la cadena hacia arriba
+  if (prcId) updates.push(sb.from('presupuestos_compra').update({trabajo_id: tid}).eq('id', prcId));
+  if (pcId)  updates.push(sb.from('pedidos_compra').update({trabajo_id: tid}).eq('id', pcId));
+  if (rcId)  updates.push(sb.from('recepciones').update({trabajo_id: tid}).eq('id', rcId));
+
+  // 3. Actualizar hacia abajo — facturas que referencian estos documentos
+  if (rcId)  updates.push(sb.from('facturas_proveedor').update({trabajo_id: tid}).match({recepcion_id: rcId, empresa_id: EMPRESA.id}));
+  if (pcId)  updates.push(sb.from('facturas_proveedor').update({trabajo_id: tid}).match({pedido_compra_id: pcId, empresa_id: EMPRESA.id}).is('recepcion_id', null));
+  if (prcId) updates.push(sb.from('facturas_proveedor').update({trabajo_id: tid}).match({presupuesto_compra_id: prcId, empresa_id: EMPRESA.id}).is('pedido_compra_id', null).is('recepcion_id', null));
+
+  // 4. Actualizar pedidos que vienen del presupuesto
+  if (prcId) updates.push(sb.from('pedidos_compra').update({trabajo_id: tid}).match({presupuesto_compra_id: prcId, empresa_id: EMPRESA.id}));
+  // Recepciones que vienen del pedido
+  if (pcId)  updates.push(sb.from('recepciones').update({trabajo_id: tid}).match({pedido_compra_id: pcId, empresa_id: EMPRESA.id}));
+
+  await Promise.all(updates);
+}
+
 // ── Fecha y hora para el topbar ──
 function _fechaHoraActual() {
   const now = new Date();

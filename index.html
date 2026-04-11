@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 120</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 121</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3215,6 +3215,7 @@
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Fecha</label><input type="date" id="prc_fecha"></div>
         <div class="fg"><label>Válido hasta</label><input type="date" id="prc_validez"></div>
+        <div class="fg"><label>🏗️ Obra</label><select id="prc_obra" style="width:100%"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -3269,6 +3270,7 @@
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Fecha</label><input type="date" id="pc_fecha"></div>
         <div class="fg"><label>Fecha entrega prevista</label><input type="date" id="pc_entrega"></div>
+        <div class="fg"><label>🏗️ Obra</label><select id="pc_obra" style="width:100%"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -3321,6 +3323,7 @@
       </div>
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Fecha</label><input type="date" id="rc_fecha"></div>
+        <div class="fg"><label>🏗️ Obra</label><select id="rc_obra" style="width:100%"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -3441,6 +3444,7 @@
         <div class="fg"><label>Vencimiento</label><input type="date" id="fp_vencimiento"></div>
         <div class="fg"><label>Forma de pago</label><select id="fp_formapago" style="width:100%"><option value="">— Sin especificar —</option></select></div>
         <div class="fg"><label>Banco para pago</label><select id="fp_banco_pago" style="width:100%"><option value="">— Sin asignar —</option></select></div>
+        <div class="fg"><label>🏗️ Obra</label><select id="fp_obra" style="width:100%"><option value="">— Sin asignar —</option></select></div>
       </div>
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -4246,6 +4250,7 @@
     'js/admin/empresa.js',
     'js/admin/papelera.js',
     'js/admin/ocr.js',
+    'js/admin/demo.js',
     // IA / Utilidades
     'js/claude.js',
     // Laboratorio (auto-instalable, solo superadmin)

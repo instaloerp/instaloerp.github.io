@@ -155,6 +155,7 @@ async function nuevaRecepcion() {
   document.getElementById('rc_fecha').value = hoy;
   document.getElementById('rc_observaciones').value = '';
   document.getElementById('mRCTit').textContent = 'Nuevo Albarán de Proveedor';
+  poblarSelectorObra('rc_obra', null);
 
   rc_addLinea();
   openModal('mRecepcion');
@@ -185,6 +186,7 @@ async function editarRecepcion(id) {
   });
 
   document.getElementById('mRCTit').textContent = 'Editar Albarán de Proveedor';
+  poblarSelectorObra('rc_obra', r.trabajo_id);
   rc_renderLineas();
   openModal('mRecepcion');
 }
@@ -307,11 +309,21 @@ async function guardarRecepcion(conRecepcion = false) {
       estado: rcEditId ? recepciones.find(x=>x.id===rcEditId)?.estado : estadoNuevo,
       lineas: rcLineas,
       observaciones: v('rc_observaciones'),
-      usuario_nombre: CP?.nombre || CU.email
+      usuario_nombre: CP?.nombre || CU.email,
+      trabajo_id: parseInt(document.getElementById('rc_obra')?.value) || (rcEditId ? recepciones.find(x=>x.id===rcEditId)?.trabajo_id : null) || null
     };
 
     if (rcEditId) {
       await sb.from('recepciones').update(obj).eq('id', rcEditId);
+      // Propagar obra si se asignó
+      if (obj.trabajo_id) {
+        const rc = recepciones.find(x=>x.id===rcEditId);
+        await propagarObraCompras(obj.trabajo_id, {
+          presupuesto_compra_id: rc?.presupuesto_compra_id,
+          pedido_compra_id: rc?.pedido_compra_id || obj.pedido_compra_id,
+          recepcion_id: rcEditId
+        });
+      }
       closeModal('mRecepcion');
       loadRecepciones();
       toast('Albarán actualizado ✓', 'success');
@@ -655,6 +667,7 @@ async function recepcionToFacturaProv(id) {
       lineas: r.lineas,
       recepcion_id: r.id,
       pedido_compra_id: r.pedido_compra_id || null,
+      trabajo_id: r.trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     await sb.from('recepciones').update({ estado: 'facturado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
@@ -708,6 +721,7 @@ async function facturarRecepcionesMulti() {
       observaciones: `Factura agrupada: ${nums}`,
       lineas: lineasTodas,
       recepcion_ids: ids,
+      trabajo_id: recs[0].trabajo_id || null,
     });
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     // Marcar todos como bloqueados
