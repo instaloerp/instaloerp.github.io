@@ -21,7 +21,7 @@ async function loadConsumos() {
     const sinNumero = consumosData.filter(c => !c.parte_numero && c.parte_id);
     if (sinNumero.length) {
       const parteIds = [...new Set(sinNumero.map(c => c.parte_id))];
-      const { data: partes } = await sb.from('partes').select('id,numero').in('id', parteIds);
+      const { data: partes } = await sb.from('partes_trabajo').select('id,numero').in('id', parteIds);
       if (partes) {
         const map = {};
         partes.forEach(p => { map[p.id] = p.numero; });
@@ -48,16 +48,13 @@ function renderConsumos(list) {
   if (!tbody) return;
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gris-400)">Sin consumos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gris-400)">Sin consumos registrados</td></tr>';
     return;
   }
 
   tbody.innerHTML = list.map(c => {
     const fecha = c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : '—';
     const t = _CONSUMO_TIPO[c.tipo] || _CONSUMO_TIPO.consumo;
-    const stockCfg = c.sin_stock
-      ? { label:'Sin stock', color:'#991b1b', bg:'#fee2e2' }
-      : { label:'OK', color:'#065f46', bg:'#d1fae5' };
 
     return `<tr>
       <td style="font-size:12px">${fecha}</td>
@@ -74,22 +71,17 @@ function renderConsumos(list) {
       <td class="text-right">${fmtE(c.precio_unitario || 0)}</td>
       <td class="text-right" style="font-weight:700">${fmtE(c.total || 0)}</td>
       <td style="font-size:12px">${c.usuario_nombre || '—'}</td>
-      <td style="text-align:center">
-        <span style="padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;color:${stockCfg.color};background:${stockCfg.bg};white-space:nowrap">${stockCfg.label}</span>
-      </td>
     </tr>`;
   }).join('');
 }
 
 function updateConsumosKPIs(list) {
   const total = list.length;
-  const sinStock = list.filter(c => c.sin_stock).length;
   const mermas = list.filter(c => c.tipo === 'merma' || c.tipo === 'rotura').length;
   const valor = list.reduce((s, c) => s + (c.total || 0), 0);
 
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _s('kpi-consumos-total', total);
-  _s('kpi-consumos-sinstock', sinStock);
   _s('kpi-consumos-mermas', mermas);
   _s('kpi-consumos-valor', fmtE(valor));
 }

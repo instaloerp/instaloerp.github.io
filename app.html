@@ -1097,13 +1097,10 @@ async function confirmarReposicion(traspId) {
   }
 }
 
-// Registrar consumo de material en la BD (consumos_parte + movimiento + incidencia si procede)
+// Registrar consumo de material en la BD (consumos_parte + movimiento de stock)
 async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = 'consumo', motivoMerma = null) {
   if (!EMPRESA || !CU) return;
   const almacenId = miFurgoneta?.id || null;
-  const stock = getStockFurgoneta(material.articulo_id);
-  // sinStock solo para info/incidencias — NO bloquea la deducción (se permite negativo)
-  const sinStock = material.articulo_id ? (stock.cantidad < material.cantidad) : false;
   const esFacturable = (tipo === 'consumo');
 
   // 1. Insertar consumo_parte
@@ -1122,7 +1119,6 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
     tipo_stock: 'real',
     tipo: tipo,
     motivo_merma: motivoMerma,
-    sin_stock: sinStock,
     facturable: esFacturable,
     usuario_id: CU.id,
     usuario_nombre: CP?.nombre || CU.email
@@ -1130,9 +1126,6 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
   await sb.from('consumos_parte').insert(consumo);
 
   // 2. Descontar stock REAL de furgoneta (puede ir a negativo si aún no se validó)
-  //    El provisional se mantiene intacto — se convertirá a real al validar.
-  //    Así los movimientos cuadran: entrada +10 (validación) / salida -5 (consumo) = 5 real
-  //    NO se comprueba sinStock — siempre se descuenta, permitiendo negativos
   if (almacenId && material.articulo_id) {
     const { data: stFresh } = await sb.from('stock').select('*')
       .eq('almacen_id', almacenId).eq('articulo_id', material.articulo_id)
@@ -1143,7 +1136,6 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
       await sb.from('stock').update({ cantidad: nuevaCant })
         .eq('id', stFresh[0].id);
     } else {
-      // Crear registro de stock con cantidad negativa (se regularizará al validar albarán)
       await sb.from('stock').insert({
         empresa_id: EMPRESA.id, almacen_id: almacenId,
         articulo_id: material.articulo_id,
@@ -1164,22 +1156,6 @@ async function registrarConsumoMaterial(parteId, parteNumero, material, tipo = '
         : `${tipo.charAt(0).toUpperCase()+tipo.slice(1)}: ${motivoMerma || ''} (parte ${parteNumero})`,
       fecha: new Date().toISOString().slice(0,10),
       tipo_stock: 'real',
-      usuario_id: CU.id,
-      usuario_nombre: CP?.nombre || CU.email
-    });
-  }
-
-  // 3. Generar incidencia si no hay stock
-  if (sinStock && material.articulo_id) {
-    await sb.from('incidencias_stock').insert({
-      empresa_id: EMPRESA.id,
-      articulo_id: material.articulo_id,
-      articulo_nombre: material.nombre,
-      cantidad: material.cantidad,
-      almacen_id: almacenId,
-      almacen_nombre: miFurgoneta?.nombre || 'Sin furgoneta',
-      parte_id: parteId,
-      parte_numero: parteNumero,
       usuario_id: CU.id,
       usuario_nombre: CP?.nombre || CU.email
     });
