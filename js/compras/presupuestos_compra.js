@@ -11,6 +11,15 @@ let prcFiltrados = [];
 let prcLineas = [];
 let prcEditId = null;
 let prcProveedorActual = null;
+let _prcKpiFilterActivo = '';
+
+const PRC_ESTADOS = {
+  borrador:   { label:'Borrador',   ico:'📝', color:'var(--gris-500)',   bg:'var(--gris-100)' },
+  enviado:    { label:'Enviado',    ico:'✉️', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
+  aceptado:   { label:'Aceptado',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+  caducado:   { label:'Caducado',   ico:'⏰', color:'var(--rojo)',       bg:'var(--rojo-light)' },
+  rechazado:  { label:'Rechazado',  ico:'❌', color:'var(--rojo)',       bg:'var(--rojo-light)' },
+};
 
 // ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
@@ -19,33 +28,48 @@ async function loadPresupuestosCompra() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('presupuestos_compra').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   presupuestosCompra = data || [];
-  // Filtro por defecto: año en curso
-  const y = new Date().getFullYear();
+
+  // Auto-caducar: si valido_hasta < hoy y estado es borrador/enviado → caducado
+  const hoy = new Date().toISOString().split('T')[0];
+  for (const p of presupuestosCompra) {
+    if (p.valido_hasta && p.valido_hasta < hoy && (p.estado === 'borrador' || p.estado === 'enviado')) {
+      p.estado = 'caducado';
+      sb.from('presupuestos_compra').update({estado:'caducado'}).eq('id', p.id).then(()=>{});
+    }
+  }
+
+  // Filtro por defecto: último año hasta hoy+1año
   const dEl = document.getElementById('prcFiltroDesde');
   const hEl = document.getElementById('prcFiltroHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
-  // Poblar selector de proveedores
-  const sel = document.getElementById('prcFiltroProveedor');
-  if (sel && sel.options.length <= 1) {
-    (proveedores||[]).forEach(p => {
-      const o = document.createElement('option');
-      o.value = p.id; o.textContent = p.nombre;
-      sel.appendChild(o);
-    });
-  }
+  if (dEl && !dEl.value) { const d=new Date(); d.setFullYear(d.getFullYear()-1); dEl.value = d.toISOString().split('T')[0]; }
+  if (hEl && !hEl.value) { const d=new Date(); d.setFullYear(d.getFullYear()+1); hEl.value = d.toISOString().split('T')[0]; }
+
   filtrarPresupuestosCompra();
   actualizarKpisPrc();
 }
 
 function filtrarPresupuestosCompra() {
-  const est = document.getElementById('prcFiltroEstado')?.value || '';
-  const prov = document.getElementById('prcFiltroProveedor')?.value || '';
+  const estSel = document.getElementById('prcFiltroEstado')?.value || '';
+  const est = _prcKpiFilterActivo || estSel;
+  const busq = (document.getElementById('prcSearch')?.value || '').toLowerCase().trim();
   const desde = document.getElementById('prcFiltroDesde')?.value || '';
   const hasta = document.getElementById('prcFiltroHasta')?.value || '';
+
   prcFiltrados = presupuestosCompra.filter(p => {
-    if (est && p.estado !== est) return false;
-    if (prov && String(p.proveedor_id) !== prov) return false;
+    // Filtro estado
+    if (est === 'todos') { /* mostrar todo */ }
+    else if (est) { if (p.estado !== est) return false; }
+    else { if (p.estado === 'rechazado') return false; } // "Activos" = sin rechazados
+
+    // Búsqueda texto
+    if (busq) {
+      const hayMatch = (p.numero||'').toLowerCase().includes(busq) ||
+                        (p.proveedor_nombre||'').toLowerCase().includes(busq) ||
+                        (p.observaciones||'').toLowerCase().includes(busq);
+      if (!hayMatch) return false;
+    }
+
+    // Filtro fechas
     if (desde && p.fecha && p.fecha < desde) return false;
     if (hasta && p.fecha && p.fecha > hasta) return false;
     return true;
@@ -53,56 +77,124 @@ function filtrarPresupuestosCompra() {
   renderPresupuestosCompra(prcFiltrados);
 }
 
+function prcFiltrarPorKpi(estado) {
+  _prcKpiFilterActivo = estado;
+  document.querySelectorAll('.prc-kpi-filter').forEach(el => {
+    el.style.outline = el.dataset.filtro === estado ? '2.5px solid var(--azul)' : 'none';
+  });
+  const sel = document.getElementById('prcFiltroEstado');
+  if (sel) sel.value = '';
+  filtrarPresupuestosCompra();
+}
+
 function renderPresupuestosCompra(list) {
   if (!list) list = presupuestosCompra;
   const tb = document.getElementById('prcTable');
   if (!tb) return;
+
   tb.innerHTML = list.length ? list.map(p => {
-    const total = parseFloat(p.total||0).toFixed(2);
-    return `<tr>
-      <td><strong style="color:var(--azul);font-family:monospace;font-size:11.5px">${p.numero||'—'}</strong><br><span style="font-size:11px;color:var(--gris-400)">${p.fecha||'—'}</span></td>
-      <td>${p.proveedor_nombre||'—'}</td>
-      <td style="font-size:11.5px">${p.valido_hasta||'—'}</td>
-      <td>${estadoBadgePrc(p.estado)}</td>
-      <td style="text-align:right;font-weight:700">${total} €</td>
-      <td style="text-align:right">
-        <div style="display:flex;gap:4px;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="imprimirPresupuestoCompra(${p.id})" title="Imprimir">🖨️</button>
-          <button class="btn btn-ghost btn-sm" onclick="enviarPresupuestoCompraEmail(${p.id})" title="Enviar por email">📧</button>
-          <button class="btn btn-ghost btn-sm" onclick="editarPresupuestoCompra(${p.id})" title="Editar">✏️</button>
-          ${p.exportado_bloqueado ? '<span title="Exportado a '+p.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `<button class="btn btn-ghost btn-sm" onclick="prcToPedido(${p.id})" title="Generar pedido">📦</button>
-          <button class="btn btn-ghost btn-sm" onclick="prcToRecepcion(${p.id})" title="Recepcionar">📥</button>
-          <button class="btn btn-ghost btn-sm" onclick="prcToFacturaProv(${p.id})" title="Facturar">🧾</button>
-          <button class="btn btn-ghost btn-sm" onclick="eliminarPresupuestoCompra(${p.id})" title="Eliminar">🗑️</button>`}
-        </div>
+    const total = parseFloat(p.total||0);
+    const est = PRC_ESTADOS[p.estado] || PRC_ESTADOS.borrador;
+    const fechaStr = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
+    const validezStr = p.valido_hasta ? new Date(p.valido_hasta).toLocaleDateString('es-ES') : '—';
+    const obraNombre = p.trabajo_id ? (typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id==p.trabajo_id)?.titulo||'Obra asignada' : '';
+
+    // Badge de estado clickable
+    const badge = `<span onclick="prcCambiarEstadoMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>`;
+
+    // Acciones tipo pill
+    let acciones = '';
+    if (p.exportado_bloqueado) {
+      acciones = `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${p.exportado_a||'Exportado'}</span>`;
+    } else if (p.estado === 'caducado') {
+      acciones = `<button onclick="prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
+    } else if (p.estado === 'aceptado') {
+      acciones = `
+        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
+        <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
+        <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+    } else {
+      // borrador o enviado
+      acciones = `
+        <button onclick="prcAceptar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">✅ Aceptar</button>
+        <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
+        <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
+        <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+    }
+
+    return `<tr onclick="editarPresupuestoCompra(${p.id})" style="cursor:pointer">
+      <td>
+        <strong style="color:var(--azul);font-family:monospace;font-size:12px">${p.numero||'—'}</strong>
+        <div style="font-size:11px;color:var(--gris-400)">${fechaStr}</div>
+      </td>
+      <td><strong>${p.proveedor_nombre||'—'}</strong></td>
+      <td style="font-size:12px">${fechaStr}</td>
+      <td style="font-size:12px">${validezStr}</td>
+      <td style="font-weight:700">${fmtE(total)}</td>
+      <td>${badge}</td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${acciones}</div>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📋</div><h3>Sin presupuestos de compra</h3><p>Crea tu primer presupuesto de compra</p></div></td></tr>';
-}
-
-function estadoBadgePrc(e) {
-  const m = {
-    borrador: '<span class="badge bg-gray">Borrador</span>',
-    enviado: '<span class="badge" style="background:#EDF4FF;color:var(--azul)">Enviado</span>',
-    aceptado: '<span class="badge bg-green">Aceptado</span>',
-    rechazado: '<span class="badge bg-red">Rechazado</span>'
-  };
-  return m[e] || `<span class="badge bg-gray">${e||'—'}</span>`;
+  }).join('') : '<tr><td colspan="7"><div class="empty"><div class="ei">📋</div><h3>Sin presupuestos de compra</h3><p>Crea tu primer presupuesto de compra</p></div></td></tr>';
 }
 
 // ═══════════════════════════════════════════════
 // KPIs
 // ═══════════════════════════════════════════════
 function actualizarKpisPrc() {
-  const total = presupuestosCompra.length;
-  const pend = presupuestosCompra.filter(p => p.estado === 'borrador' || p.estado === 'enviado').length;
-  const acept = presupuestosCompra.filter(p => p.estado === 'aceptado').length;
-  const importe = presupuestosCompra.reduce((s, p) => s + parseFloat(p.total||0), 0);
+  const noAnulados = presupuestosCompra.filter(p => p.estado !== 'rechazado');
   const el = id => document.getElementById(id);
-  if (el('prcKpiTotal')) el('prcKpiTotal').textContent = total;
-  if (el('prcKpiPend')) el('prcKpiPend').textContent = pend;
-  if (el('prcKpiAcept')) el('prcKpiAcept').textContent = acept;
-  if (el('prcKpiImporte')) el('prcKpiImporte').textContent = importe.toFixed(2) + ' €';
+  if (el('prcKpiTotal'))    el('prcKpiTotal').textContent = noAnulados.length;
+  if (el('prcKpiAcept'))    el('prcKpiAcept').textContent = presupuestosCompra.filter(p => p.estado === 'aceptado').length;
+  if (el('prcKpiEnv'))      el('prcKpiEnv').textContent = presupuestosCompra.filter(p => p.estado === 'enviado').length;
+  if (el('prcKpiCad'))      el('prcKpiCad').textContent = presupuestosCompra.filter(p => p.estado === 'caducado').length;
+  if (el('prcKpiBorr'))     el('prcKpiBorr').textContent = presupuestosCompra.filter(p => p.estado === 'borrador').length;
+  if (el('prcKpiImpPend'))  el('prcKpiImpPend').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='borrador'||p.estado==='enviado').reduce((s,p) => s+parseFloat(p.total||0),0));
+  if (el('prcKpiImpAcep'))  el('prcKpiImpAcep').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='aceptado').reduce((s,p) => s+parseFloat(p.total||0),0));
+}
+
+// ═══════════════════════════════════════════════
+// ACCIONES RÁPIDAS
+// ═══════════════════════════════════════════════
+async function prcAceptar(id) {
+  if (!confirm('¿Aceptar este presupuesto de compra?')) return;
+  await cambiarEstadoPrc(id, 'aceptado');
+}
+
+async function prcReactivar(id) {
+  if (!confirm('¿Reactivar este presupuesto? Se volverá a poner como enviado.')) return;
+  // Extender validez 30 días
+  const v = new Date(); v.setDate(v.getDate() + 30);
+  await sb.from('presupuestos_compra').update({estado:'enviado', valido_hasta: v.toISOString().split('T')[0]}).eq('id', id);
+  await loadPresupuestosCompra();
+  toast('🔄 Presupuesto reactivado con nueva validez', 'success');
+}
+
+function prcCambiarEstadoMenu(event, id) {
+  event.stopPropagation();
+  const p = presupuestosCompra.find(x => x.id === id);
+  if (!p) return;
+  const estados = ['borrador','enviado','aceptado','rechazado'];
+  const next = estados[(estados.indexOf(p.estado) + 1) % estados.length];
+  if (confirm(`¿Cambiar estado a "${next}"?`)) {
+    cambiarEstadoPrc(id, next);
+  }
+}
+
+async function prcAsignarObra(id) {
+  const obras = (typeof trabajos !== 'undefined' ? trabajos : []).filter(t => t.estado !== 'finalizada' && t.estado !== 'cancelada');
+  if (!obras.length) { toast('No hay obras activas', 'info'); return; }
+  const opciones = obras.map(t => `${t.id}: ${t.numero||''} — ${t.titulo||t.cliente_nombre||''}`).join('\n');
+  const sel = prompt('Selecciona obra (introduce el ID):\n\n' + opciones);
+  if (!sel) return;
+  const obraId = parseInt(sel);
+  if (!obraId) return;
+  await sb.from('presupuestos_compra').update({trabajo_id: obraId}).eq('id', id);
+  await propagarObraCompras(obraId, { presupuesto_compra_id: id });
+  await loadPresupuestosCompra();
+  toast('🏗️ Obra asignada y propagada', 'success');
 }
 
 // ═══════════════════════════════════════════════

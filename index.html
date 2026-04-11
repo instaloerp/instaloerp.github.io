@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 121</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 122</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -925,47 +925,54 @@
       </div>
       <!-- PRESUPUESTOS DE COMPRA -->
       <div class="page" id="page-presupuestos-compra">
-        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
+        <!-- Filtros y búsqueda -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="prcSearch" placeholder="🔍 Buscar por número, proveedor..." oninput="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;flex:1;min-width:200px;outline:none">
+            <select id="prcFiltroEstado" onchange="_prcKpiFilterActivo='';document.querySelectorAll('.prc-kpi-filter').forEach(el=>{el.style.outline='none'});filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+              <option value="">Activos</option>
+              <option value="borrador">Borradores</option>
+              <option value="enviado">Enviados</option>
+              <option value="aceptado">Aceptados</option>
+              <option value="caducado">Caducados</option>
+              <option value="rechazado">Rechazados</option>
+              <option value="todos">Todos</option>
+            </select>
+            <input type="date" id="prcFiltroDesde" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <input type="date" id="prcFiltroHasta" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+            <button class="btn btn-ghost btn-sm" onclick="exportPresupuestosCompra()">📤 Exportar</button>
             <button class="btn btn-sm" onclick="importarConIA('presupuesto')" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600">🤖 Importar con IA</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportPresupuestosCompra()">📊 Excel</button>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Total</div>
-            <div id="prcKpiTotal" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
-            <div id="prcKpiPend" style="font-size:24px;font-weight:800;color:var(--naranja)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Aceptados</div>
-            <div id="prcKpiAcept" style="font-size:24px;font-weight:800;color:var(--verde)">0</div>
-          </div>
-          <div class="card" style="padding:14px;text-align:center">
-            <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Importe total</div>
-            <div id="prcKpiImporte" style="font-size:24px;font-weight:800;color:var(--azul)">0</div>
+            <button class="btn btn-primary btn-sm" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
           </div>
         </div>
-        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-          <select id="prcFiltroEstado" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <option value="">Todos los estados</option>
-            <option value="borrador">Borrador</option>
-            <option value="enviado">Enviado</option>
-            <option value="aceptado">Aceptado</option>
-            <option value="rechazado">Rechazado</option>
-          </select>
-          <select id="prcFiltroProveedor" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-            <option value="">Todos los proveedores</option>
-          </select>
-          <input type="date" id="prcFiltroDesde" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
-          <input type="date" id="prcFiltroHasta" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        <!-- KPIs rápidos -->
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:16px">
+          <div class="sc prc-kpi-filter" data-filtro="aceptado" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="prcFiltrarPorKpi('aceptado')" title="Ver solo aceptados"><div class="si">✅</div><div class="sv" id="prcKpiAcept">—</div><div class="sl">Aceptados</div></div>
+          <div class="sc prc-kpi-filter" data-filtro="enviado" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="prcFiltrarPorKpi('enviado')" title="Ver solo enviados"><div class="si">✉️</div><div class="sv" id="prcKpiEnv">—</div><div class="sl">Enviados</div></div>
+          <div class="sc prc-kpi-filter" data-filtro="caducado" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="prcFiltrarPorKpi('caducado')" title="Ver solo caducados"><div class="si">⏰</div><div class="sv" id="prcKpiCad">—</div><div class="sl">Caducados</div></div>
+          <div class="sc prc-kpi-filter" data-filtro="borrador" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="prcFiltrarPorKpi('borrador')" title="Ver solo borradores"><div class="si">📝</div><div class="sv" id="prcKpiBorr">—</div><div class="sl">Borradores</div></div>
+          <div class="sc prc-kpi-filter" data-filtro="" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer" onclick="prcFiltrarPorKpi('')" title="Ver todos (excepto rechazados)"><div class="si">📋</div><div class="sv" id="prcKpiTotal">—</div><div class="sl">Total</div></div>
+          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">💶</div><div class="sv" id="prcKpiImpPend">—</div><div class="sl">Importe pendiente</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💶</div><div class="sv" id="prcKpiImpAcep">—</div><div class="sl">Importe aceptado</div></div>
         </div>
-        <div class="card" style="padding:0;overflow:hidden">
-          <div class="tw"><table class="dt"><thead><tr>
-            <th data-sort="numeroFecha">Número / Fecha</th><th data-sort="proveedor">Proveedor</th><th data-sort="validez" data-sort-type="date">Validez</th><th data-sort="estado">Estado</th><th style="text-align:right" data-sort="total" data-sort-type="num">Total</th><th style="text-align:right">Acciones</th>
-          </tr></thead><tbody id="prcTable"></tbody></table></div>
+        <!-- Tabla -->
+        <div class="card">
+          <div class="tw">
+            <table class="dt">
+              <thead>
+                <tr>
+                  <th data-sort="numero">Número</th>
+                  <th data-sort="proveedor">Proveedor</th>
+                  <th data-sort="fecha" data-sort-type="date">Fecha</th>
+                  <th data-sort="validoHasta" data-sort-type="date">Válido hasta</th>
+                  <th data-sort="importe" data-sort-type="num">Importe</th>
+                  <th data-sort="estado">Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="prcTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
