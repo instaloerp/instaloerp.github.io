@@ -67,15 +67,15 @@ function renderConsumos(list) {
         <div style="font-size:10.5px;color:var(--gris-400)">${c.articulo_codigo || ''}</div>
       </td>
       <td>
-        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${t.color};background:${t.bg}">${t.ico} ${t.label}</span>
-        ${c.motivo_merma ? `<div style="font-size:10px;color:var(--gris-400);margin-top:2px">${c.motivo_merma}</div>` : ''}
+        <span style="padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;color:${t.color};background:${t.bg};white-space:nowrap">${t.ico} ${t.label}</span>
+        ${c.motivo_merma ? `<div style="font-size:9.5px;color:var(--gris-400);margin-top:2px">${c.motivo_merma}</div>` : ''}
       </td>
       <td class="text-right" style="font-weight:700">${c.cantidad} ${(c.unidad || 'ud').toUpperCase()}</td>
       <td class="text-right">${fmtE(c.precio_unitario || 0)}</td>
       <td class="text-right" style="font-weight:700">${fmtE(c.total || 0)}</td>
       <td style="font-size:12px">${c.usuario_nombre || '—'}</td>
       <td style="text-align:center">
-        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${stockCfg.color};background:${stockCfg.bg}">${stockCfg.label}</span>
+        <span style="padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;color:${stockCfg.color};background:${stockCfg.bg};white-space:nowrap">${stockCfg.label}</span>
       </td>
     </tr>`;
   }).join('');
@@ -87,12 +87,11 @@ function updateConsumosKPIs(list) {
   const mermas = list.filter(c => c.tipo === 'merma' || c.tipo === 'rotura').length;
   const valor = list.reduce((s, c) => s + (c.total || 0), 0);
 
-  setVal({
-    'kpi-consumos-total': total,
-    'kpi-consumos-sinstock': sinStock,
-    'kpi-consumos-mermas': mermas,
-    'kpi-consumos-valor': fmtE(valor)
-  });
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('kpi-consumos-total', total);
+  _s('kpi-consumos-sinstock', sinStock);
+  _s('kpi-consumos-mermas', mermas);
+  _s('kpi-consumos-valor', fmtE(valor));
 }
 
 function filtrarConsumos() {
