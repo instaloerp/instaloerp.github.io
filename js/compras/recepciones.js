@@ -92,7 +92,10 @@ function renderRecepciones(list) {
     // Asignar / cambiar obra (build 126: también disponible con obra asignada)
     if (!r.exportado_bloqueado) {
       if (r.trabajo_id) {
-        acciones += `<span onclick="event.stopPropagation();rcAsignarObra(${r.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>`;
+        acciones += `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
+          <span onclick="event.stopPropagation();goPage('obras');abrirFichaObra('${r.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>
+          <span onclick="event.stopPropagation();rcAsignarObra(${r.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
+        </span>`;
       } else {
         acciones += `<button onclick="event.stopPropagation();rcAsignarObra(${r.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra/trabajo">🏗️ Obra</button>`;
       }

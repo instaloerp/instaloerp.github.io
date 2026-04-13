@@ -109,9 +109,12 @@ function renderPresupuestosCompra(list) {
     } else if (p.estado === 'caducado') {
       acciones = `<button onclick="prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
     } else if (p.estado === 'aceptado') {
-      // Pill obra SIEMPRE clickable (asignada o no) — build 126
+      // Pill obra: click en nombre navega a ficha de obra, ✎ reasigna — build 131
       const obraPill = obraNombre
-        ? `<span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
+             <span onclick="goPage('obras');abrirFichaObra('${p.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre}</span>
+             <span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
+           </span>`
         : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
         ${obraPill}
@@ -119,9 +122,12 @@ function renderPresupuestosCompra(list) {
         <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
         <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     } else {
-      // borrador o pendiente — también permite asignar/cambiar obra
+      // borrador o pendiente — pill navega a ficha, ✎ reasigna
       const obraPill = obraNombre
-        ? `<span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
+             <span onclick="goPage('obras');abrirFichaObra('${p.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre}</span>
+             <span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
+           </span>`
         : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
         ${obraPill}
