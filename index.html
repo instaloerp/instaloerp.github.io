@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 129</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 130</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1030,7 +1030,7 @@
         </div>
 
         <!-- KPI CARDS con filtro por click -->
-        <div class="stats-grid" style="margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px">
           <div class="sc rc-kpi-filter" data-filtro="" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer" onclick="rcFiltrarPorKpi('')" title="Ver todos"><div class="si">📋</div><div class="sv" id="rcKpiTotal">0</div><div class="sl">Total</div></div>
           <div class="sc rc-kpi-filter" data-filtro="pendientes_all" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="rcFiltrarPorKpi('pendientes_all')" title="Pendientes + incidencias"><div class="si">⏳</div><div class="sv" id="rcKpiPend">0</div><div class="sl">Pendientes</div></div>
           <div class="sc rc-kpi-filter" data-filtro="parcial" style="--c:var(--naranja);--bg:var(--naranja-light);cursor:pointer" onclick="rcFiltrarPorKpi('parcial')" title="Solo parciales"><div class="si">📦</div><div class="sv" id="rcKpiParc">0</div><div class="sl">Parciales</div></div>
@@ -1075,7 +1075,7 @@
         </div>
 
         <!-- KPI cards con filtro por click -->
-        <div class="stats-grid" style="margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px">
           <div class="sc fp-kpi-filter" data-filtro="" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer" onclick="fpFiltrarPorKpi('')" title="Ver todas"><div class="si">📑</div><div class="sv" id="fpKpiTotal">0</div><div class="sl">Total</div></div>
           <div class="sc fp-kpi-filter" data-filtro="pendiente" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer" onclick="fpFiltrarPorKpi('pendiente')" title="Solo pendientes"><div class="si">⏳</div><div class="sv" id="fpKpiPend">0</div><div class="sl">Pendientes</div></div>
           <div class="sc fp-kpi-filter" data-filtro="vencida" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="fpFiltrarPorKpi('vencida')" title="Vencidas — pago atrasado"><div class="si">🔴</div><div class="sv" id="fpKpiVenc">0</div><div class="sl">Vencidas</div></div>

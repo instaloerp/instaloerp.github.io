@@ -730,9 +730,12 @@ async function _confirmarRecepcion() {
   const _stockOk = await _entradaStockAlbaran(r.id, r.almacen_destino_id, lineasRecibidas, r.numero, r.fecha);
 
   // 2. Actualizar albarán original con las líneas recibidas
+  // El albarán original queda 'recepcionado' siempre (las líneas que contiene SÍ fueron recibidas),
+  // y las pendientes se mueven a un nuevo albarán /P# en estado 'pendiente'.
+  // Así evitamos que el padre quede atascado en 'parcial' cuando el hijo ya se ha completado.
   const esParcial = lineasPendientes.length > 0;
-  const nuevoEstado = esParcial ? 'parcial' : 'recepcionado';
-  const obsAdd = esParcial ? '\n📦 Recepción parcial (' + new Date().toLocaleDateString('es-ES') + '): ' + lineasRecibidas.length + ' líneas recibidas, ' + lineasPendientes.length + ' pendientes' : '';
+  const nuevoEstado = 'recepcionado';
+  const obsAdd = esParcial ? '\n📦 Recepción parcial (' + new Date().toLocaleDateString('es-ES') + '): ' + lineasRecibidas.length + ' líneas recibidas. Pendientes trasladadas a nuevo albarán /P#.' : '';
 
   await sb.from('recepciones').update({
     estado: nuevoEstado,
@@ -740,9 +743,11 @@ async function _confirmarRecepcion() {
     observaciones: ((r.observaciones || '') + obsAdd).trim()
   }).eq('id', r.id);
 
-  // Propagar estado al pedido vinculado (si existe)
-  r.estado = nuevoEstado;
+  // Propagar estado al pedido vinculado (si existe).
+  // Si hay líneas pendientes en el hijo, el pedido queda 'recibido_parcial'; si no, 'recibido'.
+  r.estado = esParcial ? 'parcial' : 'recepcionado';  // semántica para _rcPropagarAPedido
   await _rcPropagarAPedido(r);
+  r.estado = nuevoEstado;  // en memoria ya con el real
 
   // 3. Si es parcial, crear nuevo albarán con las cantidades pendientes
   if (esParcial) {
