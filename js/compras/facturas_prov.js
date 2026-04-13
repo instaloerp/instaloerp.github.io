@@ -60,8 +60,13 @@ function renderFacturasProv(list) {
     }
     acciones += `<button onclick="event.stopPropagation();imprimirFacturaProv(${fp.id})" style="${pill('var(--gris-500)')}" title="Imprimir">🖨️</button>`;
     acciones += `<button onclick="event.stopPropagation();enviarFacturaProvEmail(${fp.id})" style="${pill('var(--azul)')}" title="Enviar por email">📧</button>`;
-    if (!fp.trabajo_id && fp.estado !== 'anulada') {
-      acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
+    // Asignar / cambiar obra (build 126)
+    if (fp.estado !== 'anulada') {
+      if (fp.trabajo_id) {
+        acciones += `<span onclick="event.stopPropagation();fpAsignarObra(${fp.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>`;
+      } else {
+        acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
+      }
     }
 
     return `<tr style="cursor:pointer" onclick="editarFacturaProv(${fp.id})">
@@ -71,7 +76,6 @@ function renderFacturasProv(list) {
       </td>
       <td>
         <div style="font-weight:600">${fp.proveedor_nombre}</div>
-        ${obraNombre ? `<div style="font-size:11px;color:var(--gris-400)">🏗️ ${obraNombre}</div>` : ''}
       </td>
       <td style="font-size:12.5px">${fp.fecha_vencimiento ? new Date(fp.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
       <td onclick="event.stopPropagation();fpCambiarEstadoMenu(${fp.id}, event)">

@@ -109,14 +109,22 @@ function renderPresupuestosCompra(list) {
     } else if (p.estado === 'caducado') {
       acciones = `<button onclick="prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
     } else if (p.estado === 'aceptado') {
+      // Pill obra SIEMPRE clickable (asignada o no) — build 126
+      const obraPill = obraNombre
+        ? `<span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
-        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        ${obraPill}
         <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
         <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
         <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     } else {
-      // borrador o pendiente
+      // borrador o pendiente — también permite asignar/cambiar obra
+      const obraPill = obraNombre
+        ? `<span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
+        ${obraPill}
         <button onclick="prcAceptar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">✅ Aceptar</button>
         <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
         <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>

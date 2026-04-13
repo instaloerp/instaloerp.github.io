@@ -56,15 +56,22 @@ function renderPedidosCompra(list) {
     if (pc.exportado_bloqueado) {
       acciones = `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${pc.exportado_a||'Exportado'}</span>`;
     } else if (pc.estado === 'recibido') {
+      // Pill obra SIEMPRE clickable (build 126)
+      const obraPill = obraNombre
+        ? `<span onclick="pcAsignarObra(${pc.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
-        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        ${obraPill}
         <button onclick="pedidoToFacturaProv(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     } else if (pc.estado === 'anulado') {
       acciones = `<button onclick="cambiarEstadoPC(${pc.id},'borrador')" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
     } else {
-      // borrador, pendiente, enviado, recibido_parcial
+      // borrador, pendiente, enviado, recibido_parcial — pill obra clickable
+      const obraPill = obraNombre
+        ? `<span onclick="pcAsignarObra(${pc.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+        : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
       acciones = `
-        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        ${obraPill}
         <button onclick="pedidoToRecepcion(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
         <button onclick="pedidoToFacturaProv(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     }

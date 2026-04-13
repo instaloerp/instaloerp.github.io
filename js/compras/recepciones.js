@@ -89,9 +89,13 @@ function renderRecepciones(list) {
     if ((r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado) {
       acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="${pill('var(--azul)')}">🧾 Facturar</button>`;
     }
-    // Asignar obra (solo si no está asignada ni bloqueado)
-    if (!r.trabajo_id && !r.exportado_bloqueado) {
-      acciones += `<button onclick="event.stopPropagation();rcAsignarObra(${r.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra/trabajo">🏗️ Obra</button>`;
+    // Asignar / cambiar obra (build 126: también disponible con obra asignada)
+    if (!r.exportado_bloqueado) {
+      if (r.trabajo_id) {
+        acciones += `<span onclick="event.stopPropagation();rcAsignarObra(${r.id})" title="Cambiar obra" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>`;
+      } else {
+        acciones += `<button onclick="event.stopPropagation();rcAsignarObra(${r.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra/trabajo">🏗️ Obra</button>`;
+      }
     }
 
     // Checkbox para facturación múltiple (solo recepcionados no bloqueados)
@@ -105,7 +109,7 @@ function renderRecepciones(list) {
       </td>
       <td>
         <div style="font-weight:600">${r.proveedor_nombre}</div>
-        <div style="font-size:11px;color:var(--gris-400)">${almNombre}${obraNombre ? ' · 🏗️ '+obraNombre : ''}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${almNombre}</div>
       </td>
       <td style="font-size:12px;color:var(--gris-500)">${nLineas} línea${nLineas!==1?'s':''}</td>
       <td style="text-align:right;font-weight:700;font-size:12.5px">${fmtE(total)}</td>
