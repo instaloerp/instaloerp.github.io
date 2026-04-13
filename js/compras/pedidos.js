@@ -14,12 +14,12 @@ let pcFiltrados = [];
 let _pcKpiFilterActivo = '';
 
 const PC_ESTADOS = {
-  borrador:         { label:'Borrador',   ico:'📝', color:'var(--gris-500)', bg:'var(--gris-100)' },
-  pendiente:        { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
-  enviado:          { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' }, // compat
-  recibido_parcial: { label:'Parcial',    ico:'📦', color:'var(--naranja)',  bg:'var(--naranja-light)' },
-  recibido:         { label:'Recibido',   ico:'✅', color:'var(--verde)',    bg:'var(--verde-light)' },
-  anulado:          { label:'Anulado',    ico:'❌', color:'var(--rojo)',     bg:'var(--rojo-light)' },
+  borrador:         { label:'Borrador',    ico:'📝', color:'var(--gris-500)', bg:'var(--gris-100)' },
+  pendiente:        { label:'Pendiente',   ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
+  enviado:          { label:'En tránsito', ico:'🚚', color:'var(--azul)',     bg:'var(--azul-light)' }, // pedido con albarán generado
+  recibido_parcial: { label:'Parcial',     ico:'📦', color:'var(--naranja)',  bg:'var(--naranja-light)' },
+  recibido:         { label:'Recibido',    ico:'✅', color:'var(--verde)',    bg:'var(--verde-light)' },
+  anulado:          { label:'Anulado',     ico:'❌', color:'var(--rojo)',     bg:'var(--rojo-light)' },
 };
 
 // ═══════════════════════════════════════════════
@@ -149,8 +149,8 @@ function pcCambiarEstadoMenu(event, id) {
   event.stopPropagation();
   const p = pedidosCompra.find(x => x.id === id);
   if (!p) return;
-  const cur = p.estado === 'enviado' ? 'pendiente' : p.estado;
-  const opciones = ['borrador','pendiente','recibido_parcial','recibido','anulado'].filter(e => e !== cur && PC_ESTADOS[e]);
+  const cur = p.estado;
+  const opciones = ['borrador','pendiente','enviado','recibido_parcial','recibido','anulado'].filter(e => e !== cur && PC_ESTADOS[e]);
   document.getElementById('pcEstadoMenu')?.remove();
   const menu = document.createElement('div');
   menu.id = 'pcEstadoMenu';

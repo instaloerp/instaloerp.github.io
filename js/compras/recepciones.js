@@ -185,9 +185,34 @@ function rcCambiarEstadoMenu(id, evt) {
 async function rcSetEstado(id, estado) {
   await sb.from('recepciones').update({ estado }).eq('id', id);
   const r = recepciones.find(x => x.id === id); if (r) r.estado = estado;
+  await _rcPropagarAPedido(r);
   filtrarRecepciones();
   actualizarKpisRecepciones();
   toast(`Estado → ${RC_ESTADOS[estado]?.label || estado}`, 'success');
+}
+
+// ─── Propaga estado de la recepción al pedido de compra vinculado ───
+// recepcionado → pedido 'recibido'
+// parcial      → pedido 'recibido_parcial'
+// pendiente    → pedido 'enviado' (albarán generado pero aún no recibido)
+// incidencia   → pedido 'enviado' (sigue esperando resolución)
+// facturado    → pedido 'recibido' (implica ya recepcionado)
+async function _rcPropagarAPedido(r) {
+  if (!r || !r.pedido_compra_id) return;
+  const mapa = {
+    pendiente:    'enviado',
+    incidencia:   'enviado',
+    parcial:      'recibido_parcial',
+    recepcionado: 'recibido',
+    facturado:    'recibido',
+  };
+  const nuevoEstadoPedido = mapa[r.estado];
+  if (!nuevoEstadoPedido) return;
+  await sb.from('pedidos_compra').update({ estado: nuevoEstadoPedido }).eq('id', r.pedido_compra_id);
+  if (typeof pedidosCompra !== 'undefined') {
+    const pp = pedidosCompra.find(x => x.id === r.pedido_compra_id);
+    if (pp) pp.estado = nuevoEstadoPedido;
+  }
 }
 
 // Asignar obra vía modal
@@ -715,6 +740,10 @@ async function _confirmarRecepcion() {
     observaciones: ((r.observaciones || '') + obsAdd).trim()
   }).eq('id', r.id);
 
+  // Propagar estado al pedido vinculado (si existe)
+  r.estado = nuevoEstado;
+  await _rcPropagarAPedido(r);
+
   // 3. Si es parcial, crear nuevo albarán con las cantidades pendientes
   if (esParcial) {
     // Buscar si ya existen parciales de este albarán para numerar secuencialmente
@@ -794,6 +823,10 @@ async function _confirmarIncidencia() {
     incidencias: incidencias,
     observaciones: ((r.observaciones || '') + obsAdd).trim()
   }).eq('id', _incAlbaranId);
+
+  // Propagar estado al pedido vinculado
+  r.estado = 'incidencia';
+  await _rcPropagarAPedido(r);
 
   closeModal('mIncidencia');
   loadRecepciones();
