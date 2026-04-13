@@ -419,7 +419,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   if (t.presupuesto_id) docOrClauses.push(`presupuesto_id.eq.${t.presupuesto_id}`);
   if (t.cliente_id) docOrClauses.push(`cliente_id.eq.${t.cliente_id}`);
 
-  const [presups, albs, facts, partes, docs, notas, audit, tareas, equipo] = await Promise.all([
+  const [presups, albs, facts, partes, docs, notas, audit, tareas, equipo, presupCompra, pedidosCompra, recepcionesProv, facturasProv] = await Promise.all([
     safeQuery(sb.from('presupuestos').select('*').eq('empresa_id',EMPRESA.id).or(presOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id).or(docOrClauses.join(',')).neq('estado','eliminado').order('created_at',{ascending:false}).limit(20)),
@@ -429,6 +429,11 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     safeQuery(sb.from('audit_log').select('*').eq('entidad','trabajo').eq('entidad_id',String(id)).order('created_at',{ascending:false}).limit(20)),
     safeQuery(sb.from('tareas_obra').select('*').eq('trabajo_id',id).order('created_at',{ascending:true})),
     safeQuery(sb.from('operarios_obra').select('*').eq('trabajo_id',id).order('created_at',{ascending:true})),
+    // ── Compras vinculadas a la obra (build 126) ──
+    safeQuery(sb.from('presupuestos_compra').select('*').eq('empresa_id',EMPRESA.id).eq('trabajo_id',id).order('created_at',{ascending:false}).limit(50)),
+    safeQuery(sb.from('pedidos_compra').select('*').eq('empresa_id',EMPRESA.id).eq('trabajo_id',id).order('created_at',{ascending:false}).limit(50)),
+    safeQuery(sb.from('recepciones').select('*').eq('empresa_id',EMPRESA.id).eq('trabajo_id',id).order('created_at',{ascending:false}).limit(50)),
+    safeQuery(sb.from('facturas_proveedor').select('*').eq('empresa_id',EMPRESA.id).eq('trabajo_id',id).order('created_at',{ascending:false}).limit(50)),
   ]);
 
   // Filtrar presupuestos/albaranes/facturas que realmente pertenecen a esta obra
@@ -449,6 +454,11 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const notasData = notas.data||[];
   const auditData = audit.data||[];
   obraTareasData = tareas.data||[];
+  // Compras vinculadas (build 126)
+  const presupCompraData = presupCompra.data||[];
+  const pedidosCompraData = pedidosCompra.data||[];
+  const recepcionesProvData = recepcionesProv.data||[];
+  const facturasProvData = facturasProv.data||[];
 
   // KPIs — cantidades
   const _partesComp = partesData.filter(p => ['completado','revisado','facturado'].includes(p.estado)).length;
@@ -458,10 +468,10 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 
   document.getElementById('ok-seguimiento').textContent = _tareasTotal ? `${_tareasComp}/${_tareasTotal}` : '0';
   document.getElementById('ok-partes').textContent = partesData.length ? `${_partesComp}/${partesData.length}` : '0';
-  document.getElementById('ok-presup').textContent = presupData.length;
-  document.getElementById('ok-facturacion').textContent = (albData.length + factData.length) || '0';
+  document.getElementById('ok-presup').textContent = presupData.length + presupCompraData.length;
+  document.getElementById('ok-facturacion').textContent = (albData.length + factData.length + facturasProvData.length) || '0';
   document.getElementById('ok-documentos').textContent = (docsData.length + _fotosPartes) || '0';
-  document.getElementById('ok-materiales').textContent = '—';
+  document.getElementById('ok-materiales').textContent = (pedidosCompraData.length + recepcionesProvData.length) || '—';
   document.getElementById('ok-mensajes').textContent = '—';
   document.getElementById('ok-historial').textContent = auditData.length;
 
@@ -507,6 +517,8 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     if (al.includes('estado') || al.includes('cambio')) return '🔄';
     if (al.includes('documento') || al.includes('archivo') || al.includes('subir')) return '📎';
     if (al.includes('nota') || al.includes('comentario')) return '💬';
+    if (al.includes('compra')) return '🛒';
+    if (al.includes('pedido')) return '🚚';
     if (al.includes('presupuesto')) return '📋';
     if (al.includes('albar')) return '📄';
     if (al.includes('factura')) return '🧾';
@@ -548,6 +560,23 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     fecha: f.created_at, usuario: '—',
     accion: 'Factura emitida', detalle: `🧾 ${f.numero} — ${fmtE(f.total)}`, tipo: 'factura'
   }));
+  // Compras: presupuestos, pedidos, albaranes y facturas de proveedor (build 126)
+  presupCompraData.forEach(p => _timeline.push({
+    fecha: p.created_at, usuario: '—',
+    accion: 'Presupuesto compra', detalle: `🛒 ${p.numero||'—'} — ${p.proveedor_nombre||''} (${fmtE(p.total||0)})`, tipo: 'compra'
+  }));
+  pedidosCompraData.forEach(p => _timeline.push({
+    fecha: p.created_at, usuario: '—',
+    accion: 'Pedido a proveedor', detalle: `🚚 ${p.numero||'—'} — ${p.proveedor_nombre||''} (${fmtE(p.total||0)})`, tipo: 'compra'
+  }));
+  recepcionesProvData.forEach(r => _timeline.push({
+    fecha: r.created_at, usuario: '—',
+    accion: 'Albarán de proveedor', detalle: `📄 ${r.numero||r.numero_albaran||'—'} — ${r.proveedor_nombre||''} (${fmtE(r.total||0)})`, tipo: 'compra'
+  }));
+  facturasProvData.forEach(f => _timeline.push({
+    fecha: f.created_at, usuario: '—',
+    accion: 'Factura de proveedor', detalle: `🧾 ${f.numero||'—'} — ${f.proveedor_nombre||''} (${fmtE(f.total||0)})`, tipo: 'compra'
+  }));
   // Audit log entries
   auditData.forEach(a => _timeline.push({
     fecha: a.created_at, usuario: a.usuario_nombre || '—',
@@ -564,7 +593,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:${
         e.tipo==='crear'?'#DBEAFE': e.tipo==='documento'?'#F3E8FF':
         e.tipo==='nota'?'#FEF3C7': e.tipo==='presupuesto'?'#DBEAFE':
-        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': '#F3F4F6'
+        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': e.tipo==='compra'?'#FED7AA': '#F3F4F6'
       };display:flex;align-items:center;justify-content:center;font-size:14px">${_accionIco(e.accion)}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -631,7 +660,30 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       </div>`;
     }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">📋</div><p>Sin presupuestos vinculados</p></div>');
-  document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml;
+
+  // ── PRESUPUESTOS DE COMPRA (proveedor) — build 126 ──
+  const PRC_EST_VIS = {borrador:{ico:'📝',col:'#6B7280',bg:'#F3F4F6',label:'Borrador'},pendiente:{ico:'⏳',col:'#F59E0B',bg:'#FEF3C7',label:'Pendiente'},aceptado:{ico:'✅',col:'#10B981',bg:'#D1FAE5',label:'Aceptado'},rechazado:{ico:'❌',col:'#EF4444',bg:'#FEE2E2',label:'Rechazado'},caducado:{ico:'⌛',col:'#6B7280',bg:'#F3F4F6',label:'Caducado'}};
+  const totalPresupCompra = presupCompraData.reduce((s,p)=>s+(parseFloat(p.total)||0),0);
+  const presupCompraHtml = presupCompraData.length ? `
+    <div style="margin-top:18px;padding-top:14px;border-top:2px solid var(--gris-100)">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gris-700)">🛒 Presupuestos de proveedor (${presupCompraData.length})</h4>
+      ${resumenBar([resumenItem('Total compra prevista', fmtE(totalPresupCompra), 'var(--naranja)'), resumenItem('Docs', presupCompraData.length+'')])}
+      ${presupCompraData.map(p=>{
+        const est = PRC_EST_VIS[p.estado] || PRC_EST_VIS.borrador;
+        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('presupuestos-compra')">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
+            <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.proveedor_nombre||'—'}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:800;font-size:13px">${fmtE(p.total||0)}</div>
+            <span style="background:${est.bg};color:${est.col};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${est.ico} ${est.label}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  document.getElementById('obra-hist-presupuestos').innerHTML = presupHtml + presupCompraHtml;
 
   // ── ALBARANES ── (con checkboxes para selección múltiple)
   // Calcular total real de cada albarán desde líneas si total es 0
@@ -698,9 +750,35 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       <button class="btn btn-sm" style="font-size:11px;background:var(--azul);color:#fff;border:none;font-weight:700" onclick="nuevaFacturaObraActual()">+ Factura</button>
     </div>
   </div>`;
+  // ── FACTURAS DE PROVEEDOR — build 126 ──
+  const FP_EST_VIS = {pendiente:{ico:'⏳',col:'#F59E0B',bg:'#FEF3C7',label:'Pendiente'},pagada:{ico:'✅',col:'#10B981',bg:'#D1FAE5',label:'Pagada'},vencida:{ico:'⚠️',col:'#EF4444',bg:'#FEE2E2',label:'Vencida'},anulada:{ico:'❌',col:'#6B7280',bg:'#F3F4F6',label:'Anulada'}};
+  const _hoy = new Date().toISOString().slice(0,10);
+  const _fpEstEf = f => (f.estado==='pendiente' && f.fecha_vencimiento && f.fecha_vencimiento < _hoy) ? 'vencida' : (f.estado||'pendiente');
+  const totalFactProv = facturasProvData.reduce((s,f)=>s+(parseFloat(f.total)||0),0);
+  const factProvHtml = facturasProvData.length ? `
+    <div style="margin-top:18px;padding-top:14px;border-top:2px solid var(--gris-100)">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gris-700)">🧾 Facturas de proveedor (${facturasProvData.length})</h4>
+      ${resumenBar([resumenItem('Total compras', fmtE(totalFactProv), 'var(--rojo)'), resumenItem('Docs', facturasProvData.length+'')])}
+      ${facturasProvData.map(f=>{
+        const ef = _fpEstEf(f);
+        const est = FP_EST_VIS[ef] || FP_EST_VIS.pendiente;
+        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('facturas-proveedor')">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:12.5px">${f.numero||'—'}</div>
+            <div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'} · ${f.proveedor_nombre||'—'}${f.fecha_vencimiento?' · vto. '+f.fecha_vencimiento:''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:800;font-size:13px">${fmtE(f.total||0)}</div>
+            <span style="background:${est.bg};color:${est.col};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${est.ico} ${est.label}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   document.getElementById('obra-hist-facturacion').innerHTML = _facFilterBtns +
     `<div id="_fac_alb">${albHtml}</div>` +
-    `<div id="_fac_fact" style="margin-top:${albData.length && factData.length ? '16px' : '0'}">${factHtml}</div>`;
+    `<div id="_fac_fact" style="margin-top:${albData.length && factData.length ? '16px' : '0'}">${factHtml}</div>` +
+    factProvHtml;
   aplicarFiltroFacturacion();
 
   // ── PARTES DE TRABAJO ──
@@ -929,6 +1007,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       ${_tiposFiltro.includes('presupuesto') ? `<button class="btn btn-sm" data-hfilt="presupuesto" onclick="filtrarHistorial('presupuesto')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📋 Presupuestos</button>` : ''}
       ${_tiposFiltro.includes('albaran') ? `<button class="btn btn-sm" data-hfilt="albaran" onclick="filtrarHistorial('albaran')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📄 Albaranes</button>` : ''}
       ${_tiposFiltro.includes('factura') ? `<button class="btn btn-sm" data-hfilt="factura" onclick="filtrarHistorial('factura')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">🧾 Facturas</button>` : ''}
+      ${_tiposFiltro.includes('compra') ? `<button class="btn btn-sm" data-hfilt="compra" onclick="filtrarHistorial('compra')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">🛒 Compras</button>` : ''}
       ${_tiposFiltro.includes('documento') ? `<button class="btn btn-sm" data-hfilt="documento" onclick="filtrarHistorial('documento')" style="font-size:10.5px;padding:4px 10px;border-radius:16px;border:1px solid var(--gris-200);background:#fff;color:var(--gris-600);font-weight:600;cursor:pointer">📎 Documentos</button>` : ''}
     </div>`;
     const _headerHtml = `<div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
@@ -956,11 +1035,58 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         <button class="btn btn-sm" style="font-size:11px;background:#D97706;color:#fff;border:none" onclick="nuevaSalidaAlmacenObra()">📤 Salida de almacén</button>
       </div>
     </div>`;
+    // Estados visuales para pedidos / recepciones (build 126)
+    const PC_EST_VIS = {borrador:{ico:'📝',col:'#6B7280',bg:'#F3F4F6',label:'Borrador'},pendiente:{ico:'⏳',col:'#F59E0B',bg:'#FEF3C7',label:'Pendiente'},confirmado:{ico:'✅',col:'#3B82F6',bg:'#DBEAFE',label:'Confirmado'},recibido:{ico:'📦',col:'#10B981',bg:'#D1FAE5',label:'Recibido'},cancelado:{ico:'❌',col:'#EF4444',bg:'#FEE2E2',label:'Cancelado'}};
+    const RC_EST_VIS = {pendiente:{ico:'⏳',col:'#F59E0B',bg:'#FEF3C7',label:'Pendiente'},recepcionado:{ico:'✅',col:'#10B981',bg:'#D1FAE5',label:'Recepcionado'},incidencia:{ico:'⚠️',col:'#EF4444',bg:'#FEE2E2',label:'Incidencia'},facturado:{ico:'🧾',col:'#8B5CF6',bg:'#EDE9FE',label:'Facturado'}};
+    const totalPed = pedidosCompraData.reduce((s,p)=>s+(parseFloat(p.total)||0),0);
+    const totalRec = recepcionesProvData.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+
+    const pedidosHtml = pedidosCompraData.length ? `
+      <div style="margin-bottom:16px">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gris-700)">🚚 Pedidos a proveedor (${pedidosCompraData.length})</h4>
+        ${resumenBar([resumenItem('Total pedido', fmtE(totalPed), 'var(--azul)'), resumenItem('Docs', pedidosCompraData.length+'')])}
+        ${pedidosCompraData.map(p=>{
+          const est = PC_EST_VIS[p.estado] || PC_EST_VIS.pendiente;
+          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('pedidos-compra')">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
+              <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.proveedor_nombre||'—'}${p.fecha_entrega_prevista?' · entrega '+p.fecha_entrega_prevista:''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:800;font-size:13px">${fmtE(p.total||0)}</div>
+              <span style="background:${est.bg};color:${est.col};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${est.ico} ${est.label}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+    const recepcionesHtml = recepcionesProvData.length ? `
+      <div style="margin-bottom:16px">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--gris-700)">📄 Albaranes de proveedor (${recepcionesProvData.length})</h4>
+        ${resumenBar([resumenItem('Total recibido', fmtE(totalRec), 'var(--verde)'), resumenItem('Docs', recepcionesProvData.length+'')])}
+        ${recepcionesProvData.map(r=>{
+          const est = RC_EST_VIS[r.estado] || RC_EST_VIS.pendiente;
+          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('albaranes-proveedor')">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:12.5px">${r.numero||r.numero_albaran||'—'}</div>
+              <div style="font-size:10.5px;color:var(--gris-400)">${r.fecha||'—'} · ${r.proveedor_nombre||'—'}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:800;font-size:13px">${fmtE(r.total||0)}</div>
+              <span style="background:${est.bg};color:${est.col};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${est.ico} ${est.label}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+    const sinCompras = !pedidosCompraData.length && !recepcionesProvData.length;
     const _matList = `<div id="obraMatList" style="min-height:120px">
-      <div class="empty" style="padding:30px 0">
+      ${pedidosHtml}
+      ${recepcionesHtml}
+      ${sinCompras ? `<div class="empty" style="padding:30px 0">
         <div class="ei">📦</div>
         <p style="color:var(--gris-400)">Sin movimientos de material registrados.<br>Crea un pedido a proveedor o una salida de almacén.</p>
-      </div>
+      </div>` : ''}
     </div>`;
     _matEl.innerHTML = _matBtns + _matList;
   }
@@ -1902,7 +2028,7 @@ function filtrarHistorial(tipo) {
       <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:${
         e.tipo==='crear'?'#DBEAFE': e.tipo==='documento'?'#F3E8FF':
         e.tipo==='nota'?'#FEF3C7': e.tipo==='presupuesto'?'#DBEAFE':
-        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': '#F3F4F6'
+        e.tipo==='albaran'?'#D1FAE5': e.tipo==='factura'?'#FEE2E2': e.tipo==='compra'?'#FED7AA': '#F3F4F6'
       };display:flex;align-items:center;justify-content:center;font-size:14px">${_accionIco(e.accion)}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:center">
