@@ -303,6 +303,38 @@ async function nuevaRecepcion() {
 }
 
 // ═══════════════════════════════════════════════
+// BLOQUEO POR ESTADO (patrón uniforme compras)
+// ═══════════════════════════════════════════════
+// Aplica/quita bloqueo visual al modal de Albarán de Proveedor
+function _rcAplicarBloqueo(bloqueado) {
+  const modal = document.getElementById('mRecepcion');
+  if (!modal) return;
+  const ids = ['rc_proveedor','rc_numero','rc_almacen','rc_fecha','rc_obra','rc_observaciones'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.opacity = bloqueado ? '0.7' : '';
+  });
+  modal.querySelectorAll('#rc_lineas input, #rc_lineas select').forEach(el => {
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.pointerEvents = bloqueado ? 'none' : '';
+  });
+  modal.querySelectorAll('#rc_lineas button').forEach(btn => { btn.style.display = bloqueado ? 'none' : ''; });
+  modal.querySelectorAll('.modal-b button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.startsWith('+ Añadir línea')) btn.style.display = bloqueado ? 'none' : '';
+  });
+  const footer = modal.querySelector('.modal-f');
+  if (footer) footer.querySelectorAll('button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.includes('Guardar')) btn.style.display = bloqueado ? 'none' : '';
+  });
+}
+
+// ═══════════════════════════════════════════════
 // EDITAR RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function editarRecepcion(id) {
@@ -330,6 +362,19 @@ async function editarRecepcion(id) {
   poblarSelectorObra('rc_obra', r.trabajo_id);
   rc_renderLineas();
   openModal('mRecepcion');
+
+  // ── Bloqueo por estado (patrón ventas) ──
+  // En recepciones el estado editable es 'pendiente'.
+  // Una vez recepcionado / parcial / incidencia / facturado → inmutable.
+  const banner = document.getElementById('rcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  const bloqueado = r.estado && r.estado !== 'pendiente';
+  _rcAplicarBloqueo(bloqueado);
+  if (bloqueado && banner) {
+    const estLabel = (RC_ESTADOS[r.estado]?.label) || r.estado;
+    banner.style.display = 'block';
+    banner.innerHTML = `🔒 <strong>Documento no editable</strong> — estado actual: <em>${estLabel}</em>. Para modificarlo, cámbialo antes a <strong>Pendiente</strong> desde la pastilla de estado en el listado.`;
+  }
 }
 
 // ═══════════════════════════════════════════════

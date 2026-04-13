@@ -301,6 +301,38 @@ function fp_aplicarReglaProveedor(provId) {
 }
 
 // ═══════════════════════════════════════════════
+// BLOQUEO POR ESTADO (patrón uniforme compras)
+// ═══════════════════════════════════════════════
+// Aplica/quita bloqueo visual al modal de Factura de Proveedor
+function _fpAplicarBloqueo(bloqueado) {
+  const modal = document.getElementById('mFacturaProv');
+  if (!modal) return;
+  const ids = ['fp_proveedor','fp_numero','fp_fecha','fp_vencimiento','fp_formapago','fp_banco_pago','fp_obra','fp_observaciones'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.opacity = bloqueado ? '0.7' : '';
+  });
+  modal.querySelectorAll('#fp_lineas input, #fp_lineas select').forEach(el => {
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.pointerEvents = bloqueado ? 'none' : '';
+  });
+  modal.querySelectorAll('#fp_lineas button').forEach(btn => { btn.style.display = bloqueado ? 'none' : ''; });
+  modal.querySelectorAll('.modal-b button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.startsWith('+ Añadir línea')) btn.style.display = bloqueado ? 'none' : '';
+  });
+  const footer = modal.querySelector('.modal-f');
+  if (footer) footer.querySelectorAll('button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.includes('Guardar')) btn.style.display = bloqueado ? 'none' : '';
+  });
+}
+
+// ═══════════════════════════════════════════════
 // EDITAR FACTURA
 // ═══════════════════════════════════════════════
 async function editarFacturaProv(id) {
@@ -328,6 +360,20 @@ async function editarFacturaProv(id) {
   poblarSelectorObra('fp_obra', fp.trabajo_id);
   fp_renderLineas();
   openModal('mFacturaProv');
+
+  // ── Bloqueo por estado (patrón ventas) ──
+  // En facturas prov el estado editable es 'pendiente'.
+  // Una vez pagada / vencida / anulada → inmutable.
+  const banner = document.getElementById('fpBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  const estEf = _fpEstadoEfectivo(fp);
+  const bloqueado = fp.estado && fp.estado !== 'pendiente';
+  _fpAplicarBloqueo(bloqueado);
+  if (bloqueado && banner) {
+    const estLabel = (FP_ESTADOS[estEf]?.label) || fp.estado;
+    banner.style.display = 'block';
+    banner.innerHTML = `🔒 <strong>Documento no editable</strong> — estado actual: <em>${estLabel}</em>. Para modificarlo, cámbialo antes a <strong>Pendiente</strong> desde la pastilla de estado en el listado.`;
+  }
 }
 
 // ═══════════════════════════════════════════════

@@ -236,6 +236,37 @@ async function nuevoPedidoCompra() {
 // ═══════════════════════════════════════════════
 // EDITAR PEDIDO
 // ═══════════════════════════════════════════════
+// Aplica/quita bloqueo visual al modal de Pedido de Compra
+function _pcAplicarBloqueo(bloqueado) {
+  const modal = document.getElementById('mPedidoCompra');
+  if (!modal) return;
+  const ids = ['pc_proveedor','pc_numero','pc_fecha','pc_entrega','pc_obra','pc_observaciones'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.opacity = bloqueado ? '0.7' : '';
+  });
+  modal.querySelectorAll('#pc_lineas input, #pc_lineas select').forEach(el => {
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.pointerEvents = bloqueado ? 'none' : '';
+  });
+  modal.querySelectorAll('#pc_lineas button').forEach(btn => { btn.style.display = bloqueado ? 'none' : ''; });
+  modal.querySelectorAll('.modal-b button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.startsWith('+ Añadir línea')) btn.style.display = bloqueado ? 'none' : '';
+  });
+  const btnBorr = document.getElementById('pcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = bloqueado ? 'none' : '';
+  const footer = modal.querySelector('.modal-f');
+  if (footer) footer.querySelectorAll('button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.includes('Guardar') || txt.includes('Borrador')) btn.style.display = bloqueado ? 'none' : '';
+  });
+}
+
 async function editarPedidoCompra(id) {
   const pc = pedidosCompra.find(x => x.id === id);
   if (!pc) return;
@@ -262,6 +293,17 @@ async function editarPedidoCompra(id) {
 
   pc_renderLineas();
   openModal('mPedidoCompra');
+
+  // ── Bloqueo por estado (patrón ventas) ──
+  const banner = document.getElementById('pcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  const bloqueado = pc.estado && pc.estado !== 'borrador';
+  _pcAplicarBloqueo(bloqueado);
+  if (bloqueado && banner) {
+    const estLabel = (PC_ESTADOS[pc.estado]?.label) || pc.estado;
+    banner.style.display = 'block';
+    banner.innerHTML = `🔒 <strong>Documento no editable</strong> — estado actual: <em>${estLabel}</em>. Para modificarlo, cámbialo antes a <strong>Borrador</strong> desde la pastilla de estado en el listado.`;
+  }
 }
 
 // ═══════════════════════════════════════════════

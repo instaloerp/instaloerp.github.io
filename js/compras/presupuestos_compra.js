@@ -272,6 +272,47 @@ async function nuevoPresupuestoCompra() {
 // ═══════════════════════════════════════════════
 // EDITAR PRESUPUESTO
 // ═══════════════════════════════════════════════
+// Aplica/quita bloqueo visual al modal de PRC
+function _prcAplicarBloqueo(bloqueado) {
+  const modal = document.getElementById('mPresupuestoCompra');
+  if (!modal) return;
+  const ids = ['prc_proveedor','prc_numero','prc_fecha','prc_validez','prc_obra','prc_observaciones'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (el.tagName === 'SELECT') el.disabled = bloqueado;
+      else el.readOnly = bloqueado;
+      el.style.opacity = bloqueado ? '0.7' : '';
+    }
+  });
+  // Bloquear líneas (inputs, selects, y botón +/✕)
+  modal.querySelectorAll('#prc_lineas input, #prc_lineas select').forEach(el => {
+    if (el.tagName === 'SELECT') el.disabled = bloqueado;
+    else el.readOnly = bloqueado;
+    el.style.pointerEvents = bloqueado ? 'none' : '';
+  });
+  modal.querySelectorAll('#prc_lineas button').forEach(btn => {
+    btn.style.display = bloqueado ? 'none' : '';
+  });
+  // Botón "+ Añadir línea" (está en el header de líneas)
+  modal.querySelectorAll('.modal-b button').forEach(btn => {
+    const txt = (btn.textContent||'').trim();
+    if (txt.startsWith('+ Añadir línea')) btn.style.display = bloqueado ? 'none' : '';
+  });
+  // Botones de guardar del footer
+  const btnBorr = document.getElementById('prcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = bloqueado ? 'none' : '';
+  const footer = modal.querySelector('.modal-f');
+  if (footer) {
+    footer.querySelectorAll('button').forEach(btn => {
+      const txt = (btn.textContent||'').trim();
+      if (txt.includes('Guardar') || txt.includes('Borrador')) {
+        btn.style.display = bloqueado ? 'none' : '';
+      }
+    });
+  }
+}
+
 async function editarPresupuestoCompra(id) {
   const p = presupuestosCompra.find(x => x.id === id);
   if (!p) return;
@@ -305,6 +346,17 @@ async function editarPresupuestoCompra(id) {
   if (prcLineas.length === 0) prc_addLinea();
   prc_renderLineas();
   openModal('mPresupuestoCompra');
+
+  // ── Bloqueo: fuera de borrador, inmutable (patrón ventas) ──
+  const banner = document.getElementById('prcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  const bloqueado = p.estado && p.estado !== 'borrador';
+  _prcAplicarBloqueo(bloqueado);
+  if (bloqueado && banner) {
+    const estLabel = (PRC_ESTADOS[p.estado]?.label) || p.estado;
+    banner.style.display = 'block';
+    banner.innerHTML = `🔒 <strong>Documento no editable</strong> — estado actual: <em>${estLabel}</em>. Para modificarlo, cámbialo antes a <strong>Borrador</strong> desde la pastilla de estado en el listado.`;
+  }
 }
 
 // ═══════════════════════════════════════════════

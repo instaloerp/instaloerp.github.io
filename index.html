@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 127</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 128</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3206,6 +3206,7 @@
   <div class="modal modal-fullscreen">
     <div class="modal-h"><span>📋</span><h2 id="mPRCTit">Nuevo Presupuesto de Compra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPresupuestoCompra')">✕</button></div>
     <div class="modal-b">
+      <div id="prcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Proveedor *</label><select id="prc_proveedor" style="width:100%"><option value="">— Selecciona proveedor —</option></select></div>
         <div class="fg" style="max-width:140px"><label>Número</label><input id="prc_numero" style="width:100%"></div>
@@ -3261,6 +3262,7 @@
   <div class="modal modal-fullscreen">
     <div class="modal-h"><span>🛒</span><h2 id="mPCTit">Nuevo Pedido de Compra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPedidoCompra')">✕</button></div>
     <div class="modal-b">
+      <div id="pcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Proveedor *</label><select id="pc_proveedor" style="width:100%"><option value="">— Selecciona proveedor —</option></select></div>
         <div class="fg" style="max-width:140px"><label>Número</label><input id="pc_numero" style="width:100%"></div>
@@ -3314,6 +3316,7 @@
   <div class="modal modal-fullscreen">
     <div class="modal-h"><span>📥</span><h2 id="mRCTit">Nuevo Albarán de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mRecepcion')">✕</button></div>
     <div class="modal-b">
+      <div id="rcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Proveedor *</label><select id="rc_proveedor" style="width:100%"><option value="">— Selecciona proveedor —</option></select></div>
         <div class="fg" style="max-width:140px"><label>Número</label><input id="rc_numero" style="width:100%"></div>
@@ -3433,6 +3436,7 @@
   <div class="modal modal-fullscreen">
     <div class="modal-h"><span>📑</span><h2 id="mFPTit">Nueva Factura de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaProv')">✕</button></div>
     <div class="modal-b">
+      <div id="fpBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
         <div class="fg"><label>Proveedor *</label><select id="fp_proveedor" style="width:100%"><option value="">— Selecciona proveedor —</option></select></div>
         <div class="fg" style="max-width:140px"><label>Número *</label><input id="fp_numero" style="width:100%"></div>
