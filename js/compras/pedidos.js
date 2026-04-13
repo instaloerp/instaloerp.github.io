@@ -142,12 +142,21 @@ function pcCambiarEstadoMenu(event, id) {
   event.stopPropagation();
   const p = pedidosCompra.find(x => x.id === id);
   if (!p) return;
-  const estados = ['borrador','pendiente','recibido_parcial','recibido','anulado'];
   const cur = p.estado === 'enviado' ? 'pendiente' : p.estado;
-  const next = estados[(estados.indexOf(cur) + 1) % estados.length];
-  if (confirm(`¿Cambiar estado a "${next}"?`)) {
-    cambiarEstadoPC(id, next);
-  }
+  const opciones = ['borrador','pendiente','recibido_parcial','recibido','anulado'].filter(e => e !== cur && PC_ESTADOS[e]);
+  document.getElementById('pcEstadoMenu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'pcEstadoMenu';
+  menu.style.cssText = `position:fixed;z-index:99999;background:#fff;border:1px solid var(--gris-200);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:4px;min-width:180px;top:${event.clientY}px;left:${event.clientX}px`;
+  menu.innerHTML = opciones.map(e => {
+    const ec = PC_ESTADOS[e];
+    return `<div onclick="cambiarEstadoPC(${id},'${e}');document.getElementById('pcEstadoMenu')?.remove()" style="padding:6px 10px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px" onmouseover="this.style.background='var(--gris-100)'" onmouseout="this.style.background='transparent'">${ec.ico} ${ec.label}</div>`;
+  }).join('');
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
+    document.addEventListener('click', close);
+  }, 0);
 }
 
 function pcAsignarObra(id) {
