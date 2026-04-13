@@ -11,6 +11,19 @@ let rcProveedorActual = null;
 let rcEditId = null;
 let rcAlmacenDestino = null;
 let recepciones = [];
+let rcFiltrados = [];
+let _rcKpiFilterActivo = null;
+
+// ═══════════════════════════════════════════════
+// MAPA DE ESTADOS (uniforme con Pedidos/Presupuestos compra)
+// ═══════════════════════════════════════════════
+const RC_ESTADOS = {
+  pendiente:    { label:'Pendiente',    ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
+  recepcionado: { label:'Recepcionado', ico:'📦', color:'var(--verde)',    bg:'var(--verde-light)' },
+  parcial:      { label:'Parcial',      ico:'📦', color:'var(--naranja)',  bg:'var(--naranja-light)' },
+  incidencia:   { label:'Incidencia',   ico:'⚠️', color:'var(--rojo)',     bg:'var(--rojo-light)' },
+  facturado:    { label:'Facturado',    ico:'🧾', color:'var(--azul)',     bg:'var(--azul-light)' },
+};
 
 // ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
@@ -19,12 +32,12 @@ async function loadRecepciones() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   recepciones = data || [];
-  // Filtro por defecto: año en curso
+  // Filtro por defecto: año anterior a año siguiente (ventana amplia)
   const y = new Date().getFullYear();
   const dEl = document.getElementById('rcFiltroDesde');
   const hEl = document.getElementById('rcFiltroHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  if (dEl && !dEl.value) dEl.value = (y-1) + '-01-01';
+  if (hEl && !hEl.value) hEl.value = (y+1) + '-12-31';
   filtrarRecepciones();
   actualizarKpisRecepciones();
 }
@@ -47,40 +60,38 @@ function rcCheckChanged() {
 }
 
 function renderRecepciones(list) {
+  rcFiltrados = list || [];
   const btnMulti = document.getElementById('rcFacturarMulti');
   if (btnMulti) btnMulti.style.display = 'none';
 
-  const estadoCfg = {
-    pendiente:    { ico:'⏳', label:'Pendiente',    color:'#92400e', bg:'#fef3c7' },
-    recepcionado: { ico:'📦', label:'Recepcionado', color:'#065f46', bg:'#d1fae5' },
-    parcial:      { ico:'📦', label:'Parcial',      color:'#7c2d12', bg:'#fed7aa' },
-    incidencia:   { ico:'⚠️', label:'Incidencia',   color:'#9a3412', bg:'#ffedd5' },
-    facturado:    { ico:'🧾', label:'Facturado',    color:'#1e40af', bg:'#dbeafe' }
-  };
+  const pill = (color, ico, label) =>
+    `display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid ${color};background:#fff;color:${color};cursor:pointer`;
 
   const html = list.length ? list.map(r => {
-    const ec = estadoCfg[r.estado] || { ico:'?', label:r.estado, color:'var(--gris-500)', bg:'var(--gris-100)' };
+    const ec = RC_ESTADOS[r.estado] || { ico:'?', label:r.estado, color:'var(--gris-500)', bg:'var(--gris-100)' };
     const total = r.lineas ? r.lineas.reduce((s,l) => {
       const bruto = (l.cantidad_recibida||l.cantidad||0) * (l.precio||0);
       return s + bruto * (1 - (l.dto1||l.dto1_pct||0)/100) * (1 - (l.dto2||l.dto2_pct||0)/100) * (1 - (l.dto3||l.dto3_pct||0)/100);
     }, 0) : 0;
     const nLineas = (r.lineas||[]).length;
     const almNombre = (almacenes||[]).find(a => a.id === r.almacen_destino_id)?.nombre || '';
+    const obraNombre = r.trabajo_id ? ((typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id===r.trabajo_id)?.titulo || '') : '';
 
-    // Botones contextuales según estado
+    // Pills de acción contextuales según estado
     let acciones = '';
     if (r.estado === 'pendiente') {
-      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #d1fae5;background:#ecfdf5;cursor:pointer;font-size:11px;font-weight:600;color:#065f46" title="Verificar mercancía y dar entrada al stock">📦 Recepcionar</button>`;
-      acciones += `<button onclick="event.stopPropagation();incidenciaAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #ffedd5;background:#fff7ed;cursor:pointer;font-size:11px;font-weight:600;color:#9a3412" title="Mercancía dañada, faltan unidades, etc.">⚠️ Incidencia</button>`;
+      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="${pill('var(--verde)')}" title="Verificar mercancía y dar entrada al stock">📦 Recepcionar</button>`;
+      acciones += `<button onclick="event.stopPropagation();incidenciaAlbaran(${r.id})" style="${pill('var(--rojo)')}" title="Mercancía dañada, faltan unidades, etc.">⚠️ Incidencia</button>`;
     }
     if (r.estado === 'incidencia') {
-      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #d1fae5;background:#ecfdf5;cursor:pointer;font-size:11px;font-weight:600;color:#065f46" title="Recepcionar tras resolver incidencia">📦 Recepcionar</button>`;
+      acciones += `<button onclick="event.stopPropagation();recepcionarAlbaran(${r.id})" style="${pill('var(--verde)')}" title="Recepcionar tras resolver incidencia">📦 Recepcionar</button>`;
     }
     if ((r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado) {
-      acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;cursor:pointer;font-size:11px;font-weight:600;color:#1e40af">🧾 Facturar</button>`;
+      acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="${pill('var(--azul)')}">🧾 Facturar</button>`;
     }
-    if (r.exportado_bloqueado) {
-      acciones += `<span style="padding:4px 10px;border-radius:6px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700">✅ Facturado</span>`;
+    // Asignar obra (solo si no está asignada ni bloqueado)
+    if (!r.trabajo_id && !r.exportado_bloqueado) {
+      acciones += `<button onclick="event.stopPropagation();rcAsignarObra(${r.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra/trabajo">🏗️ Obra</button>`;
     }
 
     // Checkbox para facturación múltiple (solo recepcionados no bloqueados)
@@ -92,28 +103,133 @@ function renderRecepciones(list) {
         <div>${r.numero}</div>
         <div style="font-size:11px;color:var(--gris-400);font-family:inherit">${new Date(r.fecha).toLocaleDateString('es-ES')}</div>
       </td>
-      <td><div style="font-weight:600">${r.proveedor_nombre}</div><div style="font-size:11px;color:var(--gris-400)">${almNombre}</div></td>
+      <td>
+        <div style="font-weight:600">${r.proveedor_nombre}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${almNombre}${obraNombre ? ' · 🏗️ '+obraNombre : ''}</div>
+      </td>
       <td style="font-size:12px;color:var(--gris-500)">${nLineas} línea${nLineas!==1?'s':''}</td>
       <td style="text-align:right;font-weight:700;font-size:12.5px">${fmtE(total)}</td>
-      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${ec.color};background:${ec.bg}">${ec.ico} ${ec.label}</span></td>
-      <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px;flex-wrap:wrap">${acciones}</div></td>
+      <td onclick="event.stopPropagation();rcCambiarEstadoMenu(${r.id}, event)">
+        <span title="Click para cambiar estado" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${ec.color};background:${ec.bg};cursor:pointer">${ec.ico} ${ec.label}</span>
+      </td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:4px;flex-wrap:wrap">${acciones}</div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="7"><div class="empty"><div class="ei">📥</div><h3>Sin albaranes de proveedor</h3></div></td></tr>';
   document.getElementById('rcTable').innerHTML = html;
 }
 
+function _rcImporte(r) {
+  return (r.lineas||[]).reduce((sum,l) => {
+    const bruto = (l.cantidad_recibida||l.cantidad||0) * (l.precio||0);
+    return sum + bruto * (1-(l.dto1||l.dto1_pct||0)/100) * (1-(l.dto2||l.dto2_pct||0)/100) * (1-(l.dto3||l.dto3_pct||0)/100);
+  }, 0);
+}
+
 function actualizarKpisRecepciones() {
-  const total = recepciones.reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => {const bruto=(l.cantidad_recibida||l.cantidad||0)*(l.precio||0);return sum+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : 0), 0);
+  const totalImp = recepciones.reduce((s,r) => s + _rcImporte(r), 0);
   const pendientes = recepciones.filter(r => r.estado === 'pendiente').length;
-  const esteMes = recepciones.filter(r => {
-    const f = new Date(r.fecha);
-    const hoy = new Date();
+  const parciales  = recepciones.filter(r => r.estado === 'parcial').length;
+  const recepcion  = recepciones.filter(r => r.estado === 'recepcionado').length;
+  const incidencias = recepciones.filter(r => r.estado === 'incidencia').length;
+  const impRecib = recepciones
+    .filter(r => r.estado==='recepcionado' || r.estado==='parcial' || r.estado==='facturado')
+    .reduce((s,r) => s + _rcImporte(r), 0);
+  const set = (id, v) => { const el=document.getElementById(id); if (el) el.textContent = v; };
+  set('rcKpiTotal', recepciones.length);
+  set('rcKpiPend', pendientes);
+  set('rcKpiParc', parciales);
+  set('rcKpiRecib', recepcion);
+  set('rcKpiInc', incidencias);
+  set('rcKpiImpRecib', fmtE(impRecib));
+  set('rcKpiImpTotal', fmtE(totalImp));
+  // Compat con HTML antiguo si aún existe
+  set('rcKpiMes', recepciones.filter(r => {
+    const f = new Date(r.fecha), hoy = new Date();
     return f.getMonth() === hoy.getMonth() && f.getFullYear() === hoy.getFullYear();
-  }).length;
-  document.getElementById('rcKpiTotal').textContent = fmtE(total);
-  document.getElementById('rcKpiPend').textContent = pendientes;
-  document.getElementById('rcKpiMes').textContent = esteMes;
-  document.getElementById('rcKpiValor').textContent = fmtE(recepciones.filter(r => r.estado==='recepcionado' || r.estado==='parcial' || r.estado==='facturado').reduce((s,r) => s + (r.lineas ? r.lineas.reduce((sum,l) => {const bruto=(l.cantidad_recibida||l.cantidad||0)*(l.precio||0);return sum+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : 0), 0));
+  }).length);
+  set('rcKpiValor', fmtE(impRecib));
+}
+
+// Filtro por tarjeta KPI
+function rcFiltrarPorKpi(estado) {
+  _rcKpiFilterActivo = (_rcKpiFilterActivo === estado) ? null : estado;
+  // Reflejar visualmente la tarjeta activa
+  document.querySelectorAll('.rc-kpi-filter').forEach(el => {
+    el.style.outline = el.dataset.filtro === _rcKpiFilterActivo ? '3px solid var(--acento)' : 'none';
+  });
+  filtrarRecepciones();
+}
+
+// Menú contextual para cambiar estado
+function rcCambiarEstadoMenu(id, evt) {
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+  const opciones = Object.keys(RC_ESTADOS).filter(e => e !== r.estado);
+  const menu = document.createElement('div');
+  menu.style.cssText = `position:fixed;z-index:99999;background:#fff;border:1px solid var(--gris-200);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:4px;min-width:180px;top:${evt.clientY}px;left:${evt.clientX}px`;
+  menu.innerHTML = opciones.map(e => {
+    const ec = RC_ESTADOS[e];
+    return `<div onclick="rcSetEstado(${id},'${e}');this.parentElement.remove()" style="padding:6px 10px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px" onmouseover="this.style.background='var(--gris-100)'" onmouseout="this.style.background='transparent'">${ec.ico} ${ec.label}</div>`;
+  }).join('');
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } };
+    document.addEventListener('click', close);
+  }, 0);
+}
+
+async function rcSetEstado(id, estado) {
+  await sb.from('recepciones').update({ estado }).eq('id', id);
+  const r = recepciones.find(x => x.id === id); if (r) r.estado = estado;
+  filtrarRecepciones();
+  actualizarKpisRecepciones();
+  toast(`Estado → ${RC_ESTADOS[estado]?.label || estado}`, 'success');
+}
+
+// Asignar obra vía modal
+function rcAsignarObra(id) {
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+  const existing = document.getElementById('rcAsignObraOverlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'rcAsignObraOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:flex;align-items:center;justify-content:center';
+  const opts = (typeof trabajos!=='undefined'?trabajos:[]).filter(t => t.estado !== 'finalizado' && t.estado !== 'cancelado')
+    .map(t => `<option value="${t.id}">${t.titulo||t.numero||('Obra #'+t.id)}${t.cliente_nombre ? ' — '+t.cliente_nombre : ''}</option>`).join('');
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:20px;min-width:420px;max-width:90vw">
+      <h3 style="margin:0 0 12px 0">🏗️ Asignar obra a ${r.numero}</h3>
+      <select id="rcAsignObraSel" style="width:100%;padding:8px;border:1px solid var(--gris-200);border-radius:6px;font-size:14px">
+        <option value="">— Selecciona obra —</option>
+        ${opts}
+      </select>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button onclick="document.getElementById('rcAsignObraOverlay').remove()" class="btn-sec">Cancelar</button>
+        <button onclick="rcConfirmarObra(${id})" class="btn-pri">Asignar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function rcConfirmarObra(id) {
+  const sel = document.getElementById('rcAsignObraSel');
+  const tid = parseInt(sel?.value);
+  if (!tid) { toast('Selecciona una obra', 'error'); return; }
+  const r = recepciones.find(x => x.id === id);
+  if (!r) return;
+  await sb.from('recepciones').update({ trabajo_id: tid }).eq('id', id);
+  r.trabajo_id = tid;
+  if (typeof propagarObraCompras === 'function') {
+    await propagarObraCompras(tid, {
+      presupuesto_compra_id: r.presupuesto_compra_id,
+      pedido_compra_id: r.pedido_compra_id,
+      recepcion_id: id
+    });
+  }
+  document.getElementById('rcAsignObraOverlay')?.remove();
+  loadRecepciones();
+  toast('🏗️ Obra asignada y propagada', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -124,12 +240,33 @@ function filtrarRecepciones() {
   const prov = v('rcFiltroProveedor');
   const desde = v('rcFiltroDesde');
   const hasta = v('rcFiltroHasta');
+  const texto = (document.getElementById('rcFiltroTexto')?.value || '').trim().toLowerCase();
 
   let filtered = recepciones;
-  if (estado) filtered = filtered.filter(r => r.estado === estado);
+
+  // Filtro prioritario: KPI activa (sobre-escribe estado)
+  const filtroActivo = _rcKpiFilterActivo || estado;
+  if (filtroActivo === 'pendientes_all') {
+    filtered = filtered.filter(r => r.estado === 'pendiente' || r.estado === 'incidencia');
+  } else if (filtroActivo === 'activos') {
+    filtered = filtered.filter(r => r.estado !== 'facturado');
+  } else if (filtroActivo) {
+    filtered = filtered.filter(r => r.estado === filtroActivo);
+  }
+
   if (prov) filtered = filtered.filter(r => r.proveedor_id == prov);
   if (desde) filtered = filtered.filter(r => new Date(r.fecha) >= new Date(desde));
   if (hasta) filtered = filtered.filter(r => new Date(r.fecha) <= new Date(hasta));
+
+  if (texto) {
+    filtered = filtered.filter(r => {
+      const obraNombre = r.trabajo_id ? ((typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id===r.trabajo_id)?.titulo || '') : '';
+      return (r.numero||'').toLowerCase().includes(texto)
+        || (r.proveedor_nombre||'').toLowerCase().includes(texto)
+        || (r.observaciones||'').toLowerCase().includes(texto)
+        || obraNombre.toLowerCase().includes(texto);
+    });
+  }
 
   renderRecepciones(filtered);
 }

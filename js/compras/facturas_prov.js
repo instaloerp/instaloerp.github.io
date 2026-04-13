@@ -10,6 +10,22 @@ let fpLineas = [];
 let fpProveedorActual = null;
 let fpEditId = null;
 let facturasProveedor = [];
+let fpFiltrados = [];
+let _fpKpiFilterActivo = null;
+
+// ═══════════════════════════════════════════════
+// MAPA DE ESTADOS (uniforme compras)
+// ═══════════════════════════════════════════════
+const FP_ESTADOS = {
+  pendiente: { label:'Pendiente', ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
+  pagada:    { label:'Pagada',    ico:'✅', color:'var(--verde)',    bg:'var(--verde-light)' },
+  vencida:   { label:'Vencida',   ico:'🔴', color:'var(--rojo)',     bg:'var(--rojo-light)' },
+  anulada:   { label:'Anulada',   ico:'❌', color:'var(--gris-500)', bg:'var(--gris-100)' },
+};
+function _fpEstadoEfectivo(f) {
+  if (f.estado === 'pendiente' && f.fecha_vencimiento && new Date(f.fecha_vencimiento) < new Date()) return 'vencida';
+  return f.estado;
+}
 
 // ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
@@ -18,33 +34,51 @@ async function loadFacturasProv() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('facturas_proveedor').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   facturasProveedor = data || [];
-  // Filtro por defecto: año en curso
+  // Filtro por defecto: año anterior a año siguiente
   const y = new Date().getFullYear();
   const dEl = document.getElementById('fpFiltroDesde');
   const hEl = document.getElementById('fpFiltroHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  if (dEl && !dEl.value) dEl.value = (y-1) + '-01-01';
+  if (hEl && !hEl.value) hEl.value = (y+1) + '-12-31';
   filtrarFacturasProv();
   actualizarKpisFacturas();
 }
 
 function renderFacturasProv(list) {
+  fpFiltrados = list || [];
+  const pill = (color) =>
+    `display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid ${color};background:#fff;color:${color};cursor:pointer`;
+
   const html = list.length ? list.map(fp => {
-    const estado = {pendiente:'⏳', pagada:'✓', anulada:'✗'}[fp.estado]||'?';
-    const vencida = fp.estado === 'pendiente' && new Date(fp.fecha_vencimiento) < new Date() ? ' style="color:var(--rojo);font-weight:700)"' : '';
-    return `<tr${vencida}>
-      <td><div style="font-weight:700">${fp.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(fp.fecha).toLocaleDateString('es-ES')}</div></td>
-      <td><div style="font-weight:600">${fp.proveedor_nombre}</div></td>
-      <td>${new Date(fp.fecha_vencimiento).toLocaleDateString('es-ES')}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${fp.estado}</span></td>
-      <td style="text-align:right;font-weight:600">${fmtE(fp.total)}</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirFacturaProv(${fp.id})" title="Imprimir">🖨️</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarFacturaProvEmail(${fp.id})" title="Enviar por email">📧</button>
-        <button class="btn btn-ghost btn-sm" onclick="editarFacturaProv(${fp.id})">✏️</button>
-        ${fp.estado==='pendiente'?`<button class="btn btn-ghost btn-sm" onclick="pagarFacturaProv(${fp.id})">💰</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="delFacturaProv(${fp.id})">🗑️</button>
-      </div></td>
+    const estEf = _fpEstadoEfectivo(fp);
+    const ec = FP_ESTADOS[estEf] || { ico:'?', label:fp.estado, color:'var(--gris-500)', bg:'var(--gris-100)' };
+    const obraNombre = fp.trabajo_id ? ((typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id===fp.trabajo_id)?.titulo || '') : '';
+
+    let acciones = '';
+    if (fp.estado === 'pendiente') {
+      acciones += `<button onclick="event.stopPropagation();pagarFacturaProv(${fp.id})" style="${pill('var(--verde)')}" title="Marcar como pagada">💰 Pagar</button>`;
+    }
+    acciones += `<button onclick="event.stopPropagation();imprimirFacturaProv(${fp.id})" style="${pill('var(--gris-500)')}" title="Imprimir">🖨️</button>`;
+    acciones += `<button onclick="event.stopPropagation();enviarFacturaProvEmail(${fp.id})" style="${pill('var(--azul)')}" title="Enviar por email">📧</button>`;
+    if (!fp.trabajo_id && fp.estado !== 'anulada') {
+      acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
+    }
+
+    return `<tr style="cursor:pointer" onclick="editarFacturaProv(${fp.id})">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">
+        <div>${fp.numero}</div>
+        <div style="font-size:11px;color:var(--gris-400);font-family:inherit">${new Date(fp.fecha).toLocaleDateString('es-ES')}</div>
+      </td>
+      <td>
+        <div style="font-weight:600">${fp.proveedor_nombre}</div>
+        ${obraNombre ? `<div style="font-size:11px;color:var(--gris-400)">🏗️ ${obraNombre}</div>` : ''}
+      </td>
+      <td style="font-size:12.5px">${fp.fecha_vencimiento ? new Date(fp.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
+      <td onclick="event.stopPropagation();fpCambiarEstadoMenu(${fp.id}, event)">
+        <span title="Click para cambiar estado" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${ec.color};background:${ec.bg};cursor:pointer">${ec.ico} ${ec.label}</span>
+      </td>
+      <td style="text-align:right;font-weight:700;font-size:12.5px">${fmtE(fp.total)}</td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:4px;flex-wrap:wrap">${acciones}</div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">📑</div><h3>Sin facturas</h3></div></td></tr>';
   document.getElementById('fpTable').innerHTML = html;
@@ -52,17 +86,103 @@ function renderFacturasProv(list) {
 
 function actualizarKpisFacturas() {
   const total = facturasProveedor.reduce((s,f) => s + (f.total||0), 0);
-  const pendientes = facturasProveedor.filter(f => f.estado === 'pendiente').length;
+  const pendientes = facturasProveedor.filter(f => _fpEstadoEfectivo(f) === 'pendiente').length;
+  const vencidas   = facturasProveedor.filter(f => _fpEstadoEfectivo(f) === 'vencida').length;
+  const pagadas    = facturasProveedor.filter(f => f.estado === 'pagada').length;
+  const saldoPend  = facturasProveedor.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.total||0), 0);
   const pagadasMes = facturasProveedor.filter(f => {
-    const fm = new Date(f.fecha);
-    const hoy = new Date();
+    const fm = new Date(f.fecha), hoy = new Date();
     return f.estado === 'pagada' && fm.getMonth() === hoy.getMonth() && fm.getFullYear() === hoy.getFullYear();
   }).length;
-  const pendientePago = facturasProveedor.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.total||0), 0);
-  document.getElementById('fpKpiTotal').textContent = fmtE(total);
-  document.getElementById('fpKpiPend').textContent = pendientes;
-  document.getElementById('fpKpiMesPagadas').textContent = pagadasMes;
-  document.getElementById('fpKpiPendiente').textContent = fmtE(pendientePago);
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('fpKpiTotal', facturasProveedor.length);
+  set('fpKpiPend', pendientes);
+  set('fpKpiVenc', vencidas);
+  set('fpKpiPagadas', pagadas);
+  set('fpKpiMesPagadas', pagadasMes);
+  set('fpKpiPendiente', fmtE(saldoPend));
+  set('fpKpiImpTotal', fmtE(total));
+}
+
+// Filtro por click en tarjeta KPI
+function fpFiltrarPorKpi(estado) {
+  _fpKpiFilterActivo = (_fpKpiFilterActivo === estado) ? null : estado;
+  document.querySelectorAll('.fp-kpi-filter').forEach(el => {
+    el.style.outline = el.dataset.filtro === _fpKpiFilterActivo ? '3px solid var(--acento)' : 'none';
+  });
+  filtrarFacturasProv();
+}
+
+// Menú contextual para cambiar estado
+function fpCambiarEstadoMenu(id, evt) {
+  const f = facturasProveedor.find(x => x.id === id);
+  if (!f) return;
+  const opciones = ['pendiente','pagada','anulada'].filter(e => e !== f.estado);
+  const menu = document.createElement('div');
+  menu.style.cssText = `position:fixed;z-index:99999;background:#fff;border:1px solid var(--gris-200);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:4px;min-width:180px;top:${evt.clientY}px;left:${evt.clientX}px`;
+  menu.innerHTML = opciones.map(e => {
+    const ec = FP_ESTADOS[e];
+    return `<div onclick="fpSetEstado(${id},'${e}');this.parentElement.remove()" style="padding:6px 10px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px" onmouseover="this.style.background='var(--gris-100)'" onmouseout="this.style.background='transparent'">${ec.ico} ${ec.label}</div>`;
+  }).join('');
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); } };
+    document.addEventListener('click', close);
+  }, 0);
+}
+
+async function fpSetEstado(id, estado) {
+  await sb.from('facturas_proveedor').update({ estado }).eq('id', id);
+  const f = facturasProveedor.find(x => x.id === id); if (f) f.estado = estado;
+  filtrarFacturasProv();
+  actualizarKpisFacturas();
+  toast(`Estado → ${FP_ESTADOS[estado]?.label || estado}`, 'success');
+}
+
+// Asignar obra vía modal
+function fpAsignarObra(id) {
+  const f = facturasProveedor.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('fpAsignObraOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'fpAsignObraOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:flex;align-items:center;justify-content:center';
+  const opts = (typeof trabajos!=='undefined'?trabajos:[]).filter(t => t.estado !== 'finalizado' && t.estado !== 'cancelado')
+    .map(t => `<option value="${t.id}">${t.titulo||t.numero||('Obra #'+t.id)}${t.cliente_nombre ? ' — '+t.cliente_nombre : ''}</option>`).join('');
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:20px;min-width:420px;max-width:90vw">
+      <h3 style="margin:0 0 12px 0">🏗️ Asignar obra a ${f.numero}</h3>
+      <select id="fpAsignObraSel" style="width:100%;padding:8px;border:1px solid var(--gris-200);border-radius:6px;font-size:14px">
+        <option value="">— Selecciona obra —</option>
+        ${opts}
+      </select>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button onclick="document.getElementById('fpAsignObraOverlay').remove()" class="btn-sec">Cancelar</button>
+        <button onclick="fpConfirmarObra(${id})" class="btn-pri">Asignar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function fpConfirmarObra(id) {
+  const sel = document.getElementById('fpAsignObraSel');
+  const tid = parseInt(sel?.value);
+  if (!tid) { toast('Selecciona una obra', 'error'); return; }
+  const f = facturasProveedor.find(x => x.id === id);
+  if (!f) return;
+  await sb.from('facturas_proveedor').update({ trabajo_id: tid }).eq('id', id);
+  f.trabajo_id = tid;
+  if (typeof propagarObraCompras === 'function') {
+    await propagarObraCompras(tid, {
+      presupuesto_compra_id: f.presupuesto_compra_id,
+      pedido_compra_id: f.pedido_compra_id,
+      recepcion_id: f.recepcion_id,
+      factura_proveedor_id: id
+    });
+  }
+  document.getElementById('fpAsignObraOverlay')?.remove();
+  loadFacturasProv();
+  toast('🏗️ Obra asignada y propagada', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -73,12 +193,34 @@ function filtrarFacturasProv() {
   const prov = v('fpFiltroProveedor');
   const desde = v('fpFiltroDesde');
   const hasta = v('fpFiltroHasta');
+  const texto = (document.getElementById('fpFiltroTexto')?.value || '').trim().toLowerCase();
 
   let filtered = facturasProveedor;
-  if (estado) filtered = filtered.filter(f => f.estado === estado);
+
+  const filtroActivo = _fpKpiFilterActivo || estado;
+  if (filtroActivo === 'vencida') {
+    filtered = filtered.filter(f => _fpEstadoEfectivo(f) === 'vencida');
+  } else if (filtroActivo === 'pendientes_all') {
+    filtered = filtered.filter(f => f.estado === 'pendiente');
+  } else if (filtroActivo === 'activos') {
+    filtered = filtered.filter(f => f.estado !== 'anulada');
+  } else if (filtroActivo) {
+    filtered = filtered.filter(f => f.estado === filtroActivo);
+  }
+
   if (prov) filtered = filtered.filter(f => f.proveedor_id == prov);
   if (desde) filtered = filtered.filter(f => new Date(f.fecha) >= new Date(desde));
   if (hasta) filtered = filtered.filter(f => new Date(f.fecha) <= new Date(hasta));
+
+  if (texto) {
+    filtered = filtered.filter(f => {
+      const obraNombre = f.trabajo_id ? ((typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id===f.trabajo_id)?.titulo || '') : '';
+      return (f.numero||'').toLowerCase().includes(texto)
+        || (f.proveedor_nombre||'').toLowerCase().includes(texto)
+        || (f.observaciones||'').toLowerCase().includes(texto)
+        || obraNombre.toLowerCase().includes(texto);
+    });
+  }
 
   renderFacturasProv(filtered);
 }

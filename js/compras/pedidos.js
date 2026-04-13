@@ -10,6 +10,17 @@ let pcLineas = [];
 let pcProveedorActual = null;
 let pcEditId = null;
 let pedidosCompra = [];
+let pcFiltrados = [];
+let _pcKpiFilterActivo = '';
+
+const PC_ESTADOS = {
+  borrador:         { label:'Borrador',   ico:'📝', color:'var(--gris-500)', bg:'var(--gris-100)' },
+  pendiente:        { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' },
+  enviado:          { label:'Pendiente',  ico:'⏳', color:'var(--amarillo)', bg:'var(--amarillo-light)' }, // compat
+  recibido_parcial: { label:'Parcial',    ico:'📦', color:'var(--naranja)',  bg:'var(--naranja-light)' },
+  recibido:         { label:'Recibido',   ico:'✅', color:'var(--verde)',    bg:'var(--verde-light)' },
+  anulado:          { label:'Anulado',    ico:'❌', color:'var(--rojo)',     bg:'var(--rojo-light)' },
+};
 
 // ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
@@ -18,64 +29,163 @@ async function loadPedidosCompra() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('pedidos_compra').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   pedidosCompra = data || [];
-  // Filtro por defecto: año en curso
-  const y = new Date().getFullYear();
+  // Filtro por defecto: último año hasta hoy+1año
   const dEl = document.getElementById('pcFiltroDesde');
   const hEl = document.getElementById('pcFiltroHasta');
-  if (dEl && !dEl.value) dEl.value = y + '-01-01';
-  if (hEl && !hEl.value) hEl.value = y + '-12-31';
+  if (dEl && !dEl.value) { const d=new Date(); d.setFullYear(d.getFullYear()-1); dEl.value = d.toISOString().split('T')[0]; }
+  if (hEl && !hEl.value) { const d=new Date(); d.setFullYear(d.getFullYear()+1); hEl.value = d.toISOString().split('T')[0]; }
   filtrarPedidosCompra();
   actualizarKpisPedidos();
 }
 
 function renderPedidosCompra(list) {
-  const html = list.length ? list.map(pc => {
-    const estado = {borrador:'⏳', enviado:'✉️', recibido_parcial:'📦', recibido:'✓', anulado:'✗'}[pc.estado]||'?';
-    return `<tr>
-      <td><div style="font-weight:700">${pc.numero}</div><div style="font-size:11px;color:var(--gris-400)">${new Date(pc.fecha).toLocaleDateString('es-ES')}</div></td>
-      <td><div style="font-weight:600">${pc.proveedor_nombre}</div></td>
-      <td>${pc.fecha_entrega_prevista ? new Date(pc.fecha_entrega_prevista).toLocaleDateString('es-ES') : '—'}</td>
-      <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:var(--gris-100);font-size:12px">${estado} ${pc.estado}</span></td>
-      <td style="text-align:right;font-weight:600">${fmtE(pc.total)}</td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirPedidoCompra(${pc.id})" title="Imprimir">🖨️</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarPedidoCompraEmail(${pc.id})" title="Enviar por email">📧</button>
-        <button class="btn btn-ghost btn-sm" onclick="editarPedidoCompra(${pc.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delPedidoCompra(${pc.id})">🗑️</button>
-        ${pc.exportado_bloqueado ? '<span title="Exportado a '+pc.exportado_a+'" style="font-size:11px;color:var(--rojo)">🔒</span>' : `${pc.estado==='enviado'?`<button class="btn btn-ghost btn-sm" onclick="pedidoToRecepcion(${pc.id})" title="Crear albarán proveedor">📥</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="pedidoToFacturaProv(${pc.id})" title="Crear factura proveedor">🧾</button>`}
-      </div></td>
+  if (!list) list = pedidosCompra;
+  const tb = document.getElementById('pcTable');
+  if (!tb) return;
+
+  tb.innerHTML = list.length ? list.map(pc => {
+    const total = parseFloat(pc.total||0);
+    const est = PC_ESTADOS[pc.estado] || PC_ESTADOS.borrador;
+    const fechaStr = pc.fecha ? new Date(pc.fecha).toLocaleDateString('es-ES') : '—';
+    const entregaStr = pc.fecha_entrega_prevista ? new Date(pc.fecha_entrega_prevista).toLocaleDateString('es-ES') : '—';
+    const obraNombre = pc.trabajo_id ? (typeof trabajos!=='undefined'?trabajos:[]).find(t=>t.id==pc.trabajo_id)?.titulo||'Obra asignada' : '';
+
+    const badge = `<span onclick="pcCambiarEstadoMenu(event,${pc.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>`;
+
+    let acciones = '';
+    if (pc.exportado_bloqueado) {
+      acciones = `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${pc.exportado_a||'Exportado'}</span>`;
+    } else if (pc.estado === 'recibido') {
+      acciones = `
+        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        <button onclick="pedidoToFacturaProv(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+    } else if (pc.estado === 'anulado') {
+      acciones = `<button onclick="cambiarEstadoPC(${pc.id},'borrador')" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
+    } else {
+      // borrador, pendiente, enviado, recibido_parcial
+      acciones = `
+        ${obraNombre ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">🏗️ ${obraNombre}</span>` : `<button onclick="pcAsignarObra(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`}
+        <button onclick="pedidoToRecepcion(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
+        <button onclick="pedidoToFacturaProv(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+    }
+
+    return `<tr onclick="editarPedidoCompra(${pc.id})" style="cursor:pointer">
+      <td>
+        <strong style="color:var(--azul);font-family:monospace;font-size:12px">${pc.numero||'—'}</strong>
+        <div style="font-size:11px;color:var(--gris-400)">${fechaStr}</div>
+      </td>
+      <td><strong>${pc.proveedor_nombre||'—'}</strong></td>
+      <td style="font-size:12px">${entregaStr}</td>
+      <td style="font-weight:700">${fmtE(total)}</td>
+      <td>${badge}</td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${acciones}</div>
+      </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">🛒</div><h3>Sin pedidos</h3></div></td></tr>';
-  document.getElementById('pcTable').innerHTML = html;
+  }).join('') : '<tr><td colspan="6"><div class="empty"><div class="ei">🛒</div><h3>Sin pedidos de compra</h3><p>Crea tu primer pedido</p></div></td></tr>';
 }
 
 function actualizarKpisPedidos() {
-  const total = pedidosCompra.reduce((s,p) => s + (p.total||0), 0);
-  const pendientes = pedidosCompra.filter(p => ['borrador','enviado'].includes(p.estado)).length;
-  const recibidos = pedidosCompra.filter(p => p.estado === 'recibido').length;
-  document.getElementById('pcKpiTotal').textContent = fmtE(total);
-  document.getElementById('pcKpiPend').textContent = pendientes;
-  document.getElementById('pcKpiRecib').textContent = recibidos;
-  document.getElementById('pcKpiImporte').textContent = fmtE(pedidosCompra.filter(p => p.estado==='recibido').reduce((s,p) => s + (p.total||0), 0));
+  const noAnulados = pedidosCompra.filter(p => p.estado !== 'anulado');
+  const el = id => document.getElementById(id);
+  if (el('pcKpiTotal'))   el('pcKpiTotal').textContent = noAnulados.length;
+  if (el('pcKpiPend'))    el('pcKpiPend').textContent = pedidosCompra.filter(p => ['borrador','pendiente','enviado'].includes(p.estado)).length;
+  if (el('pcKpiParc'))    el('pcKpiParc').textContent = pedidosCompra.filter(p => p.estado === 'recibido_parcial').length;
+  if (el('pcKpiRecib'))   el('pcKpiRecib').textContent = pedidosCompra.filter(p => p.estado === 'recibido').length;
+  if (el('pcKpiImpPend')) el('pcKpiImpPend').textContent = fmtE(pedidosCompra.filter(p => ['borrador','pendiente','enviado','recibido_parcial'].includes(p.estado)).reduce((s,p) => s + parseFloat(p.total||0), 0));
+  if (el('pcKpiImpRecib'))el('pcKpiImpRecib').textContent = fmtE(pedidosCompra.filter(p => p.estado === 'recibido').reduce((s,p) => s + parseFloat(p.total||0), 0));
+}
+
+function pcFiltrarPorKpi(estado) {
+  _pcKpiFilterActivo = estado;
+  document.querySelectorAll('.pc-kpi-filter').forEach(el => {
+    el.style.outline = el.dataset.filtro === estado ? '2.5px solid var(--azul)' : 'none';
+  });
+  const sel = document.getElementById('pcFiltroEstado');
+  if (sel) sel.value = '';
+  filtrarPedidosCompra();
 }
 
 // ═══════════════════════════════════════════════
 // FILTRADO
 // ═══════════════════════════════════════════════
 function filtrarPedidosCompra() {
-  const estado = v('pcFiltroEstado');
+  const estSel = document.getElementById('pcFiltroEstado')?.value || '';
+  const est = _pcKpiFilterActivo || estSel;
+  const busq = (document.getElementById('pcSearch')?.value || '').toLowerCase().trim();
   const prov = v('pcFiltroProveedor');
   const desde = v('pcFiltroDesde');
   const hasta = v('pcFiltroHasta');
 
-  let filtered = pedidosCompra;
-  if (estado) filtered = filtered.filter(p => p.estado === estado);
-  if (prov) filtered = filtered.filter(p => p.proveedor_id == prov);
-  if (desde) filtered = filtered.filter(p => new Date(p.fecha) >= new Date(desde));
-  if (hasta) filtered = filtered.filter(p => new Date(p.fecha) <= new Date(hasta));
+  pcFiltrados = pedidosCompra.filter(p => {
+    // Filtro especial "pendientes" = borrador+pendiente+enviado
+    if (est === 'todos') { /* mostrar todo */ }
+    else if (est === 'pendientes_all') { if (!['borrador','pendiente','enviado'].includes(p.estado)) return false; }
+    else if (est) { if (p.estado !== est) return false; }
+    else { if (p.estado === 'anulado') return false; } // "Activos"
 
-  renderPedidosCompra(filtered);
+    if (busq) {
+      const hayMatch = (p.numero||'').toLowerCase().includes(busq) ||
+                        (p.proveedor_nombre||'').toLowerCase().includes(busq) ||
+                        (p.observaciones||'').toLowerCase().includes(busq);
+      if (!hayMatch) return false;
+    }
+    if (prov && p.proveedor_id != prov) return false;
+    if (desde && p.fecha && p.fecha < desde) return false;
+    if (hasta && p.fecha && p.fecha > hasta) return false;
+    return true;
+  });
+  renderPedidosCompra(pcFiltrados);
+}
+
+function pcCambiarEstadoMenu(event, id) {
+  event.stopPropagation();
+  const p = pedidosCompra.find(x => x.id === id);
+  if (!p) return;
+  const estados = ['borrador','pendiente','recibido_parcial','recibido','anulado'];
+  const cur = p.estado === 'enviado' ? 'pendiente' : p.estado;
+  const next = estados[(estados.indexOf(cur) + 1) % estados.length];
+  if (confirm(`¿Cambiar estado a "${next}"?`)) {
+    cambiarEstadoPC(id, next);
+  }
+}
+
+function pcAsignarObra(id) {
+  const obras = (typeof trabajos !== 'undefined' ? trabajos : []).filter(t => t.estado !== 'finalizada' && t.estado !== 'cancelada');
+  if (!obras.length) { toast('No hay obras activas', 'info'); return; }
+
+  let overlay = document.getElementById('pcObraOverlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'pcObraOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center';
+  const opts = obras.map(t => `<option value="${t.id}">${t.numero||''} — ${t.titulo||t.cliente_nombre||''}</option>`).join('');
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:24px 28px;min-width:380px;max-width:500px;box-shadow:0 12px 40px rgba(0,0,0,0.18)">
+      <h3 style="margin:0 0 16px;font-size:16px;color:var(--gris-700)">🏗️ Asignar obra</h3>
+      <select id="pcObraSelect" style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        <option value="">— Selecciona obra —</option>
+        ${opts}
+      </select>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+        <button onclick="document.getElementById('pcObraOverlay').remove()" style="padding:8px 18px;border-radius:8px;border:1.5px solid var(--gris-200);background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--gris-500)">Cancelar</button>
+        <button onclick="pcConfirmarObra(${id})" style="padding:8px 18px;border-radius:8px;border:none;background:var(--verde);color:#fff;cursor:pointer;font-size:13px;font-weight:600">Asignar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function pcConfirmarObra(id) {
+  const sel = document.getElementById('pcObraSelect');
+  const obraId = parseInt(sel?.value);
+  if (!obraId) { toast('Selecciona una obra', 'info'); return; }
+  document.getElementById('pcObraOverlay')?.remove();
+  const pc = pedidosCompra.find(x => x.id === id);
+  await sb.from('pedidos_compra').update({trabajo_id: obraId}).eq('id', id);
+  await propagarObraCompras(obraId, { presupuesto_compra_id: pc?.presupuesto_compra_id, pedido_compra_id: id });
+  await loadPedidosCompra();
+  toast('🏗️ Obra asignada y propagada', 'success');
 }
 
 // ═══════════════════════════════════════════════
@@ -99,6 +209,9 @@ async function nuevoPedidoCompra() {
   document.getElementById('pc_observaciones').value = '';
   document.getElementById('mPCTit').textContent = 'Nuevo Pedido de Compra';
   poblarSelectorObra('pc_obra', null);
+
+  const btnBorr = document.getElementById('pcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = '';
 
   pc_addLinea();
   openModal('mPedidoCompra');
@@ -127,6 +240,10 @@ async function editarPedidoCompra(id) {
 
   document.getElementById('mPCTit').textContent = 'Editar Pedido de Compra';
   poblarSelectorObra('pc_obra', pc.trabajo_id);
+
+  const btnBorr = document.getElementById('pcBtnBorrador');
+  if (btnBorr) btnBorr.style.display = 'none';
+
   pc_renderLineas();
   openModal('mPedidoCompra');
 }
