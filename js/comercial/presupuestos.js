@@ -117,17 +117,12 @@ async function loadPresupuestos() {
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false });
   presupuestos = data || [];
-  // Filtro por defecto: último año (hoy - 1 año hasta hoy)
-  const _hoy = new Date();
-  const _hace1a = new Date(_hoy);
-  _hace1a.setFullYear(_hace1a.getFullYear() - 1);
-  const _fmtDate = d => d.toISOString().split('T')[0];
+  // Por defecto: mostrar TODOS (sin filtro de fechas, sin KPI activo)
   const dEl = document.getElementById('presDesde');
   const hEl = document.getElementById('presHasta');
-  if (dEl && !dEl.value) dEl.value = _fmtDate(_hace1a);
-  if (hEl && !hEl.value) hEl.value = _fmtDate(_hoy);
-  // Activar "Aceptados" como filtro por defecto la primera vez
-  if (!_kpiFilterActivo) filtrarPorKpi('aceptado');
+  if (dEl) dEl.value = '';
+  if (hEl) hEl.value = '';
+  if (!_kpiFilterActivo) filtrarPorKpi('');
   else filtrarPresupuestos();
 }
 
