@@ -310,7 +310,7 @@ async function abrirFicha(id, tabActiva) {
     (notas.data||[]).map(n => `
       <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
         <span style="font-size:16px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
-        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})} · 👤 ${n.creado_por_user?.nombre || (n.creado_por === CU.id ? (CU.user_metadata?.nombre || CU.email || 'Tú') : (n.creado_por ? 'Otro usuario' : 'Sistema'))}</div></div>
+        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})} · 👤 ${n.creado_por_nombre || (n.creado_por === CU.id ? ((typeof CP!=='undefined' && CP?.nombre) ? CP.nombre : (CU.email||'Tú')) : (n.creado_por ? 'Otro usuario' : 'Sistema'))}</div></div>
         <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNota(${n.id})">🗑️</button>
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
@@ -665,7 +665,8 @@ async function guardarNota() {
   const tipo = document.getElementById('notaTipo').value;
   const { error } = await sb.from('notas_cliente').insert({
     empresa_id: EMPRESA.id, cliente_id: cliActualId,
-    texto, tipo, creado_por: CU.id
+    texto, tipo, creado_por: CU.id,
+    creado_por_nombre: (typeof CP !== 'undefined' && CP?.nombre) ? CP.nombre : (CU?.email || '')
   });
   if (error) { toast('Error: '+error.message,'error'); return; }
   document.getElementById('notaTexto').value = '';
