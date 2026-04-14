@@ -187,7 +187,7 @@ function renderPresupuestos(list) {
     const fechaModif = p.updated_at ? fmtDT(p.updated_at) : '';
     const fechaInfo = fechaModif && fechaModif !== fechaCreado ? `<div style="font-size:10px;color:var(--gris-400)" title="Modificado: ${fechaModif}">mod. ${fechaModif}</div>` : '';
     const _esBorr = p.estado==='borrador' || (p.numero||'').startsWith('BORR-');
-    return `<tr style="cursor:pointer" onclick="${_esBorr ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
+    return `<tr data-pres-row="${p.id}" style="cursor:pointer" onclick="${_esBorr ? `abrirEditor('presupuesto',${p.id})` : `verDetallePresupuesto(${p.id})`}">
       <td style="font-weight:700;font-family:monospace;font-size:12.5px">
         <div style="display:flex;align-items:center;gap:2px">${(p.numero||'').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">(borrador)</span>' : (p.numero||'—')}${verBadge}</div>
         <div style="font-size:10px;color:var(--gris-400);font-weight:400;font-family:var(--font)">${fechaCreado}</div>
@@ -568,54 +568,44 @@ async function eliminarDefinitivamente(id) {
 //  VERSIONES (desplegable desde la lista)
 // ═══════════════════════════════════════════════
 async function togglePresVersiones(presId, btnEl) {
-  const existing = document.getElementById('presVerDropdown');
-  if (existing) {
-    const sameBtn = existing.dataset.pres === String(presId);
-    existing.remove();
-    if (sameBtn) return;
+  const row = document.querySelector(`tr[data-pres-row="${presId}"]`);
+  if (!row) return;
+  // Si ya hay subfilas expandidas para este presupuesto, las quito
+  const expanded = row.parentElement.querySelectorAll(`tr[data-pres-ver-of="${presId}"]`);
+  if (expanded.length) {
+    expanded.forEach(r => r.remove());
+    btnEl.innerHTML = btnEl.innerHTML.replace('▴','▾');
+    return;
   }
   const { data: vers, error } = await sb.from('presupuesto_versiones')
     .select('*').eq('presupuesto_id', presId).order('version', {ascending:false});
   if (error) { toast('Error cargando versiones: '+error.message,'error'); return; }
   if (!vers || !vers.length) { toast('No hay versiones anteriores','info'); return; }
 
-  const fmtE = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
-  const items = vers.map(v => {
+  const nCols = row.children.length;
+  const fmtEur = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+  let insertAfter = row;
+  vers.forEach(v => {
     const d = v.datos || {};
     const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
     const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-    return `<div style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px">
-      <div style="min-width:0">
-        <div style="font-weight:700;font-size:12px">v${v.version} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
-        <div style="font-size:11px;color:var(--gris-500)">${d.cliente_nombre||'—'} — ${fmtE(d.total||0)}</div>
+    const subRow = document.createElement('tr');
+    subRow.setAttribute('data-pres-ver-of', presId);
+    subRow.style.cssText = 'background:#f8fafc;border-left:3px solid var(--azul)';
+    subRow.innerHTML = `<td colspan="${nCols}" style="padding:8px 16px 8px 40px">
+      <div style="display:flex;align-items:center;gap:14px;font-size:12px">
+        <span style="font-weight:700;color:var(--azul);min-width:30px">v${v.version}</span>
+        <span style="color:var(--gris-500)">${fecha} ${hora}</span>
+        <span style="color:var(--gris-600);flex:1">${d.cliente_nombre||'—'} · ${d.titulo||''}</span>
+        <span style="font-weight:700">${fmtEur(d.total||0)}</span>
+        <button onclick="event.stopPropagation();abrirVersionEnEditor(${presId},${v.id})" title="Ver esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer;font-size:11px;font-weight:600">👁️ Ver</button>
+        <button onclick="event.stopPropagation();restaurarVersionDirecta(${presId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('presVerDropdown')?.remove();abrirVersionEnEditor(${presId},${v.id})" title="Ver esta versión" style="font-size:12px;padding:3px 6px">👁️</button>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('presVerDropdown')?.remove();restaurarVersionDirecta(${presId},${v.id})" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  const rect = btnEl.getBoundingClientRect();
-  const dd = document.createElement('div');
-  dd.id = 'presVerDropdown';
-  dd.dataset.pres = String(presId);
-  dd.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${Math.max(8,rect.left-180)}px;width:360px;max-height:400px;overflow:auto;background:#fff;border:1.5px solid var(--gris-200);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:9999`;
-  dd.innerHTML = `<div style="padding:10px 12px;border-bottom:1.5px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-weight:700;font-size:13px">🕒 Versiones anteriores</span>
-      <button onclick="document.getElementById('presVerDropdown')?.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--gris-400)">✕</button>
-    </div>${items}`;
-  document.body.appendChild(dd);
-
-  setTimeout(()=>{
-    const close = (e) => {
-      if (!dd.contains(e.target) && e.target !== btnEl) {
-        dd.remove();
-        document.removeEventListener('click', close);
-      }
-    };
-    document.addEventListener('click', close);
-  }, 100);
+    </td>`;
+    insertAfter.after(subRow);
+    insertAfter = subRow;
+  });
+  btnEl.innerHTML = btnEl.innerHTML.replace('▾','▴');
 }
 
 // Abre el editor cargando los datos de una versión (solo en memoria, no guarda)
