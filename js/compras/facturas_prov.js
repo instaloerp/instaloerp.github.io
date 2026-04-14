@@ -60,16 +60,11 @@ function renderFacturasProv(list) {
     }
     acciones += `<button onclick="event.stopPropagation();imprimirFacturaProv(${fp.id})" style="${pill('var(--gris-500)')}" title="Imprimir">🖨️</button>`;
     acciones += `<button onclick="event.stopPropagation();enviarFacturaProvEmail(${fp.id})" style="${pill('var(--azul)')}" title="Enviar por email">📧</button>`;
-    // Asignar / cambiar obra (build 126)
-    if (fp.estado !== 'anulada') {
-      if (fp.trabajo_id) {
-        acciones += `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
-          <span onclick="event.stopPropagation();goPage('obras');abrirFichaObra('${fp.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>
-          <span onclick="event.stopPropagation();fpAsignarObra(${fp.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
-        </span>`;
-      } else {
-        acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
-      }
+    // Pill obra: SIEMPRE visible si hay obra asignada (incluso en anuladas) — build 132
+    if (fp.trabajo_id) {
+      acciones += `<span onclick="event.stopPropagation();goPage('obras');abrirFichaObra('${fp.trabajo_id}')" title="Ir a la obra" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre||'Obra'}</span>`;
+    } else if (fp.estado !== 'anulada') {
+      acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
     }
 
     return `<tr style="cursor:pointer" onclick="editarFacturaProv(${fp.id})">

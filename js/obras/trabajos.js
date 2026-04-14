@@ -6,6 +6,55 @@
 let trDocsFiles = [];
 let obraActualId = null;
 
+// ═══════════════════════════════════════════════
+// Helpers para abrir documentos (modal in-place) desde ficha obra — build 132
+// Si el array global no está cargado aún, se hidrata desde DB antes de abrir el modal.
+// Tras cerrar el modal el usuario permanece en la ficha de obra.
+// ═══════════════════════════════════════════════
+async function _obraEnsureAndEdit(getArr, pushItem, tableName, id, editFn) {
+  try {
+    const arr = getArr();
+    const existe = Array.isArray(arr) && arr.find(x => x.id === id);
+    if (!existe) {
+      const { data, error } = await sb.from(tableName).select('*').eq('id', id).single();
+      if (error || !data) { if (typeof toast==='function') toast('No se pudo cargar el documento'); return; }
+      pushItem(data);
+    }
+    editFn(id);
+  } catch (e) {
+    console.error('Error abriendo documento desde ficha obra:', e);
+    if (typeof toast==='function') toast('Error al abrir el documento');
+  }
+}
+function obraAbrirPresupCompra(id) {
+  _obraEnsureAndEdit(
+    () => (typeof presupuestosCompra !== 'undefined' ? presupuestosCompra : null),
+    (d) => { if (typeof presupuestosCompra !== 'undefined') presupuestosCompra.push(d); },
+    'presupuestos_compra', id, editarPresupuestoCompra
+  );
+}
+function obraAbrirPedidoCompra(id) {
+  _obraEnsureAndEdit(
+    () => (typeof pedidosCompra !== 'undefined' ? pedidosCompra : null),
+    (d) => { if (typeof pedidosCompra !== 'undefined') pedidosCompra.push(d); },
+    'pedidos_compra', id, editarPedidoCompra
+  );
+}
+function obraAbrirRecepcion(id) {
+  _obraEnsureAndEdit(
+    () => (typeof recepciones !== 'undefined' ? recepciones : null),
+    (d) => { if (typeof recepciones !== 'undefined') recepciones.push(d); },
+    'recepciones', id, editarRecepcion
+  );
+}
+function obraAbrirFacturaProv(id) {
+  _obraEnsureAndEdit(
+    () => (typeof facturasProveedor !== 'undefined' ? facturasProveedor : null),
+    (d) => { if (typeof facturasProveedor !== 'undefined') facturasProveedor.push(d); },
+    'facturas_proveedor', id, editarFacturaProv
+  );
+}
+
 // ═══ PESTAÑAS CHROME OBRAS ═══
 let _obrasTabs = []; // [{id, numero, cliente}]
 
@@ -670,7 +719,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       ${resumenBar([resumenItem('Total compra prevista', fmtE(totalPresupCompra), 'var(--naranja)'), resumenItem('Docs', presupCompraData.length+'')])}
       ${presupCompraData.map(p=>{
         const est = PRC_EST_VIS[p.estado] || PRC_EST_VIS.borrador;
-        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('presupuestos-compra')">
+        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="obraAbrirPresupCompra(${p.id})">
           <div style="flex:1">
             <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
             <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.proveedor_nombre||'—'}</div>
@@ -762,7 +811,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       ${facturasProvData.map(f=>{
         const ef = _fpEstEf(f);
         const est = FP_EST_VIS[ef] || FP_EST_VIS.pendiente;
-        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('facturas-proveedor')">
+        return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="obraAbrirFacturaProv(${f.id})">
           <div style="flex:1">
             <div style="font-weight:700;font-size:12.5px">${f.numero||'—'}</div>
             <div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'} · ${f.proveedor_nombre||'—'}${f.fecha_vencimiento?' · vto. '+f.fecha_vencimiento:''}</div>
@@ -1047,7 +1096,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         ${resumenBar([resumenItem('Total pedido', fmtE(totalPed), 'var(--azul)'), resumenItem('Docs', pedidosCompraData.length+'')])}
         ${pedidosCompraData.map(p=>{
           const est = PC_EST_VIS[p.estado] || PC_EST_VIS.pendiente;
-          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('pedidos-compra')">
+          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="obraAbrirPedidoCompra(${p.id})">
             <div style="flex:1">
               <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
               <div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.proveedor_nombre||'—'}${p.fecha_entrega_prevista?' · entrega '+p.fecha_entrega_prevista:''}</div>
@@ -1066,7 +1115,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         ${resumenBar([resumenItem('Total recibido', fmtE(totalRec), 'var(--verde)'), resumenItem('Docs', recepcionesProvData.length+'')])}
         ${recepcionesProvData.map(r=>{
           const est = RC_EST_VIS[r.estado] || RC_EST_VIS.pendiente;
-          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="goPage('albaranes-proveedor')">
+          return `<div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="obraAbrirRecepcion(${r.id})">
             <div style="flex:1">
               <div style="font-weight:700;font-size:12.5px">${r.numero||r.numero_albaran||'—'}</div>
               <div style="font-size:10.5px;color:var(--gris-400)">${r.fecha||'—'} · ${r.proveedor_nombre||'—'}</div>

@@ -102,39 +102,32 @@ function renderPresupuestosCompra(list) {
     // Badge de estado clickable
     const badge = `<span onclick="prcCambiarEstadoMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${est.bg};color:${est.color}">${est.ico} ${est.label}</span>`;
 
+    // Pill obra: SIEMPRE visible si hay obra asignada (en todos los estados) — build 132
+    // Click navega directamente a ficha de obra. Sin icono ✎ (reasignación disponible desde modal edición).
+    const obraPill = p.trabajo_id && obraNombre
+      ? `<span onclick="event.stopPropagation();goPage('obras');abrirFichaObra('${p.trabajo_id}')" title="Ir a la obra" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde);cursor:pointer">🏗️ ${obraNombre}</span>`
+      : (!p.exportado_bloqueado && p.estado !== 'caducado'
+          ? `<button onclick="event.stopPropagation();prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`
+          : '');
+
     // Acciones tipo pill
-    let acciones = '';
+    let acciones = obraPill;
     if (p.exportado_bloqueado) {
-      acciones = `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${p.exportado_a||'Exportado'}</span>`;
+      acciones += ` <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${p.exportado_a||'Exportado'}</span>`;
     } else if (p.estado === 'caducado') {
-      acciones = `<button onclick="prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
+      acciones += ` <button onclick="event.stopPropagation();prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
     } else if (p.estado === 'aceptado') {
-      // Pill obra: click en nombre navega a ficha de obra, ✎ reasigna — build 131
-      const obraPill = obraNombre
-        ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
-             <span onclick="goPage('obras');abrirFichaObra('${p.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre}</span>
-             <span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
-           </span>`
-        : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
-      acciones = `
-        ${obraPill}
-        <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
-        <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
-        <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+      acciones += `
+        <button onclick="event.stopPropagation();prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
+        <button onclick="event.stopPropagation();prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
+        <button onclick="event.stopPropagation();prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     } else {
-      // borrador o pendiente — pill navega a ficha, ✎ reasigna
-      const obraPill = obraNombre
-        ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 4px 3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--verde-light);color:var(--verde)">
-             <span onclick="goPage('obras');abrirFichaObra('${p.trabajo_id}')" title="Ir a la obra" style="cursor:pointer">🏗️ ${obraNombre}</span>
-             <span onclick="prcAsignarObra(${p.id})" title="Cambiar obra" style="cursor:pointer;opacity:0.6;padding:2px 6px;border-radius:50%;font-size:10px" onmouseover="this.style.background='rgba(0,0,0,.08)';this.style.opacity='1'" onmouseout="this.style.background='transparent';this.style.opacity='0.6'">✎</span>
-           </span>`
-        : `<button onclick="prcAsignarObra(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🏗️ Obra</button>`;
-      acciones = `
-        ${obraPill}
-        <button onclick="prcAceptar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">✅ Aceptar</button>
-        <button onclick="prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
-        <button onclick="prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
-        <button onclick="prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
+      // borrador o pendiente
+      acciones += `
+        <button onclick="event.stopPropagation();prcAceptar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">✅ Aceptar</button>
+        <button onclick="event.stopPropagation();prcToPedido(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">📦 Pedido</button>
+        <button onclick="event.stopPropagation();prcToRecepcion(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer">📥 Albarán</button>
+        <button onclick="event.stopPropagation();prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     }
 
     return `<tr onclick="editarPresupuestoCompra(${p.id})" style="cursor:pointer">
