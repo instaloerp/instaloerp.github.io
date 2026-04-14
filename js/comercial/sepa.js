@@ -569,9 +569,10 @@ async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firma
 
     const pdfData = doc.output('arraybuffer');
     // Identificar cuenta en el nombre: últimos 4 dígitos del IBAN
+    // Usar solo caracteres seguros para Supabase Storage keys (sin ·, *, espacios)
     const ibanRaw = (deudorDoc.iban||'').replace(/\s/g,'');
     const last4 = ibanRaw.length>=4 ? ibanRaw.slice(-4) : '';
-    const numeroDoc = last4 ? `${ref} · IBAN **${last4}` : ref;
+    const numeroDoc = last4 ? `${ref}_IBAN_${last4}` : ref;
 
     // Evitar duplicados por race condition (realtime doble-fire): solo bloquear si existe uno creado hace < 15s
     try {
