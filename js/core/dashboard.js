@@ -263,11 +263,12 @@ async function loadDashboardPartesCompletados() {
   const el = document.getElementById('dash-partes-completados');
   if (!el) return;
 
-  const { data } = await sb.from('partes_trabajo')
-    .select('id,numero,estado,operario_nombre,trabajo_titulo,updated_at,created_at,cliente_nombre')
+  const { data, error } = await sb.from('partes_trabajo')
+    .select('*')
     .eq('empresa_id', EMPRESA.id)
     .in('estado', ['completado', 'pendiente_firma_cliente'])
     .order('updated_at', { ascending: false });
+  if (error) { console.warn('[dashboard partes completados]', error.message); el.style.display='none'; return; }
 
   const partes = data || [];
   if (!partes.length) { el.style.display = 'none'; return; }

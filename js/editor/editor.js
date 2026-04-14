@@ -527,15 +527,24 @@ async function de_autoguardar_flush() {
   await _de_autoguardar_do();
 }
 
-// ¿El editor actual tiene contenido real (cliente, número, líneas, etc.)?
+// ¿El editor actual tiene contenido real (cliente manualmente seleccionado, líneas con texto/precio, observaciones, título)?
+// IMPORTANTE: no llamar a de_buildDatos porque dispara toasts de validación.
+// Tampoco se considera "contenido" un cliente preseleccionado al crear desde la ficha sin tocar nada más.
 function deHasContent() {
   try {
-    const datos = (typeof de_buildDatos === 'function') ? de_buildDatos() : null;
-    if (!datos) return false;
-    if (datos.cliente_id || datos.proveedor_id) return true;
-    if (datos.numero && String(datos.numero).trim()) return true;
-    if (Array.isArray(deLineas) && deLineas.some(l => (l && (l.desc || l.descripcion || l.articulo_id)))) return true;
-    if (datos.observaciones && String(datos.observaciones).trim()) return true;
+    // Líneas con descripción o precio
+    if (Array.isArray(deLineas) && deLineas.some(l => l && (
+      (l.desc && String(l.desc).trim()) ||
+      (l.descripcion && String(l.descripcion).trim()) ||
+      l.articulo_id ||
+      (parseFloat(l.precio)||0) > 0 ||
+      (parseFloat(l.cant)||0) > 1
+    ))) return true;
+    // Título/observaciones
+    const tit = document.getElementById('de_titulo');
+    if (tit && tit.value && tit.value.trim()) return true;
+    const obs = document.getElementById('de_obs_largo');
+    if (obs && obs.value && obs.value.trim()) return true;
   } catch(e) {}
   return false;
 }
@@ -866,7 +875,7 @@ function de_buildDatos() {
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
   const _tituloVal = document.getElementById('de_titulo').value||null;
   datos.titulo = _tituloVal;
-  if (cfg.tipo==='albaran' || cfg.tipo==='factura') datos.referencia = _tituloVal;
+  if (cfg.tipo==='albaran') datos.referencia = _tituloVal;
   // Vincular a obra si se creó desde una ficha de obra
   if (cfg.trabajo_id) datos.trabajo_id = cfg.trabajo_id;
   return datos;
