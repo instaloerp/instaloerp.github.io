@@ -59,6 +59,13 @@ async function loadRecepciones() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   recepciones = data || [];
+  // build 137: precargar facturasProveedor para la píldora de cadena
+  if (typeof facturasProveedor !== 'undefined' && facturasProveedor.length === 0 && EMPRESA?.id) {
+    try {
+      const { data: fps } = await sb.from('facturas_proveedor').select('*').eq('empresa_id', EMPRESA.id);
+      if (fps) facturasProveedor = fps;
+    } catch(e) { console.warn('Precarga facturas parcial:', e); }
+  }
   // Filtro por defecto: año anterior a año siguiente (ventana amplia)
   const y = new Date().getFullYear();
   const dEl = document.getElementById('rcFiltroDesde');

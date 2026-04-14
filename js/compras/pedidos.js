@@ -43,6 +43,27 @@ function _pcCadenaFinal(pc) {
   }
   return { tipo:null, id:null, label:`🔒 ${pc.exportado_a||'Exportado'}`, abrir:null };
 }
+// Precarga ligera de recepciones y facturasProveedor para la píldora de cadena
+async function _pcPrecargarCadena() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  try {
+    const tasks = [];
+    if (typeof recepciones !== 'undefined' && recepciones.length === 0) {
+      tasks.push(
+        sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id)
+          .then(({data}) => { if (data) recepciones = data; })
+      );
+    }
+    if (typeof facturasProveedor !== 'undefined' && facturasProveedor.length === 0) {
+      tasks.push(
+        sb.from('facturas_proveedor').select('*').eq('empresa_id', EMPRESA.id)
+          .then(({data}) => { if (data) facturasProveedor = data; })
+      );
+    }
+    await Promise.all(tasks);
+  } catch(e) { console.warn('Precarga cadena pedidos parcial:', e); }
+}
+
 async function pcOpenRecepcion(id) {
   try {
     const arr = typeof recepciones !== 'undefined' ? recepciones : [];
@@ -73,6 +94,8 @@ async function loadPedidosCompra() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('pedidos_compra').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   pedidosCompra = data || [];
+  // build 137: precargar recepciones y facturas para la píldora de cadena
+  await _pcPrecargarCadena();
   // Filtro por defecto: último año hasta hoy+1año
   const dEl = document.getElementById('pcFiltroDesde');
   const hEl = document.getElementById('pcFiltroHasta');

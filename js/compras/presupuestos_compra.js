@@ -54,6 +54,34 @@ function _prcCadenaFinal(p) {
   return { tipo:null, id:null, label:`🔒 ${p.exportado_a||'Exportado'}`, abrir:null };
 }
 
+// Precarga ligera de los arrays de la cadena compras para que la píldora funcione
+// la primera vez que se abre la pantalla de presupuestos (sin haber visitado pedidos/albaranes/facturas)
+async function _prcPrecargarCadena() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  try {
+    const tasks = [];
+    if (typeof pedidosCompra !== 'undefined' && pedidosCompra.length === 0) {
+      tasks.push(
+        sb.from('pedidos_compra').select('*').eq('empresa_id', EMPRESA.id)
+          .then(({data}) => { if (data) pedidosCompra = data; })
+      );
+    }
+    if (typeof recepciones !== 'undefined' && recepciones.length === 0) {
+      tasks.push(
+        sb.from('recepciones').select('*').eq('empresa_id', EMPRESA.id)
+          .then(({data}) => { if (data) recepciones = data; })
+      );
+    }
+    if (typeof facturasProveedor !== 'undefined' && facturasProveedor.length === 0) {
+      tasks.push(
+        sb.from('facturas_proveedor').select('*').eq('empresa_id', EMPRESA.id)
+          .then(({data}) => { if (data) facturasProveedor = data; })
+      );
+    }
+    await Promise.all(tasks);
+  } catch(e) { console.warn('Precarga cadena parcial:', e); }
+}
+
 // Abren el documento destino en modal y recargan listas al cerrar
 async function prcOpenPedido(id) {
   try {
@@ -96,6 +124,10 @@ async function loadPresupuestosCompra() {
   if (!EMPRESA || !EMPRESA.id) return;
   const {data} = await sb.from('presupuestos_compra').select('*').eq('empresa_id', EMPRESA.id).order('fecha', {ascending:false});
   presupuestosCompra = data || [];
+
+  // build 137: precargar cadena relacionada (pedidos, recepciones, facturas) para que la
+  // píldora "último eslabón" funcione incluso al abrir directamente la pantalla de presupuestos
+  await _prcPrecargarCadena();
 
   // Auto-caducar: si valido_hasta < hoy y estado es borrador/enviado → caducado
   const hoy = new Date().toISOString().split('T')[0];
