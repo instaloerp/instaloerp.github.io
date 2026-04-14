@@ -13,6 +13,15 @@ function generarMandatoSEPA(tipo) {
   const entityId = tipo === 'cliente' ? cliActualId : provActualId;
   if (!entityId) { toast('Selecciona primero un ' + tipo, 'error'); return; }
 
+  // Bloquear si no hay cuenta bancaria para cliente
+  if (tipo === 'cliente' && cliActualId) {
+    const cuentas = _getCuentasCli(cliActualId);
+    if (!cuentas || cuentas.length === 0) {
+      toast('Primero añade una cuenta bancaria al cliente','error');
+      return;
+    }
+  }
+
   document.getElementById('sepa_tipo').value = tipo;
   document.getElementById('sepa_entity_id').value = entityId;
 
@@ -308,7 +317,7 @@ async function enviarMandatoParaFirma() {
 
   // Generar link
   const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
-  const firmaUrl = `${baseUrl}/firma_sepa.html?token=${token}`;
+  const firmaUrl = `${baseUrl}/firma.html?token=${token}`;
 
   const linkDiv = document.getElementById('sepa_firma_link');
   if (linkDiv) {
@@ -451,6 +460,17 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
 
   closeModal('mMandatoSEPA');
   toast('✅ Mandato SEPA firmado y registrado', 'success');
+  
+  // Recargar ficha del cliente si está abierta
+  if (tipo === 'cliente' && typeof cliActualId !== 'undefined' && cliActualId) {
+    // Recargar cuentas bancarias desde Supabase
+    const { data: cbe } = await sb.from('cuentas_bancarias_entidad').select('*').eq('tipo_entidad', 'cliente').eq('entidad_id', cliActualId);
+    if (cbe) {
+      cuentasBancariasEntidad = cuentasBancariasEntidad.filter(x => !(x.tipo_entidad === 'cliente' && x.entidad_id === cliActualId));
+      cuentasBancariasEntidad.push(...cbe);
+    }
+    await abrirFicha(cliActualId);
+  }
 }
 
 

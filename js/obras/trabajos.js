@@ -2972,6 +2972,7 @@ async function saveTrabajo() {
     const {data}=await sb.from('trabajos').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
     trabajos=data||[]; renderTrabajos(); loadDashboard();
     toast(`Obra ${num} creada ✓`,'success');
+    if (typeof window._afterSaveObra === 'function') { window._afterSaveObra(); window._afterSaveObra = null; }
   } finally {
     _creando = false;
   }

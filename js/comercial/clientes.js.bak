@@ -151,7 +151,7 @@ async function abrirFicha(id) {
   const av = document.getElementById('fichaCliAvatar');
   if (av) { av.style.background = avC(c.nombre); av.textContent = ini(c.nombre); }
   const sub = document.getElementById('fichaCliSub');
-  if (sub) sub.textContent = [c.tipo||'Particular', c.direccion_fiscal, c.municipio_fiscal, c.provincia_fiscal].filter(Boolean).join(' · ');
+  if (sub) sub.textContent = [c.tipo||'Particular', c.municipio_fiscal, c.provincia_fiscal].filter(Boolean).join(' · ');
 
   // Datos principales (compacto) — tarifa en vez de descuento
   const tarifa = c.tarifa || (c.descuento_habitual ? 'Dto. ' + c.descuento_habitual + '%' : 'General');
@@ -241,15 +241,17 @@ async function abrirFicha(id) {
         <input type="file" id="docFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocumento(this)">
       </div>
       ${(docs.data||[]).length ? '<div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:6px 0 2px">Documentos del cliente</div>' + (docs.data||[]).map(d => `
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="window.open('${d.url}','_blank')">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
           <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
-          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="event.stopPropagation();eliminarDoc(${d.id})">🗑️</button>
+          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
+          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarDoc(${d.id})">🗑️</button>
         </div>`).join('') : ''}
       ${docsObras.length ? '<div style="font-size:10px;color:var(--azul);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos de obras</div>' + docsObras.map(d => `
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="window.open('${d.url}','_blank')">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
           <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')} · <span style="color:var(--azul)">🏗️ ${d._obraNumero}${d._obraTitulo ? ' — '+d._obraTitulo : ''}</span></div></div>
+          <a href="${d.url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px">👁️</a>
         </div>`).join('') : ''}
       ${docsGenerados.length ? '<div style="font-size:10px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos firmados</div>' + docsGenerados.map(d => `
         <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
@@ -278,7 +280,7 @@ async function abrirFicha(id) {
     (notas.data||[]).map(n => `
       <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
         <span style="font-size:16px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
-        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${n.creado_por_user?.nombre || (n.creado_por === CU.id ? CU.nombre : 'Sistema')}</div></div>
+        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>
         <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNota(${n.id})">🗑️</button>
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
@@ -317,7 +319,7 @@ async function abrirFicha(id) {
   const presupHtml = (presups.data||[]).length ?
     resumenBar([resumenItem('Total presupuestado', fmtE(totalPresup), 'var(--azul)')]) +
     (presups.data||[]).map(p=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetallePresupuesto(${p.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('presupuesto',${p.id})">
         <div><div style="font-weight:700;font-size:12.5px">${p.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${p.fecha||'—'} · ${p.categoria||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>${estadoBadgeP(p.estado)}</div>
       </div>`).join('') :
@@ -328,7 +330,7 @@ async function abrirFicha(id) {
   const albHtml = (albs.data||[]).length ?
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlb), 'var(--gris-700)')]) +
     (albs.data||[]).map(a=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleAlbaran(${a.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('albaran',${a.id})">
         <div><div style="font-weight:700;font-size:12.5px">${a.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${a.fecha||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a.total)}</div>${estadoBadgeA(a.estado)}</div>
       </div>`).join('') :
@@ -342,7 +344,7 @@ async function abrirFicha(id) {
   const factHtml = (facts.data||[]).length ?
     resumenBar(factResumen) +
     (facts.data||[]).map(f=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleFactura(${f.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="abrirEditor('factura',${f.id})">
         <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
       </div>`).join('') :
@@ -412,7 +414,7 @@ function _renderFichaCliBanco(c) {
           <span style="font-size:10px;color:var(--gris-400)">${cb.banco_entidad||''}</span>
         </div>
         <div style="display:flex;gap:2px">
-          ${!esPred?`<button onclick="_setPredeterminadaCli(${cb.id})" style="font-size:10px;color:var(--azul);background:#e8f0fe;border:1px solid var(--azul);border-radius:4px;cursor:pointer;padding:2px 6px;font-weight:600" title="Marcar como predeterminada">⭐ Predet.</button>`:''}
+          ${!esPred?`<button onclick="_setPredeterminadaCli(${cb.id})" style="font-size:9px;color:var(--azul);background:none;border:none;cursor:pointer;padding:1px 4px" title="Hacer predeterminada">⭐</button>`:''}
           <button onclick="_editarCuentaCli(${cb.id})" style="font-size:9px;color:var(--azul);background:none;border:none;cursor:pointer;padding:1px 4px" title="Editar">✏️</button>
           <button onclick="_eliminarCuentaCli(${cb.id})" style="font-size:9px;color:var(--rojo);background:none;border:none;cursor:pointer;padding:1px 4px" title="Eliminar">🗑️</button>
         </div>
@@ -656,7 +658,6 @@ async function eliminarDoc(id) {
   if (!confirm('¿Eliminar documento?')) return;
   await sb.from('documentos_cliente').delete().eq('id',id);
   await abrirFicha(cliActualId);
-  fichaTab('documentos');
   toast('Documento eliminado','info');
 }
 
@@ -664,7 +665,6 @@ async function eliminarNota(id) {
   if (!confirm('¿Eliminar nota?')) return;
   await sb.from('notas_cliente').delete().eq('id',id);
   await abrirFicha(cliActualId);
-  fichaTab('notas');
   toast('Nota eliminada','info');
 }
 
@@ -768,12 +768,7 @@ function abrirNuevoAlbaran() {
 }
 
 function abrirNuevaFactura() {
-  abrirEditor('factura', null);
-  // Pre-seleccionar cliente actual
-  setTimeout(() => {
-    const clienteSel = document.getElementById('fr_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
+  abrirEditor('factura');
 }
 
 function abrirNuevoPresupuesto() {
@@ -828,14 +823,20 @@ async function generarNumeroDoc(tipo) {
 let prLineas = [];
 
 async function nuevoPresupCliActual() {
-  abrirEditor('presupuesto', null);
-  // Pre-seleccionar cliente actual
-  setTimeout(() => {
-    const clienteSel = document.getElementById('pr_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
-}
+  prLineas = [];
+  document.getElementById('mPresupRapido').dataset.editId = '';
+  const sel = document.getElementById('pr_cliente');
+  sel.innerHTML = '<option value="">— Selecciona cliente —</option>' +
+    clientes.map(c=>`<option value="${c.id}" ${c.id===cliActualId?'selected':''}>${c.nombre}</option>`).join('');
 
+  const fpSel = document.getElementById('pr_fpago');
+  fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
+    formasPago.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
+
+  if (cliActualId) {
+    const c = clientes.find(x=>x.id===cliActualId);
+    if (c?.forma_pago_id) fpSel.value = c.forma_pago_id;
+  }
 
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('pr_fecha').value = hoy;
@@ -1015,14 +1016,23 @@ async function guardarPresupRapido(estado) {
 let abLineas = [];
 
 async function nuevoAlbaranCliActual() {
-  abrirEditor('albaran', null);
-  // Pre-seleccionar cliente actual
-  setTimeout(() => {
-    const clienteSel = document.getElementById('ab_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
-}
+  abLineas = [];
+  document.getElementById('mAlbaranRapido').dataset.editId = '';
+  const sel = document.getElementById('ab_cliente');
+  sel.innerHTML = '<option value="">— Selecciona cliente —</option>' +
+    clientes.map(c=>`<option value="${c.id}" ${c.id===cliActualId?'selected':''}>${c.nombre}</option>`).join('');
+  document.getElementById('ab_fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ab_ref').value = '';
+  document.getElementById('ab_obs').value = '';
 
+  const abSerSel = document.getElementById('ab_serie');
+  const abSeries = (series||[]).filter(s => s.tipo === 'albaran');
+  const abSerUsables = abSeries.length ? abSeries : (series||[]);
+  if (abSerUsables.length) {
+    abSerSel.innerHTML = abSerUsables.map(s=>`<option value="${s.id}">${s.prefijo||'ALB-'}</option>`).join('');
+  } else {
+    abSerSel.innerHTML = '<option value="">ALB-</option>';
+  }
   document.getElementById('ab_numero').value = await generarNumeroDoc('albaran');
   ab_addLinea();
   openModal('mAlbaranRapido', true);
@@ -1191,9 +1201,9 @@ async function saveCliente() {
     empresa_id: EMPRESA.id, nombre, tipo,
     nif: nif || null,
     razon_social: tipo === 'Empresa' ? (v('c_razon').trim() || null) : null,
-    telefono: tel || null, movil: v('c_movil'), email: v('c_email'),
-    direccion_fiscal: dir || null, municipio_fiscal: muni,
-    cp_fiscal: cp || null, provincia_fiscal: prov,
+    telefono: tel, movil: v('c_movil'), email: v('c_email'),
+    direccion_fiscal: dir, municipio_fiscal: muni,
+    cp_fiscal: cp, provincia_fiscal: prov,
     descuento_habitual: parseFloat(v('c_descuento'))||0,
     observaciones: v('c_notas'),
     iban: v('c_iban').replace(/\s/g,'').toUpperCase() || null,
@@ -1212,7 +1222,6 @@ async function saveCliente() {
   } else {
     const { data, error } = await sb.from('clientes').insert(obj).select('id').single();
     if (error) { toast('Error al guardar: '+error.message,'error'); return; }
-    if (errores.length && data?.id) await _generarTareaClienteIncompleto(data.id, nombre, obj);
     registrarAudit('crear', 'cliente', data?.id || null, 'Nuevo cliente: '+nombre);
     toast('Cliente guardado ✓','success');
   }
@@ -1308,7 +1317,7 @@ function cpToProvincia(cp, field) {
     const prov = CP_PROV[cp.slice(0,2)];
     if (prov) {
       const el = document.getElementById(field);
-      if (el) el.value = prov;
+      if (el && !el.value) el.value = prov;
     }
   }
 }
@@ -1331,27 +1340,8 @@ async function buscarEmpresaPorCIF() {
 }
 
 async function delCliente(id) {
-  // Comprobar vinculados
-  const [{count:cT},{count:cP},{count:cA},{count:cF}] = await Promise.all([
-    sb.from('trabajos').select('id',{count:'exact',head:true}).eq('cliente_id',id).neq('estado','eliminado'),
-    sb.from('presupuestos').select('id',{count:'exact',head:true}).eq('cliente_id',id).neq('estado','eliminado'),
-    sb.from('albaranes').select('id',{count:'exact',head:true}).eq('cliente_id',id).neq('estado','eliminado'),
-    sb.from('facturas').select('id',{count:'exact',head:true}).eq('cliente_id',id).neq('estado','eliminado')
-  ]);
-  const total = (cT||0)+(cP||0)+(cA||0)+(cF||0);
-  if (total > 0) {
-    toast(`No se puede eliminar: cliente tiene ${cT||0} obras, ${cP||0} presup, ${cA||0} albaranes, ${cF||0} facturas vinculados`, 'error');
-    return;
-  }
-  if(!confirm('¿Eliminar cliente?')) return;
+  if(!confirm('¿Eliminar cliente?'))return;
   await sb.from('clientes').delete().eq('id',id);
-  clientes = clientes.filter(c=>c.id!==id); renderClientes(clientes); loadDashboard();
+  clientes=clientes.filter(c=>c.id!==id); renderClientes(clientes); loadDashboard();
   toast('Cliente eliminado','info');
-}
-
-async function delContacto(id) {
-  if(!confirm('¿Eliminar contacto?')) return;
-  await sb.from('contactos_cliente').delete().eq('id', id);
-  await abrirFicha(cliActualId);
-  toast('Contacto eliminado','info');
 }
