@@ -906,8 +906,16 @@ function initRealtimePartes() {
                 mandato_sepa_firma_url: nuevo.mandato_sepa_firma_url,
                 mandato_sepa_ref: nuevo.mandato_sepa_ref || null,
               };
-              await sb.from('cuentas_bancarias_entidad').update(upd)
+              // Intentar primero sobre la predeterminada; si ninguna es predeterminada, actualizar todas las del cliente
+              const { data: _cbePred } = await sb.from('cuentas_bancarias_entidad').select('id')
                 .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+              if (_cbePred && _cbePred.length) {
+                await sb.from('cuentas_bancarias_entidad').update(upd)
+                  .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+              } else {
+                await sb.from('cuentas_bancarias_entidad').update(upd)
+                  .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id);
+              }
             }
           } catch(e) { console.warn('Propagar SEPA a cuenta:', e); }
 

@@ -460,17 +460,16 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
   const { error } = await sb.from(tabla).update(updateData).eq('id', entityId);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
-  // Actualizar también la cuenta bancaria predeterminada con el estado firmado
-  // (la badge SEPA se renderiza por cuenta)
+  // Actualizar también la(s) cuenta(s) bancaria(s) con el estado firmado
+  // Preferir la predeterminada; si no hay, todas las del cliente/proveedor
   try {
-    const { data: cbeUpd, error: cbeErr } = await sb.from('cuentas_bancarias_entidad')
-      .update(updateData)
-      .eq('tipo_entidad', tipo)
-      .eq('entidad_id', entityId)
-      .eq('predeterminada', true)
-      .select();
+    const { data: _pred } = await sb.from('cuentas_bancarias_entidad').select('id')
+      .eq('tipo_entidad', tipo).eq('entidad_id', entityId).eq('predeterminada', true);
+    let q = sb.from('cuentas_bancarias_entidad').update(updateData)
+      .eq('tipo_entidad', tipo).eq('entidad_id', entityId);
+    if (_pred && _pred.length) q = q.eq('predeterminada', true);
+    const { data: cbeUpd, error: cbeErr } = await q.select();
     if (cbeErr) console.warn('No se pudo actualizar cuenta SEPA:', cbeErr.message);
-    // Reflejar en memoria local
     if (Array.isArray(cuentasBancariasEntidad) && Array.isArray(cbeUpd)) {
       cbeUpd.forEach(r => {
         const idx = cuentasBancariasEntidad.findIndex(x => x.id === r.id);
