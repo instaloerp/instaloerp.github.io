@@ -384,6 +384,7 @@ const _BANCOS_ES = {
   '3035':{ n:'Caja Laboral (Laboral Kutxa)',bic:'CLPEES2MXXX' },
   '3081':{ n:'Caja Rural Castilla-La Mancha',bic:'BCOEESMM081' },
   '0186':{ n:'Banco Mediolanum',           bic:'BSABESBB' },
+  '0238':{ n:'Banco Pastor (Santander)',   bic:'PASTESMMXXX' },
   '0239':{ n:'EVO Banco',                  bic:'ABORESMM' },
   '1465':{ n:'ING',                        bic:'INGDESMMXXX' },
   '0057':{ n:'BNP Paribas',               bic:'BNPAESMMXXX' },
