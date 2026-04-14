@@ -860,12 +860,11 @@ function enviarPresupuestoCompraEmail(id) {
   const email = prov?.email||'';
   const asuntoTxt = `Solicitud presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`;
   const cuerpoTxt = `Estimados,\n\nLes solicitamos presupuesto para los siguientes artículos/servicios:\n\nReferencia: ${p.numero||''}\nFecha: ${p.fecha||''}\n\nQuedamos a la espera de su oferta.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto_compra', id: p.id, ref: p.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('📧 Abriendo cliente de correo...','info');
+    toast('Módulo de correo no disponible','error');
   }
 }
 

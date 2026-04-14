@@ -463,15 +463,19 @@ async function crearInvitacion() {
 }
 
 function enviarInvitacionEmail(email, nombre, url) {
-  const asunto = encodeURIComponent('Invitación para probar Jordi ERP');
-  const cuerpo = encodeURIComponent(
+  const asunto = 'Invitación para probar Jordi ERP';
+  const cuerpo =
     `Hola ${nombre || ''},\n\n` +
     `Has sido invitado a probar Jordi ERP.\n\n` +
     `Haz clic en el siguiente enlace para crear tu cuenta:\n${url}\n\n` +
     `Este enlace es válido durante 7 días.\n\n` +
-    `Un saludo,\nJordi Instalacións`
-  );
-  window.open(`mailto:${email}?subject=${asunto}&body=${cuerpo}`, '_blank');
+    `Un saludo,\nJordi Instalacións`;
+  if (typeof nuevoCorreo === 'function') {
+    nuevoCorreo(email, asunto, cuerpo, { tipo: 'invitacion', ref: email });
+    if (typeof goPage === 'function') goPage('correo');
+  } else {
+    window.open(`mailto:${email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`, '_blank');
+  }
 }
 
 async function loadInvitaciones() {

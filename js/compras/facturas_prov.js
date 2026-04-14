@@ -747,12 +747,11 @@ function enviarFacturaProvEmail(id) {
   const total = parseFloat(f.total||0).toFixed(2);
   const asuntoTxt = `Factura proveedor ${f.numero_factura||f.numero||''} — ${EMPRESA.nombre}`;
   const cuerpoTxt = `Estimado proveedor,\n\nEn relación a la factura:\n\nNº Factura: ${f.numero_factura||f.numero||'—'}\nFecha: ${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}\nTotal: ${total} €\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura_proveedor', id: f.id, ref: f.numero_factura || f.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('Abriendo correo...', 'info');
+    toast('Módulo de correo no disponible', 'error');
   }
 }
 

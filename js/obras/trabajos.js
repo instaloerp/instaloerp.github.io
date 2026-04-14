@@ -2733,26 +2733,29 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
   const empresaNombre = EMPRESA.nombre || 'Nuestra empresa';
   const importeStr = (p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
 
-  // Construir mailto
-  const asunto = encodeURIComponent(`Presupuesto ${p.numero} — ${empresaNombre}`);
-  const cuerpo = encodeURIComponent(
+  // Construir asunto/cuerpo
+  const asunto = `Presupuesto ${p.numero} — ${empresaNombre}`;
+  const cuerpo =
     `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
     `Le enviamos el presupuesto ${p.numero}${p.titulo ? ' (' + p.titulo + ')' : ''} por importe de ${importeStr} €.\n\n` +
     `Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:\n\n` +
     `>> ${firmaUrl}\n\n` +
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
-    `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`
-  );
-  const mailto = `mailto:${emailCliente}?subject=${asunto}&body=${cuerpo}`;
+    `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`;
 
   // Registrar en actividad de la obra (si hay obra)
   if (obraId) {
     await registrarActividadObra(obraId, 'Presupuesto enviado al cliente', `📩 ${p.numero} enviado a ${cli?.nombre || 'cliente'}${emailCliente ? ' (' + emailCliente + ')' : ''}`);
   }
 
-  // Abrir mailto
-  window.open(mailto, '_blank');
-  toast('📩 Enlace de firma generado — se abre tu correo', 'success');
+  // Abrir composer SMTP del ERP
+  if (typeof nuevoCorreo === 'function') {
+    nuevoCorreo(emailCliente, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    if (typeof goPage === 'function') goPage('correo');
+    toast('📩 Enlace de firma listo — revisa y envía el correo', 'success');
+  } else {
+    toast('Módulo de correo no disponible', 'error');
+  }
 
   // Refrescar ficha si estamos en una obra
   if (obraId && obraActualId) abrirFichaObra(obraActualId, false);

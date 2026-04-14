@@ -721,12 +721,11 @@ function enviarPedidoCompraEmail(id) {
   const totalFmt = (p.total||0).toFixed(2).replace('.',',')+' €';
   const asuntoTxt = `Pedido ${p.numero||''} — ${EMPRESA?.nombre||''}`;
   const cuerpoTxt = `Estimados,\n\nLes confirmamos el pedido ${p.numero||''} por importe de ${totalFmt}.\n\nFecha: ${p.fecha||''}\n${p.observaciones?'Obs: '+p.observaciones+'\n':''}\nRogamos confirmación de plazo de entrega.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'pedido_compra', id: p.id, ref: p.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('📧 Abriendo cliente de correo...','info');
+    toast('Módulo de correo no disponible','error');
   }
 }
 

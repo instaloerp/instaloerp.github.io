@@ -525,12 +525,11 @@ ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
 ${EMPRESA?.email || ''}`;
 
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('📧 Abriendo cliente de correo...','info');
+    toast('Módulo de correo no disponible','error');
   }
 }
 

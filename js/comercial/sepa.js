@@ -347,14 +347,12 @@ function enviarMandatoEmail(clienteId, firmaUrl) {
   if (!c?.email) { toast('El cliente no tiene email', 'error'); return; }
   const asuntoTxt = `Mandato SEPA — ${EMPRESA?.nombre || ''}`;
   const cuerpoTxt = `Estimado/a ${c.nombre},\n\nLe enviamos el mandato de adeudo directo SEPA para su autorización.\n\nPuede ver y firmar el mandato en el siguiente enlace:\n${firmaUrl}\n\nEste mandato nos autoriza a domiciliar los cobros de sus facturas en su cuenta bancaria.\n\nGracias,\n${EMPRESA?.nombre || ''}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`;
-  // Usar modal correo ERP si hay cuenta SMTP configurada
-  if (typeof nuevoCorreo === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(c.email, asuntoTxt, cuerpoTxt, { tipo: 'mandato_sepa', id: clienteId });
     if (typeof goPage === 'function') goPage('correo');
-    return;
+  } else {
+    toast('Módulo de correo no disponible', 'error');
   }
-  window.open(`mailto:${c.email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-  toast('Abriendo cliente de correo...', 'info');
 }
 
 // ─── Marcar mandato proveedor como firmado (nosotros firmamos) ───
@@ -408,12 +406,11 @@ async function enviarMandatoEmailProveedor() {
     `IMPORTANTE: Antes de enviar, adjunte el PDF del mandato generado desde el botón "Generar PDF" del sistema.\n\n` +
     `Un saludo,\n${empresaNombre}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`
   );
-  // Usar modal correo ERP si hay cuenta SMTP configurada
-  if (typeof nuevoCorreo === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(p.email, decodeURIComponent(asunto), decodeURIComponent(cuerpo), { tipo: 'mandato_sepa_prov', id: entityId });
     if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${p.email}?subject=${asunto}&body=${cuerpo}`);
+    toast('Módulo de correo no disponible', 'error');
   }
 
   // Mostrar confirmación en el modal

@@ -1029,12 +1029,11 @@ function enviarRecepcionEmail(id) {
   const email = prov?.email || '';
   const asuntoTxt = `Albarán proveedor ${r.numero||''} — ${EMPRESA.nombre}`;
   const cuerpoTxt = `Estimado proveedor,\n\nLe confirmamos la recepción del material:\n\nNº Albarán: ${r.numero||'—'}\nFecha: ${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}\nPedido origen: ${r.pedido_numero||'—'}\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'recepcion', id: r.id, ref: r.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
-    toast('Abriendo correo...', 'info');
+    toast('Módulo de correo no disponible', 'error');
   }
 }
 

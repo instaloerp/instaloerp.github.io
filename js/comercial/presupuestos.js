@@ -880,8 +880,12 @@ async function enviarEnlaceFirmaEmail(presId, firmaUrl) {
   if (!c?.email) { toast('El cliente no tiene email configurado','error'); return; }
   const asunto = `Presupuesto ${p.numero} — Firma requerida`;
   const cuerpo = `Hola ${c.nombre},\n\nTe enviamos el presupuesto ${p.numero} por importe de ${(p.total||0).toFixed(2)} € para tu aprobación.\n\nPuedes ver y firmar el presupuesto en el siguiente enlace:\n${firmaUrl}\n\nGracias,\n${EMPRESA?.nombre||''}`;
-  window.open(`mailto:${c.email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`);
-  toast('Abriendo email...','info');
+  if (typeof nuevoCorreo === 'function') {
+    nuevoCorreo(c.email, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    if (typeof goPage === 'function') goPage('correo');
+  } else {
+    toast('Módulo de correo no disponible','error');
+  }
 }
 
 // Opción C: Aprobar directamente sin documento
@@ -1138,12 +1142,11 @@ ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
 ${EMPRESA?.web||''}`;
 
-  if (typeof enviarDocumentoPorEmail === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+  if (typeof nuevoCorreo === 'function') {
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
-    goPage('correo');
+    if (typeof goPage === 'function') goPage('correo');
   } else {
-    window.open(`mailto:${email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`, '_self');
-    toast('📧 Abriendo cliente de correo...','info');
+    toast('Módulo de correo no disponible','error');
   }
 }
 
