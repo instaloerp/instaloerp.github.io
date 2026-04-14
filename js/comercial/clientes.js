@@ -48,10 +48,14 @@ function setCliVista(v) {
 function renderClientes(list) {
   document.getElementById('cliCount').textContent = `${clientes.length} clientes · mostrando ${list.length}`;
 
+  // Helper: detectar cliente con datos fiscales incompletos
+  const _esIncompleto = c => !c.nif || !c.direccion_fiscal || !c.cp_fiscal || !c.telefono;
+
   // Vista tarjetas
   document.getElementById('cliGridTarjetas').innerHTML = list.length ?
     list.map(c => `
-      <div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="abrirFicha(${c.id})">
+      <div class="card" style="padding:0;overflow:hidden;cursor:pointer;position:relative" onclick="abrirFicha(${c.id})">
+        ${_esIncompleto(c)?'<span style="position:absolute;top:8px;right:8px;z-index:2;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-size:9.5px;font-weight:700;border:1px solid #f59e0b" title="Faltan datos fiscales (NIF, dirección, CP o teléfono)">⚠️ INCOMPLETO</span>':''}
         <div style="background:linear-gradient(135deg,${avC(c.nombre)},${avC(c.nombre)}cc);padding:20px;display:flex;align-items:center;gap:13px">
           <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${ini(c.nombre)}</div>
           <div style="flex:1;min-width:0">
@@ -77,7 +81,7 @@ function renderClientes(list) {
   // Vista tabla
   document.getElementById('cliTable').innerHTML = list.length ?
     list.map(c=>`<tr>
-      <td style="cursor:pointer" onclick="abrirFicha(${c.id})"><div style="display:flex;align-items:center;gap:8px"><div class="av av-sm" style="background:${avC(c.nombre)}">${ini(c.nombre)}</div><div><div style="font-weight:700">${c.nombre}</div><div style="font-size:11px;color:var(--gris-400)">${c.email||''}</div></div></div></td>
+      <td style="cursor:pointer" onclick="abrirFicha(${c.id})"><div style="display:flex;align-items:center;gap:8px"><div class="av av-sm" style="background:${avC(c.nombre)}">${ini(c.nombre)}</div><div><div style="font-weight:700;display:flex;align-items:center;gap:6px">${c.nombre}${_esIncompleto(c)?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;border:1px solid #f59e0b" title="Faltan datos fiscales">⚠️</span>':''}</div><div style="font-size:11px;color:var(--gris-400)">${c.email||''}</div></div></div></td>
       <td><span class="badge bg-blue">${c.tipo||'Particular'}</span></td>
       <td>${c.telefono||c.movil||'—'}</td>
       <td style="font-size:12px">${c.email||'—'}</td>
@@ -162,7 +166,17 @@ async function abrirFicha(id, tabActiva) {
 
   // Datos principales (compacto) — tarifa en vez de descuento
   const tarifa = c.tarifa || (c.descuento_habitual ? 'Dto. ' + c.descuento_habitual + '%' : 'General');
+  // Detectar datos incompletos para aviso visual
+  const _faltan = [];
+  if (!c.nif) _faltan.push('NIF/CIF');
+  if (!c.direccion_fiscal) _faltan.push('dirección');
+  if (!c.cp_fiscal) _faltan.push('CP');
+  if (!c.telefono) _faltan.push('teléfono');
+  const _avisoIncompleto = _faltan.length
+    ? `<div style="margin:0 0 8px;padding:7px 10px;background:#fef3c7;border:1px solid #f59e0b;border-radius:7px;font-size:11.5px;color:#92400e;font-weight:600">⚠️ Datos incompletos: falta ${_faltan.join(', ')}</div>`
+    : '';
   document.getElementById('fichaCliDatos').innerHTML = `
+    ${_avisoIncompleto}
     <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFicha('Tipo',c.tipo||'Particular')}
       ${datoFicha('NIF/CIF',c.nif||'—')}
@@ -296,7 +310,7 @@ async function abrirFicha(id, tabActiva) {
     (notas.data||[]).map(n => `
       <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
         <span style="font-size:16px;flex-shrink:0">${NOTA_ICO[n.tipo]||'📝'}</span>
-        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${n.creado_por_user?.nombre || (n.creado_por === CU.id ? CU.nombre : 'Sistema')}</div></div>
+        <div style="flex:1"><div style="font-size:12.5px;line-height:1.5">${n.texto}</div><div style="font-size:10.5px;color:var(--gris-400);margin-top:3px">${new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})} · 👤 ${n.creado_por_user?.nombre || (n.creado_por === CU.id ? (CU.user_metadata?.nombre || CU.email || 'Tú') : (n.creado_por ? 'Otro usuario' : 'Sistema'))}</div></div>
         <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarNota(${n.id})">🗑️</button>
       </div>`).join('') :
     '<div style="color:var(--gris-400);font-size:12.5px;padding:14px 0;text-align:center">Sin notas todavía</div>';
@@ -1233,6 +1247,16 @@ async function saveCliente() {
   renderClientes(clientes);
   populateSelects();
   loadDashboard();
+  // Refrescar ficha de obra abierta (KPIs/datos cliente pueden haber cambiado)
+  try {
+    if (typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') {
+      abrirFichaObra(obraActualId);
+    }
+  } catch(e) {}
+  // Refrescar ficha cliente si estaba abierta
+  if (typeof cliActualId !== 'undefined' && cliActualId && id && cliActualId === parseInt(id)) {
+    try { await abrirFicha(cliActualId); } catch(e) {}
+  }
   _cerrarClienteDesdeDocumento();
   _volverADocumentoConCliente();
 }
