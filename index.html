@@ -29,6 +29,20 @@
   <p>Iniciando Instalo ERP...</p>
 </div>
 
+<script>
+// Si hay sesión activa guardada, eliminar el form de login del DOM ANTES de que iCloud/Chrome lo escanee
+// Evita que aparezca el popup de contraseñas cuando el usuario ya está logueado
+try {
+  const hasSession = Object.keys(localStorage).some(k => /supabase.*auth.*token/i.test(k) && localStorage.getItem(k));
+  if (hasSession) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const f = document.getElementById('s-login');
+      if (f) f.remove();
+    }, { once: true });
+  }
+} catch(e) {}
+</script>
+
 <!-- LOGIN -->
 <div id="s-login" class="screen">
   <div class="auth-bg"></div>
@@ -99,7 +113,7 @@
         <div class="auth-field"><label>Apellidos</label><input id="rApellidos" placeholder="Apellidos"></div>
       </div>
       <div class="auth-field"><label>Email *</label><input id="rEmail" type="email" placeholder="tu@email.com"></div>
-      <div class="auth-field"><label>Contraseña *</label><input id="rPass" type="password" placeholder="Mínimo 8 caracteres"></div>
+      <div class="auth-field"><label>Contraseña *</label><input id="rPass" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></div>
       <div class="auth-sep">Tu empresa</div>
       <div class="auth-field"><label>Nombre de la empresa *</label><input id="rEmpresa" placeholder="Ej: Mi Empresa S.L."></div>
       <div class="auth-grid">
@@ -158,7 +172,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 172</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 173</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1979,7 +1993,7 @@
                   <div class="fg" style="margin-bottom:14px">
                     <label>Contraseña del certificado *</label>
                     <div style="display:flex;gap:6px">
-                      <input type="password" id="cert_password" placeholder="Contraseña del .pfx" style="flex:1" onchange="leerMetadatosCert()">
+                      <input type="password" id="cert_password" autocomplete="off" placeholder="Contraseña del .pfx" style="flex:1" onchange="leerMetadatosCert()">
                       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cert_password').type=document.getElementById('cert_password').type==='password'?'text':'password'" style="font-size:16px">👁️</button>
                     </div>
                     <div style="font-size:10px;color:var(--gris-400);margin-top:4px">La contraseña se almacena cifrada y solo se usa en el servidor para firmar documentos</div>
@@ -2069,7 +2083,7 @@
                 <div class="fg" style="margin-bottom:16px">
                   <label>API Key de Anthropic</label>
                   <div style="display:flex;gap:8px;align-items:center">
-                    <input id="ia_api_key" type="password" placeholder="sk-ant-api03-..." style="flex:1;font-family:monospace;font-size:12px">
+                    <input id="ia_api_key" type="password" autocomplete="off" placeholder="sk-ant-api03-..." style="flex:1;font-family:monospace;font-size:12px">
                     <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ia_api_key').type=document.getElementById('ia_api_key').type==='password'?'text':'password'" title="Mostrar/ocultar">👁️</button>
                   </div>
                   <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Obtén tu clave en <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--azul)">console.anthropic.com</a>. Se almacena cifrada. Coste estimado: ~0,03€ por documento.</small>
@@ -3072,7 +3086,7 @@
         <div class="fg"><label>Teléfono</label><input id="usr_tel" type="tel"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Contraseña *</label><input id="usr_pass" type="password" placeholder="Mínimo 8 caracteres"><div class="hint">El usuario podrá cambiarla después</div></div>
+        <div class="fg"><label>Contraseña *</label><input id="usr_pass" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"><div class="hint">El usuario podrá cambiarla después</div></div>
         <div class="fg"><label>Rol</label>
           <select id="usr_rol" onchange="setPermisosByRol(this.value)">
             <option value="operario">Operario</option>
@@ -4104,7 +4118,7 @@
         <div class="fg" style="flex:1">
           <label>Contraseña *</label>
           <div style="display:flex;gap:6px">
-            <input type="password" id="cor_smtp_pass" placeholder="Contraseña o app password" style="flex:1">
+            <input type="password" id="cor_smtp_pass" autocomplete="off" placeholder="Contraseña o app password" style="flex:1">
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cor_smtp_pass').type=document.getElementById('cor_smtp_pass').type==='password'?'text':'password'" style="font-size:16px">👁️</button>
           </div>
         </div>
