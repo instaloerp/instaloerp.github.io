@@ -1118,8 +1118,8 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     _matEl.innerHTML = _matBtns + _matList;
   }
 
-  // ── MENSAJES (correos vinculados a la obra) ──
-  cargarMensajesObra(obra.id);
+  // ── MENSAJES (correos vinculados a la obra y a sus documentos) ──
+  cargarMensajesObra(obra.id, obra, presupData, albData, factData, partesData);
 
   // Activar pestaña recordada (o seguimiento si es la primera vez)
   obraTab(obraTabActual || 'seguimiento');
@@ -1128,18 +1128,37 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
 // ═══════════════════════════════════════════════
 // MENSAJES — Correos vinculados a la obra
 // ═══════════════════════════════════════════════
-async function cargarMensajesObra(obraId) {
+async function cargarMensajesObra(obraId, obra, presupData, albData, factData, partesData) {
   const container = document.getElementById('obra-hist-mensajes');
   if (!container) return;
 
   container.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>';
 
+  // Botón Nuevo correo (siempre visible aunque no haya mensajes)
+  const headerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+      <div id="obraMsgsCount" style="font-size:12px;color:var(--gris-400)"></div>
+      <button class="btn btn-primary btn-sm" onclick="nuevoCorreoObra(${obraId})">✉️ Nuevo correo</button>
+    </div>`;
+
   try {
+    // IDs de docs vinculados a la obra
+    const presIds = (presupData||[]).map(p=>p.id);
+    const albIds  = (albData||[]).map(a=>a.id);
+    const factIds = (factData||[]).map(f=>f.id);
+    const parteIds = (partesData||[]).map(p=>p.id);
+
+    // Montar OR clauses para una sola query a correos
+    const ors = [`and(vinculado_tipo.eq.obra,vinculado_id.eq.${obraId})`];
+    if (presIds.length)  ors.push(`and(vinculado_tipo.eq.presupuesto,vinculado_id.in.(${presIds.join(',')}))`);
+    if (albIds.length)   ors.push(`and(vinculado_tipo.eq.albaran,vinculado_id.in.(${albIds.join(',')}))`);
+    if (factIds.length)  ors.push(`and(vinculado_tipo.eq.factura,vinculado_id.in.(${factIds.join(',')}))`);
+    if (parteIds.length) ors.push(`and(vinculado_tipo.eq.parte,vinculado_id.in.(${parteIds.join(',')}))`);
+
     const { data, error } = await sb.from('correos')
       .select('*')
       .eq('empresa_id', EMPRESA.id)
-      .eq('vinculado_tipo', 'obra')
-      .eq('vinculado_id', obraId)
+      .or(ors.join(','))
       .order('fecha', { ascending: false });
 
     if (error) throw error;
@@ -1147,32 +1166,65 @@ async function cargarMensajesObra(obraId) {
     const msgs = data || [];
 
     if (msgs.length === 0) {
-      container.innerHTML = `
+      container.innerHTML = headerHTML + `
         <div class="empty" style="padding:40px 0">
           <div class="ei">💬</div>
           <h3>Sin mensajes</h3>
-          <p style="color:var(--gris-400)">No hay correos vinculados a esta obra.<br>Puedes vincular correos desde la sección de Correo.</p>
+          <p style="color:var(--gris-400)">No hay correos vinculados a esta obra ni a sus documentos.<br>Pulsa <b>✉️ Nuevo correo</b> para enviar uno desde aquí.</p>
         </div>`;
       return;
     }
 
-    container.innerHTML = `
-      <div style="margin-bottom:12px;font-size:12px;color:var(--gris-400)">${msgs.length} correo${msgs.length > 1 ? 's' : ''} vinculado${msgs.length > 1 ? 's' : ''}</div>
-      ${msgs.map(m => {
-        const fecha = m.fecha ? new Date(m.fecha).toLocaleString('es-ES', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
-        const tipoIcon = m.tipo === 'enviado' ? '📤' : '📥';
-        const adjIcon = m.tiene_adjuntos ? ' 📎' : '';
-        return `<div onclick="goPage('correo');setTimeout(()=>abrirCorreo(${m.id}),400)" style="padding:10px 14px;border:1px solid var(--gris-100);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-            <span style="font-weight:600;font-size:12.5px">${tipoIcon} ${m.de_nombre || m.de || '—'}</span>
-            <span style="font-size:11px;color:var(--gris-400)">${fecha}</span>
-          </div>
-          <div style="font-size:12.5px;color:var(--gris-600)">${m.asunto || '(sin asunto)'}${adjIcon}</div>
-        </div>`;
-      }).join('')}`;
+    // Mapas para badge "viene de…"
+    const presNum = new Map((presupData||[]).map(p=>[p.id, p.numero||('#'+p.id)]));
+    const albNum  = new Map((albData||[]).map(a=>[a.id, a.numero||('#'+a.id)]));
+    const factNum = new Map((factData||[]).map(f=>[f.id, f.numero||('#'+f.id)]));
+    const parteNum= new Map((partesData||[]).map(p=>[p.id, p.numero||('#'+p.id)]));
+
+    const badgeFor = (m) => {
+      if (m.vinculado_tipo === 'presupuesto') return `<span style="font-size:10px;background:var(--azul-light,#dbeafe);color:var(--azul);padding:2px 6px;border-radius:4px;margin-left:6px">📋 ${presNum.get(m.vinculado_id) || m.vinculado_ref || ''}</span>`;
+      if (m.vinculado_tipo === 'albaran')     return `<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;margin-left:6px">📦 ${albNum.get(m.vinculado_id) || m.vinculado_ref || ''}</span>`;
+      if (m.vinculado_tipo === 'factura')     return `<span style="font-size:10px;background:var(--verde-light,#dcfce7);color:var(--verde);padding:2px 6px;border-radius:4px;margin-left:6px">🧾 ${factNum.get(m.vinculado_id) || m.vinculado_ref || ''}</span>`;
+      if (m.vinculado_tipo === 'parte')       return `<span style="font-size:10px;background:#e0e7ff;color:#4338ca;padding:2px 6px;border-radius:4px;margin-left:6px">📝 ${parteNum.get(m.vinculado_id) || m.vinculado_ref || ''}</span>`;
+      if (m.vinculado_tipo === 'obra')        return `<span style="font-size:10px;background:var(--gris-100);color:var(--gris-500);padding:2px 6px;border-radius:4px;margin-left:6px">🏗️ Obra</span>`;
+      return '';
+    };
+
+    container.innerHTML = headerHTML + msgs.map(m => {
+      const fecha = m.fecha ? new Date(m.fecha).toLocaleString('es-ES', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+      const tipoIcon = m.tipo === 'enviado' ? '📤' : '📥';
+      const adjIcon = m.tiene_adjuntos ? ' 📎' : '';
+      return `<div onclick="goPage('correo');setTimeout(()=>abrirCorreo(${m.id}),400)" style="padding:10px 14px;border:1px solid var(--gris-100);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='var(--gris-50)'" onmouseout="this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-weight:600;font-size:12.5px">${tipoIcon} ${m.de_nombre || m.de || '—'}${badgeFor(m)}</span>
+          <span style="font-size:11px;color:var(--gris-400)">${fecha}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--gris-600)">${m.asunto || '(sin asunto)'}${adjIcon}</div>
+      </div>`;
+    }).join('');
+
+    const cnt = document.getElementById('obraMsgsCount');
+    if (cnt) cnt.textContent = `${msgs.length} correo${msgs.length > 1 ? 's' : ''} relacionado${msgs.length > 1 ? 's' : ''} con esta obra`;
   } catch (e) {
-    container.innerHTML = `<div class="empty" style="padding:20px"><p style="color:var(--rojo)">Error cargando mensajes: ${e.message}</p></div>`;
+    container.innerHTML = headerHTML + `<div class="empty" style="padding:20px"><p style="color:var(--rojo)">Error cargando mensajes: ${e.message}</p></div>`;
   }
+}
+
+// Botón Nuevo correo desde la pestaña Mensajes de la obra
+async function nuevoCorreoObra(obraId) {
+  if (typeof nuevoCorreo !== 'function') {
+    toast('Módulo de correo no disponible','error');
+    return;
+  }
+  // Cargar obra y cliente desde BD
+  const { data: trabajo } = await sb.from('trabajos').select('id,numero,titulo,cliente_id').eq('id', obraId).single();
+  const cli = trabajo?.cliente_id ? (clientes||[]).find(c=>c.id===trabajo.cliente_id) : null;
+  const para = cli?.email || '';
+  const refObra = trabajo?.numero || trabajo?.titulo || ('#'+obraId);
+  const asunto = `Obra ${refObra}${trabajo?.titulo?' — '+trabajo.titulo:''}`;
+  const cuerpo = `Estimado/a ${cli?.nombre||'cliente'},\n\nEn relación a la obra ${refObra}:\n\n\n\nUn saludo,\n${EMPRESA?.nombre||''}`;
+  nuevoCorreo(para, asunto, cuerpo, { tipo: 'obra', id: obraId, ref: refObra });
+  if (typeof goPage === 'function') goPage('correo');
 }
 
 // ═══════════════════════════════════════════════
