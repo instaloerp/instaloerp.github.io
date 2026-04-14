@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Firma de presupuesto</title>
+<title>Firma digital</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -66,6 +66,7 @@ async function init() {
     const { data: emp } = await sb.from('empresas').select('*').eq('id', pres.empresa_id).single();
     empresaData = emp;
     const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
+    document.title = 'Firma de presupuesto';
     renderPresupuesto(pres, emp, cli);
     return;
   }
@@ -81,6 +82,7 @@ async function init() {
     const { data: cbe } = await sb.from('cuentas_bancarias_entidad').select('*')
       .eq('tipo_entidad','cliente').eq('entidad_id', cli.id).eq('predeterminada', true).maybeSingle();
     sepaData = { cliente: cli, empresa: emp, cuenta: cbe };
+    document.title = 'Firma mandato SEPA';
     renderMandatoSepa(cli, emp, cbe);
     return;
   }
@@ -458,10 +460,11 @@ function renderMandatoSepa(cli, emp, cbe) {
     ? `<div class="info-item" style="grid-column:1/-1"><div class="info-label">IBAN cuenta a domiciliar</div><div class="info-value" style="font-family:ui-monospace,monospace">${ibanFmt}</div><div style="font-size:12px;color:#64748b">${cbe?.banco_entidad||''} · Titular: ${cbe?.titular||cli?.nombre||''}</div></div>`
     : `<div class="info-item" style="grid-column:1/-1;background:#fffbeb;border-left:3px solid #f59e0b">
          <div class="info-label" style="color:#92400e">Facilite su IBAN para completar el mandato</div>
-         <input id="sepa_iban_input" placeholder="ES00 0000 0000 0000 0000 0000" style="width:100%;padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px;font-family:ui-monospace,monospace;text-transform:uppercase;margin-top:8px">
-         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+         <input id="sepa_iban_input" oninput="_sepaAutocompBanco()" placeholder="ES00 0000 0000 0000 0000 0000" style="width:100%;padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px;font-family:ui-monospace,monospace;text-transform:uppercase;margin-top:8px">
+         <div style="display:grid;grid-template-columns:2fr 2fr 1fr;gap:8px;margin-top:8px">
            <input id="sepa_titular_input" placeholder="Titular de la cuenta" value="${cli?.nombre||''}" style="padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px">
            <input id="sepa_banco_input" placeholder="Banco / entidad" style="padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px">
+           <input id="sepa_bic_input" placeholder="BIC / SWIFT" style="padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px;font-family:ui-monospace,monospace;text-transform:uppercase">
          </div>
          <div id="sepa_iban_msg" style="font-size:11px;color:#92400e;margin-top:6px"></div>
        </div>`;
@@ -502,6 +505,74 @@ function renderMandatoSepa(cli, emp, cbe) {
 }
 
 // Validación IBAN básica (longitud + estructura ES) + módulo 97
+// Directorio bancos España: código entidad (4 dígitos tras ES+DC) -> { n: nombre, bic }
+const _BANCOS_ES = {
+  '0049':{n:'Banco Santander',bic:'BSCHESMMXXX'},
+  '0081':{n:'Banco Sabadell',bic:'BSABESBBXXX'},
+  '0073':{n:'Openbank',bic:'OPENESMMXXX'},
+  '0075':{n:'Banco Popular',bic:'POPUESMMXXX'},
+  '0128':{n:'Bankinter',bic:'BKBKESMMXXX'},
+  '0182':{n:'BBVA',bic:'BBVAESMMXXX'},
+  '0234':{n:'Banco Caminos',bic:'CCOCESMMXXX'},
+  '0237':{n:'CajaSur',bic:'CSURES2CXXX'},
+  '0238':{n:'Banco Pastor',bic:'PASTESMMXXX'},
+  '0487':{n:'Banco Mare Nostrum',bic:'GBMNESMMXXX'},
+  '0488':{n:'Banco Finantia Sofinloc',bic:'BFIOESM1XXX'},
+  '1465':{n:'ING',bic:'INGDESMMXXX'},
+  '1491':{n:'Triodos Bank',bic:'TRIOESMMXXX'},
+  '1583':{n:'Deutsche Bank',bic:'DEUTESBBXXX'},
+  '2038':{n:'Bankia',bic:'CAHMESMMXXX'},
+  '2048':{n:'Liberbank',bic:'CECAESMM048'},
+  '2080':{n:'Abanca',bic:'CAGLESMMXXX'},
+  '2085':{n:'Ibercaja',bic:'CAZRES2ZXXX'},
+  '2086':{n:'Banco Grupo Caminos',bic:'BGCAES2SXXX'},
+  '2095':{n:'Kutxabank',bic:'BASKES2BXXX'},
+  '2100':{n:'CaixaBank',bic:'CAIXESBBXXX'},
+  '2103':{n:'Unicaja',bic:'UCJAES2MXXX'},
+  '2105':{n:'Caja Castilla-La Mancha',bic:'CECAESMM105'},
+  '3025':{n:'Caixa d\'Enginyers',bic:'CDENESBBXXX'},
+  '3058':{n:'Cajamar',bic:'CCRIES2AXXX'},
+  '3159':{n:'Caja Laboral (Laboral Kutxa)',bic:'CLPEES2MXXX'},
+  '1490':{n:'Self Bank',bic:'SELFESMMXXX'},
+  '1550':{n:'Citibank España',bic:'CITIES2XXXX'},
+  '1474':{n:'Citibank Europe',bic:'CITIIE2XXXX'},
+  '1544':{n:'Andbank España',bic:'BACAESMMXXX'},
+  '0061':{n:'Banca March',bic:'BMARES2MXXX'},
+  '0186':{n:'Banco Mediolanum',bic:'BFIVESBBXXX'},
+  '0216':{n:'Targobank',bic:'POHIESMMXXX'},
+  '0083':{n:'Renta 4 Banco',bic:'RENBESMMXXX'},
+  '1459':{n:'N26',bic:'NTSBDEB1XXX'},
+  '1583':{n:'Revolut',bic:'REVOLT21'},
+  '1679':{n:'Wise',bic:'TRWIBEB1XXX'},
+};
+
+function _sepaAutocompBanco() {
+  const inp = document.getElementById('sepa_iban_input');
+  if (!inp) return;
+  const raw = inp.value.replace(/\s+/g,'').toUpperCase();
+  // Formatear con espacios cada 4
+  const formatted = raw.replace(/(.{4})/g,'$1 ').trim();
+  if (formatted !== inp.value) {
+    const pos = inp.selectionStart;
+    inp.value = formatted;
+    try { inp.setSelectionRange(pos+1, pos+1); } catch(e){}
+  }
+  if (!raw.startsWith('ES') || raw.length < 8) return;
+  const codigo = raw.substring(4,8);
+  const entry = _BANCOS_ES[codigo];
+  if (!entry) return;
+  const inpBanco = document.getElementById('sepa_banco_input');
+  const inpBic = document.getElementById('sepa_bic_input');
+  if (inpBanco && (!inpBanco.value.trim() || inpBanco.dataset.auto==='1')) {
+    inpBanco.value = entry.n;
+    inpBanco.dataset.auto = '1';
+  }
+  if (inpBic && (!inpBic.value.trim() || inpBic.dataset.auto==='1')) {
+    inpBic.value = entry.bic;
+    inpBic.dataset.auto = '1';
+  }
+}
+
 function validarIBAN(ibanRaw) {
   if (!ibanRaw) return false;
   const iban = ibanRaw.replace(/\s+/g,'').toUpperCase();
@@ -535,8 +606,9 @@ async function enviarFirmaSepa() {
     }
     const titular = document.getElementById('sepa_titular_input').value.trim();
     const banco = document.getElementById('sepa_banco_input').value.trim();
+    const bic = (document.getElementById('sepa_bic_input')?.value||'').trim().toUpperCase();
     if (!titular) { alert('Indica el titular de la cuenta'); return; }
-    cuentaNueva = { iban: ibanLimpio, titular, banco_entidad: banco || null };
+    cuentaNueva = { iban: ibanLimpio, titular, banco_entidad: banco || null, bic: bic || null };
   }
 
   const btn = event.target;
@@ -581,6 +653,7 @@ async function enviarFirmaSepa() {
           iban: cuentaNueva.iban,
           titular: cuentaNueva.titular,
           banco_entidad: cuentaNueva.banco_entidad,
+          bic: cuentaNueva.bic,
           predeterminada: true,
           mandato_sepa_estado: 'firmado',
           mandato_sepa_fecha: hoy,
