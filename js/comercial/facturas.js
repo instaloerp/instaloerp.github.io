@@ -302,9 +302,15 @@ async function marcarPagada(id) { return marcarCobrada(id); }
 // ═══════════════════════════════════════════════
 //  VER DETALLE FACTURA
 // ═══════════════════════════════════════════════
-function verDetalleFactura(id) {
-  const f = facLocalData.find(x => x.id === id);
-  if (!f) return;
+async function verDetalleFactura(id) {
+  let f = facLocalData.find(x => x.id === id);
+  if (!f) {
+    // No cargado aún en memoria: traer de BD
+    const { data } = await sb.from('facturas').select('*').eq('id', id).maybeSingle();
+    if (!data) { toast('No se encontró la factura', 'error'); return; }
+    f = data;
+    facLocalData.push(f);
+  }
   document.getElementById('facDetId').value = id;
   document.getElementById('facDetNro').textContent = f.numero || '—';
   document.getElementById('facDetCli').textContent = f.cliente_nombre || '—';

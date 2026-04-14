@@ -57,7 +57,7 @@ async function verPdfFirmado(url, titulo) {
     const blob = await resp.blob();
     const blobUrl = URL.createObjectURL(blob);
     const viewer = document.getElementById('pdfViewerBody');
-    viewer.innerHTML = `<iframe src="${blobUrl}" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`;
+    viewer.innerHTML = `<iframe src="${blobUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`;
   } catch(e) {
     console.error('Error cargando PDF:', e);
     const viewer = document.getElementById('pdfViewerBody');

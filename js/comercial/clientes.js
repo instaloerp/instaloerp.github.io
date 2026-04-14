@@ -241,15 +241,17 @@ async function abrirFicha(id) {
         <input type="file" id="docFile" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls" onchange="subirDocumento(this)">
       </div>
       ${(docs.data||[]).length ? '<div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:6px 0 2px">Documentos del cliente</div>' + (docs.data||[]).map(d => `
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="window.open('${d.url}','_blank')">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
           <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')}</div></div>
-          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="event.stopPropagation();eliminarDoc(${d.id})">🗑️</button>
+          <a href="#" onclick="event.preventDefault();verPdfFirmado('${d.url}','${(d.nombre||'Documento').replace(/'/g,'')}')" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Ver">👁️</a>
+          <button class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 5px" onclick="eliminarDoc(${d.id})">🗑️</button>
         </div>`).join('') : ''}
       ${docsObras.length ? '<div style="font-size:10px;color:var(--azul);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos de obras</div>' + docsObras.map(d => `
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="window.open('${d.url}','_blank')">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
           <span style="font-size:18px">${TIPO_ICO[d.tipo]||'📄'}</span>
           <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nombre}</div><div style="font-size:10.5px;color:var(--gris-400)">${d.tipo} · ${new Date(d.created_at).toLocaleDateString('es-ES')} · <span style="color:var(--azul)">🏗️ ${d._obraNumero}${d._obraTitulo ? ' — '+d._obraTitulo : ''}</span></div></div>
+          <a href="#" onclick="event.preventDefault();verPdfFirmado('${d.url}','${(d.nombre||'Documento').replace(/'/g,'')}')" class="btn btn-secondary btn-sm" style="font-size:10.5px;padding:3px 7px" title="Ver">👁️</a>
         </div>`).join('') : ''}
       ${docsGenerados.length ? '<div style="font-size:10px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 0 2px;margin-top:4px;border-top:1px solid var(--gris-100)">Documentos firmados</div>' + docsGenerados.map(d => `
         <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100)">
