@@ -1117,7 +1117,7 @@ function imprimirPresupuesto(id) {
   win.document.close();
 }
 
-function enviarPresupuestoEmail(id) {
+async function enviarPresupuestoEmail(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) { toast('Presupuesto no encontrado','error'); return; }
   const c = clientes.find(x=>x.id===p.cliente_id);
@@ -1126,6 +1126,21 @@ function enviarPresupuestoEmail(id) {
   const totalFmt = (p.total||0).toFixed(2).replace('.',',') + ' €';
   const fechaFmt = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
   const validezFmt = p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—';
+
+  // Generar/reusar token público para que el cliente pueda ver/firmar online
+  let token = p.firma_token;
+  if (!token) {
+    token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
+    const { error: tokErr } = await sb.from('presupuestos').update({ firma_token: token }).eq('id', p.id);
+    if (tokErr) {
+      console.error('No se pudo generar token público:', tokErr);
+      token = null;
+    } else {
+      p.firma_token = token; // cache local
+    }
+  }
+  const enlace = token ? `https://instaloerp.github.io/f.html?t=${token}` : '';
+
   const cuerpoTxt =
 `Estimado/a ${p.cliente_nombre||'cliente'},
 
@@ -1133,8 +1148,11 @@ Le adjuntamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
 
 Importe total: ${totalFmt} (IVA incluido)
 Válido hasta: ${validezFmt}
-
-Para aceptar este presupuesto, puede responder a este correo o contactarnos directamente.
+${enlace ? `
+👉 Ver, descargar o firmar el presupuesto online:
+${enlace}
+` : ''}
+Para aceptarlo, puede firmarlo en el enlace anterior, responder a este correo, o contactarnos directamente.
 
 Un saludo cordial,
 ${EMPRESA?.nombre||''}
