@@ -172,7 +172,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 5</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 6</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1676,10 +1676,16 @@ try {
               <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Cliente</div>
               <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center">
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600">Cliente</label>
-                <div style="display:flex;gap:4px">
-                  <select id="de_cliente" onchange="de_actualizarCliente(this.value)" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
-                    <option value="">— Selecciona cliente —</option>
-                  </select>
+                <div style="display:flex;gap:4px;position:relative">
+                  <div style="position:relative;flex:1">
+                    <input type="text" id="de_cliente_search" placeholder="Buscar por nombre, NIF, teléfono..." autocomplete="off"
+                      oninput="de_filtrarClientes(this.value)"
+                      onfocus="de_filtrarClientes(this.value)"
+                      onkeydown="de_navegarClientes(event)"
+                      style="width:100%;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                    <input type="hidden" id="de_cliente">
+                    <div id="de_cliente_drop" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;background:#fff;border:1.5px solid var(--gris-200);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:1000;margin-top:2px"></div>
+                  </div>
                   <button class="btn btn-ghost btn-sm" onclick="nuevoClienteDesde('doceditor')" title="Nuevo cliente" style="padding:4px 6px">+</button>
                 </div>
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600">NIF</label>

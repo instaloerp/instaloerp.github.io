@@ -55,10 +55,13 @@ async function abrirEditor(tipo, editId) {
   if (fpagoLabel) fpagoLabel.style.display = cfg.conFpago?'':'none';
   if (fpagoSel) fpagoSel.style.display = cfg.conFpago?'':'none';
 
-  // Poblar clientes
+  // Limpiar selector de cliente (el buscador se llena al escribir)
   const sel = document.getElementById('de_cliente');
-  sel.innerHTML = '<option value="">— Selecciona cliente —</option>' +
-    clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  if (sel) sel.value = '';
+  const selSearch = document.getElementById('de_cliente_search');
+  if (selSearch) selSearch.value = '';
+  const selDrop = document.getElementById('de_cliente_drop');
+  if (selDrop) selDrop.style.display = 'none';
 
   // Forma de pago
   if (cfg.conFpago) {
@@ -94,8 +97,7 @@ async function abrirEditor(tipo, editId) {
     const { data: doc } = await sb.from(cfg.tabla).select('*').eq('id', editId).single();
     if (doc) {
       docEstado = doc.estado || null;
-      sel.value = doc.cliente_id||'';
-      de_actualizarCliente(doc.cliente_id);
+      de_setClienteSel(doc.cliente_id);
       document.getElementById('de_numero').value = doc.numero||'';
       document.getElementById('de_fecha').value = doc.fecha||hoy;
       if (cfg.conFecha2) document.getElementById('de_fecha2').value = doc.fecha_validez||doc.fecha_vencimiento||'';
@@ -376,6 +378,93 @@ async function de_guardarVersion() {
             <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
   }
 }
+
+// ═══════════════════════════════════════════════
+//  BUSCADOR DE CLIENTE (reemplaza al <select>)
+// ═══════════════════════════════════════════════
+let _deClienteHiIdx = -1;
+function de_filtrarClientes(q) {
+  const drop = document.getElementById('de_cliente_drop');
+  if (!drop) return;
+  const txt = (q||'').trim().toLowerCase();
+  let lista = clientes || [];
+  if (txt) {
+    lista = lista.filter(c =>
+      (c.nombre||'').toLowerCase().includes(txt) ||
+      (c.nif||'').toLowerCase().includes(txt) ||
+      (c.telefono||'').toLowerCase().includes(txt) ||
+      (c.email||'').toLowerCase().includes(txt)
+    );
+  }
+  lista = lista.slice(0, 50);
+  _deClienteHiIdx = -1;
+  if (!lista.length) {
+    drop.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--gris-400)">Sin resultados</div>';
+  } else {
+    drop.innerHTML = lista.map((c,i) => `<div data-cli-id="${c.id}" data-idx="${i}" onclick="de_seleccionarCliente(${c.id})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100);font-size:12px" onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background='#fff'">
+      <div style="font-weight:600">${c.nombre||'—'}</div>
+      <div style="font-size:11px;color:var(--gris-500)">${c.nif||''}${c.nif&&c.telefono?' · ':''}${c.telefono||''}</div>
+    </div>`).join('');
+  }
+  drop.style.display = 'block';
+}
+function de_seleccionarCliente(id) {
+  const c = clientes.find(x=>x.id===parseInt(id));
+  if (!c) return;
+  const hidden = document.getElementById('de_cliente');
+  const search = document.getElementById('de_cliente_search');
+  if (hidden) hidden.value = c.id;
+  if (search) search.value = c.nombre || '';
+  de_actualizarCliente(c.id);
+  const drop = document.getElementById('de_cliente_drop');
+  if (drop) drop.style.display = 'none';
+}
+function de_setClienteSel(id) {
+  const c = clientes.find(x=>x.id===parseInt(id));
+  const hidden = document.getElementById('de_cliente');
+  const search = document.getElementById('de_cliente_search');
+  if (hidden) hidden.value = c ? c.id : '';
+  if (search) search.value = c ? (c.nombre||'') : '';
+  de_actualizarCliente(c ? c.id : '');
+}
+function de_navegarClientes(ev) {
+  const drop = document.getElementById('de_cliente_drop');
+  if (!drop || drop.style.display === 'none') return;
+  const items = drop.querySelectorAll('[data-cli-id]');
+  if (!items.length) return;
+  if (ev.key === 'ArrowDown') {
+    ev.preventDefault();
+    _deClienteHiIdx = Math.min(_deClienteHiIdx + 1, items.length - 1);
+  } else if (ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    _deClienteHiIdx = Math.max(_deClienteHiIdx - 1, 0);
+  } else if (ev.key === 'Enter') {
+    if (_deClienteHiIdx >= 0 && items[_deClienteHiIdx]) {
+      ev.preventDefault();
+      de_seleccionarCliente(items[_deClienteHiIdx].dataset.cliId);
+    }
+    return;
+  } else if (ev.key === 'Escape') {
+    drop.style.display = 'none';
+    return;
+  } else {
+    return;
+  }
+  items.forEach((el, i) => {
+    el.style.background = i === _deClienteHiIdx ? 'var(--azul-light)' : '#fff';
+  });
+  if (items[_deClienteHiIdx]) items[_deClienteHiIdx].scrollIntoView({ block:'nearest' });
+}
+// Cerrar dropdown al clicar fuera
+document.addEventListener('click', (e) => {
+  const drop = document.getElementById('de_cliente_drop');
+  const search = document.getElementById('de_cliente_search');
+  if (!drop || !search) return;
+  if (drop.style.display === 'none') return;
+  if (!drop.contains(e.target) && e.target !== search) {
+    drop.style.display = 'none';
+  }
+});
 
 function de_actualizarCliente(id) {
   const c = clientes.find(x=>x.id===parseInt(id));
@@ -1081,8 +1170,7 @@ async function de_restaurarVersion(versionId) {
   if (!v) { toast('Error cargando versión','error'); return; }
   const d = v.datos;
   // Load version data into editor
-  document.getElementById('de_cliente').value = d.cliente_id||'';
-  de_actualizarCliente(d.cliente_id);
+  de_setClienteSel(d.cliente_id);
   document.getElementById('de_fecha').value = d.fecha||'';
   if (deConfig.conFecha2) document.getElementById('de_fecha2').value = d.fecha_validez||d.fecha_vencimiento||'';
   document.getElementById('de_titulo').value = d.titulo||d.referencia||'';

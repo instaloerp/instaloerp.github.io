@@ -814,10 +814,8 @@ function abrirNuevoAlbaran() {
 async function abrirNuevaFactura() {
   await abrirEditor('factura', null);
   setTimeout(() => {
-    const sel = document.getElementById('de_cliente');
-    if (sel && cliActualId) {
-      sel.value = cliActualId;
-      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    if (cliActualId && typeof de_setClienteSel === 'function') {
+      de_setClienteSel(cliActualId);
     }
   }, 150);
 }
@@ -877,10 +875,8 @@ async function nuevoPresupCliActual() {
   await abrirEditor('presupuesto', null);
   // Pre-seleccionar cliente actual
   setTimeout(() => {
-    const sel = document.getElementById('de_cliente');
-    if (sel && cliActualId) {
-      sel.value = cliActualId;
-      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    if (cliActualId && typeof de_setClienteSel === 'function') {
+      de_setClienteSel(cliActualId);
     }
   }, 150);
 }
@@ -1044,10 +1040,8 @@ let abLineas = [];
 async function nuevoAlbaranCliActual() {
   await abrirEditor('albaran', null);
   setTimeout(() => {
-    const sel = document.getElementById('de_cliente');
-    if (sel && cliActualId) {
-      sel.value = cliActualId;
-      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    if (cliActualId && typeof de_setClienteSel === 'function') {
+      de_setClienteSel(cliActualId);
     }
   }, 150);
 }

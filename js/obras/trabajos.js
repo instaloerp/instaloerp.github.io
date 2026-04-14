@@ -2438,10 +2438,8 @@ function nuevoPresupObraActual() {
       // Vincular a la obra
       if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
       // Auto-fill cliente
-      const sel = document.getElementById('de_cliente');
-      if (sel && t.cliente_id) {
-        sel.value = t.cliente_id;
-        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      if (t.cliente_id && typeof de_setClienteSel === 'function') {
+        de_setClienteSel(t.cliente_id);
       }
     }, 300);
   }
@@ -2457,10 +2455,8 @@ function nuevoAlbaranObraActual() {
       // Vincular a la obra
       if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
       // Auto-fill cliente
-      const sel = document.getElementById('de_cliente');
-      if (sel && t.cliente_id) {
-        sel.value = t.cliente_id;
-        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      if (t.cliente_id && typeof de_setClienteSel === 'function') {
+        de_setClienteSel(t.cliente_id);
       }
     }, 300);
   }
@@ -2474,10 +2470,8 @@ function nuevaFacturaObraActual() {
     abrirNuevaFactura();
     setTimeout(() => {
       if (typeof deConfig !== 'undefined') deConfig.trabajo_id = obraActualId;
-      const sel = document.getElementById('de_cliente');
-      if (sel && t.cliente_id) {
-        sel.value = t.cliente_id;
-        if (typeof de_actualizarCliente === 'function') de_actualizarCliente(t.cliente_id);
+      if (t.cliente_id && typeof de_setClienteSel === 'function') {
+        de_setClienteSel(t.cliente_id);
       }
     }, 300);
   }
