@@ -138,7 +138,14 @@ function exportarClientes() {
 // ═══════════════════════════════════════════════
 //  FICHA DE CLIENTE
 // ═══════════════════════════════════════════════
-async function abrirFicha(id) {
+async function abrirFicha(id, tabActiva) {
+  // Conservar la pestaña activa actual si no se especifica una
+  if (!tabActiva && typeof cliActualId !== 'undefined' && cliActualId === id) {
+    const activa = document.querySelector('.ficha-kpi-active');
+    if (activa && activa.id && activa.id.startsWith('fkpi-')) {
+      tabActiva = activa.id.slice(5);
+    }
+  }
   cliActualId = id;
   const c = clientes.find(x=>x.id===id);
   if (!c) return;
@@ -360,8 +367,8 @@ async function abrirFicha(id) {
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas</p></div>';
   document.getElementById('ficha-hist-facturas').innerHTML = factHtml;
 
-  // Activar pestaña Obras por defecto
-  fichaTab('trabajos');
+  // Activar pestaña: la pasada como parámetro, o la guardada antes, o 'trabajos' por defecto
+  fichaTab(tabActiva || 'trabajos');
 }
 
 // Navegación a trabajo/obra — abre la ficha de la obra
@@ -679,16 +686,14 @@ async function subirDocumento(input) {
 async function eliminarDoc(id) {
   if (!confirm('¿Eliminar documento?')) return;
   await sb.from('documentos_cliente').delete().eq('id',id);
-  await abrirFicha(cliActualId);
-  fichaTab('documentos');
+  await abrirFicha(cliActualId, 'documentos');
   toast('Documento eliminado','info');
 }
 
 async function eliminarNota(id) {
   if (!confirm('¿Eliminar nota?')) return;
   await sb.from('notas_cliente').delete().eq('id',id);
-  await abrirFicha(cliActualId);
-  fichaTab('notas');
+  await abrirFicha(cliActualId, 'notas');
   toast('Nota eliminada','info');
 }
 
