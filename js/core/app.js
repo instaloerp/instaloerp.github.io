@@ -602,6 +602,8 @@ async function doLogout() {
 // ═══════════════════════════════════════════════
 async function mostrarApp() {
   showScreen('s-app');
+  // Quitar el form de login del DOM para evitar que macOS/Chrome ofrezcan autocompletar contraseñas al refrescar — build 133
+  try { document.getElementById('s-login')?.remove(); } catch(e) {}
   // Sidebar
   document.getElementById('sbNombre').textContent = CP?.nombre || CU.email;
   const rolTxt = CP?.es_superadmin ? 'Admin' : 'Usuario';
