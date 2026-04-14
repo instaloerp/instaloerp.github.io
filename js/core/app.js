@@ -897,8 +897,8 @@ function initRealtimePartes() {
             const nuevo = payload?.new;
             const viejo = payload?.old;
             const firmoAhora = nuevo?.mandato_sepa_estado === 'firmado'
-              && (viejo?.mandato_sepa_estado !== 'firmado' || !viejo?.mandato_sepa_firma_url)
-              && nuevo?.mandato_sepa_firma_url;
+              && (viejo?.mandato_sepa_estado !== 'firmado' || !viejo?.mandato_sepa_firma_url);
+            console.log('[SEPA realtime]', { firmoAhora, estadoNuevo: nuevo?.mandato_sepa_estado, firmaUrl: nuevo?.mandato_sepa_firma_url, cuentaId: nuevo?.mandato_sepa_cuenta_id });
             if (firmoAhora) {
               const upd = {
                 mandato_sepa_estado: 'firmado',
@@ -927,7 +927,30 @@ function initRealtimePartes() {
                   const cuentaEmpresa = (typeof cuentasBancarias !== 'undefined' && cuentasBancarias)
                     ? (cuentasBancarias.find(b=>b.predeterminada) || cuentasBancarias[0]) : null;
                   const ref = nuevo.mandato_sepa_ref || ('SEPA-C-'+nuevo.id+'-'+Date.now().toString(36).toUpperCase());
-                  await _generarYGuardarSEPAFirmadoPDF('cliente', nuevo, cuentaEmpresa, nuevo.mandato_sepa_firma_url, ref);
+                  // Resolver firmaUrl: payload → cuenta destino → cliente refrescado
+                  let firmaUrl = nuevo.mandato_sepa_firma_url;
+                  let entityForPdf = nuevo;
+                  if (!firmaUrl && nuevo.mandato_sepa_cuenta_id) {
+                    try {
+                      const { data: cb } = await sb.from('cuentas_bancarias_entidad').select('*').eq('id', nuevo.mandato_sepa_cuenta_id).maybeSingle();
+                      if (cb) {
+                        firmaUrl = cb.mandato_sepa_firma_url || firmaUrl;
+                        entityForPdf = Object.assign({}, nuevo, { iban: cb.iban, bic: cb.bic, banco_entidad: cb.banco_entidad });
+                      }
+                    } catch(e) {}
+                  }
+                  if (!firmaUrl) {
+                    try {
+                      const { data: cliFresh } = await sb.from('clientes').select('mandato_sepa_firma_url').eq('id', nuevo.id).maybeSingle();
+                      if (cliFresh?.mandato_sepa_firma_url) firmaUrl = cliFresh.mandato_sepa_firma_url;
+                    } catch(e) {}
+                  }
+                  console.log('[SEPA PDF] Generando con firmaUrl:', firmaUrl);
+                  await _generarYGuardarSEPAFirmadoPDF('cliente', entityForPdf, cuentaEmpresa, firmaUrl, ref);
+                  // Refrescar ficha para que aparezca el PDF
+                  if (typeof cliActualId !== 'undefined' && cliActualId === nuevo.id && typeof abrirFicha === 'function') {
+                    setTimeout(()=>abrirFicha(cliActualId), 800);
+                  }
                 }
               } catch(e) { console.warn('Gen PDF SEPA remoto:', e); }
             }

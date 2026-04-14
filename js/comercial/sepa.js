@@ -454,6 +454,44 @@ async function subirMandatoFirmado() {
   await _completarMandatoFirmado(tipo, entityId, urlData?.publicUrl);
 }
 
+// Regenerar manualmente el PDF del mandato firmado a partir de una cuenta bancaria con estado firmado
+async function _regenerarPDFMandatoCuenta(cbeId) {
+  try {
+    const cb = (cuentasBancariasEntidad||[]).find(x => x.id === cbeId);
+    if (!cb) { toast('Cuenta no encontrada', 'error'); return; }
+    if (cb.mandato_sepa_estado !== 'firmado') { toast('La cuenta no tiene mandato firmado', 'info'); return; }
+    const tipo = cb.tipo_entidad || 'cliente';
+    const entityId = cb.entidad_id;
+    const entityOrig = tipo === 'cliente'
+      ? clientes.find(x=>x.id===entityId)
+      : (proveedores||[]).find(x=>x.id===entityId);
+    if (!entityOrig) { toast('Entidad no encontrada', 'error'); return; }
+    // Clonar y sobreescribir IBAN/BIC/banco con los de la cuenta concreta
+    const entity = Object.assign({}, entityOrig, {
+      iban: cb.iban, bic: cb.bic, banco_entidad: cb.banco_entidad
+    });
+    const cuentaEmpresa = (typeof cuentasBancarias !== 'undefined' && cuentasBancarias)
+      ? (cuentasBancarias.find(b=>b.predeterminada) || cuentasBancarias[0]) : null;
+    const firmaUrl = cb.mandato_sepa_firma_url || entityOrig.mandato_sepa_firma_url || null;
+    const ref = cb.mandato_sepa_ref || entityOrig.mandato_sepa_ref
+      || ('SEPA-' + (tipo==='cliente'?'C':'P') + '-' + entityId + '-' + Date.now().toString(36).toUpperCase());
+    if (!firmaUrl) {
+      toast('No hay imagen de firma guardada para esta cuenta', 'error');
+      return;
+    }
+    toast('Generando PDF del mandato…', 'info');
+    await _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firmaUrl, ref);
+    toast('✅ PDF regenerado', 'success');
+    if (typeof cliActualId !== 'undefined' && cliActualId === entityId && typeof abrirFicha === 'function') {
+      await abrirFicha(cliActualId);
+    }
+  } catch(e) {
+    console.error('[_regenerarPDFMandatoCuenta]', e);
+    toast('Error regenerando PDF: ' + (e.message||e), 'error');
+  }
+}
+window._regenerarPDFMandatoCuenta = _regenerarPDFMandatoCuenta;
+
 // Generar PDF del mandato SEPA incluyendo la imagen de firma del cliente/proveedor y guardarlo en documentos_generados
 async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firmaUrl, ref) {
   if (!window.jspdf) { console.warn('jsPDF no disponible para SEPA firmado'); return; }
