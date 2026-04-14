@@ -1049,6 +1049,23 @@ function renderAll() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Al mostrar la pantalla de login, re-activar type=password y autocomplete para el gestor de contraseñas.
+  // En el resto de pantallas mantenemos lPass como type=text (con -webkit-text-security:disc) para
+  // evitar que macOS/Chrome ofrezcan autocompletar en cada refresh cuando el usuario ya está logueado.
+  try {
+    const lp = document.getElementById('lPass');
+    if (lp) {
+      if (id === 's-login') {
+        lp.type = 'password';
+        lp.setAttribute('name', 'password');
+        lp.setAttribute('autocomplete', 'current-password');
+      } else {
+        lp.type = 'text';
+        lp.removeAttribute('name');
+        lp.setAttribute('autocomplete', 'off');
+      }
+    }
+  } catch(e) {}
 }
 
 function showErr(id, msg) {

@@ -22,6 +22,74 @@ const PRC_ESTADOS = {
 };
 
 // ═══════════════════════════════════════════════
+// HELPERS CADENA DE TRANSFORMACIÓN (build 135)
+// Devuelve {tipo, doc, label, id, abrir} del último eslabón en la cadena
+// presupuesto → pedido → recepción(albarán) → factura
+// ═══════════════════════════════════════════════
+function _prcCadenaFinal(p) {
+  // 1) ¿Hay factura asociada a este presupuesto (directa o vía pedido/recepción)?
+  const fps = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+  const rcs = typeof recepciones !== 'undefined' ? recepciones : [];
+  const pds = typeof pedidosCompra !== 'undefined' ? pedidosCompra : [];
+
+  const pedidosDePrc = pds.filter(x => x.presupuesto_compra_id === p.id);
+  const pedidoIds = pedidosDePrc.map(x => x.id);
+  const recepcionesDePrc = rcs.filter(r => r.presupuesto_compra_id === p.id || (r.pedido_compra_id && pedidoIds.includes(r.pedido_compra_id)));
+  const recepcionIds = recepcionesDePrc.map(r => r.id);
+  const facturasDePrc = fps.filter(f => f.presupuesto_compra_id === p.id || (f.pedido_compra_id && pedidoIds.includes(f.pedido_compra_id)) || (f.recepcion_id && recepcionIds.includes(f.recepcion_id)));
+
+  if (facturasDePrc.length) {
+    const f = facturasDePrc[0];
+    return { tipo:'factura', id:f.id, label:`🧾 FACTURA ${f.numero||''}`.trim(), abrir:`prcOpenFactura(${f.id})` };
+  }
+  if (recepcionesDePrc.length) {
+    const r = recepcionesDePrc[0];
+    return { tipo:'albaran', id:r.id, label:`📥 ALBARÁN ${r.numero||''}`.trim(), abrir:`prcOpenRecepcion(${r.id})` };
+  }
+  if (pedidosDePrc.length) {
+    const pc = pedidosDePrc[0];
+    return { tipo:'pedido', id:pc.id, label:`📦 PEDIDO ${pc.numero||''}`.trim(), abrir:`prcOpenPedido(${pc.id})` };
+  }
+  // Fallback: presupuesto bloqueado pero no encontramos doc destino
+  return { tipo:null, id:null, label:`🔒 ${p.exportado_a||'Exportado'}`, abrir:null };
+}
+
+// Abren el documento destino en modal y recargan listas al cerrar
+async function prcOpenPedido(id) {
+  try {
+    const arr = typeof pedidosCompra !== 'undefined' ? pedidosCompra : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('pedidos_compra').select('*').eq('id', id).single();
+      if (data) pedidosCompra.push(data);
+    }
+    if (typeof editarPedidoCompra === 'function') editarPedidoCompra(id);
+    else goPage('pedidos-compra');
+  } catch(e){ console.error(e); }
+}
+async function prcOpenRecepcion(id) {
+  try {
+    const arr = typeof recepciones !== 'undefined' ? recepciones : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('recepciones').select('*').eq('id', id).single();
+      if (data) recepciones.push(data);
+    }
+    if (typeof editarRecepcion === 'function') editarRecepcion(id);
+    else goPage('albaranes-proveedor');
+  } catch(e){ console.error(e); }
+}
+async function prcOpenFactura(id) {
+  try {
+    const arr = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('facturas_proveedor').select('*').eq('id', id).single();
+      if (data) facturasProveedor.push(data);
+    }
+    if (typeof editarFacturaProv === 'function') editarFacturaProv(id);
+    else goPage('facturas-proveedor');
+  } catch(e){ console.error(e); }
+}
+
+// ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
 async function loadPresupuestosCompra() {
@@ -113,7 +181,12 @@ function renderPresupuestosCompra(list) {
     // Acciones tipo pill
     let acciones = obraPill;
     if (p.exportado_bloqueado) {
-      acciones += ` <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${p.exportado_a||'Exportado'}</span>`;
+      const cad = _prcCadenaFinal(p);
+      if (cad.abrir) {
+        acciones += ` <span onclick="event.stopPropagation();${cad.abrir}" title="Ir al documento" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--azul-light,#E0F2FE);color:var(--azul);cursor:pointer;border:1px solid var(--azul)">${cad.label}</span>`;
+      } else {
+        acciones += ` <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">${cad.label}</span>`;
+      }
     } else if (p.estado === 'caducado') {
       acciones += ` <button onclick="event.stopPropagation();prcReactivar(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer">🔄 Reactivar</button>`;
     } else if (p.estado === 'aceptado') {

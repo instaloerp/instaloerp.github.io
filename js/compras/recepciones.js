@@ -26,6 +26,33 @@ const RC_ESTADOS = {
 };
 
 // ═══════════════════════════════════════════════
+// HELPERS CADENA DE TRANSFORMACIÓN (build 135)
+// recepción → factura
+// ═══════════════════════════════════════════════
+function _rcCadenaFinal(r) {
+  const fps = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+  const facturaDeRc = fps.find(f =>
+    f.recepcion_id === r.id ||
+    (Array.isArray(f.recepcion_ids) && f.recepcion_ids.includes(r.id))
+  );
+  if (facturaDeRc) {
+    return { tipo:'factura', id:facturaDeRc.id, label:`🧾 FACTURA ${facturaDeRc.numero||''}`.trim(), abrir:`rcOpenFactura(${facturaDeRc.id})` };
+  }
+  return { tipo:null, id:null, label:`🔒 ${r.exportado_a||'Exportado'}`, abrir:null };
+}
+async function rcOpenFactura(id) {
+  try {
+    const arr = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('facturas_proveedor').select('*').eq('id', id).single();
+      if (data) facturasProveedor.push(data);
+    }
+    if (typeof editarFacturaProv === 'function') editarFacturaProv(id);
+    else goPage('facturas-proveedor');
+  } catch(e){ console.error(e); }
+}
+
+// ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
 async function loadRecepciones() {
@@ -88,6 +115,15 @@ function renderRecepciones(list) {
     }
     if ((r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado) {
       acciones += `<button onclick="event.stopPropagation();recepcionToFacturaProv(${r.id})" style="${pill('var(--azul)')}">🧾 Facturar</button>`;
+    }
+    // Pill enlace a factura si el albarán ya está exportado a factura — build 135
+    if (r.exportado_bloqueado) {
+      const cad = _rcCadenaFinal(r);
+      if (cad.abrir) {
+        acciones += `<span onclick="event.stopPropagation();${cad.abrir}" title="Ir al documento" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--azul-light,#E0F2FE);color:var(--azul);cursor:pointer;border:1px solid var(--azul)">${cad.label}</span>`;
+      } else {
+        acciones += `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">${cad.label}</span>`;
+      }
     }
     // Pill obra: SIEMPRE visible si hay obra asignada (incluso si bloqueado) — build 132
     if (r.trabajo_id) {

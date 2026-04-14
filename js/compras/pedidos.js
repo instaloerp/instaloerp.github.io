@@ -23,6 +23,50 @@ const PC_ESTADOS = {
 };
 
 // ═══════════════════════════════════════════════
+// HELPERS CADENA DE TRANSFORMACIÓN (build 135)
+// pedido → recepción(albarán) → factura
+// ═══════════════════════════════════════════════
+function _pcCadenaFinal(pc) {
+  const fps = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+  const rcs = typeof recepciones !== 'undefined' ? recepciones : [];
+  const recepcionesDePc = rcs.filter(r => r.pedido_compra_id === pc.id);
+  const recepcionIds = recepcionesDePc.map(r => r.id);
+  const facturasDePc = fps.filter(f => f.pedido_compra_id === pc.id || (f.recepcion_id && recepcionIds.includes(f.recepcion_id)));
+
+  if (facturasDePc.length) {
+    const f = facturasDePc[0];
+    return { tipo:'factura', id:f.id, label:`🧾 FACTURA ${f.numero||''}`.trim(), abrir:`pcOpenFactura(${f.id})` };
+  }
+  if (recepcionesDePc.length) {
+    const r = recepcionesDePc[0];
+    return { tipo:'albaran', id:r.id, label:`📥 ALBARÁN ${r.numero||''}`.trim(), abrir:`pcOpenRecepcion(${r.id})` };
+  }
+  return { tipo:null, id:null, label:`🔒 ${pc.exportado_a||'Exportado'}`, abrir:null };
+}
+async function pcOpenRecepcion(id) {
+  try {
+    const arr = typeof recepciones !== 'undefined' ? recepciones : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('recepciones').select('*').eq('id', id).single();
+      if (data) recepciones.push(data);
+    }
+    if (typeof editarRecepcion === 'function') editarRecepcion(id);
+    else goPage('albaranes-proveedor');
+  } catch(e){ console.error(e); }
+}
+async function pcOpenFactura(id) {
+  try {
+    const arr = typeof facturasProveedor !== 'undefined' ? facturasProveedor : [];
+    if (!arr.find(x => x.id === id)) {
+      const { data } = await sb.from('facturas_proveedor').select('*').eq('id', id).single();
+      if (data) facturasProveedor.push(data);
+    }
+    if (typeof editarFacturaProv === 'function') editarFacturaProv(id);
+    else goPage('facturas-proveedor');
+  } catch(e){ console.error(e); }
+}
+
+// ═══════════════════════════════════════════════
 // CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
 async function loadPedidosCompra() {
@@ -61,7 +105,12 @@ function renderPedidosCompra(list) {
 
     let acciones = obraPill;
     if (pc.exportado_bloqueado) {
-      acciones += ` <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">🔒 ${pc.exportado_a||'Exportado'}</span>`;
+      const cad = _pcCadenaFinal(pc);
+      if (cad.abrir) {
+        acciones += ` <span onclick="event.stopPropagation();${cad.abrir}" title="Ir al documento" style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--azul-light,#E0F2FE);color:var(--azul);cursor:pointer;border:1px solid var(--azul)">${cad.label}</span>`;
+      } else {
+        acciones += ` <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gris-100);color:var(--gris-500)">${cad.label}</span>`;
+      }
     } else if (pc.estado === 'recibido') {
       acciones += `
         <button onclick="event.stopPropagation();pedidoToFacturaProv(${pc.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
