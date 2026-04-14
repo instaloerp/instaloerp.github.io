@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 144</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 145</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3204,7 +3204,13 @@
 <!-- ═══ MODAL PRESUPUESTO DE COMPRA ═══ -->
 <div class="overlay" id="mPresupuestoCompra">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><button class="btn-back-circle" onclick="prcSmartClose()" title="Volver atrás">←</button><span>📋</span><h2 id="mPRCTit">Nuevo Presupuesto de Compra</h2></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="prcSmartClose()" title="Volver atrás">←</button><span>📋</span><h2 id="mPRCTit" style="flex:1">Nuevo Presupuesto de Compra</h2>
+      <div id="prcHdrActions" style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('mPresupuestoCompra')">Cancelar</button>
+        <button id="prcBtnBorrador" class="btn btn-secondary btn-sm" onclick="guardarPresupuestoCompra('borrador')">💾 Borrador</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarPresupuestoCompra('pendiente')">💾 Guardar</button>
+      </div>
+    </div>
     <div class="modal-b">
       <div id="prcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3249,18 +3255,19 @@
       </div>
       <div class="fg"><label>Observaciones</label><textarea id="prc_observaciones" rows="2" style="width:100%"></textarea></div>
     </div>
-    <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-secondary" onclick="closeModal('mPresupuestoCompra')">Cancelar</button>
-      <button id="prcBtnBorrador" class="btn btn-ghost" onclick="guardarPresupuestoCompra('borrador')">💾 Borrador</button>
-      <button class="btn btn-primary" onclick="guardarPresupuestoCompra('pendiente')">💾 Guardar</button>
-    </div>
   </div>
 </div>
 
 <!-- ═══ MODAL PEDIDO DE COMPRA ═══ -->
 <div class="overlay" id="mPedidoCompra">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><button class="btn-back-circle" onclick="pcSmartClose()" title="Volver atrás">←</button><span>🛒</span><h2 id="mPCTit">Nuevo Pedido de Compra</h2></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="pcSmartClose()" title="Volver atrás">←</button><span>🛒</span><h2 id="mPCTit" style="flex:1">Nuevo Pedido de Compra</h2>
+      <div id="pcHdrActions" style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('mPedidoCompra')">Cancelar</button>
+        <button id="pcBtnBorrador" class="btn btn-secondary btn-sm" onclick="guardarPedidoCompra('borrador')">💾 Borrador</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarPedidoCompra('pendiente')">💾 Guardar</button>
+      </div>
+    </div>
     <div class="modal-b">
       <div id="pcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3303,18 +3310,19 @@
       </div>
       <div class="fg"><label>Observaciones</label><textarea id="pc_observaciones" rows="2" style="width:100%"></textarea></div>
     </div>
-    <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-secondary" onclick="closeModal('mPedidoCompra')">Cancelar</button>
-      <button id="pcBtnBorrador" class="btn btn-ghost" onclick="guardarPedidoCompra('borrador')">💾 Borrador</button>
-      <button class="btn btn-primary" onclick="guardarPedidoCompra('pendiente')">💾 Guardar</button>
-    </div>
   </div>
 </div>
 
 <!-- ═══ MODAL RECEPCIÓN (ALBARÁN PROVEEDOR) ═══ -->
 <div class="overlay" id="mRecepcion">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><button class="btn-back-circle" onclick="rcSmartClose()" title="Volver atrás">←</button><span>📥</span><h2 id="mRCTit">Nuevo Albarán de Proveedor</h2></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="rcSmartClose()" title="Volver atrás">←</button><span>📥</span><h2 id="mRCTit" style="flex:1">Nuevo Albarán de Proveedor</h2>
+      <div id="rcHdrActions" style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('mRecepcion')">Cancelar</button>
+        <button class="btn btn-secondary btn-sm" onclick="guardarRecepcion()">💾 Guardar pendiente</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarRecepcion(true)">📦 Recepcionar</button>
+      </div>
+    </div>
     <div class="modal-b">
       <div id="rcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3354,11 +3362,6 @@
         </div>
       </div>
       <div class="fg"><label>Observaciones</label><textarea id="rc_observaciones" rows="2" style="width:100%"></textarea></div>
-    </div>
-    <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-secondary" onclick="closeModal('mRecepcion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarRecepcion()" style="background:var(--gris-600)">💾 Guardar pendiente</button>
-      <button class="btn btn-primary" onclick="guardarRecepcion(true)">📦 Guardar y recepcionar</button>
     </div>
   </div>
 </div>
@@ -3434,7 +3437,13 @@
 <!-- ═══ MODAL FACTURA PROVEEDOR ═══ -->
 <div class="overlay" id="mFacturaProv">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><button class="btn-back-circle" onclick="fpSmartClose()" title="Volver atrás">←</button><span>📑</span><h2 id="mFPTit">Nueva Factura de Proveedor</h2></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="fpSmartClose()" title="Volver atrás">←</button><span>📑</span><h2 id="mFPTit" style="flex:1">Nueva Factura de Proveedor</h2>
+      <div id="fpHdrActions" style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('mFacturaProv')">Cancelar</button>
+        <button class="btn btn-secondary btn-sm" onclick="guardarFacturaProv('pendiente')">💾 Guardar</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarFacturaProv('pendiente')">📅 Guardar y calendario</button>
+      </div>
+    </div>
     <div class="modal-b">
       <div id="fpBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3478,11 +3487,6 @@
         </div>
       </div>
       <div class="fg"><label>Observaciones</label><textarea id="fp_observaciones" rows="2" style="width:100%"></textarea></div>
-    </div>
-    <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-secondary" onclick="closeModal('mFacturaProv')">Cancelar</button>
-      <button class="btn btn-ghost" onclick="guardarFacturaProv('pendiente')">💾 Guardar</button>
-      <button class="btn btn-primary" onclick="guardarFacturaProv('pendiente')">📅 Guardar y añadir al calendario</button>
     </div>
   </div>
 </div>
@@ -3828,7 +3832,7 @@
 
 <!-- ═══ MODAL DETALLE FACTURA ═══ -->
 <div class="overlay" id="mFacturaDetalle">
-  <div class="modal modal-fullscreen">
+  <div class="modal modal-lg">
     <div class="modal-h">
       <span>🧾</span>
       <div>
@@ -3836,16 +3840,15 @@
         <div id="facDetCli" style="font-size:12px;color:var(--gris-500)">—</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
-        <button class="btn btn-primary btn-sm" onclick="window.open('factura.html?id='+document.getElementById('facDetId').value,'_blank')" title="Ver factura en pantalla completa" style="gap:4px">↗️ Abrir</button>
         <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="abrirEditor('factura',parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Editar">✏️ Editar</button>
         <button class="btn btn-secondary btn-sm" onclick="delFactura(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaDetalle')">✕</button>
     </div>
     <div class="modal-b">
-      <div style="max-width:900px;margin:0 auto">
       <input type="hidden" id="facDetId">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px">
         <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="facDetFecha" style="font-weight:600">—</div></div>
@@ -3885,7 +3888,6 @@
         <div id="facDetObs" style="font-size:13px;color:var(--gris-600);margin-top:4px;padding:8px 10px;background:var(--gris-50);border-radius:8px"></div>
       </div>
       <div id="facDetRefs" style="margin-top:12px;display:none;flex-wrap:wrap;gap:6px;align-items:center"></div>
-      </div><!-- /max-width wrapper -->
     </div>
     <div class="modal-f" style="display:flex;justify-content:flex-end;align-items:center;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mFacturaDetalle')">Cerrar</button>
