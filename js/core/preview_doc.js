@@ -235,9 +235,6 @@ async function previewDoc(tipo, id) {
   const d = await _prevHidratarSiHaceFalta(tipo, id);
   if (!d) return;
 
-  // Borrador → saltar preview y abrir editor directo (consistente con Ventas)
-  if (d.estado === 'borrador') { cfg.editar(id); return; }
-
   _prevCerrar(); // por si hubiera otro abierto
 
   const proveedor = _prevProveedor(d);
