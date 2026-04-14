@@ -530,11 +530,24 @@ async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firma
     }
 
     const pdfData = doc.output('arraybuffer');
+    // Identificar cuenta en el nombre: últimos 4 dígitos del IBAN
+    const ibanRaw = (deudorDoc.iban||'').replace(/\s/g,'');
+    const last4 = ibanRaw.length>=4 ? ibanRaw.slice(-4) : '';
+    const numeroDoc = last4 ? `${ref} · IBAN **${last4}` : ref;
+
+    // Evitar duplicados: si ya existe un documento_generado con este ref para esta entidad, no re-subir
+    try {
+      const { data: existe } = await sb.from('documentos_generados')
+        .select('id').eq('entidad_tipo', tipo).eq('entidad_id', entity.id)
+        .eq('tipo_documento','mandato_sepa').eq('numero', numeroDoc).limit(1);
+      if (existe && existe.length) return;
+    } catch(e) { /* ignore, seguimos */ }
+
     if (typeof firmarYGuardarPDF === 'function') {
       await firmarYGuardarPDF(pdfData, {
         tipo_documento:'mandato_sepa',
         documento_id: entity.id,
-        numero: ref,
+        numero: numeroDoc,
         entidad_tipo: tipo,
         entidad_id: entity.id,
         entidad_nombre: entity.nombre||''
