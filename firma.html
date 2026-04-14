@@ -452,7 +452,20 @@ async function postFirmaAcciones(nombre, dni, dispositivo) {
 //   MANDATO SEPA — Render + firma
 // ═══════════════════════════════════════════════
 function renderMandatoSepa(cli, emp, cbe) {
-  const ibanFmt = cbe?.iban ? cbe.iban.replace(/(.{4})/g,'$1 ').trim() : '—';
+  const hayCuenta = !!(cbe && cbe.iban);
+  const ibanFmt = hayCuenta ? cbe.iban.replace(/(.{4})/g,'$1 ').trim() : '';
+  const ibanBloque = hayCuenta
+    ? `<div class="info-item" style="grid-column:1/-1"><div class="info-label">IBAN cuenta a domiciliar</div><div class="info-value" style="font-family:ui-monospace,monospace">${ibanFmt}</div><div style="font-size:12px;color:#64748b">${cbe?.banco_entidad||''} · Titular: ${cbe?.titular||cli?.nombre||''}</div></div>`
+    : `<div class="info-item" style="grid-column:1/-1;background:#fffbeb;border-left:3px solid #f59e0b">
+         <div class="info-label" style="color:#92400e">Facilite su IBAN para completar el mandato</div>
+         <input id="sepa_iban_input" placeholder="ES00 0000 0000 0000 0000 0000" style="width:100%;padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px;font-family:ui-monospace,monospace;text-transform:uppercase;margin-top:8px">
+         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+           <input id="sepa_titular_input" placeholder="Titular de la cuenta" value="${cli?.nombre||''}" style="padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px">
+           <input id="sepa_banco_input" placeholder="Banco / entidad" style="padding:10px;border:1.5px solid #fde68a;border-radius:8px;font-size:14px">
+         </div>
+         <div id="sepa_iban_msg" style="font-size:11px;color:#92400e;margin-top:6px"></div>
+       </div>`;
+
   document.getElementById('app').innerHTML = `
     <div class="card header">
       <h1>${emp?.nombre||'Empresa'}</h1>
@@ -467,7 +480,7 @@ function renderMandatoSepa(cli, emp, cbe) {
       <div class="info-grid">
         <div class="info-item"><div class="info-label">Deudor</div><div class="info-value">${cli?.nombre||''}</div><div style="font-size:12px;color:#64748b">${cli?.nif||''}</div></div>
         <div class="info-item"><div class="info-label">Referencia</div><div class="info-value">${cli?.mandato_sepa_ref||'—'}</div></div>
-        <div class="info-item" style="grid-column:1/-1"><div class="info-label">IBAN cuenta a domiciliar</div><div class="info-value" style="font-family:ui-monospace,monospace">${ibanFmt}</div><div style="font-size:12px;color:#64748b">${cbe?.banco_entidad||''} · Titular: ${cbe?.titular||cli?.nombre||''}</div></div>
+        ${ibanBloque}
         <div class="info-item"><div class="info-label">Acreedor</div><div class="info-value">${emp?.nombre||''}</div><div style="font-size:12px;color:#64748b">CIF: ${emp?.cif||''}</div></div>
         <div class="info-item"><div class="info-label">Fecha</div><div class="info-value">${new Date().toLocaleDateString('es-ES')}</div></div>
       </div>
@@ -488,6 +501,20 @@ function renderMandatoSepa(cli, emp, cbe) {
   initCanvas();
 }
 
+// Validación IBAN básica (longitud + estructura ES) + módulo 97
+function validarIBAN(ibanRaw) {
+  if (!ibanRaw) return false;
+  const iban = ibanRaw.replace(/\s+/g,'').toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return false;
+  // Algoritmo módulo 97
+  const rearranged = iban.slice(4) + iban.slice(0,4);
+  const numeric = rearranged.replace(/[A-Z]/g, c => (c.charCodeAt(0)-55).toString());
+  // BigInt división módulo
+  let rem = 0;
+  for (let i = 0; i < numeric.length; i++) rem = (rem*10 + parseInt(numeric[i],10)) % 97;
+  return rem === 1;
+}
+
 async function enviarFirmaSepa() {
   if (isCanvasEmpty()) { alert('Por favor, dibuja tu firma'); return; }
   const nombre = document.getElementById('firmaNombre').value.trim();
@@ -495,6 +522,22 @@ async function enviarFirmaSepa() {
   const dni = document.getElementById('firmaDni').value.trim();
   if (!dni) { alert('Introduce tu DNI/NIF'); return; }
   if (!validarDniNif(dni)) { alert('DNI/NIF no válido'); return; }
+
+  // Si no había cuenta, pedir IBAN y validar
+  let cuentaNueva = null;
+  const ibanInput = document.getElementById('sepa_iban_input');
+  if (ibanInput) {
+    const ibanLimpio = ibanInput.value.replace(/\s+/g,'').toUpperCase();
+    if (!validarIBAN(ibanLimpio)) {
+      document.getElementById('sepa_iban_msg').textContent = '⚠️ El IBAN introducido no es válido';
+      ibanInput.focus();
+      return;
+    }
+    const titular = document.getElementById('sepa_titular_input').value.trim();
+    const banco = document.getElementById('sepa_banco_input').value.trim();
+    if (!titular) { alert('Indica el titular de la cuenta'); return; }
+    cuentaNueva = { iban: ibanLimpio, titular, banco_entidad: banco || null };
+  }
 
   const btn = event.target;
   btn.disabled = true;
@@ -510,7 +553,6 @@ async function enviarFirmaSepa() {
       const { data } = sb.storage.from('documentos').getPublicUrl(path);
       firmaUrl = data?.publicUrl || null;
     } else {
-      // Fallback storage
       const { error: upErr2 } = await sb.storage.from('fotos-partes').upload(path, blob);
       if (!upErr2) {
         const { data } = sb.storage.from('fotos-partes').getPublicUrl(path);
@@ -529,11 +571,32 @@ async function enviarFirmaSepa() {
     const { error: e1 } = await sb.from('clientes').update(updateData).eq('id', cli.id).eq('mandato_sepa_token', token);
     if (e1) throw e1;
 
-    // Actualizar cuenta bancaria predeterminada
-    try {
-      await sb.from('cuentas_bancarias_entidad').update(updateData)
-        .eq('tipo_entidad','cliente').eq('entidad_id', cli.id).eq('predeterminada', true);
-    } catch(e) { console.warn('cuenta bancaria update:', e); }
+    // Si el cliente facilitó una cuenta nueva, insertarla y marcarla como predeterminada + firmada
+    if (cuentaNueva) {
+      try {
+        const insertRow = {
+          empresa_id: cli.empresa_id,
+          tipo_entidad: 'cliente',
+          entidad_id: cli.id,
+          iban: cuentaNueva.iban,
+          titular: cuentaNueva.titular,
+          banco_entidad: cuentaNueva.banco_entidad,
+          predeterminada: true,
+          mandato_sepa_estado: 'firmado',
+          mandato_sepa_fecha: hoy,
+          mandato_sepa_ref: cli.mandato_sepa_ref || null,
+        };
+        if (firmaUrl) insertRow.mandato_sepa_firma_url = firmaUrl;
+        const { error: eIns } = await sb.from('cuentas_bancarias_entidad').insert(insertRow);
+        if (eIns) console.warn('No se pudo crear cuenta:', eIns.message);
+      } catch(e) { console.warn('insert cuenta nueva:', e); }
+    } else {
+      // Actualizar cuenta bancaria predeterminada existente
+      try {
+        await sb.from('cuentas_bancarias_entidad').update(updateData)
+          .eq('tipo_entidad','cliente').eq('entidad_id', cli.id).eq('predeterminada', true);
+      } catch(e) { console.warn('cuenta bancaria update:', e); }
+    }
 
     document.getElementById('app').innerHTML = `
       <div class="success">
