@@ -514,11 +514,15 @@ async function _guardarCuentaCli() {
     if (idx >= 0) Object.assign(cuentasBancariasEntidad[idx], { iban, bic, banco_entidad, titular });
     toast('Cuenta actualizada ✓', 'success');
   } else {
-    // Crear nueva
+    // Crear nueva — SEPA siempre limpio en cuenta nueva (hay que firmar mandato para este IBAN)
     const obj = {
       empresa_id: EMPRESA.id, tipo_entidad: 'cliente', entidad_id: cliActualId,
       iban, bic, banco_entidad, titular,
-      predeterminada: esPrimera // La primera es automáticamente predeterminada
+      predeterminada: esPrimera,
+      mandato_sepa_estado: null,
+      mandato_sepa_fecha: null,
+      mandato_sepa_firma_url: null,
+      mandato_sepa_ref: null,
     };
     const { data, error } = await sb.from('cuentas_bancarias_entidad').insert(obj).select();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
@@ -526,10 +530,19 @@ async function _guardarCuentaCli() {
     toast('Cuenta añadida ✓', 'success');
 
     // También actualizar el campo iban en clientes para retrocompatibilidad
+    // Y resetear estado SEPA del cliente si era su primera cuenta (IBAN nuevo → mandato anterior no aplica)
     if (esPrimera) {
-      await sb.from('clientes').update({ iban, bic, banco_entidad, banco_titular: titular }).eq('id', cliActualId);
+      const cliUpd = { iban, bic, banco_entidad, banco_titular: titular };
+      const c0 = clientes.find(x => x.id === cliActualId);
+      if (c0 && c0.mandato_sepa_estado) {
+        cliUpd.mandato_sepa_estado = null;
+        cliUpd.mandato_sepa_fecha = null;
+        cliUpd.mandato_sepa_firma_url = null;
+        cliUpd.mandato_sepa_ref = null;
+      }
+      await sb.from('clientes').update(cliUpd).eq('id', cliActualId);
       const ci = clientes.findIndex(x => x.id === cliActualId);
-      if (ci >= 0) Object.assign(clientes[ci], { iban, bic, banco_entidad, banco_titular: titular });
+      if (ci >= 0) Object.assign(clientes[ci], cliUpd);
     }
   }
 
