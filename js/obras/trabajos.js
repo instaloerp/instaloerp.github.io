@@ -26,34 +26,12 @@ async function _obraEnsureAndEdit(getArr, pushItem, tableName, id, editFn) {
     if (typeof toast==='function') toast('Error al abrir el documento');
   }
 }
-function obraAbrirPresupCompra(id) {
-  _obraEnsureAndEdit(
-    () => (typeof presupuestosCompra !== 'undefined' ? presupuestosCompra : null),
-    (d) => { if (typeof presupuestosCompra !== 'undefined') presupuestosCompra.push(d); },
-    'presupuestos_compra', id, editarPresupuestoCompra
-  );
-}
-function obraAbrirPedidoCompra(id) {
-  _obraEnsureAndEdit(
-    () => (typeof pedidosCompra !== 'undefined' ? pedidosCompra : null),
-    (d) => { if (typeof pedidosCompra !== 'undefined') pedidosCompra.push(d); },
-    'pedidos_compra', id, editarPedidoCompra
-  );
-}
-function obraAbrirRecepcion(id) {
-  _obraEnsureAndEdit(
-    () => (typeof recepciones !== 'undefined' ? recepciones : null),
-    (d) => { if (typeof recepciones !== 'undefined') recepciones.push(d); },
-    'recepciones', id, editarRecepcion
-  );
-}
-function obraAbrirFacturaProv(id) {
-  _obraEnsureAndEdit(
-    () => (typeof facturasProveedor !== 'undefined' ? facturasProveedor : null),
-    (d) => { if (typeof facturasProveedor !== 'undefined') facturasProveedor.push(d); },
-    'facturas_proveedor', id, editarFacturaProv
-  );
-}
+// build 138: desde ficha de obra también pasamos por la preview genérica
+// (previewDoc ya hidrata solo el doc si no está en el array global)
+function obraAbrirPresupCompra(id) { previewDoc('prc', id); }
+function obraAbrirPedidoCompra(id)  { previewDoc('pc',  id); }
+function obraAbrirRecepcion(id)     { previewDoc('rc',  id); }
+function obraAbrirFacturaProv(id)   { previewDoc('fp',  id); }
 
 // ═══ PESTAÑAS CHROME OBRAS ═══
 let _obrasTabs = []; // [{id, numero, cliente}]

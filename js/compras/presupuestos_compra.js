@@ -235,7 +235,7 @@ function renderPresupuestosCompra(list) {
         <button onclick="event.stopPropagation();prcToFacturaProv(${p.id})" style="display:inline-flex;align-items:center;gap:3px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;border:1.5px solid var(--verde);background:#fff;color:var(--verde);cursor:pointer">🧾 Facturar</button>`;
     }
 
-    return `<tr onclick="editarPresupuestoCompra(${p.id})" style="cursor:pointer">
+    return `<tr onclick="previewDoc('prc',${p.id})" style="cursor:pointer">
       <td>
         <strong style="color:var(--azul);font-family:monospace;font-size:12px">${p.numero||'—'}</strong>
         <div style="font-size:11px;color:var(--gris-400)">${fechaStr}</div>

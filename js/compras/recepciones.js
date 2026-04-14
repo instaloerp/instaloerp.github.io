@@ -142,7 +142,7 @@ function renderRecepciones(list) {
     // Checkbox para facturación múltiple (solo recepcionados no bloqueados)
     const showCheck = (r.estado === 'recepcionado' || r.estado === 'parcial') && !r.exportado_bloqueado;
 
-    return `<tr style="cursor:pointer" onclick="editarRecepcion(${r.id})">
+    return `<tr style="cursor:pointer" onclick="previewDoc('rc',${r.id})">
       <td onclick="event.stopPropagation()" style="text-align:center;width:30px">${showCheck ? `<input type="checkbox" class="rc-check" value="${r.id}" data-proveedor="${r.proveedor_id||''}" onchange="rcCheckChanged()" style="cursor:pointer">` : ''}</td>
       <td style="font-weight:700;font-family:monospace;font-size:12.5px">
         <div>${r.numero}</div>

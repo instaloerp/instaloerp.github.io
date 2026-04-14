@@ -67,7 +67,7 @@ function renderFacturasProv(list) {
       acciones += `<button onclick="event.stopPropagation();fpAsignarObra(${fp.id})" style="${pill('var(--gris-500)')}" title="Asignar a obra">🏗️ Obra</button>`;
     }
 
-    return `<tr style="cursor:pointer" onclick="editarFacturaProv(${fp.id})">
+    return `<tr style="cursor:pointer" onclick="previewDoc('fp',${fp.id})">
       <td style="font-weight:700;font-family:monospace;font-size:12.5px">
         <div>${fp.numero}</div>
         <div style="font-size:11px;color:var(--gris-400);font-family:inherit">${new Date(fp.fecha).toLocaleDateString('es-ES')}</div>

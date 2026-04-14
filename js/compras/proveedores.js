@@ -370,7 +370,7 @@ async function abrirFichaProveedor(id) {
   // Pedidos
   const pedHtml = (peds.data || []).length ?
     (peds.data || []).map(pc => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="editarPedidoCompra(${pc.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="previewDoc('pc',${pc.id})">
         <div><div style="font-weight:700;font-size:12.5px">${pc.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${pc.fecha ? new Date(pc.fecha).toLocaleDateString('es-ES') : '—'}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(pc.total)}</div><span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--gris-100)">${pc.estado}</span></div>
       </div>`).join('') :
@@ -380,7 +380,7 @@ async function abrirFichaProveedor(id) {
   // Albaranes (recepciones)
   const recHtml = (recs.data || []).length ?
     (recs.data || []).map(r => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="editarRecepcion(${r.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="previewDoc('rc',${r.id})">
         <div><div style="font-weight:700;font-size:12.5px">${r.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES') : '—'}</div></div>
         <div style="text-align:right"><span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--gris-100)">${r.estado}</span></div>
       </div>`).join('') :
@@ -393,7 +393,7 @@ async function abrirFichaProveedor(id) {
   const factHtml = (fps.data || []).length ?
     resumenBar(factResumen) +
     (fps.data || []).map(f => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="editarFacturaProv(${f.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="previewDoc('fp',${f.id})">
         <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'} · ${f.fecha_vencimiento ? 'Vence: ' + new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : ''}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div><span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${f.estado === 'pagada' ? 'var(--verde-light)' : f.estado === 'pendiente' ? 'var(--amarillo-light)' : 'var(--gris-100)'};color:${f.estado === 'pagada' ? 'var(--verde)' : f.estado === 'pendiente' ? '#92400E' : 'var(--gris-600)'}">${f.estado}</span></div>
       </div>`).join('') :
