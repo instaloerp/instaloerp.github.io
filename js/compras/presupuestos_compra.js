@@ -699,7 +699,7 @@ async function prcToRecepcion(id) {
       estado: 'pendiente',
       observaciones: p.observaciones,
       lineas,
-      total: p.total,
+      // (recepciones no tiene columna 'total' — se recalcula desde lineas en render — build 135)
       presupuesto_compra_id: p.id,
       trabajo_id: p.trabajo_id || null,
     });

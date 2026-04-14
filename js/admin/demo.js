@@ -126,7 +126,7 @@ async function runDemo() {
       empresa_id: eid, numero: numRec, proveedor_id: prov.id, proveedor_nombre: prov.nombre,
       fecha: hoy, estado: 'recepcionado', lineas: lineasRec,
       presupuesto_compra_id: prc.id,
-      total: prc.total,
+      // (recepciones no tiene columna 'total' — build 135)
       observaciones: 'Recepción completa demo'
     }).select().single();
     if (recErr) throw new Error('Recepción: ' + recErr.message);
