@@ -767,13 +767,15 @@ function abrirNuevoAlbaran() {
   abrirEditor('albaran');
 }
 
-function abrirNuevaFactura() {
-  abrirEditor('factura', null);
-  // Pre-seleccionar cliente actual
+async function abrirNuevaFactura() {
+  await abrirEditor('factura', null);
   setTimeout(() => {
-    const clienteSel = document.getElementById('fr_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
+    const sel = document.getElementById('de_cliente');
+    if (sel && cliActualId) {
+      sel.value = cliActualId;
+      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    }
+  }, 150);
 }
 
 function abrirNuevoPresupuesto() {
@@ -828,12 +830,15 @@ async function generarNumeroDoc(tipo) {
 let prLineas = [];
 
 async function nuevoPresupCliActual() {
-  abrirEditor('presupuesto', null);
+  await abrirEditor('presupuesto', null);
   // Pre-seleccionar cliente actual
   setTimeout(() => {
-    const clienteSel = document.getElementById('pr_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
+    const sel = document.getElementById('de_cliente');
+    if (sel && cliActualId) {
+      sel.value = cliActualId;
+      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    }
+  }, 150);
 }
 
 function pr_actualizarCliente(id) {
@@ -993,12 +998,14 @@ async function guardarPresupRapido(estado) {
 let abLineas = [];
 
 async function nuevoAlbaranCliActual() {
-  abrirEditor('albaran', null);
-  // Pre-seleccionar cliente actual
+  await abrirEditor('albaran', null);
   setTimeout(() => {
-    const clienteSel = document.getElementById('ab_cliente');
-    if (clienteSel && cliActualId) clienteSel.value = cliActualId;
-  }, 100);
+    const sel = document.getElementById('de_cliente');
+    if (sel && cliActualId) {
+      sel.value = cliActualId;
+      if (typeof de_actualizarCliente === 'function') de_actualizarCliente(cliActualId);
+    }
+  }, 150);
 }
 
 function ab_addLinea() { abLineas.push({desc:'',cant:1,precio:0}); ab_renderLineas(); }
