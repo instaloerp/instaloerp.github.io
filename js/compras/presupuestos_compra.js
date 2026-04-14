@@ -370,6 +370,10 @@ async function nuevoPresupuestoCompra() {
   if (btnBorr) btnBorr.style.display = '';
 
   prc_addLinea();
+  // Reset bloqueo/banner (por si antes se abrió uno bloqueado)
+  const banner = document.getElementById('prcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  _prcAplicarBloqueo(false);
   openModal('mPresupuestoCompra');
 }
 

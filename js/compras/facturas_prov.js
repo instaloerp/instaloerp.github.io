@@ -257,6 +257,9 @@ async function nuevaFacturaProv() {
   poblarSelectorObra('fp_obra', null);
 
   fp_addLinea();
+  const banner = document.getElementById('fpBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  _fpAplicarBloqueo(false);
   openModal('mFacturaProv');
 }
 

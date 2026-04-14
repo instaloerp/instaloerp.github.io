@@ -365,6 +365,9 @@ async function nuevaRecepcion() {
   poblarSelectorObra('rc_obra', null);
 
   rc_addLinea();
+  const banner = document.getElementById('rcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  _rcAplicarBloqueo(false);
   openModal('mRecepcion');
 }
 

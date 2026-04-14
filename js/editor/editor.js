@@ -239,6 +239,8 @@ async function abrirEditor(tipo, editId) {
 }
 
 function cerrarEditor() {
+  // Flush autosave pendiente antes de cerrar
+  try { de_autoguardar_flush(); } catch(e) {}
   document.body.classList.remove('editor-open');
   if (typeof goBack === 'function' && navStack.length) {
     goBack();
@@ -494,29 +496,75 @@ function de_updateLinea(i,f,v) {
   de_autoguardar();
 }
 
-// Autosave: debounced, saves silently after 3 seconds of inactivity
+// Autosave: debounced, saves silently after 30 seconds of inactivity.
+// Also saves inmediatamente en blur y visibilitychange (ver listeners abajo).
+const DE_AUTOSAVE_MS = 30000; // 30 segundos — no somos colaborativos
 let _autoguardTimer = null;
+let _autoguardDirty = false; // true si hay cambios pendientes desde el último save
+
+async function _de_autoguardar_do() {
+  // Ejecuta el guardado real. Devuelve true si guardó.
+  if (!deConfig || !deConfig.editId) return false;
+  if (deConfig._mode === 'view') return false;
+  const datos = de_buildDatos();
+  if (!datos) return false;
+  // NUNCA tocar el estado en el autosave — mantener el que tiene en BD
+  if (deConfig.tipo==='presupuesto') datos.version = deConfig._version || 1;
+  const { error } = await sb.from(deConfig.tabla).update(datos).eq('id', deConfig.editId);
+  if (error && datos.version && error.message && error.message.includes('version')) {
+    delete datos.version;
+    await sb.from(deConfig.tabla).update(datos).eq('id', deConfig.editId);
+  }
+  if (!error) {
+    _autoguardDirty = false;
+    const indicator = document.getElementById('de_autosave_indicator');
+    if (indicator) { indicator.textContent = '✓ Guardado'; indicator.style.opacity='1'; setTimeout(()=>indicator.style.opacity='0', 2000); }
+    return true;
+  }
+  return false;
+}
+
 function de_autoguardar() {
   if (!deConfig.editId && deConfig._mode === 'new') return; // Don't autosave unsaved new docs
   if (deConfig._mode === 'view') return; // Don't autosave in read-only mode
+  _autoguardDirty = true;
   clearTimeout(_autoguardTimer);
-  _autoguardTimer = setTimeout(async () => {
-    const datos = de_buildDatos();
-    if (!datos) return;
-    if (!deConfig.editId) return;
-    // NUNCA tocar el estado en el autosave — mantener el que tiene en BD
-    if (deConfig.tipo==='presupuesto') datos.version = deConfig._version || 1;
-    const { error } = await sb.from(deConfig.tabla).update(datos).eq('id', deConfig.editId);
-    if (error && datos.version && error.message && error.message.includes('version')) {
-      delete datos.version;
-      await sb.from(deConfig.tabla).update(datos).eq('id', deConfig.editId);
-    }
-    if (!error) {
-      const indicator = document.getElementById('de_autosave_indicator');
-      if (indicator) { indicator.textContent = '✓ Guardado'; indicator.style.opacity='1'; setTimeout(()=>indicator.style.opacity='0', 2000); }
-    }
-  }, 3000);
+  _autoguardTimer = setTimeout(() => { _de_autoguardar_do(); }, DE_AUTOSAVE_MS);
 }
+
+// Guardado inmediato (flush). Usado por blur / visibilitychange / cierre.
+async function de_autoguardar_flush() {
+  if (!_autoguardDirty) return;
+  clearTimeout(_autoguardTimer);
+  _autoguardTimer = null;
+  await _de_autoguardar_do();
+}
+
+// Listeners globales: al salir de un campo o cambiar de pestaña, flush.
+(function _de_installAutosaveListeners(){
+  if (window._deAutosaveListenersInstalled) return;
+  window._deAutosaveListenersInstalled = true;
+  // blur dentro del editor (capture para pillar cualquier input/textarea/select)
+  document.addEventListener('focusout', (ev) => {
+    if (!document.body.classList.contains('editor-open')) return;
+    const t = ev.target;
+    if (!t) return;
+    const tag = (t.tagName||'').toLowerCase();
+    if (tag==='input' || tag==='textarea' || tag==='select') {
+      de_autoguardar_flush();
+    }
+  }, true);
+  // cambio de pestaña / minimiza ventana
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && document.body.classList.contains('editor-open')) {
+      de_autoguardar_flush();
+    }
+  });
+  // cerrar/refresh pestaña (best-effort)
+  window.addEventListener('pagehide', () => {
+    if (document.body.classList.contains('editor-open')) de_autoguardar_flush();
+  });
+})();
 
 function de_toggleCapitulo(i) {
   deLineas[i].collapsed = !deLineas[i].collapsed;

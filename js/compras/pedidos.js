@@ -300,6 +300,9 @@ async function nuevoPedidoCompra() {
   if (btnBorr) btnBorr.style.display = '';
 
   pc_addLinea();
+  const banner = document.getElementById('pcBloqueoBanner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+  _pcAplicarBloqueo(false);
   openModal('mPedidoCompra');
 }
 
