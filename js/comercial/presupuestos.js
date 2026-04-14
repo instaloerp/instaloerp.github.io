@@ -115,13 +115,18 @@ async function loadPresupuestos() {
   const { data } = await sb.from('presupuestos')
     .select('*').eq('empresa_id', EMPRESA.id)
     .neq('estado', 'eliminado')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
   presupuestos = data || [];
-  // Por defecto: mostrar TODOS (sin filtro de fechas, sin KPI activo)
+  // Por defecto: último año (hoy - 1 año → hoy), máx 500 resultados
+  const _hoy = new Date();
+  const _hace1a = new Date(_hoy);
+  _hace1a.setFullYear(_hace1a.getFullYear() - 1);
+  const _fmt = d => d.toISOString().split('T')[0];
   const dEl = document.getElementById('presDesde');
   const hEl = document.getElementById('presHasta');
-  if (dEl) dEl.value = '';
-  if (hEl) hEl.value = '';
+  if (dEl && !dEl.value) dEl.value = _fmt(_hace1a);
+  if (hEl && !hEl.value) hEl.value = _fmt(_hoy);
   if (!_kpiFilterActivo) filtrarPorKpi('');
   else filtrarPresupuestos();
 }
@@ -560,27 +565,89 @@ async function eliminarDefinitivamente(id) {
 }
 
 // ═══════════════════════════════════════════════
-//  DUPLICAR Y EXPORTAR
+//  VERSIONES (desplegable desde la lista)
 // ═══════════════════════════════════════════════
-async function duplicarPres(id) {
-  if (_creando) return;
-  _creando = true;
-  try {
-    const p = presupuestos.find(x=>x.id===id);
-    if (!p) return;
-    const nuevo = {...p}; delete nuevo.id; delete nuevo.created_at;
-    nuevo.estado = 'borrador';
-    nuevo.fecha  = new Date().toISOString().split('T')[0];
-    nuevo.numero = await generarNumeroDoc('presupuesto');
-    const { error } = await sb.from('presupuestos').insert(nuevo);
-    if (error) { toast('Error: '+error.message,'error'); return; }
-    toast('Duplicado ✓','success');
-    await loadPresupuestos();
-  } finally {
-    _creando = false;
+async function togglePresVersiones(presId, btnEl) {
+  const existing = document.getElementById('presVerDropdown');
+  if (existing) {
+    const sameBtn = existing.dataset.pres === String(presId);
+    existing.remove();
+    if (sameBtn) return;
   }
+  const { data: vers, error } = await sb.from('presupuesto_versiones')
+    .select('*').eq('presupuesto_id', presId).order('version', {ascending:false});
+  if (error) { toast('Error cargando versiones: '+error.message,'error'); return; }
+  if (!vers || !vers.length) { toast('No hay versiones anteriores','info'); return; }
+
+  const fmtE = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+  const items = vers.map(v => {
+    const d = v.datos || {};
+    const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
+    const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    return `<div style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:12px">v${v.version} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
+        <div style="font-size:11px;color:var(--gris-500)">${d.cliente_nombre||'—'} — ${fmtE(d.total||0)}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('presVerDropdown')?.remove();abrirVersionEnEditor(${presId},${v.id})" title="Ver esta versión" style="font-size:12px;padding:3px 6px">👁️</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('presVerDropdown')?.remove();restaurarVersionDirecta(${presId},${v.id})" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const rect = btnEl.getBoundingClientRect();
+  const dd = document.createElement('div');
+  dd.id = 'presVerDropdown';
+  dd.dataset.pres = String(presId);
+  dd.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${Math.max(8,rect.left-180)}px;width:360px;max-height:400px;overflow:auto;background:#fff;border:1.5px solid var(--gris-200);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:9999`;
+  dd.innerHTML = `<div style="padding:10px 12px;border-bottom:1.5px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;font-size:13px">🕒 Versiones anteriores</span>
+      <button onclick="document.getElementById('presVerDropdown')?.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--gris-400)">✕</button>
+    </div>${items}`;
+  document.body.appendChild(dd);
+
+  setTimeout(()=>{
+    const close = (e) => {
+      if (!dd.contains(e.target) && e.target !== btnEl) {
+        dd.remove();
+        document.removeEventListener('click', close);
+      }
+    };
+    document.addEventListener('click', close);
+  }, 100);
 }
 
+// Abre el editor cargando los datos de una versión (solo en memoria, no guarda)
+async function abrirVersionEnEditor(presId, versionId) {
+  const { data: v, error } = await sb.from('presupuesto_versiones').select('*').eq('id', versionId).single();
+  if (error || !v) { toast('Error cargando versión','error'); return; }
+  await abrirEditor('presupuesto', presId);
+  // Esperar a que el editor esté montado
+  setTimeout(async () => {
+    if (typeof de_restaurarVersion === 'function') {
+      await de_restaurarVersion(versionId);
+      toast('👁️ Vista de v'+v.version+' — cierra sin guardar para no sobrescribir','info');
+    }
+  }, 400);
+}
+
+// Restaura una versión: carga en el editor y el usuario debe guardar para aplicar
+async function restaurarVersionDirecta(presId, versionId) {
+  const { data: v } = await sb.from('presupuesto_versiones').select('version').eq('id', versionId).single();
+  if (!v) { toast('Error','error'); return; }
+  if (!confirm('¿Restaurar v'+v.version+'?\n\nSe abrirá el editor con los datos de esa versión. Debes pulsar "Guardar" para que los cambios se apliquen (se creará una versión nueva).')) return;
+  await abrirEditor('presupuesto', presId);
+  setTimeout(async () => {
+    if (typeof de_restaurarVersion === 'function') {
+      await de_restaurarVersion(versionId);
+    }
+  }, 400);
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR
+// ═══════════════════════════════════════════════
 function exportarPresupuestos() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
   const lista = presFiltrados.length ? presFiltrados : presupuestos;
