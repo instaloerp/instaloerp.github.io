@@ -884,13 +884,67 @@ function initRealtimePartes() {
     // Clientes — por si se añaden desde otras fuentes
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'clientes', filter: `empresa_id=eq.${EMPRESA.id}` },
-      async () => {
+      async (payload) => {
         try {
           const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
           if (data) {
             clientes = data;
             const pageCli = document.getElementById('page-clientes');
             if (pageCli && pageCli.classList.contains('active') && typeof renderClientes === 'function') renderClientes(clientes);
+          }
+          // Propagar firma SEPA remota a cuenta bancaria predeterminada (anon no puede via RLS)
+          try {
+            const nuevo = payload?.new;
+            const viejo = payload?.old;
+            const firmoAhora = nuevo?.mandato_sepa_estado === 'firmado'
+              && (viejo?.mandato_sepa_estado !== 'firmado' || !viejo?.mandato_sepa_firma_url)
+              && nuevo?.mandato_sepa_firma_url;
+            if (firmoAhora) {
+              const upd = {
+                mandato_sepa_estado: 'firmado',
+                mandato_sepa_fecha: nuevo.mandato_sepa_fecha,
+                mandato_sepa_firma_url: nuevo.mandato_sepa_firma_url,
+                mandato_sepa_ref: nuevo.mandato_sepa_ref || null,
+              };
+              await sb.from('cuentas_bancarias_entidad').update(upd)
+                .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+            }
+          } catch(e) { console.warn('Propagar SEPA a cuenta:', e); }
+
+          // Si hay ficha cliente abierta y es este cliente: refrescar (p.ej. tras firma SEPA remota)
+          const changedId = payload?.new?.id || payload?.old?.id;
+          if (changedId && typeof cliActualId !== 'undefined' && cliActualId === changedId && typeof abrirFicha === 'function') {
+            // Recargar cuentas bancarias también
+            try {
+              const { data: cbe } = await sb.from('cuentas_bancarias_entidad').select('*').eq('tipo_entidad','cliente').eq('entidad_id', cliActualId);
+              if (cbe && typeof cuentasBancariasEntidad !== 'undefined') {
+                cuentasBancariasEntidad = cuentasBancariasEntidad.filter(x => !(x.tipo_entidad==='cliente' && x.entidad_id===cliActualId));
+                cuentasBancariasEntidad.push(...cbe);
+              }
+            } catch(e) {}
+            abrirFicha(cliActualId);
+          }
+        } catch(e) {}
+      }
+    )
+    // Cuentas bancarias entidad — tras firma SEPA remota
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'cuentas_bancarias_entidad', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async (payload) => {
+        try {
+          const row = payload?.new || payload?.old;
+          if (!row) return;
+          if (typeof cuentasBancariasEntidad !== 'undefined') {
+            if (payload.eventType === 'DELETE') {
+              cuentasBancariasEntidad = cuentasBancariasEntidad.filter(x => x.id !== row.id);
+            } else {
+              const idx = cuentasBancariasEntidad.findIndex(x => x.id === row.id);
+              if (idx >= 0) cuentasBancariasEntidad[idx] = row;
+              else cuentasBancariasEntidad.push(row);
+            }
+          }
+          if (row.tipo_entidad === 'cliente' && typeof cliActualId !== 'undefined' && cliActualId === row.entidad_id && typeof abrirFicha === 'function') {
+            abrirFicha(cliActualId);
           }
         } catch(e) {}
       }
