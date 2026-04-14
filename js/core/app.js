@@ -906,15 +906,19 @@ function initRealtimePartes() {
                 mandato_sepa_firma_url: nuevo.mandato_sepa_firma_url,
                 mandato_sepa_ref: nuevo.mandato_sepa_ref || null,
               };
-              // Intentar primero sobre la predeterminada; si ninguna es predeterminada, actualizar todas las del cliente
-              const { data: _cbePred } = await sb.from('cuentas_bancarias_entidad').select('id')
-                .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
-              if (_cbePred && _cbePred.length) {
-                await sb.from('cuentas_bancarias_entidad').update(upd)
-                  .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+              // Preferir la cuenta destino específica del mandato; si no, la predeterminada; si no, todas
+              if (nuevo.mandato_sepa_cuenta_id) {
+                await sb.from('cuentas_bancarias_entidad').update(upd).eq('id', nuevo.mandato_sepa_cuenta_id);
               } else {
-                await sb.from('cuentas_bancarias_entidad').update(upd)
-                  .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id);
+                const { data: _cbePred } = await sb.from('cuentas_bancarias_entidad').select('id')
+                  .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+                if (_cbePred && _cbePred.length) {
+                  await sb.from('cuentas_bancarias_entidad').update(upd)
+                    .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id).eq('predeterminada', true);
+                } else {
+                  await sb.from('cuentas_bancarias_entidad').update(upd)
+                    .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id);
+                }
               }
 
               // Generar y guardar el PDF del mandato SEPA firmado para que aparezca en "Documentos firmados"

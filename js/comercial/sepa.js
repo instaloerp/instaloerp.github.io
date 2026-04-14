@@ -300,11 +300,19 @@ async function enviarMandatoParaFirma() {
   const token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2));
   const ref = 'SEPA-C-' + entityId + '-' + Date.now().toString(36).toUpperCase();
 
+  // Cuenta destino: la que se estaba gestionando desde la ficha, o la predeterminada
+  let cuentaDestinoId = window._mandatoCuentaId || null;
+  if (!cuentaDestinoId) {
+    const pred = (cuentasBancariasEntidad||[]).find(cb => cb.tipo_entidad==='cliente' && cb.entidad_id===entityId && cb.predeterminada);
+    cuentaDestinoId = pred ? pred.id : null;
+  }
+
   const { error } = await sb.from('clientes').update({
     mandato_sepa_token: token,
     mandato_sepa_ref: ref,
     mandato_sepa_estado: 'pendiente',
-    mandato_sepa_fecha: new Date().toISOString().split('T')[0]
+    mandato_sepa_fecha: new Date().toISOString().split('T')[0],
+    mandato_sepa_cuenta_id: cuentaDestinoId,
   }).eq('id', entityId);
 
   if (error) { toast('Error: ' + error.message, 'error'); return; }
@@ -550,13 +558,22 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
   // Actualizar también la(s) cuenta(s) bancaria(s) con el estado firmado
-  // Preferir la predeterminada; si no hay, todas las del cliente/proveedor
+  // Preferir la cuenta destino del mandato; luego la predeterminada; si no, todas
   try {
-    const { data: _pred } = await sb.from('cuentas_bancarias_entidad').select('id')
-      .eq('tipo_entidad', tipo).eq('entidad_id', entityId).eq('predeterminada', true);
-    let q = sb.from('cuentas_bancarias_entidad').update(updateData)
-      .eq('tipo_entidad', tipo).eq('entidad_id', entityId);
-    if (_pred && _pred.length) q = q.eq('predeterminada', true);
+    const entityRec = tipo==='cliente'
+      ? clientes.find(x=>x.id===entityId)
+      : (proveedores||[]).find(x=>x.id===entityId);
+    const cuentaDestinoId = entityRec?.mandato_sepa_cuenta_id || window._mandatoCuentaId || null;
+    let q;
+    if (cuentaDestinoId) {
+      q = sb.from('cuentas_bancarias_entidad').update(updateData).eq('id', cuentaDestinoId);
+    } else {
+      const { data: _pred } = await sb.from('cuentas_bancarias_entidad').select('id')
+        .eq('tipo_entidad', tipo).eq('entidad_id', entityId).eq('predeterminada', true);
+      q = sb.from('cuentas_bancarias_entidad').update(updateData)
+        .eq('tipo_entidad', tipo).eq('entidad_id', entityId);
+      if (_pred && _pred.length) q = q.eq('predeterminada', true);
+    }
     const { data: cbeUpd, error: cbeErr } = await q.select();
     if (cbeErr) console.warn('No se pudo actualizar cuenta SEPA:', cbeErr.message);
     if (Array.isArray(cuentasBancariasEntidad) && Array.isArray(cbeUpd)) {
