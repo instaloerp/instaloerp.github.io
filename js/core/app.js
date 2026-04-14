@@ -916,6 +916,16 @@ function initRealtimePartes() {
                 await sb.from('cuentas_bancarias_entidad').update(upd)
                   .eq('tipo_entidad','cliente').eq('entidad_id', nuevo.id);
               }
+
+              // Generar y guardar el PDF del mandato SEPA firmado para que aparezca en "Documentos firmados"
+              try {
+                if (typeof _generarYGuardarSEPAFirmadoPDF === 'function') {
+                  const cuentaEmpresa = (typeof cuentasBancarias !== 'undefined' && cuentasBancarias)
+                    ? (cuentasBancarias.find(b=>b.predeterminada) || cuentasBancarias[0]) : null;
+                  const ref = nuevo.mandato_sepa_ref || ('SEPA-C-'+nuevo.id+'-'+Date.now().toString(36).toUpperCase());
+                  await _generarYGuardarSEPAFirmadoPDF('cliente', nuevo, cuentaEmpresa, nuevo.mandato_sepa_firma_url, ref);
+                }
+              } catch(e) { console.warn('Gen PDF SEPA remoto:', e); }
             }
           } catch(e) { console.warn('Propagar SEPA a cuenta:', e); }
 

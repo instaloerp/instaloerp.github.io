@@ -446,6 +446,95 @@ async function subirMandatoFirmado() {
   await _completarMandatoFirmado(tipo, entityId, urlData?.publicUrl);
 }
 
+// Generar PDF del mandato SEPA incluyendo la imagen de firma del cliente/proveedor y guardarlo en documentos_generados
+async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firmaUrl, ref) {
+  if (!window.jspdf) { console.warn('jsPDF no disponible para SEPA firmado'); return; }
+  try {
+    const esCliente = tipo === 'cliente';
+    const titulo = esCliente ? 'MANDATO DE ADEUDO DIRECTO SEPA' : 'ORDEN DE DOMICILIACIÓN DE ADEUDO DIRECTO SEPA';
+    const subtitulo = esCliente
+      ? 'Mediante la firma de este mandato, el deudor autoriza al acreedor a enviar instrucciones a la entidad bancaria del deudor para adeudar su cuenta.'
+      : 'Mediante la firma de este documento, autorizamos al proveedor a emitir adeudos directos contra nuestra cuenta bancaria.';
+    const dirEmpresa = [EMPRESA?.direccion, [EMPRESA?.cp, EMPRESA?.municipio].filter(Boolean).join(' '), EMPRESA?.provincia].filter(Boolean).join(', ');
+    const hoy = new Date().toLocaleDateString('es-ES');
+    const acreedor = {
+      nombre: EMPRESA?.nombre || '—', cif: EMPRESA?.cif || '—', direccion: dirEmpresa,
+      iban: cuentaEmpresa?.iban ? cuentaEmpresa.iban.replace(/(.{4})/g,'$1 ').trim() : '—',
+      bic: cuentaEmpresa?.bic || '—', entidad: cuentaEmpresa?.entidad || cuentaEmpresa?.banco_entidad || '—'
+    };
+    const deudor = {
+      nombre: entity.nombre || '—', cif: entity.nif || entity.cif || '—',
+      direccion: entity.direccion_fiscal || entity.direccion || '—',
+      iban: entity.iban ? entity.iban.replace(/(.{4})/g,'$1 ').trim() : '—',
+      bic: entity.bic || '—', entidad: entity.banco_entidad || '—'
+    };
+    // Si el cliente no tiene IBAN en entity, intenta leer la cuenta predeterminada
+    if (esCliente && (!entity.iban || deudor.iban==='—')) {
+      try {
+        const { data: cbe } = await sb.from('cuentas_bancarias_entidad').select('*')
+          .eq('tipo_entidad','cliente').eq('entidad_id', entity.id).eq('predeterminada', true).maybeSingle();
+        if (cbe) {
+          deudor.iban = cbe.iban ? cbe.iban.replace(/(.{4})/g,'$1 ').trim() : deudor.iban;
+          deudor.bic = cbe.bic || deudor.bic;
+          deudor.entidad = cbe.banco_entidad || deudor.entidad;
+        }
+      } catch(e) { /* ignore */ }
+    }
+    const acreedorDoc = esCliente ? acreedor : deudor;
+    const deudorDoc = esCliente ? deudor : acreedor;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p','mm','a4');
+    const ML=15,MR=15,W=210;
+    let y=20;
+    doc.setFontSize(16);doc.setFont(undefined,'bold');doc.setTextColor(30,64,175);
+    doc.text(EMPRESA?.nombre||'',ML,y);y+=6;
+    doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+    doc.text(`CIF: ${EMPRESA?.cif||''} · ${dirEmpresa}`,ML,y);y+=10;
+    doc.setFillColor(30,64,175);doc.rect(ML,y-4,W-ML-MR,14,'F');
+    doc.setFontSize(11);doc.setFont(undefined,'bold');doc.setTextColor(255,255,255);
+    doc.text(titulo,W/2,y+3,{align:'center'});
+    doc.setFontSize(8);doc.text('Referencia: '+ref,W/2,y+8,{align:'center'});y+=18;
+    doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(71,85,105);
+    const subLines=doc.splitTextToSize(subtitulo,W-ML-MR);doc.text(subLines,ML,y);y+=subLines.length*4+6;
+    doc.autoTable({startY:y,head:[['DATOS DEL ACREEDOR','']],body:[['Nombre',acreedorDoc.nombre],['CIF',acreedorDoc.cif],['Dirección',acreedorDoc.direccion]],styles:{fontSize:9},headStyles:{fillColor:[30,64,175]},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+    y=doc.lastAutoTable.finalY+4;
+    doc.autoTable({startY:y,head:[['DATOS DEL DEUDOR','']],body:[['Nombre',deudorDoc.nombre],['NIF/CIF',deudorDoc.cif],['Dirección',deudorDoc.direccion],['IBAN',deudorDoc.iban],['BIC/SWIFT',deudorDoc.bic],['Entidad bancaria',deudorDoc.entidad]],styles:{fontSize:9},headStyles:{fillColor:[146,64,14]},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+    y=doc.lastAutoTable.finalY+4;
+    doc.autoTable({startY:y,head:[['TIPO DE PAGO','']],body:[['Tipo de adeudo','Recurrente'],['Fecha firma',hoy]],styles:{fontSize:9},columnStyles:{0:{cellWidth:40,fontStyle:'bold'}},margin:{left:ML,right:MR}});
+    y=doc.lastAutoTable.finalY+8;
+    doc.setFontSize(10);doc.setFont(undefined,'bold');doc.setTextColor(0,0,0);
+    doc.text('FIRMA DEL '+(esCliente?'DEUDOR':'EMISOR'),ML,y);y+=6;
+    doc.setFontSize(9);doc.setFont(undefined,'normal');doc.setTextColor(100,116,139);
+    doc.text('Nombre: '+(esCliente?deudorDoc.nombre:acreedorDoc.nombre),ML,y);y+=4;
+    doc.text('NIF/CIF: '+(esCliente?deudorDoc.cif:acreedorDoc.cif),ML,y);y+=4;
+    doc.text('Fecha firma: '+hoy,ML,y);y+=4;
+
+    // Embed signature image (PNG) from URL
+    if (firmaUrl) {
+      try {
+        const resp = await fetch(firmaUrl);
+        const blob = await resp.blob();
+        const dataUrl = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
+        doc.addImage(dataUrl, 'PNG', ML, y+2, 60, 25);
+        y += 30;
+      } catch(e) { console.warn('No se pudo embeber firma:', e); }
+    }
+
+    const pdfData = doc.output('arraybuffer');
+    if (typeof firmarYGuardarPDF === 'function') {
+      await firmarYGuardarPDF(pdfData, {
+        tipo_documento:'mandato_sepa',
+        documento_id: entity.id,
+        numero: ref,
+        entidad_tipo: tipo,
+        entidad_id: entity.id,
+        entidad_nombre: entity.nombre||''
+      });
+    }
+  } catch(e) { console.error('Error _generarYGuardarSEPAFirmadoPDF:', e); }
+}
+
 async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
   const ref = 'SEPA-' + (tipo === 'cliente' ? 'C' : 'P') + '-' + entityId + '-' + Date.now().toString(36).toUpperCase();
   const tabla = tipo === 'cliente' ? 'clientes' : 'proveedores';
@@ -489,7 +578,18 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
 
   closeModal('mMandatoSEPA');
   toast('✅ Mandato SEPA firmado y registrado', 'success');
-  
+
+  // Generar y guardar PDF firmado con imagen de firma → aparece en Documentos firmados
+  try {
+    const entity = tipo === 'cliente'
+      ? clientes.find(x => x.id === entityId)
+      : (proveedores||[]).find(x => x.id === entityId);
+    if (entity) {
+      const cuentaEmpresa = (cuentasBancarias||[]).find(b => b.predeterminada) || (cuentasBancarias||[])[0];
+      await _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firmaUrl, ref);
+    }
+  } catch(e) { console.warn('No se pudo generar PDF SEPA firmado:', e); }
+
   // Recargar ficha del cliente si está abierta
   if (tipo === 'cliente' && typeof cliActualId !== 'undefined' && cliActualId) {
     // Recargar cuentas bancarias desde Supabase
