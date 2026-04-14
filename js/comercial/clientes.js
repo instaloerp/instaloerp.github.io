@@ -836,28 +836,6 @@ async function nuevoPresupCliActual() {
   }, 100);
 }
 
-
-  const hoy = new Date().toISOString().split('T')[0];
-  document.getElementById('pr_fecha').value = hoy;
-  const v30 = new Date(); v30.setDate(v30.getDate()+30);
-  document.getElementById('pr_valido').value = v30.toISOString().split('T')[0];
-  document.getElementById('pr_titulo').value = '';
-  document.getElementById('pr_obs').value = '';
-
-  const prSerSel = document.getElementById('pr_serie');
-  const prSeries = (series||[]).filter(s => s.tipo === 'presupuesto');
-  const prSerUsables = prSeries.length ? prSeries : (series||[]);
-  if (prSerUsables.length) {
-    prSerSel.innerHTML = prSerUsables.map(s=>`<option value="${s.id}">${s.prefijo||'PRE-'}</option>`).join('');
-  } else {
-    prSerSel.innerHTML = '<option value="">PRE-</option>';
-  }
-  document.getElementById('pr_numero').value = await generarNumeroDoc('presupuesto');
-
-  pr_addLinea();
-  openModal('mPresupRapido', true);
-}
-
 function pr_actualizarCliente(id) {
   const c = clientes.find(x=>x.id===parseInt(id));
   if (c?.forma_pago_id) document.getElementById('pr_fpago').value = c.forma_pago_id;
@@ -1021,11 +999,6 @@ async function nuevoAlbaranCliActual() {
     const clienteSel = document.getElementById('ab_cliente');
     if (clienteSel && cliActualId) clienteSel.value = cliActualId;
   }, 100);
-}
-
-  document.getElementById('ab_numero').value = await generarNumeroDoc('albaran');
-  ab_addLinea();
-  openModal('mAlbaranRapido', true);
 }
 
 function ab_addLinea() { abLineas.push({desc:'',cant:1,precio:0}); ab_renderLineas(); }
