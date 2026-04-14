@@ -1119,7 +1119,7 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   }
 
   // ── MENSAJES (correos vinculados a la obra y a sus documentos) ──
-  cargarMensajesObra(obra.id, obra, presupData, albData, factData, partesData);
+  cargarMensajesObra(t.id, t, presupData, albData, factData, partesData);
 
   // Activar pestaña recordada (o seguimiento si es la primera vez)
   obraTab(obraTabActual || 'seguimiento');

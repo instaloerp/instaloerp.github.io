@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Documento</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.container{max-width:780px;margin:0 auto;padding:20px}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:24px;margin-bottom:16px}
+.header{text-align:center;margin-bottom:16px}
+.header h1{font-size:20px;color:#1e40af;margin-bottom:4px}
+.header p{font-size:13px;color:#64748b}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.info-item{background:#f8fafc;border-radius:8px;padding:12px}
+.info-label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
+.info-value{font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+th{background:#f1f5f9;padding:8px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+td{padding:8px 10px;border-top:1px solid #e2e8f0;font-size:13px}
+.total-row{background:#f0f9ff;font-weight:800;font-size:16px}
+.cap-row{background:#eff6ff;font-weight:700;color:#1e40af;font-size:13px}
+.btn{padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .2s}
+.btn-blue{background:#3b82f6;color:#fff}.btn-blue:hover{background:#2563eb}
+.btn-gray{background:#e2e8f0;color:#475569}.btn-gray:hover{background:#cbd5e1}
+.toolbar{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.error{text-align:center;padding:60px 20px;color:#ef4444}
+.loading{text-align:center;padding:60px 20px;color:#64748b}
+.tipo-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.tipo-factura{background:#dcfce7;color:#15803d}
+.tipo-albaran{background:#fef3c7;color:#92400e}
+@media print {
+  body{background:#fff}
+  .toolbar,.no-print{display:none!important}
+  .card{box-shadow:none;border:1px solid #e2e8f0}
+  .container{padding:0}
+}
+@media(max-width:600px){.info-grid{grid-template-columns:1fr}.container{padding:12px}}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <div class="loading">
+    <div style="font-size:32px;margin-bottom:12px">⏳</div>
+    <p>Cargando documento...</p>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const params = new URLSearchParams(window.location.search);
+const token = params.get('t') || params.get('token');
+
+function showError(msg) {
+  document.getElementById('app').innerHTML = `<div class="error"><div style="font-size:48px;margin-bottom:12px">❌</div><h2>${msg}</h2><p style="color:#64748b;margin-top:8px">Contacte con la empresa que le envió el enlace.</p></div>`;
+}
+
+function fmtE(n) { return (n||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' \u20ac'; }
+function fmtD(s) { return s ? new Date(s).toLocaleDateString('es-ES') : '—'; }
+
+async function init() {
+  if (!token) { showError('Enlace no válido'); return; }
+
+  // 1) Buscar factura
+  const { data: fac } = await sb.from('facturas').select('*').eq('acceso_token', token).maybeSingle();
+  if (fac) {
+    const { data: emp } = await sb.from('empresas').select('*').eq('id', fac.empresa_id).single();
+    const { data: cli } = await sb.from('clientes').select('*').eq('id', fac.cliente_id).single();
+    document.title = 'Factura ' + (fac.numero || '');
+    renderDoc('factura', fac, emp, cli);
+    return;
+  }
+
+  // 2) Buscar albaran
+  const { data: alb } = await sb.from('albaranes').select('*').eq('acceso_token', token).maybeSingle();
+  if (alb) {
+    const { data: emp } = await sb.from('empresas').select('*').eq('id', alb.empresa_id).single();
+    const { data: cli } = await sb.from('clientes').select('*').eq('id', alb.cliente_id).single();
+    document.title = 'Albarán ' + (alb.numero || '');
+    renderDoc('albaran', alb, emp, cli);
+    return;
+  }
+
+  // 3) Si es token de presupuesto, redirigir a firma.html (compat)
+  const { data: pres } = await sb.from('presupuestos').select('id').eq('firma_token', token).maybeSingle();
+  if (pres) { location.replace('firma.html?token=' + token); return; }
+
+  showError('Documento no encontrado o enlace expirado');
+}
+
+function renderDoc(tipo, doc, emp, cli) {
+  const titulo = tipo === 'factura' ? 'FACTURA' : 'ALBARÁN';
+  const lineas = doc.lineas || [];
+  let lineasHtml = '';
+  lineas.forEach(l => {
+    if (l.tipo === 'capitulo' || l.tipo === 'subcapitulo') {
+      lineasHtml += `<tr class="cap-row"><td colspan="4">${l.tipo==='subcapitulo'?'&nbsp;&nbsp;':''}${l.titulo||''}</td></tr>`;
+      return;
+    }
+    const sub = (l.cant||0)*(l.precio||0)*(1-((l.dto||0)/100));
+    lineasHtml += `<tr><td>${l.desc||''}</td><td style="text-align:right">${l.cant||0}</td><td style="text-align:right">${fmtE(l.precio||0)}</td><td style="text-align:right;font-weight:700">${fmtE(sub)}</td></tr>`;
+  });
+
+  const empLoc = [emp?.cp, emp?.municipio, emp?.provincia].filter(Boolean).join(', ');
+  const empContact = [emp?.telefono ? 'Tel: '+emp.telefono : '', emp?.email].filter(Boolean).join(' · ');
+
+  document.getElementById('app').innerHTML = `
+    <div class="toolbar no-print">
+      <button class="btn btn-blue" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    </div>
+    <div class="card header">
+      <h1>${emp?.nombre||'Empresa'}</h1>
+      <p>${emp?.razon_social||''}${emp?.cif?' · CIF: '+emp.cif:''}</p>
+      ${emp?.direccion ? `<p>${emp.direccion}${empLoc?', '+empLoc:''}</p>` : ''}
+      ${empContact ? `<p>${empContact}</p>` : ''}
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <span class="tipo-badge tipo-${tipo}">${titulo}</span>
+          <div style="font-size:22px;font-weight:800;color:#1e40af;margin-top:4px">${doc.numero||''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:#94a3b8">FECHA</div>
+          <div style="font-weight:700">${fmtD(doc.fecha)}</div>
+          ${tipo==='factura' && doc.fecha_vencimiento ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px">VENCIMIENTO</div><div style="font-weight:700">${fmtD(doc.fecha_vencimiento)}</div>` : ''}
+        </div>
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Cliente</div>
+          <div class="info-value">${cli?.nombre || doc.cliente_nombre || '—'}</div>
+          ${cli?.nif ? `<div style="font-size:12px;color:#64748b">${cli.nif}</div>` : ''}
+          ${cli?.direccion ? `<div style="font-size:12px;color:#64748b;margin-top:3px">${cli.direccion}</div>` : ''}
+        </div>
+        <div class="info-item">
+          <div class="info-label">Referencia</div>
+          <div class="info-value">${doc.titulo||doc.referencia||'—'}</div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${lineasHtml || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sin líneas</td></tr>'}</tbody>
+      </table>
+      <table><tbody>
+        <tr><td style="text-align:right;color:#64748b">Base imponible</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(doc.base_imponible||0)}</td></tr>
+        <tr><td style="text-align:right;color:#64748b">IVA</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(doc.total_iva||0)}</td></tr>
+        <tr class="total-row"><td style="text-align:right">TOTAL</td><td style="text-align:right;width:140px">${fmtE(doc.total||0)}</td></tr>
+      </tbody></table>
+      ${doc.observaciones ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b">${doc.observaciones}</div>` : ''}
+    </div>
+    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">Documento generado por ${emp?.nombre||'el ERP'} · enlace privado</div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

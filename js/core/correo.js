@@ -881,6 +881,35 @@ async function enviarCorreo() {
       if (error) throw error;
 
       if (data?.success) {
+        // Asegurar vinculación en BD (por si la Edge Function no la guarda)
+        if (vinculacion?.tipo && vinculacion?.id) {
+          try {
+            const correoId = data?.correo_id || data?.id;
+            if (correoId) {
+              await sb.from('correos').update({
+                vinculado_tipo: vinculacion.tipo,
+                vinculado_id: vinculacion.id,
+                vinculado_ref: vinculacion.ref || null
+              }).eq('id', correoId);
+            } else {
+              // Fallback: actualizar el último 'enviado' sin vincular de esta empresa
+              const { data: ult } = await sb.from('correos')
+                .select('id')
+                .eq('empresa_id', EMPRESA.id)
+                .eq('tipo', 'enviado')
+                .is('vinculado_tipo', null)
+                .order('fecha', { ascending: false })
+                .limit(1);
+              if (ult?.[0]?.id) {
+                await sb.from('correos').update({
+                  vinculado_tipo: vinculacion.tipo,
+                  vinculado_id: vinculacion.id,
+                  vinculado_ref: vinculacion.ref || null
+                }).eq('id', ult[0].id);
+              }
+            }
+          } catch(e) { console.warn('No se pudo vincular correo:', e); }
+        }
         cancelarCorreo();
         await loadCorreos();
         // Popup de confirmación si el correo va vinculado a una factura
