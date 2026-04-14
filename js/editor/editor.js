@@ -874,8 +874,9 @@ function de_buildDatos() {
   }
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
   const _tituloVal = document.getElementById('de_titulo').value||null;
-  datos.titulo = _tituloVal;
-  if (cfg.tipo==='albaran') datos.referencia = _tituloVal;
+  if (cfg.tipo==='presupuesto') datos.titulo = _tituloVal;
+  else if (cfg.tipo==='albaran') datos.referencia = _tituloVal;
+  // facturas: no tienen columna titulo ni referencia — el título se ignora
   // Vincular a obra si se creó desde una ficha de obra
   if (cfg.trabajo_id) datos.trabajo_id = cfg.trabajo_id;
   return datos;
