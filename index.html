@@ -172,7 +172,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 8</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 10</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3794,7 +3794,7 @@ try {
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
         <button class="btn btn-secondary btn-sm" onclick="generarPdfAlbaran(parseInt(document.getElementById('abDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirAlbaran(parseInt(document.getElementById('abDetId').value))" title="Imprimir">🖨️ Imprimir</button>
-        <button class="btn btn-secondary btn-sm" onclick="enviarAlbaranEmail(parseInt(document.getElementById('abDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="enviarAlbaranEmail(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-secondary btn-sm" onclick="editarAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Editar">✏️ Editar</button>
         <button class="btn btn-secondary btn-sm" onclick="delAlbaran(parseInt(document.getElementById('abDetId').value));closeModal('mAbDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
       </div>
@@ -3862,7 +3862,7 @@ try {
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
         <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
-        <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-secondary btn-sm" onclick="abrirEditor('factura',parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Editar">✏️ Editar</button>
         <button class="btn btn-secondary btn-sm" onclick="delFactura(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
       </div>
@@ -3927,7 +3927,7 @@ try {
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;margin-right:8px">
         <button class="btn btn-secondary btn-sm" onclick="imprimirPresupuesto(parseInt(document.getElementById('presDetId').value))" title="Imprimir / Guardar PDF">🖨️ Imprimir / PDF</button>
-        <button class="btn btn-secondary btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value))" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="enviarPresupuestoEmail(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Enviar por email">📧 Enviar</button>
         <button class="btn btn-secondary btn-sm" onclick="editarPresupuesto(parseInt(document.getElementById('presDetId').value));closeModal('mPresDetalle')" title="Editar">✏️ Editar</button>
         <button id="presDetBtnAprobar" class="btn btn-sm" onclick="abrirModalAprobar(parseInt(document.getElementById('presDetId').value))" title="Aprobar presupuesto" style="background:var(--verde);color:#fff;border:none;font-weight:700">✅ Aprobar</button>
         <button class="btn btn-secondary btn-sm" onclick="cambiarEstadoPresMenu(event,parseInt(document.getElementById('presDetId').value))" title="Cambiar estado">🔄 Estado</button>

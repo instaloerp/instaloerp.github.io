@@ -21,8 +21,8 @@ const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
 // ═══════════════════════════════════════════════
 //  CARGA INICIAL
 // ═══════════════════════════════════════════════
-async function loadCorreos() {
-  // Cargar cuenta predeterminada
+// Cargar cuenta SMTP predeterminada (puede llamarse al boot o lazy desde nuevoCorreo)
+async function cargarCuentaCorreoActiva() {
   try {
     const { data: cuentas } = await sb.from('cuentas_correo')
       .select('*')
@@ -34,6 +34,11 @@ async function loadCorreos() {
   } catch(e) {
     _correoCuentaActiva = null;
   }
+  return _correoCuentaActiva;
+}
+
+async function loadCorreos() {
+  await cargarCuentaCorreoActiva();
 
   // Si no hay cuenta configurada, mostrar mensaje
   if (!_correoCuentaActiva) {
@@ -749,9 +754,14 @@ async function _desvincularCorreo(correoId) {
 // ═══════════════════════════════════════════════
 //  NUEVO CORREO / RESPONDER / REENVIAR
 // ═══════════════════════════════════════════════
-function nuevoCorreo(para, asunto, cuerpo, vinculacion) {
+async function nuevoCorreo(para, asunto, cuerpo, vinculacion) {
   const view = document.getElementById('mailView');
   if (!view) return;
+
+  // Cargar cuenta SMTP si no está cargada todavía (composer abierto desde fuera de Correo)
+  if (!_correoCuentaActiva) {
+    try { await cargarCuentaCorreoActiva(); } catch(e) {}
+  }
 
   // Poblar selector de contactos
   const clienteOpts = (typeof clientes !== 'undefined' ? clientes : [])
