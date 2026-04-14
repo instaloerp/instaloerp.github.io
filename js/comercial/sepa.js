@@ -568,19 +568,22 @@ async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firma
     }
 
     const pdfData = doc.output('arraybuffer');
-    // Identificar cuenta en el nombre: últimos 4 dígitos del IBAN
-    // Usar solo caracteres seguros para Supabase Storage keys (sin ·, *, espacios)
+    // Nombre legible: MANDATO-SEPA-<last4>-<YYYYMMDD-HHMM>
+    // Solo caracteres seguros para Supabase Storage (A-Z, 0-9, ., _, -)
     const ibanRaw = (deudorDoc.iban||'').replace(/\s/g,'');
-    const last4 = ibanRaw.length>=4 ? ibanRaw.slice(-4) : '';
-    const numeroDoc = last4 ? `${ref}_IBAN_${last4}` : ref;
+    const last4 = ibanRaw.length>=4 ? ibanRaw.slice(-4) : 'XXXX';
+    const n = new Date();
+    const pad = x => String(x).padStart(2,'0');
+    const stamp = `${n.getFullYear()}${pad(n.getMonth()+1)}${pad(n.getDate())}-${pad(n.getHours())}${pad(n.getMinutes())}`;
+    const numeroDoc = `MANDATO-SEPA-${last4}-${stamp}`;
 
     // Evitar duplicados por race condition (realtime doble-fire): solo bloquear si existe uno creado hace < 15s
     try {
       const hace15s = new Date(Date.now() - 15000).toISOString();
       const { data: existe } = await sb.from('documentos_generados')
-        .select('id, creado_en').eq('entidad_tipo', tipo).eq('entidad_id', entity.id)
+        .select('id, created_at').eq('entidad_tipo', tipo).eq('entidad_id', entity.id)
         .eq('tipo_documento','mandato_sepa').eq('numero', numeroDoc)
-        .gte('creado_en', hace15s).limit(1);
+        .gte('created_at', hace15s).limit(1);
       if (existe && existe.length) { console.log('[SEPA] Doc duplicado reciente, skip'); return; }
     } catch(e) { /* ignore, seguimos */ }
 

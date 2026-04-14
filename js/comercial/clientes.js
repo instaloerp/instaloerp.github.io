@@ -430,7 +430,7 @@ function _renderFichaCliBanco(c) {
       </div>
       <div style="font-family:monospace;font-size:11.5px;font-weight:600;letter-spacing:0.5px;color:var(--gris-700)">${ibanFmt}</div>
       ${cb.titular?`<div style="font-size:10.5px;color:var(--gris-500);margin-top:2px">Titular: ${cb.titular}</div>`:''}
-      ${cb.mandato_sepa_estado!=='firmado'?`<div style="margin-top:4px"><button onclick="_gestionarMandatoCuenta(${cb.id})" style="font-size:9.5px;padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;border-radius:4px;cursor:pointer;color:#92400e;font-weight:600">📄 Gestionar mandato SEPA</button></div>`:`<div style="margin-top:4px"><button onclick="_regenerarPDFMandatoCuenta(${cb.id})" style="font-size:9.5px;padding:3px 8px;border:1px solid var(--azul);background:#eff6ff;border-radius:4px;cursor:pointer;color:var(--azul);font-weight:600" title="Regenerar PDF firmado del mandato (si no aparece en Documentos)">🔄 Regenerar PDF firmado</button></div>`}
+      ${cb.mandato_sepa_estado!=='firmado'?`<div style="margin-top:4px"><button onclick="_gestionarMandatoCuenta(${cb.id})" style="font-size:9.5px;padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;border-radius:4px;cursor:pointer;color:#92400e;font-weight:600">📄 Gestionar mandato SEPA</button></div>`:''}
     </div>`;
   });
 
