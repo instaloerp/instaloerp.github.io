@@ -218,6 +218,12 @@ function _prevCalcTotales(lineas, hayIva) {
 function _prevCerrar() {
   const m = document.getElementById('mPreviewDoc');
   if (m) m.remove();
+  // Restaurar scroll solo si no hay otros modales abiertos
+  const otros = document.querySelectorAll('.overlay.open').length;
+  if (!otros) {
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  }
 }
 
 // ──────────────────────────────────────────────────
@@ -294,7 +300,6 @@ async function previewDoc(tipo, id) {
   const overlay = document.createElement('div');
   overlay.id = 'mPreviewDoc';
   overlay.className = 'overlay';
-  overlay.style.display = 'flex';
   overlay.onclick = function(e) { if (e.target === overlay) _prevCerrar(); };
   overlay.innerHTML = `
     <div class="modal modal-lg" onclick="event.stopPropagation()">
@@ -349,6 +354,9 @@ async function previewDoc(tipo, id) {
     </div>
   `;
   document.body.appendChild(overlay);
+  // El CSS .overlay tiene opacity:0 por defecto; se activa con .open (igual que openModal de ui.js)
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  document.body.style.overflow = 'hidden';
 
   // Cerrar con ESC
   const onKey = (e) => { if (e.key === 'Escape') { _prevCerrar(); document.removeEventListener('keydown', onKey); } };
