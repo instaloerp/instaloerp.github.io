@@ -53,29 +53,39 @@ const params = new URLSearchParams(window.location.search);
 const token = params.get('token');
 let presData = null;
 let empresaData = null;
+let sepaData = null;   // { cliente, cuenta, empresa } cuando el token es de mandato SEPA
 
 async function init() {
   if (!token) { showError('Enlace no válido'); return; }
 
-  // Buscar presupuesto por token
-  const { data: pres, error } = await sb.from('presupuestos').select('*').eq('firma_token', token).single();
-  if (error || !pres) { showError('Presupuesto no encontrado o enlace caducado'); return; }
-
-  if (pres.estado === 'aceptado' && pres.firma_fecha) {
-    showAlreadySigned(pres);
+  // 1) Buscar presupuesto por token
+  const { data: pres } = await sb.from('presupuestos').select('*').eq('firma_token', token).maybeSingle();
+  if (pres) {
+    if (pres.estado === 'aceptado' && pres.firma_fecha) { showAlreadySigned(pres); return; }
+    presData = pres;
+    const { data: emp } = await sb.from('empresas').select('*').eq('id', pres.empresa_id).single();
+    empresaData = emp;
+    const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
+    renderPresupuesto(pres, emp, cli);
     return;
   }
 
-  presData = pres;
+  // 2) Buscar mandato SEPA por token
+  const { data: cli } = await sb.from('clientes').select('*').eq('mandato_sepa_token', token).maybeSingle();
+  if (cli) {
+    if (cli.mandato_sepa_estado === 'firmado' && cli.mandato_sepa_firma_url) {
+      document.getElementById('app').innerHTML = `<div class="success"><div style="font-size:48px;margin-bottom:12px">✅</div><h2>Mandato SEPA ya firmado</h2><p style="color:#64748b">Este mandato fue firmado el ${cli.mandato_sepa_fecha||''}. Gracias.</p></div>`;
+      return;
+    }
+    const { data: emp } = await sb.from('empresas').select('*').eq('id', cli.empresa_id).single();
+    const { data: cbe } = await sb.from('cuentas_bancarias_entidad').select('*')
+      .eq('tipo_entidad','cliente').eq('entidad_id', cli.id).eq('predeterminada', true).maybeSingle();
+    sepaData = { cliente: cli, empresa: emp, cuenta: cbe };
+    renderMandatoSepa(cli, emp, cbe);
+    return;
+  }
 
-  // Cargar empresa
-  const { data: emp } = await sb.from('empresas').select('*').eq('id', pres.empresa_id).single();
-  empresaData = emp;
-
-  // Cargar cliente
-  const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
-
-  renderPresupuesto(pres, emp, cli);
+  showError('Enlace no válido o caducado');
 }
 
 function showError(msg) {
@@ -436,6 +446,108 @@ async function postFirmaAcciones(nombre, dni, dispositivo) {
     });
 
   } catch(e) { /* silent — la firma ya se guardó, esto es secundario */ }
+}
+
+// ═══════════════════════════════════════════════
+//   MANDATO SEPA — Render + firma
+// ═══════════════════════════════════════════════
+function renderMandatoSepa(cli, emp, cbe) {
+  const ibanFmt = cbe?.iban ? cbe.iban.replace(/(.{4})/g,'$1 ').trim() : '—';
+  document.getElementById('app').innerHTML = `
+    <div class="card header">
+      <h1>${emp?.nombre||'Empresa'}</h1>
+      <p>${emp?.razon_social||''} · CIF: ${emp?.cif||''}</p>
+    </div>
+    <div class="card">
+      <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;font-weight:700">Mandato de adeudo directo SEPA</div>
+      <h2 style="margin:6px 0 16px;font-size:18px">Orden de domiciliación bancaria</h2>
+      <p style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:12px">
+        Mediante la firma de este formulario de orden de domiciliación, usted autoriza a <b>${emp?.nombre||''}</b> a enviar instrucciones a su entidad financiera para adeudar cargos en su cuenta y a su entidad para efectuar los adeudos en su cuenta siguiendo las instrucciones de <b>${emp?.nombre||''}</b>. Tipo de pago: <b>recurrente</b>.
+      </p>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">Deudor</div><div class="info-value">${cli?.nombre||''}</div><div style="font-size:12px;color:#64748b">${cli?.nif||''}</div></div>
+        <div class="info-item"><div class="info-label">Referencia</div><div class="info-value">${cli?.mandato_sepa_ref||'—'}</div></div>
+        <div class="info-item" style="grid-column:1/-1"><div class="info-label">IBAN cuenta a domiciliar</div><div class="info-value" style="font-family:ui-monospace,monospace">${ibanFmt}</div><div style="font-size:12px;color:#64748b">${cbe?.banco_entidad||''} · Titular: ${cbe?.titular||cli?.nombre||''}</div></div>
+        <div class="info-item"><div class="info-label">Acreedor</div><div class="info-value">${emp?.nombre||''}</div><div style="font-size:12px;color:#64748b">CIF: ${emp?.cif||''}</div></div>
+        <div class="info-item"><div class="info-label">Fecha</div><div class="info-value">${new Date().toLocaleDateString('es-ES')}</div></div>
+      </div>
+    </div>
+    <div class="card firma-area">
+      <h2>Firma del deudor</h2>
+      <p style="font-size:13px;color:#64748b;margin-bottom:12px">Dibuja tu firma en el recuadro</p>
+      <canvas id="firmaCanvas" width="500" height="180"></canvas>
+      <div style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px">
+        <input type="text" id="firmaNombre" placeholder="Nombre completo del firmante" value="${cli?.nombre||''}" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
+        <input type="text" id="firmaDni" placeholder="DNI / NIF del firmante" value="${cli?.nif||''}" style="padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;width:100%;max-width:400px;text-align:center">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:4px">
+        <button class="btn btn-gray" onclick="limpiarFirma()">Limpiar</button>
+        <button class="btn btn-green" onclick="enviarFirmaSepa()">✅ Firmar mandato</button>
+      </div>
+    </div>`;
+  initCanvas();
+}
+
+async function enviarFirmaSepa() {
+  if (isCanvasEmpty()) { alert('Por favor, dibuja tu firma'); return; }
+  const nombre = document.getElementById('firmaNombre').value.trim();
+  if (!nombre) { alert('Introduce tu nombre completo'); return; }
+  const dni = document.getElementById('firmaDni').value.trim();
+  if (!dni) { alert('Introduce tu DNI/NIF'); return; }
+  if (!validarDniNif(dni)) { alert('DNI/NIF no válido'); return; }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Procesando...';
+
+  try {
+    const blob = await new Promise(r => document.getElementById('firmaCanvas').toBlob(r, 'image/png'));
+    const cli = sepaData.cliente;
+    const path = `firmas/mandato_sepa_${cli.id}_${Date.now()}.png`;
+    let firmaUrl = null;
+    const { error: upErr } = await sb.storage.from('documentos').upload(path, blob);
+    if (!upErr) {
+      const { data } = sb.storage.from('documentos').getPublicUrl(path);
+      firmaUrl = data?.publicUrl || null;
+    } else {
+      // Fallback storage
+      const { error: upErr2 } = await sb.storage.from('fotos-partes').upload(path, blob);
+      if (!upErr2) {
+        const { data } = sb.storage.from('fotos-partes').getPublicUrl(path);
+        firmaUrl = data?.publicUrl || null;
+      }
+    }
+
+    const hoy = new Date().toISOString().split('T')[0];
+    const updateData = {
+      mandato_sepa_estado: 'firmado',
+      mandato_sepa_fecha: hoy,
+    };
+    if (firmaUrl) updateData.mandato_sepa_firma_url = firmaUrl;
+
+    // Actualizar cliente
+    const { error: e1 } = await sb.from('clientes').update(updateData).eq('id', cli.id).eq('mandato_sepa_token', token);
+    if (e1) throw e1;
+
+    // Actualizar cuenta bancaria predeterminada
+    try {
+      await sb.from('cuentas_bancarias_entidad').update(updateData)
+        .eq('tipo_entidad','cliente').eq('entidad_id', cli.id).eq('predeterminada', true);
+    } catch(e) { console.warn('cuenta bancaria update:', e); }
+
+    document.getElementById('app').innerHTML = `
+      <div class="success">
+        <div style="font-size:40px;margin-bottom:8px">✅</div>
+        <h2 style="font-size:20px;color:#22c55e;margin-bottom:4px">Mandato SEPA firmado correctamente</h2>
+        <p style="color:#64748b;font-size:14px">Firmado por <b>${nombre}</b> el ${new Date().toLocaleString('es-ES')}</p>
+        <p style="color:#94a3b8;margin-top:16px;font-size:12px">Puedes cerrar esta página.</p>
+      </div>`;
+  } catch(e) {
+    console.error('Error firmando mandato SEPA:', e);
+    alert('No se pudo procesar la firma. Intenta de nuevo.');
+    btn.disabled = false;
+    btn.textContent = '✅ Firmar mandato';
+  }
 }
 
 init();

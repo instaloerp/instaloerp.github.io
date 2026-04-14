@@ -13,13 +13,11 @@ function generarMandatoSEPA(tipo) {
   const entityId = tipo === 'cliente' ? cliActualId : provActualId;
   if (!entityId) { toast('Selecciona primero un ' + tipo, 'error'); return; }
 
-  // Bloquear si no hay cuenta bancaria para cliente
+  // Para cliente sin cuenta: permitir generar enlace de firma (el cliente facilitará IBAN al firmar)
+  let _cliSinCuenta = false;
   if (tipo === 'cliente' && cliActualId) {
     const cuentas = _getCuentasCli(cliActualId);
-    if (!cuentas || cuentas.length === 0) {
-      toast('Primero añade una cuenta bancaria al cliente','error');
-      return;
-    }
+    _cliSinCuenta = !cuentas || cuentas.length === 0;
   }
 
   document.getElementById('sepa_tipo').value = tipo;
@@ -68,9 +66,12 @@ function generarMandatoSEPA(tipo) {
   const opFirma = document.getElementById('sepa_opcion_firma');
   opFirma.style.display = '';
   if (tipo === 'cliente') {
+    const _subtitle = _cliSinCuenta
+      ? 'El cliente no tiene cuenta bancaria registrada. Al abrir el enlace podrá introducirla y firmar el mandato en un solo paso.'
+      : 'Envía el mandato al cliente para que lo firme y lo devuelva';
     opFirma.innerHTML = `
       <div style="font-weight:700;font-size:14px;margin-bottom:8px">✍️ Enviar para firma</div>
-      <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Envía el mandato al cliente para que lo firme y lo devuelva</p>
+      <p style="font-size:12px;color:var(--gris-400);margin-bottom:10px">${_subtitle}</p>
       <button class="btn btn-sm" onclick="enviarMandatoParaFirma()" style="background:var(--verde);color:#fff;border:none;font-weight:700">📧 Generar enlace de firma</button>
       <div id="sepa_firma_link" style="display:none;margin-top:10px;padding:10px;background:var(--gris-50);border-radius:8px;font-size:12px;word-break:break-all"></div>`;
   } else {
@@ -336,11 +337,15 @@ async function enviarMandatoParaFirma() {
 function enviarMandatoEmail(clienteId, firmaUrl) {
   const c = clientes.find(x => x.id === clienteId);
   if (!c?.email) { toast('El cliente no tiene email', 'error'); return; }
-  const asunto = encodeURIComponent(`Mandato SEPA — ${EMPRESA?.nombre || ''}`);
-  const cuerpo = encodeURIComponent(
-    `Estimado/a ${c.nombre},\n\nLe enviamos el mandato de adeudo directo SEPA para su autorización.\n\nPuede ver y firmar el mandato en el siguiente enlace:\n${firmaUrl}\n\nEste mandato nos autoriza a domiciliar los cobros de sus facturas en su cuenta bancaria.\n\nGracias,\n${EMPRESA?.nombre || ''}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`
-  );
-  window.open(`mailto:${c.email}?subject=${asunto}&body=${cuerpo}`);
+  const asuntoTxt = `Mandato SEPA — ${EMPRESA?.nombre || ''}`;
+  const cuerpoTxt = `Estimado/a ${c.nombre},\n\nLe enviamos el mandato de adeudo directo SEPA para su autorización.\n\nPuede ver y firmar el mandato en el siguiente enlace:\n${firmaUrl}\n\nEste mandato nos autoriza a domiciliar los cobros de sus facturas en su cuenta bancaria.\n\nGracias,\n${EMPRESA?.nombre || ''}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`;
+  // Usar modal correo ERP si hay cuenta SMTP configurada
+  if (typeof nuevoCorreo === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(c.email, asuntoTxt, cuerpoTxt, { tipo: 'mandato_sepa', id: clienteId });
+    if (typeof goPage === 'function') goPage('correo');
+    return;
+  }
+  window.open(`mailto:${c.email}?subject=${encodeURIComponent(asuntoTxt)}&body=${encodeURIComponent(cuerpoTxt)}`);
   toast('Abriendo cliente de correo...', 'info');
 }
 
@@ -395,7 +400,13 @@ async function enviarMandatoEmailProveedor() {
     `IMPORTANTE: Antes de enviar, adjunte el PDF del mandato generado desde el botón "Generar PDF" del sistema.\n\n` +
     `Un saludo,\n${empresaNombre}\n${EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : ''}`
   );
-  window.open(`mailto:${p.email}?subject=${asunto}&body=${cuerpo}`);
+  // Usar modal correo ERP si hay cuenta SMTP configurada
+  if (typeof nuevoCorreo === 'function' && typeof _correoCuentaActiva !== 'undefined' && _correoCuentaActiva) {
+    nuevoCorreo(p.email, decodeURIComponent(asunto), decodeURIComponent(cuerpo), { tipo: 'mandato_sepa_prov', id: entityId });
+    if (typeof goPage === 'function') goPage('correo');
+  } else {
+    window.open(`mailto:${p.email}?subject=${asunto}&body=${cuerpo}`);
+  }
 
   // Mostrar confirmación en el modal
   const linkDiv = document.getElementById('sepa_firma_link');
@@ -448,6 +459,25 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
 
   const { error } = await sb.from(tabla).update(updateData).eq('id', entityId);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Actualizar también la cuenta bancaria predeterminada con el estado firmado
+  // (la badge SEPA se renderiza por cuenta)
+  try {
+    const { data: cbeUpd, error: cbeErr } = await sb.from('cuentas_bancarias_entidad')
+      .update(updateData)
+      .eq('tipo_entidad', tipo)
+      .eq('entidad_id', entityId)
+      .eq('predeterminada', true)
+      .select();
+    if (cbeErr) console.warn('No se pudo actualizar cuenta SEPA:', cbeErr.message);
+    // Reflejar en memoria local
+    if (Array.isArray(cuentasBancariasEntidad) && Array.isArray(cbeUpd)) {
+      cbeUpd.forEach(r => {
+        const idx = cuentasBancariasEntidad.findIndex(x => x.id === r.id);
+        if (idx >= 0) Object.assign(cuentasBancariasEntidad[idx], r);
+      });
+    }
+  } catch(e) { console.warn('Update cuenta SEPA falló:', e); }
 
   // Actualizar en memoria
   if (tipo === 'cliente') {
