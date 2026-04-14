@@ -168,7 +168,19 @@ async function abrirFicha(id) {
       ${datoFicha('Dir. fiscal',c.direccion_fiscal||'—')}
       ${datoFicha('Forma pago',formasPago.find(f=>f.id===c.forma_pago_id)?.nombre||'—')}
       ${datoFicha('Tarifa',tarifa)}
-      ${c.mandato_sepa_estado?datoFicha('Mandato SEPA',c.mandato_sepa_estado==='firmado'?'✅ Firmado':'⏳ '+c.mandato_sepa_estado):''}
+      ${(() => {
+        if (!c.mandato_sepa_estado) return '';
+        // Solo mostrar FIRMADO si realmente hay alguna cuenta bancaria firmada
+        const cuentasCli = (typeof cuentasBancariasEntidad !== 'undefined' ? cuentasBancariasEntidad : [])
+          .filter(cb => cb.tipo_entidad === 'cliente' && cb.entidad_id === c.id);
+        if (cuentasCli.length === 0) return ''; // sin cuentas → no mostrar badge (estado huérfano)
+        if (c.mandato_sepa_estado === 'firmado') {
+          const algunaFirmada = cuentasCli.some(cb => cb.mandato_sepa_estado === 'firmado');
+          if (!algunaFirmada) return ''; // estado huérfano → no mostrar
+          return datoFicha('Mandato SEPA','✅ Firmado');
+        }
+        return datoFicha('Mandato SEPA','⏳ '+c.mandato_sepa_estado);
+      })()}
       ${c.observaciones?`<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${c.observaciones}</div>`:''}
     </div>
     <div id="fichaCliBanco"></div>`;

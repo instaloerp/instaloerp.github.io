@@ -535,12 +535,14 @@ async function _generarYGuardarSEPAFirmadoPDF(tipo, entity, cuentaEmpresa, firma
     const last4 = ibanRaw.length>=4 ? ibanRaw.slice(-4) : '';
     const numeroDoc = last4 ? `${ref} · IBAN **${last4}` : ref;
 
-    // Evitar duplicados: si ya existe un documento_generado con este ref para esta entidad, no re-subir
+    // Evitar duplicados por race condition (realtime doble-fire): solo bloquear si existe uno creado hace < 15s
     try {
+      const hace15s = new Date(Date.now() - 15000).toISOString();
       const { data: existe } = await sb.from('documentos_generados')
-        .select('id').eq('entidad_tipo', tipo).eq('entidad_id', entity.id)
-        .eq('tipo_documento','mandato_sepa').eq('numero', numeroDoc).limit(1);
-      if (existe && existe.length) return;
+        .select('id, creado_en').eq('entidad_tipo', tipo).eq('entidad_id', entity.id)
+        .eq('tipo_documento','mandato_sepa').eq('numero', numeroDoc)
+        .gte('creado_en', hace15s).limit(1);
+      if (existe && existe.length) { console.log('[SEPA] Doc duplicado reciente, skip'); return; }
     } catch(e) { /* ignore, seguimos */ }
 
     if (typeof firmarYGuardarPDF === 'function') {
