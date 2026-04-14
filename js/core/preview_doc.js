@@ -200,14 +200,41 @@ function _prevBadgesCadena(tipo, d) {
   return out;
 }
 
+// Devuelve cantidad/descripción/descuento "normalizados" para una línea de cualquier tipo
+function _prevLinea(tipo, l) {
+  // Cantidad: recepciones usan cantidad_recibida; compras usan cantidad; ventas usan cant
+  let cant = 0;
+  if (tipo === 'rc') cant = Number(l.cantidad_recibida ?? l.cantidad ?? l.cant ?? 0);
+  else cant = Number(l.cantidad ?? l.cant ?? 0);
+  // Descripción: compras usan nombre (+ codigo opcional); ventas usan desc
+  const desc = l.nombre || l.desc || l.descripcion || l.articulo_descripcion || '';
+  const codigo = l.codigo ? `<span style="font-family:monospace;font-size:11px;color:var(--gris-400);margin-right:6px">${l.codigo}</span>` : '';
+  // Descuento: compras pueden tener dto1/dto2/dto3 en cascada; ventas dto único
+  let factor = 1;
+  let dtoTxt = '—';
+  if (l.dto1 != null || l.dto2 != null || l.dto3 != null) {
+    const d1 = Number(l.dto1)||0, d2 = Number(l.dto2)||0, d3 = Number(l.dto3)||0;
+    factor = (1 - d1/100) * (1 - d2/100) * (1 - d3/100);
+    const parts = [d1, d2, d3].filter(x => x > 0);
+    if (parts.length) dtoTxt = parts.map(x => x + '%').join('+');
+  } else if (l.dto != null) {
+    factor = 1 - (Number(l.dto)||0)/100;
+    dtoTxt = l.dto ? l.dto + '%' : '—';
+  }
+  const precio = Number(l.precio)||0;
+  const iva = Number(l.iva)||0;
+  const sub = cant * precio * factor;
+  return { cant, desc, codigo, dtoTxt, precio, iva, sub };
+}
+
 // Calcula totales a partir de líneas (si el doc no los trae pre-calculados)
-function _prevCalcTotales(lineas, hayIva) {
+function _prevCalcTotales(tipo, lineas, hayIva) {
   let base=0, ivaTot=0;
   (lineas||[]).forEach(l => {
     if (l.tipo === 'capitulo') return;
-    const sub = (Number(l.cant)||0) * (Number(l.precio)||0) * (1 - ((Number(l.dto)||0)/100));
+    const { sub, iva } = _prevLinea(tipo, l);
     base += sub;
-    if (hayIva) ivaTot += sub * ((Number(l.iva)||0)/100);
+    if (hayIva) ivaTot += sub * (iva/100);
   });
   return { base, ivaTot, total: base + ivaTot };
 }
@@ -239,7 +266,7 @@ async function previewDoc(tipo, id) {
 
   const proveedor = _prevProveedor(d);
   const lineas = d.lineas || [];
-  const { base, ivaTot, total } = _prevCalcTotales(lineas, cfg.hayIva);
+  const { base, ivaTot, total } = _prevCalcTotales(tipo, lineas, cfg.hayIva);
   const baseShow = d.base_imponible != null ? Number(d.base_imponible) : base;
   const ivaShow  = d.total_iva      != null ? Number(d.total_iva)      : ivaTot;
   const totalShow= d.total          != null ? Number(d.total)          : total;
@@ -261,15 +288,15 @@ async function previewDoc(tipo, id) {
         <td colspan="6" style="padding:8px 10px;font-weight:700;font-size:13px;color:var(--azul)">📁 ${l.titulo||''}</td>
       </tr>`;
     }
-    const sub = (Number(l.cant)||0)*(Number(l.precio)||0)*(1-((Number(l.dto)||0)/100));
-    const iv  = cfg.hayIva ? sub * ((Number(l.iva)||0)/100) : 0;
+    const L = _prevLinea(tipo, l);
+    const iv  = cfg.hayIva ? L.sub * (L.iva/100) : 0;
     return `<tr style="border-top:1px solid var(--gris-100)">
-      <td style="padding:8px 10px;font-size:13px">${l.desc || l.articulo_descripcion || '—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.cant||0}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${_prevFmtE(l.precio||0)}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${l.dto?l.dto+'%':'—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-size:13px">${cfg.hayIva ? (l.iva!=null?l.iva+'%':'—') : '—'}</td>
-      <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px">${_prevFmtE(sub+iv)}</td>
+      <td style="padding:8px 10px;font-size:13px">${L.codigo}${L.desc || '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${L.cant}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${_prevFmtE(L.precio)}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${L.dtoTxt}</td>
+      <td style="padding:8px 10px;text-align:right;font-size:13px">${cfg.hayIva ? (L.iva ? L.iva + '%' : '—') : '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px">${_prevFmtE(L.sub + iv)}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gris-400);font-size:12px">Sin líneas</td></tr>`);
 
