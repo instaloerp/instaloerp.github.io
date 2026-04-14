@@ -1165,6 +1165,10 @@ async function cargarMensajesObra(obraId, obra, presupData, albData, factData, p
 
     const msgs = data || [];
 
+    // Actualizar contador KPI de la pestaña
+    const kpi = document.getElementById('ok-mensajes');
+    if (kpi) kpi.textContent = msgs.length || '0';
+
     if (msgs.length === 0) {
       container.innerHTML = headerHTML + `
         <div class="empty" style="padding:40px 0">
