@@ -304,6 +304,7 @@ async function nuevoPedidoCompra() {
   if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
   _pcAplicarBloqueo(false);
   openModal('mPedidoCompra');
+  if (typeof dirtyInit === 'function') { dirtyInit('mPedidoCompra'); dirtyReset('mPedidoCompra'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -366,6 +367,7 @@ async function editarPedidoCompra(id) {
 
   pc_renderLineas();
   openModal('mPedidoCompra');
+  if (typeof dirtyInit === 'function') { dirtyInit('mPedidoCompra'); dirtyReset('mPedidoCompra'); }
 
   // ── Bloqueo por estado (patrón ventas) ──
   const banner = document.getElementById('pcBloqueoBanner');
@@ -727,3 +729,24 @@ function enviarPedidoCompraEmail(id) {
     toast('📧 Abriendo cliente de correo...','info');
   }
 }
+
+// ═══════════════════════════════════════════════
+// SMART CLOSE (botón ← atrás)
+// ═══════════════════════════════════════════════
+async function pcSmartClose() {
+  const banner = document.getElementById('pcBloqueoBanner');
+  if (banner && banner.style.display !== 'none') { closeModal('mPedidoCompra'); return; }
+  const isNew = !pcEditId;
+  const prov = document.getElementById('pc_proveedor')?.value;
+  const obs  = document.getElementById('pc_observaciones')?.value?.trim();
+  const lineasConDatos = Array.isArray(pcLineas) && pcLineas.some(l => l && (l.articulo_id || l.codigo || (l.nombre && String(l.nombre).trim()) || Number(l.precio) > 0));
+  const hasContent = !!(prov || obs || lineasConDatos);
+  const isDirty = typeof dirtyIs === 'function' ? dirtyIs('mPedidoCompra') : true;
+  await smartClose({
+    isNew, isDirty, hasContent,
+    guardar: async (estado) => { await guardarPedidoCompra(estado || 'pendiente'); },
+    cerrar:  () => closeModal('mPedidoCompra'),
+    titulo:  'pedido de compra'
+  });
+}
+window.pcSmartClose = pcSmartClose;

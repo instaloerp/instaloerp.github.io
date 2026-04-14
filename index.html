@@ -158,7 +158,7 @@
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 143</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 144</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1640,7 +1640,7 @@
       <div class="page" id="page-doc-editor" style="margin:-20px;padding:0;min-height:calc(100vh - 56px)">
         <!-- Topbar del editor -->
         <div style="background:#fff;border-bottom:1.5px solid var(--gris-200);padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40">
-          <button class="btn btn-ghost btn-sm" onclick="cerrarEditor()" style="font-size:18px;padding:4px 8px">←</button>
+          <button class="btn-back-circle" onclick="deSmartClose()" title="Volver atrás">←</button>
           <div style="display:flex;align-items:center;gap:8px">
             <span id="de_ico" style="font-size:20px">📋</span>
             <div>
@@ -3204,7 +3204,7 @@
 <!-- ═══ MODAL PRESUPUESTO DE COMPRA ═══ -->
 <div class="overlay" id="mPresupuestoCompra">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><span>📋</span><h2 id="mPRCTit">Nuevo Presupuesto de Compra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPresupuestoCompra')">✕</button></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="prcSmartClose()" title="Volver atrás">←</button><span>📋</span><h2 id="mPRCTit">Nuevo Presupuesto de Compra</h2></div>
     <div class="modal-b">
       <div id="prcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3260,7 +3260,7 @@
 <!-- ═══ MODAL PEDIDO DE COMPRA ═══ -->
 <div class="overlay" id="mPedidoCompra">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><span>🛒</span><h2 id="mPCTit">Nuevo Pedido de Compra</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPedidoCompra')">✕</button></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="pcSmartClose()" title="Volver atrás">←</button><span>🛒</span><h2 id="mPCTit">Nuevo Pedido de Compra</h2></div>
     <div class="modal-b">
       <div id="pcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3314,7 +3314,7 @@
 <!-- ═══ MODAL RECEPCIÓN (ALBARÁN PROVEEDOR) ═══ -->
 <div class="overlay" id="mRecepcion">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><span>📥</span><h2 id="mRCTit">Nuevo Albarán de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mRecepcion')">✕</button></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="rcSmartClose()" title="Volver atrás">←</button><span>📥</span><h2 id="mRCTit">Nuevo Albarán de Proveedor</h2></div>
     <div class="modal-b">
       <div id="rcBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -3434,7 +3434,7 @@
 <!-- ═══ MODAL FACTURA PROVEEDOR ═══ -->
 <div class="overlay" id="mFacturaProv">
   <div class="modal modal-fullscreen">
-    <div class="modal-h"><span>📑</span><h2 id="mFPTit">Nueva Factura de Proveedor</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaProv')">✕</button></div>
+    <div class="modal-h"><button class="btn-back-circle" onclick="fpSmartClose()" title="Volver atrás">←</button><span>📑</span><h2 id="mFPTit">Nueva Factura de Proveedor</h2></div>
     <div class="modal-b">
       <div id="fpBloqueoBanner" style="display:none;background:#FEF3C7;border-left:4px solid #F59E0B;padding:10px 14px;margin-bottom:12px;border-radius:6px;font-size:12.5px;color:#92400E;font-weight:600"></div>
       <div class="fg-row" style="margin-bottom:12px">
@@ -4211,6 +4211,7 @@
     'js/core/dashboard.js',
     'js/core/sidebar.js',
     'js/core/preview_doc.js',
+    'js/core/smart_close.js',
     // Comercial
     'js/comercial/autocomplete.js',
     'js/comercial/clientes.js',

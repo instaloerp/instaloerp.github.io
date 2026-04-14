@@ -375,6 +375,7 @@ async function nuevoPresupuestoCompra() {
   if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
   _prcAplicarBloqueo(false);
   openModal('mPresupuestoCompra');
+  if (typeof dirtyInit === 'function') { dirtyInit('mPresupuestoCompra'); dirtyReset('mPresupuestoCompra'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -454,6 +455,7 @@ async function editarPresupuestoCompra(id) {
   if (prcLineas.length === 0) prc_addLinea();
   prc_renderLineas();
   openModal('mPresupuestoCompra');
+  if (typeof dirtyInit === 'function') { dirtyInit('mPresupuestoCompra'); dirtyReset('mPresupuestoCompra'); }
 
   // ── Bloqueo: fuera de borrador, inmutable (patrón ventas) ──
   const banner = document.getElementById('prcBloqueoBanner');
@@ -866,3 +868,25 @@ function enviarPresupuestoCompraEmail(id) {
     toast('📧 Abriendo cliente de correo...','info');
   }
 }
+
+// ═══════════════════════════════════════════════
+// SMART CLOSE (botón ← atrás)
+// ═══════════════════════════════════════════════
+async function prcSmartClose() {
+  // Si está bloqueado (solo lectura por exportación a pedido), cerrar sin más
+  const banner = document.getElementById('prcBloqueoBanner');
+  if (banner && banner.style.display !== 'none') { closeModal('mPresupuestoCompra'); return; }
+  const isNew = !prcEditId;
+  const prov = document.getElementById('prc_proveedor')?.value;
+  const obs  = document.getElementById('prc_observaciones')?.value?.trim();
+  const lineasConDatos = Array.isArray(prcLineas) && prcLineas.some(l => l && (l.articulo_id || l.codigo || (l.nombre && String(l.nombre).trim()) || Number(l.precio) > 0));
+  const hasContent = !!(prov || obs || lineasConDatos);
+  const isDirty = typeof dirtyIs === 'function' ? dirtyIs('mPresupuestoCompra') : true;
+  await smartClose({
+    isNew, isDirty, hasContent,
+    guardar: async (estado) => { await guardarPresupuestoCompra(estado || 'pendiente'); },
+    cerrar:  () => closeModal('mPresupuestoCompra'),
+    titulo:  'presupuesto de compra'
+  });
+}
+window.prcSmartClose = prcSmartClose;

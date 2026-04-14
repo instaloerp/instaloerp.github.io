@@ -261,6 +261,7 @@ async function nuevaFacturaProv() {
   if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
   _fpAplicarBloqueo(false);
   openModal('mFacturaProv');
+  if (typeof dirtyInit === 'function') { dirtyInit('mFacturaProv'); dirtyReset('mFacturaProv'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -361,6 +362,7 @@ async function editarFacturaProv(id) {
   poblarSelectorObra('fp_obra', fp.trabajo_id);
   fp_renderLineas();
   openModal('mFacturaProv');
+  if (typeof dirtyInit === 'function') { dirtyInit('mFacturaProv'); dirtyReset('mFacturaProv'); }
 
   // ── Bloqueo por estado (patrón ventas) ──
   // En facturas prov el estado editable es 'pendiente'.
@@ -1599,6 +1601,7 @@ async function iaRellenarFactura(data, provId) {
   document.getElementById('mFPTit').textContent = 'Factura de Proveedor (importada con IA)';
   fp_renderLineas();
   openModal('mFacturaProv');
+  if (typeof dirtyInit === 'function') { dirtyInit('mFacturaProv'); dirtySet && dirtySet('mFacturaProv', true); }
 }
 
 async function iaRellenarAlbaran(data, provId) {
@@ -1813,3 +1816,25 @@ document.addEventListener('click', function(e) {
     document.querySelectorAll('.iap-sugerencias').forEach(s => s.style.display = 'none');
   }
 });
+
+// ═══════════════════════════════════════════════
+// SMART CLOSE (botón ← atrás)
+// ═══════════════════════════════════════════════
+async function fpSmartClose() {
+  const banner = document.getElementById('fpBloqueoBanner');
+  if (banner && banner.style.display !== 'none') { closeModal('mFacturaProv'); return; }
+  const isNew = !fpEditId;
+  const prov = document.getElementById('fp_proveedor')?.value;
+  const numFact = document.getElementById('fp_numero_factura')?.value?.trim();
+  const obs = document.getElementById('fp_observaciones')?.value?.trim();
+  const lineasConDatos = Array.isArray(fpLineas) && fpLineas.some(l => l && (l.articulo_id || l.codigo || (l.nombre && String(l.nombre).trim()) || Number(l.precio) > 0));
+  const hasContent = !!(prov || numFact || obs || lineasConDatos);
+  const isDirty = typeof dirtyIs === 'function' ? dirtyIs('mFacturaProv') : true;
+  await smartClose({
+    isNew, isDirty, hasContent,
+    guardar: async (estado) => { await guardarFacturaProv(estado || 'pendiente'); },
+    cerrar:  () => closeModal('mFacturaProv'),
+    titulo:  'factura de proveedor'
+  });
+}
+window.fpSmartClose = fpSmartClose;

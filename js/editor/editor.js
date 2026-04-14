@@ -148,8 +148,7 @@ async function abrirEditor(tipo, editId) {
     deConfig._mode = 'editing';
     de_showVersion(0);
     de_setReadonly(false);
-    btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-      <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
+    btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
       <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
   } else if (editId && isAnulado && _cB) {
     // ── ANULADO: solo lectura, restaurar o eliminar (superadmin) ──
@@ -157,15 +156,13 @@ async function abrirEditor(tipo, editId) {
     de_showVersion(0);
     de_setReadonly(true);
     btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="restaurarEstadoPres(${editId},'pendiente')">♻️ Restaurar</button>
-      ${CP?.es_superadmin?'<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="eliminarDefinitivamente('+editId+')">🗑️ Eliminar</button>':''}
-      <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>`;
+      ${CP?.es_superadmin?'<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="eliminarDefinitivamente('+editId+')">🗑️ Eliminar</button>':''}`;
   } else if (editId && isCaducado && tipo==='presupuesto') {
     // ── CADUCADO (solo presupuestos): solo lectura, reactivar ──
     deConfig._mode = 'view';
     de_showVersion(deConfig._version || 1);
     de_setReadonly(true);
-    btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="restaurarEstadoPres(${editId},'pendiente')">♻️ Reactivar</button>
-      <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>`;
+    btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="restaurarEstadoPres(${editId},'pendiente')">♻️ Reactivar</button>`;
   } else if (editId && docEstado==='aceptado' && tipo==='presupuesto') {
     // ── ACEPTADO (solo presupuestos): siempre bloqueado (solo superadmin puede editar) ──
     deConfig._mode = 'view';
@@ -175,13 +172,11 @@ async function abrirEditor(tipo, editId) {
     de_setReadonly(true);
     if (CP?.es_superadmin) {
       btnBox.innerHTML = `${_vBtn}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
+                <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Aceptado</span>`;
     } else {
       btnBox.innerHTML = `${_vBtn}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado — solo superadmin puede editar</span>`;
+                <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado — solo superadmin puede editar</span>`;
     }
   } else if (editId && deConfig._exportado_bloqueado) {
     // ── EXPORTADO/BLOQUEADO: solo lectura, superadmin puede desbloquear ──
@@ -193,13 +188,11 @@ async function abrirEditor(tipo, editId) {
     const destino = deConfig._exportado_a || 'otro documento';
     if (CP?.es_superadmin) {
       btnBox.innerHTML = `${_vBtn}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="de_desbloquearExportado()">🔓 Desbloquear</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="de_desbloquearExportado()">🔓 Desbloquear</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino}</span>`;
     } else {
       btnBox.innerHTML = `${_vBtn}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino} — solo superadmin puede desbloquear</span>`;
+                <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Exportado a ${destino} — solo superadmin puede desbloquear</span>`;
     }
   } else if (editId) {
     // ── EXISTENTE (pendiente u otro): lectura + editar + versiones ──
@@ -208,16 +201,14 @@ async function abrirEditor(tipo, editId) {
     de_showVersion(ver);
     de_setReadonly(true);
     btnBox.innerHTML = `${_vBtn}
-      <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-      <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
+            <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
   } else {
     // ── NUEVO ──
     deConfig._mode = 'new';
     de_showVersion(0);
     de_setReadonly(false);
     if (_cB) {
-      btnBox.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
+      btnBox.innerHTML = `  <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
         <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
     } else {
       btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">💾 Guardar borrador</button>
@@ -341,8 +332,7 @@ async function de_entrarEdicion() {
   de_renderLineas(); // re-render to restore drag handles
 
   const btnBox = document.getElementById('de_buttons');
-  btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-    <button class="btn btn-primary btn-sm" onclick="de_guardarVersion()">💾 Guardar</button>`;
+  btnBox.innerHTML = `    <button class="btn btn-primary btn-sm" onclick="de_guardarVersion()">💾 Guardar</button>`;
   toast('✏️ Modo edición — versión v'+cfg._version,'info');
 }
 
@@ -375,18 +365,15 @@ async function de_guardarVersion() {
     cfg._bloqueado = true;
     if (CP?.es_superadmin) {
       btnBox.innerHTML = `${_vBtn2}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
+                <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">🔓 Editar (superadmin)</button>
         <span style="color:var(--amarillo);font-size:12px;margin-left:8px">🔒 Aceptado</span>`;
     } else {
       btnBox.innerHTML = `${_vBtn2}
-        <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-        <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado</span>`;
+                <span style="color:var(--rojo);font-size:12px;margin-left:8px">🔒 Bloqueado</span>`;
     }
   } else {
     btnBox.innerHTML = `${_vBtn2}
-      <button class="btn btn-secondary btn-sm" onclick="cerrarEditor()">✕ Cerrar</button>
-      <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
+            <button class="btn btn-primary btn-sm" onclick="de_entrarEdicion()">✏️ Editar</button>`;
   }
 }
 
@@ -539,6 +526,39 @@ async function de_autoguardar_flush() {
   _autoguardTimer = null;
   await _de_autoguardar_do();
 }
+
+// ¿El editor actual tiene contenido real (cliente, número, líneas, etc.)?
+function deHasContent() {
+  try {
+    const datos = (typeof de_buildDatos === 'function') ? de_buildDatos() : null;
+    if (!datos) return false;
+    if (datos.cliente_id || datos.proveedor_id) return true;
+    if (datos.numero && String(datos.numero).trim()) return true;
+    if (Array.isArray(deLineas) && deLineas.some(l => (l && (l.desc || l.descripcion || l.articulo_id)))) return true;
+    if (datos.observaciones && String(datos.observaciones).trim()) return true;
+  } catch(e) {}
+  return false;
+}
+
+// Smart close del editor de Ventas.
+async function deSmartClose() {
+  if (!deConfig) { cerrarEditor(); return; }
+  const isNew = !deConfig.editId;
+  const isView = deConfig._mode === 'view';
+  // En modo view (lectura) cerramos sin más
+  if (isView) { cerrarEditor(); return; }
+  // Flush de autosave primero (puede dejar _autoguardDirty=false y guardar silenciosamente)
+  await de_autoguardar_flush();
+  if (isNew) {
+    if (!deHasContent()) { cerrarEditor(); return; }
+    // Nuevo con datos → guardar borrador (de_guardar cierra solo)
+    try { await de_guardar('borrador'); } catch(e) { cerrarEditor(); }
+    return;
+  }
+  // Existente: tras flush ya quedó guardado todo. Cerrar.
+  cerrarEditor();
+}
+window.deSmartClose = deSmartClose;
 
 // Listeners globales: al salir de un campo o cambiar de pestaña, flush.
 (function _de_installAutosaveListeners(){

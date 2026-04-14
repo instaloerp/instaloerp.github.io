@@ -369,6 +369,7 @@ async function nuevaRecepcion() {
   if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
   _rcAplicarBloqueo(false);
   openModal('mRecepcion');
+  if (typeof dirtyInit === 'function') { dirtyInit('mRecepcion'); dirtyReset('mRecepcion'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -431,6 +432,7 @@ async function editarRecepcion(id) {
   poblarSelectorObra('rc_obra', r.trabajo_id);
   rc_renderLineas();
   openModal('mRecepcion');
+  if (typeof dirtyInit === 'function') { dirtyInit('mRecepcion'); dirtyReset('mRecepcion'); }
 
   // ── Bloqueo por estado (patrón ventas) ──
   // En recepciones el estado editable es 'pendiente'.
@@ -1035,3 +1037,24 @@ function enviarRecepcionEmail(id) {
     toast('Abriendo correo...', 'info');
   }
 }
+
+// ═══════════════════════════════════════════════
+// SMART CLOSE (botón ← atrás)
+// ═══════════════════════════════════════════════
+async function rcSmartClose() {
+  const banner = document.getElementById('rcBloqueoBanner');
+  if (banner && banner.style.display !== 'none') { closeModal('mRecepcion'); return; }
+  const isNew = !rcEditId;
+  const prov = document.getElementById('rc_proveedor')?.value;
+  const obs  = document.getElementById('rc_observaciones')?.value?.trim();
+  const lineasConDatos = Array.isArray(rcLineas) && rcLineas.some(l => l && (l.articulo_id || l.codigo || (l.nombre && String(l.nombre).trim()) || Number(l.cantidad_recibida) > 0));
+  const hasContent = !!(prov || obs || lineasConDatos);
+  const isDirty = typeof dirtyIs === 'function' ? dirtyIs('mRecepcion') : true;
+  await smartClose({
+    isNew, isDirty, hasContent,
+    guardar: async () => { await guardarRecepcion(false); },
+    cerrar:  () => closeModal('mRecepcion'),
+    titulo:  'albarán de proveedor'
+  });
+}
+window.rcSmartClose = rcSmartClose;
