@@ -722,6 +722,10 @@ function imprimirFactura(f) {
 }
 
 function _imprimirFacturaHtml(f) {
+  if (typeof window._imprimirDocumento === 'function' && typeof _cfgFactura === 'function') {
+    return window._imprimirDocumento(_cfgFactura(f));
+  }
+  // ─── Fallback antiguo (no debería ejecutarse) ───
   const c = clientes.find(x=>x.id===f.cliente_id);
   const lineas = f.lineas||[];
   let htmlLineas='', base=0, ivaTotal=0;
@@ -856,10 +860,12 @@ function generarPdfFactura(f) {
   _generarPdfFactura(f);
 }
 
-async function _generarPdfFactura(f, opts) {
-  const _soloBase64 = !!(opts && opts.soloBase64);
+// Construye cfg unificado para factura (sin capítulos, líneas planas)
+function _cfgFactura(f) {
   const cli = clientes.find(x=>x.id===f.cliente_id) || {};
-  const doc = await window._buildPdfDocumento({
+  // Eliminar marcadores de capítulo si los hubiera (factura va plana)
+  const lineasPlanas = (f.lineas||[]).filter(l => l && l.tipo !== 'capitulo');
+  return {
     tipo: 'FACTURA',
     numero: f.numero,
     fecha: f.fecha,
@@ -868,36 +874,56 @@ async function _generarPdfFactura(f, opts) {
       nombre: f.cliente_nombre || cli.nombre || '—',
       nif: cli.nif,
       direccion: cli.direccion_fiscal || cli.direccion,
-      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
+      cp: cli.cp_fiscal || cli.cp,
+      municipio: cli.municipio_fiscal || cli.municipio,
+      provincia: cli.provincia_fiscal || cli.provincia,
       email: cli.email, telefono: cli.telefono
     },
-    lineas: f.lineas || [],
+    lineas: lineasPlanas,
     base_imponible: f.base_imponible,
     total_iva: f.total_iva,
     total: f.total,
     observaciones: f.observaciones,
+    datos_extra: [
+      f.fecha_vencimiento ? ['Vencimiento', new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')] : null,
+      f.forma_pago ? ['Forma de pago', f.forma_pago] : null
+    ].filter(Boolean),
     condiciones: [
       ['Forma de pago', f.forma_pago || 'Transferencia bancaria.'],
       ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
       ['IVA', 'IVA al 21 % incluido en el total final.']
     ],
     firma_zona: false
-  });
-  if (_soloBase64) {
-    const dataUri = doc.output('datauristring');
-    return (dataUri || '').split(',')[1] || null;
-  }
-  doc.save('Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
-  toast('📄 PDF factura descargado ✓','success');
+  };
+}
+
+async function _generarPdfFactura(f, opts) {
+  const _soloBase64 = !!(opts && opts.soloBase64);
+  const cfg = _cfgFactura(f);
+  const filename = 'Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf';
+
+  if (_soloBase64) return await window._documentoPdfBase64(cfg);
+
+  await window._descargarPdfDocumento(cfg, filename);
+
   if (typeof firmarYGuardarPDF === 'function') {
-    const pdfData = doc.output('arraybuffer');
-    firmarYGuardarPDF(pdfData, {
-      tipo_documento: 'factura', documento_id: f.id, numero: f.numero,
-      entidad_tipo: 'cliente', entidad_id: f.cliente_id,
-      entidad_nombre: f.cliente_nombre || cli?.nombre || ''
-    }).then(r => {
-      if (r && r.success && r.firma_info) toast('🔏 Factura firmada digitalmente ✓', 'success');
-      else if (r && !r.firmado) toast('📄 Factura guardada (sin firma digital)', 'info');
-    }).catch(e => { console.error('Error firmando factura:', e); });
+    try {
+      const b64 = await window._documentoPdfBase64(cfg);
+      if (b64) {
+        const bin = atob(b64);
+        const buf = new ArrayBuffer(bin.length);
+        const view = new Uint8Array(buf);
+        for (let i=0; i<bin.length; i++) view[i] = bin.charCodeAt(i);
+        const cli = clientes.find(c => c.id === f.cliente_id);
+        firmarYGuardarPDF(buf, {
+          tipo_documento: 'factura', documento_id: f.id, numero: f.numero,
+          entidad_tipo: 'cliente', entidad_id: f.cliente_id,
+          entidad_nombre: f.cliente_nombre || cli?.nombre || ''
+        }).then(r => {
+          if (r && r.success && r.firma_info) toast('🔏 Factura firmada digitalmente ✓', 'success');
+          else if (r && !r.firmado) toast('📄 Factura guardada (sin firma digital)', 'info');
+        }).catch(e => { console.error('Error firmando factura:', e); });
+      }
+    } catch(e){ console.warn('No se pudo firmar copia factura:', e); }
   }
 }

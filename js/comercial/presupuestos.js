@@ -968,9 +968,54 @@ function _buildFirmaHtml(p) {
   return '<div class="validez-box">Este presupuesto tiene una validez de ' + dias + ' desde la fecha de emisión. Para aceptarlo, póngase en contacto con nosotros antes de la fecha de validez indicada.</div>';
 }
 
+// ───────────────────────────────────────────────────────────
+//  Helper interno: construye el cfg del renderer unificado
+// ───────────────────────────────────────────────────────────
+function _cfgPresupuesto(p) {
+  const cli = clientes.find(x=>x.id===p.cliente_id) || {};
+  return {
+    tipo: 'PRESUPUESTO',
+    numero: p.numero,
+    fecha: p.fecha,
+    titulo: p.titulo,
+    cliente: {
+      nombre: p.cliente_nombre || cli.nombre || '—',
+      nif: cli.nif,
+      direccion: cli.direccion_fiscal || cli.direccion,
+      cp: cli.cp_fiscal || cli.cp,
+      municipio: cli.municipio_fiscal || cli.municipio,
+      provincia: cli.provincia_fiscal || cli.provincia,
+      email: cli.email, telefono: cli.telefono
+    },
+    lineas: p.lineas || [],
+    base_imponible: p.base_imponible,
+    total_iva: p.total_iva,
+    total: p.total,
+    observaciones: p.observaciones,
+    datos_extra: [
+      ['Válido hasta', p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '15 días'],
+      p.forma_pago ? ['Forma de pago', p.forma_pago] : null
+    ].filter(Boolean),
+    condiciones: [
+      ['Forma de pago', p.forma_pago || '40 % a la firma del presupuesto · 30 % a la entrega de materiales en obra · 30 % a la finalización.'],
+      ['Validez del presupuesto', p.fecha_validez ? ('Hasta el ' + new Date(p.fecha_validez).toLocaleDateString('es-ES')) : '15 días desde la fecha indicada en la cabecera.'],
+      ['IVA', 'IVA al 21 % incluido en el total final del presupuesto.']
+    ],
+    firma_zona: true,
+    firma_aceptada: (p.estado==='aceptado' && p.firma_fecha) ? {
+      nombre: p.firma_nombre, fecha: p.firma_fecha, ip: p.firma_ip,
+      dispositivo: p.firma_dispositivo || {}, url: p.firma_url
+    } : null
+  };
+}
+
 function imprimirPresupuesto(id) {
   const p = presupuestos.find(x=>x.id===id);
   if (!p) { toast('Presupuesto no encontrado','error'); return; }
+  if (typeof window._imprimirDocumento === 'function') {
+    return window._imprimirDocumento(_cfgPresupuesto(p));
+  }
+  // ─── Fallback antiguo (no debería ejecutarse) ───
   const c = clientes.find(x=>x.id===p.cliente_id);
   const capLineas = p.lineas||[];
   let htmlLineas = '';
@@ -1239,59 +1284,38 @@ async function guardarPresupYPdf() {
 // ═══════════════════════════════════════════════
 async function generarPdfPresupuesto(p, opts) {
   const _soloBase64 = !!(opts && opts.soloBase64);
-  const cli = clientes.find(x=>x.id===p.cliente_id) || {};
-  const doc = await _buildPdfDocumento({
-    tipo: 'PRESUPUESTO',
-    numero: p.numero,
-    fecha: p.fecha,
-    titulo: p.titulo,
-    cliente: {
-      nombre: p.cliente_nombre || cli.nombre || '—',
-      nif: cli.nif,
-      direccion: cli.direccion_fiscal || cli.direccion,
-      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
-      email: cli.email, telefono: cli.telefono
-    },
-    lineas: p.lineas || [],
-    base_imponible: p.base_imponible,
-    total_iva: p.total_iva,
-    total: p.total,
-    observaciones: p.observaciones,
-    condiciones: [
-      ['Forma de pago', p.forma_pago || '40 % a la firma del presupuesto · 30 % a la entrega de materiales en obra · 30 % a la finalización.'],
-      ['Validez del presupuesto', p.fecha_validez ? ('Hasta el ' + new Date(p.fecha_validez).toLocaleDateString('es-ES')) : '15 días desde la fecha indicada en la cabecera.'],
-      ['IVA', 'IVA al 21 % incluido en el total final del presupuesto.']
-    ],
-    firma_zona: true,
-    firma_aceptada: (p.estado==='aceptado' && p.firma_fecha) ? {
-      nombre: p.firma_nombre, fecha: p.firma_fecha, ip: p.firma_ip,
-      dispositivo: p.firma_dispositivo || {}, url: p.firma_url
-    } : null
-  });
+  const cfg = _cfgPresupuesto(p);
+  const filename = 'Presupuesto_'+(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf';
 
   if (_soloBase64) {
-    const dataUri = doc.output('datauristring');
-    return (dataUri || '').split(',')[1] || null;
+    return await window._documentoPdfBase64(cfg);
   }
 
-  // ─── DESCARGAR ───
-  doc.save('Presupuesto_'+(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
-  toast('📄 PDF descargado ✓','success');
+  // Descargar
+  await window._descargarPdfDocumento(cfg, filename);
 
-  // Firmar y guardar copia en documentos_generados
+  // Firmar y guardar copia en documentos_generados (best-effort, no bloqueante)
   if (typeof firmarYGuardarPDF === 'function') {
-    const pdfData = doc.output('arraybuffer');
-    const cli = clientes.find(c => c.id === p.cliente_id);
-    firmarYGuardarPDF(pdfData, {
-      tipo_documento: 'presupuesto',
-      documento_id: p.id,
-      numero: p.numero,
-      entidad_tipo: 'cliente',
-      entidad_id: p.cliente_id,
-      entidad_nombre: p.cliente_nombre || cli?.nombre || ''
-    }).then(r => {
-      if (r && r.success && r.firma_info) toast('🔏 Presupuesto firmado digitalmente ✓', 'success');
-      else if (r && !r.firmado) toast('📄 Presupuesto guardado (sin firma digital)', 'info');
-    }).catch(e => { console.error('Error firmando presupuesto:', e); toast('⚠️ Error al firmar presupuesto', 'error'); });
+    try {
+      const b64 = await window._documentoPdfBase64(cfg);
+      if (b64) {
+        const bin = atob(b64);
+        const buf = new ArrayBuffer(bin.length);
+        const view = new Uint8Array(buf);
+        for (let i=0; i<bin.length; i++) view[i] = bin.charCodeAt(i);
+        const cli = clientes.find(c => c.id === p.cliente_id);
+        firmarYGuardarPDF(buf, {
+          tipo_documento: 'presupuesto',
+          documento_id: p.id,
+          numero: p.numero,
+          entidad_tipo: 'cliente',
+          entidad_id: p.cliente_id,
+          entidad_nombre: p.cliente_nombre || cli?.nombre || ''
+        }).then(r => {
+          if (r && r.success && r.firma_info) toast('🔏 Presupuesto firmado digitalmente ✓', 'success');
+          else if (r && !r.firmado) toast('📄 Presupuesto guardado (sin firma digital)', 'info');
+        }).catch(e => { console.error('Error firmando presupuesto:', e); });
+      }
+    } catch(e){ console.warn('No se pudo firmar/guardar copia:', e); }
   }
 }

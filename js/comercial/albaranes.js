@@ -455,9 +455,56 @@ async function albaranToObra(id) {
 // ═══════════════════════════════════════════════
 //  IMPRIMIR / PDF ALBARÁN
 // ═══════════════════════════════════════════════
+// Construye cfg unificado para albarán (sin capítulos, líneas planas)
+function _cfgAlbaran(a) {
+  const cli = clientes.find(x=>x.id===a.cliente_id) || {};
+  const lineasPlanas = (a.lineas||[]).filter(l => l && l.tipo !== 'capitulo');
+  // Calcular totales si vienen vacíos
+  let base = Number(a.base_imponible)||0;
+  let ivaT = Number(a.total_iva)||0;
+  let totL = Number(a.total)||0;
+  if (!base && !ivaT && !totL && lineasPlanas.length) {
+    lineasPlanas.forEach(l => {
+      const cant = Number(l.cant)||0, precio = Number(l.precio)||0;
+      const dto1 = Number(l.dto1||l.dto||0), dto2 = Number(l.dto2||0), dto3 = Number(l.dto3||0);
+      const sub = cant*precio*(1-dto1/100)*(1-dto2/100)*(1-dto3/100);
+      const iv = sub*((Number(l.iva)||0)/100);
+      base += sub; ivaT += iv;
+    });
+    totL = base + ivaT;
+  }
+  return {
+    tipo: 'ALBARÁN',
+    numero: a.numero,
+    fecha: a.fecha,
+    titulo: a.titulo || a.referencia,
+    cliente: {
+      nombre: a.cliente_nombre || cli.nombre || '—',
+      nif: cli.nif,
+      direccion: cli.direccion_fiscal || cli.direccion,
+      cp: cli.cp_fiscal || cli.cp,
+      municipio: cli.municipio_fiscal || cli.municipio,
+      provincia: cli.provincia_fiscal || cli.provincia,
+      email: cli.email, telefono: cli.telefono
+    },
+    lineas: lineasPlanas,
+    base_imponible: base,
+    total_iva: ivaT,
+    total: totL,
+    observaciones: a.observaciones,
+    datos_extra: a.referencia ? [['Referencia', a.referencia]] : [],
+    condiciones: null,
+    firma_zona: true
+  };
+}
+
 function imprimirAlbaran(id) {
   const a = albaranesData.find(x=>x.id===id);
   if (!a) { toast('Albarán no encontrado','error'); return; }
+  if (typeof window._imprimirDocumento === 'function') {
+    return window._imprimirDocumento(_cfgAlbaran(a));
+  }
+  // ─── Fallback antiguo (no debería ejecutarse) ───
   const c = clientes.find(x=>x.id===a.cliente_id);
   const lineas = a.lineas||[];
   let htmlLineas = '';
@@ -558,45 +605,31 @@ async function generarPdfAlbaran(idOrObj, opts) {
   const a = typeof idOrObj==='object' ? idOrObj : albaranesData.find(x=>x.id===idOrObj);
   if (!a) { toast('Albarán no encontrado','error'); return; }
   const _soloBase64 = !!(opts && opts.soloBase64);
-  const cli = clientes.find(x=>x.id===a.cliente_id) || {};
-  const doc = await window._buildPdfDocumento({
-    tipo: 'ALBARÁN',
-    numero: a.numero,
-    fecha: a.fecha,
-    titulo: a.titulo || a.referencia,
-    cliente: {
-      nombre: a.cliente_nombre || cli.nombre || '—',
-      nif: cli.nif,
-      direccion: cli.direccion_fiscal || cli.direccion,
-      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
-      email: cli.email, telefono: cli.telefono
-    },
-    lineas: a.lineas || [],
-    base_imponible: a.base_imponible,
-    total_iva: a.total_iva,
-    total: a.total,
-    observaciones: a.observaciones,
-    condiciones: [
-      ['Recepción', 'Recibí conforme — firma y fecha en la zona inferior.'],
-      ['Referencia', a.referencia || '—']
-    ],
-    firma_zona: true
-  });
-  if (_soloBase64) {
-    const dataUri = doc.output('datauristring');
-    return (dataUri || '').split(',')[1] || null;
-  }
-  doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
-  toast('📄 PDF albarán descargado ✓','success');
+  const cfg = _cfgAlbaran(a);
+  const filename = 'Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf';
+
+  if (_soloBase64) return await window._documentoPdfBase64(cfg);
+
+  await window._descargarPdfDocumento(cfg, filename);
+
   if (typeof firmarYGuardarPDF === 'function') {
-    const pdfData = doc.output('arraybuffer');
-    firmarYGuardarPDF(pdfData, {
-      tipo_documento: 'albaran', documento_id: a.id, numero: a.numero,
-      entidad_tipo: 'cliente', entidad_id: a.cliente_id,
-      entidad_nombre: a.cliente_nombre || cli?.nombre || ''
-    }).then(r => {
-      if (r && r.success && r.firma_info) toast('🔏 Albarán firmado digitalmente ✓', 'success');
-      else if (r && !r.firmado) toast('📄 Albarán guardado (sin firma digital)', 'info');
-    }).catch(e => { console.error('Error firmando albarán:', e); });
+    try {
+      const b64 = await window._documentoPdfBase64(cfg);
+      if (b64) {
+        const bin = atob(b64);
+        const buf = new ArrayBuffer(bin.length);
+        const view = new Uint8Array(buf);
+        for (let i=0; i<bin.length; i++) view[i] = bin.charCodeAt(i);
+        const cli = clientes.find(c => c.id === a.cliente_id);
+        firmarYGuardarPDF(buf, {
+          tipo_documento: 'albaran', documento_id: a.id, numero: a.numero,
+          entidad_tipo: 'cliente', entidad_id: a.cliente_id,
+          entidad_nombre: a.cliente_nombre || cli?.nombre || ''
+        }).then(r => {
+          if (r && r.success && r.firma_info) toast('🔏 Albarán firmado digitalmente ✓', 'success');
+          else if (r && !r.firmado) toast('📄 Albarán guardado (sin firma digital)', 'info');
+        }).catch(e => { console.error('Error firmando albarán:', e); });
+      }
+    } catch(e){ console.warn('No se pudo firmar copia albarán:', e); }
   }
 }
