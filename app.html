@@ -16,6 +16,7 @@
 <title>Instalo App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -1342,7 +1343,8 @@ function renderBottomNav() {
     // ── Modo Almacén ──
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">📦</span><span class="lbl">Stock</span></button>
-      <button class="nav-item" data-tab="movimientos" onclick="navigateTo('movimientos')"><span class="ico">↕️</span><span class="lbl">Movimientos</span></button>
+      <button class="nav-item" data-tab="mostrador" onclick="navigateTo('mostrador')"><span class="ico">🛒</span><span class="lbl">Mostrador</span></button>
+      <button class="nav-item" data-tab="movimientos" onclick="navigateTo('movimientos')"><span class="ico">↕️</span><span class="lbl">Movs</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
     if (fab) {
@@ -1410,6 +1412,7 @@ function navigateTo(tab) {
   if (esModoAlmacen) {
     switch(tab) {
       case 'inicio':       renderAppAlmacen(body); break;
+      case 'mostrador':    renderAlmacenMostrador(body); break;
       case 'movimientos':  renderAlmacenMovimientos(body); break;
       case 'mas':          renderAlmacenMas(body); break;
     }
@@ -3609,9 +3612,852 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 120
+        instaloERP v1.1 · build 123
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// MODO MOSTRADOR — selector destino + carrito
+// ═══════════════════════════════════════════════
+let _mostrador = {
+  destinoTipo: null,    // 'cliente' | 'obra' | 'furgoneta' | 'almacen'
+  destinoId:   null,    // id del cliente / trabajo / furgoneta / almacen destino
+  destinoLabel:'',      // etiqueta visible
+  almacenOrigenId: null,// almacén que descuenta (por defecto el de la sesión)
+  items: []             // [{articulo_id, codigo, nombre, cantidad, precio_unit}]
+};
+let _mostradorAlmacenes = []; // cache de almacenes
+let _mostradorBusqueda = '';
+
+async function renderAlmacenMostrador(el) {
+  // Inicializar almacén origen si está vacío (default = almacén principal o el de la sesión)
+  if (!_mostrador.almacenOrigenId) {
+    if (!_mostradorAlmacenes.length) {
+      try {
+        const { data } = await sb.from('almacenes')
+          .select('id,nombre,tipo,operario_nombre,operario_id,activo')
+          .eq('empresa_id', EMPRESA.id)
+          .eq('activo', true)
+          .order('tipo', { ascending: true })
+          .order('nombre', { ascending: true });
+        _mostradorAlmacenes = data || [];
+      } catch(e) { _mostradorAlmacenes = []; }
+    }
+    const principal = _mostradorAlmacenes.find(a => a.tipo === 'principal') || _mostradorAlmacenes[0];
+    if (principal) _mostrador.almacenOrigenId = principal.id;
+  }
+
+  el.innerHTML = `
+    <div style="padding:14px 14px 100px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:18px;font-weight:800">🛒 Mostrador</div>
+          <div style="font-size:11px;color:var(--gris-400)">Salida rápida de material</div>
+        </div>
+        <button onclick="_mostradorReset()" style="padding:6px 12px;border:1.5px solid var(--gris-200);background:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Reiniciar</button>
+      </div>
+
+      <!-- Origen -->
+      <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;padding:10px 12px;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--gris-400);font-weight:700;margin-bottom:4px">DESCONTAR DE</div>
+        <select id="mostradorOrigen" onchange="_mostrador.almacenOrigenId=this.value;_mostradorRefreshHeader()"
+          style="width:100%;padding:8px 6px;border:none;background:transparent;font-size:14px;font-weight:700;outline:none;font-family:var(--font)">
+          ${_mostradorAlmacenes.map(a => `
+            <option value="${a.id}" ${a.id===_mostrador.almacenOrigenId?'selected':''}>
+              ${a.tipo==='furgoneta'?'🚐':a.tipo==='principal'?'🏭':'📦'} ${a.nombre}${a.operario_nombre?' · '+a.operario_nombre:''}
+            </option>
+          `).join('')}
+        </select>
+      </div>
+
+      <!-- Destino -->
+      <div id="mostradorDestino"></div>
+
+      <!-- Buscador -->
+      <div style="display:flex;gap:8px;margin:14px 0 10px">
+        <input type="text" id="mostradorBuscar" placeholder="Buscar artículo (código, nombre, EAN)..."
+          oninput="_mostradorBusqueda=this.value;_mostradorRenderResultados()"
+          style="flex:1;padding:11px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">
+        <button onclick="_mostradorAbrirEscaner()" title="Escanear QR / código de barras"
+          style="padding:11px 14px;border:none;background:var(--gris-700);color:#fff;border-radius:10px;font-size:18px;cursor:pointer">📷</button>
+      </div>
+
+      <!-- Resultados de búsqueda -->
+      <div id="mostradorResultados"></div>
+
+      <!-- Carrito -->
+      <div id="mostradorCarrito" style="margin-top:18px"></div>
+    </div>
+
+    <!-- Footer fijo con totales y acción -->
+    <div id="mostradorFooter" style="position:fixed;bottom:64px;left:0;right:0;background:#fff;border-top:1.5px solid var(--gris-200);padding:10px 14px;display:none;z-index:100">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div id="mostradorCount" style="font-size:11px;color:var(--gris-400);font-weight:700"></div>
+          <div id="mostradorTotal" style="font-size:18px;font-weight:800"></div>
+        </div>
+        <button onclick="_mostradorFinalizar()"
+          style="padding:12px 20px;border:none;background:var(--verde);color:#fff;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer">
+          Finalizar →
+        </button>
+      </div>
+    </div>
+  `;
+
+  _mostradorRefreshHeader();
+  _mostradorRenderResultados();
+  _mostradorRenderCarrito();
+}
+
+function _mostradorReset() {
+  if (_mostrador.items.length && !confirm('¿Vaciar el mostrador y empezar de cero?')) return;
+  _mostrador.destinoTipo = null;
+  _mostrador.destinoId   = null;
+  _mostrador.destinoLabel= '';
+  _mostrador.items = [];
+  _mostradorBusqueda = '';
+  renderAlmacenMostrador(document.getElementById('appBody'));
+}
+
+function _mostradorRefreshHeader() {
+  const cont = document.getElementById('mostradorDestino');
+  if (!cont) return;
+  const tipos = [
+    { k:'cliente',   ico:'👤', lbl:'Cliente',   col:'var(--azul)'   },
+    { k:'obra',      ico:'🏗️', lbl:'Obra',      col:'var(--acento)' },
+    { k:'furgoneta', ico:'🚐', lbl:'Furgoneta', col:'var(--verde)'  },
+    { k:'almacen',   ico:'📦', lbl:'Almacén',   col:'var(--violeta)'},
+  ];
+  cont.innerHTML = `
+    <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;padding:12px;margin-top:10px">
+      <div style="font-size:11px;color:var(--gris-400);font-weight:700;margin-bottom:8px">DESTINO</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+        ${tipos.map(t => `
+          <button onclick="_mostradorPickDestino('${t.k}')" style="
+            padding:10px 4px;border:2px solid ${_mostrador.destinoTipo===t.k?t.col:'var(--gris-200)'};
+            background:${_mostrador.destinoTipo===t.k?t.col:'#fff'};
+            color:${_mostrador.destinoTipo===t.k?'#fff':'var(--gris-700)'};
+            border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span style="font-size:18px">${t.ico}</span>
+            <span>${t.lbl}</span>
+          </button>
+        `).join('')}
+      </div>
+      ${_mostrador.destinoLabel ? `
+        <div style="margin-top:10px;padding:8px 10px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:13px;font-weight:700">→ ${_mostrador.destinoLabel}</div>
+          <button onclick="_mostradorPickDestino('${_mostrador.destinoTipo}')" style="background:none;border:none;color:var(--azul);font-size:12px;font-weight:700;cursor:pointer">Cambiar</button>
+        </div>
+      ` : `<div style="margin-top:8px;font-size:11px;color:var(--gris-400);text-align:center">Selecciona el tipo de destino</div>`}
+    </div>
+  `;
+}
+
+async function _mostradorPickDestino(tipo) {
+  _mostrador.destinoTipo = tipo;
+  if (tipo === 'cliente')   return _mostradorPickCliente();
+  if (tipo === 'obra')      return _mostradorPickObra();
+  if (tipo === 'furgoneta') return _mostradorPickFurgoneta();
+  if (tipo === 'almacen')   return _mostradorPickAlmacen();
+}
+
+function _mostradorPickCliente() {
+  const lista = (clientes || []).slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+  _mostradorModalSelector('Selecciona cliente', [
+    { id:'_contado', nombre:'⚡ Contado (sin cliente)' },
+    ...lista.map(c => ({ id:c.id, nombre:c.nombre || c.razon_social || `Cliente ${c.id}`, sub:c.nif||'' }))
+  ], (sel) => {
+    _mostrador.destinoId    = sel.id === '_contado' ? null : sel.id;
+    _mostrador.destinoLabel = sel.nombre;
+    _mostradorRefreshHeader();
+  });
+}
+
+function _mostradorPickObra() {
+  const lista = (trabajos || []).filter(t => (t.estado||'') !== 'finalizado' && (t.estado||'') !== 'cancelado')
+    .sort((a,b)=>(a.titulo||a.descripcion||'').localeCompare(b.titulo||b.descripcion||''));
+  if (!lista.length) { alert('No hay obras/trabajos activos'); return; }
+  _mostradorModalSelector('Selecciona obra', lista.map(t => {
+    const cli = (clientes||[]).find(c => c.id === t.cliente_id);
+    return { id:t.id, nombre: t.titulo || t.descripcion || `Trabajo ${t.id}`, sub: cli?.nombre || '' };
+  }), (sel) => {
+    _mostrador.destinoId    = sel.id;
+    _mostrador.destinoLabel = `🏗️ ${sel.nombre}${sel.sub?' · '+sel.sub:''}`;
+    _mostradorRefreshHeader();
+  });
+}
+
+function _mostradorPickFurgoneta() {
+  const lista = _mostradorAlmacenes.filter(a => a.tipo === 'furgoneta' && a.id !== _mostrador.almacenOrigenId);
+  if (!lista.length) { alert('No hay furgonetas disponibles distintas del origen'); return; }
+  _mostradorModalSelector('Selecciona furgoneta destino', lista.map(a => ({
+    id:a.id, nombre:`🚐 ${a.nombre}`, sub:a.operario_nombre||''
+  })), (sel) => {
+    _mostrador.destinoId    = sel.id;
+    _mostrador.destinoLabel = `${sel.nombre}${sel.sub?' · '+sel.sub:''}`;
+    _mostradorRefreshHeader();
+  });
+}
+
+function _mostradorPickAlmacen() {
+  const lista = _mostradorAlmacenes.filter(a => a.tipo !== 'furgoneta' && a.id !== _mostrador.almacenOrigenId);
+  if (!lista.length) { alert('No hay almacenes destino disponibles'); return; }
+  _mostradorModalSelector('Selecciona almacén destino', lista.map(a => ({
+    id:a.id, nombre:`📦 ${a.nombre}`
+  })), (sel) => {
+    _mostrador.destinoId    = sel.id;
+    _mostrador.destinoLabel = sel.nombre;
+    _mostradorRefreshHeader();
+  });
+}
+
+function _mostradorModalSelector(titulo, opciones, onPick) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:80vh;display:flex;flex-direction:column">
+      <div style="padding:16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:16px;font-weight:800">${titulo}</div>
+        <button onclick="this.closest('[data-modal]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--gris-400)">✕</button>
+      </div>
+      <div style="padding:10px 12px">
+        <input type="text" id="msFiltro" placeholder="Filtrar..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">
+      </div>
+      <div id="msLista" style="overflow-y:auto;flex:1;padding:0 12px 16px"></div>
+    </div>
+  `;
+  modal.dataset.modal = '1';
+  document.body.appendChild(modal);
+
+  const renderL = () => {
+    const q = (document.getElementById('msFiltro').value || '').toLowerCase().trim();
+    const filtradas = !q ? opciones : opciones.filter(o =>
+      (o.nombre||'').toLowerCase().includes(q) || (o.sub||'').toLowerCase().includes(q));
+    document.getElementById('msLista').innerHTML = filtradas.map((o, idx) => `
+      <div data-pick="${idx}" style="padding:12px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer">
+        <div style="font-size:14px;font-weight:700">${o.nombre}</div>
+        ${o.sub ? `<div style="font-size:12px;color:var(--gris-400)">${o.sub}</div>` : ''}
+      </div>
+    `).join('') || `<div style="text-align:center;padding:30px;color:var(--gris-400)">Sin resultados</div>`;
+    document.querySelectorAll('#msLista [data-pick]').forEach(div => {
+      div.addEventListener('click', () => {
+        const sel = filtradas[parseInt(div.dataset.pick)];
+        modal.remove();
+        onPick(sel);
+      });
+    });
+  };
+  document.getElementById('msFiltro').addEventListener('input', renderL);
+  renderL();
+}
+
+function _mostradorRenderResultados() {
+  const cont = document.getElementById('mostradorResultados');
+  if (!cont) return;
+  const q = (_mostradorBusqueda || '').toLowerCase().trim();
+  if (!q) { cont.innerHTML = ''; return; }
+
+  const lista = (articulos || []).filter(a => {
+    if (a.es_activo === false || a.activo === false) return false;
+    return (a.nombre||'').toLowerCase().includes(q)
+        || (a.codigo||'').toLowerCase().includes(q)
+        || (a.codigo_barras||'').toLowerCase().includes(q)
+        || (a.referencia_fabricante||'').toLowerCase().includes(q);
+  }).slice(0, 12);
+
+  cont.innerHTML = `
+    <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;overflow:hidden">
+      ${!lista.length ? `<div style="padding:20px;text-align:center;color:var(--gris-400);font-size:13px">Sin resultados</div>` :
+        lista.map(a => `
+          <div onclick="_mostradorAddItem(${a.id})" style="padding:10px 12px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:10px;cursor:pointer">
+            <div style="width:36px;height:36px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background-image:url('${a.foto_url||''}');background-size:cover;background-position:center">
+              ${a.foto_url?'':'📦'}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre||'—'}</div>
+              <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:14px;font-weight:800">${(+a.precio_venta||0).toFixed(2)}€</div>
+            </div>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+}
+
+function _mostradorAddItem(articuloId) {
+  const art = (articulos||[]).find(a => a.id === articuloId);
+  if (!art) return;
+  const ex = _mostrador.items.find(i => i.articulo_id === articuloId);
+  if (ex) {
+    ex.cantidad += 1;
+  } else {
+    _mostrador.items.push({
+      articulo_id: art.id,
+      codigo: art.codigo || '',
+      nombre: art.nombre || '',
+      cantidad: 1,
+      precio_unit: +art.precio_venta || 0,
+      foto_url: art.foto_url || ''
+    });
+  }
+  // Limpiar buscador y reenfocar para escaneo continuo
+  _mostradorBusqueda = '';
+  const inp = document.getElementById('mostradorBuscar');
+  if (inp) { inp.value = ''; inp.focus(); }
+  _mostradorRenderResultados();
+  _mostradorRenderCarrito();
+}
+
+function _mostradorChangeQty(articuloId, delta) {
+  const it = _mostrador.items.find(i => i.articulo_id === articuloId);
+  if (!it) return;
+  it.cantidad = Math.max(0, (+it.cantidad || 0) + delta);
+  if (it.cantidad === 0) {
+    _mostrador.items = _mostrador.items.filter(i => i.articulo_id !== articuloId);
+  }
+  _mostradorRenderCarrito();
+}
+
+function _mostradorSetQty(articuloId, valor) {
+  const it = _mostrador.items.find(i => i.articulo_id === articuloId);
+  if (!it) return;
+  const v = parseFloat(String(valor).replace(',', '.')) || 0;
+  it.cantidad = Math.max(0, v);
+  if (it.cantidad === 0) {
+    _mostrador.items = _mostrador.items.filter(i => i.articulo_id !== articuloId);
+    _mostradorRenderCarrito();
+  } else {
+    _mostradorActualizarTotales();
+  }
+}
+
+function _mostradorRemoveItem(articuloId) {
+  _mostrador.items = _mostrador.items.filter(i => i.articulo_id !== articuloId);
+  _mostradorRenderCarrito();
+}
+
+function _mostradorRenderCarrito() {
+  const cont = document.getElementById('mostradorCarrito');
+  if (!cont) return;
+  if (!_mostrador.items.length) {
+    cont.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--gris-400)">
+        <div style="font-size:36px;margin-bottom:6px">🛒</div>
+        <div style="font-size:13px">Carrito vacío — busca o escanea artículos</div>
+      </div>`;
+    document.getElementById('mostradorFooter').style.display = 'none';
+    return;
+  }
+  cont.innerHTML = `
+    <div style="font-size:11px;color:var(--gris-400);font-weight:700;margin-bottom:6px">EN EL CARRITO (${_mostrador.items.length})</div>
+    <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;overflow:hidden">
+      ${_mostrador.items.map(it => `
+        <div style="padding:10px 12px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:8px">
+          <div style="width:36px;height:36px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background-image:url('${it.foto_url||''}');background-size:cover;background-position:center">
+            ${it.foto_url?'':'📦'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.nombre}</div>
+            <div style="font-size:11px;color:var(--gris-400)">${it.codigo} · ${it.precio_unit.toFixed(2)}€/u</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <button onclick="_mostradorChangeQty(${it.articulo_id},-1)" style="width:28px;height:28px;border:1.5px solid var(--gris-200);background:#fff;border-radius:8px;font-size:16px;font-weight:800;cursor:pointer">−</button>
+            <input type="number" min="0" step="1" value="${it.cantidad}"
+              onchange="_mostradorSetQty(${it.articulo_id},this.value)"
+              style="width:48px;text-align:center;padding:4px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;font-weight:700;font-family:var(--font)">
+            <button onclick="_mostradorChangeQty(${it.articulo_id},1)" style="width:28px;height:28px;border:1.5px solid var(--gris-200);background:#fff;border-radius:8px;font-size:16px;font-weight:800;cursor:pointer">+</button>
+            <button onclick="_mostradorRemoveItem(${it.articulo_id})" style="margin-left:4px;width:28px;height:28px;border:none;background:var(--gris-50);color:var(--rojo);border-radius:8px;font-size:14px;cursor:pointer">🗑</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  document.getElementById('mostradorFooter').style.display = '';
+  _mostradorActualizarTotales();
+}
+
+function _mostradorActualizarTotales() {
+  const totalUnidades = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0), 0);
+  const totalEur      = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0) * (+i.precio_unit||0), 0);
+  const cEl = document.getElementById('mostradorCount');
+  const tEl = document.getElementById('mostradorTotal');
+  if (cEl) cEl.textContent = `${_mostrador.items.length} refs · ${totalUnidades} uds`;
+  if (tEl) tEl.textContent = `${totalEur.toFixed(2)} €`;
+}
+
+// ── Escáner cámara (html5-qrcode) ──
+let _mostradorScanner = null;       // instancia Html5Qrcode activa
+let _mostradorScanLast = { code:'', ts:0 };  // anti-repetición
+let _mostradorScanCamId = null;     // id de cámara seleccionada
+let _mostradorScanCams = [];        // lista de cámaras disponibles
+
+async function _mostradorAbrirEscaner() {
+  if (typeof Html5Qrcode === 'undefined') {
+    alert('No se ha podido cargar la librería de escaneo. Comprueba la conexión y reintenta.');
+    return;
+  }
+
+  // Crear modal full-screen con el visor
+  const modal = document.createElement('div');
+  modal.id = 'mostradorScanModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:#000;z-index:10001;display:flex;flex-direction:column';
+  modal.innerHTML = `
+    <div style="background:#000;color:#fff;padding:14px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:15px;font-weight:800">📷 Escáner</div>
+        <div style="font-size:11px;color:#9ca3af">Apunta a un QR o código de barras</div>
+      </div>
+      <button onclick="_mostradorCerrarEscaner()" style="background:#fff;border:none;color:#000;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">Cerrar ✕</button>
+    </div>
+    <div id="mostradorScanReader" style="flex:1;background:#000;position:relative"></div>
+    <div id="mostradorScanInfo" style="background:#111;color:#fff;padding:10px 14px;font-size:13px;text-align:center;min-height:42px">Iniciando cámara…</div>
+    <div id="mostradorScanFoot" style="background:#000;color:#fff;padding:10px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between">
+      <select id="mostradorScanCamSel" style="flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-family:var(--font)">
+        <option value="">Cargando cámaras…</option>
+      </select>
+      <button onclick="_mostradorScanFlip()" style="background:#374151;border:none;color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">⟳ Girar</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  try {
+    _mostradorScanCams = await Html5Qrcode.getCameras();
+  } catch (e) {
+    document.getElementById('mostradorScanInfo').textContent = '⚠️ Sin acceso a cámara: ' + (e.message || e);
+    return;
+  }
+  if (!_mostradorScanCams || !_mostradorScanCams.length) {
+    document.getElementById('mostradorScanInfo').textContent = '⚠️ No se ha detectado ninguna cámara.';
+    return;
+  }
+  // Elegir cámara trasera por defecto
+  const trasera = _mostradorScanCams.find(c => /back|rear|trasera|environment/i.test(c.label)) || _mostradorScanCams[_mostradorScanCams.length - 1];
+  _mostradorScanCamId = trasera.id;
+  const sel = document.getElementById('mostradorScanCamSel');
+  sel.innerHTML = _mostradorScanCams.map(c =>
+    `<option value="${c.id}" ${c.id===_mostradorScanCamId?'selected':''}>${c.label || ('Cámara ' + c.id.slice(0,6))}</option>`
+  ).join('');
+  sel.onchange = () => { _mostradorScanCamId = sel.value; _mostradorScanRestart(); };
+
+  await _mostradorScanStart();
+}
+
+async function _mostradorScanStart() {
+  const reader = document.getElementById('mostradorScanReader');
+  if (!reader) return;
+  reader.innerHTML = '<div id="mostradorScanArea" style="width:100%;height:100%"></div>';
+
+  _mostradorScanner = new Html5Qrcode('mostradorScanArea', { verbose: false });
+  const config = {
+    fps: 12,
+    qrbox: (vw, vh) => {
+      const min = Math.min(vw, vh);
+      // ventana ancha apaisada: bien para EAN-13
+      return { width: Math.round(min * 0.85), height: Math.round(min * 0.45) };
+    },
+    aspectRatio: 1.0,
+    formatsToSupport: undefined  // todos los formatos: QR + 1D
+  };
+  try {
+    await _mostradorScanner.start(
+      _mostradorScanCamId,
+      config,
+      (decodedText) => _mostradorOnScan(decodedText),
+      () => {} // ignore frame errors
+    );
+    const info = document.getElementById('mostradorScanInfo');
+    if (info) info.textContent = 'Listo. Apunta al código…';
+  } catch (e) {
+    const info = document.getElementById('mostradorScanInfo');
+    if (info) info.textContent = '⚠️ No se pudo iniciar la cámara: ' + (e.message || e);
+  }
+}
+
+async function _mostradorScanRestart() {
+  if (_mostradorScanner) {
+    try { await _mostradorScanner.stop(); } catch(_){}
+    try { _mostradorScanner.clear(); } catch(_){}
+    _mostradorScanner = null;
+  }
+  await _mostradorScanStart();
+}
+
+function _mostradorScanFlip() {
+  if (!_mostradorScanCams.length) return;
+  const idx = _mostradorScanCams.findIndex(c => c.id === _mostradorScanCamId);
+  const next = _mostradorScanCams[(idx + 1) % _mostradorScanCams.length];
+  _mostradorScanCamId = next.id;
+  const sel = document.getElementById('mostradorScanCamSel');
+  if (sel) sel.value = next.id;
+  _mostradorScanRestart();
+}
+
+async function _mostradorCerrarEscaner() {
+  if (_mostradorScanner) {
+    try { await _mostradorScanner.stop(); } catch(_){}
+    try { _mostradorScanner.clear(); } catch(_){}
+    _mostradorScanner = null;
+  }
+  const m = document.getElementById('mostradorScanModal');
+  if (m) m.remove();
+}
+
+function _mostradorOnScan(decodedText) {
+  if (!decodedText) return;
+  const code = String(decodedText).trim();
+  if (!code) return;
+  // Anti-repetición: ignora el mismo código en menos de 1.2s
+  const now = Date.now();
+  if (code === _mostradorScanLast.code && (now - _mostradorScanLast.ts) < 1200) return;
+  _mostradorScanLast = { code, ts: now };
+
+  const art = _mostradorBuscarArticuloPorCodigo(code);
+  const info = document.getElementById('mostradorScanInfo');
+  if (!art) {
+    if (info) {
+      info.style.color = '#fca5a5';
+      info.textContent = `❌ No encontrado: ${code}`;
+    }
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    return;
+  }
+  // Añadir al carrito (reutiliza la lógica del buscador manual)
+  _mostradorAddItem(art.id);
+  if (navigator.vibrate) navigator.vibrate(40);
+  if (info) {
+    info.style.color = '#86efac';
+    info.textContent = `✅ ${art.codigo || ''} · ${art.nombre || ''}  (${_mostrador.items.find(i=>i.articulo_id===art.id)?.cantidad || 1} ud)`;
+  }
+}
+
+function _mostradorBuscarArticuloPorCodigo(code) {
+  if (!articulos || !articulos.length) return null;
+  const c = code.toLowerCase();
+  // 1) Match exacto en codigo_barras
+  let a = articulos.find(x => (x.codigo_barras || '').toLowerCase() === c);
+  if (a) return a;
+  // 2) Match exacto en codigo interno
+  a = articulos.find(x => (x.codigo || '').toLowerCase() === c);
+  if (a) return a;
+  // 3) Match exacto en referencia_fabricante
+  a = articulos.find(x => (x.referencia_fabricante || '').toLowerCase() === c);
+  if (a) return a;
+  return null;
+}
+
+// ── Helpers de cierre ─────────────────────────────────────
+async function _mostradorSiguienteNumero(prefijo, conYear) {
+  const year = new Date().getFullYear();
+  const like = conYear ? `${prefijo}-${year}-%` : `${prefijo}-%`;
+  const tabla = prefijo === 'TR' ? 'traspasos' : prefijo === 'ALB' ? 'albaranes' : 'partes_trabajo';
+  try {
+    const { data } = await sb.from(tabla)
+      .select('numero')
+      .eq('empresa_id', EMPRESA.id)
+      .like('numero', like)
+      .order('numero', { ascending: false })
+      .limit(1);
+    let next = 1;
+    if (data && data.length) {
+      const m = (data[0].numero || '').match(/(\d+)\s*$/);
+      if (m) next = parseInt(m[1], 10) + 1;
+    }
+    if (conYear) return `${prefijo}-${year}-${String(next).padStart(prefijo==='PRT'?4:6,'0')}`;
+    return `${prefijo}-${String(next).padStart(4,'0')}`;
+  } catch(e) {
+    // Fallback timestamp si no se puede consultar
+    return `${prefijo}-${conYear?year+'-':''}${String(Date.now()).slice(-6)}`;
+  }
+}
+
+async function _mostradorDescontarOrigen(refDoc) {
+  // Para cada item, restar del stock origen + insertar movimiento
+  for (const it of _mostrador.items) {
+    const { data: stockOrigen } = await sb.from('stock').select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('articulo_id', it.articulo_id)
+      .eq('almacen_id', _mostrador.almacenOrigenId)
+      .maybeSingle();
+
+    if (stockOrigen) {
+      await sb.from('stock').update({
+        cantidad: Math.max(0, (stockOrigen.cantidad||0) - it.cantidad),
+        updated_at: new Date().toISOString()
+      }).eq('id', stockOrigen.id);
+    }
+    // Movimiento (siempre, aunque no haya registro previo de stock)
+    await sb.from('movimientos_stock').insert({
+      empresa_id: EMPRESA.id,
+      articulo_id: it.articulo_id,
+      almacen_id: _mostrador.almacenOrigenId,
+      tipo: refDoc.tipo,                      // 'traspaso_salida' | 'salida'
+      delta: -Math.abs(it.cantidad),
+      cantidad: Math.abs(it.cantidad),
+      notas: refDoc.notas,
+      fecha: new Date().toISOString().slice(0,10),
+      usuario_id: CU?.id || null,
+      usuario_nombre: CU?.nombre || 'Mostrador'
+    });
+  }
+}
+
+function _mostradorLineasParaTraspaso() {
+  return _mostrador.items.map(it => ({
+    articulo_id: it.articulo_id,
+    codigo: it.codigo,
+    nombre: it.nombre,
+    cantidad: +it.cantidad
+  }));
+}
+
+function _mostradorLineasParaAlbaran() {
+  return _mostrador.items.map(it => ({
+    articulo_id: it.articulo_id,
+    codigo: it.codigo,
+    desc: it.nombre,
+    cant: +it.cantidad,
+    precio: +it.precio_unit,
+    dto: 0, dto2: 0, dto3: 0,
+    iva: 21
+  }));
+}
+
+function _mostradorLineasParaParte() {
+  return _mostrador.items.map(it => ({
+    articulo_id: it.articulo_id,
+    codigo: it.codigo,
+    nombre: it.nombre,
+    cantidad: +it.cantidad,
+    precio: +it.precio_unit,
+    total: +it.cantidad * +it.precio_unit
+  }));
+}
+
+// ── Cierre: Furgoneta operario / Almacén ──────────────────
+async function _mostradorCerrarTraspaso() {
+  const numero = await _mostradorSiguienteNumero('TR', true);
+  const almOrigen = _mostradorAlmacenes.find(a => a.id === _mostrador.almacenOrigenId);
+  const almDestino = _mostradorAlmacenes.find(a => a.id === _mostrador.destinoId);
+  if (!almDestino) throw new Error('Almacén destino no encontrado');
+
+  // 1) Insertar traspaso ya en estado "preparado" (lo confirma el destino)
+  const { data: trasp, error } = await sb.from('traspasos').insert({
+    empresa_id: EMPRESA.id,
+    numero,
+    almacen_origen_id:  _mostrador.almacenOrigenId,
+    almacen_destino_id: _mostrador.destinoId,
+    almacen_origen_nombre:  almOrigen?.nombre  || '',
+    almacen_destino_nombre: almDestino?.nombre || '',
+    fecha: new Date().toISOString().slice(0,10),
+    estado: 'preparado',
+    lineas: _mostradorLineasParaTraspaso(),
+    observaciones: `Generado desde Mostrador por ${CU?.nombre||''}`,
+    usuario_id: CU?.id || null,
+    usuario_nombre: CU?.nombre || ''
+  }).select().single();
+  if (error) throw error;
+
+  // 2) Descontar stock origen + movimientos
+  await _mostradorDescontarOrigen({
+    tipo: 'traspaso_salida',
+    notas: `Mostrador → ${almDestino.nombre} (${numero})`
+  });
+
+  return { numero, doc: 'Traspaso', id: trasp?.id };
+}
+
+// ── Cierre: Cliente ───────────────────────────────────────
+async function _mostradorCerrarAlbaran(firmaDataUrl) {
+  const numero = await _mostradorSiguienteNumero('ALB', false);
+  const almOrigen = _mostradorAlmacenes.find(a => a.id === _mostrador.almacenOrigenId);
+  const cli = (clientes||[]).find(c => c.id === _mostrador.destinoId) || null;
+  const lineas = _mostradorLineasParaAlbaran();
+  const total = lineas.reduce((s,l) => s + l.cant * l.precio * (1 + (l.iva||0)/100), 0);
+
+  // Firma → subir a Storage
+  let firma_url = null;
+  if (firmaDataUrl) {
+    try {
+      const blob = await (await fetch(firmaDataUrl)).blob();
+      const path = `${EMPRESA.id}/firmas-mostrador/${numero}-${Date.now()}.png`;
+      const { error: errUp } = await sb.storage.from('fotos-partes').upload(path, blob, { contentType:'image/png', upsert:false });
+      if (!errUp) {
+        const { data: pub } = sb.storage.from('fotos-partes').getPublicUrl(path);
+        firma_url = pub?.publicUrl || null;
+      }
+    } catch(e) { console.warn('[Mostrador] No se pudo subir firma:', e); }
+  }
+
+  const { data: alb, error } = await sb.from('albaranes').insert({
+    empresa_id: EMPRESA.id,
+    numero,
+    cliente_id: cli?.id || null,
+    cliente_nombre: cli?.nombre || cli?.razon_social || _mostrador.destinoLabel || 'Contado',
+    fecha: new Date().toISOString().slice(0,10),
+    estado: 'entregado',
+    total: +total.toFixed(2),
+    lineas,
+    observaciones: `Mostrador · almacén ${almOrigen?.nombre||''} · ${CU?.nombre||''}${firma_url?' · firmado':''}`,
+    firma_url
+  }).select().single();
+  if (error) throw error;
+
+  // Descontar stock origen
+  await _mostradorDescontarOrigen({
+    tipo: 'salida',
+    notas: `Albarán venta ${numero} (${cli?.nombre || 'Contado'})`
+  });
+
+  return { numero, doc: 'Albarán', id: alb?.id };
+}
+
+// ── Cierre: Obra ──────────────────────────────────────────
+async function _mostradorCerrarParteObra() {
+  const numero = await _mostradorSiguienteNumero('PRT', true);
+  const tr = (trabajos||[]).find(t => t.id === _mostrador.destinoId);
+  if (!tr) throw new Error('Trabajo no encontrado');
+  const cli = (clientes||[]).find(c => c.id === tr.cliente_id);
+  const materiales = _mostradorLineasParaParte();
+  const totalMat = materiales.reduce((s,m) => s + (m.total||0), 0);
+
+  const { data: parte, error } = await sb.from('partes_trabajo').insert({
+    empresa_id: EMPRESA.id,
+    numero,
+    trabajo_id: tr.id,
+    trabajo_titulo: tr.titulo || tr.descripcion || '',
+    cliente_id: cli?.id || null,
+    cliente_nombre: cli?.nombre || '',
+    usuario_id: CU?.id || null,
+    usuario_nombre: CU?.nombre || '',
+    fecha: new Date().toISOString().slice(0,10),
+    descripcion: `Material entregado en mostrador para la obra (${materiales.length} líneas, ${totalMat.toFixed(2)}€)`,
+    materiales,
+    estado: 'borrador',                    // borrador → no dispara descuento auto del flujo "completado"
+    observaciones: `Generado desde Mostrador · almacén ${(_mostradorAlmacenes.find(a=>a.id===_mostrador.almacenOrigenId)||{}).nombre||''}`
+  }).select().single();
+  if (error) throw error;
+
+  // Descontar stock origen
+  await _mostradorDescontarOrigen({
+    tipo: 'salida',
+    notas: `Parte obra ${numero} · ${tr.titulo||tr.descripcion||''}`
+  });
+
+  return { numero, doc: 'Parte de obra', id: parte?.id };
+}
+
+// ── Firma táctil (modal) ──────────────────────────────────
+let _mostradorSigCanvas = null, _mostradorSigCtx = null, _mostradorSigDraw = false, _mostradorSigVacio = true;
+function _mostradorPedirFirma() {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10002;display:flex;align-items:center;justify-content:center;padding:14px';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:14px;width:100%;max-width:520px">
+        <div style="font-size:16px;font-weight:800;margin-bottom:8px">✍️ Firma del cliente</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Firma con el dedo dentro del recuadro. Si el cliente no firma, pulsa "Sin firma".</div>
+        <canvas id="sigCanvas" width="500" height="180" style="width:100%;height:180px;border:2px dashed var(--gris-300);border-radius:10px;background:#fff;touch-action:none"></canvas>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button id="sigClear" style="flex:1;padding:10px;border:1.5px solid var(--gris-200);background:#fff;border-radius:10px;font-weight:700;cursor:pointer">Limpiar</button>
+          <button id="sigSkip"  style="flex:1;padding:10px;border:1.5px solid var(--gris-200);background:#fff;border-radius:10px;font-weight:700;cursor:pointer">Sin firma</button>
+          <button id="sigOK"    style="flex:2;padding:10px;border:none;background:var(--verde);color:#fff;border-radius:10px;font-weight:800;cursor:pointer">Firmar y emitir</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    _mostradorSigCanvas = modal.querySelector('#sigCanvas');
+    _mostradorSigCtx = _mostradorSigCanvas.getContext('2d');
+    _mostradorSigCtx.fillStyle = '#fff';
+    _mostradorSigCtx.fillRect(0,0,_mostradorSigCanvas.width,_mostradorSigCanvas.height);
+    _mostradorSigCtx.lineWidth = 2.5;
+    _mostradorSigCtx.lineCap = 'round';
+    _mostradorSigCtx.strokeStyle = '#111';
+    _mostradorSigVacio = true;
+
+    const pos = (e) => {
+      const r = _mostradorSigCanvas.getBoundingClientRect();
+      const t = e.touches ? e.touches[0] : e;
+      return { x: (t.clientX - r.left) * (_mostradorSigCanvas.width/r.width), y: (t.clientY - r.top) * (_mostradorSigCanvas.height/r.height) };
+    };
+    const start = (e) => { e.preventDefault(); _mostradorSigDraw = true; const p=pos(e); _mostradorSigCtx.beginPath(); _mostradorSigCtx.moveTo(p.x,p.y); };
+    const move  = (e) => { if(!_mostradorSigDraw) return; e.preventDefault(); const p=pos(e); _mostradorSigCtx.lineTo(p.x,p.y); _mostradorSigCtx.stroke(); _mostradorSigVacio=false; };
+    const end   = ()  => { _mostradorSigDraw = false; };
+    _mostradorSigCanvas.addEventListener('mousedown', start);
+    _mostradorSigCanvas.addEventListener('mousemove', move);
+    _mostradorSigCanvas.addEventListener('mouseup',   end);
+    _mostradorSigCanvas.addEventListener('touchstart', start, {passive:false});
+    _mostradorSigCanvas.addEventListener('touchmove',  move,  {passive:false});
+    _mostradorSigCanvas.addEventListener('touchend',   end);
+
+    modal.querySelector('#sigClear').onclick = () => {
+      _mostradorSigCtx.fillStyle = '#fff';
+      _mostradorSigCtx.fillRect(0,0,_mostradorSigCanvas.width,_mostradorSigCanvas.height);
+      _mostradorSigVacio = true;
+    };
+    modal.querySelector('#sigSkip').onclick = () => { modal.remove(); resolve({ skipped:true, dataUrl:null }); };
+    modal.querySelector('#sigOK').onclick   = () => {
+      const dataUrl = _mostradorSigVacio ? null : _mostradorSigCanvas.toDataURL('image/png');
+      modal.remove();
+      resolve({ skipped:false, dataUrl });
+    };
+  });
+}
+
+// ── Dispatcher principal ─────────────────────────────────
+async function _mostradorFinalizar() {
+  if (!_mostrador.items.length) return;
+  if (!_mostrador.destinoTipo) { alert('Selecciona un destino primero'); return; }
+  if (!_mostrador.almacenOrigenId) { alert('Selecciona el almacén origen'); return; }
+
+  const tipo = _mostrador.destinoTipo;
+  const necesitaDestinoId = (tipo !== 'cliente'); // cliente puede ser Contado (null)
+  if (necesitaDestinoId && !_mostrador.destinoId) {
+    alert('Selecciona el destino concreto (' + tipo + ')');
+    return;
+  }
+  if (tipo === 'furgoneta' || tipo === 'almacen') {
+    if (_mostrador.destinoId === _mostrador.almacenOrigenId) { alert('Origen y destino no pueden ser el mismo'); return; }
+  }
+
+  // Confirmación
+  const totalEur = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0) * (+i.precio_unit||0), 0);
+  const totalUds = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0), 0);
+  const lblDoc = tipo==='cliente' ? 'Albarán de venta' : tipo==='obra' ? 'Parte de obra' : 'Traspaso';
+  if (!confirm(`Vas a generar ${lblDoc}\n\nDestino: ${_mostrador.destinoLabel || '(sin etiqueta)'}\nLíneas: ${_mostrador.items.length}  ·  ${totalUds} uds  ·  ${totalEur.toFixed(2)} €\n\n¿Confirmar?`)) return;
+
+  // Firma para cliente (opcional)
+  let firmaDataUrl = null;
+  if (tipo === 'cliente') {
+    const r = await _mostradorPedirFirma();
+    firmaDataUrl = r.dataUrl;
+  }
+
+  // Bloquear UI
+  const footerBtn = document.querySelector('#mostradorFooter button');
+  if (footerBtn) { footerBtn.disabled = true; footerBtn.textContent = 'Procesando...'; }
+
+  try {
+    let res;
+    if (tipo === 'furgoneta' || tipo === 'almacen') res = await _mostradorCerrarTraspaso();
+    else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
+    else if (tipo === 'obra')                       res = await _mostradorCerrarParteObra();
+
+    alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
+    // Reset y vuelta a stock
+    _mostrador.destinoTipo = null;
+    _mostrador.destinoId   = null;
+    _mostrador.destinoLabel= '';
+    _mostrador.items = [];
+    _mostradorBusqueda = '';
+    renderAlmacenMostrador(document.getElementById('appBody'));
+  } catch(e) {
+    console.error('[Mostrador] Error finalizar:', e);
+    alert('❌ Error al generar el documento: ' + (e.message||e));
+    if (footerBtn) { footerBtn.disabled = false; footerBtn.textContent = 'Finalizar →'; }
+  }
 }
 
 function renderJefeAgenda(el) {

@@ -30,7 +30,7 @@
   }
 
   function _drawCabecera(doc) {
-    const E = window.EMPRESA || {};
+    const E = (window.EMPRESA || (typeof EMPRESA !== 'undefined' ? EMPRESA : null)) || {};
     // Bloque empresa pequeño arriba derecha
     doc.setFontSize(9);
     doc.setTextColor(...negro);
@@ -49,7 +49,7 @@
   }
 
   function _drawPie(doc, paginaIdx, totalPag) {
-    const E = window.EMPRESA || {};
+    const E = (window.EMPRESA || (typeof EMPRESA !== 'undefined' ? EMPRESA : null)) || {};
     const fy = H - 14;
     doc.setDrawColor(...grisClaro);
     doc.setLineWidth(0.3);
@@ -103,7 +103,7 @@
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p','mm','a4');
     const tipo = cfg.tipo || 'DOCUMENTO';
-    const E = window.EMPRESA || {};
+    const E = (window.EMPRESA || (typeof EMPRESA !== 'undefined' ? EMPRESA : null)) || {};
 
     // ── Cabecera primera página ──
     _drawCabecera(doc);
