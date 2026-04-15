@@ -301,11 +301,18 @@ function goPage(id, opts){
         const para   = document.getElementById('mail_para')?.value?.trim() || '';
         const tieneAdj = !!view.dataset.adjuntos;
         if (cuerpo || asunto || para || tieneAdj) {
-          const r = confirm('Tienes un correo sin enviar.\n\nAceptar = guardar como borrador y salir\nCancelar = descartar y salir');
-          if (r && typeof guardarBorradorCorreo === 'function') {
-            guardarBorradorCorreo();
-          } else if (typeof cancelarCorreo === 'function') {
-            cancelarCorreo(true);
+          // Diferimos: pedimos al modal del composer y, según respuesta, navegamos o no
+          if (typeof _modalCorreoSinEnviar === 'function') {
+            _modalCorreoSinEnviar().then(async r => {
+              if (r === 'cancelar') return; // no navegar
+              if (r === 'borrador' && typeof guardarBorradorCorreo === 'function') {
+                await guardarBorradorCorreo();
+              } else if (typeof cancelarCorreo === 'function') {
+                cancelarCorreo(true);
+              }
+              goPage(id, { ...opts, _desdeCorreoEnviado: true });
+            });
+            return; // bloquear navegación inmediata
           }
         }
       }

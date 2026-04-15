@@ -879,9 +879,17 @@ async function enviarEnlaceFirmaEmail(presId, firmaUrl) {
   const c = clientes.find(x=>x.id===p.cliente_id);
   if (!c?.email) { toast('El cliente no tiene email configurado','error'); return; }
   const asunto = `Presupuesto ${p.numero} — Firma requerida`;
-  const cuerpo = `Hola ${c.nombre},\n\nTe enviamos el presupuesto ${p.numero} por importe de ${(p.total||0).toFixed(2)} € para tu aprobación.\n\nPuedes ver y firmar el presupuesto en el siguiente enlace:\n${firmaUrl}\n\nGracias,\n${EMPRESA?.nombre||''}`;
+  const cuerpo = `Hola ${c.nombre},\n\nTe enviamos el presupuesto ${p.numero} por importe de ${(p.total||0).toFixed(2)} € para tu aprobación.\n\nPuedes ver y firmar el presupuesto en el siguiente enlace:\n${firmaUrl}\n\nTambién te adjuntamos el PDF del presupuesto.\n\nGracias,\n${EMPRESA?.nombre||''}`;
+
+  // Adjuntar PDF en memoria
+  let adjuntos = [];
+  try {
+    const b64 = await generarPdfPresupuesto(p, { soloBase64: true });
+    if (b64) adjuntos.push({ nombre: `Presupuesto_${(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
+  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+
   if (typeof nuevoCorreo === 'function') {
-    nuevoCorreo(c.email, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    await nuevoCorreo(c.email, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');
@@ -1139,7 +1147,7 @@ async function enviarPresupuestoEmail(id) {
       p.firma_token = token; // cache local
     }
   }
-  const enlace = token ? `https://instaloerp.github.io/f.html?t=${token}` : '';
+  const enlace = token ? `https://instaloerp.github.io/firma.html?token=${token}` : '';
 
   const cuerpoTxt =
 `Estimado/a ${p.cliente_nombre||'cliente'},

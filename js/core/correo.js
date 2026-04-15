@@ -893,6 +893,33 @@ function reenviarCorreo(id) {
   nuevoCorreo('', asunto, cuerpo);
 }
 
+// Modal custom para preguntar qué hacer con el correo (estilo ERP)
+function _modalCorreoSinEnviar() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:99999;animation:fadeIn .15s ease-out';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.3);font-family:var(--font,'Segoe UI',sans-serif)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:42px;height:42px;border-radius:10px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:22px">⚠️</div>
+          <h3 style="font-size:16px;font-weight:700;color:#1e293b;margin:0">Correo sin enviar</h3>
+        </div>
+        <p style="font-size:13.5px;color:#475569;margin:0 0 20px;line-height:1.5">Tienes un correo en el composer que no has enviado todavía. ¿Qué quieres hacer?</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button data-r="borrador" style="width:100%;padding:11px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer">💾 Guardar como borrador</button>
+          <button data-r="descartar" style="width:100%;padding:11px;border:1.5px solid #fecaca;border-radius:8px;background:#fff;color:#b91c1c;font-size:13.5px;font-weight:600;cursor:pointer">🗑️ Descartar y salir</button>
+          <button data-r="cancelar" style="width:100%;padding:11px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;color:#475569;font-size:13.5px;font-weight:600;cursor:pointer">Volver al correo</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => {
+      const r = e.target?.dataset?.r;
+      if (r) { ov.remove(); resolve(r); }
+      else if (e.target === ov) { ov.remove(); resolve('cancelar'); }
+    });
+  });
+}
+
 async function cancelarCorreo(forzar) {
   const view = document.getElementById('mailView');
 
@@ -904,11 +931,13 @@ async function cancelarCorreo(forzar) {
     const tieneAdj = !!view.dataset.adjuntos;
     const tieneContenido = cuerpo.length > 0 || asunto.length > 0 || para.length > 0 || tieneAdj;
     if (tieneContenido) {
-      const r = confirm('¿Quieres guardar el correo como borrador antes de cerrar?\n\nAceptar = guardar borrador\nCancelar = descartar');
-      if (r) {
+      const r = await _modalCorreoSinEnviar();
+      if (r === 'cancelar') return;
+      if (r === 'borrador') {
         try { await guardarBorradorCorreo(); } catch(e) { console.warn(e); }
-        return; // guardarBorradorCorreo ya cierra el composer
+        return;
       }
+      // r === 'descartar' → continuar y limpiar
     }
   }
 
