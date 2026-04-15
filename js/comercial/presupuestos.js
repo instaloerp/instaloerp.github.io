@@ -1239,236 +1239,35 @@ async function guardarPresupYPdf() {
 // ═══════════════════════════════════════════════
 async function generarPdfPresupuesto(p, opts) {
   const _soloBase64 = !!(opts && opts.soloBase64);
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF('p','mm','a4');
-  const W = 210, H = 297;
-  const ML = 15, MR = 15;
-  const azul = [27,79,216];
-  const gris = [100,116,139];
-  const negro = [30,41,59];
-
-  let y = 15;
-
-  // ─── CABECERA EMPRESA ───
-  // Logo (si hay)
-  // Nombre empresa
-  doc.setFontSize(18);
-  doc.setTextColor(...azul);
-  doc.setFont(undefined, 'bold');
-  doc.text(EMPRESA.nombre||'Mi Empresa', ML, y+6);
-
-  doc.setFontSize(8.5);
-  doc.setTextColor(...gris);
-  doc.setFont(undefined, 'normal');
-  const empInfo = [];
-  if (EMPRESA.cif) empInfo.push('CIF: '+EMPRESA.cif);
-  if (EMPRESA.direccion) empInfo.push(EMPRESA.direccion);
-  const empLoc = [EMPRESA.cp, EMPRESA.municipio, EMPRESA.provincia].filter(Boolean).join(', ');
-  if (empLoc) empInfo.push(empLoc);
-  if (EMPRESA.telefono) empInfo.push('Tel: '+EMPRESA.telefono);
-  if (EMPRESA.email) empInfo.push(EMPRESA.email);
-  empInfo.forEach((t,i)=> doc.text(t, ML, y+12+i*3.5));
-
-  // ─── TÍTULO DOCUMENTO ───
-  doc.setFontSize(22);
-  doc.setTextColor(...azul);
-  doc.setFont(undefined, 'bold');
-  doc.text('PRESUPUESTO', W-MR, y+6, {align:'right'});
-
-  doc.setFontSize(11);
-  doc.setTextColor(...negro);
-  doc.text(p.numero||'—', W-MR, y+13, {align:'right'});
-
-  y += 12 + empInfo.length*3.5 + 8;
-
-  // ─── LÍNEA SEPARADORA ───
-  doc.setDrawColor(...azul);
-  doc.setLineWidth(0.8);
-  doc.line(ML, y, W-MR, y);
-  y += 8;
-
-  // ─── DATOS CLIENTE Y PRESUPUESTO ───
-  // Cliente
-  doc.setFontSize(8);
-  doc.setTextColor(...gris);
-  doc.text('CLIENTE', ML, y);
-  doc.setFontSize(12);
-  doc.setTextColor(...negro);
-  doc.setFont(undefined, 'bold');
-  doc.text(p.cliente_nombre||'—', ML, y+5.5);
-
-  // Buscar datos cliente
-  const cli = clientes.find(x=>x.id===p.cliente_id);
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...gris);
-  let cy = y+10;
-  if (cli?.nif) { doc.text('NIF: '+cli.nif, ML, cy); cy+=3.8; }
-  if (cli?.direccion) { doc.text(cli.direccion, ML, cy); cy+=3.8; }
-  const cliLoc = [cli?.cp, cli?.municipio, cli?.provincia].filter(Boolean).join(', ');
-  if (cliLoc) { doc.text(cliLoc, ML, cy); cy+=3.8; }
-  if (cli?.email) { doc.text(cli.email, ML, cy); cy+=3.8; }
-
-  // Datos presupuesto (columna derecha)
-  const rx = 130;
-  const datosP = [
-    ['Fecha', p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—'],
-    ['Válido hasta', p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—'],
-  ];
-  if (p.titulo) datosP.push(['Referencia', p.titulo]);
-
-  datosP.forEach(([k,v],i)=>{
-    doc.setFontSize(8);
-    doc.setTextColor(...gris);
-    doc.text(k, rx, y+i*8);
-    doc.setFontSize(10);
-    doc.setTextColor(...negro);
-    doc.setFont(undefined, 'bold');
-    doc.text(v, rx, y+4+i*8);
-    doc.setFont(undefined, 'normal');
-  });
-
-  y = Math.max(cy, y+datosP.length*8) + 8;
-
-  // ─── TABLA LÍNEAS ───
-  const lineas = (p.lineas||[]);
-  const tableBody = [];
-  let currentCap = null;
-
-  lineas.forEach(l => {
-    if (l.tipo==='capitulo') {
-      currentCap = l.titulo||'Capítulo';
-      tableBody.push([{content:'\u{1F4C1} '+currentCap, colSpan:6, styles:{fontStyle:'bold',fillColor:[238,243,255],textColor:azul,fontSize:9}}]);
-    } else {
-      const sub = (l.cant||0)*(l.precio||0)*(1-((l.dto||0)/100));
-      const iv = sub*((l.iva||0)/100);
-      tableBody.push([
-        l.desc||'',
-        {content:String(l.cant||0), styles:{halign:'right'}},
-        {content:fmtE(l.precio||0), styles:{halign:'right'}},
-        {content:l.dto?l.dto+'%':'—', styles:{halign:'right'}},
-        {content:l.iva!=null?l.iva+'%':'—', styles:{halign:'right'}},
-        {content:fmtE(sub+iv), styles:{halign:'right',fontStyle:'bold'}},
-      ]);
-    }
-  });
-
-  doc.autoTable({
-    startY: y,
-    margin: {left:ML, right:MR},
-    head: [['Descripción','Cant.','Precio','Dto.','IVA','Total']],
-    body: tableBody,
-    headStyles: {fillColor:azul, textColor:[255,255,255], fontSize:8.5, fontStyle:'bold', cellPadding:3},
-    bodyStyles: {fontSize:8.5, textColor:negro, cellPadding:2.5},
-    alternateRowStyles: {fillColor:[248,250,252]},
-    columnStyles: {
-      0: {cellWidth:'auto'},
-      1: {cellWidth:18, halign:'right'},
-      2: {cellWidth:24, halign:'right'},
-      3: {cellWidth:18, halign:'right'},
-      4: {cellWidth:18, halign:'right'},
-      5: {cellWidth:28, halign:'right'},
+  const cli = clientes.find(x=>x.id===p.cliente_id) || {};
+  const doc = await _buildPdfDocumento({
+    tipo: 'PRESUPUESTO',
+    numero: p.numero,
+    fecha: p.fecha,
+    titulo: p.titulo,
+    cliente: {
+      nombre: p.cliente_nombre || cli.nombre || '—',
+      nif: cli.nif,
+      direccion: cli.direccion_fiscal || cli.direccion,
+      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
+      email: cli.email, telefono: cli.telefono
     },
-    theme: 'grid',
-    styles: {lineColor:[226,232,240], lineWidth:0.3},
+    lineas: p.lineas || [],
+    base_imponible: p.base_imponible,
+    total_iva: p.total_iva,
+    total: p.total,
+    observaciones: p.observaciones,
+    condiciones: [
+      ['Forma de pago', p.forma_pago || '40 % a la firma del presupuesto · 30 % a la entrega de materiales en obra · 30 % a la finalización.'],
+      ['Validez del presupuesto', p.fecha_validez ? ('Hasta el ' + new Date(p.fecha_validez).toLocaleDateString('es-ES')) : '15 días desde la fecha indicada en la cabecera.'],
+      ['IVA', 'IVA al 21 % incluido en el total final del presupuesto.']
+    ],
+    firma_zona: true,
+    firma_aceptada: (p.estado==='aceptado' && p.firma_fecha) ? {
+      nombre: p.firma_nombre, fecha: p.firma_fecha, ip: p.firma_ip,
+      dispositivo: p.firma_dispositivo || {}, url: p.firma_url
+    } : null
   });
-
-  y = doc.lastAutoTable.finalY + 8;
-
-  // ─── TOTALES ───
-  const totX = 130;
-  const totW = W-MR-totX;
-
-  // Base imponible
-  doc.setFontSize(9);
-  doc.setTextColor(...gris);
-  doc.text('Base imponible', totX, y);
-  doc.setTextColor(...negro);
-  doc.text(fmtE(p.base_imponible||0), W-MR, y, {align:'right'});
-  y+=5;
-
-  // IVA
-  doc.setTextColor(...gris);
-  doc.text('IVA', totX, y);
-  doc.setTextColor(...negro);
-  doc.text(fmtE(p.total_iva||0), W-MR, y, {align:'right'});
-  y+=6;
-
-  // Línea
-  doc.setDrawColor(...azul);
-  doc.setLineWidth(0.5);
-  doc.line(totX, y, W-MR, y);
-  y+=5;
-
-  // Total
-  doc.setFontSize(13);
-  doc.setTextColor(...azul);
-  doc.setFont(undefined, 'bold');
-  doc.text('TOTAL', totX, y);
-  doc.text(fmtE(p.total||0), W-MR, y, {align:'right'});
-  doc.setFont(undefined, 'normal');
-  y+=10;
-
-  // ─── OBSERVACIONES ───
-  if (p.observaciones) {
-    doc.setFontSize(8);
-    doc.setTextColor(...gris);
-    doc.text('OBSERVACIONES', ML, y);
-    y+=4;
-    doc.setFontSize(8.5);
-    doc.setTextColor(...negro);
-    const obsLines = doc.splitTextToSize(p.observaciones, W-ML-MR);
-    doc.text(obsLines, ML, y);
-    y += obsLines.length * 3.5 + 5;
-  }
-
-  // ─── FIRMA DEL CLIENTE ───
-  if (p.estado==='aceptado' && p.firma_fecha) {
-    if (y > H-60) { doc.addPage(); y = ML; }
-    y += 4;
-    doc.setDrawColor(...azul);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(ML, y, W-ML-MR, 28, 2, 2);
-    doc.setFontSize(8);
-    doc.setTextColor(...azul);
-    doc.setFont(undefined, 'bold');
-    doc.text('✅ PRESUPUESTO ACEPTADO POR EL CLIENTE', ML+4, y+5);
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...negro);
-    const _fd = p.firma_dispositivo||{};
-    let _fy = y+10;
-    doc.text('Firmado por: '+(p.firma_nombre||'—'), ML+4, _fy); _fy+=4;
-    if (_fd.dni) { doc.text('DNI/NIF: '+_fd.dni, ML+4, _fy); _fy+=4; }
-    doc.text('Fecha: '+new Date(p.firma_fecha).toLocaleString('es-ES'), ML+4, _fy); _fy+=4;
-    doc.text('IP: '+(p.firma_ip||'—'), ML+4, _fy); _fy+=4;
-    if (_fd.ubicacion && _fd.ubicacion !== 'No disponible') { doc.text('Ubicación: '+_fd.ubicacion, ML+4, _fy); _fy+=4; }
-    doc.text('Dispositivo: '+(_fd.tipo||'—')+' — '+(_fd.browser||'—'), ML+4, _fy); _fy+=4;
-    // Insertar imagen de firma si existe
-    if (p.firma_url) {
-      try {
-        const _fImg = new Image(); _fImg.crossOrigin = 'anonymous';
-        await new Promise((res,rej)=>{_fImg.onload=res;_fImg.onerror=rej;_fImg.src=p.firma_url;});
-        const _fc = document.createElement('canvas'); _fc.width=_fImg.width; _fc.height=_fImg.height;
-        _fc.getContext('2d').drawImage(_fImg,0,0);
-        doc.addImage(_fc.toDataURL('image/png'), 'PNG', W-MR-55, y+6, 50, 18);
-      } catch(e) { /* firma no disponible */ }
-    }
-    y = _fy + 6;
-  }
-
-  // ─── PIE DE PÁGINA ───
-  const footYCalc = Math.max(y + 15, H - 12);
-  const footY = footYCalc > H - 8 ? H - 12 : footYCalc;
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gris);
-  doc.setDrawColor(226,232,240);
-  doc.setLineWidth(0.3);
-  doc.line(ML, footY-4, W-MR, footY-4);
-  doc.text(EMPRESA.nombre||'', ML, footY);
-  if (EMPRESA.telefono) doc.text('Tel: '+EMPRESA.telefono, ML+50, footY);
-  if (EMPRESA.email) doc.text(EMPRESA.email, ML+100, footY);
-  doc.text('Página 1 de 1', W-MR, footY, {align:'right'});
 
   if (_soloBase64) {
     const dataUri = doc.output('datauristring');

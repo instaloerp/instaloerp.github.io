@@ -858,8 +858,52 @@ function generarPdfFactura(f) {
 
 async function _generarPdfFactura(f, opts) {
   const _soloBase64 = !!(opts && opts.soloBase64);
+  const cli = clientes.find(x=>x.id===f.cliente_id) || {};
+  const doc = await window._buildPdfDocumento({
+    tipo: 'FACTURA',
+    numero: f.numero,
+    fecha: f.fecha,
+    titulo: f.titulo || f.referencia,
+    cliente: {
+      nombre: f.cliente_nombre || cli.nombre || '—',
+      nif: cli.nif,
+      direccion: cli.direccion_fiscal || cli.direccion,
+      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
+      email: cli.email, telefono: cli.telefono
+    },
+    lineas: f.lineas || [],
+    base_imponible: f.base_imponible,
+    total_iva: f.total_iva,
+    total: f.total,
+    observaciones: f.observaciones,
+    condiciones: [
+      ['Forma de pago', f.forma_pago || 'Transferencia bancaria.'],
+      ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
+      ['IVA', 'IVA al 21 % incluido en el total final.']
+    ],
+    firma_zona: false
+  });
+  if (_soloBase64) {
+    const dataUri = doc.output('datauristring');
+    return (dataUri || '').split(',')[1] || null;
+  }
+  doc.save('Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
+  toast('📄 PDF factura descargado ✓','success');
+  if (typeof firmarYGuardarPDF === 'function') {
+    const pdfData = doc.output('arraybuffer');
+    firmarYGuardarPDF(pdfData, {
+      tipo_documento: 'factura', documento_id: f.id, numero: f.numero,
+      entidad_tipo: 'cliente', entidad_id: f.cliente_id,
+      entidad_nombre: f.cliente_nombre || cli?.nombre || ''
+    }).then(r => {
+      if (r && r.success && r.firma_info) toast('🔏 Factura firmada digitalmente ✓', 'success');
+      else if (r && !r.firmado) toast('📄 Factura guardada (sin firma digital)', 'info');
+    }).catch(e => { console.error('Error firmando factura:', e); });
+  }
+  return;
+  // ─── Código antiguo (deprecado) ───
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF('p','mm','a4');
+  const doc2 = new jsPDF('p','mm','a4');
   const W=210, ML=15, MR=15, H=297;
   const azul=[27,79,216], gris=[100,116,139], negro=[30,41,59];
   let y=15;

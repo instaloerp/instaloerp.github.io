@@ -523,7 +523,7 @@ async function enviarAlbaranEmail(id) {
   // 2) PDF base64
   let adjuntos = [];
   try {
-    const b64 = generarPdfAlbaran(a, { soloBase64: true });
+    const b64 = await generarPdfAlbaran(a, { soloBase64: true });
     if (b64) adjuntos.push({ nombre: `Albaran_${(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
   } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
 
@@ -554,12 +554,55 @@ ${EMPRESA?.email || ''}`;
 // ═══════════════════════════════════════════════
 //  GENERAR PDF ALBARÁN (jsPDF)
 // ═══════════════════════════════════════════════
-function generarPdfAlbaran(idOrObj, opts) {
+async function generarPdfAlbaran(idOrObj, opts) {
   const a = typeof idOrObj==='object' ? idOrObj : albaranesData.find(x=>x.id===idOrObj);
   if (!a) { toast('Albarán no encontrado','error'); return; }
   const _soloBase64 = !!(opts && opts.soloBase64);
+  const cli = clientes.find(x=>x.id===a.cliente_id) || {};
+  const doc = await window._buildPdfDocumento({
+    tipo: 'ALBARÁN',
+    numero: a.numero,
+    fecha: a.fecha,
+    titulo: a.titulo || a.referencia,
+    cliente: {
+      nombre: a.cliente_nombre || cli.nombre || '—',
+      nif: cli.nif,
+      direccion: cli.direccion_fiscal || cli.direccion,
+      cp: cli.cp, municipio: cli.municipio, provincia: cli.provincia,
+      email: cli.email, telefono: cli.telefono
+    },
+    lineas: a.lineas || [],
+    base_imponible: a.base_imponible,
+    total_iva: a.total_iva,
+    total: a.total,
+    observaciones: a.observaciones,
+    condiciones: [
+      ['Recepción', 'Recibí conforme — firma y fecha en la zona inferior.'],
+      ['Referencia', a.referencia || '—']
+    ],
+    firma_zona: true
+  });
+  if (_soloBase64) {
+    const dataUri = doc.output('datauristring');
+    return (dataUri || '').split(',')[1] || null;
+  }
+  doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
+  toast('📄 PDF albarán descargado ✓','success');
+  if (typeof firmarYGuardarPDF === 'function') {
+    const pdfData = doc.output('arraybuffer');
+    firmarYGuardarPDF(pdfData, {
+      tipo_documento: 'albaran', documento_id: a.id, numero: a.numero,
+      entidad_tipo: 'cliente', entidad_id: a.cliente_id,
+      entidad_nombre: a.cliente_nombre || cli?.nombre || ''
+    }).then(r => {
+      if (r && r.success && r.firma_info) toast('🔏 Albarán firmado digitalmente ✓', 'success');
+      else if (r && !r.firmado) toast('📄 Albarán guardado (sin firma digital)', 'info');
+    }).catch(e => { console.error('Error firmando albarán:', e); });
+  }
+  return;
+  // ─── Código antiguo (deprecado) ───
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF('p','mm','a4');
+  const doc2 = new jsPDF('p','mm','a4');
   const W=210, ML=15, MR=15, H=297;
   const azul=[27,79,216], gris=[100,116,139], negro=[30,41,59];
   let y=15;
