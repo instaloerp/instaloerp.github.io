@@ -1160,8 +1160,16 @@ ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
 ${EMPRESA?.web||''}`;
 
+  // Generar PDF en memoria como adjunto
+  let adjuntos = [];
+  try {
+    const b64 = await generarPdfPresupuesto(p, { soloBase64: true });
+    if (b64) adjuntos.push({ nombre: `Presupuesto_${(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
+  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+
   if (typeof nuevoCorreo === 'function') {
-    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    closeModal('mPresDetalle');
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');
@@ -1221,7 +1229,8 @@ async function guardarPresupYPdf() {
 // ═══════════════════════════════════════════════
 //  GENERACIÓN DE PDF PRESUPUESTO
 // ═══════════════════════════════════════════════
-async function generarPdfPresupuesto(p) {
+async function generarPdfPresupuesto(p, opts) {
+  const _soloBase64 = !!(opts && opts.soloBase64);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p','mm','a4');
   const W = 210, H = 297;
@@ -1452,6 +1461,11 @@ async function generarPdfPresupuesto(p) {
   if (EMPRESA.telefono) doc.text('Tel: '+EMPRESA.telefono, ML+50, footY);
   if (EMPRESA.email) doc.text(EMPRESA.email, ML+100, footY);
   doc.text('Página 1 de 1', W-MR, footY, {align:'right'});
+
+  if (_soloBase64) {
+    const dataUri = doc.output('datauristring');
+    return (dataUri || '').split(',')[1] || null;
+  }
 
   // ─── DESCARGAR ───
   doc.save('Presupuesto_'+(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');

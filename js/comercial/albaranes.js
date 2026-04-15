@@ -502,7 +502,7 @@ function imprimirAlbaran(id) {
 // ═══════════════════════════════════════════════
 //  ENVIAR ALBARÁN POR EMAIL
 // ═══════════════════════════════════════════════
-function enviarAlbaranEmail(id) {
+async function enviarAlbaranEmail(id) {
   const a = albaranesData.find(x=>x.id===id);
   if (!a) { toast('Albarán no encontrado','error'); return; }
   const c = clientes.find(x=>x.id===a.cliente_id);
@@ -510,6 +510,23 @@ function enviarAlbaranEmail(id) {
   const asuntoTxt = `Albarán ${a.numero||''} — ${EMPRESA?.nombre||''}`;
   const totalFmt = (a.total||0).toFixed(2).replace('.',',') + ' €';
   const fechaFmt = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—';
+
+  // 1) Token público
+  let token = a.acceso_token;
+  if (!token) {
+    token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
+    const { error: tokErr } = await sb.from('albaranes').update({ acceso_token: token }).eq('id', a.id);
+    if (!tokErr) a.acceso_token = token; else token = null;
+  }
+  const enlace = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+
+  // 2) PDF base64
+  let adjuntos = [];
+  try {
+    const b64 = generarPdfAlbaran(a, { soloBase64: true });
+    if (b64) adjuntos.push({ nombre: `Albaran_${(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
+  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+
   const cuerpoTxt =
 `Estimado/a ${a.cliente_nombre||'cliente'},
 
@@ -517,7 +534,7 @@ Le adjuntamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
 
 Importe total: ${totalFmt}
 ${a.referencia ? 'Referencia: '+a.referencia : ''}
-
+${enlace ? '\n👉 Ver, descargar o imprimir online:\n'+enlace+'\n' : ''}
 Quedamos a su disposición para cualquier consulta.
 
 Un saludo,
@@ -526,7 +543,8 @@ ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
 ${EMPRESA?.email || ''}`;
 
   if (typeof nuevoCorreo === 'function') {
-    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' });
+    closeModal('mAbDetalle');
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');
@@ -536,9 +554,10 @@ ${EMPRESA?.email || ''}`;
 // ═══════════════════════════════════════════════
 //  GENERAR PDF ALBARÁN (jsPDF)
 // ═══════════════════════════════════════════════
-function generarPdfAlbaran(idOrObj) {
+function generarPdfAlbaran(idOrObj, opts) {
   const a = typeof idOrObj==='object' ? idOrObj : albaranesData.find(x=>x.id===idOrObj);
   if (!a) { toast('Albarán no encontrado','error'); return; }
+  const _soloBase64 = !!(opts && opts.soloBase64);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p','mm','a4');
   const W=210, ML=15, MR=15, H=297;
@@ -608,6 +627,11 @@ function generarPdfAlbaran(idOrObj) {
   const footYCalc=Math.max(y+20, H-12);const finalFootY=footYCalc>H-8?H-12:footYCalc;
   doc.setFontSize(7.5);doc.setTextColor(...gris);doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);doc.line(ML,finalFootY-4,W-MR,finalFootY-4);
   doc.text(EMPRESA?.nombre||'',ML,finalFootY);if(EMPRESA?.telefono)doc.text('Tel: '+EMPRESA.telefono,ML+50,finalFootY);if(EMPRESA?.email)doc.text(EMPRESA.email,ML+100,finalFootY);
+  if (_soloBase64) {
+    const dataUri = doc.output('datauristring');
+    return (dataUri || '').split(',')[1] || null;
+  }
+
   doc.save('Albaran_'+(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF albarán descargado ✓','success');
 

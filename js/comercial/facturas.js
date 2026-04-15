@@ -788,13 +788,35 @@ function enviarFacturaEmail(f) {
   _enviarFacturaEmail(f);
 }
 
-function _enviarFacturaEmail(f) {
+// Helper: genera PDF en memoria y devuelve base64 (sin descarga ni firma)
+async function _pdfFacturaBase64(f) {
+  return await _generarPdfFactura(f, { soloBase64: true });
+}
+
+async function _enviarFacturaEmail(f) {
   const c = clientes.find(x=>x.id===f.cliente_id);
   const email = c?.email || '';
   const asuntoTxt = `Factura ${f.numero||''} — ${EMPRESA?.nombre||''}`;
   const totalFmt = (f.total||0).toFixed(2).replace('.',',')+' €';
   const fechaFmt = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
   const vencFmt = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
+
+  // 1) Asegurar acceso_token (lo persistimos en BD para que el enlace funcione siempre)
+  let token = f.acceso_token;
+  if (!token) {
+    token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
+    const { error: tokErr } = await sb.from('facturas').update({ acceso_token: token }).eq('id', f.id);
+    if (!tokErr) f.acceso_token = token; else token = null;
+  }
+  const enlace = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+
+  // 2) Generar PDF en memoria (base64)
+  let adjuntos = [];
+  try {
+    const b64 = await _pdfFacturaBase64(f);
+    if (b64) adjuntos.push({ nombre: `Factura_${(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
+  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+
   const cuerpoTxt =
 `Estimado/a ${f.cliente_nombre||'cliente'},
 
@@ -802,7 +824,7 @@ Le adjuntamos la factura ${f.numero||''} con fecha ${fechaFmt}.
 
 Importe total: ${totalFmt} (IVA incluido)
 Fecha de vencimiento: ${vencFmt}
-
+${enlace ? '\n👉 Ver, descargar o imprimir online:\n'+enlace+'\n' : ''}
 Para cualquier consulta, no dude en contactarnos.
 
 Un saludo cordial,
@@ -810,10 +832,9 @@ ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}`;
 
-  // Usar siempre el gestor de correo interno del ERP
   if (typeof nuevoCorreo === 'function') {
     closeModal('mFacturaDetalle');
-    nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura', id: f.id, ref: f.numero || '' });
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura', id: f.id, ref: f.numero || '' }, adjuntos);
     goPage('correo');
   } else {
     toast('⚠️ El gestor de correo no está disponible. Configura una cuenta en Administración → Correo.', 'warning');
@@ -835,7 +856,8 @@ function generarPdfFactura(f) {
   _generarPdfFactura(f);
 }
 
-async function _generarPdfFactura(f) {
+async function _generarPdfFactura(f, opts) {
+  const _soloBase64 = !!(opts && opts.soloBase64);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p','mm','a4');
   const W=210, ML=15, MR=15, H=297;
@@ -905,6 +927,12 @@ async function _generarPdfFactura(f) {
   doc.text(EMPRESA?.nombre||'',ML,finalFootY);
   if(EMPRESA?.telefono) doc.text('Tel: '+EMPRESA.telefono, ML+50, finalFootY);
   if(EMPRESA?.email) doc.text(EMPRESA.email, ML+100, finalFootY);
+  // Modo base64-only: no guardar ni firmar, devolver base64
+  if (_soloBase64) {
+    const dataUri = doc.output('datauristring');
+    return (dataUri || '').split(',')[1] || null;
+  }
+
   doc.save('Factura_'+(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')+'.pdf');
   toast('📄 PDF factura descargado ✓','success');
 

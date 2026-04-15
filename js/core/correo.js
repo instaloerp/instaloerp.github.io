@@ -754,7 +754,7 @@ async function _desvincularCorreo(correoId) {
 // ═══════════════════════════════════════════════
 //  NUEVO CORREO / RESPONDER / REENVIAR
 // ═══════════════════════════════════════════════
-async function nuevoCorreo(para, asunto, cuerpo, vinculacion) {
+async function nuevoCorreo(para, asunto, cuerpo, vinculacion, adjuntos) {
   const view = document.getElementById('mailView');
   if (!view) return;
 
@@ -812,6 +812,55 @@ async function nuevoCorreo(para, asunto, cuerpo, vinculacion) {
   if (vinculacion) {
     view.dataset.vinculacion = JSON.stringify(vinculacion);
   }
+
+  // Adjuntos pendientes (array de {nombre, base64, tipo_mime})
+  if (Array.isArray(adjuntos) && adjuntos.length) {
+    view.dataset.adjuntos = JSON.stringify(adjuntos);
+    _renderAdjuntosComposer();
+  } else {
+    delete view.dataset.adjuntos;
+  }
+}
+
+// Render UI de adjuntos pendientes en el composer
+function _renderAdjuntosComposer() {
+  const view = document.getElementById('mailView');
+  if (!view || !view.dataset.adjuntos) return;
+  let adj = [];
+  try { adj = JSON.parse(view.dataset.adjuntos); } catch(e) {}
+  if (!adj.length) return;
+  // Insertar/actualizar bloque encima del textarea
+  let bloque = document.getElementById('mailAdjuntos');
+  if (!bloque) {
+    const cuerpoEl = document.getElementById('mail_cuerpo');
+    if (!cuerpoEl) return;
+    bloque = document.createElement('div');
+    bloque.id = 'mailAdjuntos';
+    bloque.style.cssText = 'padding:8px 0;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px dashed var(--gris-200);margin-bottom:8px';
+    cuerpoEl.parentNode.insertBefore(bloque, cuerpoEl);
+  }
+  bloque.innerHTML = adj.map((a,i)=>`
+    <div style="display:inline-flex;align-items:center;gap:6px;background:var(--azul-light,#dbeafe);color:var(--azul,#1e40af);padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600">
+      📎 ${a.nombre || 'adjunto.pdf'}
+      <span style="font-size:10px;opacity:.7">(${Math.round((a.base64?.length||0)*0.75/1024)} KB)</span>
+      <button onclick="_quitarAdjuntoComposer(${i})" style="background:none;border:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
+    </div>
+  `).join('');
+}
+
+function _quitarAdjuntoComposer(idx) {
+  const view = document.getElementById('mailView');
+  if (!view?.dataset?.adjuntos) return;
+  let adj = [];
+  try { adj = JSON.parse(view.dataset.adjuntos); } catch(e) {}
+  adj.splice(idx, 1);
+  if (adj.length) {
+    view.dataset.adjuntos = JSON.stringify(adj);
+    _renderAdjuntosComposer();
+  } else {
+    delete view.dataset.adjuntos;
+    document.getElementById('mailAdjuntos')?.remove();
+  }
 }
 
 function responderCorreo(id) {
@@ -858,7 +907,9 @@ async function enviarCorreo() {
   // Obtener vinculación pendiente si existe
   const view = document.getElementById('mailView');
   let vinculacion = null;
+  let adjuntos = [];
   try { vinculacion = view?.dataset?.vinculacion ? JSON.parse(view.dataset.vinculacion) : null; } catch(e) {}
+  try { adjuntos = view?.dataset?.adjuntos ? JSON.parse(view.dataset.adjuntos) : []; } catch(e) {}
 
   // Intentar enviar por SMTP vía Edge Function
   if (_correoCuentaActiva) {
@@ -874,7 +925,8 @@ async function enviarCorreo() {
           cuerpo_html: '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">' + (cuerpo || '').replace(/\n/g, '<br>') + '</div>',
           vinculado_tipo: vinculacion?.tipo || undefined,
           vinculado_id: vinculacion?.id || undefined,
-          vinculado_ref: vinculacion?.ref || undefined
+          vinculado_ref: vinculacion?.ref || undefined,
+          adjuntos: adjuntos.length ? adjuntos : undefined
         }
       });
 

@@ -66,36 +66,32 @@ function fmtD(s) { return s ? new Date(s).toLocaleDateString('es-ES') : '—'; }
 async function init() {
   if (!token) { showError('Enlace no válido'); return; }
 
-  // 1) Buscar factura
-  const { data: fac } = await sb.from('facturas').select('*').eq('acceso_token', token).maybeSingle();
+  // 1) Factura (vista pública con empresa+cliente snapshot)
+  const { data: fac } = await sb.from('vista_factura_publica').select('*').eq('acceso_token', token).maybeSingle();
   if (fac) {
-    const { data: emp } = await sb.from('empresas').select('*').eq('id', fac.empresa_id).single();
-    const { data: cli } = await sb.from('clientes').select('*').eq('id', fac.cliente_id).single();
     document.title = 'Factura ' + (fac.numero || '');
-    renderDoc('factura', fac, emp, cli);
+    renderDoc('factura', fac);
     return;
   }
 
-  // 2) Buscar albaran
-  const { data: alb } = await sb.from('albaranes').select('*').eq('acceso_token', token).maybeSingle();
+  // 2) Albarán
+  const { data: alb } = await sb.from('vista_albaran_publico').select('*').eq('acceso_token', token).maybeSingle();
   if (alb) {
-    const { data: emp } = await sb.from('empresas').select('*').eq('id', alb.empresa_id).single();
-    const { data: cli } = await sb.from('clientes').select('*').eq('id', alb.cliente_id).single();
     document.title = 'Albarán ' + (alb.numero || '');
-    renderDoc('albaran', alb, emp, cli);
+    renderDoc('albaran', alb);
     return;
   }
 
-  // 3) Si es token de presupuesto, redirigir a firma.html (compat)
+  // 3) Presupuesto (compat con firma.html)
   const { data: pres } = await sb.from('presupuestos').select('id').eq('firma_token', token).maybeSingle();
   if (pres) { location.replace('firma.html?token=' + token); return; }
 
   showError('Documento no encontrado o enlace expirado');
 }
 
-function renderDoc(tipo, doc, emp, cli) {
+function renderDoc(tipo, d) {
   const titulo = tipo === 'factura' ? 'FACTURA' : 'ALBARÁN';
-  const lineas = doc.lineas || [];
+  const lineas = d.lineas || [];
   let lineasHtml = '';
   lineas.forEach(l => {
     if (l.tipo === 'capitulo' || l.tipo === 'subcapitulo') {
@@ -106,41 +102,44 @@ function renderDoc(tipo, doc, emp, cli) {
     lineasHtml += `<tr><td>${l.desc||''}</td><td style="text-align:right">${l.cant||0}</td><td style="text-align:right">${fmtE(l.precio||0)}</td><td style="text-align:right;font-weight:700">${fmtE(sub)}</td></tr>`;
   });
 
-  const empLoc = [emp?.cp, emp?.municipio, emp?.provincia].filter(Boolean).join(', ');
-  const empContact = [emp?.telefono ? 'Tel: '+emp.telefono : '', emp?.email].filter(Boolean).join(' · ');
+  const empLoc = [d.emp_cp, d.emp_municipio, d.emp_provincia].filter(Boolean).join(', ');
+  const empContact = [d.emp_telefono ? 'Tel: '+d.emp_telefono : '', d.emp_email].filter(Boolean).join(' · ');
+  const ref = d.titulo || d.referencia || '—';
 
   document.getElementById('app').innerHTML = `
     <div class="toolbar no-print">
       <button class="btn btn-blue" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
     </div>
     <div class="card header">
-      <h1>${emp?.nombre||'Empresa'}</h1>
-      <p>${emp?.razon_social||''}${emp?.cif?' · CIF: '+emp.cif:''}</p>
-      ${emp?.direccion ? `<p>${emp.direccion}${empLoc?', '+empLoc:''}</p>` : ''}
+      ${d.emp_logo ? `<img src="${d.emp_logo}" alt="" style="max-height:60px;margin-bottom:8px">` : ''}
+      <h1>${d.emp_nombre||'Empresa'}</h1>
+      <p>${d.emp_razon||''}${d.emp_cif?' · CIF: '+d.emp_cif:''}</p>
+      ${d.emp_direccion ? `<p>${d.emp_direccion}${empLoc?', '+empLoc:''}</p>` : ''}
       ${empContact ? `<p>${empContact}</p>` : ''}
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div>
           <span class="tipo-badge tipo-${tipo}">${titulo}</span>
-          <div style="font-size:22px;font-weight:800;color:#1e40af;margin-top:4px">${doc.numero||''}</div>
+          <div style="font-size:22px;font-weight:800;color:#1e40af;margin-top:4px">${d.numero||''}${d.serie?' · '+d.serie:''}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:#94a3b8">FECHA</div>
-          <div style="font-weight:700">${fmtD(doc.fecha)}</div>
-          ${tipo==='factura' && doc.fecha_vencimiento ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px">VENCIMIENTO</div><div style="font-weight:700">${fmtD(doc.fecha_vencimiento)}</div>` : ''}
+          <div style="font-weight:700">${fmtD(d.fecha)}</div>
+          ${tipo==='factura' && d.fecha_vencimiento ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px">VENCIMIENTO</div><div style="font-weight:700">${fmtD(d.fecha_vencimiento)}</div>` : ''}
         </div>
       </div>
       <div class="info-grid">
         <div class="info-item">
           <div class="info-label">Cliente</div>
-          <div class="info-value">${cli?.nombre || doc.cliente_nombre || '—'}</div>
-          ${cli?.nif ? `<div style="font-size:12px;color:#64748b">${cli.nif}</div>` : ''}
-          ${cli?.direccion ? `<div style="font-size:12px;color:#64748b;margin-top:3px">${cli.direccion}</div>` : ''}
+          <div class="info-value">${d.cli_nombre || '—'}</div>
+          ${d.cli_nif ? `<div style="font-size:12px;color:#64748b">${d.cli_nif}</div>` : ''}
+          ${d.cli_direccion ? `<div style="font-size:12px;color:#64748b;margin-top:3px">${d.cli_direccion}</div>` : ''}
         </div>
         <div class="info-item">
           <div class="info-label">Referencia</div>
-          <div class="info-value">${doc.titulo||doc.referencia||'—'}</div>
+          <div class="info-value">${ref}</div>
+          ${d.direccion_obra_texto ? `<div style="font-size:12px;color:#64748b;margin-top:3px">📍 ${d.direccion_obra_texto}</div>` : ''}
         </div>
       </div>
       <table>
@@ -148,13 +147,14 @@ function renderDoc(tipo, doc, emp, cli) {
         <tbody>${lineasHtml || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sin líneas</td></tr>'}</tbody>
       </table>
       <table><tbody>
-        <tr><td style="text-align:right;color:#64748b">Base imponible</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(doc.base_imponible||0)}</td></tr>
-        <tr><td style="text-align:right;color:#64748b">IVA</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(doc.total_iva||0)}</td></tr>
-        <tr class="total-row"><td style="text-align:right">TOTAL</td><td style="text-align:right;width:140px">${fmtE(doc.total||0)}</td></tr>
+        <tr><td style="text-align:right;color:#64748b">Base imponible</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(d.base_imponible||0)}</td></tr>
+        <tr><td style="text-align:right;color:#64748b">IVA</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(d.total_iva||0)}</td></tr>
+        ${d.retencion ? `<tr><td style="text-align:right;color:#64748b">Retención</td><td style="text-align:right;font-weight:700;width:140px">−${fmtE(d.retencion)}</td></tr>` : ''}
+        <tr class="total-row"><td style="text-align:right">TOTAL</td><td style="text-align:right;width:140px">${fmtE(d.total||0)}</td></tr>
       </tbody></table>
-      ${doc.observaciones ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b">${doc.observaciones}</div>` : ''}
+      ${(d.observaciones || d.notas) ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b">${d.observaciones || d.notas}</div>` : ''}
     </div>
-    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">Documento generado por ${emp?.nombre||'el ERP'} · enlace privado</div>
+    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">Documento generado por ${d.emp_nombre||'el ERP'} · enlace privado</div>
   `;
 }
 
