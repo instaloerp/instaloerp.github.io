@@ -289,6 +289,29 @@ const _permisosPagina = {
 function goPage(id, opts){
   opts = opts || {};
 
+  // ── Composer de correo: si hay contenido sin enviar y vamos a salir, ofrecer guardar borrador
+  try {
+    const _activa = document.querySelector('.page.active')?.id?.replace('page-','');
+    if (_activa === 'correo' && id !== 'correo' && !opts._desdeCorreoEnviado) {
+      const view = document.getElementById('mailView');
+      const cuerpoEl = document.getElementById('mail_cuerpo');
+      if (view && cuerpoEl) {
+        const cuerpo = cuerpoEl.value?.trim() || '';
+        const asunto = document.getElementById('mail_asunto')?.value?.trim() || '';
+        const para   = document.getElementById('mail_para')?.value?.trim() || '';
+        const tieneAdj = !!view.dataset.adjuntos;
+        if (cuerpo || asunto || para || tieneAdj) {
+          const r = confirm('Tienes un correo sin enviar.\n\nAceptar = guardar como borrador y salir\nCancelar = descartar y salir');
+          if (r && typeof guardarBorradorCorreo === 'function') {
+            guardarBorradorCorreo();
+          } else if (typeof cancelarCorreo === 'function') {
+            cancelarCorreo(true);
+          }
+        }
+      }
+    }
+  } catch(e) { /* no romper navegación */ }
+
   // ── Permission Check ──
   // Pages accessible to everyone without permission check
   const pagesLibres = ['dashboard', 'calendario', 'mistareas', 'correo', 'fichajes'];

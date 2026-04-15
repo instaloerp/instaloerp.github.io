@@ -758,6 +758,20 @@ async function nuevoCorreo(para, asunto, cuerpo, vinculacion, adjuntos) {
   const view = document.getElementById('mailView');
   if (!view) return;
 
+  // Recordar la página desde la que se abrió el composer (para volver tras enviar)
+  const _activa = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (_activa && _activa !== 'correo') {
+    view.dataset.returnPage = _activa;
+    if (typeof obraActualId !== 'undefined' && obraActualId && _activa === 'trabajos') {
+      view.dataset.returnObraId = String(obraActualId);
+    } else {
+      delete view.dataset.returnObraId;
+    }
+  } else {
+    delete view.dataset.returnPage;
+    delete view.dataset.returnObraId;
+  }
+
   // Cargar cuenta SMTP si no está cargada todavía (composer abierto desde fuera de Correo)
   if (!_correoCuentaActiva) {
     try { await cargarCuentaCorreoActiva(); } catch(e) {}
@@ -879,10 +893,31 @@ function reenviarCorreo(id) {
   nuevoCorreo('', asunto, cuerpo);
 }
 
-function cancelarCorreo() {
-  correoActual = null;
+async function cancelarCorreo(forzar) {
   const view = document.getElementById('mailView');
+
+  // Si no se fuerza, comprobar si hay contenido y ofrecer guardar como borrador
+  if (!forzar && view) {
+    const cuerpo = document.getElementById('mail_cuerpo')?.value?.trim() || '';
+    const asunto = document.getElementById('mail_asunto')?.value?.trim() || '';
+    const para   = document.getElementById('mail_para')?.value?.trim() || '';
+    const tieneAdj = !!view.dataset.adjuntos;
+    const tieneContenido = cuerpo.length > 0 || asunto.length > 0 || para.length > 0 || tieneAdj;
+    if (tieneContenido) {
+      const r = confirm('¿Quieres guardar el correo como borrador antes de cerrar?\n\nAceptar = guardar borrador\nCancelar = descartar');
+      if (r) {
+        try { await guardarBorradorCorreo(); } catch(e) { console.warn(e); }
+        return; // guardarBorradorCorreo ya cierra el composer
+      }
+    }
+  }
+
+  correoActual = null;
   if (view) {
+    delete view.dataset.vinculacion;
+    delete view.dataset.adjuntos;
+    delete view.dataset.returnPage;
+    delete view.dataset.returnObraId;
     view.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--gris-400);font-size:14px">
       <div style="text-align:center"><div style="font-size:48px;margin-bottom:12px">✉️</div><p>Selecciona un correo para leerlo</p></div>
     </div>`;
@@ -933,6 +968,9 @@ async function enviarCorreo() {
       if (error) throw error;
 
       if (data?.success) {
+        // Capturar página de retorno antes de limpiar el composer
+        const _retPage = view?.dataset?.returnPage || null;
+        const _retObra = view?.dataset?.returnObraId ? parseInt(view.dataset.returnObraId) : null;
         // Asegurar vinculación en BD (por si la Edge Function no la guarda)
         if (vinculacion?.tipo && vinculacion?.id) {
           try {
@@ -962,8 +1000,17 @@ async function enviarCorreo() {
             }
           } catch(e) { console.warn('No se pudo vincular correo:', e); }
         }
-        cancelarCorreo();
+        cancelarCorreo(true); // true = forzar sin preguntar borrador
         await loadCorreos();
+
+        // Volver a la página/obra de origen si la había
+        if (_retPage) {
+          if (typeof goPage === 'function') goPage(_retPage, { _desdeCorreoEnviado: true });
+          if (_retObra && typeof abrirFichaObra === 'function') {
+            setTimeout(()=>abrirFichaObra(_retObra), 250);
+          }
+        }
+
         // Popup de confirmación si el correo va vinculado a una factura
         if (vinculacion?.tipo === 'factura') {
           _mostrarPopupEnvioFactura(vinculacion.ref || '', para);
