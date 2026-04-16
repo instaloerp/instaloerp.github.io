@@ -1410,6 +1410,9 @@ function navigateTo(tab) {
   if (fabMenu && fabMenu.classList.contains('open')) toggleFab();
 
   if (esModoAlmacen) {
+    // El FAB de almacén choca con el footer del Mostrador: ocultarlo en esa tab
+    const fabCont = document.getElementById('fabContainer');
+    if (fabCont) fabCont.style.display = (tab === 'mostrador') ? 'none' : '';
     switch(tab) {
       case 'inicio':       renderAppAlmacen(body); break;
       case 'mostrador':    renderAlmacenMostrador(body); break;
@@ -3612,7 +3615,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 127
+        instaloERP v1.1 · build 128
       </div>
     </div>`;
 }
@@ -3649,7 +3652,7 @@ async function renderAlmacenMostrador(el) {
   }
 
   el.innerHTML = `
-    <div style="padding:14px 14px 100px 14px">
+    <div style="padding:14px 14px 160px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div>
           <div style="font-size:18px;font-weight:800">🛒 Mostrador</div>
@@ -3690,15 +3693,15 @@ async function renderAlmacenMostrador(el) {
       <div id="mostradorCarrito" style="margin-top:18px"></div>
     </div>
 
-    <!-- Footer fijo con totales y acción -->
-    <div id="mostradorFooter" style="position:fixed;bottom:64px;left:0;right:0;background:#fff;border-top:1.5px solid var(--gris-200);padding:10px 14px;display:none;z-index:100">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div id="mostradorCount" style="font-size:11px;color:var(--gris-400);font-weight:700"></div>
-          <div id="mostradorTotal" style="font-size:18px;font-weight:800"></div>
+    <!-- Footer fijo con totales y acción (justo encima del bottom-nav, respetando safe-area) -->
+    <div id="mostradorFooter" style="position:fixed;bottom:calc(58px + env(safe-area-inset-bottom));left:0;right:0;background:#fff;border-top:1.5px solid var(--gris-200);padding:10px 14px;display:none;z-index:99">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="min-width:0;flex:1">
+          <div id="mostradorCount" style="font-size:11px;color:var(--gris-400);font-weight:700;line-height:1.2"></div>
+          <div id="mostradorTotal" style="font-size:20px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
         </div>
         <button onclick="_mostradorFinalizar()"
-          style="padding:12px 20px;border:none;background:var(--verde);color:#fff;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer">
+          style="padding:12px 18px;border:none;background:var(--verde);color:#fff;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;flex-shrink:0">
           Finalizar →
         </button>
       </div>
@@ -3729,29 +3732,53 @@ function _mostradorRefreshHeader() {
     { k:'furgoneta', ico:'🚐', lbl:'Furgoneta', col:'var(--verde)'  },
     { k:'almacen',   ico:'📦', lbl:'Almacén',   col:'var(--violeta)'},
   ];
+
+  // Si YA hay destino elegido → vista colapsada compacta (no mostrar 4 botones para evitar tocar sin querer)
+  if (_mostrador.destinoLabel) {
+    const t = tipos.find(x => x.k === _mostrador.destinoTipo) || tipos[0];
+    cont.innerHTML = `
+      <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;padding:12px;margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+            <div style="width:36px;height:36px;background:${t.col};color:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${t.ico}</div>
+            <div style="min-width:0">
+              <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Destino · ${t.lbl}</div>
+              <div style="font-size:14px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_mostrador.destinoLabel}</div>
+            </div>
+          </div>
+          <button onclick="_mostradorCambiarDestino()" style="padding:8px 12px;border:1.5px solid var(--gris-200);background:#fff;color:var(--azul);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Cambiar</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Si NO hay destino → mostrar los 4 botones
   cont.innerHTML = `
     <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;padding:12px;margin-top:10px">
       <div style="font-size:11px;color:var(--gris-400);font-weight:700;margin-bottom:8px">DESTINO</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
         ${tipos.map(t => `
           <button onclick="_mostradorPickDestino('${t.k}')" style="
-            padding:10px 4px;border:2px solid ${_mostrador.destinoTipo===t.k?t.col:'var(--gris-200)'};
-            background:${_mostrador.destinoTipo===t.k?t.col:'#fff'};
-            color:${_mostrador.destinoTipo===t.k?'#fff':'var(--gris-700)'};
+            padding:10px 4px;border:2px solid var(--gris-200);
+            background:#fff;color:var(--gris-700);
             border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px">
             <span style="font-size:18px">${t.ico}</span>
             <span>${t.lbl}</span>
           </button>
         `).join('')}
       </div>
-      ${_mostrador.destinoLabel ? `
-        <div style="margin-top:10px;padding:8px 10px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:13px;font-weight:700">→ ${_mostrador.destinoLabel}</div>
-          <button onclick="_mostradorPickDestino('${_mostrador.destinoTipo}')" style="background:none;border:none;color:var(--azul);font-size:12px;font-weight:700;cursor:pointer">Cambiar</button>
-        </div>
-      ` : `<div style="margin-top:8px;font-size:11px;color:var(--gris-400);text-align:center">Selecciona el tipo de destino</div>`}
+      <div style="margin-top:8px;font-size:11px;color:var(--gris-400);text-align:center">Selecciona el tipo de destino</div>
     </div>
   `;
+}
+
+function _mostradorCambiarDestino() {
+  // Vuelve al estado "sin destino" para mostrar los 4 botones de nuevo
+  _mostrador.destinoTipo = null;
+  _mostrador.destinoId   = null;
+  _mostrador.destinoLabel= '';
+  _mostradorRefreshHeader();
 }
 
 async function _mostradorPickDestino(tipo) {
