@@ -3615,7 +3615,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 129
+        instaloERP v1.1 · build 130
       </div>
     </div>`;
 }
@@ -3628,6 +3628,10 @@ let _mostrador = {
   destinoId:   null,    // id del cliente / trabajo / furgoneta / almacen destino
   destinoLabel:'',      // etiqueta visible
   almacenOrigenId: null,// almacén que descuenta (por defecto el de la sesión)
+  // Para destino 'obra': furgoneta del operario responsable (destino real del traspaso)
+  obraFurgonetaId: null,
+  obraFurgonetaNombre: '',
+  obraOperarioNombre: '',
   items: []             // [{articulo_id, codigo, nombre, cantidad, precio_unit}]
 };
 let _mostradorAlmacenes = []; // cache de almacenes
@@ -3718,6 +3722,9 @@ function _mostradorReset() {
   _mostrador.destinoTipo = null;
   _mostrador.destinoId   = null;
   _mostrador.destinoLabel= '';
+  _mostrador.obraFurgonetaId = null;
+  _mostrador.obraFurgonetaNombre = '';
+  _mostrador.obraOperarioNombre = '';
   _mostrador.items = [];
   _mostradorBusqueda = '';
   renderAlmacenMostrador(document.getElementById('appBody'));
@@ -3736,6 +3743,27 @@ function _mostradorRefreshHeader() {
   // Si YA hay destino elegido → vista colapsada compacta (no mostrar 4 botones para evitar tocar sin querer)
   if (_mostrador.destinoLabel) {
     const t = tipos.find(x => x.k === _mostrador.destinoTipo) || tipos[0];
+    // Línea extra para destino Obra: responsable (furgoneta + operario)
+    let extraResp = '';
+    if (_mostrador.destinoTipo === 'obra') {
+      if (_mostrador.obraFurgonetaId) {
+        const respTxt = `🚐 ${_mostrador.obraFurgonetaNombre || ''}${_mostrador.obraOperarioNombre ? ' · ' + _mostrador.obraOperarioNombre : ''}`;
+        extraResp = `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--gris-200);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Responsable</div>
+              <div style="font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${respTxt}</div>
+            </div>
+            <button onclick="_mostradorPickFurgoObra('')" style="padding:6px 10px;border:1px solid var(--gris-200);background:#fff;color:var(--azul);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Cambiar</button>
+          </div>`;
+      } else {
+        extraResp = `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--gris-200);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="font-size:12px;color:var(--rojo);font-weight:700">⚠️ Falta asignar responsable</div>
+            <button onclick="_mostradorPickFurgoObra('')" style="padding:6px 10px;border:1px solid var(--rojo);background:var(--rojo);color:#fff;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Asignar</button>
+          </div>`;
+      }
+    }
     cont.innerHTML = `
       <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;padding:12px;margin-top:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -3748,6 +3776,7 @@ function _mostradorRefreshHeader() {
           </div>
           <button onclick="_mostradorCambiarDestino()" style="padding:8px 12px;border:1.5px solid var(--gris-200);background:#fff;color:var(--azul);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Cambiar</button>
         </div>
+        ${extraResp}
       </div>
     `;
     return;
@@ -3778,6 +3807,9 @@ function _mostradorCambiarDestino() {
   _mostrador.destinoTipo = null;
   _mostrador.destinoId   = null;
   _mostrador.destinoLabel= '';
+  _mostrador.obraFurgonetaId = null;
+  _mostrador.obraFurgonetaNombre = '';
+  _mostrador.obraOperarioNombre = '';
   _mostradorRefreshHeader();
 }
 
@@ -3809,8 +3841,30 @@ function _mostradorPickObra() {
     const cli = (clientes||[]).find(c => c.id === t.cliente_id);
     return { id:t.id, nombre: t.titulo || t.descripcion || `Trabajo ${t.id}`, sub: cli?.nombre || '' };
   }), (sel) => {
+    // Guardamos la obra y pedimos la furgoneta responsable
     _mostrador.destinoId    = sel.id;
     _mostrador.destinoLabel = `🏗️ ${sel.nombre}${sel.sub?' · '+sel.sub:''}`;
+    _mostradorPickFurgoObra(sel.nombre);
+  });
+}
+
+// Selector de furgoneta responsable cuando el destino es Obra
+function _mostradorPickFurgoObra(obraTitulo) {
+  const lista = _mostradorAlmacenes.filter(a => a.tipo === 'furgoneta' && a.id !== _mostrador.almacenOrigenId);
+  if (!lista.length) {
+    alert('No hay furgonetas disponibles distintas del almacén origen.\nNo se puede asignar responsable. Cancelando destino Obra.');
+    _mostrador.destinoTipo = null;
+    _mostrador.destinoId = null;
+    _mostrador.destinoLabel = '';
+    _mostradorRefreshHeader();
+    return;
+  }
+  _mostradorModalSelector('¿Quién se la lleva?', lista.map(a => ({
+    id:a.id, nombre:`🚐 ${a.nombre}`, sub: a.operario_nombre || ''
+  })), (sel) => {
+    _mostrador.obraFurgonetaId     = sel.id;
+    _mostrador.obraFurgonetaNombre = (sel.nombre||'').replace(/^🚐\s*/,'');
+    _mostrador.obraOperarioNombre  = sel.sub || '';
     _mostradorRefreshHeader();
   });
 }
@@ -4518,38 +4572,49 @@ async function _mostradorCerrarAlbaran(firmaDataUrl) {
 }
 
 // ── Cierre: Obra ──────────────────────────────────────────
-async function _mostradorCerrarParteObra() {
-  const numero = await _mostradorSiguienteNumero('PRT', true);
+// Material para una obra → traspaso almacén origen → furgoneta del operario
+// responsable. La obra queda en observaciones para trazabilidad. El albarán
+// al cliente lo generará el flujo de partes cuando se monte el material.
+async function _mostradorCerrarObraTraspaso() {
+  const numero = await _mostradorSiguienteNumero('TR', true);
+  const almOrigen  = _mostradorAlmacenes.find(a => a.id === _mostrador.almacenOrigenId);
+  const almDestino = _mostradorAlmacenes.find(a => a.id === _mostrador.obraFurgonetaId);
+  if (!almDestino) throw new Error('Furgoneta destino no encontrada');
   const tr = (trabajos||[]).find(t => t.id === _mostrador.destinoId);
-  if (!tr) throw new Error('Trabajo no encontrado');
+  if (!tr) throw new Error('Obra no encontrada');
   const cli = (clientes||[]).find(c => c.id === tr.cliente_id);
-  const materiales = _mostradorLineasParaParte();
-  const totalMat = materiales.reduce((s,m) => s + (m.total||0), 0);
+  const obraTitulo = tr.titulo || tr.descripcion || `Trabajo ${tr.id}`;
 
-  const { data: parte, error } = await sb.from('partes_trabajo').insert({
+  const obs = [
+    `Material para obra: ${obraTitulo}`,
+    cli?.nombre ? `Cliente: ${cli.nombre}` : '',
+    `obra_id=${tr.id}`,
+    `Generado desde Mostrador por ${CU?.nombre||''} · responsable ${_mostrador.obraOperarioNombre || _mostrador.obraFurgonetaNombre || ''}`
+  ].filter(Boolean).join('\n');
+
+  const { data: trasp, error } = await sb.from('traspasos').insert({
     empresa_id: EMPRESA.id,
     numero,
-    trabajo_id: tr.id,
-    trabajo_titulo: tr.titulo || tr.descripcion || '',
-    cliente_id: cli?.id || null,
-    cliente_nombre: cli?.nombre || '',
-    usuario_id: CU?.id || null,
-    usuario_nombre: CU?.nombre || '',
+    almacen_origen_id:  _mostrador.almacenOrigenId,
+    almacen_destino_id: _mostrador.obraFurgonetaId,
+    almacen_origen_nombre:  almOrigen?.nombre  || '',
+    almacen_destino_nombre: almDestino?.nombre || '',
     fecha: new Date().toISOString().slice(0,10),
-    descripcion: `Material entregado en mostrador para la obra (${materiales.length} líneas, ${totalMat.toFixed(2)}€)`,
-    materiales,
-    estado: 'borrador',                    // borrador → no dispara descuento auto del flujo "completado"
-    observaciones: `Generado desde Mostrador · almacén ${(_mostradorAlmacenes.find(a=>a.id===_mostrador.almacenOrigenId)||{}).nombre||''}`
+    estado: 'preparado',
+    lineas: _mostradorLineasParaTraspaso(),
+    observaciones: obs,
+    usuario_id: CU?.id || null,
+    usuario_nombre: CU?.nombre || ''
   }).select().single();
   if (error) throw error;
 
-  // Descontar stock origen
+  // Descontar stock origen + movimientos
   await _mostradorDescontarOrigen({
-    tipo: 'salida',
-    notas: `Parte obra ${numero} · ${tr.titulo||tr.descripcion||''}`
+    tipo: 'traspaso_salida',
+    notas: `Mostrador → ${almDestino.nombre} (${numero}) · Obra: ${obraTitulo}`
   });
 
-  return { numero, doc: 'Parte de obra', id: parte?.id };
+  return { numero, doc: 'Traspaso a furgoneta (obra)', id: trasp?.id };
 }
 
 // ── Firma táctil (modal) ──────────────────────────────────
@@ -4623,11 +4688,15 @@ async function _mostradorFinalizar() {
   if (tipo === 'furgoneta' || tipo === 'almacen') {
     if (_mostrador.destinoId === _mostrador.almacenOrigenId) { alert('Origen y destino no pueden ser el mismo'); return; }
   }
+  if (tipo === 'obra') {
+    if (!_mostrador.obraFurgonetaId) { alert('Falta asignar la furgoneta/operario que se lleva el material'); return; }
+    if (_mostrador.obraFurgonetaId === _mostrador.almacenOrigenId) { alert('La furgoneta no puede ser el mismo almacén origen'); return; }
+  }
 
   // Confirmación
   const totalEur = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0) * (+i.precio_unit||0), 0);
   const totalUds = _mostrador.items.reduce((s,i) => s + (+i.cantidad||0), 0);
-  const lblDoc = tipo==='cliente' ? 'Albarán de venta' : tipo==='obra' ? 'Parte de obra' : 'Traspaso';
+  const lblDoc = tipo==='cliente' ? 'Albarán de venta' : tipo==='obra' ? 'Traspaso a furgoneta (Obra)' : 'Traspaso';
   if (!confirm(`Vas a generar ${lblDoc}\n\nDestino: ${_mostrador.destinoLabel || '(sin etiqueta)'}\nLíneas: ${_mostrador.items.length}  ·  ${totalUds} uds  ·  ${totalEur.toFixed(2)} €\n\n¿Confirmar?`)) return;
 
   // Firma para cliente (opcional)
@@ -4645,13 +4714,16 @@ async function _mostradorFinalizar() {
     let res;
     if (tipo === 'furgoneta' || tipo === 'almacen') res = await _mostradorCerrarTraspaso();
     else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
-    else if (tipo === 'obra')                       res = await _mostradorCerrarParteObra();
+    else if (tipo === 'obra')                       res = await _mostradorCerrarObraTraspaso();
 
     alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
     // Reset y vuelta a stock
     _mostrador.destinoTipo = null;
     _mostrador.destinoId   = null;
     _mostrador.destinoLabel= '';
+    _mostrador.obraFurgonetaId = null;
+    _mostrador.obraFurgonetaNombre = '';
+    _mostrador.obraOperarioNombre = '';
     _mostrador.items = [];
     _mostradorBusqueda = '';
     renderAlmacenMostrador(document.getElementById('appBody'));
