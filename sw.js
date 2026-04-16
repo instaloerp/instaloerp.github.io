@@ -1,5 +1,8 @@
-// Instalo App — Service Worker v2 (Offline-capable)
-const CACHE_NAME = 'instalo-app-v29';
+// Instalo App — Service Worker (Offline-capable)
+// CACHE_NAME debe coincidir con el "build" mostrado en el footer de app.html.
+// Subir SIEMPRE este número cuando se modifique app.html o sw.js — si no, los
+// móviles no detectarán cambio y seguirán sirviendo la versión vieja desde caché.
+const CACHE_NAME = 'instalo-app-v1';
 const STATIC_ASSETS = [
   '/app.html',
   '/assets/icon.svg',
