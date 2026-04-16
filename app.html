@@ -3081,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 7
+      instaloERP v1.0 · build 8
     </div>
   `;
 }
@@ -3431,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 7
+      instaloERP v1.0 · build 8
     </div>
   `;
 }
@@ -3807,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 7
+        instaloERP v1.0 · build 8
       </div>
     </div>`;
 }
@@ -5195,7 +5195,15 @@ function _devsBuscarInput(q) {
 }
 
 // Escáner (reusa html5-qrcode igual que mostrador)
-function _devsAbrirEscaner() {
+let _devsScanBusy = false; // anti-rebote para evitar doble lectura
+
+async function _devsAbrirEscaner() {
+  // Asegurar que la cámara anterior esté muerta antes de abrir otra
+  await _devsCerrarEscaner();
+  // Pequeña pausa para que iOS libere el stream de cámara
+  await new Promise(r => setTimeout(r, 150));
+
+  _devsScanBusy = false;
   const modal = document.createElement('div');
   modal.dataset.modal = 'devs-scan';
   modal.style.cssText = 'position:fixed;inset:0;background:#000;z-index:10003;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
@@ -5208,7 +5216,7 @@ function _devsAbrirEscaner() {
     <div style="padding:12px;background:#000;color:#fff;text-align:center;font-size:12px;opacity:.8">Apunta al código de barras o QR del artículo</div>
   `;
   document.body.appendChild(modal);
-  setTimeout(_devsScanStart, 50);
+  setTimeout(_devsScanStart, 100);
 }
 
 async function _devsScanStart() {
@@ -5231,13 +5239,33 @@ async function _devsScanStart() {
 }
 
 async function _devsCerrarEscaner() {
-  try { if (_devsHtml5Qr) { await _devsHtml5Qr.stop(); _devsHtml5Qr.clear(); } } catch{}
+  try {
+    if (_devsHtml5Qr) {
+      const state = _devsHtml5Qr.getState ? _devsHtml5Qr.getState() : null;
+      // Solo parar si está escaneando (state 2) o pausado (state 3)
+      if (state === 2 || state === 3 || state === null) {
+        await _devsHtml5Qr.stop();
+      }
+      _devsHtml5Qr.clear();
+    }
+  } catch(e) {
+    console.warn('[Devs] Warn al cerrar escáner:', e);
+  }
   _devsHtml5Qr = null;
+  // Forzar cierre de streams de cámara huérfanos (iPhone bug)
+  document.querySelectorAll('[data-modal="devs-scan"] video').forEach(v => {
+    try {
+      const tracks = v.srcObject?.getTracks?.();
+      if (tracks) tracks.forEach(t => t.stop());
+      v.srcObject = null;
+    } catch{}
+  });
   document.querySelectorAll('[data-modal="devs-scan"]').forEach(m => m.remove());
 }
 
 async function _devsOnScan(decodedText) {
-  if (!decodedText) return;
+  if (!decodedText || _devsScanBusy) return;
+  _devsScanBusy = true; // anti-rebote: una sola lectura por apertura
   await _devsCerrarEscaner();
   _mostradorBeep && _mostradorBeep('ok');
   // Buscar artículo igual que mostrador (permisivo)
@@ -5355,7 +5383,7 @@ async function _devsConfirmarOk(art, seguirEscaneando) {
     if (navigator.vibrate) navigator.vibrate(40);
     _devsCerrarFicha();
     renderAlmacenDevoluciones(document.getElementById('appBody'));
-    if (seguirEscaneando) setTimeout(() => _devsAbrirEscaner(), 200);
+    if (seguirEscaneando) setTimeout(() => _devsAbrirEscaner(), 400);
   } catch(e) {
     console.error('[Devs] OK error:', e);
     alert('❌ Error al procesar OK:\n\n' + (e.message || JSON.stringify(e)));
@@ -5444,7 +5472,7 @@ async function _devsConfirmarIncidencia(art, cant, seguirEscaneando) {
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     renderAlmacenDevoluciones(document.getElementById('appBody'));
     if (seguirEscaneando) {
-      setTimeout(() => _devsAbrirEscaner(), 200);
+      setTimeout(() => _devsAbrirEscaner(), 400);
     }
   } catch(e) {
     console.error('[Devs] Incidencia error:', e);
