@@ -661,6 +661,13 @@ async function processSyncQueue() {
         result = await sb.from(op.table).insert(op.data);
       } else if (op.action === 'upsert') {
         result = await sb.from(op.table).upsert(op.data);
+      } else if (op.action === 'mostrador_finalizar') {
+        // Replay Mostrador operation
+        result = await _syncReplayMostrador(op.data);
+      } else if (op.action === 'devs_ok') {
+        result = await _syncReplayDevsOk(op.data);
+      } else if (op.action === 'recepcion_confirmar') {
+        result = await _syncReplayRecepcion(op.data);
       }
       if (result?.error) throw result.error;
       await syncQueueDelete(op.id);
@@ -694,6 +701,126 @@ function _updateSyncBadge() {
       }
     }
   });
+}
+
+// ── Replay functions for complex offline operations ──────
+
+async function _syncReplayMostrador(d) {
+  // Restore _mostrador state temporarily for the close functions
+  const backup = JSON.parse(JSON.stringify(_mostrador));
+  _mostrador.items = d.items;
+  _mostrador.almacenOrigenId = d.almacenOrigenId;
+  _mostrador.destinoId = d.destinoId;
+  _mostrador.destinoLabel = d.destinoLabel;
+  _mostrador.destinoTipo = d.tipo;
+  _mostrador.obraFurgonetaId = d.obraFurgonetaId;
+  _mostrador.obraFurgonetaNombre = d.obraFurgonetaNombre;
+  _mostrador.obraOperarioNombre = d.obraOperarioNombre;
+  // Temporarily set EMPRESA and CU if needed
+  try {
+    let res;
+    if (d.tipo === 'furgoneta' || d.tipo === 'almacen') res = await _mostradorCerrarTraspaso();
+    else if (d.tipo === 'cliente') res = await _mostradorCerrarAlbaran(d.firmaDataUrl);
+    else if (d.tipo === 'obra') res = await _mostradorCerrarObraTraspaso();
+    console.log('[Sync] Mostrador replayed:', res);
+    return { error: null };
+  } finally {
+    // Restore original state
+    Object.assign(_mostrador, backup);
+  }
+}
+
+async function _syncReplayDevsOk(d) {
+  const almDestino = _mostradorAlmacenes.find(a => a.id === d.almacenDestinoId);
+  // 1) Restar de furgoneta
+  const { data: stockFurgo } = await sb.from('stock').select('*')
+    .eq('empresa_id', d.empresa_id).eq('articulo_id', d.art.id).eq('almacen_id', d.furgonetaId).maybeSingle();
+  if (stockFurgo) {
+    await sb.from('stock').update({
+      cantidad: Math.max(0, (stockFurgo.cantidad||0) - d.cant),
+      updated_at: new Date().toISOString()
+    }).eq('id', stockFurgo.id);
+  }
+  await sb.from('movimientos_stock').insert({
+    empresa_id: d.empresa_id, articulo_id: d.art.id, almacen_id: d.furgonetaId,
+    tipo: 'devolucion_furgoneta_salida', delta: -Math.abs(d.cant), cantidad: Math.abs(d.cant),
+    notas: `Devolución de ${d.operarioNombre||'operario'} → ${almDestino?.nombre||''} [SYNC OFFLINE]`,
+    fecha: d.fecha, usuario_id: d.usuario?.id||null, usuario_nombre: d.usuario?.nombre||'Almacén'
+  });
+  // 2) Sumar al almacén destino
+  const { data: stockAlm } = await sb.from('stock').select('*')
+    .eq('empresa_id', d.empresa_id).eq('articulo_id', d.art.id).eq('almacen_id', d.almacenDestinoId).maybeSingle();
+  if (stockAlm) {
+    await sb.from('stock').update({ cantidad: (stockAlm.cantidad||0) + d.cant, updated_at: new Date().toISOString() }).eq('id', stockAlm.id);
+  } else {
+    await sb.from('stock').insert({ empresa_id: d.empresa_id, articulo_id: d.art.id, almacen_id: d.almacenDestinoId, cantidad: d.cant });
+  }
+  await sb.from('movimientos_stock').insert({
+    empresa_id: d.empresa_id, articulo_id: d.art.id, almacen_id: d.almacenDestinoId,
+    tipo: 'devolucion_furgoneta_entrada', delta: Math.abs(d.cant), cantidad: Math.abs(d.cant),
+    notas: `Devolución de ${d.operarioNombre||'operario'} (${d.furgonetaNombre}) [SYNC OFFLINE]`,
+    fecha: d.fecha, usuario_id: d.usuario?.id||null, usuario_nombre: d.usuario?.nombre||'Almacén'
+  });
+  return { error: null };
+}
+
+async function _syncReplayRecepcion(d) {
+  const yaDescontado = (d.traspEstado === 'preparado');
+  for (const linea of d.lineasReales) {
+    if (!yaDescontado && linea.cantidad_esperada > 0) {
+      const { data: stOrig } = await sb.from('stock').select('*')
+        .eq('empresa_id', d.empresa_id).eq('articulo_id', linea.articulo_id)
+        .eq('almacen_id', d.almacen_origen_id).maybeSingle();
+      if (stOrig) {
+        await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad_esperada) }).eq('id', stOrig.id);
+        await sb.from('movimientos_stock').insert({
+          empresa_id: d.empresa_id, articulo_id: linea.articulo_id,
+          almacen_id: d.almacen_origen_id, tipo: 'traspaso_salida',
+          delta: -linea.cantidad_esperada, notas: `Salida → ${d.almacen_destino_nombre} (${d.traspNumero}) [SYNC OFFLINE]`,
+          fecha: d.fecha, usuario_id: d.usuario?.id||null, usuario_nombre: d.usuario?.nombre||'Operario'
+        });
+      }
+    }
+    if (linea.cantidad_recibida > 0) {
+      const { data: stDest } = await sb.from('stock').select('*')
+        .eq('empresa_id', d.empresa_id).eq('articulo_id', linea.articulo_id)
+        .eq('almacen_id', d.almacen_destino_id).maybeSingle();
+      if (stDest) {
+        await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad_recibida }).eq('id', stDest.id);
+      } else {
+        await sb.from('stock').insert({
+          empresa_id: d.empresa_id, articulo_id: linea.articulo_id,
+          almacen_id: d.almacen_destino_id, cantidad: linea.cantidad_recibida, stock_minimo: 0
+        });
+      }
+      await sb.from('movimientos_stock').insert({
+        empresa_id: d.empresa_id, articulo_id: linea.articulo_id,
+        almacen_id: d.almacen_destino_id, tipo: 'traspaso_entrada',
+        delta: linea.cantidad_recibida, notas: `Entrada ← ${d.almacen_origen_nombre} (${d.traspNumero}) [SYNC OFFLINE]`,
+        fecha: d.fecha, usuario_id: d.usuario?.id||null, usuario_nombre: d.usuario?.nombre||'Operario'
+      });
+    }
+    if (linea.diferencia !== 0) {
+      const tipoDif = linea.diferencia > 0 ? 'FALTA' : 'SOBRA';
+      await sb.from('incidencias_stock').insert({
+        empresa_id: d.empresa_id, articulo_id: linea.articulo_id,
+        articulo_nombre: `[RECEPCIÓN ${tipoDif}] ${linea.nombre||''}`,
+        cantidad: Math.abs(linea.diferencia),
+        almacen_id: d.almacen_destino_id, almacen_nombre: d.almacen_destino_nombre,
+        usuario_id: d.usuario?.id||null, usuario_nombre: d.usuario?.nombre||'Operario',
+        estado: 'pendiente',
+        resolucion: `Traspaso ${d.traspNumero} desde ${d.almacen_origen_nombre}.\nEsperado: ${linea.cantidad_esperada} · Recibido: ${linea.cantidad_recibida}\nDiferencia: ${tipoDif} ${Math.abs(linea.diferencia)} uds${d.nota ? '\nNota operario: ' + d.nota : ''} [SYNC OFFLINE]`
+      });
+    }
+  }
+  const obsExtra = d.lineasConDif > 0
+    ? `\n[RECEPCIÓN PARCIAL · ${d.fecha}] ${d.lineasConDif} línea(s) con incidencia${d.nota ? ' · Nota: ' + d.nota : ''} [SYNC OFFLINE]`
+    : '';
+  await sb.from('traspasos').update({
+    estado: 'completado',
+    observaciones: (d.observaciones || '') + obsExtra
+  }).eq('id', d.traspId);
+  return { error: null };
 }
 
 // ── Helper: update con fallback offline ──
@@ -1169,79 +1296,96 @@ async function confirmarReposicion(traspId) {
 
   try {
     toast('⏳ Procesando recepción...','info');
-    const yaDescontado = (trasp.estado === 'preparado');
 
-    for (const linea of lineasReales) {
-      // 1) Si viene de pendiente, restar del origen LO QUE EL ALMACENERO DIJO QUE SACABA
-      //    (la cantidad esperada — esa la sacó realmente del almacén, aunque luego falte
-      //    en la furgoneta. La diferencia se trata como incidencia, no como "no salió").
-      if (!yaDescontado && linea.cantidad_esperada > 0) {
-        const { data: stOrig } = await sb.from('stock').select('*')
-          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
-          .eq('almacen_id', trasp.almacen_origen_id).maybeSingle();
-        if (stOrig) {
-          await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad_esperada) }).eq('id', stOrig.id);
+    if (navigator.onLine) {
+      const yaDescontado = (trasp.estado === 'preparado');
+
+      for (const linea of lineasReales) {
+        if (!yaDescontado && linea.cantidad_esperada > 0) {
+          const { data: stOrig } = await sb.from('stock').select('*')
+            .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+            .eq('almacen_id', trasp.almacen_origen_id).maybeSingle();
+          if (stOrig) {
+            await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad_esperada) }).eq('id', stOrig.id);
+            await sb.from('movimientos_stock').insert({
+              empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+              almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
+              delta: -linea.cantidad_esperada, notas: `Salida → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
+              fecha: new Date().toISOString().slice(0,10),
+              usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
+            });
+          }
+        }
+
+        if (linea.cantidad_recibida > 0) {
+          const { data: stDest } = await sb.from('stock').select('*')
+            .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+            .eq('almacen_id', trasp.almacen_destino_id).maybeSingle();
+          if (stDest) {
+            await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad_recibida }).eq('id', stDest.id);
+          } else {
+            await sb.from('stock').insert({
+              empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+              almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad_recibida,
+              stock_minimo: 0
+            });
+          }
           await sb.from('movimientos_stock').insert({
             empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
-            almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
-            delta: -linea.cantidad_esperada, notas: `Salida → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
+            almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
+            delta: linea.cantidad_recibida, notas: `Entrada ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
             fecha: new Date().toISOString().slice(0,10),
             usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
           });
         }
-      }
 
-      // 2) Sumar al destino (mi furgoneta) SOLO LO REALMENTE RECIBIDO
-      if (linea.cantidad_recibida > 0) {
-        const { data: stDest } = await sb.from('stock').select('*')
-          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
-          .eq('almacen_id', trasp.almacen_destino_id).maybeSingle();
-        if (stDest) {
-          await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad_recibida }).eq('id', stDest.id);
-        } else {
-          await sb.from('stock').insert({
-            empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
-            almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad_recibida,
-            stock_minimo: 0
+        if (linea.diferencia !== 0) {
+          const tipoDif = linea.diferencia > 0 ? 'FALTA' : 'SOBRA';
+          const cantDif = Math.abs(linea.diferencia);
+          await sb.from('incidencias_stock').insert({
+            empresa_id: EMPRESA.id,
+            articulo_id: linea.articulo_id,
+            articulo_nombre: `[RECEPCIÓN ${tipoDif}] ${linea.nombre||''}`,
+            cantidad: cantDif,
+            almacen_id: trasp.almacen_destino_id,
+            almacen_nombre: trasp.almacen_destino_nombre,
+            usuario_id: CU?.id || null,
+            usuario_nombre: CP?.nombre || 'Operario',
+            estado: 'pendiente',
+            resolucion: `Traspaso ${trasp.numero} desde ${trasp.almacen_origen_nombre}.\nEsperado: ${linea.cantidad_esperada} · Recibido: ${linea.cantidad_recibida}\nDiferencia: ${tipoDif} ${cantDif} uds${nota ? '\nNota operario: ' + nota : ''}`
           });
         }
-        await sb.from('movimientos_stock').insert({
-          empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
-          almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
-          delta: linea.cantidad_recibida, notas: `Entrada ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
-          fecha: new Date().toISOString().slice(0,10),
-          usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
-        });
       }
 
-      // 3) Si hay diferencia → incidencia
-      if (linea.diferencia !== 0) {
-        const tipoDif = linea.diferencia > 0 ? 'FALTA' : 'SOBRA';
-        const cantDif = Math.abs(linea.diferencia);
-        await sb.from('incidencias_stock').insert({
-          empresa_id: EMPRESA.id,
-          articulo_id: linea.articulo_id,
-          articulo_nombre: `[RECEPCIÓN ${tipoDif}] ${linea.nombre||''}`,
-          cantidad: cantDif,
-          almacen_id: trasp.almacen_destino_id,
-          almacen_nombre: trasp.almacen_destino_nombre,
-          usuario_id: CU?.id || null,
-          usuario_nombre: CP?.nombre || 'Operario',
-          estado: 'pendiente',
-          resolucion: `Traspaso ${trasp.numero} desde ${trasp.almacen_origen_nombre}.\nEsperado: ${linea.cantidad_esperada} · Recibido: ${linea.cantidad_recibida}\nDiferencia: ${tipoDif} ${cantDif} uds${nota ? '\nNota operario: ' + nota : ''}`
-        });
-      }
+      const obsActual = trasp.observaciones || '';
+      const obsExtra  = lineasConDif.length > 0
+        ? `\n[RECEPCIÓN PARCIAL · ${new Date().toISOString().slice(0,10)}] ${lineasConDif.length} línea(s) con incidencia${nota ? ' · Nota: ' + nota : ''}`
+        : '';
+      await sb.from('traspasos').update({
+        estado: 'completado',
+        observaciones: obsActual + obsExtra
+      }).eq('id', traspId);
+
+    } else {
+      // Offline: encolar toda la operación
+      await syncQueueAdd({ table: '_recepcion', action: 'recepcion_confirmar', data: {
+        traspId,
+        traspNumero: trasp.numero,
+        traspEstado: trasp.estado,
+        almacen_origen_id: trasp.almacen_origen_id,
+        almacen_origen_nombre: trasp.almacen_origen_nombre,
+        almacen_destino_id: trasp.almacen_destino_id,
+        almacen_destino_nombre: trasp.almacen_destino_nombre,
+        lineasReales: lineasReales,
+        lineasConDif: lineasConDif.length,
+        nota: nota,
+        observaciones: trasp.observaciones || '',
+        empresa_id: EMPRESA.id,
+        usuario: { id: CU?.id, nombre: CP?.nombre || 'Operario' },
+        fecha: new Date().toISOString().slice(0,10)
+      }, timestamp: Date.now() });
+      toast('📋 Recepción guardada offline — se procesará al recuperar conexión', 'info');
     }
-
-    // 4) Marcar traspaso completado (con marca en observaciones si hubo incidencias)
-    const obsActual = trasp.observaciones || '';
-    const obsExtra  = lineasConDif.length > 0
-      ? `\n[RECEPCIÓN PARCIAL · ${new Date().toISOString().slice(0,10)}] ${lineasConDif.length} línea(s) con incidencia${nota ? ' · Nota: ' + nota : ''}`
-      : '';
-    await sb.from('traspasos').update({
-      estado: 'completado',
-      observaciones: obsActual + obsExtra
-    }).eq('id', traspId);
 
     if (lineasConDif.length === 0) {
       toast('✅ Reposición confirmada — stock actualizado en tu furgoneta', 'success');
@@ -1634,7 +1778,7 @@ async function loadAllData() {
       sb.from('perfiles').select('*').eq('empresa_id', eid).eq('activo', true),
       sb.from('trabajos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}),
       sb.from('clientes').select('*').eq('empresa_id', eid).order('nombre'),
-      sb.from('articulos').select('id,codigo,nombre,precio_venta').eq('empresa_id', eid).eq('activo', true).order('nombre'),
+      sb.from('articulos').select('id,codigo,nombre,precio_venta,codigo_barras,referencia_fabricante,foto_url,precio_coste').eq('empresa_id', eid).eq('activo', true).order('nombre'),
     ];
 
     // Jefe: cargar tareas de todas las obras; Operario: solo sus tareas
@@ -3081,7 +3225,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 10
+      instaloERP v1.0 · build 11
     </div>
   `;
 }
@@ -3431,7 +3575,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 10
+      instaloERP v1.0 · build 11
     </div>
   `;
 }
@@ -3807,7 +3951,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 10
+        instaloERP v1.0 · build 11
       </div>
     </div>`;
 }
@@ -4402,7 +4546,7 @@ async function _mostradorScanStart() {
 
   _mostradorScanner = new Html5Qrcode('mostradorScanArea', { verbose: false });
   const config = {
-    fps: 12,
+    fps: 15,
     qrbox: (vw, vh) => {
       // Si el contenedor todavía no tiene tamaño (vw/vh=0), devuelve fallback seguro
       if (!vw || !vh || vw < 100 || vh < 100) return { width: 260, height: 160 };
@@ -4413,7 +4557,7 @@ async function _mostradorScanStart() {
       };
     },
     aspectRatio: 1.0,
-    formatsToSupport: undefined  // todos los formatos: QR + 1D
+    formatsToSupport: [0, 1, 2, 3, 7]  // QR_CODE=0, EAN_13=1, EAN_8=2, CODE_128=3, CODE_39=7
   };
   try {
     await _mostradorScanner.start(
@@ -4469,16 +4613,11 @@ async function _mostradorOnScan(decodedText) {
   _mostradorScanLast = { code, ts: now };
 
   const art = _mostradorBuscarArticuloPorCodigo(code);
-  const info = document.getElementById('mostradorScanInfo');
   if (!art) {
-    if (info) {
-      info.style.color = '#fca5a5';
-      info.innerHTML = `❌ No encontrado: <b>${code}</b>
-        <button onclick="_mostradorBuscarManualConCodigo('${code.replace(/'/g,"\\'")}')"
-          style="margin-left:8px;padding:4px 10px;background:#fff;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Buscar manual</button>`;
-    }
     _mostradorBeep('err');
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    await _mostradorCerrarEscaner();
+    _scanCodigoNoEncontrado(code, 'mostrador');
     return;
   }
   // ✅ Encontrado → beep + cerrar escáner + abrir ficha cantidad
@@ -4598,6 +4737,241 @@ function _mostradorBuscarManualConCodigo(code) {
     if (inp) { inp.value = code; inp.focus(); }
     _mostradorRenderResultados();
   }, 250);
+}
+
+// ── Modal: código escaneado no encontrado ────────────────
+// context: 'mostrador' | 'devs'
+function _scanCodigoNoEncontrado(code, context) {
+  const modal = document.createElement('div');
+  modal.dataset.modal = 'scan-not-found';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10005;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;padding:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom))">
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px">🔍 Código no encontrado</div>
+      <div style="background:var(--gris-50);border-radius:10px;padding:12px;margin-bottom:14px;word-break:break-all">
+        <div style="font-size:11px;color:var(--gris-400);font-weight:700;letter-spacing:.5px">CÓDIGO ESCANEADO</div>
+        <div style="font-size:18px;font-weight:800;font-family:monospace;margin-top:4px">${code}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button onclick="_scanCrearProvisional('${code.replace(/'/g,"\\'")}','${context}')"
+          style="padding:14px;background:var(--azul);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;text-align:left">
+          ➕ Crear artículo provisional
+          <div style="font-size:11px;font-weight:500;opacity:.8;margin-top:2px">Nombre rápido + código. Se completará después desde el ERP.</div>
+        </button>
+        <button onclick="_scanAsignarExistente('${code.replace(/'/g,"\\'")}','${context}')"
+          style="padding:14px;background:#fff;color:var(--azul);border:1.5px solid var(--azul);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;text-align:left">
+          🔗 Asignar a artículo existente
+          <div style="font-size:11px;font-weight:500;color:var(--gris-400);margin-top:2px">Buscar un artículo ya creado y vincular este código.</div>
+        </button>
+        <button onclick="_scanBuscarManual('${code.replace(/'/g,"\\'")}','${context}')"
+          style="padding:14px;background:var(--gris-50);color:var(--gris-600);border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;text-align:left">
+          🔎 Buscar manual
+        </button>
+        <button onclick="document.querySelectorAll('[data-modal=scan-not-found]').forEach(m=>m.remove())"
+          style="padding:10px;background:none;border:none;color:var(--gris-400);font-size:13px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function _scanCerrarNotFound() {
+  document.querySelectorAll('[data-modal="scan-not-found"]').forEach(m => m.remove());
+}
+
+// Buscar manual — redirige al buscador del contexto correspondiente
+function _scanBuscarManual(code, context) {
+  _scanCerrarNotFound();
+  if (context === 'mostrador') {
+    _mostradorBuscarManualConCodigo(code);
+  } else {
+    // Devs: no tiene buscador manual, volver a la pantalla principal
+    toast(`Código ${code} copiado. Búscalo manualmente.`, 'info');
+  }
+}
+
+// ── Crear artículo provisional ───────────────────────────
+function _scanCrearProvisional(code, context) {
+  _scanCerrarNotFound();
+  const modal = document.createElement('div');
+  modal.dataset.modal = 'scan-provisional';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10006;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;padding:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom))">
+      <div style="font-size:18px;font-weight:800;margin-bottom:14px">➕ Artículo provisional</div>
+      <div style="background:var(--gris-50);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:monospace;font-size:14px;font-weight:700">${code}</div>
+
+      <label style="font-size:12px;color:var(--gris-400);font-weight:700;display:block;margin-bottom:4px">NOMBRE / DESCRIPCIÓN *</label>
+      <input id="scanProvNombre" type="text" placeholder="Ej: Tubo cobre 22mm, Codo PVC..."
+        style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:12px"
+        autocomplete="off">
+
+      <label style="font-size:12px;color:var(--gris-400);font-weight:700;display:block;margin-bottom:4px">PRECIO VENTA (€) — opcional</label>
+      <input id="scanProvPrecio" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"
+        style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:14px">
+
+      <div style="background:#FEF3C7;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#92400E">
+        ⚠️ Se creará con datos mínimos. Completa la ficha desde el ERP de escritorio.
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="document.querySelectorAll('[data-modal=scan-provisional]').forEach(m=>m.remove())"
+          style="flex:1;padding:14px;background:var(--gris-50);border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">Cancelar</button>
+        <button onclick="_scanGuardarProvisional('${code.replace(/'/g,"\\'")}','${context}')"
+          style="flex:1;padding:14px;background:var(--azul);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">Crear</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('scanProvNombre')?.focus(), 200);
+}
+
+async function _scanGuardarProvisional(code, context) {
+  const nombre = (document.getElementById('scanProvNombre')?.value || '').trim();
+  if (!nombre) { toast('Escribe un nombre para el artículo', 'error'); return; }
+  const precio = parseFloat(document.getElementById('scanProvPrecio')?.value) || 0;
+
+  try {
+    const nuevo = {
+      empresa_id: EMPRESA.id,
+      nombre: nombre,
+      codigo: 'PROV-' + Date.now().toString(36).toUpperCase(),
+      codigo_barras: code,
+      precio_venta: precio,
+      precio_coste: 0,
+      activo: true,
+      observaciones: `[PROVISIONAL] Creado desde app móvil el ${new Date().toISOString().slice(0,10)}. Código escaneado: ${code}. Pendiente completar ficha.`
+    };
+
+    if (navigator.onLine) {
+      const { data, error } = await sb.from('articulos').insert(nuevo).select().single();
+      if (error) throw error;
+      // Añadir al array local
+      articulos.push(data);
+      toast(`✅ Artículo "${nombre}" creado`, 'success');
+      document.querySelectorAll('[data-modal="scan-provisional"]').forEach(m => m.remove());
+      // Abrir ficha del artículo recién creado en el contexto correcto
+      if (context === 'mostrador') {
+        _mostradorFichaArticulo(data);
+      } else if (context === 'devs') {
+        _devsAbrirFicha({ id: data.id, codigo: data.codigo || '', nombre: data.nombre || '' });
+      }
+    } else {
+      // Offline: encolar creación + añadir temporalmente al array local
+      const tempId = 'temp_' + Date.now();
+      nuevo.id = tempId;
+      await syncQueueAdd({ table: 'articulos', action: 'insert', data: { ...nuevo, id: undefined }, _tempId: tempId, timestamp: Date.now() });
+      articulos.push(nuevo);
+      toast(`✅ Artículo "${nombre}" creado offline — se subirá con conexión`, 'success');
+      document.querySelectorAll('[data-modal="scan-provisional"]').forEach(m => m.remove());
+      if (context === 'mostrador') {
+        _mostradorFichaArticulo(nuevo);
+      } else if (context === 'devs') {
+        _devsAbrirFicha({ id: tempId, codigo: nuevo.codigo || '', nombre: nuevo.nombre || '' });
+      }
+    }
+  } catch(e) {
+    console.error('[Scan] Error creando provisional:', e);
+    toast('❌ Error: ' + (e.message || e), 'error');
+  }
+}
+
+// ── Asignar código a artículo existente ──────────────────
+function _scanAsignarExistente(code, context) {
+  _scanCerrarNotFound();
+  // Reutilizar el patrón de selector modal del mostrador
+  const modal = document.createElement('div');
+  modal.dataset.modal = 'scan-asignar';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10006;display:flex;flex-direction:column;align-items:center;justify-content:flex-end';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)">
+      <div style="padding:14px 18px 0;flex-shrink:0">
+        <div style="font-size:18px;font-weight:800;margin-bottom:4px">🔗 Asignar código a artículo</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:10px">Código: <b style="font-family:monospace">${code}</b></div>
+        <input id="scanAsignarBuscar" type="text" placeholder="Buscar artículo por nombre, código..."
+          style="width:100%;padding:12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:inherit;margin-bottom:10px"
+          oninput="_scanAsignarFiltrar()" autocomplete="off">
+      </div>
+      <div id="scanAsignarLista" style="flex:1;overflow-y:auto;padding:0 18px 18px"></div>
+    </div>
+  `;
+  modal.querySelector('div').addEventListener('click', e => e.stopPropagation());
+  modal.addEventListener('click', () => document.querySelectorAll('[data-modal="scan-asignar"]').forEach(m => m.remove()));
+  document.body.appendChild(modal);
+  // Guardar code y context para usar en selección
+  modal._scanCode = code;
+  modal._scanContext = context;
+  setTimeout(() => {
+    document.getElementById('scanAsignarBuscar')?.focus();
+    _scanAsignarFiltrar();
+  }, 200);
+}
+
+function _scanAsignarFiltrar() {
+  const q = (document.getElementById('scanAsignarBuscar')?.value || '').toLowerCase().trim();
+  const lista = document.getElementById('scanAsignarLista');
+  if (!lista) return;
+
+  const filtered = (articulos || []).filter(a => {
+    if (!q) return true;
+    return (a.nombre || '').toLowerCase().includes(q)
+        || (a.codigo || '').toLowerCase().includes(q)
+        || (a.codigo_barras || '').toLowerCase().includes(q)
+        || (a.referencia_fabricante || '').toLowerCase().includes(q);
+  }).slice(0, 50);
+
+  if (!filtered.length) {
+    lista.innerHTML = '<div style="text-align:center;color:var(--gris-400);padding:30px;font-size:13px">Sin resultados</div>';
+    return;
+  }
+  lista.innerHTML = filtered.map(a => `
+    <div onclick="_scanAsignarSeleccionar(${a.id})"
+      style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--gris-100);cursor:pointer">
+      <div style="width:36px;height:36px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background-image:url('${a.foto_url||''}');background-size:cover;background-position:center">
+        ${a.foto_url?'':'📦'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre||'—'}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''}${a.codigo_barras?' · '+a.codigo_barras:''}${a.referencia_fabricante?' · '+a.referencia_fabricante:''}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--azul);flex-shrink:0">${(+a.precio_venta||0).toFixed(2)}€</div>
+    </div>
+  `).join('');
+}
+
+async function _scanAsignarSeleccionar(artId) {
+  const modal = document.querySelector('[data-modal="scan-asignar"]');
+  const code = modal?._scanCode;
+  const context = modal?._scanContext;
+  if (!code) return;
+
+  const art = articulos.find(a => a.id === artId);
+  if (!art) return;
+
+  if (!confirm(`¿Asignar código "${code}" al artículo "${art.nombre}"?\n\nSe guardará como código de barras del artículo.`)) return;
+
+  try {
+    if (navigator.onLine) {
+      const { error } = await sb.from('articulos').update({ codigo_barras: code }).eq('id', artId);
+      if (error) throw error;
+    } else {
+      await syncQueueAdd({ table: 'articulos', action: 'update', data: { codigo_barras: code }, match: { id: artId }, timestamp: Date.now() });
+    }
+    // Actualizar array local
+    art.codigo_barras = code;
+    toast(`✅ Código asignado a "${art.nombre}"`, 'success');
+    document.querySelectorAll('[data-modal="scan-asignar"]').forEach(m => m.remove());
+
+    // Abrir ficha del artículo
+    if (context === 'mostrador') {
+      _mostradorFichaArticulo(art);
+    } else if (context === 'devs') {
+      _devsAbrirFicha({ id: art.id, codigo: art.codigo || '', nombre: art.nombre || '' });
+    }
+  } catch(e) {
+    console.error('[Scan] Error asignando código:', e);
+    toast('❌ Error: ' + (e.message || e), 'error');
+  }
 }
 
 function _mostradorBuscarArticuloPorCodigo(code) {
@@ -4942,11 +5316,33 @@ async function _mostradorFinalizar() {
 
   try {
     let res;
-    if (tipo === 'furgoneta' || tipo === 'almacen') res = await _mostradorCerrarTraspaso();
-    else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
-    else if (tipo === 'obra')                       res = await _mostradorCerrarObraTraspaso();
+    if (navigator.onLine) {
+      // Online: ejecutar directamente
+      if (tipo === 'furgoneta' || tipo === 'almacen') res = await _mostradorCerrarTraspaso();
+      else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
+      else if (tipo === 'obra')                       res = await _mostradorCerrarObraTraspaso();
 
-    alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
+      alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
+    } else {
+      // Offline: encolar como borrador
+      const payload = {
+        tipo: tipo,
+        items: JSON.parse(JSON.stringify(_mostrador.items)),
+        almacenOrigenId: _mostrador.almacenOrigenId,
+        destinoId: _mostrador.destinoId,
+        destinoLabel: _mostrador.destinoLabel,
+        obraFurgonetaId: _mostrador.obraFurgonetaId || null,
+        obraFurgonetaNombre: _mostrador.obraFurgonetaNombre || null,
+        obraOperarioNombre: _mostrador.obraOperarioNombre || null,
+        firmaDataUrl: firmaDataUrl,
+        usuario: { id: CU?.id, nombre: CU?.nombre },
+        empresa_id: EMPRESA.id,
+        fecha: new Date().toISOString().slice(0,10)
+      };
+      await syncQueueAdd({ table: '_mostrador', action: 'mostrador_finalizar', data: payload, timestamp: Date.now() });
+      alert(`📋 Borrador guardado offline.\n${_mostrador.items.length} líneas · ${totalUds} uds.\nSe procesará automáticamente al recuperar conexión.`);
+      res = { doc: 'Borrador', numero: 'OFFLINE-' + Date.now().toString(36).toUpperCase() };
+    }
     // Sonido post-alert (iOS suspende AudioContext tras modales nativos)
     setTimeout(() => {
       if (_mostradorAudioCtx && _mostradorAudioCtx.state === 'suspended') {
@@ -4954,24 +5350,18 @@ async function _mostradorFinalizar() {
       } else {
         _mostradorBeep && _mostradorBeep('done');
       }
-      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
     }, 150);
-    // Reset y vuelta a stock
-    _mostrador.destinoTipo = null;
-    _mostrador.destinoId   = null;
-    _mostrador.destinoLabel= '';
-    _mostrador.obraFurgonetaId = null;
-    _mostrador.obraFurgonetaNombre = '';
-    _mostrador.obraOperarioNombre = '';
+    // Reset estado
     _mostrador.items = [];
-    _mostradorBusqueda = '';
+    _mostrador.destinoTipo = null;
+    _mostrador.destinoId = null;
+    _mostrador.destinoLabel = '';
     renderAlmacenMostrador(document.getElementById('appBody'));
   } catch(e) {
     console.error('[Mostrador] Error finalizar:', e);
-    // Mensaje legible: prioriza .message, luego .details/.hint de Supabase, luego JSON
-    let msg = '';
+    let msg;
     if (e && typeof e === 'object') {
-      msg = e.message || e.error_description || e.hint || e.details || '';
+      msg = e.message || e.details || e.hint || '';
       if (!msg) {
         try { msg = JSON.stringify(e); } catch { msg = String(e); }
       }
@@ -5260,7 +5650,7 @@ async function _devsScanStart() {
   try {
     _devsHtml5Qr = new Html5Qrcode('devsScanVisor', { verbose: false });
     const config = {
-      fps: 12,
+      fps: 15,
       qrbox: (vw, vh) => {
         if (!vw || !vh || vw < 100 || vh < 100) return { width: 260, height: 160 };
         const min = Math.min(vw, vh);
@@ -5270,7 +5660,7 @@ async function _devsScanStart() {
         };
       },
       aspectRatio: 1.0,
-      formatsToSupport: undefined  // todos: QR + EAN-13 + EAN-8 + CODE-128 + CODE-39 etc.
+      formatsToSupport: [0, 1, 2, 3, 7]  // QR_CODE=0, EAN_13=1, EAN_8=2, CODE_128=3, CODE_39=7
     };
     await _devsHtml5Qr.start({ facingMode: 'environment' }, config, _devsOnScan, () => {});
   } catch(e) {
@@ -5316,7 +5706,8 @@ async function _devsOnScan(decodedText) {
     : (articulos||[]).find(a => (a.codigo||'').trim()===decodedText.trim() || (a.ean||'').trim()===decodedText.trim());
   if (!art) {
     _mostradorBeep && _mostradorBeep('err');
-    alert(`Artículo no encontrado: ${decodedText}`);
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    _scanCodigoNoEncontrado(decodedText, 'devs');
     return;
   }
   _devsAbrirFicha({ id: art.id, codigo: art.codigo||'', nombre: art.nombre||'' });
@@ -5369,56 +5760,68 @@ async function _devsConfirmarOk(art, seguirEscaneando) {
   const cant = parseFloat(document.getElementById('devsQty')?.value || '1');
   if (!cant || cant <= 0) { alert('Cantidad inválida'); return; }
   try {
-    const almDestino = _mostradorAlmacenes.find(a => a.id === _devs.almacenDestinoId);
-    // 1) Restar de la furgoneta
-    const { data: stockFurgo } = await sb.from('stock').select('*')
-      .eq('empresa_id', EMPRESA.id).eq('articulo_id', art.id).eq('almacen_id', _devs.furgonetaId).maybeSingle();
-    if (stockFurgo) {
-      await sb.from('stock').update({
-        cantidad: Math.max(0, (stockFurgo.cantidad||0) - cant),
-        updated_at: new Date().toISOString()
-      }).eq('id', stockFurgo.id);
-    }
-    await sb.from('movimientos_stock').insert({
-      empresa_id: EMPRESA.id,
-      articulo_id: art.id,
-      almacen_id: _devs.furgonetaId,
-      tipo: 'devolucion_furgoneta_salida',
-      delta: -Math.abs(cant),
-      cantidad: Math.abs(cant),
-      notas: `Devolución de ${_devs.operarioNombre||'operario'} → ${almDestino?.nombre||''}`,
-      fecha: new Date().toISOString().slice(0,10),
-      usuario_id: CU?.id || null,
-      usuario_nombre: CU?.nombre || 'Almacén'
-    });
-    // 2) Sumar al almacén destino
-    const { data: stockAlm } = await sb.from('stock').select('*')
-      .eq('empresa_id', EMPRESA.id).eq('articulo_id', art.id).eq('almacen_id', _devs.almacenDestinoId).maybeSingle();
-    if (stockAlm) {
-      await sb.from('stock').update({
-        cantidad: (stockAlm.cantidad||0) + cant,
-        updated_at: new Date().toISOString()
-      }).eq('id', stockAlm.id);
-    } else {
-      await sb.from('stock').insert({
+    if (navigator.onLine) {
+      const almDestino = _mostradorAlmacenes.find(a => a.id === _devs.almacenDestinoId);
+      // 1) Restar de la furgoneta
+      const { data: stockFurgo } = await sb.from('stock').select('*')
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', art.id).eq('almacen_id', _devs.furgonetaId).maybeSingle();
+      if (stockFurgo) {
+        await sb.from('stock').update({
+          cantidad: Math.max(0, (stockFurgo.cantidad||0) - cant),
+          updated_at: new Date().toISOString()
+        }).eq('id', stockFurgo.id);
+      }
+      await sb.from('movimientos_stock').insert({
+        empresa_id: EMPRESA.id,
+        articulo_id: art.id,
+        almacen_id: _devs.furgonetaId,
+        tipo: 'devolucion_furgoneta_salida',
+        delta: -Math.abs(cant),
+        cantidad: Math.abs(cant),
+        notas: `Devolución de ${_devs.operarioNombre||'operario'} → ${almDestino?.nombre||''}`,
+        fecha: new Date().toISOString().slice(0,10),
+        usuario_id: CU?.id || null,
+        usuario_nombre: CU?.nombre || 'Almacén'
+      });
+      // 2) Sumar al almacén destino
+      const { data: stockAlm } = await sb.from('stock').select('*')
+        .eq('empresa_id', EMPRESA.id).eq('articulo_id', art.id).eq('almacen_id', _devs.almacenDestinoId).maybeSingle();
+      if (stockAlm) {
+        await sb.from('stock').update({
+          cantidad: (stockAlm.cantidad||0) + cant,
+          updated_at: new Date().toISOString()
+        }).eq('id', stockAlm.id);
+      } else {
+        await sb.from('stock').insert({
+          empresa_id: EMPRESA.id,
+          articulo_id: art.id,
+          almacen_id: _devs.almacenDestinoId,
+          cantidad: cant
+        });
+      }
+      await sb.from('movimientos_stock').insert({
         empresa_id: EMPRESA.id,
         articulo_id: art.id,
         almacen_id: _devs.almacenDestinoId,
-        cantidad: cant
+        tipo: 'devolucion_furgoneta_entrada',
+        delta: Math.abs(cant),
+        cantidad: Math.abs(cant),
+        notas: `Devolución de ${_devs.operarioNombre||'operario'} (${_devs.furgonetaNombre})`,
+        fecha: new Date().toISOString().slice(0,10),
+        usuario_id: CU?.id || null,
+        usuario_nombre: CU?.nombre || 'Almacén'
       });
+    } else {
+      // Offline: encolar
+      await syncQueueAdd({ table: '_devs', action: 'devs_ok', data: {
+        art: { id: art.id, codigo: art.codigo, nombre: art.nombre },
+        cant, almacenDestinoId: _devs.almacenDestinoId, furgonetaId: _devs.furgonetaId,
+        furgonetaNombre: _devs.furgonetaNombre, operarioNombre: _devs.operarioNombre,
+        empresa_id: EMPRESA.id, usuario: { id: CU?.id, nombre: CU?.nombre },
+        fecha: new Date().toISOString().slice(0,10)
+      }, timestamp: Date.now() });
+      toast('✅ OK guardado offline — se subirá con conexión', 'info');
     }
-    await sb.from('movimientos_stock').insert({
-      empresa_id: EMPRESA.id,
-      articulo_id: art.id,
-      almacen_id: _devs.almacenDestinoId,
-      tipo: 'devolucion_furgoneta_entrada',
-      delta: Math.abs(cant),
-      cantidad: Math.abs(cant),
-      notas: `Devolución de ${_devs.operarioNombre||'operario'} (${_devs.furgonetaNombre})`,
-      fecha: new Date().toISOString().slice(0,10),
-      usuario_id: CU?.id || null,
-      usuario_nombre: CU?.nombre || 'Almacén'
-    });
     _devs.resumen.ok++;
     _devs.resumen.uds += cant;
     _devs.items.unshift({ tipo:'ok', codigo:art.codigo||'', nombre:art.nombre||'', cantidad:cant, ts:Date.now() });
@@ -5494,7 +5897,7 @@ async function _devsConfirmarIncidencia(art, cant, seguirEscaneando) {
   const motivo = motivoBtn.dataset.m;
   const nota = (document.getElementById('devsIncNota')?.value || '').trim();
   try {
-    await sb.from('incidencias_stock').insert({
+    const incData = {
       empresa_id: EMPRESA.id,
       articulo_id: art.id,
       articulo_nombre: `[DEVOLUCIÓN DEFECTUOSA] ${art.nombre||''}`,
@@ -5505,7 +5908,13 @@ async function _devsConfirmarIncidencia(art, cant, seguirEscaneando) {
       usuario_nombre: _devs.operarioNombre || 'Operario',
       estado: 'pendiente',
       resolucion: `Motivo: ${motivo}${nota ? '\nNota: ' + nota : ''}\nMaterial dejado en estantería del operario para que se haga responsable.`
-    });
+    };
+    if (navigator.onLine) {
+      await sb.from('incidencias_stock').insert(incData);
+    } else {
+      await syncQueueAdd({ table: 'incidencias_stock', action: 'insert', data: incData, timestamp: Date.now() });
+      toast('⚠️ Incidencia guardada offline — se subirá con conexión', 'info');
+    }
     _devs.resumen.inc++;
     _devs.items.unshift({ tipo:'inc', codigo:art.codigo||'', nombre:art.nombre||'', cantidad:cant, motivo:motivo, ts:Date.now() });
     _devs.resumen.uds += cant;
