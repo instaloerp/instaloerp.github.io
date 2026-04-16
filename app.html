@@ -991,6 +991,8 @@ async function loadMisReposiciones() {
 }
 
 // Confirmar recepción de reposición (completar traspaso desde app móvil)
+// Permite editar cantidad recibida por línea: si difiere de la esperada se
+// genera incidencia automática y el stock se ajusta a lo realmente recibido.
 function verDetalleReposicion(traspId) {
   const trasp = misReposiciones.find(t => t.id === traspId);
   if (!trasp) return;
@@ -1009,92 +1011,252 @@ function verDetalleReposicion(traspId) {
         · Desde: <strong>${trasp.almacen_origen_nombre}</strong>
         · Estado: <span style="color:#3B82F6;font-weight:700">📦 En tu estantería</span>
       </div>
+
+      <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;font-size:12px;color:#1E40AF;margin-bottom:10px;line-height:1.4">
+        Verifica cantidad por línea. Si falta material o la cantidad no coincide, edítala — al confirmar se generará una <strong>incidencia automática</strong> con la diferencia.
+      </div>
+
       <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Artículos (${lineas.length})</div>
+
+      <div id="repoLineas">
       ${lineas.map((l,i) => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;${i===0?'border-top:1px solid #f0f0f0':''}">
-          <div>
-            <div style="font-size:14px;font-weight:600">${l.nombre}</div>
-            <div style="font-size:11px;color:#888;font-family:monospace">${l.codigo||''}</div>
+        <div data-linea="${i}" data-esperada="${l.cantidad}" style="padding:12px 0;border-bottom:1px solid #f0f0f0;${i===0?'border-top:1px solid #f0f0f0':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600">${l.nombre}</div>
+              <div style="font-size:11px;color:#888;font-family:monospace">${l.codigo||''}</div>
+            </div>
+            <div style="text-align:right;margin-left:8px">
+              <div style="font-size:11px;color:#888">esperado</div>
+              <div style="font-size:16px;font-weight:800;color:#333">${l.cantidad}</div>
+            </div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:18px;font-weight:800;color:#333">${l.cantidad}</div>
-            <div style="font-size:10px;color:#888">unidades</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="_repoQty(${i},-1)" style="width:38px;height:38px;border:1.5px solid var(--gris-200);background:#fff;border-radius:8px;font-size:18px;font-weight:800;cursor:pointer">−</button>
+            <input type="number" inputmode="decimal" step="0.01" min="0" value="${l.cantidad}"
+                   data-recibida="${i}" oninput="_repoActualizarEstado()"
+                   style="flex:1;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:16px;font-weight:800;text-align:center">
+            <button onclick="_repoQty(${i},1)" style="width:38px;height:38px;border:1.5px solid var(--gris-200);background:#fff;border-radius:8px;font-size:18px;font-weight:800;cursor:pointer">+</button>
+            <button onclick="_repoQtyZero(${i})" style="padding:0 10px;height:38px;border:1.5px solid var(--rojo);background:#fff;color:var(--rojo);border-radius:8px;font-size:11px;font-weight:800;cursor:pointer">No recibido</button>
           </div>
+          <div data-aviso="${i}" style="font-size:11px;color:var(--rojo);font-weight:700;margin-top:4px;display:none"></div>
         </div>
       `).join('')}
-      <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:15px">
-        <span>Total</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:14px">
+        <span>Esperado</span>
         <span>${lineas.reduce((s,l)=>s+(l.cantidad||0),0)} uds</span>
       </div>
+      <div style="display:flex;justify-content:space-between;padding:0 0 12px 0;font-weight:700;font-size:14px">
+        <span>Recibido</span>
+        <span id="repoTotalRecibido">${lineas.reduce((s,l)=>s+(l.cantidad||0),0)} uds</span>
+      </div>
+
       ${trasp.observaciones ? `<div style="background:#FFF7ED;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;white-space:pre-wrap">${trasp.observaciones}</div>` : ''}
-      <button onclick="confirmarReposicion(${trasp.id})" style="width:100%;padding:14px;border:none;background:#16A34A;color:#fff;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:16px;font-family:var(--font)">
+
+      <div id="repoBannerInc" style="display:none;background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px;font-size:12px;color:#92400E;font-weight:700;margin-top:12px;line-height:1.4"></div>
+
+      <label style="font-size:12px;color:var(--gris-400);font-weight:700;display:block;margin-top:14px;margin-bottom:4px" id="repoNotaLabel" hidden>NOTA SOBRE LA DIFERENCIA (opcional)</label>
+      <textarea id="repoNota" rows="2" placeholder="¿Por qué falta material? Detalles..." hidden
+                style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+
+      <button id="repoBtnConfirmar" onclick="confirmarReposicion(${trasp.id})" style="width:100%;padding:14px;border:none;background:#16A34A;color:#fff;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:14px;font-family:var(--font)">
         ✅ Confirmar recepción completa
       </button>
     </div>
   `;
+  _repoActualizarEstado();
+}
+
+function _repoQty(idx, delta) {
+  const inp = document.querySelector(`input[data-recibida="${idx}"]`);
+  if (!inp) return;
+  const v = (parseFloat(inp.value) || 0) + delta;
+  inp.value = Math.max(0, +v.toFixed(2));
+  _repoActualizarEstado();
+}
+function _repoQtyZero(idx) {
+  const inp = document.querySelector(`input[data-recibida="${idx}"]`);
+  if (!inp) return;
+  inp.value = 0;
+  _repoActualizarEstado();
+}
+function _repoActualizarEstado() {
+  const lineas = document.querySelectorAll('#repoLineas [data-linea]');
+  let totalRecibido = 0, totalEsperado = 0, lineasConDif = 0;
+  lineas.forEach(div => {
+    const idx = div.dataset.linea;
+    const esp = parseFloat(div.dataset.esperada) || 0;
+    const inp = div.querySelector(`input[data-recibida="${idx}"]`);
+    const rec = parseFloat(inp?.value) || 0;
+    totalEsperado += esp;
+    totalRecibido += rec;
+    const aviso = div.querySelector(`[data-aviso="${idx}"]`);
+    if (rec < esp) {
+      if (aviso) { aviso.style.display = 'block'; aviso.textContent = `⚠️ Faltan ${(esp-rec).toFixed(2).replace(/\.00$/,'')} uds — se generará incidencia`; }
+      lineasConDif++;
+    } else if (rec > esp) {
+      if (aviso) { aviso.style.display = 'block'; aviso.textContent = `⚠️ Sobran ${(rec-esp).toFixed(2).replace(/\.00$/,'')} uds — se generará incidencia`; }
+      lineasConDif++;
+    } else {
+      if (aviso) aviso.style.display = 'none';
+    }
+  });
+  const tot = document.getElementById('repoTotalRecibido');
+  if (tot) {
+    tot.textContent = totalRecibido + ' uds';
+    tot.style.color = (totalRecibido !== totalEsperado) ? 'var(--rojo)' : '';
+  }
+  const banner = document.getElementById('repoBannerInc');
+  const btn = document.getElementById('repoBtnConfirmar');
+  const nota = document.getElementById('repoNota');
+  const lbl  = document.getElementById('repoNotaLabel');
+  if (lineasConDif > 0) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.textContent = `Hay ${lineasConDif} línea${lineasConDif>1?'s':''} con diferencias. Al confirmar, se generará una incidencia para que el almacenero la revise.`;
+    }
+    if (btn) {
+      btn.style.background = '#F59E0B';
+      btn.innerHTML = '⚠️ Confirmar con incidencia';
+    }
+    if (nota) nota.hidden = false;
+    if (lbl)  lbl.hidden  = false;
+  } else {
+    if (banner) banner.style.display = 'none';
+    if (btn) {
+      btn.style.background = '#16A34A';
+      btn.innerHTML = '✅ Confirmar recepción completa';
+    }
+    if (nota) nota.hidden = true;
+    if (lbl)  lbl.hidden  = true;
+  }
 }
 
 async function confirmarReposicion(traspId) {
   const trasp = misReposiciones.find(t => t.id === traspId);
   if (!trasp) { toast('Reposición no encontrada','error'); return; }
 
-  // Mostrar detalle para confirmar
   const lineas = (trasp.lineas || []);
-  const listaHtml = lineas.map(l => `• ${l.nombre}: ${l.cantidad} uds`).join('\n');
-  if (!confirm(`¿Confirmar recepción de ${lineas.length} artículos?\n\n${listaHtml}\n\n¿Todo correcto?`)) return;
+  // Leer cantidad recibida editada por el operario (si la pantalla está abierta)
+  const lineasReales = lineas.map((l, i) => {
+    const inp = document.querySelector(`input[data-recibida="${i}"]`);
+    const recibida = inp ? (parseFloat(inp.value) || 0) : (l.cantidad || 0);
+    return {
+      ...l,
+      cantidad_esperada: l.cantidad || 0,
+      cantidad_recibida: recibida,
+      diferencia: (l.cantidad || 0) - recibida
+    };
+  });
+  const lineasConDif = lineasReales.filter(l => l.diferencia !== 0);
+  const nota = (document.getElementById('repoNota')?.value || '').trim();
+
+  // Confirmación con resumen claro
+  let mensaje;
+  if (lineasConDif.length === 0) {
+    const listaHtml = lineasReales.map(l => `• ${l.nombre}: ${l.cantidad_recibida} uds`).join('\n');
+    mensaje = `✅ Recepción COMPLETA de ${lineasReales.length} artículos:\n\n${listaHtml}\n\n¿Confirmar?`;
+  } else {
+    const listaDif = lineasConDif.map(l => {
+      const tipo = l.diferencia > 0 ? `falta ${l.diferencia}` : `sobra ${-l.diferencia}`;
+      return `• ${l.nombre}: esperado ${l.cantidad_esperada}, recibido ${l.cantidad_recibida} (${tipo})`;
+    }).join('\n');
+    mensaje = `⚠️ Recepción PARCIAL — se generará incidencia.\n\nLíneas con diferencia (${lineasConDif.length}):\n${listaDif}\n\n¿Confirmar igualmente?`;
+  }
+  if (!confirm(mensaje)) return;
 
   try {
     toast('⏳ Procesando recepción...','info');
     const yaDescontado = (trasp.estado === 'preparado');
 
-    for (const linea of lineas) {
-      // Si viene de pendiente, restar del origen
-      if (!yaDescontado) {
+    for (const linea of lineasReales) {
+      // 1) Si viene de pendiente, restar del origen LO QUE EL ALMACENERO DIJO QUE SACABA
+      //    (la cantidad esperada — esa la sacó realmente del almacén, aunque luego falte
+      //    en la furgoneta. La diferencia se trata como incidencia, no como "no salió").
+      if (!yaDescontado && linea.cantidad_esperada > 0) {
         const { data: stOrig } = await sb.from('stock').select('*')
           .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
-          .eq('almacen_id', trasp.almacen_origen_id).single();
+          .eq('almacen_id', trasp.almacen_origen_id).maybeSingle();
         if (stOrig) {
-          await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad) }).eq('id', stOrig.id);
+          await sb.from('stock').update({ cantidad: Math.max(0,(stOrig.cantidad||0)-linea.cantidad_esperada) }).eq('id', stOrig.id);
           await sb.from('movimientos_stock').insert({
             empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
             almacen_id: trasp.almacen_origen_id, tipo: 'traspaso_salida',
-            delta: -linea.cantidad, notas: `Salida → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
+            delta: -linea.cantidad_esperada, notas: `Salida → ${trasp.almacen_destino_nombre} (${trasp.numero})`,
             fecha: new Date().toISOString().slice(0,10),
             usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
           });
         }
       }
 
-      // Sumar al destino (mi furgoneta)
-      const { data: stDest } = await sb.from('stock').select('*')
-        .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
-        .eq('almacen_id', trasp.almacen_destino_id).single();
-      if (stDest) {
-        await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad }).eq('id', stDest.id);
-      } else {
-        await sb.from('stock').insert({
+      // 2) Sumar al destino (mi furgoneta) SOLO LO REALMENTE RECIBIDO
+      if (linea.cantidad_recibida > 0) {
+        const { data: stDest } = await sb.from('stock').select('*')
+          .eq('empresa_id', EMPRESA.id).eq('articulo_id', linea.articulo_id)
+          .eq('almacen_id', trasp.almacen_destino_id).maybeSingle();
+        if (stDest) {
+          await sb.from('stock').update({ cantidad: (stDest.cantidad||0)+linea.cantidad_recibida }).eq('id', stDest.id);
+        } else {
+          await sb.from('stock').insert({
+            empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
+            almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad_recibida,
+            stock_minimo: 0
+          });
+        }
+        await sb.from('movimientos_stock').insert({
           empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
-          almacen_id: trasp.almacen_destino_id, cantidad: linea.cantidad,
-          stock_minimo: 0
+          almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
+          delta: linea.cantidad_recibida, notas: `Entrada ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
+          fecha: new Date().toISOString().slice(0,10),
+          usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
         });
       }
-      await sb.from('movimientos_stock').insert({
-        empresa_id: EMPRESA.id, articulo_id: linea.articulo_id,
-        almacen_id: trasp.almacen_destino_id, tipo: 'traspaso_entrada',
-        delta: linea.cantidad, notas: `Entrada ← ${trasp.almacen_origen_nombre} (${trasp.numero})`,
-        fecha: new Date().toISOString().slice(0,10),
-        usuario_id: CU?.id||null, usuario_nombre: CP?.nombre||'Operario'
-      });
+
+      // 3) Si hay diferencia → incidencia
+      if (linea.diferencia !== 0) {
+        const tipoDif = linea.diferencia > 0 ? 'FALTA' : 'SOBRA';
+        const cantDif = Math.abs(linea.diferencia);
+        await sb.from('incidencias_stock').insert({
+          empresa_id: EMPRESA.id,
+          articulo_id: linea.articulo_id,
+          articulo_nombre: `[RECEPCIÓN ${tipoDif}] ${linea.nombre||''}`,
+          cantidad: cantDif,
+          almacen_id: trasp.almacen_destino_id,
+          almacen_nombre: trasp.almacen_destino_nombre,
+          usuario_id: CU?.id || null,
+          usuario_nombre: CP?.nombre || 'Operario',
+          estado: 'pendiente',
+          resolucion: `Traspaso ${trasp.numero} desde ${trasp.almacen_origen_nombre}.\nEsperado: ${linea.cantidad_esperada} · Recibido: ${linea.cantidad_recibida}\nDiferencia: ${tipoDif} ${cantDif} uds${nota ? '\nNota operario: ' + nota : ''}`
+        });
+      }
     }
 
-    await sb.from('traspasos').update({ estado: 'completado' }).eq('id', traspId);
-    toast('✅ Reposición confirmada — stock actualizado en tu furgoneta', 'success');
+    // 4) Marcar traspaso completado (con marca en observaciones si hubo incidencias)
+    const obsActual = trasp.observaciones || '';
+    const obsExtra  = lineasConDif.length > 0
+      ? `\n[RECEPCIÓN PARCIAL · ${new Date().toISOString().slice(0,10)}] ${lineasConDif.length} línea(s) con incidencia${nota ? ' · Nota: ' + nota : ''}`
+      : '';
+    await sb.from('traspasos').update({
+      estado: 'completado',
+      observaciones: obsActual + obsExtra
+    }).eq('id', traspId);
+
+    if (lineasConDif.length === 0) {
+      toast('✅ Reposición confirmada — stock actualizado en tu furgoneta', 'success');
+    } else {
+      toast(`⚠️ Recepción parcial: ${lineasConDif.length} incidencia(s) generada(s)`, 'success');
+    }
     await loadMisReposiciones();
     if (miFurgoneta) await loadStockFurgoneta(miFurgoneta.id);
     navigateTo('inicio');
   } catch(e) {
     console.error('Error confirmando reposición:', e);
-    toast('Error: '+e.message, 'error');
+    let msg = e?.message || e?.error_description || e?.hint || e?.details || '';
+    if (!msg) { try { msg = JSON.stringify(e); } catch { msg = String(e); } }
+    if (!navigator.onLine) msg = '⚠️ Sin conexión — los datos no se enviaron.\n\nDetalle: ' + msg;
+    toast('Error: '+msg, 'error');
   }
 }
 
@@ -2919,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 2
+      instaloERP v1.0 · build 3
     </div>
   `;
 }
@@ -3269,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 2
+      instaloERP v1.0 · build 3
     </div>
   `;
 }
@@ -3645,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 2
+        instaloERP v1.0 · build 3
       </div>
     </div>`;
 }
