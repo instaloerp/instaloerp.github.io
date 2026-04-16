@@ -3612,7 +3612,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 123
+        instaloERP v1.1 · build 124
       </div>
     </div>`;
 }
@@ -4013,7 +4013,7 @@ async function _mostradorAbrirEscaner() {
       </div>
       <button onclick="_mostradorCerrarEscaner()" style="background:#fff;border:none;color:#000;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">Cerrar ✕</button>
     </div>
-    <div id="mostradorScanReader" style="flex:1;background:#000;position:relative"></div>
+    <div id="mostradorScanReader" style="flex:1;min-height:320px;background:#000;position:relative;display:flex;align-items:center;justify-content:center"></div>
     <div id="mostradorScanInfo" style="background:#111;color:#fff;padding:10px 14px;font-size:13px;text-align:center;min-height:42px">Iniciando cámara…</div>
     <div id="mostradorScanFoot" style="background:#000;color:#fff;padding:10px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between">
       <select id="mostradorScanCamSel" style="flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-family:var(--font)">
@@ -4055,9 +4055,13 @@ async function _mostradorScanStart() {
   const config = {
     fps: 12,
     qrbox: (vw, vh) => {
+      // Si el contenedor todavía no tiene tamaño (vw/vh=0), devuelve fallback seguro
+      if (!vw || !vh || vw < 100 || vh < 100) return { width: 260, height: 160 };
       const min = Math.min(vw, vh);
-      // ventana ancha apaisada: bien para EAN-13
-      return { width: Math.round(min * 0.85), height: Math.round(min * 0.45) };
+      return {
+        width:  Math.max(200, Math.round(min * 0.85)),
+        height: Math.max(120, Math.round(min * 0.45))
+      };
     },
     aspectRatio: 1.0,
     formatsToSupport: undefined  // todos los formatos: QR + 1D
