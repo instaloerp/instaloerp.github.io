@@ -3615,7 +3615,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 130
+        instaloERP v1.1 · build 131
       </div>
     </div>`;
 }
@@ -4729,7 +4729,20 @@ async function _mostradorFinalizar() {
     renderAlmacenMostrador(document.getElementById('appBody'));
   } catch(e) {
     console.error('[Mostrador] Error finalizar:', e);
-    alert('❌ Error al generar el documento: ' + (e.message||e));
+    // Mensaje legible: prioriza .message, luego .details/.hint de Supabase, luego JSON
+    let msg = '';
+    if (e && typeof e === 'object') {
+      msg = e.message || e.error_description || e.hint || e.details || '';
+      if (!msg) {
+        try { msg = JSON.stringify(e); } catch { msg = String(e); }
+      }
+    } else {
+      msg = String(e);
+    }
+    if (!navigator.onLine) {
+      msg = '⚠️ Estás SIN CONEXIÓN — los datos no se pueden enviar a Supabase.\n\nDetalle: ' + (msg || 'sin detalle');
+    }
+    alert('❌ Error al generar el documento:\n\n' + msg);
     if (footerBtn) { footerBtn.disabled = false; footerBtn.textContent = 'Finalizar →'; }
   }
 }
