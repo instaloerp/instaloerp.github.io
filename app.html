@@ -3225,7 +3225,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 12
+      instaloERP v1.0 · build 13
     </div>
   `;
 }
@@ -3575,7 +3575,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 12
+      instaloERP v1.0 · build 13
     </div>
   `;
 }
@@ -3951,7 +3951,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 12
+        instaloERP v1.0 · build 13
       </div>
     </div>`;
 }
@@ -4330,7 +4330,7 @@ function _mostradorRenderResultados() {
               ${a.foto_url?'':'📦'}
             </div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre||'—'}</div>
+              <div style="font-size:13px;font-weight:700;line-height:1.3">${a.nombre||'—'}</div>
               <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''}</div>
             </div>
             <div style="text-align:right">
@@ -5626,20 +5626,31 @@ function _devsBuscarInput(q) {
   const term = (q||'').trim().toLowerCase();
   if (!term) { cont.innerHTML = ''; return; }
   const arts = (typeof articulos !== 'undefined' ? articulos : []).filter(a => {
+    if (a.activo === false) return false;
     return (a.nombre||'').toLowerCase().includes(term)
         || (a.codigo||'').toLowerCase().includes(term)
-        || (a.ean||'').toLowerCase().includes(term);
-  }).slice(0,10);
+        || (a.codigo_barras||'').toLowerCase().includes(term)
+        || (a.referencia_fabricante||'').toLowerCase().includes(term);
+  }).slice(0,12);
   if (!arts.length) { cont.innerHTML = `<div style="text-align:center;color:var(--gris-400);font-size:13px;padding:14px">Sin resultados</div>`; return; }
-  cont.innerHTML = arts.map(a => `
-    <button onclick='_devsAbrirFicha(${JSON.stringify({id:a.id,codigo:a.codigo||"",nombre:a.nombre||""}).replace(/\'/g,"&#39;")})' style="display:flex;align-items:center;gap:10px;padding:10px;background:#fff;border:1.5px solid var(--gris-100);border-radius:10px;width:100%;text-align:left;cursor:pointer;margin-bottom:6px">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre||''}</div>
-        <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''}</div>
-      </div>
-      <span style="color:var(--gris-300)">›</span>
-    </button>
-  `).join('');
+  cont.innerHTML = `
+    <div style="background:#fff;border:1.5px solid var(--gris-100);border-radius:12px;overflow:hidden">
+      ${arts.map(a => `
+        <div onclick='_devsAbrirFicha(${JSON.stringify({id:a.id,codigo:a.codigo||"",nombre:a.nombre||""}).replace(/\'/g,"&#39;")})' style="padding:10px 12px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:10px;cursor:pointer">
+          <div style="width:36px;height:36px;background:var(--gris-50);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background-image:url('${a.foto_url||''}');background-size:cover;background-position:center">
+            ${a.foto_url?'':'📦'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;line-height:1.3">${a.nombre||'—'}</div>
+            <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:800">${(+a.precio_venta||0).toFixed(2)}€</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // Escáner (reusa html5-qrcode igual que mostrador)
