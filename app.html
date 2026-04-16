@@ -3615,7 +3615,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 128
+        instaloERP v1.1 · build 129
       </div>
     </div>`;
 }
@@ -4490,6 +4490,11 @@ async function _mostradorCerrarAlbaran(firmaDataUrl) {
     } catch(e) { console.warn('[Mostrador] No se pudo subir firma:', e); }
   }
 
+  const obsLineas = [
+    `Mostrador · almacén ${almOrigen?.nombre||''} · ${CU?.nombre||''}`,
+    firma_url ? `Firma: ${firma_url}` : ''
+  ].filter(Boolean).join('\n');
+
   const { data: alb, error } = await sb.from('albaranes').insert({
     empresa_id: EMPRESA.id,
     numero,
@@ -4499,8 +4504,7 @@ async function _mostradorCerrarAlbaran(firmaDataUrl) {
     estado: 'entregado',
     total: +total.toFixed(2),
     lineas,
-    observaciones: `Mostrador · almacén ${almOrigen?.nombre||''} · ${CU?.nombre||''}${firma_url?' · firmado':''}`,
-    firma_url
+    observaciones: obsLineas
   }).select().single();
   if (error) throw error;
 
