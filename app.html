@@ -3612,7 +3612,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 126
+        instaloERP v1.1 · build 127
       </div>
     </div>`;
 }
@@ -4148,7 +4148,7 @@ async function _mostradorCerrarEscaner() {
   if (m) m.remove();
 }
 
-function _mostradorOnScan(decodedText) {
+async function _mostradorOnScan(decodedText) {
   if (!decodedText) return;
   const code = String(decodedText).trim();
   if (!code) return;
@@ -4170,14 +4170,112 @@ function _mostradorOnScan(decodedText) {
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     return;
   }
-  // Añadir al carrito (reutiliza la lógica del buscador manual)
-  _mostradorAddItem(art.id);
+  // ✅ Encontrado → beep + cerrar escáner + abrir ficha cantidad
   _mostradorBeep('ok');
   if (navigator.vibrate) navigator.vibrate(40);
-  if (info) {
-    info.style.color = '#86efac';
-    info.textContent = `✅ ${art.codigo || ''} · ${art.nombre || ''}  (${_mostrador.items.find(i=>i.articulo_id===art.id)?.cantidad || 1} ud)`;
+  await _mostradorCerrarEscaner();
+  _mostradorFichaArticulo(art);
+}
+
+// Ficha rápida: artículo + cantidad + [Añadir y seguir / Añadir y cerrar / Cancelar]
+function _mostradorFichaArticulo(art) {
+  const exist = _mostrador.items.find(i => i.articulo_id === art.id);
+  const cantInicial = exist ? exist.cantidad + 1 : 1;
+  const stockInfo = ''; // (opcional, pendiente: leer stock real del almacén origen)
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;align-items:flex-end;justify-content:center;padding:0';
+  modal.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom)) 18px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:60px;height:60px;background:var(--gris-50);border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px;background-image:url('${art.foto_url||''}');background-size:cover;background-position:center">
+          ${art.foto_url?'':'📦'}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:16px;font-weight:800;line-height:1.2">${art.nombre||'—'}</div>
+          <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${art.codigo||''}${art.codigo_barras?' · '+art.codigo_barras:''}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--azul);margin-top:4px">${(+art.precio_venta||0).toFixed(2)} €/u</div>
+        </div>
+      </div>
+
+      ${exist ? `<div style="background:var(--gris-50);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--gris-500)">
+        Ya hay <b>${exist.cantidad}</b> en el carrito. Esta ficha lo dejará en <b id="fichaPrev">${cantInicial}</b>.
+      </div>` : ''}
+
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin:8px 0 14px">
+        <button onclick="_mostradorFichaCambiar(-1)" style="width:54px;height:54px;border:2px solid var(--gris-200);background:#fff;border-radius:14px;font-size:28px;font-weight:800;cursor:pointer">−</button>
+        <input id="fichaCantidad" type="number" min="0" step="1" value="${cantInicial}" inputmode="decimal"
+          oninput="_mostradorFichaActualizarPrev()"
+          style="width:120px;height:54px;text-align:center;border:2px solid var(--azul);border-radius:14px;font-size:28px;font-weight:800;font-family:var(--font);outline:none">
+        <button onclick="_mostradorFichaCambiar(1)" style="width:54px;height:54px;border:2px solid var(--gris-200);background:#fff;border-radius:14px;font-size:28px;font-weight:800;cursor:pointer">+</button>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="_mostradorFichaCerrar(false)" style="flex:1;padding:14px;border:1.5px solid var(--gris-200);background:#fff;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">Cancelar</button>
+        <button onclick="_mostradorFichaConfirmar(false)" style="flex:1;padding:14px;border:1.5px solid var(--gris-200);background:#fff;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">Añadir y cerrar</button>
+        <button onclick="_mostradorFichaConfirmar(true)" style="flex:2;padding:14px;border:none;background:var(--verde);color:#fff;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">📷 Añadir y escanear otro</button>
+      </div>
+    </div>
+  `;
+  modal.id = 'mostradorFichaModal';
+  modal.dataset.articuloId = art.id;
+  document.body.appendChild(modal);
+
+  // Foco automático al input de cantidad y selección del valor para sobreescribir fácil
+  setTimeout(() => {
+    const inp = document.getElementById('fichaCantidad');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 100);
+}
+
+function _mostradorFichaCambiar(delta) {
+  const inp = document.getElementById('fichaCantidad');
+  if (!inp) return;
+  const v = Math.max(0, (parseFloat(inp.value)||0) + delta);
+  inp.value = v;
+  _mostradorFichaActualizarPrev();
+}
+
+function _mostradorFichaActualizarPrev() {
+  const inp = document.getElementById('fichaCantidad');
+  const prev = document.getElementById('fichaPrev');
+  if (inp && prev) prev.textContent = inp.value || '0';
+}
+
+function _mostradorFichaCerrar(reabrirEscaner) {
+  const m = document.getElementById('mostradorFichaModal');
+  if (m) m.remove();
+  if (reabrirEscaner) setTimeout(() => _mostradorAbrirEscaner(), 150);
+}
+
+function _mostradorFichaConfirmar(seguirEscaneando) {
+  const m = document.getElementById('mostradorFichaModal');
+  if (!m) return;
+  const artId = parseInt(m.dataset.articuloId);
+  const art = (articulos||[]).find(a => a.id === artId);
+  const inp = document.getElementById('fichaCantidad');
+  const cantTotal = Math.max(0, parseFloat(inp?.value||'0') || 0);
+
+  if (!art) { m.remove(); return; }
+
+  // Reemplaza/actualiza la línea con la cantidad TOTAL elegida
+  const ex = _mostrador.items.find(i => i.articulo_id === artId);
+  if (cantTotal === 0) {
+    if (ex) _mostrador.items = _mostrador.items.filter(i => i.articulo_id !== artId);
+  } else if (ex) {
+    ex.cantidad = cantTotal;
+  } else {
+    _mostrador.items.push({
+      articulo_id: art.id,
+      codigo: art.codigo || '',
+      nombre: art.nombre || '',
+      cantidad: cantTotal,
+      precio_unit: +art.precio_venta || 0,
+      foto_url: art.foto_url || ''
+    });
   }
+  _mostradorRenderCarrito();
+  _mostradorFichaCerrar(seguirEscaneando);
 }
 
 function _mostradorBuscarManualConCodigo(code) {
