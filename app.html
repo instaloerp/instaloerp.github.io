@@ -3081,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 4
+      instaloERP v1.0 · build 6
     </div>
   `;
 }
@@ -3431,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 4
+      instaloERP v1.0 · build 6
     </div>
   `;
 }
@@ -3807,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 4
+        instaloERP v1.0 · build 6
       </div>
     </div>`;
 }
@@ -4291,10 +4291,27 @@ function _mostradorBeep(tipo) {
     };
 
     if (tipo === 'ok') {
-      // "Pit" agudo y corto, estilo lector de supermercado
+      // "Pit" agudo y corto, estilo lector de supermercado (lectura de código)
       play(2400, 0, 0.10, 0.25);
+    } else if (tipo === 'done') {
+      // Acorde mayor ascendente C-E-G — "muy bien, hecho, listo"
+      // Onda triangular = más suave que el square del beep clásico
+      const playSoft = (freq, start, dur, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t0 + start);
+        gain.gain.setValueAtTime(vol, t0 + start);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t0 + start);
+        osc.stop(t0 + start + dur);
+      };
+      playSoft(523.25, 0,    0.12, 0.22);  // C5
+      playSoft(659.25, 0.09, 0.14, 0.22);  // E5
+      playSoft(783.99, 0.20, 0.22, 0.24);  // G5
     } else {
-      // Doble beep grave de error
+      // Doble beep grave de error (escaneo no encontrado)
       play(280, 0,    0.12, 0.30);
       play(220, 0.15, 0.18, 0.30);
     }
@@ -5088,7 +5105,31 @@ async function renderAlmacenDevoluciones(el) {
         <div>📦 ${r.uds} uds</div>
       </div>
     </div>
+
+    ${_devs.items.length > 0 ? `
+      <button onclick="_devsFinalizarSesion()" style="width:100%;margin-top:10px;padding:16px;background:#fff;color:var(--verde);border:2px solid var(--verde);border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        🎉 Finalizar y cerrar sesión
+      </button>
+    ` : ''}
   `;
+}
+
+// Cierra la sesión actual con sonido de felicidad. Se usa cuando el almacenero
+// termina de procesar una devolución y quiere despejar para la siguiente.
+function _devsFinalizarSesion() {
+  if (_devs.items.length === 0) return;
+  const total = _devs.resumen.ok + _devs.resumen.inc;
+  if (!confirm(`¿Finalizar sesión?\n\n${_devs.resumen.ok} OK · ${_devs.resumen.inc} incidencia(s) · ${_devs.resumen.uds} uds\n\nSe limpiará la pantalla para la siguiente devolución.`)) return;
+  _mostradorBeep && _mostradorBeep('done');
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
+  toast(`✅ Sesión cerrada · ${total} artículo(s) procesado(s)`, 'success');
+  _devs.furgonetaId = null;
+  _devs.furgonetaNombre = '';
+  _devs.operarioId = null;
+  _devs.operarioNombre = '';
+  _devs.resumen = { ok:0, inc:0, uds:0 };
+  _devs.items = [];
+  renderAlmacenDevoluciones(document.getElementById('appBody'));
 }
 
 function _devsReset() {
@@ -5301,7 +5342,7 @@ async function _devsConfirmarOk(art, seguirEscaneando) {
     _devs.resumen.ok++;
     _devs.resumen.uds += cant;
     _devs.items.unshift({ tipo:'ok', codigo:art.codigo||'', nombre:art.nombre||'', cantidad:cant, ts:Date.now() });
-    _mostradorBeep && _mostradorBeep('ok');
+    if (navigator.vibrate) navigator.vibrate(40);
     _devsCerrarFicha();
     renderAlmacenDevoluciones(document.getElementById('appBody'));
     if (seguirEscaneando) {
@@ -5387,7 +5428,7 @@ async function _devsConfirmarIncidencia(art, cant, seguirEscaneando) {
     _devs.resumen.inc++;
     _devs.items.unshift({ tipo:'inc', codigo:art.codigo||'', nombre:art.nombre||'', cantidad:cant, motivo:motivo, ts:Date.now() });
     _devsCerrarIncidencia();
-    _mostradorBeep && _mostradorBeep('err');
+    if (navigator.vibrate) navigator.vibrate(40);
     renderAlmacenDevoluciones(document.getElementById('appBody'));
     if (seguirEscaneando) {
       setTimeout(() => _devsAbrirEscaner(), 200);
