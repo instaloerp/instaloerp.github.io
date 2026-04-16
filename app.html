@@ -1778,7 +1778,7 @@ async function loadAllData() {
       sb.from('perfiles').select('*').eq('empresa_id', eid).eq('activo', true),
       sb.from('trabajos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}),
       sb.from('clientes').select('*').eq('empresa_id', eid).order('nombre'),
-      sb.from('articulos').select('id,codigo,nombre,precio_venta,codigo_barras,referencia_fabricante,foto_url,precio_coste').eq('empresa_id', eid).eq('activo', true).order('nombre'),
+      sb.from('articulos').select('*').eq('empresa_id', eid).eq('activo', true).order('nombre'),
     ];
 
     // Jefe: cargar tareas de todas las obras; Operario: solo sus tareas
@@ -3225,7 +3225,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 11
+      instaloERP v1.0 · build 12
     </div>
   `;
 }
@@ -3575,7 +3575,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 11
+      instaloERP v1.0 · build 12
     </div>
   `;
 }
@@ -3951,7 +3951,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 11
+        instaloERP v1.0 · build 12
       </div>
     </div>`;
 }
@@ -4160,7 +4160,7 @@ async function _mostradorPickDestino(tipo) {
 function _mostradorPickCliente() {
   const lista = (clientes || []).slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   _mostradorModalSelector('Selecciona cliente', [
-    { id:'_contado', nombre:'⚡ Contado (sin cliente)', search:'contado' },
+    { id:'_contado', nombre:'⚡ Contado (sin cliente)', search:'contado', pinned: true },
     ...lista.map(c => ({
       id: c.id,
       nombre: c.nombre || c.razon_social || `Cliente ${c.id}`,
@@ -4172,7 +4172,7 @@ function _mostradorPickCliente() {
     _mostrador.destinoId    = sel.id === '_contado' ? null : sel.id;
     _mostrador.destinoLabel = sel.nombre;
     _mostradorRefreshHeader();
-  });
+  }, { hideUntilSearch: true });
 }
 
 function _mostradorPickObra() {
@@ -4193,7 +4193,7 @@ function _mostradorPickObra() {
     _mostrador.destinoId    = sel.id;
     _mostrador.destinoLabel = `🏗️ ${sel.nombre}${sel.sub?' · '+sel.sub:''}`;
     _mostradorPickFurgoObra(sel.nombre);
-  });
+  }, { hideUntilSearch: true });
 }
 
 // Selector de furgoneta responsable cuando el destino es Obra
@@ -4241,7 +4241,8 @@ function _mostradorPickAlmacen() {
   });
 }
 
-function _mostradorModalSelector(titulo, opciones, onPick) {
+function _mostradorModalSelector(titulo, opciones, onPick, opts) {
+  const hideUntilSearch = opts?.hideUntilSearch || false;
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
   modal.innerHTML = `
@@ -4251,7 +4252,7 @@ function _mostradorModalSelector(titulo, opciones, onPick) {
         <button onclick="this.closest('[data-modal]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--gris-400)">✕</button>
       </div>
       <div style="padding:10px 12px">
-        <input type="text" id="msFiltro" placeholder="Filtrar..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">
+        <input type="text" id="msFiltro" placeholder="Buscar..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;font-family:var(--font);outline:none" autocomplete="off">
       </div>
       <div id="msLista" style="overflow-y:auto;flex:1;padding:0 12px 16px"></div>
     </div>
@@ -4261,6 +4262,29 @@ function _mostradorModalSelector(titulo, opciones, onPick) {
 
   const renderL = () => {
     const q = (document.getElementById('msFiltro').value || '').toLowerCase().trim();
+    // Si hideUntilSearch y no hay texto → solo mostrar opciones fijadas (pinned)
+    if (hideUntilSearch && !q) {
+      const pinned = opciones.filter(o => o.pinned);
+      if (!pinned.length) {
+        document.getElementById('msLista').innerHTML = `<div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Escribe para buscar...</div>`;
+        return;
+      }
+      // Renderizar solo las pinned + mensaje
+      document.getElementById('msLista').innerHTML = pinned.map((o, idx) => `
+        <div data-pick-pin="${idx}" style="padding:12px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer">
+          <div style="font-size:14px;font-weight:700">${o.nombre}</div>
+          ${o.sub ? `<div style="font-size:12px;color:var(--gris-400)">${o.sub}</div>` : ''}
+        </div>
+      `).join('') + `<div style="text-align:center;padding:20px;color:var(--gris-400);font-size:13px">Escribe para buscar...</div>`;
+      document.querySelectorAll('#msLista [data-pick-pin]').forEach(div => {
+        div.addEventListener('click', () => {
+          const sel = pinned[parseInt(div.dataset.pickPin)];
+          modal.remove();
+          onPick(sel);
+        });
+      });
+      return;
+    }
     const filtradas = !q ? opciones : opciones.filter(o =>
       (o.search||'').includes(q) || (o.nombre||'').toLowerCase().includes(q) || (o.sub||'').toLowerCase().includes(q));
     document.getElementById('msLista').innerHTML = filtradas.map((o, idx) => `
@@ -4279,6 +4303,8 @@ function _mostradorModalSelector(titulo, opciones, onPick) {
   };
   document.getElementById('msFiltro').addEventListener('input', renderL);
   renderL();
+  // Si hideUntilSearch, auto-focus en el input para que empiece a escribir
+  if (hideUntilSearch) setTimeout(() => document.getElementById('msFiltro')?.focus(), 100);
 }
 
 function _mostradorRenderResultados() {
