@@ -4314,7 +4314,7 @@ function _mostradorRenderResultados() {
   if (!q) { cont.innerHTML = ''; return; }
 
   const lista = (articulos || []).filter(a => {
-    if (a.es_activo === false || a.activo === false) return false;
+    if (a.activo === false) return false;  // es_activo es campo legacy, no filtrar por él
     return (a.nombre||'').toLowerCase().includes(q)
         || (a.codigo||'').toLowerCase().includes(q)
         || (a.codigo_barras||'').toLowerCase().includes(q)
