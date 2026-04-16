@@ -3081,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 9
+      instaloERP v1.0 · build 10
     </div>
   `;
 }
@@ -3431,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 9
+      instaloERP v1.0 · build 10
     </div>
   `;
 }
@@ -3807,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 9
+        instaloERP v1.0 · build 10
       </div>
     </div>`;
 }
@@ -4016,8 +4016,14 @@ async function _mostradorPickDestino(tipo) {
 function _mostradorPickCliente() {
   const lista = (clientes || []).slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   _mostradorModalSelector('Selecciona cliente', [
-    { id:'_contado', nombre:'⚡ Contado (sin cliente)' },
-    ...lista.map(c => ({ id:c.id, nombre:c.nombre || c.razon_social || `Cliente ${c.id}`, sub:c.nif||'' }))
+    { id:'_contado', nombre:'⚡ Contado (sin cliente)', search:'contado' },
+    ...lista.map(c => ({
+      id: c.id,
+      nombre: c.nombre || c.razon_social || `Cliente ${c.id}`,
+      sub: [c.nif, c.telefono, c.localidad || c.direccion].filter(Boolean).join(' · '),
+      search: [c.nombre, c.razon_social, c.nif, c.telefono, c.movil, c.email,
+               c.direccion, c.localidad, c.provincia, c.codigo_postal].filter(Boolean).join(' ').toLowerCase()
+    }))
   ], (sel) => {
     _mostrador.destinoId    = sel.id === '_contado' ? null : sel.id;
     _mostrador.destinoLabel = sel.nombre;
@@ -4031,7 +4037,13 @@ function _mostradorPickObra() {
   if (!lista.length) { alert('No hay obras/trabajos activos'); return; }
   _mostradorModalSelector('Selecciona obra', lista.map(t => {
     const cli = (clientes||[]).find(c => c.id === t.cliente_id);
-    return { id:t.id, nombre: t.titulo || t.descripcion || `Trabajo ${t.id}`, sub: cli?.nombre || '' };
+    return {
+      id: t.id,
+      nombre: t.titulo || t.descripcion || `Trabajo ${t.id}`,
+      sub: [cli?.nombre, t.direccion || t.localidad].filter(Boolean).join(' · '),
+      search: [t.titulo, t.descripcion, t.numero, t.direccion, t.localidad, t.provincia,
+               cli?.nombre, cli?.telefono, cli?.nif].filter(Boolean).join(' ').toLowerCase()
+    };
   }), (sel) => {
     // Guardamos la obra y pedimos la furgoneta responsable
     _mostrador.destinoId    = sel.id;
@@ -4106,7 +4118,7 @@ function _mostradorModalSelector(titulo, opciones, onPick) {
   const renderL = () => {
     const q = (document.getElementById('msFiltro').value || '').toLowerCase().trim();
     const filtradas = !q ? opciones : opciones.filter(o =>
-      (o.nombre||'').toLowerCase().includes(q) || (o.sub||'').toLowerCase().includes(q));
+      (o.search||'').includes(q) || (o.nombre||'').toLowerCase().includes(q) || (o.sub||'').toLowerCase().includes(q));
     document.getElementById('msLista').innerHTML = filtradas.map((o, idx) => `
       <div data-pick="${idx}" style="padding:12px 10px;border-bottom:1px solid var(--gris-100);cursor:pointer">
         <div style="font-size:14px;font-weight:700">${o.nombre}</div>
