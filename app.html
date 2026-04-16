@@ -3081,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 6
+      instaloERP v1.0 · build 7
     </div>
   `;
 }
@@ -3431,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 6
+      instaloERP v1.0 · build 7
     </div>
   `;
 }
@@ -3807,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 6
+        instaloERP v1.0 · build 7
       </div>
     </div>`;
 }
@@ -4294,22 +4294,27 @@ function _mostradorBeep(tipo) {
       // "Pit" agudo y corto, estilo lector de supermercado (lectura de código)
       play(2400, 0, 0.10, 0.25);
     } else if (tipo === 'done') {
-      // Acorde mayor ascendente C-E-G — "muy bien, hecho, listo"
-      // Onda triangular = más suave que el square del beep clásico
-      const playSoft = (freq, start, dur, vol) => {
+      // 🎉 Fanfarria corta tipo "ta-da!" — C-E-G-C rápido + acorde final
+      const playSine = (freq, start, dur, vol) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'triangle';
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, t0 + start);
         gain.gain.setValueAtTime(vol, t0 + start);
+        gain.gain.setValueAtTime(vol, t0 + start + dur * 0.6);
         gain.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur);
         osc.connect(gain); gain.connect(ctx.destination);
         osc.start(t0 + start);
         osc.stop(t0 + start + dur);
       };
-      playSoft(523.25, 0,    0.12, 0.22);  // C5
-      playSoft(659.25, 0.09, 0.14, 0.22);  // E5
-      playSoft(783.99, 0.20, 0.22, 0.24);  // G5
+      // Arpegio ascendente rápido
+      playSine(523.25, 0,    0.08, 0.18);  // C5
+      playSine(659.25, 0.06, 0.08, 0.20);  // E5
+      playSine(783.99, 0.12, 0.08, 0.22);  // G5
+      // Acorde final festivo (C6 + E5 + G5 simultáneo)
+      playSine(1046.5, 0.18, 0.30, 0.25);  // C6  ← nota alta brillante
+      playSine(783.99, 0.18, 0.30, 0.15);  // G5  acorde
+      playSine(659.25, 0.18, 0.30, 0.12);  // E5  acorde
     } else {
       // Doble beep grave de error (escaneo no encontrado)
       play(280, 0,    0.12, 0.30);
@@ -4925,6 +4930,8 @@ async function _mostradorFinalizar() {
     else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
     else if (tipo === 'obra')                       res = await _mostradorCerrarObraTraspaso();
 
+    _mostradorBeep && _mostradorBeep('done');
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
     alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
     // Reset y vuelta a stock
     _mostrador.destinoTipo = null;
@@ -5264,9 +5271,12 @@ function _devsAbrirFicha(art) {
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <button onclick='_devsConfirmarOk(${JSON.stringify(art).replace(/\'/g,"&#39;")},false)' style="padding:14px;background:#fff;color:var(--verde);border:1.5px solid var(--verde);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">✅ OK y cerrar</button>
-        <button onclick='_devsAbrirIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")},false)' style="padding:14px;background:#fff;color:var(--rojo);border:1.5px solid var(--rojo);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">⚠️ Incidencia</button>
+        <button onclick='_devsAbrirIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")})' style="padding:14px;background:#fff;color:var(--rojo);border:1.5px solid var(--rojo);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">⚠️ Incidencia</button>
       </div>
-      <button onclick='_devsConfirmarOk(${JSON.stringify(art).replace(/\'/g,"&#39;")},true)' style="width:100%;padding:16px;background:var(--verde);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">📷 OK y escanear otro</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick='_devsConfirmarOk(${JSON.stringify(art).replace(/\'/g,"&#39;")},false)' style="padding:14px;background:var(--verde);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer">✅ OK y añadir otro</button>
+        <button onclick='_devsConfirmarOk(${JSON.stringify(art).replace(/\'/g,"&#39;")},true)' style="padding:14px;background:var(--gris-700);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer">📷 OK y escanear</button>
+      </div>
 
       <button onclick="_devsCerrarFicha()" style="margin-top:10px;width:100%;padding:10px;background:none;border:none;color:var(--gris-400);font-size:13px;cursor:pointer">Cancelar</button>
     </div>
@@ -5345,9 +5355,7 @@ async function _devsConfirmarOk(art, seguirEscaneando) {
     if (navigator.vibrate) navigator.vibrate(40);
     _devsCerrarFicha();
     renderAlmacenDevoluciones(document.getElementById('appBody'));
-    if (seguirEscaneando) {
-      setTimeout(() => _devsAbrirEscaner(), 200);
-    }
+    if (seguirEscaneando) setTimeout(() => _devsAbrirEscaner(), 200);
   } catch(e) {
     console.error('[Devs] OK error:', e);
     alert('❌ Error al procesar OK:\n\n' + (e.message || JSON.stringify(e)));
@@ -5385,7 +5393,10 @@ function _devsAbrirIncidencia(art, seguirEscaneando) {
         <button onclick="_devsCerrarIncidencia()" style="padding:14px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">Cancelar</button>
         <button onclick='_devsConfirmarIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")},${cant},false)' style="padding:14px;background:#fff;color:var(--rojo);border:1.5px solid var(--rojo);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">Crear y cerrar</button>
       </div>
-      <button onclick='_devsConfirmarIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")},${cant},true)' style="width:100%;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer">📷 Crear y escanear otro</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick='_devsConfirmarIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")},${cant},false)' style="padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer">⚠️ Crear y añadir otro</button>
+        <button onclick='_devsConfirmarIncidencia(${JSON.stringify(art).replace(/\'/g,"&#39;")},${cant},true)' style="padding:14px;background:var(--gris-700);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer">📷 Crear y escanear</button>
+      </div>
     </div>
   `;
   document.body.appendChild(modal);
@@ -5427,8 +5438,10 @@ async function _devsConfirmarIncidencia(art, cant, seguirEscaneando) {
     });
     _devs.resumen.inc++;
     _devs.items.unshift({ tipo:'inc', codigo:art.codigo||'', nombre:art.nombre||'', cantidad:cant, motivo:motivo, ts:Date.now() });
+    _devs.resumen.uds += cant;
     _devsCerrarIncidencia();
-    if (navigator.vibrate) navigator.vibrate(40);
+    _mostradorBeep && _mostradorBeep('err');
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     renderAlmacenDevoluciones(document.getElementById('appBody'));
     if (seguirEscaneando) {
       setTimeout(() => _devsAbrirEscaner(), 200);
