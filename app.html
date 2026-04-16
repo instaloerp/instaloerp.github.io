@@ -3081,7 +3081,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 8
+      instaloERP v1.0 · build 9
     </div>
   `;
 }
@@ -3431,7 +3431,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 8
+      instaloERP v1.0 · build 9
     </div>
   `;
 }
@@ -3807,7 +3807,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 8
+        instaloERP v1.0 · build 9
       </div>
     </div>`;
 }
@@ -4294,27 +4294,31 @@ function _mostradorBeep(tipo) {
       // "Pit" agudo y corto, estilo lector de supermercado (lectura de código)
       play(2400, 0, 0.10, 0.25);
     } else if (tipo === 'done') {
-      // 🎉 Fanfarria corta tipo "ta-da!" — C-E-G-C rápido + acorde final
-      const playSine = (freq, start, dur, vol) => {
+      // 🎉 TA-CHÁN! — fanfarria de fiesta, corta y brillante (~0.6s)
+      const note = (freq, start, dur, vol, type) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sine';
+        osc.type = type || 'sine';
         osc.frequency.setValueAtTime(freq, t0 + start);
         gain.gain.setValueAtTime(vol, t0 + start);
-        gain.gain.setValueAtTime(vol, t0 + start + dur * 0.6);
+        gain.gain.setValueAtTime(vol * 0.9, t0 + start + dur * 0.5);
         gain.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur);
         osc.connect(gain); gain.connect(ctx.destination);
         osc.start(t0 + start);
         osc.stop(t0 + start + dur);
       };
-      // Arpegio ascendente rápido
-      playSine(523.25, 0,    0.08, 0.18);  // C5
-      playSine(659.25, 0.06, 0.08, 0.20);  // E5
-      playSine(783.99, 0.12, 0.08, 0.22);  // G5
-      // Acorde final festivo (C6 + E5 + G5 simultáneo)
-      playSine(1046.5, 0.18, 0.30, 0.25);  // C6  ← nota alta brillante
-      playSine(783.99, 0.18, 0.30, 0.15);  // G5  acorde
-      playSine(659.25, 0.18, 0.30, 0.12);  // E5  acorde
+      // "TA" — acorde rápido (C+E+G, golpe)
+      note(523.25, 0, 0.10, 0.20, 'triangle');  // C5
+      note(659.25, 0, 0.10, 0.18, 'triangle');  // E5
+      note(783.99, 0, 0.10, 0.16, 'triangle');  // G5
+      // pausa 60ms
+      // "CHÁN!" — acorde brillante más alto y largo (C6+E5+G5+C5)
+      note(1046.5,  0.16, 0.40, 0.28, 'sine');     // C6 ← brillante
+      note(783.99,  0.16, 0.40, 0.16, 'sine');     // G5
+      note(659.25,  0.16, 0.40, 0.14, 'sine');     // E5
+      note(523.25,  0.16, 0.40, 0.10, 'triangle'); // C5 base
+      // Destello agudo final (campana)
+      note(2093.0,  0.16, 0.25, 0.08, 'sine');     // C7 suave
     } else {
       // Doble beep grave de error (escaneo no encontrado)
       play(280, 0,    0.12, 0.30);
@@ -4930,9 +4934,16 @@ async function _mostradorFinalizar() {
     else if (tipo === 'cliente')                    res = await _mostradorCerrarAlbaran(firmaDataUrl);
     else if (tipo === 'obra')                       res = await _mostradorCerrarObraTraspaso();
 
-    _mostradorBeep && _mostradorBeep('done');
-    if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
     alert(`✅ ${res.doc} ${res.numero} generado correctamente.\nStock descontado del almacén origen.`);
+    // Sonido post-alert (iOS suspende AudioContext tras modales nativos)
+    setTimeout(() => {
+      if (_mostradorAudioCtx && _mostradorAudioCtx.state === 'suspended') {
+        _mostradorAudioCtx.resume().then(() => _mostradorBeep('done'));
+      } else {
+        _mostradorBeep && _mostradorBeep('done');
+      }
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
+    }, 150);
     // Reset y vuelta a stock
     _mostrador.destinoTipo = null;
     _mostrador.destinoId   = null;
@@ -5127,9 +5138,7 @@ function _devsFinalizarSesion() {
   if (_devs.items.length === 0) return;
   const total = _devs.resumen.ok + _devs.resumen.inc;
   if (!confirm(`¿Finalizar sesión?\n\n${_devs.resumen.ok} OK · ${_devs.resumen.inc} incidencia(s) · ${_devs.resumen.uds} uds\n\nSe limpiará la pantalla para la siguiente devolución.`)) return;
-  _mostradorBeep && _mostradorBeep('done');
-  if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
-  toast(`✅ Sesión cerrada · ${total} artículo(s) procesado(s)`, 'success');
+  // Limpieza inmediata
   _devs.furgonetaId = null;
   _devs.furgonetaNombre = '';
   _devs.operarioId = null;
@@ -5137,6 +5146,17 @@ function _devsFinalizarSesion() {
   _devs.resumen = { ok:0, inc:0, uds:0 };
   _devs.items = [];
   renderAlmacenDevoluciones(document.getElementById('appBody'));
+  toast(`✅ Sesión cerrada · ${total} artículo(s) procesado(s)`, 'success');
+  // Sonido con delay — iOS suspende AudioContext tras confirm() nativo;
+  // esperar un frame para que el contexto se reactive con la vuelta al DOM.
+  setTimeout(() => {
+    if (_mostradorAudioCtx && _mostradorAudioCtx.state === 'suspended') {
+      _mostradorAudioCtx.resume().then(() => _mostradorBeep('done'));
+    } else {
+      _mostradorBeep && _mostradorBeep('done');
+    }
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
+  }, 150);
 }
 
 function _devsReset() {
@@ -5226,11 +5246,21 @@ async function _devsScanStart() {
     return;
   }
   try {
-    _devsHtml5Qr = new Html5Qrcode('devsScanVisor');
-    const w = window.innerWidth || 320;
-    const h = window.innerHeight || 480;
-    const qrbox = (w<100||h<100) ? {width:260,height:160} : {width:Math.min(280,w-60),height:Math.min(180,h-200)};
-    await _devsHtml5Qr.start({ facingMode: 'environment' }, { fps:10, qrbox }, _devsOnScan, () => {});
+    _devsHtml5Qr = new Html5Qrcode('devsScanVisor', { verbose: false });
+    const config = {
+      fps: 12,
+      qrbox: (vw, vh) => {
+        if (!vw || !vh || vw < 100 || vh < 100) return { width: 260, height: 160 };
+        const min = Math.min(vw, vh);
+        return {
+          width:  Math.max(200, Math.round(min * 0.85)),  // ancho generoso para barras
+          height: Math.max(120, Math.round(min * 0.45))
+        };
+      },
+      aspectRatio: 1.0,
+      formatsToSupport: undefined  // todos: QR + EAN-13 + EAN-8 + CODE-128 + CODE-39 etc.
+    };
+    await _devsHtml5Qr.start({ facingMode: 'environment' }, config, _devsOnScan, () => {});
   } catch(e) {
     console.error('[Devs] Error escáner:', e);
     alert('No se pudo abrir la cámara: ' + (e.message||e));
