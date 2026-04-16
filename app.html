@@ -3612,7 +3612,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.1 · build 124
+        instaloERP v1.1 · build 126
       </div>
     </div>`;
 }
@@ -3994,28 +3994,66 @@ let _mostradorScanner = null;       // instancia Html5Qrcode activa
 let _mostradorScanLast = { code:'', ts:0 };  // anti-repetición
 let _mostradorScanCamId = null;     // id de cámara seleccionada
 let _mostradorScanCams = [];        // lista de cámaras disponibles
+let _mostradorAudioCtx = null;      // AudioContext compartido para beeps
+
+function _mostradorBeep(tipo) {
+  try {
+    if (!_mostradorAudioCtx) {
+      _mostradorAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = _mostradorAudioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const t0 = ctx.currentTime;
+    const play = (freq, start, dur, vol) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, t0 + start);
+      gain.gain.setValueAtTime(vol, t0 + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0 + start);
+      osc.stop(t0 + start + dur);
+    };
+
+    if (tipo === 'ok') {
+      // "Pit" agudo y corto, estilo lector de supermercado
+      play(2400, 0, 0.10, 0.25);
+    } else {
+      // Doble beep grave de error
+      play(280, 0,    0.12, 0.30);
+      play(220, 0.15, 0.18, 0.30);
+    }
+  } catch(e) { /* no audio en este nav */ }
+}
 
 async function _mostradorAbrirEscaner() {
   if (typeof Html5Qrcode === 'undefined') {
     alert('No se ha podido cargar la librería de escaneo. Comprueba la conexión y reintenta.');
     return;
   }
+  // Inicializar audio con la interacción del usuario (requerido por iOS Safari)
+  try {
+    if (!_mostradorAudioCtx) _mostradorAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_mostradorAudioCtx.state === 'suspended') await _mostradorAudioCtx.resume();
+  } catch(e) {}
 
   // Crear modal full-screen con el visor
   const modal = document.createElement('div');
   modal.id = 'mostradorScanModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:#000;z-index:10001;display:flex;flex-direction:column';
+  modal.style.cssText = 'position:fixed;inset:0;background:#000;z-index:10001;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)';
   modal.innerHTML = `
-    <div style="background:#000;color:#fff;padding:14px;display:flex;align-items:center;justify-content:space-between">
+    <div style="background:#000;color:#fff;padding:14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <div>
         <div style="font-size:15px;font-weight:800">📷 Escáner</div>
         <div style="font-size:11px;color:#9ca3af">Apunta a un QR o código de barras</div>
       </div>
-      <button onclick="_mostradorCerrarEscaner()" style="background:#fff;border:none;color:#000;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">Cerrar ✕</button>
+      <button onclick="_mostradorCerrarEscaner()" style="background:#fff;border:none;color:#000;padding:10px 16px;border-radius:8px;font-size:15px;font-weight:800;cursor:pointer">Cerrar ✕</button>
     </div>
-    <div id="mostradorScanReader" style="flex:1;min-height:320px;background:#000;position:relative;display:flex;align-items:center;justify-content:center"></div>
-    <div id="mostradorScanInfo" style="background:#111;color:#fff;padding:10px 14px;font-size:13px;text-align:center;min-height:42px">Iniciando cámara…</div>
-    <div id="mostradorScanFoot" style="background:#000;color:#fff;padding:10px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between">
+    <div id="mostradorScanReader" style="flex:1;min-height:300px;background:#000;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div id="mostradorScanInfo" style="background:#111;color:#fff;padding:12px 14px;font-size:13px;text-align:center;min-height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center">Iniciando cámara…</div>
+    <div id="mostradorScanFoot" style="background:#000;color:#fff;padding:10px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-shrink:0">
       <select id="mostradorScanCamSel" style="flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-family:var(--font)">
         <option value="">Cargando cámaras…</option>
       </select>
@@ -4124,13 +4162,17 @@ function _mostradorOnScan(decodedText) {
   if (!art) {
     if (info) {
       info.style.color = '#fca5a5';
-      info.textContent = `❌ No encontrado: ${code}`;
+      info.innerHTML = `❌ No encontrado: <b>${code}</b>
+        <button onclick="_mostradorBuscarManualConCodigo('${code.replace(/'/g,"\\'")}')"
+          style="margin-left:8px;padding:4px 10px;background:#fff;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Buscar manual</button>`;
     }
+    _mostradorBeep('err');
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     return;
   }
   // Añadir al carrito (reutiliza la lógica del buscador manual)
   _mostradorAddItem(art.id);
+  _mostradorBeep('ok');
   if (navigator.vibrate) navigator.vibrate(40);
   if (info) {
     info.style.color = '#86efac';
@@ -4138,18 +4180,45 @@ function _mostradorOnScan(decodedText) {
   }
 }
 
+function _mostradorBuscarManualConCodigo(code) {
+  // Cierra escáner y vuelca el código en el buscador manual
+  _mostradorCerrarEscaner();
+  setTimeout(() => {
+    _mostradorBusqueda = code;
+    const inp = document.getElementById('mostradorBuscar');
+    if (inp) { inp.value = code; inp.focus(); }
+    _mostradorRenderResultados();
+  }, 250);
+}
+
 function _mostradorBuscarArticuloPorCodigo(code) {
   if (!articulos || !articulos.length) return null;
-  const c = code.toLowerCase();
-  // 1) Match exacto en codigo_barras
-  let a = articulos.find(x => (x.codigo_barras || '').toLowerCase() === c);
+  const norm = s => (s||'').toString().toLowerCase().trim().replace(/\s+/g,'');
+  const stripZeros = s => norm(s).replace(/^0+/, '');
+  const c  = norm(code);
+  const cZ = stripZeros(code);
+
+  // 1) Match exacto (codigo_barras / codigo / ref_fabricante)
+  let a = articulos.find(x => norm(x.codigo_barras) === c) ||
+          articulos.find(x => norm(x.codigo) === c) ||
+          articulos.find(x => norm(x.referencia_fabricante) === c);
   if (a) return a;
-  // 2) Match exacto en codigo interno
-  a = articulos.find(x => (x.codigo || '').toLowerCase() === c);
-  if (a) return a;
-  // 3) Match exacto en referencia_fabricante
-  a = articulos.find(x => (x.referencia_fabricante || '').toLowerCase() === c);
-  if (a) return a;
+
+  // 2) Match exacto ignorando ceros a la izquierda (EAN-13 vs EAN-8 → mismo número)
+  if (cZ && cZ !== c) {
+    a = articulos.find(x => stripZeros(x.codigo_barras) === cZ) ||
+        articulos.find(x => stripZeros(x.codigo) === cZ) ||
+        articulos.find(x => stripZeros(x.referencia_fabricante) === cZ);
+    if (a) return a;
+  }
+
+  // 3) Match parcial (incluye) en codigo_barras o codigo — solo si código tiene >=6 chars
+  if (c.length >= 6) {
+    a = articulos.find(x => norm(x.codigo_barras) && norm(x.codigo_barras).includes(c)) ||
+        articulos.find(x => norm(x.codigo) && norm(x.codigo).includes(c));
+    if (a) return a;
+  }
+
   return null;
 }
 
