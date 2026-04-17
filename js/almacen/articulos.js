@@ -1062,27 +1062,47 @@ async function exportarArticulosExcel() {
   toast('Excel exportado ✓', 'success');
 }
 
+// Flag para cancelar importación
+let _importCancelado = false;
+
+// Pequeña pausa para que el navegador no se bloquee
+function _yield() { return new Promise(r => setTimeout(r, 50)); }
+
 async function importarArticulosExcel() {
   const file = document.getElementById('art_import_file').files[0];
   if (!file) { toast('Selecciona un archivo Excel o CSV', 'error'); return; }
 
   const zipFile = document.getElementById('art_import_zip')?.files[0] || null;
-  let fotosMap = {}; // { 'CODIGO': File }
+  let fotosMap = {}; // { 'KEY': File }
 
   const progEl = document.getElementById('art_import_prog');
   const btnImport = document.querySelector('#mImportarArticulos .btn-primary');
-  if (btnImport) btnImport.disabled = true;
+  const btnCancel = document.querySelector('#mImportarArticulos .btn-secondary');
+  if (btnImport) { btnImport.disabled = true; btnImport.textContent = '⏳ Importando…'; }
+  if (btnCancel) { btnCancel.textContent = '⛔ Cancelar importación'; btnCancel.onclick = () => { _importCancelado = true; }; }
+  _importCancelado = false;
+
+  // Helper para actualizar barra de progreso
+  function progreso(pct, texto) {
+    if (!progEl) return;
+    progEl.innerHTML = `
+      <div style="background:var(--gris-100);border-radius:6px;height:22px;overflow:hidden;margin-bottom:8px">
+        <div style="background:var(--azul);height:100%;width:${pct}%;transition:width .3s;border-radius:6px;display:flex;align-items:center;justify-content:center">
+          <span style="color:#fff;font-size:11px;font-weight:700">${Math.round(pct)}%</span>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--gris-600)">${texto}</div>`;
+  }
 
   // ── Extraer fotos del ZIP si existe ──
-  // fotosMap se indexa por nombre de archivo CON extensión (ej: "tubo_inox.jpg")
-  // y también por nombre SIN extensión (ej: "tubo_inox") para match por código
   if (zipFile) {
     try {
-      if (progEl) progEl.textContent = 'Extrayendo fotos del ZIP…';
+      progreso(0, 'Extrayendo fotos del ZIP…');
       const zipData = await zipFile.arrayBuffer();
       const zip = await JSZip.loadAsync(zipData);
-      for (const [path, entry] of Object.entries(zip.files)) {
-        if (entry.dir) continue;
+      const entries = Object.entries(zip.files).filter(([p, e]) => !e.dir);
+      for (let z = 0; z < entries.length; z++) {
+        const [path, entry] = entries[z];
         const ext = path.split('.').pop().toLowerCase();
         if (!['jpg','jpeg','png','webp'].includes(ext)) continue;
         const fileName = path.split('/').pop().trim();
@@ -1090,36 +1110,47 @@ async function importarArticulosExcel() {
         if (fileName) {
           const blob = await entry.async('blob');
           const fileObj = new File([blob], fileName, { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
-          // Indexar por nombre completo (para match desde Excel)
           fotosMap[fileName.toUpperCase()] = fileObj;
-          // Indexar por nombre sin extensión (para match por código)
           if (baseName) fotosMap[baseName.toUpperCase()] = fileObj;
         }
+        if (z % 10 === 0) { progreso(Math.round(z / entries.length * 10), `Extrayendo fotos… ${z + 1}/${entries.length}`); await _yield(); }
       }
       console.log(`ZIP procesado: ${Object.keys(fotosMap).length} entradas de fotos`);
     } catch (e) {
-      toast('Error al leer el ZIP de fotos: ' + e.message, 'error');
-      if (btnImport) btnImport.disabled = false;
+      toast('Error al leer el ZIP: ' + e.message, 'error');
+      _resetImportUI(btnImport, btnCancel, progEl);
       return;
     }
   }
 
   // ── Leer Excel/CSV ──
-  if (progEl) progEl.textContent = 'Leyendo archivo…';
+  progreso(10, 'Leyendo archivo Excel…');
+  await _yield();
   const rawData = await file.arrayBuffer();
   const wb = XLSX.read(rawData);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws);
 
-  if (!rows.length) { toast('El archivo está vacío', 'error'); if (btnImport) btnImport.disabled = false; return; }
+  if (!rows.length) { toast('El archivo está vacío', 'error'); _resetImportUI(btnImport, btnCancel, progEl); return; }
 
   let creados = 0, actualizados = 0, errores = 0, fotosOk = 0;
+  const hayFotos = Object.keys(fotosMap).length > 0;
+  const totalPasos = rows.length;
 
-  // ── Mapa de artículos existentes por código ──
+  // Mapa de existentes
   const artExistentes = {};
   articulos.forEach(a => { artExistentes[String(a.codigo).toUpperCase().trim()] = a; });
 
+  progreso(12, `Procesando ${totalPasos} artículos…`);
+  await _yield();
+
   for (let i = 0; i < rows.length; i++) {
+    // ── Comprobar cancelación ──
+    if (_importCancelado) {
+      toast(`⛔ Importación cancelada en artículo ${i + 1} de ${rows.length}`, 'info');
+      break;
+    }
+
     const r = rows[i];
     const nombre = r['Nombre'] || r['nombre'] || r['NOMBRE'] || r['Descripción'] || r['descripcion'] || '';
     if (!nombre) { errores++; continue; }
@@ -1149,32 +1180,24 @@ async function importarArticulosExcel() {
       const ivaMatch = tiposIva.find(t => t.porcentaje === ivaPct);
       tipoIvaId = ivaMatch?.id || null;
     }
-    if (!tipoIvaId) {
-      const ivaDef = tiposIva.find(t => t.por_defecto);
-      tipoIvaId = ivaDef?.id || null;
-    }
+    if (!tipoIvaId) { const ivaDef = tiposIva.find(t => t.por_defecto); tipoIvaId = ivaDef?.id || null; }
 
     // Resolver Unidad
     let unidadId = null;
     const udRaw = r['Unidad'] || r['unidad'] || '';
     if (udRaw) {
-      const udMatch = unidades.find(u =>
-        u.abreviatura?.toLowerCase() === udRaw.toLowerCase() ||
-        u.nombre?.toLowerCase() === udRaw.toLowerCase()
-      );
+      const udMatch = unidades.find(u => u.abreviatura?.toLowerCase() === udRaw.toLowerCase() || u.nombre?.toLowerCase() === udRaw.toLowerCase());
       unidadId = udMatch?.id || null;
     }
 
-    // Resolver Activo / Es maquinaria
+    // Activo / Maquinaria
     const activoRaw = r['Activo'] || r['activo'] || '';
     const esActivo = activoRaw ? (['sí','si','1','true'].includes(String(activoRaw).toLowerCase())) : true;
     const maqRaw = r['Es maquinaria'] || r['es_maquinaria'] || '';
     const esMaquinaria = maqRaw ? (['sí','si','1','true'].includes(String(maqRaw).toLowerCase())) : false;
 
     const obj = {
-      empresa_id: EMPRESA.id,
-      codigo: codigo,
-      nombre: nombre.trim(),
+      empresa_id: EMPRESA.id, codigo, nombre: nombre.trim(),
       descripcion: r['Descripción'] || r['descripcion'] || null,
       familia_id: famId,
       precio_coste: parseFloat(r['Precio coste'] || r['precio_coste'] || r['Coste'] || r['coste'] || 0) || 0,
@@ -1183,16 +1206,13 @@ async function importarArticulosExcel() {
       referencia_fabricante: r['Ref. fabricante'] || r['ref_fabricante'] || null,
       codigo_barras: r['Código barras'] || r['codigo_barras'] || r['EAN'] || null,
       stock_minimo: parseFloat(r['Stock mínimo'] || r['stock_minimo'] || 0) || 0,
-      tipo_iva_id: tipoIvaId,
-      unidad_venta_id: unidadId,
-      es_activo: esMaquinaria,
-      activo: esActivo,
+      tipo_iva_id: tipoIvaId, unidad_venta_id: unidadId,
+      es_activo: esMaquinaria, activo: esActivo,
     };
 
-    // ── UPSERT: existe → update, no existe → insert ──
+    // ── UPSERT ──
     const existente = artExistentes[codigo.toUpperCase()];
     let artId = null;
-
     if (existente) {
       delete obj.empresa_id;
       const { error } = await sb.from('articulos').update(obj).eq('id', existente.id);
@@ -1206,18 +1226,11 @@ async function importarArticulosExcel() {
       artId = ins.id;
     }
 
-    // ── Subir foto: prioridad columna Excel > match por código ──
-    if (artId && Object.keys(fotosMap).length) {
-      // 1) Columna "Foto archivo" del Excel (ej: "tubo_inox.jpg" o "tubo_inox")
+    // ── Subir foto con pausa entre subidas ──
+    if (artId && hayFotos) {
       const fotoRef = String(r['Foto archivo'] || r['foto_archivo'] || r['Foto'] || r['foto'] || '').trim();
-      let fotoFile = null;
-      if (fotoRef) {
-        fotoFile = fotosMap[fotoRef.toUpperCase()] || null;
-      }
-      // 2) Fallback: buscar por código del artículo
-      if (!fotoFile) {
-        fotoFile = fotosMap[codigo.toUpperCase()] || null;
-      }
+      let fotoFile = fotoRef ? (fotosMap[fotoRef.toUpperCase()] || null) : null;
+      if (!fotoFile) fotoFile = fotosMap[codigo.toUpperCase()] || null;
 
       if (fotoFile) {
         try {
@@ -1227,39 +1240,49 @@ async function importarArticulosExcel() {
             fotosOk++;
           }
         } catch (e) { console.error('Error foto', codigo, e); }
+        // Pausa de 200ms entre subidas de fotos para no saturar
+        await new Promise(r => setTimeout(r, 200));
       }
     }
 
-    if (progEl) {
-      progEl.innerHTML = `Procesando ${i + 1} de ${rows.length}…<br>
-        <span style="color:var(--verde)">${creados} creados</span> ·
-        <span style="color:var(--azul)">${actualizados} actualizados</span>
-        ${fotosOk ? ` · 📷 ${fotosOk} fotos` : ''}
-        ${errores ? ` · <span style="color:var(--rojo)">${errores} errores</span>` : ''}`;
-    }
+    // ── Actualizar progreso cada artículo + yield para no bloquear ──
+    const pct = 12 + Math.round((i + 1) / totalPasos * 85);
+    const stats = `${creados} creados · ${actualizados} actualizados${fotosOk ? ` · 📷 ${fotosOk} fotos` : ''}${errores ? ` · ⚠️ ${errores} errores` : ''}`;
+    progreso(pct, `${codigo} (${i + 1}/${totalPasos})<br>${stats}`);
+    await _yield();
   }
 
   // ── Refrescar datos ──
+  progreso(98, 'Recargando artículos…');
+  await _yield();
   const { data: fresh } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo');
   articulos = fresh || [];
   filtrarArticulos();
-  if (btnImport) btnImport.disabled = false;
-  closeModal('mImportarArticulos');
 
-  // Reset
-  const fileInput = document.getElementById('art_import_file');
-  const zipInput = document.getElementById('art_import_zip');
-  if (fileInput) fileInput.value = '';
-  if (zipInput) zipInput.value = '';
-  if (progEl) progEl.innerHTML = '';
-
+  // ── Resultado final ──
   const resumen = [];
   if (creados) resumen.push(`${creados} creados`);
   if (actualizados) resumen.push(`${actualizados} actualizados`);
   if (fotosOk) resumen.push(`📷 ${fotosOk} fotos subidas`);
   if (errores) resumen.push(`${errores} errores`);
+  progreso(100, `✅ ${resumen.join(' · ')}`);
+
+  // Esperar 2s mostrando resultado, luego cerrar
+  await new Promise(r => setTimeout(r, 2000));
+  _resetImportUI(btnImport, btnCancel, progEl);
+  closeModal('mImportarArticulos');
   toast(`✅ Importación completada: ${resumen.join(' · ')}`, (creados + actualizados) > 0 ? 'success' : 'error');
   loadDashboard();
+}
+
+function _resetImportUI(btnImport, btnCancel, progEl) {
+  if (btnImport) { btnImport.disabled = false; btnImport.textContent = '✅ Importar / Actualizar'; }
+  if (btnCancel) { btnCancel.textContent = 'Cancelar'; btnCancel.onclick = () => closeModal('mImportarArticulos'); }
+  const fileInput = document.getElementById('art_import_file');
+  const zipInput = document.getElementById('art_import_zip');
+  if (fileInput) fileInput.value = '';
+  if (zipInput) zipInput.value = '';
+  if (progEl) progEl.innerHTML = '';
 }
 
 // Alias para compatibilidad con topbar
