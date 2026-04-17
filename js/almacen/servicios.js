@@ -203,31 +203,40 @@ function _renderSrvLineas() {
   if (!container) return;
 
   if (_srvLineas.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:20px;color:var(--gris-300);font-size:12px">
-      Sin líneas — este es un servicio simple.<br>Añade líneas para crear un servicio compuesto.
+    container.innerHTML = `<div style="text-align:center;padding:16px;color:var(--gris-300);font-size:12px">
+      Sin líneas — servicio simple. Pulsa <strong>+ Añadir línea</strong> para componer.
     </div>`;
     document.getElementById('srv_lineas_total').textContent = '';
     return;
   }
 
-  container.innerHTML = _srvLineas.map((l, idx) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:var(--gris-50);border-radius:8px;font-size:12px" data-temp-id="${l._tempId}">
-      <div style="flex:2;min-width:0">
-        <input type="text" value="${_escHtml(l.articulo_nombre || l.descripcion)}" placeholder="Buscar artículo o escribir concepto..."
-          class="f-input" style="font-size:12px;padding:6px 8px"
-          oninput="srvLineaBuscar(this,${l._tempId})" onfocus="srvLineaBuscar(this,${l._tempId})"
-          id="srv_linea_nombre_${l._tempId}">
-        <div id="srv_linea_ac_${l._tempId}" class="ac-list" style="display:none;position:absolute;z-index:999;background:#fff;border:1px solid var(--gris-200);border-radius:8px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:12px;width:300px"></div>
+  container.innerHTML = _srvLineas.map((l, idx) => {
+    const fotoThumb = l.articulo_id
+      ? (articulos.find(a=>a.id===l.articulo_id)?.foto_url
+        ? `<img src="${articulos.find(a=>a.id===l.articulo_id).foto_url}" style="width:30px;height:30px;object-fit:cover;border-radius:6px">`
+        : `<span style="width:30px;height:30px;border-radius:6px;background:var(--gris-200);display:inline-flex;align-items:center;justify-content:center;font-size:14px">📦</span>`)
+      : `<span style="width:30px;height:30px;border-radius:6px;background:var(--azul-light);display:inline-flex;align-items:center;justify-content:center;font-size:14px">✏️</span>`;
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:#fff;border-radius:8px;border:1px solid var(--gris-100);font-size:12px" data-temp-id="${l._tempId}">
+      <div style="flex:2;min-width:0;display:flex;align-items:center;gap:8px;position:relative">
+        ${fotoThumb}
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${_escHtml(l.articulo_nombre || l.descripcion)}" placeholder="Buscar artículo o escribir concepto..."
+            style="width:100%;border:1px solid var(--gris-200);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--font);outline:none"
+            oninput="srvLineaBuscar(this,${l._tempId})" onfocus="srvLineaBuscar(this,${l._tempId})"
+            id="srv_linea_nombre_${l._tempId}">
+          <div id="srv_linea_ac_${l._tempId}" style="display:none;position:absolute;top:100%;left:0;z-index:999;background:#fff;border:1px solid var(--gris-200);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:12px;width:320px;margin-top:4px"></div>
+        </div>
       </div>
-      <div style="width:70px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" class="f-input" style="font-size:12px;padding:6px 8px;text-align:center" onchange="srvLineaCant(${l._tempId},this.value)" placeholder="Cant."></div>
-      <div style="width:90px"><input type="number" value="${l.precio_unitario}" step="0.01" class="f-input" style="font-size:12px;padding:6px 8px;text-align:right" onchange="srvLineaPrecio(${l._tempId},this.value)" placeholder="Precio"></div>
-      <div style="width:70px;text-align:right;font-weight:700;color:var(--verde)">${fmtE(l.cantidad * l.precio_unitario)}</div>
-      <button class="btn btn-ghost btn-icon" onclick="srvDelLinea(${l._tempId})" style="font-size:14px;padding:4px" title="Quitar">✕</button>
-    </div>
-  `).join('');
+      <div style="width:70px"><input type="number" value="${l.cantidad}" min="0.01" step="0.01" style="width:100%;border:1px solid var(--gris-200);border-radius:6px;padding:6px 4px;font-size:12px;text-align:center;font-family:var(--font);outline:none" onchange="srvLineaCant(${l._tempId},this.value)"></div>
+      <div style="width:90px"><input type="number" value="${l.precio_unitario}" step="0.01" style="width:100%;border:1px solid var(--gris-200);border-radius:6px;padding:6px 4px;font-size:12px;text-align:right;font-family:var(--font);outline:none" onchange="srvLineaPrecio(${l._tempId},this.value)"></div>
+      <div style="width:70px;text-align:right;font-weight:800;font-size:12px;color:var(--verde)">${fmtE(l.cantidad * l.precio_unitario)}</div>
+      <button onclick="srvDelLinea(${l._tempId})" style="width:28px;height:28px;border:none;background:var(--rojo-light);color:var(--rojo);border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Quitar">✕</button>
+    </div>`;
+  }).join('');
 
   const total = _srvLineas.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
-  document.getElementById('srv_lineas_total').textContent = total > 0 ? `Total materiales: ${fmtE(total)}` : '';
+  document.getElementById('srv_lineas_total').textContent = total > 0 ? `Total composición: ${fmtE(total)}` : '';
 }
 
 function _escHtml(s) { return (s||'').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
