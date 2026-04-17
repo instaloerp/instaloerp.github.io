@@ -377,7 +377,7 @@ async function saveServicio() {
     activo: document.getElementById('srv_activo').checked
   };
 
-  showLoading('Guardando servicio...');
+  toast('Guardando servicio...');
   try {
     let savedId;
     if (id) {
@@ -403,7 +403,7 @@ async function saveServicio() {
   } catch(e) {
     toast('Error: ' + e.message, 'error');
   } finally {
-    hideLoading();
+    // hideLoading
   }
 }
 
@@ -440,7 +440,7 @@ async function _saveServicioLineas(servicioId) {
 // ── Eliminar servicio ──
 async function delServicio(id) {
   if (!confirm('¿Eliminar este servicio?')) return;
-  showLoading('Eliminando...');
+  toast('Eliminando...');
   try {
     await sb.from('servicio_lineas').delete().eq('servicio_id', id);
     await sb.from('articulos').delete().eq('id', id);
@@ -451,7 +451,7 @@ async function delServicio(id) {
   } catch(e) {
     toast('Error: ' + e.message, 'error');
   } finally {
-    hideLoading();
+    // hideLoading
   }
 }
 
@@ -460,7 +460,7 @@ async function exportarServiciosExcel() {
   const servicios = _getServicios();
   if (servicios.length === 0) { toast('No hay servicios para exportar', 'error'); return; }
 
-  showLoading('Exportando servicios...');
+  toast('Exportando servicios...');
   try {
     const rows = [];
     for (const s of servicios) {
@@ -495,7 +495,7 @@ async function exportarServiciosExcel() {
   } catch(e) {
     toast('Error exportando: ' + e.message, 'error');
   } finally {
-    hideLoading();
+    // hideLoading
   }
 }
 
