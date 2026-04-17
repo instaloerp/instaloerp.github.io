@@ -696,8 +696,74 @@ function de_updateLinea(i,f,v) {
   } else {
     deLineas[i][f] = (f==='desc'||f==='titulo') ? v : parseFloat(v)||0;
   }
+  // Si es una sub-línea de servicio, recalcular precio del padre
+  if (deLineas[i].tipo === 'srv_linea') {
+    _de_recalcSrvPrecio(deLineas[i].parent_srv_idx);
+  }
   de_renderLineas();
   de_autoguardar();
+}
+
+/** Elimina una sub-línea individual de un servicio */
+function de_removeSrvLinea(i) {
+  const parentIdx = deLineas[i].parent_srv_idx;
+  deLineas.splice(i, 1);
+  // Actualizar parent_srv_idx de las sub-líneas restantes que apuntan al mismo padre
+  for (let j = parentIdx + 1; j < deLineas.length; j++) {
+    if (deLineas[j].tipo === 'srv_linea' && deLineas[j].parent_srv_idx === parentIdx) continue;
+    if (deLineas[j].tipo === 'srv_linea') break; // ya pasamos a otro servicio
+    break;
+  }
+  _de_recalcSrvPrecio(parentIdx);
+  de_renderLineas();
+  de_autoguardar();
+}
+
+/** Añade una nueva sub-línea vacía a un servicio */
+function de_addSrvLinea(parentIdx) {
+  // Encontrar la última sub-línea de este servicio
+  let insertAt = parentIdx + 1;
+  while (insertAt < deLineas.length && deLineas[insertAt].tipo === 'srv_linea' && deLineas[insertAt].parent_srv_idx === parentIdx) {
+    insertAt++;
+  }
+  deLineas.splice(insertAt, 0, {
+    tipo: 'srv_linea',
+    parent_srv_idx: parentIdx,
+    desc: '',
+    cant: 1,
+    precio: 0,
+    dto1: 0, dto2: 0, dto3: 0,
+    iva: deConfig.conIva ? (prIvaDefault||21) : 0,
+    articulo_id: null,
+    codigo: ''
+  });
+  de_renderLineas();
+  // Focus en el input de descripción de la nueva sub-línea
+  setTimeout(() => {
+    const inp = document.querySelector(`input[data-srvlinea-idx="${insertAt}"]`);
+    if (inp) inp.focus();
+  }, 50);
+}
+
+/** Autocompletado en sub-líneas de servicio: busca artículos y los asigna */
+function de_buscarArtSrvLinea(input, lineaIdx) {
+  input.dataset.lineaIdx = lineaIdx;
+  if (typeof acBuscarArticulo === 'function') {
+    acBuscarArticulo(input, _de_onSelectArtSrvLinea, 'precio_venta');
+  }
+}
+
+function _de_onSelectArtSrvLinea(lineaIdx, a) {
+  _artSelecting = true;
+  deLineas[lineaIdx].desc = a.nombre || '';
+  deLineas[lineaIdx].precio = a.precio_venta || 0;
+  deLineas[lineaIdx].articulo_id = a.id;
+  deLineas[lineaIdx].codigo = a.codigo || '';
+  const parentIdx = deLineas[lineaIdx].parent_srv_idx;
+  _de_recalcSrvPrecio(parentIdx);
+  setTimeout(() => { de_renderLineas(); de_autoguardar(); }, 0);
+  toast(`📦 ${a.codigo} — ${a.nombre}`,'info');
+  setTimeout(() => { _artSelecting = false; }, 300);
 }
 
 // Autosave: debounced, saves silently after 30 seconds of inactivity.
@@ -1012,7 +1078,7 @@ function de_renderLineas() {
       </tr>`;
 
     } else if (l.tipo === 'srv_linea') {
-      // ═══ SUB-LÍNEA DE SERVICIO: solo visible si padre no está colapsado ═══
+      // ═══ SUB-LÍNEA DE SERVICIO: editable, visible si padre no está colapsado ═══
       const parentIdx = l.parent_srv_idx;
       const parentLine = deLineas[parentIdx];
       if (!parentLine || parentLine.srv_collapsed || parentCollapsed || subCollapsed) return;
@@ -1022,18 +1088,50 @@ function de_renderLineas() {
       const inCap = secActual>=0;
       const basePad = inSub ? 78 : (inCap ? 58 : 38);
 
+      // Comprobar si la siguiente línea ya NO es srv_linea del mismo padre → es la última, añadir botón +
+      const isLast = (i+1 >= deLineas.length || deLineas[i+1].tipo !== 'srv_linea' || deLineas[i+1].parent_srv_idx !== parentIdx);
+
       html += `<tr style="border-top:1px dashed #bbf7d0;background:#f7fef9">
         <td style="padding:4px 4px;text-align:center;color:#86efac;font-size:9px">┗</td>
         <td style="padding:4px 10px;padding-left:${basePad}px">
-          <span style="font-size:12px;color:#4b5563">${l.codigo ? '<span style="color:#9ca3af;font-size:11px">'+l.codigo+'</span> ' : ''}${l.desc||''}</span>
+          <input value="${l.desc||''}" placeholder="Código o descripción..."
+            oninput="de_buscarArtSrvLinea(this,${i})"
+            onchange="de_updateLinea(${i},'desc',this.value)"
+            onfocus="if(this.value.length>=1)de_buscarArtSrvLinea(this,${i})"
+            onblur="setTimeout(()=>{const d=document.getElementById('acArticulos');if(d)d.style.display='none'},200)"
+            onkeydown="de_acKeydown(event,${i})"
+            autocomplete="off"
+            data-linea-idx="${i}"
+            data-srvlinea-idx="${i}"
+            style="width:100%;border:none;outline:none;font-size:12px;background:transparent;color:#4b5563">
         </td>
-        <td style="padding:4px 5px;text-align:right;font-size:11px;color:#6b7280">${l.cant}</td>
-        <td style="padding:4px 5px;text-align:right;font-size:11px;color:#6b7280">${fmtE(l.precio)}</td>
+        <td style="padding:4px 5px">
+          <input type="number" value="${l.cant}" min="0.01" step="0.01"
+            onchange="de_updateLinea(${i},'cant',this.value)"
+            style="width:100%;border:1px solid #d1fae5;border-radius:4px;padding:3px 5px;font-size:11px;text-align:right;outline:none;background:#f7fef9">
+        </td>
+        <td style="padding:4px 5px">
+          <input type="number" value="${l.precio}" min="0" step="0.01"
+            onchange="de_updateLinea(${i},'precio',this.value)"
+            style="width:100%;border:1px solid #d1fae5;border-radius:4px;padding:3px 5px;font-size:11px;text-align:right;outline:none;background:#f7fef9">
+        </td>
         ${showDto?'<td></td><td></td><td></td>':''}
         ${showIva?'<td></td>':''}
         <td style="padding:4px 10px;text-align:right;font-size:11px;color:#6b7280">${fmtE(slSub)}</td>
-        <td></td>
+        <td style="text-align:center"><button onclick="de_removeSrvLinea(${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:12px;padding:2px 4px" title="Quitar componente">✕</button></td>
       </tr>`;
+      // Botón + después de la última sub-línea
+      if (isLast) {
+        html += `<tr style="background:#f0fdf4">
+          <td></td>
+          <td colspan="${totalCols-2}" style="padding:2px 10px;padding-left:${basePad}px">
+            <button onclick="de_addSrvLinea(${parentIdx})" style="background:none;border:1px dashed #86efac;border-radius:4px;cursor:pointer;color:#22c55e;font-size:11px;padding:3px 10px;display:flex;align-items:center;gap:4px" title="Añadir componente al servicio">
+              <span style="font-size:14px">+</span> Añadir componente
+            </button>
+          </td>
+          <td></td>
+        </tr>`;
+      }
 
     } else {
       const dto1 = showDto ? (l.dto1||0) : 0;
