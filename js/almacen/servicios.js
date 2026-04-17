@@ -307,7 +307,21 @@ function srvLineaBuscar(input, tempId) {
       </div>
     </div>
   `).join('');
+  // Abrir hacia arriba si no hay espacio abajo
+  acEl.style.top = '';
+  acEl.style.bottom = '';
   acEl.style.display = 'block';
+  const rect = acEl.getBoundingClientRect();
+  const modalBody = acEl.closest('.modal-b');
+  if (modalBody) {
+    const modalRect = modalBody.getBoundingClientRect();
+    if (rect.bottom > modalRect.bottom) {
+      acEl.style.top = 'auto';
+      acEl.style.bottom = '100%';
+      acEl.style.marginTop = '0';
+      acEl.style.marginBottom = '4px';
+    }
+  }
 }
 
 function srvLineaSelectArt(tempId, artId, nombre, codigo, precio) {
