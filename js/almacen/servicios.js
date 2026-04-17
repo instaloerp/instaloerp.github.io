@@ -239,6 +239,18 @@ function _renderSrvLineas() {
 
   const total = _srvLineas.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
   document.getElementById('srv_lineas_total').textContent = total > 0 ? `Total composición: ${fmtE(total)}` : '';
+  // Auto-actualizar PVP con el total de las líneas
+  const pvpInput = document.getElementById('srv_pvp');
+  if (_srvLineas.length > 0) {
+    pvpInput.value = total.toFixed(2);
+    pvpInput.readOnly = true;
+    pvpInput.style.background = 'var(--gris-50)';
+    pvpInput.title = 'Se calcula automáticamente de las líneas';
+  } else {
+    pvpInput.readOnly = false;
+    pvpInput.style.background = '#fff';
+    pvpInput.title = '';
+  }
 }
 
 function _escHtml(s) { return (s||'').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
