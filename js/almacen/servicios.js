@@ -122,6 +122,7 @@ function nuevoServicio() {
   document.getElementById('srv_pvp').value = '';
   document.getElementById('srv_unidad_servicio').value = 'ud';
   document.getElementById('srv_activo').checked = true;
+  document.getElementById('srv_activo_wrap').style.display = 'none';
   document.getElementById('srv_titulo').textContent = 'Nuevo servicio';
   document.getElementById('srv_codigo_label').textContent = '';
   srvTipoPrecioChange();
@@ -166,6 +167,7 @@ async function editServicio(id) {
   document.getElementById('srv_pvp').value = s.precio_venta || '';
   document.getElementById('srv_unidad_servicio').value = s.unidad_servicio || 'ud';
   document.getElementById('srv_activo').checked = s.activo !== false;
+  document.getElementById('srv_activo_wrap').style.display = 'flex';
   document.getElementById('srv_titulo').textContent = s.nombre || 'Editar servicio';
   document.getElementById('srv_codigo_label').textContent = s.codigo || '';
   srvTipoPrecioChange();
