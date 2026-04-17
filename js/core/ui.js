@@ -399,7 +399,7 @@ function goPage(id, opts){
   if(id==='mistareas' && typeof cargarMisTareas==='function') cargarMisTareas();
   if(id==='articulos' && typeof renderArticulos==='function') renderArticulos(articulos);
   if(id==='servicios' && typeof renderServicios==='function') renderServicios();
-  if(id==='asitur') { const f=document.getElementById('asiturFrame'); if(f&&f.src==='about:blank') f.src='https://conecta.asitur.net/'; }
+  if(id==='asitur') { const f=document.getElementById('asiturFrame'); if(f&&f.src==='about:blank') f.src='https://conectahogar.asitur.es/'; }
   if(id==='stock') loadStock();
   if(id==='consumos' && typeof loadConsumos==='function') loadConsumos();
   if(id==='incidencias-stock' && typeof loadIncidencias==='function') loadIncidencias();
