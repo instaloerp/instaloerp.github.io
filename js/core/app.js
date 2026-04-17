@@ -844,10 +844,14 @@ function initRealtimePartes() {
           if (data) {
             articulos = data;
             if (typeof _invalidarArtProvMap === 'function') _invalidarArtProvMap();
-            // Solo re-renderizar si estamos en la página de artículos
+            // Solo re-renderizar si estamos en la página de artículos o servicios
             const pageArt = document.getElementById('page-articulos');
             if (pageArt && pageArt.classList.contains('active') && typeof renderArticulos === 'function') {
               renderArticulos(articulos);
+            }
+            const pageSrv = document.getElementById('page-servicios');
+            if (pageSrv && pageSrv.classList.contains('active') && typeof renderServicios === 'function') {
+              renderServicios();
             }
           }
         } catch(e) {}
@@ -1133,6 +1137,7 @@ function renderAll() {
   renderClientes(clientes);
   renderProveedores(proveedores);
   renderArticulos(articulos);
+  if (typeof renderServicios === 'function') renderServicios();
   renderAlmacenes();
   if (typeof initFiltroTrabajos === 'function') initFiltroTrabajos();
   filtrarTrabajos ? filtrarTrabajos() : renderTrabajos();

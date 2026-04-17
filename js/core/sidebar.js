@@ -261,6 +261,7 @@ function userCanAccess(pageId) {
     'calendario-pagos': 'facturas',
     'ocr': 'facturas',
     'articulos': 'stock',
+    'servicios': 'stock',
     'stock': 'stock',
     'consumos': 'stock',
     'incidencias-stock': 'stock',

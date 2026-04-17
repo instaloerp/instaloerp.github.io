@@ -96,8 +96,11 @@ function artTab(tab, el) {
 
 // ─── RENDERIZAR LISTADO ───────────────────────
 async function renderArticulos(list) {
+  // Excluir servicios del listado de artículos
+  list = list.filter(a => a.tipo !== 'servicio');
   artFiltrados = list;
-  document.getElementById('artCount').textContent = `${list.length} de ${articulos.length} artículos`;
+  const totalArt = articulos.filter(a => a.tipo !== 'servicio').length;
+  document.getElementById('artCount').textContent = `${list.length} de ${totalArt} artículos`;
 
   // Cargar mapas proveedor y stock la primera vez (asíncrono, re-renderiza al terminar)
   const _needsProvMap = !_artProvMapLoaded && EMPRESA?.id;
@@ -199,15 +202,15 @@ function _renderArticulosTabla(list) {
 
 // ─── KPIs ──────────────────────────────────────
 function updateArticulosKPIs() {
-  const activos = articulos.filter(a => a.activo !== false);
-  const inactivos = articulos.filter(a => a.activo === false);
-  const famsUsadas = new Set(articulos.map(a => a.familia_id).filter(Boolean));
+  const soloArt = articulos.filter(a => a.tipo !== 'servicio');
+  const activos = soloArt.filter(a => a.activo !== false);
+  const inactivos = soloArt.filter(a => a.activo === false);
+  const famsUsadas = new Set(soloArt.map(a => a.familia_id).filter(Boolean));
   const valorStock = activos.reduce((sum, a) => sum + (a.precio_coste || 0), 0);
-  // Bajo stock: artículos con stock_minimo > 0 y sin stock suficiente (necesita datos de stock real, por ahora solo cuenta los que tienen stock_minimo > 0)
-  const bajoStock = articulos.filter(a => (a.stock_minimo || 0) > 0 && a.activo !== false);
+  const bajoStock = soloArt.filter(a => (a.stock_minimo || 0) > 0 && a.activo !== false);
 
   const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-  el('art_kpi_total', articulos.length);
+  el('art_kpi_total', soloArt.length);
   el('art_kpi_activos', activos.length);
   el('art_kpi_inactivos', inactivos.length);
   el('art_kpi_bajo_stock', bajoStock.length);
