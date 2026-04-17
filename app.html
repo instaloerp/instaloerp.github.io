@@ -3225,7 +3225,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 14
+      instaloERP v1.0 · build 15
     </div>
   `;
 }
@@ -3575,7 +3575,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 14
+      instaloERP v1.0 · build 15
     </div>
   `;
 }
@@ -3951,7 +3951,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 14
+        instaloERP v1.0 · build 15
       </div>
     </div>`;
 }
@@ -8803,12 +8803,20 @@ function wizSearchMat(q) {
         ? `<span style="color:var(--verde);font-weight:700">${st.disponible} en furgoneta</span>`
         : `<span style="color:var(--rojo)">sin stock</span>`)
       : '';
+    const fotoHtml = a.foto_url
+      ? `<img src="${a.foto_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0">`
+      : `<div style="width:36px;height:36px;border-radius:6px;background:var(--gris-100);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">📦</div>`;
     return `<div class="mat-search-item" onclick="wizAddMatFromCatalog(${a.id})">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:700;font-size:13px">${a.nombre||''}</span>
-        <span style="font-size:10px">${stockBadge}</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        ${fotoHtml}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nombre||''}</span>
+            <span style="font-size:10px;flex-shrink:0;margin-left:6px">${stockBadge}</span>
+          </div>
+          <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''} · ${(a.precio_venta||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})} · ${a.unidad||'ud'}</div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--gris-400)">${a.codigo||''} · ${(a.precio_venta||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})} · ${a.unidad||'ud'}</div>
     </div>`;
   }).join('');
 
