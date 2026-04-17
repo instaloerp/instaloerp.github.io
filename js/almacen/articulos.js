@@ -140,7 +140,7 @@ function _renderArticulosTabla(list) {
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
       const dto = a.descuento || 0;
       const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
-      const fotoMini = a.foto_url ? `<span style="display:inline-block;width:28px;height:28px;border-radius:5px;background:var(--azul-light);text-align:center;line-height:28px;font-size:14px;vertical-align:middle" title="Tiene foto">📷</span>` : '';
+      const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;vertical-align:middle">` : `<span style="display:inline-block;width:32px;height:32px;border-radius:6px;background:var(--gris-100);text-align:center;line-height:32px;font-size:16px;vertical-align:middle">📦</span>`;
 
       // Columna Proveedor/es — mostrar todos
       const provNombres = _artProvMap[a.id] || [];
