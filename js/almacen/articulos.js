@@ -140,7 +140,7 @@ function _renderArticulosTabla(list) {
       const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
       const dto = a.descuento || 0;
       const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
-      const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
+      const fotoMini = a.foto_url ? `<span style="display:inline-block;width:28px;height:28px;border-radius:5px;background:var(--azul-light);text-align:center;line-height:28px;font-size:14px;vertical-align:middle" title="Tiene foto">📷</span>` : '';
 
       // Columna Proveedor/es — mostrar todos
       const provNombres = _artProvMap[a.id] || [];
@@ -927,20 +927,45 @@ async function quitarArtFoto() {
   }
 }
 
+// Optimiza imagen: redimensiona a max 400x400 y comprime a JPEG ~60% calidad
+// Reduce fotos de móvil (3-5MB) a ~10-30KB → ahorra egress en Supabase
+function optimizarImagen(file, maxSize = 400, quality = 0.6) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else       { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => resolve(file); // Si falla, subir original
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 async function subirFotoArticulo(file, artId) {
   try {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const path = `${EMPRESA.id}/${artId}.${ext}`;
+    // Optimizar antes de subir
+    const optimized = await optimizarImagen(file);
+    const path = `${EMPRESA.id}/${artId}.jpg`;
 
-    const { error: upErr } = await sb.storage.from('articulos').upload(path, file, {
+    const { error: upErr } = await sb.storage.from('articulos').upload(path, optimized, {
       upsert: true,
-      contentType: file.type
+      contentType: 'image/jpeg'
     });
 
     if (upErr) {
       console.error('Error subiendo foto:', upErr.message);
-      // Si el bucket no existe, guardar como data URL
-      return await fileToDataUrl(file);
+      return await fileToDataUrl(optimized);
     }
 
     const { data } = sb.storage.from('articulos').getPublicUrl(path);
