@@ -108,8 +108,11 @@ async function abrirEditor(tipo, editId) {
       deLineas = (doc.lineas||[]).map(l => {
         if (l.tipo==='capitulo') return {tipo:'capitulo', titulo:l.titulo||'', collapsed:false};
         if (l.tipo==='subcapitulo') return {tipo:'subcapitulo', titulo:l.titulo||'', collapsed:false};
-        return {tipo:'linea', desc:l.desc||'', cant:l.cant||1, precio:l.precio||0, dto:l.dto||0, iva:l.iva!=null?l.iva:21};
+        if (l.tipo==='servicio') return {tipo:'servicio', desc:l.desc||'', cant:l.cant||1, precio:l.precio||0, dto1:l.dto1||0, dto2:l.dto2||0, dto3:l.dto3||0, iva:l.iva!=null?l.iva:21, articulo_id:l.articulo_id, codigo:l.codigo||'', servicio_id:l.articulo_id, srv_collapsed:false};
+        return {tipo:'linea', desc:l.desc||'', cant:l.cant||1, precio:l.precio||0, dto:l.dto||0, iva:l.iva!=null?l.iva:21, articulo_id:l.articulo_id, codigo:l.codigo||''};
       });
+      // Re-inyectar sub-líneas de servicios desde Supabase
+      setTimeout(() => _de_reloadSrvLineas(), 100);
       // Versión actual (solo para no-borradores)
       deConfig._version = docEstado === 'borrador' ? 0 : (doc.version || 1);
       deConfig._estado = docEstado;
@@ -510,7 +513,19 @@ function de_addLinea() {
   },50);
 }
 
-function de_removeLinea(i) { deLineas.splice(i,1); de_renderLineas(); }
+function de_removeLinea(i) {
+  // Si es un servicio, eliminar también sus sub-líneas
+  if (deLineas[i].tipo === 'servicio') {
+    let count = 1;
+    while (i + count < deLineas.length && deLineas[i + count].tipo === 'srv_linea' && deLineas[i + count].parent_srv_idx === i) {
+      count++;
+    }
+    deLineas.splice(i, count);
+  } else {
+    deLineas.splice(i, 1);
+  }
+  de_renderLineas();
+}
 
 // ═══ AUTOCOMPLETADO DE ARTÍCULOS (usa sistema genérico de ui.js) ═══
 let _artSelecting = false;
@@ -535,10 +550,123 @@ function _de_onSelectArt(lineaIdx, a) {
   }
   const inp = document.querySelector(`input[data-linea-idx="${lineaIdx}"]`);
   if (inp) inp.value = a.nombre || '';
-  // Defer render to avoid blur/innerHTML race condition
-  setTimeout(() => { de_renderLineas(); de_autoguardar(); }, 0);
-  toast(`📦 ${a.codigo} — ${a.nombre}`,'info');
+
+  // ═══ SERVICIO COMPUESTO: cargar sub-líneas ═══
+  if (a.tipo === 'servicio') {
+    deLineas[lineaIdx].tipo = 'servicio';
+    deLineas[lineaIdx].srv_collapsed = false;
+    deLineas[lineaIdx].servicio_id = a.id;
+    // Eliminar sub-líneas previas de este servicio (por si se re-selecciona)
+    _de_removeSrvLineas(lineaIdx);
+    // Cargar líneas del servicio desde Supabase
+    _de_loadSrvLineas(lineaIdx, a.id);
+    toast(`🔧 Servicio: ${a.nombre}`,'info');
+  } else {
+    // Defer render to avoid blur/innerHTML race condition
+    setTimeout(() => { de_renderLineas(); de_autoguardar(); }, 0);
+    toast(`📦 ${a.codigo} — ${a.nombre}`,'info');
+  }
   setTimeout(() => { _artSelecting = false; }, 300);
+}
+
+// ═══ SERVICIOS COMPUESTOS EN EDITOR ═══
+
+/** Carga las sub-líneas de un servicio desde servicio_lineas y las inserta en deLineas */
+async function _de_loadSrvLineas(parentIdx, servicioId) {
+  try {
+    const { data, error } = await sb.from('servicio_lineas')
+      .select('*, articulo:articulo_id(nombre, codigo, precio_venta)')
+      .eq('servicio_id', servicioId)
+      .eq('empresa_id', EMPRESA.id)
+      .order('orden');
+    if (error) { console.error('Error cargando srv_lineas:', error); de_renderLineas(); return; }
+    if (!data || !data.length) { de_renderLineas(); de_autoguardar(); return; }
+    // Insertar sub-líneas justo después del servicio padre
+    const subLineas = data.map(sl => ({
+      tipo: 'srv_linea',
+      parent_srv_idx: parentIdx,
+      desc: sl.articulo?.nombre || sl.descripcion || '',
+      cant: sl.cantidad || 1,
+      precio: sl.precio_unitario || sl.articulo?.precio_venta || 0,
+      dto1: 0, dto2: 0, dto3: 0,
+      iva: deConfig.conIva ? (prIvaDefault||21) : 0,
+      articulo_id: sl.articulo_id || null,
+      codigo: sl.articulo?.codigo || '',
+      _srv_linea_id: sl.id
+    }));
+    deLineas.splice(parentIdx + 1, 0, ...subLineas);
+    // Recalcular precio del servicio padre = suma de sub-líneas
+    _de_recalcSrvPrecio(parentIdx);
+    de_renderLineas();
+    de_autoguardar();
+  } catch(e) {
+    console.error('Error en _de_loadSrvLineas:', e);
+    de_renderLineas();
+  }
+}
+
+/** Elimina las sub-líneas de un servicio padre en el índice dado */
+function _de_removeSrvLineas(parentIdx) {
+  let i = parentIdx + 1;
+  while (i < deLineas.length && deLineas[i].tipo === 'srv_linea' && deLineas[i].parent_srv_idx === parentIdx) {
+    deLineas.splice(i, 1);
+  }
+}
+
+/** Recalcula el precio del servicio padre como suma de sus sub-líneas */
+function _de_recalcSrvPrecio(parentIdx) {
+  let total = 0;
+  for (let i = parentIdx + 1; i < deLineas.length; i++) {
+    if (deLineas[i].tipo !== 'srv_linea' || deLineas[i].parent_srv_idx !== parentIdx) break;
+    const sl = deLineas[i];
+    total += (sl.cant||0) * (sl.precio||0) * (1-(sl.dto1||0)/100) * (1-(sl.dto2||0)/100) * (1-(sl.dto3||0)/100);
+  }
+  deLineas[parentIdx].precio = Math.round(total*100)/100;
+  deLineas[parentIdx].cant = 1;
+}
+
+/** Toggle expand/collapse de las sub-líneas de un servicio */
+function de_toggleServicio(idx) {
+  deLineas[idx].srv_collapsed = !deLineas[idx].srv_collapsed;
+  de_renderLineas();
+}
+
+/** Re-inyecta sub-líneas de servicios al cargar un documento existente */
+async function _de_reloadSrvLineas() {
+  const servicios = [];
+  deLineas.forEach((l, i) => {
+    if (l.tipo === 'servicio' && l.articulo_id) {
+      servicios.push({ idx: i, artId: l.articulo_id });
+    }
+  });
+  // Cargar secuencialmente para mantener índices correctos (de atrás a adelante)
+  for (let s = servicios.length - 1; s >= 0; s--) {
+    const { idx, artId } = servicios[s];
+    deLineas[idx].srv_collapsed = false;
+    try {
+      const { data } = await sb.from('servicio_lineas')
+        .select('*, articulo:articulo_id(nombre, codigo, precio_venta)')
+        .eq('servicio_id', artId)
+        .eq('empresa_id', EMPRESA.id)
+        .order('orden');
+      if (data && data.length) {
+        const subLineas = data.map(sl => ({
+          tipo: 'srv_linea',
+          parent_srv_idx: idx,
+          desc: sl.articulo?.nombre || sl.descripcion || '',
+          cant: sl.cantidad || 1,
+          precio: sl.precio_unitario || sl.articulo?.precio_venta || 0,
+          dto1: 0, dto2: 0, dto3: 0,
+          iva: deConfig.conIva ? (prIvaDefault||21) : 0,
+          articulo_id: sl.articulo_id || null,
+          codigo: sl.articulo?.codigo || '',
+          _srv_linea_id: sl.id
+        }));
+        deLineas.splice(idx + 1, 0, ...subLineas);
+      }
+    } catch(e) { console.warn('Error recargando srv_lineas para idx', idx, e); }
+  }
+  de_renderLineas();
 }
 
 function de_seleccionarArticulo(lineaIdx, artId) {
@@ -826,6 +954,87 @@ function de_renderLineas() {
         </td>
         <td style="text-align:center"><button onclick="de_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:14px">✕</button></td>
       </tr>`;
+    } else if (l.tipo === 'servicio') {
+      // ═══ SERVICIO COMPUESTO: fila padre con expand/collapse ═══
+      const dto1 = showDto ? (l.dto1||0) : 0;
+      const dto2 = showDto ? (l.dto2||0) : 0;
+      const dto3 = showDto ? (l.dto3||0) : 0;
+      const sub = l.cant*l.precio*(1-dto1/100)*(1-dto2/100)*(1-dto3/100);
+      const iva = showIva ? (l.iva||0) : 0;
+      const iv = sub*(iva/100);
+      base+=sub; ivaT+=iv; secBase+=sub; secIva+=iv;
+      if (parentCollapsed || subCollapsed) return;
+
+      const collapsed = !!l.srv_collapsed;
+      const arrow = collapsed ? '▶' : '▼';
+      const ivaFixed = (tiposIva||[{porcentaje:21},{porcentaje:10},{porcentaje:4},{porcentaje:0}])
+        .map(t=>`<option value="${t.porcentaje}" ${t.porcentaje==l.iva?'selected':''}>${t.porcentaje}%</option>`).join('');
+      const inSub = secType==='subcapitulo';
+      const inCap = secActual>=0;
+      const padLeft = inSub ? 'padding-left:48px' : (inCap ? 'padding-left:28px' : '');
+
+      html += `<tr draggable="true" ondragstart="de_dragStart(event,${i})" ondragend="de_dragEnd(event)" ondragover="de_dragOver(event,${i})" ondrop="de_drop(event,${i})" style="border-top:2px solid var(--verde,#22c55e);background:#f0fdf4;cursor:grab">
+        <td style="padding:6px 4px;text-align:center;color:var(--gris-400);cursor:grab;font-size:11px;user-select:none" title="Arrastrar servicio">⠿</td>
+        <td style="padding:6px 10px;${padLeft}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="de_toggleServicio(${i})" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--verde,#22c55e);padding:2px 4px;min-width:18px" title="${collapsed?'Expandir componentes':'Contraer componentes'}">${arrow}</button>
+            <span style="font-size:14px">🔧</span>
+            <span style="font-weight:600;font-size:13px;color:#15803d;flex:1">${l.desc||'Servicio'}</span>
+          </div>
+        </td>
+        <td style="padding:6px 5px">
+          <input type="number" value="${l.cant}" min="0.01" step="0.01"
+            onchange="de_updateLinea(${i},'cant',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
+        </td>
+        <td style="padding:6px 5px;text-align:right;font-size:12px;font-weight:600;color:#15803d">${fmtE(l.precio)}</td>
+        ${showDto?`<td style="padding:6px 5px">
+          <input type="number" value="${l.dto1||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto1',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
+        </td><td style="padding:6px 5px">
+          <input type="number" value="${l.dto2||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto2',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
+        </td><td style="padding:6px 5px">
+          <input type="number" value="${l.dto3||0}" min="0" max="100" step="0.1"
+            onchange="de_updateLinea(${i},'dto3',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none">
+        </td>`:''}
+        ${showIva?`<td style="padding:6px 5px">
+          <select onchange="de_updateLinea(${i},'iva',this.value)"
+            style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
+            ${ivaFixed}
+          </select>
+        </td>`:''}
+        <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:13px;color:#15803d">${fmtE(sub+iv)}</td>
+        <td style="text-align:center"><button onclick="de_removeLinea(${i})" style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:14px;padding:2px 4px">✕</button></td>
+      </tr>`;
+
+    } else if (l.tipo === 'srv_linea') {
+      // ═══ SUB-LÍNEA DE SERVICIO: solo visible si padre no está colapsado ═══
+      const parentIdx = l.parent_srv_idx;
+      const parentLine = deLineas[parentIdx];
+      if (!parentLine || parentLine.srv_collapsed || parentCollapsed || subCollapsed) return;
+
+      const slSub = l.cant * l.precio;
+      const inSub = secType==='subcapitulo';
+      const inCap = secActual>=0;
+      const basePad = inSub ? 78 : (inCap ? 58 : 38);
+
+      html += `<tr style="border-top:1px dashed #bbf7d0;background:#f7fef9">
+        <td style="padding:4px 4px;text-align:center;color:#86efac;font-size:9px">┗</td>
+        <td style="padding:4px 10px;padding-left:${basePad}px">
+          <span style="font-size:12px;color:#4b5563">${l.codigo ? '<span style="color:#9ca3af;font-size:11px">'+l.codigo+'</span> ' : ''}${l.desc||''}</span>
+        </td>
+        <td style="padding:4px 5px;text-align:right;font-size:11px;color:#6b7280">${l.cant}</td>
+        <td style="padding:4px 5px;text-align:right;font-size:11px;color:#6b7280">${fmtE(l.precio)}</td>
+        ${showDto?'<td></td><td></td><td></td>':''}
+        ${showIva?'<td></td>':''}
+        <td style="padding:4px 10px;text-align:right;font-size:11px;color:#6b7280">${fmtE(slSub)}</td>
+        <td></td>
+      </tr>`;
+
     } else {
       const dto1 = showDto ? (l.dto1||0) : 0;
       const dto2 = showDto ? (l.dto2||0) : 0;
@@ -930,7 +1139,8 @@ function de_buildDatos() {
   const isBorradorSave = arguments[0] === true; // called with (true) for borrador
   if (!clienteId && !isBorradorSave) { toast('Selecciona un cliente','error'); return null; }
   const isChap = (t) => t==='capitulo'||t==='subcapitulo';
-  const lineas = deLineas.filter(l=>l.desc||l.precio>0||isChap(l.tipo));
+  // Filtrar srv_linea (sub-líneas informativas de servicios, no se guardan)
+  const lineas = deLineas.filter(l=> l.tipo !== 'srv_linea' && (l.desc||l.precio>0||isChap(l.tipo)));
   if (!lineas.filter(l=>!isChap(l.tipo)).length && !isBorradorSave) { toast('Añade al menos una línea','error'); return null; }
   const c = clientes.find(x=>x.id===clienteId);
   let base=0, ivaT=0;
