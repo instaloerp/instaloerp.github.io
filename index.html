@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -173,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 20</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 21</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3551,23 +3552,45 @@ try {
 <!-- ═══ MODAL IMPORTAR ARTÍCULOS ═══ -->
 <div class="overlay" id="mImportarArticulos">
   <div class="modal modal-md">
-    <div class="modal-h"><span>📥</span><h2>Importar Artículos desde Excel</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarArticulos')">✕</button></div>
+    <div class="modal-h"><span>📥</span><h2>Importar / Actualizar Artículos</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarArticulos')">✕</button></div>
     <div class="modal-b">
+      <!-- Info -->
       <div style="background:var(--azul-light);border-radius:9px;padding:14px;margin-bottom:16px">
-        <div style="font-weight:700;font-size:13px;margin-bottom:6px">Columnas reconocidas:</div>
-        <div style="font-size:11.5px;color:var(--gris-600);line-height:1.6">Código, Nombre, Descripción, Familia, Proveedor, Ref. fabricante, Código barras, Precio coste, Precio venta, Stock mínimo</div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">¿Cómo funciona?</div>
+        <div style="font-size:11.5px;color:var(--gris-600);line-height:1.8">
+          <b>Si el código ya existe</b> → se actualiza el artículo con los nuevos datos.<br>
+          <b>Si el código es nuevo</b> → se crea un artículo nuevo.<br>
+          <b>Columnas:</b> Código, Nombre, Descripción, Familia, Ref. fabricante, Código barras, PVP, Descuento %, Precio coste, IVA, Unidad, Stock mínimo, Activo, Es maquinaria
+        </div>
       </div>
-      <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:28px;text-align:center;cursor:pointer" onclick="document.getElementById('art_import_file').click()">
-        <div style="font-size:32px;margin-bottom:8px">📊</div>
-        <div style="font-weight:600;color:var(--gris-700)">Haz clic para seleccionar tu archivo</div>
-        <div style="font-size:12px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv</div>
+
+      <!-- Excel/CSV -->
+      <div style="font-weight:700;font-size:12px;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">1. Archivo Excel / CSV</div>
+      <div id="art_import_drop_excel" style="border:2px dashed var(--gris-300);border-radius:9px;padding:22px;text-align:center;cursor:pointer;margin-bottom:16px;transition:border-color .2s" onclick="document.getElementById('art_import_file').click()">
+        <div style="font-size:28px;margin-bottom:6px">📊</div>
+        <div style="font-weight:600;color:var(--gris-700);font-size:13px" id="art_import_file_label">Haz clic para seleccionar tu archivo</div>
+        <div style="font-size:11px;color:var(--gris-400);margin-top:4px">Formatos: .xlsx, .xls, .csv · Tip: usa el Excel exportado desde el ERP</div>
       </div>
-      <input type="file" id="art_import_file" accept=".xlsx,.xls,.csv" style="display:none">
-      <div id="art_import_prog" style="text-align:center;font-size:12px;color:var(--azul);margin-top:10px"></div>
+      <input type="file" id="art_import_file" accept=".xlsx,.xls,.csv" style="display:none" onchange="if(this.files[0]) document.getElementById('art_import_file_label').textContent='✓ '+this.files[0].name">
+
+      <!-- ZIP fotos -->
+      <div style="font-weight:700;font-size:12px;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">2. Fotos en ZIP <span style="font-weight:400;text-transform:none">(opcional)</span></div>
+      <div style="border:2px dashed var(--gris-300);border-radius:9px;padding:22px;text-align:center;cursor:pointer;margin-bottom:8px;transition:border-color .2s" onclick="document.getElementById('art_import_zip').click()">
+        <div style="font-size:28px;margin-bottom:6px">🖼️</div>
+        <div style="font-weight:600;color:var(--gris-700);font-size:13px" id="art_import_zip_label">Seleccionar ZIP con fotos</div>
+        <div style="font-size:11px;color:var(--gris-400);margin-top:4px;line-height:1.6">
+          Usa la columna <b>«Foto archivo»</b> del Excel para indicar qué imagen va con cada artículo (ej: <i>tubo_inox.jpg</i>).<br>
+          Varios artículos pueden compartir la misma foto. Si no pones nombre, busca por código automáticamente.
+        </div>
+      </div>
+      <input type="file" id="art_import_zip" accept=".zip" style="display:none" onchange="if(this.files[0]) document.getElementById('art_import_zip_label').textContent='✓ '+this.files[0].name">
+
+      <!-- Progreso -->
+      <div id="art_import_prog" style="text-align:center;font-size:12px;color:var(--azul);margin-top:12px;line-height:1.6"></div>
     </div>
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mImportarArticulos')">Cancelar</button>
-      <button class="btn btn-primary" onclick="importarArticulosExcel()">✅ Importar</button>
+      <button class="btn btn-primary" onclick="importarArticulosExcel()">✅ Importar / Actualizar</button>
     </div>
   </div>
 </div>

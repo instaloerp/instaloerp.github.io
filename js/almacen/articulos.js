@@ -142,13 +142,15 @@ function _renderArticulosTabla(list) {
       const dtoLabel = dto > 0 ? `<span class="td-sensible" style="color:var(--azul);font-size:11px"> -${dto}%</span>` : '';
       const fotoMini = a.foto_url ? `<img src="${a.foto_url}" style="width:28px;height:28px;border-radius:5px;object-fit:cover">` : '';
 
-      // Columna Proveedor/es
+      // Columna Proveedor/es — mostrar todos
       const provNombres = _artProvMap[a.id] || [];
       let provCell = '—';
       if (provNombres.length === 1) {
         provCell = `<span style="font-size:12px;color:var(--gris-600)">${provNombres[0]}</span>`;
       } else if (provNombres.length > 1) {
-        provCell = `<span style="font-size:12px;color:var(--gris-600)" title="${provNombres.join('\n')}">${provNombres[0]} <span style="color:var(--gris-300);font-size:11px">+${provNombres.length - 1}</span></span>`;
+        provCell = provNombres.map((p, idx) =>
+          `<div style="font-size:12px;color:var(--gris-600);line-height:1.5${idx === 0 ? ';font-weight:600' : ''}">${p}</div>`
+        ).join('');
       }
 
       // Columna Ubicación (stock por almacén)
@@ -962,20 +964,50 @@ function fileToDataUrl(file) {
 // EXPORTAR / IMPORTAR EXCEL
 // ═══════════════════════════════════════════════
 
-function exportarArticulosExcel() {
+async function exportarArticulosExcel() {
   const lista = artFiltrados.length ? artFiltrados : articulos;
   if (!confirm('¿Exportar ' + lista.length + ' artículos a Excel?')) return;
+
+  // Cargar proveedores por artículo con detalle completo
+  toast('Preparando exportación…', 'info');
+  const { data: artProvs } = await sb.from('articulos_proveedores')
+    .select('articulo_id, proveedor_id, ref_proveedor, precio_proveedor, es_principal')
+    .eq('empresa_id', EMPRESA.id);
+  const provsByArt = {};
+  (artProvs || []).forEach(ap => {
+    if (!provsByArt[ap.articulo_id]) provsByArt[ap.articulo_id] = [];
+    const prov = proveedores.find(p => p.id === ap.proveedor_id);
+    provsByArt[ap.articulo_id].push({
+      nombre: prov?.nombre || '?',
+      ref: ap.ref_proveedor || '',
+      precio: ap.precio_proveedor || 0,
+      principal: ap.es_principal
+    });
+  });
+
   const data = lista.map(a => {
     const fam = familias.find(f => f.id === a.familia_id);
     const famPadre = fam && fam.parent_id ? familias.find(f => f.id === fam.parent_id) : null;
     const famLabel = famPadre ? `${famPadre.nombre} > ${fam.nombre}` : (fam?.nombre || '');
     const iva = tiposIva.find(i => i.id === a.tipo_iva_id);
     const ud = unidades.find(u => u.id === a.unidad_venta_id);
+
+    // Proveedores: concatenar todos separados por " | "
+    const provs = provsByArt[a.id] || [];
+    // Ordenar: principal primero
+    provs.sort((x, y) => (y.principal ? 1 : 0) - (x.principal ? 1 : 0));
+    const provsNombres = provs.map(p => p.nombre).join(' | ');
+    const provsRefs = provs.map(p => p.ref || '—').join(' | ');
+    const provsPrecios = provs.map(p => p.precio ? p.precio.toFixed(2) : '—').join(' | ');
+
     return {
       'Código': a.codigo,
       'Nombre': a.nombre,
       'Descripción': a.descripcion || '',
       'Familia': famLabel,
+      'Proveedores': provsNombres,
+      'Refs. proveedor': provsRefs,
+      'Precios proveedor': provsPrecios,
       'Ref. fabricante': a.referencia_fabricante || '',
       'Código barras': a.codigo_barras || '',
       'PVP': a.precio_venta || 0,
@@ -985,70 +1017,224 @@ function exportarArticulosExcel() {
       'Unidad': ud?.abreviatura || '',
       'Stock mínimo': a.stock_minimo || 0,
       'Activo': a.activo !== false ? 'Sí' : 'No',
-      'Es maquinaria': a.es_activo ? 'Sí' : 'No'
+      'Es maquinaria': a.es_activo ? 'Sí' : 'No',
+      'Foto URL': a.foto_url || '',
+      'Foto archivo': ''
     };
   });
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Artículos');
-  ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 30 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 12 }];
+  ws['!cols'] = [
+    { wch: 10 }, { wch: 35 }, { wch: 30 }, { wch: 18 },
+    { wch: 30 }, { wch: 25 }, { wch: 20 },  // Proveedores, Refs, Precios
+    { wch: 15 }, { wch: 15 },
+    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 },
+    { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 40 }, { wch: 20 }
+  ];
   XLSX.writeFile(wb, `Articulos_${EMPRESA.nombre}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   toast('Excel exportado ✓', 'success');
 }
 
 async function importarArticulosExcel() {
   const file = document.getElementById('art_import_file').files[0];
-  if (!file) { toast('Selecciona un archivo Excel', 'error'); return; }
+  if (!file) { toast('Selecciona un archivo Excel o CSV', 'error'); return; }
 
-  const data = await file.arrayBuffer();
-  const wb = XLSX.read(data);
+  const zipFile = document.getElementById('art_import_zip')?.files[0] || null;
+  let fotosMap = {}; // { 'CODIGO': File }
+
+  const progEl = document.getElementById('art_import_prog');
+  const btnImport = document.querySelector('#mImportarArticulos .btn-primary');
+  if (btnImport) btnImport.disabled = true;
+
+  // ── Extraer fotos del ZIP si existe ──
+  // fotosMap se indexa por nombre de archivo CON extensión (ej: "tubo_inox.jpg")
+  // y también por nombre SIN extensión (ej: "tubo_inox") para match por código
+  if (zipFile) {
+    try {
+      if (progEl) progEl.textContent = 'Extrayendo fotos del ZIP…';
+      const zipData = await zipFile.arrayBuffer();
+      const zip = await JSZip.loadAsync(zipData);
+      for (const [path, entry] of Object.entries(zip.files)) {
+        if (entry.dir) continue;
+        const ext = path.split('.').pop().toLowerCase();
+        if (!['jpg','jpeg','png','webp'].includes(ext)) continue;
+        const fileName = path.split('/').pop().trim();
+        const baseName = fileName.replace(/\.[^.]+$/, '').trim();
+        if (fileName) {
+          const blob = await entry.async('blob');
+          const fileObj = new File([blob], fileName, { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+          // Indexar por nombre completo (para match desde Excel)
+          fotosMap[fileName.toUpperCase()] = fileObj;
+          // Indexar por nombre sin extensión (para match por código)
+          if (baseName) fotosMap[baseName.toUpperCase()] = fileObj;
+        }
+      }
+      console.log(`ZIP procesado: ${Object.keys(fotosMap).length} entradas de fotos`);
+    } catch (e) {
+      toast('Error al leer el ZIP de fotos: ' + e.message, 'error');
+      if (btnImport) btnImport.disabled = false;
+      return;
+    }
+  }
+
+  // ── Leer Excel/CSV ──
+  if (progEl) progEl.textContent = 'Leyendo archivo…';
+  const rawData = await file.arrayBuffer();
+  const wb = XLSX.read(rawData);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws);
 
-  if (!rows.length) { toast('El archivo está vacío', 'error'); return; }
+  if (!rows.length) { toast('El archivo está vacío', 'error'); if (btnImport) btnImport.disabled = false; return; }
 
-  let creados = 0, errores = 0;
-  const progEl = document.getElementById('art_import_prog');
+  let creados = 0, actualizados = 0, errores = 0, fotosOk = 0;
+
+  // ── Mapa de artículos existentes por código ──
+  const artExistentes = {};
+  articulos.forEach(a => { artExistentes[String(a.codigo).toUpperCase().trim()] = a; });
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const nombre = r['Nombre'] || r['nombre'] || r['NOMBRE'] || r['Descripción'] || r['descripcion'] || '';
     if (!nombre) { errores++; continue; }
 
-    const codigo = r['Código'] || r['codigo'] || r['CODIGO'] || r['Ref'] || r['ref'] || `IMP-${String(i + 1).padStart(3, '0')}`;
+    const codigo = String(r['Código'] || r['codigo'] || r['CODIGO'] || r['Ref'] || r['ref'] || `IMP-${String(i + 1).padStart(3, '0')}`).trim();
+
+    // Resolver familia (soporta "Padre > Hijo")
     const famNombre = r['Familia'] || r['familia'] || r['FAMILIA'] || '';
-    const fam = famNombre ? familias.find(f => f.nombre.toLowerCase() === famNombre.toLowerCase()) : null;
+    let famId = null;
+    if (famNombre) {
+      if (famNombre.includes('>')) {
+        const parts = famNombre.split('>').map(s => s.trim().toLowerCase());
+        const hijo = familias.find(f => f.nombre.toLowerCase() === parts[1] && f.parent_id);
+        famId = hijo?.id || null;
+      }
+      if (!famId) {
+        const fam = familias.find(f => f.nombre.toLowerCase() === famNombre.trim().toLowerCase());
+        famId = fam?.id || null;
+      }
+    }
+
+    // Resolver IVA
+    let tipoIvaId = null;
+    const ivaRaw = r['IVA'] || r['iva'] || '';
+    if (ivaRaw) {
+      const ivaPct = parseFloat(String(ivaRaw).replace('%', ''));
+      const ivaMatch = tiposIva.find(t => t.porcentaje === ivaPct);
+      tipoIvaId = ivaMatch?.id || null;
+    }
+    if (!tipoIvaId) {
+      const ivaDef = tiposIva.find(t => t.por_defecto);
+      tipoIvaId = ivaDef?.id || null;
+    }
+
+    // Resolver Unidad
+    let unidadId = null;
+    const udRaw = r['Unidad'] || r['unidad'] || '';
+    if (udRaw) {
+      const udMatch = unidades.find(u =>
+        u.abreviatura?.toLowerCase() === udRaw.toLowerCase() ||
+        u.nombre?.toLowerCase() === udRaw.toLowerCase()
+      );
+      unidadId = udMatch?.id || null;
+    }
+
+    // Resolver Activo / Es maquinaria
+    const activoRaw = r['Activo'] || r['activo'] || '';
+    const esActivo = activoRaw ? (['sí','si','1','true'].includes(String(activoRaw).toLowerCase())) : true;
+    const maqRaw = r['Es maquinaria'] || r['es_maquinaria'] || '';
+    const esMaquinaria = maqRaw ? (['sí','si','1','true'].includes(String(maqRaw).toLowerCase())) : false;
 
     const obj = {
       empresa_id: EMPRESA.id,
-      codigo: String(codigo).trim(),
+      codigo: codigo,
       nombre: nombre.trim(),
       descripcion: r['Descripción'] || r['descripcion'] || null,
-      familia_id: fam?.id || null,
+      familia_id: famId,
       precio_coste: parseFloat(r['Precio coste'] || r['precio_coste'] || r['Coste'] || r['coste'] || 0) || 0,
       precio_venta: parseFloat(r['Precio venta'] || r['precio_venta'] || r['PVP'] || r['pvp'] || r['Venta'] || 0) || 0,
+      descuento: parseFloat(r['Descuento %'] || r['descuento'] || 0) || 0,
       referencia_fabricante: r['Ref. fabricante'] || r['ref_fabricante'] || null,
       codigo_barras: r['Código barras'] || r['codigo_barras'] || r['EAN'] || null,
       stock_minimo: parseFloat(r['Stock mínimo'] || r['stock_minimo'] || 0) || 0,
-      es_activo: false, activo: true
+      tipo_iva_id: tipoIvaId,
+      unidad_venta_id: unidadId,
+      es_activo: esMaquinaria,
+      activo: esActivo,
     };
 
-    const ivaDefault = tiposIva.find(i => i.por_defecto);
-    if (ivaDefault) obj.tipo_iva_id = ivaDefault.id;
+    // ── UPSERT: existe → update, no existe → insert ──
+    const existente = artExistentes[codigo.toUpperCase()];
+    let artId = null;
 
-    const { error } = await sb.from('articulos').insert(obj);
-    if (error) { errores++; console.error('Error importando:', nombre, error.message); }
-    else { creados++; }
+    if (existente) {
+      delete obj.empresa_id;
+      const { error } = await sb.from('articulos').update(obj).eq('id', existente.id);
+      if (error) { errores++; console.error('Error actualizando:', codigo, error.message); continue; }
+      actualizados++;
+      artId = existente.id;
+    } else {
+      const { data: ins, error } = await sb.from('articulos').insert(obj).select('id').single();
+      if (error) { errores++; console.error('Error creando:', codigo, error.message); continue; }
+      creados++;
+      artId = ins.id;
+    }
 
-    if (progEl) progEl.textContent = `Procesando ${i + 1} de ${rows.length}...`;
+    // ── Subir foto: prioridad columna Excel > match por código ──
+    if (artId && Object.keys(fotosMap).length) {
+      // 1) Columna "Foto archivo" del Excel (ej: "tubo_inox.jpg" o "tubo_inox")
+      const fotoRef = String(r['Foto archivo'] || r['foto_archivo'] || r['Foto'] || r['foto'] || '').trim();
+      let fotoFile = null;
+      if (fotoRef) {
+        fotoFile = fotosMap[fotoRef.toUpperCase()] || null;
+      }
+      // 2) Fallback: buscar por código del artículo
+      if (!fotoFile) {
+        fotoFile = fotosMap[codigo.toUpperCase()] || null;
+      }
+
+      if (fotoFile) {
+        try {
+          const url = await subirFotoArticulo(fotoFile, artId);
+          if (url) {
+            await sb.from('articulos').update({ foto_url: url }).eq('id', artId);
+            fotosOk++;
+          }
+        } catch (e) { console.error('Error foto', codigo, e); }
+      }
+    }
+
+    if (progEl) {
+      progEl.innerHTML = `Procesando ${i + 1} de ${rows.length}…<br>
+        <span style="color:var(--verde)">${creados} creados</span> ·
+        <span style="color:var(--azul)">${actualizados} actualizados</span>
+        ${fotosOk ? ` · 📷 ${fotosOk} fotos` : ''}
+        ${errores ? ` · <span style="color:var(--rojo)">${errores} errores</span>` : ''}`;
+    }
   }
 
+  // ── Refrescar datos ──
   const { data: fresh } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo');
   articulos = fresh || [];
   filtrarArticulos();
+  if (btnImport) btnImport.disabled = false;
   closeModal('mImportarArticulos');
-  toast(`Importación completada: ${creados} creados, ${errores} errores`, creados > 0 ? 'success' : 'error');
+
+  // Reset
+  const fileInput = document.getElementById('art_import_file');
+  const zipInput = document.getElementById('art_import_zip');
+  if (fileInput) fileInput.value = '';
+  if (zipInput) zipInput.value = '';
+  if (progEl) progEl.innerHTML = '';
+
+  const resumen = [];
+  if (creados) resumen.push(`${creados} creados`);
+  if (actualizados) resumen.push(`${actualizados} actualizados`);
+  if (fotosOk) resumen.push(`📷 ${fotosOk} fotos subidas`);
+  if (errores) resumen.push(`${errores} errores`);
+  toast(`✅ Importación completada: ${resumen.join(' · ')}`, (creados + actualizados) > 0 ? 'success' : 'error');
+  loadDashboard();
 }
 
 // Alias para compatibilidad con topbar

@@ -223,9 +223,14 @@ async function confirmarImport(tipo) {
     proveedores = d||[]; renderProveedores(proveedores);
 
   } else if (tipo === 'articulos') {
+    // Mapa de existentes para upsert
+    const artMap = {};
+    articulos.forEach(a => { artMap[String(a.codigo).toUpperCase().trim()] = a; });
+
     for (const row of data) {
       const fam = familias.find(f => f.nombre.toLowerCase() === (row.familia||'').toLowerCase());
-      const { error } = await sb.from('articulos').insert({
+      const ivaDefault = tiposIva.find(i => i.por_defecto);
+      const obj = {
         empresa_id: EMPRESA.id,
         codigo: row.codigo, nombre: row.nombre,
         familia_id: fam?.id || null,
@@ -235,8 +240,18 @@ async function confirmarImport(tipo) {
         codigo_barras: row.codigo_barras||null,
         observaciones: row.observaciones||null,
         es_activo: false, activo: true,
-      });
-      error ? err++ : ok++;
+      };
+      if (ivaDefault) obj.tipo_iva_id = ivaDefault.id;
+
+      const existente = artMap[String(row.codigo).toUpperCase().trim()];
+      if (existente) {
+        delete obj.empresa_id;
+        const { error } = await sb.from('articulos').update(obj).eq('id', existente.id);
+        error ? err++ : ok++;
+      } else {
+        const { error } = await sb.from('articulos').insert(obj);
+        error ? err++ : ok++;
+      }
     }
     closeModal('mImportarArticulos');
     const { data: d } = await sb.from('articulos').select('*').eq('empresa_id',EMPRESA.id).order('codigo');
