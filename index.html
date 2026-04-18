@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 29</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 30</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -228,6 +228,13 @@ try {
         <button class="sb-item" onclick="goPage('planificador')"><span class="ico">⏱️</span> Planificador Semanal<span class="sb-beta">beta</span></button>
         <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario<span class="sb-beta">beta</span></button>
         <button class="sb-item" onclick="goPage('mistareas')" id="sb-mistareas"><span class="ico">✅</span> Tareas<span id="sbBadgeTareas" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span><span class="sb-beta">beta</span></button>
+      </div>
+
+      <!-- FLOTA -->
+      <div class="sb-sec" onclick="toggleSbSection('sec-flota',this)"><span class="sb-sec-ico">🚐</span><span class="sb-sec-label">Flota</span></div>
+      <div class="sb-section-items" id="sec-flota">
+        <button class="sb-item" onclick="goPage('flota')"><span class="ico">🚐</span> Vehículos</button>
+        <button class="sb-item" onclick="goPage('flota-gastos')"><span class="ico">💰</span> Gastos</button>
       </div>
 
       <!-- COMPAÑÍAS -->
@@ -594,6 +601,52 @@ try {
           <div class="tw"><table class="dt"><thead><tr>
             <th data-sort="codigo">Código</th><th data-sort="nombre">Servicio</th><th data-sort="unidad">Tipo</th><th data-sort="pvp" data-sort-type="num">PVP</th><th>Líneas</th><th data-sort="activo">Activo</th><th style="width:80px"></th>
           </tr></thead><tbody id="srvTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- FLOTA: VEHÍCULOS -->
+      <div class="page" id="page-flota">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">🚐</div><div class="sv" id="flota_kpi_vehiculos">0</div><div class="sl">Vehículos</div></div>
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">💰</div><div class="sv" id="flota_kpi_gasto_mes">0€</div><div class="sl">Gasto mes actual</div></div>
+          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">📏</div><div class="sv" id="flota_kpi_coste_km">—</div><div class="sl">Coste/km (12m)</div></div>
+          <div class="sc" style="--c:var(--naranja);--bg:var(--naranja-light)"><div class="si">🔧</div><div class="sv" id="flota_kpi_amort">—</div><div class="sl">Amortización/mes</div></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
+          <button class="btn btn-primary" onclick="nuevoVehiculo()">+ Nuevo vehículo</button>
+        </div>
+        <div class="card">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Vehículo</th><th>Matrícula</th><th>Compra</th><th style="text-align:right">Precio</th><th style="text-align:right">Amort. restante</th><th style="text-align:right">Gasto 12m</th><th style="text-align:right">Coste/km</th><th style="width:80px"></th>
+          </tr></thead><tbody id="flotaTable"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- FLOTA: GASTOS -->
+      <div class="page" id="page-flota-gastos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="filtro_gasto_vehiculo" onchange="renderGastos()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none">
+              <option value="">Todos los vehículos</option>
+              <option value="flota">Gastos de flota</option>
+            </select>
+            <select id="filtro_gasto_concepto" onchange="renderGastos()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none">
+              <option value="">Todos los conceptos</option>
+              <option value="gasoil">Gasoil</option>
+              <option value="seguro">Seguro</option>
+              <option value="mantenimiento">Mantenimiento</option>
+              <option value="itv">ITV</option>
+              <option value="neumaticos">Neumáticos</option>
+              <option value="otros">Otros</option>
+            </select>
+            <input type="month" id="filtro_gasto_mes" onchange="renderGastos()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none">
+          </div>
+          <button class="btn btn-primary" onclick="nuevoGasto()">+ Nuevo gasto</button>
+        </div>
+        <div class="card">
+          <div class="tw"><table class="dt"><thead><tr>
+            <th>Fecha</th><th>Vehículo</th><th>Concepto</th><th style="text-align:right">Importe</th><th>Notas</th><th style="width:80px"></th>
+          </tr></thead><tbody id="gastosTable"></tbody></table></div>
         </div>
       </div>
 
@@ -3832,6 +3885,75 @@ try {
   </div>
 </div>
 
+<!-- Modal Vehículo -->
+<div class="overlay" id="mVehiculo">
+  <div class="modal modal-sm">
+    <div class="modal-h"><span>🚐</span><h2 id="veh_titulo">Nuevo vehículo</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mVehiculo')">✕</button></div>
+    <div class="modal-b" style="padding:20px">
+      <input type="hidden" id="veh_id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Nombre *</label><input id="veh_nombre" placeholder="Ej: Furgoneta Marco"></div>
+        <div class="fg"><label>Matrícula</label><input id="veh_matricula" placeholder="1234 ABC"></div>
+      </div>
+      <div class="fg-row g3" style="margin-bottom:11px">
+        <div class="fg"><label>Fecha de compra</label><input type="date" id="veh_fecha_compra"></div>
+        <div class="fg"><label>Precio compra (€)</label><input type="text" inputmode="decimal" id="veh_precio_compra" placeholder="25.000"></div>
+        <div class="fg"><label>Amortización (meses)</label><input type="number" id="veh_amort" value="96" min="12" step="12"></div>
+      </div>
+      <div id="veh_amort_info" style="display:none;padding:10px;background:#eff6ff;border-radius:8px;font-size:12px;color:var(--azul);margin-bottom:11px"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>ID Movertis (opcional)</label><input type="number" id="veh_movertis" placeholder="Para vincular con GPS"></div>
+      </div>
+      <div id="veh_activo_wrap" style="display:none;align-items:center;gap:6px;margin-bottom:16px">
+        <input type="checkbox" id="veh_activo" checked>
+        <label for="veh_activo" style="font-size:12px;font-weight:600;color:var(--gris-700)">Activo</label>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mVehiculo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveVehiculo()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Gasto Vehículo -->
+<div class="overlay" id="mGasto">
+  <div class="modal modal-sm">
+    <div class="modal-h"><span>💰</span><h2 id="gasto_titulo">Nuevo gasto</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mGasto')">✕</button></div>
+    <div class="modal-b" style="padding:20px">
+      <input type="hidden" id="gasto_id">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Vehículo *</label>
+          <select id="gasto_vehiculo">
+            <option value="">🚐 Toda la flota (se reparte)</option>
+          </select>
+        </div>
+        <div class="fg"><label>Concepto *</label>
+          <select id="gasto_concepto">
+            <option value="gasoil">⛽ Gasoil</option>
+            <option value="seguro">🛡️ Seguro</option>
+            <option value="mantenimiento">🔧 Mantenimiento</option>
+            <option value="itv">📋 ITV</option>
+            <option value="neumaticos">🛞 Neumáticos</option>
+            <option value="otros">📎 Otros</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Importe (€) *</label><input type="text" inputmode="decimal" id="gasto_importe" placeholder="350,00"></div>
+        <div class="fg"><label>Fecha *</label><input type="date" id="gasto_fecha"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Notas</label><input id="gasto_notas" placeholder="Opcional: nº factura, detalle...">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mGasto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveGasto()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL FACTURA RÁPIDA ═══ -->
 <div class="overlay" id="mFacturaRapida">
   <div class="modal modal-lg">
@@ -4523,6 +4645,8 @@ try {
     'js/almacen/consumos.js',
     'js/almacen/incidencias.js',
     'js/almacen/traspasos.js',
+    // Flota
+    'js/flota/flota.js',
     // Gestión de Obras
     'js/obras/trabajos.js',
     'js/obras/mantenimientos.js',

@@ -276,6 +276,8 @@ const _permisosPagina = {
   'servicios': 'stock',
   'stock': 'stock',
   'traspasos': 'stock',
+  'flota': 'flota',
+  'flota-gastos': 'flota',
   'trabajos': 'trabajos',
   'mantenimientos': 'trabajos',
   'partes': 'partes',
@@ -376,7 +378,7 @@ function goPage(id, opts){
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.querySelectorAll('.sb-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'🏠 Panel',clientes:'👥 Clientes',proveedores:'🏭 Proveedores',articulos:'📦 Artículos',servicios:'🛠️ Servicios',almacenes:'🏬 Almacenes',asitur:'🛡️ Asitur',trabajos:'🏗️ Obras',mantenimientos:'🔧 Mantenimientos',presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'💶 Facturas','presupuestos-compra':'📋 Presupuestos de compra','pedidos-compra':'📦 Pedidos de compra','albaranes-proveedor':'📄 Albaranes de proveedor','facturas-proveedor':'🧾 Facturas de proveedor','calendario-pagos':'📅 Calendario de Pagos',correo:'📧 Correo',stock:'📊 Stock',traspasos:'🔄 Traspasos',activos:'🔧 Activos',partes:'📝 Partes de trabajo',planificador:'⏱️ Planificador Semanal',fichajes:'⏱️ Fichajes','audit-log':'📜 Registro de actividad',papelera:'🗑️ Papelera',usuarios:'👷 Usuarios',configuracion:'⚙️ Configuración','etiquetas-qr':'🏷️ Etiquetas QR',mistareas:'✅ Tareas',calendario:'📅 Calendario',ocr:'🤖 Bandeja OCR',laboratorio:'🧪 Laboratorio de pruebas'};
+  const titles={dashboard:'🏠 Panel',clientes:'👥 Clientes',proveedores:'🏭 Proveedores',articulos:'📦 Artículos',servicios:'🛠️ Servicios',almacenes:'🏬 Almacenes',asitur:'🛡️ Asitur',trabajos:'🏗️ Obras',mantenimientos:'🔧 Mantenimientos',presupuestos:'📋 Presupuestos',albaranes:'📄 Albaranes',facturas:'💶 Facturas','presupuestos-compra':'📋 Presupuestos de compra','pedidos-compra':'📦 Pedidos de compra','albaranes-proveedor':'📄 Albaranes de proveedor','facturas-proveedor':'🧾 Facturas de proveedor','calendario-pagos':'📅 Calendario de Pagos',correo:'📧 Correo',stock:'📊 Stock',traspasos:'🔄 Traspasos',activos:'🔧 Activos',partes:'📝 Partes de trabajo',planificador:'⏱️ Planificador Semanal',fichajes:'⏱️ Fichajes','audit-log':'📜 Registro de actividad',papelera:'🗑️ Papelera',usuarios:'👷 Usuarios',configuracion:'⚙️ Configuración','etiquetas-qr':'🏷️ Etiquetas QR',mistareas:'✅ Tareas',calendario:'📅 Calendario',ocr:'🤖 Bandeja OCR',laboratorio:'🧪 Laboratorio de pruebas',flota:'🚐 Flota','flota-gastos':'💰 Gastos de flota'};
   document.getElementById('pgTitle').textContent = titles[id]||id;
   document.getElementById('pgSub').textContent = _fechaHoraActual();
   // Topbar limpio — sin botones
@@ -403,6 +405,8 @@ function goPage(id, opts){
   if(id==='stock') loadStock();
   if(id==='consumos' && typeof loadConsumos==='function') loadConsumos();
   if(id==='incidencias-stock' && typeof loadIncidencias==='function') loadIncidencias();
+  if(id==='flota' && typeof renderFlota==='function') renderFlota();
+  if(id==='flota-gastos' && typeof renderGastos==='function') renderGastos();
   if(id==='traspasos') loadTraspasos();
   if(id==='mantenimientos') loadMantenimientos();
   if(id==='presupuestos-compra') loadPresupuestosCompra();
