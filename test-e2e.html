@@ -419,6 +419,7 @@ suite('Obra y vínculos cruzados', [
     const { data, error } = await sb.from('trabajos').insert({
       empresa_id: EMPRESA.id,
       numero: TEST_PREFIX + 'OBR-0001',
+      titulo: 'Obra test E2E',
       presupuesto_id: testIds.presupuesto,
       cliente_nombre: TEST_PREFIX + 'Cliente Test',
       estado: 'en_curso',
