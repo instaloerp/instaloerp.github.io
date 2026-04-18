@@ -1060,6 +1060,7 @@ async function testConexionVerifactu() {
         },
         body: JSON.stringify({
           action: 'consulta',
+          factura_id: 0,
           empresa_id: EMPRESA.id,
         }),
       }
