@@ -1669,9 +1669,10 @@ function renderRectificativas() {
       <td style="text-align:right;font-weight:700;color:#991B1B">${fmtE(f.total || 0)}</td>
       <td style="font-size:12px;color:var(--gris-400)">${f.observaciones || ''}</td>
       <td onclick="event.stopPropagation()">
-        <div style="display:flex;gap:3px">
+        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
+          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
         </div>
       </td>
     </tr>`;
