@@ -375,6 +375,10 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
         + (huerfanas.length ? _renderTablaPlana(huerfanas) : '')
       : _renderTablaPlana(huerfanas);
 
+    const marcaAguaHtml = cfg.marca_agua
+      ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:90px;font-weight:900;color:rgba(239,68,68,0.08);letter-spacing:12px;white-space:nowrap;pointer-events:none;z-index:0;user-select:none">${_esc(cfg.marca_agua)}</div>`
+      : '';
+
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -383,7 +387,8 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 <style>${CSS}</style>
 </head>
 <body>
-<div class="doc">
+<div class="doc" style="position:relative">
+  ${marcaAguaHtml}
   ${_renderCabecera(E)}
   ${_renderTitulo(cfg)}
   ${_renderTarjetas(cfg)}

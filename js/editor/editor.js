@@ -158,20 +158,22 @@ async function abrirEditor(tipo, editId) {
   const _cB = cfg.conBorrador;
   const _vBtn = _cV ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
 
-  if (editId && isBorrador && _cB) {
-    // ── BORRADOR: edición directa ──
+  if (editId && isBorrador && _cB && tipo === 'factura') {
+    // ── BORRADOR FACTURA: solo lectura, pulsar Editar para crear versión ──
+    deConfig._mode = 'view';
+    de_showVersion(deConfig._version || 0);
+    de_setReadonly(true);
+    const _vBtnFac = '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>';
+    btnBox.innerHTML = `${_vBtnFac}
+      <button class="btn btn-primary btn-sm" onclick="de_entrarEdicionFactura()">✏️ Editar</button>
+      <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
+  } else if (editId && isBorrador && _cB) {
+    // ── BORRADOR (otros): edición directa ──
     deConfig._mode = 'editing';
     de_showVersion(0);
     de_setReadonly(false);
-    if (tipo === 'factura') {
-      const _vBtnFac = '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>';
-      btnBox.innerHTML = `${_vBtnFac}
-        <button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
-        <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
-    } else {
-      btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
-        <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
-    }
+    btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
+      <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
   } else if (editId && isAnulado && _cB) {
     // ── ANULADO: solo lectura, restaurar o eliminar (superadmin) ──
     deConfig._mode = 'view';
@@ -309,6 +311,50 @@ async function de_desbloquearExportado() {
   toast('🔓 Documento desbloqueado por superadmin','success');
   // Reabrir el editor para refrescar estado
   abrirEditor(cfg.tipo, cfg.editId);
+}
+
+async function de_entrarEdicionFactura() {
+  const cfg = deConfig;
+  if (!cfg.editId) return;
+
+  // Guardar snapshot de la versión actual antes de editar
+  if (cfg.conVersiones) {
+    const vTabla = cfg.versionesTabla;
+    const vFk = cfg.versionesFk;
+    const { data: current } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
+    if (current) {
+      const { data: versExist } = await sb.from(vTabla)
+        .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
+      const maxVer = (versExist && versExist.length) ? versExist[0].version : 0;
+      // Solo guardar snapshot si no existe ya esta versión
+      const verActual = cfg._version || maxVer || 0;
+      if (verActual > 0) {
+        const { data: yaExiste } = await sb.from(vTabla)
+          .select('id').eq(vFk, cfg.editId).eq('version', verActual).limit(1);
+        if (!yaExiste || !yaExiste.length) {
+          const insertData = { version: verActual, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
+            usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
+          insertData[vFk] = cfg.editId;
+          const { error: insErr } = await sb.from(vTabla).insert(insertData);
+          if (insErr) console.warn('Error guardando versión:', insErr.message);
+        }
+      }
+      cfg._version = (maxVer || 0) + 1;
+    }
+  }
+
+  // Desbloquear para editar
+  cfg._mode = 'editing';
+  de_setReadonly(false);
+  de_renderLineas();
+
+  const btnBox = document.getElementById('de_buttons');
+  const _vBtnFac = '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>';
+  btnBox.innerHTML = `${_vBtnFac}
+    <button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
+    <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
+  de_showVersion(cfg._version || 0);
+  toast('✏️ Modo edición — versión v' + (cfg._version || 1), 'info');
 }
 
 async function de_entrarEdicion() {

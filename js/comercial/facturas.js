@@ -1434,9 +1434,12 @@ function _cfgFactura(f) {
   const cli = clientes.find(x=>x.id===f.cliente_id) || {};
   // Eliminar marcadores de capítulo si los hubiera (factura va plana)
   const lineasPlanas = (f.lineas||[]).filter(l => l && l.tipo !== 'capitulo');
+  const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
+  const versionTxt = f.version ? ' · v' + f.version : '';
   return {
-    tipo: 'FACTURA',
-    numero: f.numero,
+    tipo: esBorrador ? 'FACTURA PROFORMA' : 'FACTURA',
+    numero: esBorrador ? (f.numero || 'BORRADOR') + versionTxt : f.numero,
+    marca_agua: esBorrador ? 'PROFORMA' : null,
     fecha: f.fecha,
     titulo: f.titulo || f.referencia,
     cliente: {

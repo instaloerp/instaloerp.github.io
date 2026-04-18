@@ -987,7 +987,7 @@ function _cfgPresupuesto(p) {
   const cli = clientes.find(x=>x.id===p.cliente_id) || {};
   return {
     tipo: 'PRESUPUESTO',
-    numero: p.numero,
+    numero: p.numero + (p.version ? ' · v' + p.version : ''),
     fecha: p.fecha,
     titulo: p.titulo,
     cliente: {
