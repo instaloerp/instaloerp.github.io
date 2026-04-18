@@ -923,7 +923,7 @@ async function nuevaFacturaRapida() {
   const serFact = (series||[]).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
   const serUsables = serFact.length ? serFact : (series||[]);
   if (serUsables.length) {
-    serSel.innerHTML = serUsables.map(s => `<option value="${s.id}">${s.prefijo||s.nombre||'FAC-'}</option>`).join('');
+    serSel.innerHTML = serUsables.map(s => `<option value="${s.id}">${s.serie ? s.serie + '-' : s.prefijo || s.nombre || 'FAC-'}</option>`).join('');
   } else {
     serSel.innerHTML = '<option value="">FAC-</option>';
   }
@@ -956,7 +956,8 @@ async function fr_generarNumero(serieId) {
   const { count } = await sb.from('facturas').select('*', {count:'exact',head:true})
     .eq('empresa_id', EMPRESA.id).eq('serie_id', serieId);
   const num = (s.siguiente_numero || 1) + (count || 0);
-  document.getElementById('fr_numero').value = s.prefijo + String(num).padStart(s.digitos||4,'0');
+  const pre = s.prefijo || (s.serie ? s.serie + '-' : 'FAC-');
+  document.getElementById('fr_numero').value = pre + String(num).padStart(s.digitos||4,'0');
 }
 
 // ═══════════════════════════════════════════════

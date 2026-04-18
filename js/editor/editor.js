@@ -85,7 +85,7 @@ async function abrirEditor(tipo, editId) {
   const serUsa = serFilt.length ? serFilt : (series||[]);
   const prefDef = {presupuesto:'PRE-',albaran:'ALB-',factura:'FAC-'};
   if (serUsa.length) {
-    serSel.innerHTML = serUsa.map(s=>`<option value="${s.id}">${s.prefijo||prefDef[tipo]||'DOC-'}</option>`).join('');
+    serSel.innerHTML = serUsa.map(s=>`<option value="${s.id}">${s.serie ? s.serie+'-' : s.prefijo||prefDef[tipo]||'DOC-'}</option>`).join('');
   } else {
     serSel.innerHTML = `<option value="">${prefDef[tipo]||'DOC-'}</option>`;
   }
