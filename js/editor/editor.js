@@ -163,8 +163,13 @@ async function abrirEditor(tipo, editId) {
     deConfig._mode = 'editing';
     de_showVersion(0);
     de_setReadonly(false);
-    btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
-      <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
+    if (tipo === 'factura') {
+      btnBox.innerHTML = `<button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
+        <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
+    } else {
+      btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
+        <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
+    }
   } else if (editId && isAnulado && _cB) {
     // ── ANULADO: solo lectura, restaurar o eliminar (superadmin) ──
     deConfig._mode = 'view';
@@ -222,8 +227,11 @@ async function abrirEditor(tipo, editId) {
     deConfig._mode = 'new';
     de_showVersion(0);
     de_setReadonly(false);
-    if (_cB) {
-      btnBox.innerHTML = `  <button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
+    if (_cB && tipo === 'factura') {
+      btnBox.innerHTML = `<button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
+        <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
+    } else if (_cB) {
+      btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
         <button class="btn btn-primary btn-sm" onclick="de_guardar('pendiente')">💾 Guardar</button>`;
     } else {
       btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">💾 Guardar borrador</button>
@@ -1380,8 +1388,8 @@ async function de_guardar(estado) {
   }
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
   const _toastMsg = isNew
-    ? (datos.estado === 'borrador' ? 'Borrador creado' : cfg.titulo + ' ' + datos.numero + ' creado')
-    : 'Guardado';
+    ? (datos.estado === 'borrador' ? 'Borrador ' + datos.numero + ' guardado' : cfg.titulo + ' ' + datos.numero + ' creado')
+    : 'Borrador ' + datos.numero + ' guardado';
   toast(cfg.ico+' '+_toastMsg+' ✓','success');
 
   // Recargar lista correspondiente
@@ -1401,6 +1409,21 @@ async function de_guardar(estado) {
   }
 
   return savedId;
+}
+
+async function de_emitirFactura() {
+  // Confirmar antes de emitir — una vez emitida no se puede editar
+  if (!confirm('¿Emitir factura definitiva?\n\nSe asignará un número correlativo (FAC-XXXX) y ya no se podrá editar.\n\nEsta acción no se puede deshacer.')) return;
+  // Guardar primero como borrador por si hay cambios sin guardar
+  const id = await de_guardar('borrador');
+  if (!id) return;
+  // Ahora emitir usando la función de facturas.js
+  if (typeof emitirFacturaDefinitiva === 'function') {
+    await emitirFacturaDefinitiva(id);
+  } else {
+    // Fallback: guardar directamente como pendiente
+    await de_guardar('pendiente');
+  }
 }
 
 async function de_guardarYPdf() {
