@@ -438,6 +438,32 @@ async function verDetalleFactura(id) {
       : '';
   }
 
+  // Botones Editar / Eliminar — reglas de negocio:
+  // - Factura con número real (no borrador): NO se puede editar
+  // - Rectificativa: NO se puede editar ni eliminar
+  // - Factura anulada con rectificativa: NO se puede editar ni eliminar
+  const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
+  const esRectificativa = !!f.rectificativa_de;
+  const tieneRectificativa = !!rectAsociada;
+
+  const btnEditarEl = document.getElementById('facDetBtnEditar');
+  const btnEliminarEl = document.getElementById('facDetBtnEliminar');
+
+  if (btnEditarEl) {
+    if (esBorrador && !esRectificativa) {
+      btnEditarEl.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="abrirEditor('factura',${f.id});closeModal('mFacturaDetalle')" title="Editar">✏️ Editar</button>`;
+    } else {
+      btnEditarEl.innerHTML = '';
+    }
+  }
+  if (btnEliminarEl) {
+    if (!esRectificativa && !tieneRectificativa && esBorrador) {
+      btnEliminarEl.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="delFactura(${f.id});closeModal('mFacturaDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>`;
+    } else {
+      btnEliminarEl.innerHTML = '';
+    }
+  }
+
   openModal('mFacturaDetalle', true);
 }
 
@@ -445,6 +471,13 @@ async function verDetalleFactura(id) {
 //  ELIMINAR FACTURA
 // ═══════════════════════════════════════════════
 async function delFactura(id) {
+  const f = facLocalData.find(x => x.id === id);
+  if (f) {
+    if (f.rectificativa_de) { toast('No se puede eliminar una factura rectificativa', 'error'); return; }
+    if (facLocalData.some(r => r.rectificativa_de === id)) { toast('No se puede eliminar: tiene rectificativa asociada', 'error'); return; }
+    const esBorr = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
+    if (!esBorr) { toast('Solo se pueden eliminar facturas en borrador', 'error'); return; }
+  }
   if (!confirm('¿Eliminar esta factura?')) return;
   await sb.from('facturas').delete().eq('id', id);
   facLocalData = facLocalData.filter(x => x.id !== id);

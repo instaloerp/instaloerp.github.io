@@ -4264,8 +4264,8 @@ try {
         <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Enviar por email">📧 Enviar</button>
-        <button class="btn btn-secondary btn-sm" onclick="abrirEditor('factura',parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Editar">✏️ Editar</button>
-        <button class="btn btn-secondary btn-sm" onclick="delFactura(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Eliminar" style="color:var(--rojo)">🗑️ Eliminar</button>
+        <span id="facDetBtnEditar"></span>
+        <span id="facDetBtnEliminar"></span>
       </div>
       <button class="btn btn-ghost btn-icon" onclick="closeModal('mFacturaDetalle')">✕</button>
     </div>

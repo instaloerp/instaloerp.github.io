@@ -32,6 +32,16 @@ const DE_TIPOS = {
 };
 
 async function abrirEditor(tipo, editId) {
+  // Protección: facturas con número no se pueden editar
+  if (tipo === 'factura' && editId) {
+    const fCheck = (typeof facLocalData !== 'undefined' ? facLocalData : []).find(x => x.id === editId);
+    if (fCheck) {
+      const esBorr = fCheck.estado === 'borrador' || (fCheck.numero || '').startsWith('BORR-');
+      if (fCheck.rectificativa_de) { toast('Las facturas rectificativas no se pueden editar', 'error'); return; }
+      if (!esBorr) { toast('Solo se pueden editar facturas en borrador', 'error'); return; }
+      if ((typeof facLocalData !== 'undefined' ? facLocalData : []).some(r => r.rectificativa_de === editId)) { toast('Esta factura tiene rectificativa asociada y no se puede editar', 'error'); return; }
+    }
+  }
   const cfg = DE_TIPOS[tipo];
   if (!cfg) return;
   deConfig = {...cfg, tipo, editId: editId||null};
