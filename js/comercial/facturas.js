@@ -410,6 +410,11 @@ async function verDetalleFactura(id) {
     refsEl.style.display = 'none';
   }
 
+  // Reglas de negocio — se usan en footer, botones editar/eliminar y versiones
+  const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
+  const esRectificativa = !!f.rectificativa_de;
+  const tieneRectificativa = !!rectAsociada;
+
   // Footer buttons
   const footerBtns = document.getElementById('facDetFooterBtns');
   if (footerBtns) {
@@ -426,6 +431,10 @@ async function verDetalleFactura(id) {
     if (f.estado !== 'borrador' && !esRectificativa && !rectAsociada) {
       btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
     }
+    // Emitir factura definitiva — solo borradores
+    if (esBorrador && !esRectificativa) {
+      btns += `<button class="btn btn-primary" onclick="emitirFacturaDefinitiva(${f.id})" style="background:var(--azul)">🧾 Emitir factura</button>`;
+    }
     footerBtns.innerHTML = btns;
   }
 
@@ -438,14 +447,25 @@ async function verDetalleFactura(id) {
       : '';
   }
 
-  // Botones Editar / Eliminar — reglas de negocio:
-  // - Factura con número real (no borrador): NO se puede editar
-  // - Rectificativa: NO se puede editar ni eliminar
-  // - Factura anulada con rectificativa: NO se puede editar ni eliminar
-  const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
-  const esRectificativa = !!f.rectificativa_de;
-  const tieneRectificativa = !!rectAsociada;
+  // Versiones de borrador
+  const verEl = document.getElementById('facDetVersiones');
+  if (verEl) {
+    if (esBorrador && typeof _cargarVersionesBorrador === 'function') {
+      const versiones = await _cargarVersionesBorrador(f.id);
+      if (versiones && versiones.length) {
+        verEl.innerHTML = '<div style="margin-top:12px;border-top:1px solid var(--gris-200);padding-top:10px">'
+          + '<div style="font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:6px">📄 Versiones del borrador</div>'
+          + _renderVersionesBorrador(versiones)
+          + '</div>';
+      } else {
+        verEl.innerHTML = '';
+      }
+    } else {
+      verEl.innerHTML = '';
+    }
+  }
 
+  // Botones Editar / Eliminar (usa esBorrador, esRectificativa, tieneRectificativa de arriba)
   const btnEditarEl = document.getElementById('facDetBtnEditar');
   const btnEliminarEl = document.getElementById('facDetBtnEliminar');
 
@@ -510,6 +530,134 @@ function exportarFacturas() {
   XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
   XLSX.writeFile(wb, 'facturas_' + new Date().toISOString().split('T')[0] + '.xlsx');
   toast('Exportado ✓', 'success');
+}
+
+// ═══════════════════════════════════════════════
+//  NUMERACIÓN CORRELATIVA DE BORRADORES
+// ═══════════════════════════════════════════════
+async function _generarNumeroBorrador() {
+  const { data } = await sb.from('facturas')
+    .select('numero')
+    .eq('empresa_id', EMPRESA.id)
+    .not('numero', 'is', null)
+    .like('numero', 'BORR-%')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  let maxNum = 0;
+  if (data?.length) {
+    data.forEach(d => {
+      const match = (d.numero || '').match(/BORR-(\d+)/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+  }
+  return 'BORR-' + String(maxNum + 1).padStart(4, '0');
+}
+
+// ═══════════════════════════════════════════════
+//  VERSIONADO DE BORRADORES
+//  Guarda snapshot completo en factura_versiones cada vez que se modifica
+// ═══════════════════════════════════════════════
+async function _guardarVersionBorrador(facturaId, datos, versionNum) {
+  try {
+    await sb.from('factura_versiones').insert({
+      empresa_id: EMPRESA.id,
+      factura_id: facturaId,
+      version: versionNum,
+      snapshot: datos,  // JSON completo del borrador en ese momento
+      usuario_id: USER?.id || null,
+      usuario_nombre: USER?.nombre || USER?.email || null,
+    });
+  } catch (e) { console.warn('No se pudo guardar versión borrador:', e); }
+}
+
+async function _cargarVersionesBorrador(facturaId) {
+  const { data } = await sb.from('factura_versiones')
+    .select('*')
+    .eq('factura_id', facturaId)
+    .order('version', { ascending: false })
+    .limit(50);
+  return data || [];
+}
+
+function _renderVersionesBorrador(versiones) {
+  if (!versiones.length) return '<div style="color:var(--gris-400);font-size:12px;padding:8px 0">Sin versiones anteriores</div>';
+
+  return '<div style="display:flex;flex-direction:column;gap:4px">' +
+    versiones.map(v => {
+      const fecha = v.created_at ? new Date(v.created_at).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      const snap = v.snapshot || {};
+      const total = snap.total != null ? fmtE(snap.total) : '—';
+      const lineas = Array.isArray(snap.lineas) ? snap.lineas.filter(l => !l._separator).length : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;border-radius:6px;background:var(--gris-50);border:1px solid var(--gris-100)">
+        <span style="font-weight:800;color:var(--azul);min-width:30px">v${v.version}</span>
+        <span style="flex:1">${lineas} líneas · ${total}</span>
+        <span style="color:var(--gris-400);font-size:11px">${v.usuario_nombre || ''}</span>
+        <span style="color:var(--gris-400);font-size:10px;min-width:80px;text-align:right">${fecha}</span>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+// ═══════════════════════════════════════════════
+//  EMITIR FACTURA DEFINITIVA (borrador → factura real)
+//  Asigna número correlativo, genera registro para VeriFactu
+// ═══════════════════════════════════════════════
+async function emitirFacturaDefinitiva(id) {
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) { toast('Factura no encontrada', 'error'); return; }
+  if (f.estado !== 'borrador') { toast('Solo se pueden emitir borradores', 'error'); return; }
+  if (!(f.numero || '').startsWith('BORR-')) { toast('Este documento ya tiene número asignado', 'error'); return; }
+
+  // Validar que tiene cliente y líneas
+  if (!f.cliente_id) { toast('El borrador no tiene cliente asignado', 'error'); return; }
+  const lineas = f.lineas || [];
+  if (!lineas.filter(l => !l._separator).length) { toast('El borrador no tiene líneas', 'error'); return; }
+
+  if (!confirm('¿Emitir factura definitiva?\n\nSe asignará número correlativo y no se podrá volver a editar.\nBorrador actual: ' + f.numero)) return;
+
+  // Generar número correlativo real
+  const numero = await generarNumeroDoc('factura');
+  const hoy = new Date().toISOString().split('T')[0];
+
+  const updateObj = {
+    numero,
+    estado: 'pendiente',
+    fecha: f.fecha || hoy,
+    fecha_vencimiento: f.fecha_vencimiento || null,
+    // Guardar referencia al borrador original
+    borrador_origen: f.numero,
+  };
+
+  const { error } = await sb.from('facturas').update(updateObj).eq('id', id);
+  if (error) {
+    // Si borrador_origen no existe aún, reintentar sin él
+    if (error.message && error.message.includes('borrador_origen')) {
+      delete updateObj.borrador_origen;
+      const r2 = await sb.from('facturas').update(updateObj).eq('id', id);
+      if (r2.error) { toast('Error: ' + r2.error.message, 'error'); return; }
+    } else {
+      toast('Error: ' + error.message, 'error'); return;
+    }
+  }
+
+  // Registrar en historial
+  await _registrarCambioEstado('factura', id, 'borrador', 'pendiente');
+
+  // Si ya tenía cobro registrado, marcar como cobrada
+  if (f.estado_cobro === 'cobrado' || f._cobrado) {
+    await sb.from('facturas').update({ estado: 'cobrada' }).eq('id', id);
+    await _registrarCambioEstado('factura', id, 'pendiente', 'cobrada');
+    toast('🧾 Factura ' + numero + ' emitida y marcada como cobrada ✓', 'success');
+  } else {
+    toast('🧾 Factura ' + numero + ' emitida ✓', 'success');
+  }
+
+  closeModal('mFacturaDetalle');
+  await loadFacturas();
+  loadDashboard();
 }
 
 // ═══════════════════════════════════════════════
@@ -728,7 +876,11 @@ async function guardarFacturaRapida(estado) {
 
     const c = clientes.find(x => x.id === clienteId);
     const serieId = parseInt(document.getElementById('fr_serie').value) || null;
-    const numero = document.getElementById('fr_numero').value;
+    // Borradores: numeración correlativa propia BORR-0001...
+    let numero = document.getElementById('fr_numero').value;
+    if (estado === 'borrador' && typeof _generarNumeroBorrador === 'function') {
+      numero = await _generarNumeroBorrador();
+    }
 
     let base = 0, ivaTotal = 0;
     lineasValidas.forEach(l => {
@@ -783,6 +935,36 @@ async function abrirFacturaRapida() {
 // ═══════════════════════════════════════════════
 //  FACTURA RECTIFICATIVA
 // ═══════════════════════════════════════════════
+//  Generar número correlativo para rectificativas (serie propia RECT-)
+// ═══════════════════════════════════════════════
+async function _generarNumeroRectificativa() {
+  const { data } = await sb.from('facturas')
+    .select('numero')
+    .eq('empresa_id', EMPRESA.id)
+    .not('numero', 'is', null)
+    .like('numero', 'RECT-%')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  let maxNum = 0;
+  if (data?.length) {
+    data.forEach(d => {
+      const match = (d.numero || '').match(/(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+  }
+  return 'RECT-' + String(maxNum + 1).padStart(4, '0');
+}
+
+// ═══════════════════════════════════════════════
+//  CREAR RECTIFICATIVA
+//  Cumple RD 1619/2012 (serie propia correlativa, referencia a original)
+//  y prepara campos VeriFactu (tipo_rectificativa, tipo_rectificacion,
+//  base_rectificada, cuota_rectificada, factura_rectificada_numero/fecha)
+// ═══════════════════════════════════════════════
 async function crearRectificativa(id) {
   const orig = facLocalData.find(x => x.id === id);
   if (!orig) { toast('Factura no encontrada', 'error'); return; }
@@ -793,29 +975,29 @@ async function crearRectificativa(id) {
   const yaRect = facLocalData.find(f => f.rectificativa_de === id);
   if (yaRect) { toast('Ya existe la rectificativa ' + yaRect.numero, 'warning'); return; }
 
-  const estabaCobraba = orig.estado === 'cobrada' || orig.estado === 'pagada';
-  const msgConfirm = estabaCobraba
+  const estabaCobrada = orig.estado === 'cobrada' || orig.estado === 'pagada';
+  const msgConfirm = estabaCobrada
     ? '¿Crear factura rectificativa de ' + orig.numero + '?\n\n⚠️ Esta factura ya estaba COBRADA (' + fmtE(orig.total || 0) + ').\nSe generará la rectificativa y quedará pendiente la DEVOLUCIÓN al cliente.'
     : '¿Crear factura rectificativa de ' + orig.numero + '?\nSe generará una factura con importes negativos que anula la original.';
 
   if (!confirm(msgConfirm)) return;
 
-  // Generar número con prefijo RECT-
-  const numero = 'RECT-' + (orig.numero || '');
+  // Número correlativo propio (RECT-0001, RECT-0002...)
+  const numero = await _generarNumeroRectificativa();
 
-  // Crear líneas negativas (copiar las originales con signo invertido)
+  // Líneas negativas (copiar originales con signo invertido)
   const lineasRect = (orig.lineas || []).map(l => {
     if (l._separator) return l;
     return { ...l, cant: -(l.cant || 0) };
   });
 
-  const base = -(parseFloat(orig.base_imponible) || 0);
-  const iva = -(parseFloat(orig.total_iva) || 0);
-  const total = -(parseFloat(orig.total) || 0);
+  const baseOrig = parseFloat(orig.base_imponible) || 0;
+  const ivaOrig  = parseFloat(orig.total_iva) || 0;
+  const totalOrig = parseFloat(orig.total) || 0;
 
-  const obsText = estabaCobraba
-    ? 'Factura rectificativa de ' + orig.numero + '. Anulación total. DEVOLUCIÓN PENDIENTE de ' + fmtE(Math.abs(total)) + ' al cliente.'
-    : 'Factura rectificativa de ' + orig.numero + '. Anulación total.';
+  const obsText = estabaCobrada
+    ? 'Rectificativa de ' + orig.numero + '. Anulación total por sustitución (Art. 80 LIVA). DEVOLUCIÓN PENDIENTE de ' + fmtE(totalOrig) + ' al cliente.'
+    : 'Rectificativa de ' + orig.numero + '. Anulación total por sustitución (Art. 80 LIVA).';
 
   const obj = {
     empresa_id: EMPRESA.id,
@@ -826,19 +1008,44 @@ async function crearRectificativa(id) {
     fecha: new Date().toISOString().split('T')[0],
     fecha_vencimiento: null,
     forma_pago_id: orig.forma_pago_id,
-    base_imponible: Math.round(base * 100) / 100,
-    total_iva: Math.round(iva * 100) / 100,
-    total: Math.round(total * 100) / 100,
-    estado: estabaCobraba ? 'pendiente' : 'anulada',
+    base_imponible: Math.round(-baseOrig * 100) / 100,
+    total_iva: Math.round(-ivaOrig * 100) / 100,
+    total: Math.round(-totalOrig * 100) / 100,
+    estado: estabaCobrada ? 'pendiente' : 'anulada',
     observaciones: obsText,
     lineas: lineasRect,
     rectificativa_de: id,
     presupuesto_id: orig.presupuesto_id || null,
     albaran_id: orig.albaran_id || null,
+    // ── Campos VeriFactu (preparados para envío AEAT) ──
+    // tipo_rectificativa: R1 = error fundado en derecho / devolución (Art. 80.Uno, Dos, Seis LIVA)
+    // tipo_rectificacion: S = por sustitución (anulación total)
+    // base_rectificada / cuota_rectificada: importes originales antes de rectificar
+    // factura_rectificada_numero / fecha: referencia inequívoca a la original
+    tipo_rectificativa: 'R1',
+    tipo_rectificacion: 'S',
+    base_rectificada: Math.round(baseOrig * 100) / 100,
+    cuota_rectificada: Math.round(ivaOrig * 100) / 100,
+    factura_rectificada_numero: orig.numero,
+    factura_rectificada_fecha: orig.fecha,
   };
 
   const { data, error } = await sb.from('facturas').insert(obj).select().single();
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (error) {
+    // Si falla por columnas VeriFactu que aún no existen, reintentar sin ellas
+    if (error.message && (error.message.includes('tipo_rectificativa') || error.message.includes('column'))) {
+      delete obj.tipo_rectificativa;
+      delete obj.tipo_rectificacion;
+      delete obj.base_rectificada;
+      delete obj.cuota_rectificada;
+      delete obj.factura_rectificada_numero;
+      delete obj.factura_rectificada_fecha;
+      const r2 = await sb.from('facturas').insert(obj).select().single();
+      if (r2.error) { toast('Error: ' + r2.error.message, 'error'); return; }
+    } else {
+      toast('Error: ' + error.message, 'error'); return;
+    }
+  }
 
   // Marcar original como anulada
   await cambiarEstadoFac(id, 'anulada');

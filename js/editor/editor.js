@@ -1329,9 +1329,13 @@ async function de_guardar(estado) {
     document.getElementById('de_numero').value = datos.numero;
     document.getElementById('de_numero_bar').textContent = datos.numero;
   } else if (needsNumber && estado === 'borrador') {
-    // Borrador without number — use temp placeholder
-    datos.numero = 'BORR-' + Date.now().toString(36).toUpperCase();
-    document.getElementById('de_numero_bar').textContent = '(borrador)';
+    // Borrador: numeración correlativa para facturas, timestamp para el resto
+    if (cfg.tipo === 'factura' && typeof _generarNumeroBorrador === 'function') {
+      datos.numero = await _generarNumeroBorrador();
+    } else {
+      datos.numero = 'BORR-' + Date.now().toString(36).toUpperCase();
+    }
+    document.getElementById('de_numero_bar').textContent = '(borrador ' + datos.numero + ')';
     // Borrador: fecha optional
     if (!datos.fecha) datos.fecha = null;
   }
@@ -1357,6 +1361,15 @@ async function de_guardar(estado) {
   }
   if (error) { toast('Error: '+error.message,'error'); return; }
   deConfig.editId = savedId;
+
+  // Versionado de borradores de factura
+  if (cfg.tipo === 'factura' && estado === 'borrador' && savedId && typeof _guardarVersionBorrador === 'function') {
+    // Obtener número de versión actual
+    const { count } = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
+      .eq('factura_id', savedId).catch(() => ({ count: 0 }));
+    const vNum = (count || 0) + 1;
+    await _guardarVersionBorrador(savedId, { ...datos, id: savedId }, vNum);
+  }
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
   const _toastMsg = isNew
     ? (datos.estado === 'borrador' ? 'Borrador creado' : cfg.titulo + ' ' + datos.numero + ' creado')
