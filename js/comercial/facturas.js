@@ -14,6 +14,143 @@ let frClienteActual = null;
 let _facVerMap = {};  // { factura_id: maxVersion } — pre-cargado en loadFacturas
 
 // ═══════════════════════════════════════════════
+//  STEPPER DE PROGRESO (overlay con pasos animados)
+// ═══════════════════════════════════════════════
+let _stepperEl = null;
+let _stepperSteps = [];
+let _stepperCurrent = 0;
+
+function _showStepper(titulo, pasos) {
+  _closeStepper();
+  _stepperSteps = pasos;
+  _stepperCurrent = 0;
+
+  const ol = document.createElement('div');
+  ol.id = 'vfStepper';
+  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
+  ol.innerHTML = `
+    <style>
+      @keyframes vfFadeIn{from{opacity:0}to{opacity:1}}
+      @keyframes vfPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+      @keyframes vfSpin{to{transform:rotate(360deg)}}
+      .vf-step{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;transition:all .3s;opacity:.4}
+      .vf-step.active{opacity:1;background:rgba(59,130,246,.08)}
+      .vf-step.done{opacity:.7}
+      .vf-step .icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;transition:all .3s;flex-shrink:0}
+      .vf-step.pending .icon{background:#e2e8f0;color:#94a3b8}
+      .vf-step.active .icon{background:#3b82f6;color:#fff;animation:vfPulse 1.2s infinite}
+      .vf-step.done .icon{background:#22c55e;color:#fff}
+      .vf-step.error .icon{background:#ef4444;color:#fff}
+      .vf-step .label{font-size:13px;font-weight:600;color:#334155}
+      .vf-step.active .label{color:#1e40af;font-weight:700}
+      .vf-step.done .label{color:#16a34a}
+      .vf-step.error .label{color:#dc2626}
+      .vf-step .sub{font-size:11px;color:#94a3b8;margin-top:1px}
+      .vf-bar{height:4px;background:#e2e8f0;border-radius:2px;margin:12px 0 4px;overflow:hidden}
+      .vf-bar-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#1d4ed8);border-radius:2px;transition:width .4s ease;width:0%}
+      .vf-spinner{width:16px;height:16px;border:2.5px solid rgba(59,130,246,.25);border-top-color:#3b82f6;border-radius:50%;animation:vfSpin .7s linear infinite;display:inline-block}
+    </style>
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:440px;width:94%;box-shadow:0 24px 80px rgba(0,0,0,.25)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+        <div style="font-size:24px">${titulo.startsWith('<') ? titulo : '🧾'}</div>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b" id="vfStepTitle">${titulo.startsWith('<') ? 'Procesando' : titulo}</div>
+          <div style="font-size:11px;color:#94a3b8" id="vfStepSub">Preparando...</div>
+        </div>
+      </div>
+      <div class="vf-bar"><div class="vf-bar-fill" id="vfBarFill"></div></div>
+      <div id="vfStepsList" style="margin-top:14px"></div>
+    </div>
+  `;
+  document.body.appendChild(ol);
+  _stepperEl = ol;
+
+  // Renderizar pasos
+  _renderStepperSteps();
+  _updateStep(0);
+}
+
+function _renderStepperSteps() {
+  const container = document.getElementById('vfStepsList');
+  if (!container) return;
+  container.innerHTML = _stepperSteps.map((p, i) => `
+    <div class="vf-step pending" id="vfStep${i}">
+      <div class="icon">${i + 1}</div>
+      <div>
+        <div class="label">${p.label}</div>
+        <div class="sub" id="vfStepSub${i}">${p.sub || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function _updateStep(idx, subText) {
+  _stepperCurrent = idx;
+  const total = _stepperSteps.length;
+  const pct = Math.round(((idx) / total) * 100);
+  const bar = document.getElementById('vfBarFill');
+  if (bar) bar.style.width = pct + '%';
+
+  const subEl = document.getElementById('vfStepSub');
+  if (subEl) subEl.textContent = _stepperSteps[idx]?.label || '';
+
+  for (let i = 0; i < total; i++) {
+    const el = document.getElementById('vfStep' + i);
+    if (!el) continue;
+    const icon = el.querySelector('.icon');
+    if (i < idx) {
+      el.className = 'vf-step done';
+      icon.innerHTML = '✓';
+    } else if (i === idx) {
+      el.className = 'vf-step active';
+      icon.innerHTML = `<div class="vf-spinner"></div>`;
+      if (subText) {
+        const s = document.getElementById('vfStepSub' + i);
+        if (s) s.textContent = subText;
+      }
+    } else {
+      el.className = 'vf-step pending';
+      icon.innerHTML = String(i + 1);
+    }
+  }
+}
+
+function _stepperDone(msg, ok = true) {
+  const total = _stepperSteps.length;
+  const bar = document.getElementById('vfBarFill');
+  if (bar) {
+    bar.style.width = '100%';
+    bar.style.background = ok ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#ef4444,#dc2626)';
+  }
+  // Marcar todos como done o el último como error
+  for (let i = 0; i < total; i++) {
+    const el = document.getElementById('vfStep' + i);
+    if (!el) continue;
+    const icon = el.querySelector('.icon');
+    if (i < total - 1) {
+      el.className = 'vf-step done';
+      icon.innerHTML = '✓';
+    } else {
+      el.className = ok ? 'vf-step done' : 'vf-step error';
+      icon.innerHTML = ok ? '✓' : '✕';
+      const s = document.getElementById('vfStepSub' + i);
+      if (s) s.textContent = msg || '';
+    }
+  }
+  const subEl = document.getElementById('vfStepSub');
+  if (subEl) subEl.textContent = ok ? '¡Completado!' : 'Error';
+  const titleEl = document.getElementById('vfStepTitle');
+  if (titleEl) titleEl.textContent = ok ? '✅ Factura procesada' : '❌ Error en el proceso';
+
+  // Auto-cerrar tras 2s si OK, 4s si error
+  setTimeout(() => _closeStepper(), ok ? 2000 : 4000);
+}
+
+function _closeStepper() {
+  if (_stepperEl) { _stepperEl.remove(); _stepperEl = null; }
+}
+
+// ═══════════════════════════════════════════════
 //  CARGA Y RENDERIZADO
 // ═══════════════════════════════════════════════
 async function loadFacturas() {
@@ -866,52 +1003,78 @@ async function emitirFacturaDefinitiva(id) {
 
   if (!confirm('¿Emitir factura definitiva?\n\nSe asignará número correlativo y no se podrá volver a editar.\nBorrador actual: ' + f.numero)) return;
 
-  // Generar número correlativo real
-  const numero = await generarNumeroDoc('factura');
-  const hoy = new Date().toISOString().split('T')[0];
+  const vfActivo = _isVfActivo();
+  const pasos = [
+    { label: 'Generando número correlativo', sub: 'Consultando serie...' },
+    { label: 'Guardando factura', sub: 'Actualizando base de datos...' },
+    ...(vfActivo ? [
+      { label: 'Registrando en AEAT', sub: 'Enviando XML firmado...' },
+      { label: 'Verificando respuesta', sub: 'Procesando resultado...' },
+    ] : []),
+  ];
+  _showStepper('Emitiendo factura', pasos);
 
-  const updateObj = {
-    numero,
-    estado: 'pendiente',
-    fecha: f.fecha || hoy,
-    fecha_vencimiento: f.fecha_vencimiento || null,
-    // Guardar referencia al borrador original
-    borrador_origen: f.numero,
-  };
+  try {
+    // Paso 1: Generar número
+    _updateStep(0, 'Consultando serie de facturación...');
+    const numero = await generarNumeroDoc('factura');
+    const hoy = new Date().toISOString().split('T')[0];
 
-  const { error } = await sb.from('facturas').update(updateObj).eq('id', id);
-  if (error) {
-    // Si borrador_origen no existe aún, reintentar sin él
-    if (error.message && error.message.includes('borrador_origen')) {
-      delete updateObj.borrador_origen;
-      const r2 = await sb.from('facturas').update(updateObj).eq('id', id);
-      if (r2.error) { toast('Error: ' + r2.error.message, 'error'); return; }
-    } else {
-      toast('Error: ' + error.message, 'error'); return;
+    // Paso 2: Guardar
+    _updateStep(1, 'Guardando ' + numero + '...');
+    const updateObj = {
+      numero,
+      estado: 'pendiente',
+      fecha: f.fecha || hoy,
+      fecha_vencimiento: f.fecha_vencimiento || null,
+      borrador_origen: f.numero,
+    };
+
+    const { error } = await sb.from('facturas').update(updateObj).eq('id', id);
+    if (error) {
+      if (error.message && error.message.includes('borrador_origen')) {
+        delete updateObj.borrador_origen;
+        const r2 = await sb.from('facturas').update(updateObj).eq('id', id);
+        if (r2.error) { _stepperDone(r2.error.message, false); return; }
+      } else {
+        _stepperDone(error.message, false); return;
+      }
     }
-  }
 
-  // Registrar en historial
-  await _registrarCambioEstado('factura', id, 'borrador', 'pendiente');
+    await _registrarCambioEstado('factura', id, 'borrador', 'pendiente');
 
-  // Si ya tenía cobro registrado, marcar como cobrada
-  if (f.estado_cobro === 'cobrado' || f._cobrado) {
-    await sb.from('facturas').update({ estado: 'cobrada' }).eq('id', id);
-    await _registrarCambioEstado('factura', id, 'pendiente', 'cobrada');
-    toast('🧾 Factura ' + numero + ' emitida y marcada como cobrada ✓', 'success');
-  } else {
-    toast('🧾 Factura ' + numero + ' emitida ✓', 'success');
-  }
+    if (f.estado_cobro === 'cobrado' || f._cobrado) {
+      await sb.from('facturas').update({ estado: 'cobrada' }).eq('id', id);
+      await _registrarCambioEstado('factura', id, 'pendiente', 'cobrada');
+    }
 
-  closeModal('mFacturaDetalle');
-  await loadFacturas();
-  loadDashboard();
+    closeModal('mFacturaDetalle');
+    await loadFacturas();
+    loadDashboard();
 
-  // ── VeriFactu: envío automático a AEAT tras emitir ──
-  if (_isVfActivo()) {
-    try {
-      await enviarFacturaAEAT(id, 'alta', { auto: true });
-    } catch (e) { console.warn('Auto-envío VeriFactu tras emitir:', e); }
+    // Paso 3-4: VeriFactu
+    if (vfActivo) {
+      _updateStep(2, 'Enviando ' + numero + ' a AEAT...');
+      try {
+        await enviarFacturaAEAT(id, 'alta', { auto: true, stepper: true });
+        _updateStep(3);
+        const fUpd = facLocalData.find(x => x.id === id);
+        const estado = fUpd?.verifactu_estado || 'enviado';
+        if (estado === 'correcto' || estado === 'simulado') {
+          _stepperDone('Factura ' + numero + ' registrada en AEAT ✓', true);
+        } else if (estado === 'aceptado_errores') {
+          _stepperDone('Aceptada con avisos', true);
+        } else {
+          _stepperDone('AEAT: ' + estado, false);
+        }
+      } catch (e) {
+        _stepperDone('Error AEAT: ' + (e.message || ''), false);
+      }
+    } else {
+      _stepperDone('Factura ' + numero + ' emitida ✓', true);
+    }
+  } catch (err) {
+    _stepperDone(err.message || 'Error inesperado', false);
   }
 }
 
@@ -1161,11 +1324,26 @@ async function guardarFacturaRapida(estado) {
       lineas: lineasValidas,
     };
 
+    // Mostrar stepper si es factura emitida con VeriFactu
+    const vfActivo = estado === 'pendiente' && _isVfActivo();
+    if (vfActivo) {
+      _showStepper('Emitiendo factura', [
+        { label: 'Guardando factura', sub: 'Insertando ' + (obj.numero || '') + '...' },
+        { label: 'Registrando en AEAT', sub: 'Enviando XML firmado...' },
+        { label: 'Verificando respuesta', sub: 'Procesando resultado...' },
+      ]);
+      _updateStep(0, 'Guardando ' + (obj.numero || '') + '...');
+    }
+
     const { error } = await sb.from('facturas').insert(obj);
-    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    if (error) {
+      if (vfActivo) _stepperDone(error.message, false);
+      else toast('Error: ' + error.message, 'error');
+      return;
+    }
 
     closeModal('mFacturaRapida');
-    toast(estado === 'pendiente' ? '🧾 Factura emitida ✓' : '💾 Borrador guardado ✓', 'success');
+    if (!vfActivo) toast(estado === 'pendiente' ? '🧾 Factura emitida ✓' : '💾 Borrador guardado ✓', 'success');
 
     // Refrescar listado de facturas
     await loadFacturas();
@@ -1174,12 +1352,27 @@ async function guardarFacturaRapida(estado) {
     loadDashboard();
 
     // ── VeriFactu: envío automático si es factura emitida (no borrador) ──
-    if (estado === 'pendiente' && _isVfActivo()) {
+    if (vfActivo) {
+      _updateStep(1, 'Enviando ' + numero + ' a AEAT...');
       const facCreada = facLocalData.find(f => f.numero === numero);
       if (facCreada) {
         try {
-          await enviarFacturaAEAT(facCreada.id, 'alta', { auto: true });
-        } catch (e) { console.warn('Auto-envío VeriFactu nueva factura:', e); }
+          await enviarFacturaAEAT(facCreada.id, 'alta', { auto: true, stepper: true });
+          _updateStep(2);
+          const fUpd = facLocalData.find(x => x.id === facCreada.id);
+          const est = fUpd?.verifactu_estado || 'enviado';
+          if (est === 'correcto' || est === 'simulado') {
+            _stepperDone('Factura ' + numero + ' registrada en AEAT ✓', true);
+          } else if (est === 'aceptado_errores') {
+            _stepperDone('Aceptada con avisos', true);
+          } else {
+            _stepperDone('AEAT: ' + est, false);
+          }
+        } catch (e) {
+          _stepperDone('Error AEAT: ' + (e.message || ''), false);
+        }
+      } else {
+        _stepperDone('Factura guardada (no encontrada para AEAT)', false);
       }
     }
   } finally {
@@ -1253,7 +1446,20 @@ async function crearRectificativa(id) {
 
   if (!confirm(msgConfirm)) return;
 
-  // Número correlativo propio (RECT-0001, RECT-0002...)
+  const vfActivo = _isVfActivo();
+  const pasosRect = [
+    { label: 'Generando número rectificativa', sub: 'Consultando serie...' },
+    { label: 'Guardando rectificativa', sub: 'Insertando en base de datos...' },
+    { label: 'Anulando factura original', sub: 'Actualizando estados...' },
+    ...(vfActivo ? [
+      { label: 'Registrando en AEAT', sub: 'Enviando XML firmado...' },
+      { label: 'Verificando respuesta', sub: 'Procesando resultado...' },
+    ] : []),
+  ];
+  _showStepper('Creando rectificativa', pasosRect);
+  _updateStep(0, 'Consultando serie de rectificativas...');
+
+  // Número correlativo propio (R-0001, R-0002...)
   const numero = await _generarNumeroRectificativa();
 
   // Líneas negativas (copiar originales con signo invertido)
@@ -1302,6 +1508,7 @@ async function crearRectificativa(id) {
     factura_rectificada_fecha: orig.fecha,
   };
 
+  _updateStep(1, 'Insertando ' + numero + '...');
   const { data, error } = await sb.from('facturas').insert(obj).select().single();
   if (error) {
     // Si falla por columnas VeriFactu que aún no existen, reintentar sin ellas
@@ -1313,13 +1520,14 @@ async function crearRectificativa(id) {
       delete obj.factura_rectificada_numero;
       delete obj.factura_rectificada_fecha;
       const r2 = await sb.from('facturas').insert(obj).select().single();
-      if (r2.error) { toast('Error: ' + r2.error.message, 'error'); return; }
+      if (r2.error) { _stepperDone(r2.error.message, false); return; }
     } else {
-      toast('Error: ' + error.message, 'error'); return;
+      _stepperDone(error.message, false); return;
     }
   }
 
   // Marcar original como anulada
+  _updateStep(2, 'Anulando ' + orig.numero + '...');
   await cambiarEstadoFac(id, 'anulada');
 
   // ── Liberar documentos vinculados ──
@@ -1351,18 +1559,34 @@ async function crearRectificativa(id) {
   }
 
   closeModal('mFacturaDetalle');
-  toast('📝 Rectificativa ' + numero + ' creada — documentos vinculados liberados ✓', 'success');
   await loadFacturas();
   loadDashboard();
 
   // ── VeriFactu: envío automático de rectificativa a AEAT ──
-  if (_isVfActivo()) {
+  if (vfActivo) {
+    _updateStep(3, 'Enviando ' + numero + ' a AEAT...');
     const rectCreada = facLocalData.find(f => f.numero === numero);
     if (rectCreada) {
       try {
-        await enviarFacturaAEAT(rectCreada.id, 'alta', { auto: true });
-      } catch (e) { console.warn('Auto-envío VeriFactu rectificativa:', e); }
+        await enviarFacturaAEAT(rectCreada.id, 'alta', { auto: true, stepper: true });
+        _updateStep(4);
+        const fUpd = facLocalData.find(x => x.id === rectCreada.id);
+        const est = fUpd?.verifactu_estado || 'enviado';
+        if (est === 'correcto' || est === 'simulado') {
+          _stepperDone('Rectificativa ' + numero + ' registrada en AEAT ✓', true);
+        } else if (est === 'aceptado_errores') {
+          _stepperDone('Aceptada con avisos', true);
+        } else {
+          _stepperDone('AEAT: ' + est, false);
+        }
+      } catch (e) {
+        _stepperDone('Error AEAT: ' + (e.message || ''), false);
+      }
+    } else {
+      _stepperDone('Rectificativa guardada', true);
     }
+  } else {
+    _stepperDone('Rectificativa ' + numero + ' creada ✓', true);
   }
 }
 
@@ -1767,7 +1991,7 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
     if (!confirm(confirmMsg)) return;
   }
 
-  toast('Enviando a AEAT...', 'info');
+  if (!opts.stepper) toast('Enviando a AEAT...', 'info');
 
   try {
     const { data: { session } } = await sb.auth.getSession();
@@ -1805,19 +2029,21 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
     fac.verifactu_qr_url = result.qr_url || null;
     fac.verifactu_huella = result.huella || null;
 
-    // Mostrar resultado según estado
-    if (result.estado === 'anulado') {
-      toast(`🗑️ Registro de ${fac.numero} anulado en AEAT correctamente`, 'success');
-    } else if (result.estado === 'correcto') {
-      toast(`✅ Factura ${fac.numero} registrada en AEAT correctamente`, 'success');
-    } else if (result.estado === 'aceptado_errores') {
-      toast(`⚠️ AEAT aceptó con errores: ${result.descripcion_error || ''}`, 'warning');
-    } else if (result.estado === 'incorrecto') {
-      toast(`❌ AEAT rechazó: ${result.descripcion_error || result.codigo_error || 'Error'}`, 'error');
-    } else if (result.estado === 'simulado') {
-      toast(`🧪 Simulación completada — hash: ${(result.huella||'').substring(0,12)}...`, 'info');
-    } else {
-      toast(`📡 Estado: ${result.estado}`, 'info');
+    // Mostrar resultado según estado (solo si no lo maneja el stepper)
+    if (!opts.stepper) {
+      if (result.estado === 'anulado') {
+        toast(`🗑️ Registro de ${fac.numero} anulado en AEAT correctamente`, 'success');
+      } else if (result.estado === 'correcto') {
+        toast(`✅ Factura ${fac.numero} registrada en AEAT correctamente`, 'success');
+      } else if (result.estado === 'aceptado_errores') {
+        toast(`⚠️ AEAT aceptó con errores: ${result.descripcion_error || ''}`, 'warning');
+      } else if (result.estado === 'incorrecto') {
+        toast(`❌ AEAT rechazó: ${result.descripcion_error || result.codigo_error || 'Error'}`, 'error');
+      } else if (result.estado === 'simulado') {
+        toast(`🧪 Simulación completada — hash: ${(result.huella||'').substring(0,12)}...`, 'info');
+      } else {
+        toast(`📡 Estado: ${result.estado}`, 'info');
+      }
     }
 
     // Refrescar UI
