@@ -58,12 +58,11 @@ function formatDecimal(num: number): string {
 }
 
 /**
- * Formato decimal para hash AEAT: sin trailing zeros innecesarios.
- * 12.35 → "12.35", 12.30 → "12.3", 12.00 → "12"
+ * Formato decimal para hash AEAT: siempre 2 decimales.
+ * AEAT calcula la huella con 2 decimales exactos (252.00, no 252).
  */
 function formatDecimalHash(num: number): string {
-  // Redondear a 2 decimales, luego quitar zeros trailing
-  return parseFloat(num.toFixed(2)).toString();
+  return num.toFixed(2);
 }
 
 /** ISO 8601 con timezone España */
@@ -423,6 +422,18 @@ Deno.serve(async (req) => {
       return jsonResp({ error: "Factura no encontrada" }, 404);
     }
 
+    // 2b. Cargar NIF y nombre del cliente SIEMPRE desde la tabla clientes
+    //     (la factura puede tener un NIF desactualizado)
+    if (factura.cliente_id) {
+      const { data: cliente } = await sb.from("clientes")
+        .select("nif, nombre, razon_social")
+        .eq("id", factura.cliente_id).single();
+      if (cliente) {
+        factura.cliente_nif = cliente.nif || factura.cliente_nif || null;
+        factura.cliente_nombre = cliente.razon_social || cliente.nombre || factura.cliente_nombre || null;
+      }
+    }
+
     // 3. Obtener último registro de la cadena (huella anterior)
     const { data: ultimoReg } = await sb.from("verifactu_registros")
       .select("id, huella, num_serie, fecha_expedicion, nif_emisor")
@@ -448,7 +459,7 @@ Deno.serve(async (req) => {
     if (action === "alta") {
       // ── REGISTRO ALTA ──
       const tipoFactura = factura.rectificativa_de ? "R1" : "F1";
-      // Para el hash: sin trailing zeros (AEAT spec)
+      // Para el hash: siempre 2 decimales (AEAT spec)
       const cuotaTotalHash = formatDecimalHash(Math.abs(factura.total_iva || 0));
       const importeTotalHash = formatDecimalHash(factura.total || 0);
       // Para el XML: siempre 2 decimales

@@ -1368,8 +1368,8 @@ async function _registrarCambioEstado(tipo, docId, estadoAnterior, estadoNuevo) 
       documento_id: docId,
       estado_anterior: estadoAnterior,
       estado_nuevo: estadoNuevo,
-      usuario_id: USER?.id || null,
-      usuario_nombre: USER?.nombre || USER?.email || null,
+      usuario_id: CU?.id || null,
+      usuario_nombre: CU?.user_metadata?.nombre || CU?.email || null,
     });
   } catch (e) { console.warn('No se pudo registrar historial:', e); }
 }
@@ -1763,7 +1763,7 @@ async function enviarFacturaAEAT(facturaId, action = 'alta') {
 
     // Refrescar UI
     try {
-      renderFacturas();
+      await loadFacturas();
       // Si el modal de detalle está abierto, refrescarlo
       const detId = document.getElementById('facDetId');
       if (detId && parseInt(detId.value) === facturaId) {

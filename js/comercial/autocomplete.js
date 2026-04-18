@@ -16,26 +16,28 @@ async function acEmpresaProv(q) {
     try {
       const API_KEY = 'cef311906a8a85b4f8264d5d0013c9fa524316cb013320b18b3faedaec6ea9bd';
       const targetUrl = `https://apiempresas.es/api/v1/companies/search?name=${encodeURIComponent(q)}&limit=6`;
-      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-      const res = await fetch(proxyUrl, { headers: { 'X-API-KEY': API_KEY, 'Accept': 'application/json' } });
-      if (res.ok) {
-        const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-        if (items.length > 0) {
-          drop.innerHTML = '<div style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em">🇪🇸 Empresas españolas (BORME)</div>' +
-            items.slice(0,6).map(e => `
-              <div class="ac-item" onmousedown="event.preventDefault();acSeleccionarProv(${JSON.stringify(e).replace(/"/g,'&quot;')})">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span style="font-size:18px">🏭</span>
-                  <div>
-                    <strong>${e.name||e.nombre||''}</strong>
-                    <small style="color:var(--gris-400)">${e.cif||e.nif||''} · ${e.province||e.provincia||''} · ${e.status||e.estado||''}</small>
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl, { headers: { 'X-API-KEY': API_KEY, 'Accept': 'application/json' } });
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+          if (items.length > 0) {
+            drop.innerHTML = '<div style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em">🇪🇸 Empresas españolas (BORME)</div>' +
+              items.slice(0,6).map(e => `
+                <div class="ac-item" onmousedown="event.preventDefault();acSeleccionarProv(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:18px">🏭</span>
+                    <div>
+                      <strong>${e.name||e.nombre||''}</strong>
+                      <small style="color:var(--gris-400)">${e.cif||e.nif||''} · ${e.province||e.provincia||''} · ${e.status||e.estado||''}</small>
+                    </div>
                   </div>
-                </div>
-              </div>`).join('');
-          return;
+                </div>`).join('');
+            return;
+          }
         }
-      }
+      } catch(_) { /* BORME no disponible, usar fallback */ }
       const res2 = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
       if (res2.ok) {
         const data2 = await res2.json();
@@ -107,29 +109,31 @@ async function acEmpresa(q) {
     try {
       const API_KEY = 'cef311906a8a85b4f8264d5d0013c9fa524316cb013320b18b3faedaec6ea9bd';
       const targetUrl = `https://apiempresas.es/api/v1/companies/search?name=${encodeURIComponent(q)}&limit=6`;
-      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-      const res = await fetch(proxyUrl, {
-        headers: { 'X-API-KEY': API_KEY, 'Accept': 'application/json' }
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const data = json.data || json.results || json || [];
-        const items = Array.isArray(data) ? data : [];
-        if (items.length > 0) {
-          drop.innerHTML = '<div style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em">🇪🇸 Empresas españolas (BORME)</div>' +
-            items.slice(0,6).map(e => `
-              <div class="ac-item" onmousedown="event.preventDefault();acSeleccionarExterno(${JSON.stringify(e).replace(/"/g,'&quot;')})">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span style="font-size:18px">🏢</span>
-                  <div>
-                    <strong>${e.name||e.nombre||e.razon_social||''}</strong>
-                    <small style="color:var(--gris-400)">${e.cif||e.nif||''} · ${e.province||e.provincia||''} · ${e.status||e.estado||''}</small>
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl, {
+          headers: { 'X-API-KEY': API_KEY, 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const data = json.data || json.results || json || [];
+          const items = Array.isArray(data) ? data : [];
+          if (items.length > 0) {
+            drop.innerHTML = '<div style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.05em">🇪🇸 Empresas españolas (BORME)</div>' +
+              items.slice(0,6).map(e => `
+                <div class="ac-item" onmousedown="event.preventDefault();acSeleccionarExterno(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:18px">🏢</span>
+                    <div>
+                      <strong>${e.name||e.nombre||e.razon_social||''}</strong>
+                      <small style="color:var(--gris-400)">${e.cif||e.nif||''} · ${e.province||e.provincia||''} · ${e.status||e.estado||''}</small>
+                    </div>
                   </div>
-                </div>
-              </div>`).join('');
-          return;
+                </div>`).join('');
+            return;
+          }
         }
-      }
+      } catch(_) { /* BORME no disponible, usar fallback */ }
       const res2 = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(q)}`);
       if (res2.ok) {
         const data2 = await res2.json();
