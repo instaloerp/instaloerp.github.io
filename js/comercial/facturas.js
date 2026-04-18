@@ -24,12 +24,12 @@ async function loadFacturas() {
   facLocalData = data || [];
   window.facturasData = facLocalData;
 
-  // Pre-cargar versiones de borradores para mostrar badge en listado
+  // Pre-cargar versiones de TODAS las facturas para mostrar badge en listado
   _facVerMap = {};
-  const borrIds = facLocalData.filter(f => f.estado === 'borrador').map(f => f.id);
-  if (borrIds.length) {
+  const allIds = facLocalData.map(f => f.id);
+  if (allIds.length) {
     const { data: verRows } = await sb.from('factura_versiones')
-      .select('factura_id, version').in('factura_id', borrIds)
+      .select('factura_id, version').in('factura_id', allIds)
       .order('version', { ascending: false });
     if (verRows) {
       verRows.forEach(r => {
@@ -773,7 +773,9 @@ async function toggleFacVersiones(facId, btnEl) {
 
   const nCols = row.children.length;
   const fmtEur = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
-  const maxVer = vers[0].version;  // vers ordenadas desc, la primera es la actual
+  const maxVer = vers[0].version;
+  const facObj = facLocalData.find(f => f.id === facId);
+  const esBorrador = facObj && facObj.estado === 'borrador';
   let insertAfter = row;
   vers.forEach(v => {
     const d = v.snapshot || {};
@@ -783,6 +785,8 @@ async function toggleFacVersiones(facId, btnEl) {
     const subRow = document.createElement('tr');
     subRow.setAttribute('data-fac-ver-of', facId);
     subRow.style.cssText = 'background:#f8fafc;border-left:3px solid var(--azul)';
+    // Solo mostrar Restaurar si es borrador y no es la versión actual
+    const btnRestaurar = (esBorrador && !esActual) ? `<button onclick="event.stopPropagation();_restaurarVersionBorrador(${facId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>` : '';
     subRow.innerHTML = `<td colspan="${nCols}" style="padding:8px 16px 8px 40px">
       <div style="display:flex;align-items:center;gap:14px;font-size:12px">
         <span style="font-weight:700;color:var(--azul);min-width:30px">v${v.version}</span>
@@ -790,7 +794,7 @@ async function toggleFacVersiones(facId, btnEl) {
         <span style="color:var(--gris-500)">${fecha} ${hora}</span>
         <span style="color:var(--gris-600);flex:1">${d.cliente_nombre||'—'} · ${fmtEur(d.total||0)}</span>
         <button onclick="event.stopPropagation();_verVersionBorrador(${v.id})" title="Ver esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer;font-size:11px;font-weight:600">👁️ Ver</button>
-        ${esActual ? '' : `<button onclick="event.stopPropagation();_restaurarVersionBorrador(${facId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>`}
+        ${btnRestaurar}
       </div>
     </td>`;
     insertAfter.after(subRow);
