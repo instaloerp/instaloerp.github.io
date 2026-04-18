@@ -125,7 +125,9 @@ function nuevoServicio() {
   document.getElementById('srv_activo_wrap').style.display = 'none';
   document.getElementById('srv_titulo').textContent = 'Nuevo servicio';
   document.getElementById('srv_codigo_label').textContent = '';
+  document.getElementById('srv_multiplicador').value = '';
   srvTipoPrecioChange();
+  srvCalcMultPrecio();
 
   // IVA
   const selIva = document.getElementById('srv_iva');
@@ -153,6 +155,33 @@ function _generarCodigoServicio() {
 function srvTipoPrecioChange() {
   const tipo = document.getElementById('srv_unidad_servicio').value;
   document.getElementById('srv_pvp_label').textContent = tipo === 'hora' ? 'PVP (€/hora)' : 'PVP (€)';
+  // Mostrar/ocultar multiplicador solo para servicios por hora
+  const multWrap = document.getElementById('srv_mult_wrap');
+  if (multWrap) multWrap.style.display = tipo === 'hora' ? 'flex' : 'none';
+  if (tipo !== 'hora') {
+    const multInput = document.getElementById('srv_multiplicador');
+    if (multInput) multInput.value = '';
+    srvCalcMultPrecio();
+  }
+}
+
+function srvCalcMultPrecio() {
+  const mult = parseFloat(document.getElementById('srv_multiplicador')?.value);
+  const preview = document.getElementById('srv_mult_preview');
+  const pvpInput = document.getElementById('srv_pvp');
+  if (!preview || !pvpInput) return;
+  if (mult > 0) {
+    const tarifaBase = (EMPRESA?.config_partes?.tarifa_hora) ?? 35;
+    const precio = Math.round(tarifaBase * mult * 100) / 100;
+    preview.textContent = `= ${tarifaBase}€ × ${mult} = ${precio}€/h`;
+    pvpInput.value = precio;
+    pvpInput.readOnly = true;
+    pvpInput.style.background = '#f0fdf4';
+  } else {
+    preview.textContent = '';
+    pvpInput.readOnly = false;
+    pvpInput.style.background = '';
+  }
 }
 
 // ── Editar servicio ──
@@ -170,7 +199,9 @@ async function editServicio(id) {
   document.getElementById('srv_activo_wrap').style.display = 'flex';
   document.getElementById('srv_titulo').textContent = s.nombre || 'Editar servicio';
   document.getElementById('srv_codigo_label').textContent = s.codigo || '';
+  document.getElementById('srv_multiplicador').value = s.multiplicador_tarifa || '';
   srvTipoPrecioChange();
+  srvCalcMultPrecio();
 
   // IVA
   const selIva = document.getElementById('srv_iva');
@@ -366,6 +397,9 @@ async function saveServicio() {
 
   const id = document.getElementById('srv_id').value;
 
+  const multVal = parseFloat(document.getElementById('srv_multiplicador')?.value);
+  const multiplicador = (multVal > 0) ? multVal : null;
+
   const obj = {
     empresa_id: EMPRESA.id,
     codigo, nombre,
@@ -374,6 +408,7 @@ async function saveServicio() {
     tipo_iva_id: parseInt(document.getElementById('srv_iva').value) || null,
     unidad_servicio: document.getElementById('srv_unidad_servicio').value || 'ud',
     precio_venta: parseFloat(document.getElementById('srv_pvp').value) || 0,
+    multiplicador_tarifa: multiplicador,
     activo: document.getElementById('srv_activo').checked
   };
 

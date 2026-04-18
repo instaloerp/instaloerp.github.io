@@ -247,7 +247,7 @@ function cfgTab(id,el){
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
   if (id === 'correo') cargarCuentasCorreoConfig();
   if (id === 'ia') loadConfigIA();
-  if (id === 'partes') cargarCfgPartes();
+  if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1352,6 +1352,9 @@ async function guardarCfgPartes() {
     tarifa_km: parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0.26,
     margen_ocr: parseFloat(document.getElementById('cfg_margen_ocr')?.value) || 30,
     iva_partes: parseFloat(document.getElementById('cfg_iva_partes')?.value) || 21,
+    // Datos de la calculadora (para persistir entre sesiones)
+    calc_coste_mensual: parseFloat(document.getElementById('calc_coste_total')?.value) || 0,
+    calc_equipo: _calcEquipo || [],
   };
   const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
   if (error) {
@@ -1360,5 +1363,129 @@ async function guardarCfgPartes() {
     return;
   }
   EMPRESA.config_partes = cfg;
+
+  // ═══ Auto-actualizar servicios con multiplicador vinculado ═══
+  try {
+    const { data: srvMult } = await sb.from('articulos')
+      .select('id, multiplicador_tarifa')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('tipo', 'servicio')
+      .not('multiplicador_tarifa', 'is', null);
+    if (srvMult && srvMult.length) {
+      let actualizados = 0;
+      for (const srv of srvMult) {
+        const nuevoPrecio = Math.round(cfg.tarifa_hora * srv.multiplicador_tarifa * 100) / 100;
+        const { error: ue } = await sb.from('articulos')
+          .update({ precio_venta: nuevoPrecio })
+          .eq('id', srv.id);
+        if (!ue) actualizados++;
+      }
+      if (actualizados > 0) {
+        toast(`🔄 ${actualizados} servicio(s) actualizados con nueva tarifa`, 'info');
+        // Refrescar artículos en memoria
+        if (typeof cargarArticulos === 'function') await cargarArticulos();
+      }
+    }
+  } catch(e) { console.warn('Error actualizando servicios con multiplicador:', e); }
+
   toast('✅ Configuración de partes guardada', 'success');
 }
+
+// ═══════════════════════════════════════════════
+//  CALCULADORA COSTE/HORA
+// ═══════════════════════════════════════════════
+
+let _calcEquipo = [];
+
+function cargarCalculadora() {
+  const cfg = EMPRESA.config_partes || {};
+  const saved = cfg.calc_equipo;
+  if (saved && saved.length) {
+    _calcEquipo = saved;
+  } else {
+    // Equipo por defecto basado en la configuración de Jordi
+    _calcEquipo = [
+      { nombre: 'Operario 1', hFact: 6, dias: 22 },
+      { nombre: 'Operario 2', hFact: 6, dias: 22 },
+      { nombre: 'Operario 3', hFact: 6, dias: 22 },
+      { nombre: 'Operario 4', hFact: 6, dias: 22 },
+      { nombre: 'Gerente (parcial)', hFact: 2.5, dias: 22 },
+      { nombre: 'Oficina', hFact: 0, dias: 22 },
+      { nombre: 'Administración', hFact: 0, dias: 22 },
+    ];
+  }
+  const elCoste = document.getElementById('calc_coste_total');
+  if (elCoste && cfg.calc_coste_mensual) elCoste.value = cfg.calc_coste_mensual;
+  _renderCalcEquipo();
+  calcularCosteHora();
+}
+
+function _renderCalcEquipo() {
+  const cont = document.getElementById('calc_equipo');
+  if (!cont) return;
+  cont.innerHTML = _calcEquipo.map((p, i) => `
+    <div style="display:grid;grid-template-columns:1fr 80px 70px 30px;gap:6px;align-items:center">
+      <input value="${p.nombre}" placeholder="Nombre/rol"
+        onchange="_calcEquipo[${i}].nombre=this.value"
+        style="border:1px solid var(--gris-200);border-radius:5px;padding:5px 8px;font-size:12px;outline:none">
+      <input type="number" value="${p.hFact}" min="0" max="12" step="0.5" title="Horas facturables/día"
+        onchange="_calcEquipo[${i}].hFact=parseFloat(this.value)||0;calcularCosteHora()"
+        style="border:1px solid var(--gris-200);border-radius:5px;padding:5px 6px;font-size:12px;text-align:right;outline:none"
+        placeholder="h/día">
+      <input type="number" value="${p.dias}" min="0" max="30" step="1" title="Días laborables/mes"
+        onchange="_calcEquipo[${i}].dias=parseFloat(this.value)||0;calcularCosteHora()"
+        style="border:1px solid var(--gris-200);border-radius:5px;padding:5px 6px;font-size:12px;text-align:right;outline:none"
+        placeholder="días">
+      <button onclick="_calcEquipo.splice(${i},1);_renderCalcEquipo();calcularCosteHora()"
+        style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:13px;padding:0" title="Quitar">✕</button>
+    </div>
+  `).join('') + (
+    _calcEquipo.length ? `<div style="display:grid;grid-template-columns:1fr 80px 70px 30px;gap:6px;padding:0 0 0 0">
+      <span style="font-size:10px;color:var(--gris-400);padding-left:8px">Nombre / Rol</span>
+      <span style="font-size:10px;color:var(--gris-400);text-align:right">h fact/día</span>
+      <span style="font-size:10px;color:var(--gris-400);text-align:right">días/mes</span>
+      <span></span>
+    </div>` : ''
+  );
+}
+
+function calcAddPersona() {
+  _calcEquipo.push({ nombre: '', hFact: 6, dias: 22 });
+  _renderCalcEquipo();
+}
+
+function calcularCosteHora() {
+  const costeMensual = parseFloat(document.getElementById('calc_coste_total')?.value) || 0;
+  const totalHoras = _calcEquipo.reduce((sum, p) => sum + (p.hFact||0) * (p.dias||0), 0);
+  const resultado = document.getElementById('calc_resultado');
+  if (!resultado) return;
+
+  if (costeMensual <= 0 || totalHoras <= 0) {
+    resultado.style.display = 'none';
+    return;
+  }
+
+  const costeHora = costeMensual / totalHoras;
+  const tarifaActual = parseFloat(document.getElementById('cfg_tarifa_hora')?.value) || 0;
+  const margen = tarifaActual > 0 ? ((tarifaActual - costeHora) / costeHora * 100) : 0;
+
+  document.getElementById('calc_horas_mes').textContent = totalHoras.toFixed(0) + 'h';
+  document.getElementById('calc_coste_hora').textContent = costeHora.toFixed(2) + '€';
+  const elMargen = document.getElementById('calc_margen');
+  elMargen.textContent = margen.toFixed(1) + '%';
+  elMargen.style.color = margen >= 20 ? '#15803d' : margen >= 0 ? '#ca8a04' : '#dc2626';
+  resultado.style.display = 'block';
+}
+
+function calcAplicarTarifa() {
+  const costeMensual = parseFloat(document.getElementById('calc_coste_total')?.value) || 0;
+  const totalHoras = _calcEquipo.reduce((sum, p) => sum + (p.hFact||0) * (p.dias||0), 0);
+  if (totalHoras <= 0) return;
+  const costeHora = Math.ceil(costeMensual / totalHoras * 100) / 100;
+  document.getElementById('cfg_tarifa_hora').value = costeHora;
+  calcularCosteHora();
+  toast('📌 Tarifa base actualizada a ' + costeHora.toFixed(2) + '€/h (coste puro, ajusta margen)', 'info');
+}
+
+// Guardar datos de la calculadora junto con config_partes
+const _origGuardarCfgPartes = null; // placeholder — lógica integrada en guardarCfgPartes
