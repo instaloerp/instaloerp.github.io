@@ -128,8 +128,7 @@ function renderFacturas(list) {
     const _fVer = _facVerMap[f.id] || 0;
     const _fVerBadge = _fVer > 1 ? `<button onclick="event.stopPropagation();toggleFacVersiones(${f.id},this)" style="font-size:10px;background:var(--azul-light);color:var(--azul);padding:2px 8px;border-radius:10px;font-weight:700;border:1.5px solid var(--azul);cursor:pointer;margin-left:4px" title="Ver versiones anteriores">v${_fVer} ▾</button>` : '';
 
-    const _esBorrFac = f.estado === 'borrador';
-    return `<tr data-fac-row="${f.id}" style="${rowStyle}" onclick="${_esBorrFac ? `abrirEditor('factura',${f.id})` : `verDetalleFactura(${f.id})`}">
+    return `<tr data-fac-row="${f.id}" style="${rowStyle}" onclick="verDetalleFactura(${f.id})">
       <td style="font-weight:700;font-family:monospace;font-size:12.5px"><div style="display:flex;align-items:center;gap:2px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : (f.numero || '—')}${_fVerBadge}${lockBadge}</div></td>
       <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
       <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
