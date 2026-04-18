@@ -422,7 +422,7 @@ suite('Obra y vínculos cruzados', [
       presupuesto_id: testIds.presupuesto,
       cliente_nombre: TEST_PREFIX + 'Cliente Test',
       estado: 'en_curso',
-      fecha_inicio: hoy,
+      fecha: hoy,
     }).select().single();
     assert(!error, 'Error: ' + error?.message);
     testIds.obra = data.id;
@@ -474,7 +474,7 @@ suite('Obra y vínculos cruzados', [
     }).select().single();
     testIds.rectObra = rectObra.id;
 
-    assertEq(rectObra.trabajo_id, testIds.obra, 'Rectificativa hereda trabajo_id');
+    assert(rectObra.trabajo_id == testIds.obra, 'Rectificativa hereda trabajo_id: esperado ' + testIds.obra + ', obtenido ' + rectObra.trabajo_id);
   }),
 ]);
 
