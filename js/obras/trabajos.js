@@ -655,7 +655,8 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
       const esBorrador = p.estado === 'borrador' || (p.numero||'').startsWith('BORR-');
       // Comprobar documentos existentes para este presupuesto
       const tieneAlb = albData.some(a=>a.presupuesto_id===p.id);
-      const tieneFac = factData.some(f=>f.presupuesto_id===p.id) || albData.filter(a=>a.presupuesto_id===p.id).some(a=>factData.some(f=>f.albaran_id===a.id));
+      const _factAct = factData.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && factData.some(r => r.rectificativa_de === f.id)));
+      const tieneFac = _factAct.some(f=>f.presupuesto_id===p.id) || albData.filter(a=>a.presupuesto_id===p.id).some(a=>_factAct.some(f=>f.albaran_id===a.id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none';
       const _bBtn = 'font-size:11px;padding:3px 6px';
       let acciones = '';
@@ -722,12 +723,14 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
     }
   });
   const totalAlbReal = albData.reduce((s,a) => s + a._totalCalc, 0);
-  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
+  const _factActAlb = factData.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && factData.some(r => r.rectificativa_de === f.id)));
+  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !_factActAlb.some(f=>f.albaran_id===a.id));
   const albHtml = albData.length ?
     resumenBar([resumenItem('Total albaranes', fmtE(totalAlbReal), 'var(--gris-700)'), resumenItem('Docs', albData.length+'')]) +
     (albSinFacturar.length >= 2 ? `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" id="btnFacturarSeleccionados" onclick="obraFacturarAlbSeleccionados()" style="background:#7C3AED;color:#fff;border:none;font-weight:700;font-size:11px;padding:5px 12px;border-radius:6px;opacity:.5;pointer-events:none">🧾 Facturar albaranes seleccionados</button></div>` : '') +
     albData.map(a=>{
-      const tieneFac = factData.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && factData.some(f=>f.presupuesto_id===a.presupuesto_id));
+      const _factAct2 = factData.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && factData.some(r => r.rectificativa_de === f.id)));
+      const tieneFac = _factAct2.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _factAct2.some(f=>f.presupuesto_id===a.presupuesto_id));
       const _bOK = 'padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700';
       const esFacturable = !tieneFac && a.estado !== 'anulado';
       return `
@@ -2379,7 +2382,8 @@ async function cerrarObra() {
   if (presupPendientes.length) {
     avisos.push(`📋 ${presupPendientes.length} presupuesto(s) pendiente(s) (${presupPendientes.map(p=>p.numero||'borrador').join(', ')})`);
   }
-  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !factData.some(f=>f.albaran_id===a.id));
+  const _factActAlb = factData.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && factData.some(r => r.rectificativa_de === f.id)));
+  const albSinFacturar = albData.filter(a => a.estado !== 'facturado' && a.estado !== 'anulado' && !_factActAlb.some(f=>f.albaran_id===a.id));
   if (albSinFacturar.length) {
     avisos.push(`📄 ${albSinFacturar.length} albarán(es) sin facturar (${albSinFacturar.map(a=>a.numero).join(', ')})`);
   }
@@ -2582,8 +2586,9 @@ async function obraPresToAlbaran(presId) {
   // Comprobar si ya tiene albarán o factura
   const _aD3 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
   const _fD5 = window.facturasData || [];
-  if (_aD3.some(a=>a.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
-  if (_fD5.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
+  if (_aD3.some(a=>a.presupuesto_id===p.id && a.estado!=='anulado')) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
+  const _fAct5 = _fD5.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD5.some(r => r.rectificativa_de === f.id)));
+  if (_fAct5.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
   if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
 
   const numero = await generarNumeroDoc('albaran');
@@ -2622,7 +2627,8 @@ async function obraPresToFactura(presId) {
   const _fD2 = window.facturasData || [];
   const _aD4 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
   const _albsP2 = _aD4.filter(a=>a.presupuesto_id===p.id);
-  if (_fD2.some(f=>f.presupuesto_id===p.id) || _albsP2.some(a=>_fD2.some(f=>f.albaran_id===a.id))) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
+  const _fAct2b = _fD2.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD2.some(r => r.rectificativa_de === f.id)));
+  if (_fAct2b.some(f=>f.presupuesto_id===p.id) || _albsP2.some(a=>_fAct2b.some(f=>f.albaran_id===a.id))) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
   if (!confirm(`¿Crear borrador de factura desde ${p.numero}?`)) return;
 
   const numero = await _generarNumeroBorrador();
@@ -2661,7 +2667,8 @@ async function obraAlbToFactura(albId) {
   if (err || !a) { toast('Error al cargar albarán', 'error'); return; }
   // Comprobar si ya tiene factura
   const _fD3 = window.facturasData || [];
-  if (_fD3.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
+  const _fAct3 = _fD3.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD3.some(r => r.rectificativa_de === f.id)));
+  if (_fAct3.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
   if (!confirm(`¿Crear borrador de factura desde ${a.numero}?`)) return;
 
   const numero = await _generarNumeroBorrador();
