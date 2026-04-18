@@ -1327,6 +1327,14 @@ async function de_guardar(estado) {
   datos.estado = estado||'borrador';
   if (cfg.conVersiones && estado !== 'borrador') datos.version = cfg._version || 1;
 
+  // Auto-actualizar fecha a hoy en cada guardado (nueva versión/borrador)
+  if (cfg.editId && (cfg.tipo === 'factura' || cfg.tipo === 'presupuesto')) {
+    const hoy = new Date().toISOString().split('T')[0];
+    datos.fecha = hoy;
+    const fechaInput = document.getElementById('de_fecha');
+    if (fechaInput) fechaInput.value = hoy;
+  }
+
   // Number assignment logic for presupuestos:
   // - Borrador: NO number (stays as "(sin asignar)")
   // - Pendiente/any other: assign number
@@ -1495,18 +1503,20 @@ async function de_verVersiones(ev) {
   if (!vers || !vers.length) { toast('No hay versiones anteriores','info'); return; }
 
   let items = '';
+  const maxVer = vers.length ? vers[0].version : 0;
   vers.forEach(v => {
     const d = v.datos||{};
     const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
     const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const esUltima = v.version === maxVer;
     items += `<div class="hov-bg" style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer">
       <div style="min-width:0">
-        <div style="font-weight:700;font-size:12px">v${v.version} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
+        <div style="font-weight:700;font-size:12px">v${v.version}${esUltima?' <span style="font-size:10px;background:var(--azul);color:white;padding:1px 6px;border-radius:4px">actual</span>':''} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
         <div style="font-size:11px;color:var(--gris-500)">${d.cliente_nombre||'—'} — ${fmtE(d.total||0)}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();abrirVersionEnEditor(${deConfig.editId},${v.id})" title="Ver" style="font-size:12px;padding:3px 6px">👁️</button>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();restaurarVersionDirecta(${deConfig.editId},${v.id})" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();abrirVersionEnEditor(${deConfig.editId},${v.id})" title="Ver (solo lectura)" style="font-size:12px;padding:3px 6px">👁️</button>
+        ${!esUltima?'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById(\'de_ver_dropdown\').remove();restaurarVersionDirecta('+deConfig.editId+','+v.id+')" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>':''}
       </div>
     </div>`;
   });

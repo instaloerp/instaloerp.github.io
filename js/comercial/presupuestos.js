@@ -619,7 +619,17 @@ async function abrirVersionEnEditor(presId, versionId) {
   setTimeout(async () => {
     if (typeof de_restaurarVersion === 'function') {
       await de_restaurarVersion(versionId);
-      toast('👁️ Vista de v'+v.version+' — cierra sin guardar para no sobrescribir','info');
+      // Bloquear edición — solo lectura para versiones antiguas
+      de_setReadonly(true);
+      deConfig._mode = 'view';
+      deConfig._bloqueado = true;
+      const btnBox = document.getElementById('de_buttons');
+      if (btnBox) {
+        btnBox.innerHTML = `<span style="color:var(--gris-400);font-size:12px;margin-right:8px">🔒 Vista de v${v.version} (solo lectura)</span>
+          <button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>
+          <button class="btn btn-sm" onclick="restaurarVersionDirecta(${presId},${versionId})" style="background:#D1FAE5;color:#065F46;border:1px solid #10B981">♻️ Restaurar esta versión</button>`;
+      }
+      toast('👁️ Vista de v'+v.version+' — solo lectura','info');
     }
   }, 400);
 }

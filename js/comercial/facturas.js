@@ -592,13 +592,121 @@ function _renderVersionesBorrador(versiones) {
       const snap = v.snapshot || {};
       const total = snap.total != null ? fmtE(snap.total) : '—';
       const lineas = Array.isArray(snap.lineas) ? snap.lineas.filter(l => !l._separator).length : 0;
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;border-radius:6px;background:var(--gris-50);border:1px solid var(--gris-100)">
+      return `<div onclick="_verVersionBorrador(${v.id})" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:8px 10px;border-radius:6px;background:var(--gris-50);border:1px solid var(--gris-100);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background='var(--gris-50)'">
         <span style="font-weight:800;color:var(--azul);min-width:30px">v${v.version}</span>
         <span style="flex:1">${lineas} líneas · ${total}</span>
         <span style="color:var(--gris-400);font-size:11px">${v.usuario_nombre || ''}</span>
         <span style="color:var(--gris-400);font-size:10px;min-width:80px;text-align:right">${fecha}</span>
+        <span style="font-size:11px;color:var(--azul);font-weight:600" title="Ver detalle">👁️</span>
       </div>`;
     }).join('') + '</div>';
+}
+
+// Ver detalle de una versión concreta de borrador
+async function _verVersionBorrador(versionId) {
+  const { data: v, error } = await sb.from('factura_versiones')
+    .select('*').eq('id', versionId).single();
+  if (error || !v) { toast('Error cargando versión', 'error'); return; }
+
+  const snap = v.snapshot || {};
+  const fecha = v.created_at ? new Date(v.created_at).toLocaleString('es-ES') : '';
+  const lineas = Array.isArray(snap.lineas) ? snap.lineas.filter(l => !l._separator) : [];
+
+  // Tabla de líneas
+  let lineasHtml = '';
+  if (lineas.length) {
+    lineasHtml = `<table style="width:100%;border-collapse:collapse;margin-top:8px">
+      <thead style="background:var(--gris-50)">
+        <tr>
+          <th style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+          <th style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:50px;text-align:right">Cant.</th>
+          <th style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px;text-align:right">Precio</th>
+          <th style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:50px;text-align:right">IVA</th>
+          <th style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px;text-align:right">Total</th>
+        </tr>
+      </thead>
+      <tbody>` +
+      lineas.map(l => {
+        const sub = (l.cant||1) * (l.precio||0) * (1 - (l.dto||0)/100);
+        const tot = sub * (1 + (l.iva||21)/100);
+        return `<tr style="border-bottom:1px solid var(--gris-100)">
+          <td style="padding:6px 8px;font-size:12px">${l.desc || '—'}</td>
+          <td style="padding:6px 8px;font-size:12px;text-align:right">${l.cant||1}</td>
+          <td style="padding:6px 8px;font-size:12px;text-align:right">${fmtE(l.precio||0)}</td>
+          <td style="padding:6px 8px;font-size:12px;text-align:right">${l.iva||21}%</td>
+          <td style="padding:6px 8px;font-size:12px;text-align:right;font-weight:600">${fmtE(tot)}</td>
+        </tr>`;
+      }).join('') +
+      `</tbody></table>`;
+  }
+
+  // Overlay modal para la versión
+  const overlay = document.createElement('div');
+  overlay.id = 'mVersionBorrador';
+  overlay.className = 'overlay active';
+  overlay.style.zIndex = '1100';
+  overlay.innerHTML = `<div class="modal" style="max-width:700px">
+    <div class="modal-h">
+      <span>📄</span>
+      <div>
+        <h2 style="font-size:15px;font-weight:800">Versión ${v.version} del borrador</h2>
+        <div style="font-size:11px;color:var(--gris-400)">${fecha} · ${v.usuario_nombre || 'Usuario'}</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:6px;margin-right:8px">
+        <button class="btn btn-sm" onclick="_restaurarVersionBorrador(${v.factura_id},${v.id})" style="background:#D1FAE5;color:#065F46;border:1px solid #10B981">♻️ Restaurar esta versión</button>
+      </div>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('mVersionBorrador').remove()">✕</button>
+    </div>
+    <div class="modal-b">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+        <div><span style="font-size:11px;color:var(--gris-400)">Cliente</span><div style="font-weight:600;font-size:13px">${snap.cliente_nombre || '—'}</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div style="font-weight:600;font-size:13px">${snap.fecha || '—'}</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Total</span><div style="font-weight:700;font-size:15px;color:var(--azul)">${fmtE(snap.total || 0)}</div></div>
+      </div>
+      <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">${lineasHtml || '<div style="padding:12px;color:var(--gris-400)">Sin líneas</div>'}</div>
+      ${snap.observaciones ? '<div style="margin-top:8px;padding:8px 10px;background:var(--gris-50);border-radius:8px;font-size:12px;color:var(--gris-600)">' + snap.observaciones + '</div>' : ''}
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="document.getElementById('mVersionBorrador').remove()">Cerrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+// Restaurar una versión anterior del borrador
+async function _restaurarVersionBorrador(facturaId, versionId) {
+  if (!confirm('¿Restaurar esta versión?\n\nLas líneas y datos del borrador actual se sustituirán por los de esta versión.')) return;
+
+  const { data: v, error } = await sb.from('factura_versiones')
+    .select('snapshot').eq('id', versionId).single();
+  if (error || !v) { toast('Error cargando versión', 'error'); return; }
+
+  const snap = v.snapshot || {};
+  // Actualizar la factura con los datos de la versión — fecha a hoy
+  const hoy = new Date().toISOString().split('T')[0];
+  const updateObj = {
+    lineas: snap.lineas || [],
+    cliente_id: snap.cliente_id || null,
+    cliente_nombre: snap.cliente_nombre || '',
+    base_imponible: snap.base_imponible || 0,
+    total_iva: snap.total_iva || 0,
+    total: snap.total || 0,
+    observaciones: snap.observaciones || null,
+    fecha: hoy,
+  };
+
+  const { error: upErr } = await sb.from('facturas').update(updateObj).eq('id', facturaId);
+  if (upErr) { toast('Error restaurando: ' + upErr.message, 'error'); return; }
+
+  // Cerrar modales
+  const mVer = document.getElementById('mVersionBorrador');
+  if (mVer) mVer.remove();
+  closeModal('mFacturaDetalle');
+
+  // Recargar y volver a abrir
+  await loadFacturas();
+  toast('♻️ Versión restaurada ✓', 'success');
+  verDetalleFactura(facturaId);
 }
 
 // ═══════════════════════════════════════════════
