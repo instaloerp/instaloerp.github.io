@@ -123,8 +123,15 @@ async function abrirEditor(tipo, editId) {
       });
       // Re-inyectar sub-líneas de servicios desde Supabase
       setTimeout(() => _de_reloadSrvLineas(), 100);
-      // Versión actual (solo para no-borradores)
-      deConfig._version = docEstado === 'borrador' ? 0 : (doc.version || 1);
+      // Versión actual
+      if (docEstado === 'borrador' && tipo === 'factura') {
+        // Borradores factura: leer versión real de factura_versiones
+        const { data: _fv } = await sb.from('factura_versiones')
+          .select('version').eq('factura_id', editId).order('version', { ascending: false }).limit(1);
+        deConfig._version = (_fv && _fv.length) ? _fv[0].version : 0;
+      } else {
+        deConfig._version = docEstado === 'borrador' ? 0 : (doc.version || 1);
+      }
       deConfig._estado = docEstado;
       deConfig._exportado_bloqueado = doc.exportado_bloqueado || false;
       deConfig._exportado_a = doc.exportado_a || null;
@@ -329,9 +336,11 @@ function de_entrarEdicionFactura() {
     <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
   toast('✏️ Modo edición', 'info');
 
-  // 2. Guardar snapshot en segundo plano (no bloquea la UI)
+  // 2. Guardar snapshot en segundo plano y actualizar badge al terminar
   if (cfg.conVersiones) {
-    _snapshotBorradorFactura(cfg).catch(e => console.error('Error snapshot:', e));
+    _snapshotBorradorFactura(cfg).then(() => {
+      de_showVersion(cfg._version || 0);
+    }).catch(e => console.error('Error snapshot:', e));
   }
 }
 
