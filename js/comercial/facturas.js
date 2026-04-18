@@ -462,6 +462,11 @@ async function verDetalleFactura(id) {
           const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(f.verifactu_qr_url)}`;
           btns += `<a href="${f.verifactu_qr_url}" target="_blank" title="Verificar en AEAT" style="margin-left:4px"><img src="${qrImg}" style="width:48px;height:48px;border-radius:4px;vertical-align:middle;border:1px solid #d1d5db"></a>`;
         }
+        // Botón anular registro AEAT
+        btns += `<button class="btn btn-sm" onclick="anularFacturaAEAT(${f.id})" style="background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;font-weight:700;margin-left:6px" title="Anular registro en AEAT">🗑️ Anular AEAT</button>`;
+      } else if (f.verifactu_estado === 'incorrecto') {
+        btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:11px;font-weight:600">❌ Error AEAT</span>`;
+        btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Reintentar</button>`;
       } else {
         btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Enviar a AEAT</button>`;
       }
@@ -1680,7 +1685,7 @@ function renderRectificativas() {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
-          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
+          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
         </div>
       </td>
     </tr>`;
