@@ -1388,11 +1388,14 @@ async function de_guardar(estado) {
   // Versionado de borradores de factura
   if (cfg.tipo === 'factura' && estado === 'borrador' && savedId && typeof _guardarVersionBorrador === 'function') {
     try {
-      const countRes = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
-        .eq('factura_id', savedId);
-      const vNum = ((countRes.count) || 0) + 1;
+      // Contar versiones existentes con select simple
+      const { data: versExist } = await sb.from('factura_versiones')
+        .select('version').eq('factura_id', savedId).order('version', { ascending: false }).limit(1);
+      const maxVer = (versExist && versExist.length) ? versExist[0].version : 0;
+      const vNum = maxVer + 1;
       await _guardarVersionBorrador(savedId, { ...datos, id: savedId }, vNum);
-    } catch(e) { console.warn('Versionado borrador:', e); }
+      console.log('Versión borrador v' + vNum + ' guardada para factura ' + savedId);
+    } catch(e) { console.warn('Versionado borrador error:', e); }
   }
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
   const _toastMsg = isNew

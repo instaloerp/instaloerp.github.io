@@ -562,16 +562,23 @@ async function _generarNumeroBorrador() {
 //  Guarda snapshot completo en factura_versiones cada vez que se modifica
 // ═══════════════════════════════════════════════
 async function _guardarVersionBorrador(facturaId, datos, versionNum) {
-  try {
-    await sb.from('factura_versiones').insert({
-      empresa_id: EMPRESA.id,
-      factura_id: facturaId,
-      version: versionNum,
-      snapshot: datos,  // JSON completo del borrador en ese momento
-      usuario_id: USER?.id || null,
-      usuario_nombre: USER?.nombre || USER?.email || null,
-    });
-  } catch (e) { console.warn('No se pudo guardar versión borrador:', e); }
+  const { error } = await sb.from('factura_versiones').insert({
+    empresa_id: EMPRESA.id,
+    factura_id: facturaId,
+    version: versionNum,
+    snapshot: datos,
+    usuario_id: USER?.id || null,
+    usuario_nombre: USER?.nombre || USER?.email || null,
+  });
+  if (error) {
+    console.error('Error guardando versión borrador v' + versionNum + ':', error.message);
+    // Si la tabla no existe, informar
+    if (error.message && error.message.includes('factura_versiones')) {
+      toast('⚠️ Tabla factura_versiones no existe. Ejecuta el SQL en Supabase.', 'error');
+    }
+  } else {
+    console.log('✅ Versión borrador v' + versionNum + ' guardada OK');
+  }
 }
 
 async function _cargarVersionesBorrador(facturaId) {
