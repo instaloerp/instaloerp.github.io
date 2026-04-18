@@ -245,7 +245,7 @@ function renderPresupuestos(list) {
             else if (!_tF) btns += '<button onclick="presToObra('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Crear obra">🏗️ Crear obra</button> ';
             if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
-            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura</span>';
+            if (_tF) { const _fRef=_fAct.find(f=>f.presupuesto_id===p.id) || _fAct.find(f=>_albsP.some(a=>f.albaran_id===a.id)); btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+(_fRef?_fRef.id:0)+'),200)" style="'+_bOK+'">✅ Factura</a>'; }
             else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
             if (p.pdf_firmado_url) btns += ` <div style="position:relative;display:inline-block" onclick="event.stopPropagation()"><button data-pdf-toggle onclick="var m=this.nextElementSibling;document.querySelectorAll('[data-pdf-menu]').forEach(x=>{if(x!==m)x.style.display='none'});m.style.display=m.style.display==='none'?'block':'none'" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">📄 PDF ▾</button><div data-pdf-menu style="display:none;position:absolute;right:0;bottom:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;min-width:170px;padding:4px 0;margin-bottom:2px"><a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')} — PDF Firmado')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">👁️ Ver</a><a href="#" onclick="event.preventDefault();descargarPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')}_firmado.pdf')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">⬇️ Descargar</a><a href="#" onclick="event.preventDefault();imprimirPdfFirmado('${p.pdf_firmado_url}')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🖨️ Imprimir</a></div></div>`;
             return btns;
@@ -420,7 +420,7 @@ async function verDetallePresupuesto(id) {
       if (!fac && _albsP.length) {
         fac = _facsAll.find(f => f.albaran_id === _albsP[0].id);
       }
-      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${fac?.id||0}),200)" style="${_refStyle}">✅ Factura ${fac?.numero||''}</a> `;
     }
     // Información de aprobación según método
     if (p.estado === 'aceptado') {
@@ -693,7 +693,7 @@ async function presToFactura(id) {
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
     // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
     const _obraVinc = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);
-    const { error } = await sb.from('facturas').insert({
+    const { data: newFac, error } = await sb.from('facturas').insert({
       empresa_id: EMPRESA.id, numero,
       cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -702,7 +702,7 @@ async function presToFactura(id) {
       estado: 'borrador', observaciones: p.observaciones, lineas: p.lineas,
       presupuesto_id: p.id,
       ...(_obraVinc ? {trabajo_id: _obraVinc.id} : {}),
-    });
+    }).select().single();
     if (error) { toast('Error: '+error.message,'error'); return; }
     // El presupuesto se queda en su estado actual
     // Si hay albaranes del mismo presupuesto, marcarlos como facturados
@@ -719,8 +719,14 @@ async function presToFactura(id) {
     window.albaranesData = albRefresh2||[];
     filtrarPresupuestos();
     closeModal('mPresDetalle');
-    toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo','success');
+    toast('✅ Borrador de factura creado','success');
     loadDashboard();
+    // Abrir automáticamente el detalle de la nueva factura
+    if (newFac?.id) {
+      await loadFacturas();
+      goPage('facturas');
+      setTimeout(() => verDetalleFactura(newFac.id), 300);
+    }
     // Refrescar ficha de obra si está abierta
     { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
   } finally {
@@ -749,7 +755,7 @@ async function presToAlbaran(id) {
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
     // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
     const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);
-    const { error } = await sb.from('albaranes').insert({
+    const { data: newAlb, error } = await sb.from('albaranes').insert({
       empresa_id: EMPRESA.id, numero,
       cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
       fecha: new Date().toISOString().split('T')[0],
@@ -758,7 +764,7 @@ async function presToAlbaran(id) {
       estado: 'pendiente', observaciones: p.observaciones, lineas,
       presupuesto_id: p.id,
       ...(_obraVinc2 ? {trabajo_id: _obraVinc2.id} : {}),
-    });
+    }).select().single();
     if (error) { toast('Error: '+error.message,'error'); return; }
     // El presupuesto se queda en su estado actual
     // Refrescar albaranes en memoria para que la lógica inteligente detecte el nuevo registro
@@ -769,6 +775,11 @@ async function presToAlbaran(id) {
     closeModal('mPresDetalle');
     toast('📄 Albarán creado','success');
     loadDashboard();
+    // Abrir automáticamente el detalle del nuevo albarán
+    if (newAlb?.id) {
+      goPage('albaranes');
+      setTimeout(() => verDetalleAlbaran(newAlb.id), 300);
+    }
     // Refrescar ficha de obra si está abierta
     { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }
   } finally {

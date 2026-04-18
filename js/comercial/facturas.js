@@ -151,8 +151,8 @@ function renderFacturas(list) {
             const _tO = !!f.trabajo_id;
             const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
             let refs = '';
-            if (_tP) refs += '<a onclick="event.stopPropagation();verDetallePresupuesto('+f.presupuesto_id+')" style="'+_bOK+'" title="Ver presupuesto origen">📋</a> ';
-            if (_tA) refs += '<a onclick="event.stopPropagation();verDetalleAlbaran('+f.albaran_id+')" style="'+_bOK+'" title="Ver albarán origen">📄</a> ';
+            if (_tP) refs += '<a onclick="event.stopPropagation();goPage(\'presupuestos\');setTimeout(()=>verDetallePresupuesto('+f.presupuesto_id+'),200)" style="'+_bOK+'" title="Ver presupuesto origen">📋</a> ';
+            if (_tA) refs += '<a onclick="event.stopPropagation();goPage(\'albaranes\');setTimeout(()=>verDetalleAlbaran('+f.albaran_id+'),200)" style="'+_bOK+'" title="Ver albarán origen">📄</a> ';
             if (_tO) refs += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+f.trabajo_id+')" style="'+_bOK+'" title="Ver obra">🏗️</a> ';
             if (tieneRect) { const _r = facLocalData.find(r=>r.rectificativa_de===f.id); refs += '<a onclick="event.stopPropagation();verDetalleFactura('+(_r?_r.id:0)+')" style="padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none" title="Ver rectificativa">📝 '+(_r?_r.numero:'RECT')+'</a> '; }
             return refs;
@@ -415,11 +415,11 @@ async function verDetalleFactura(id) {
   }
   if (f.presupuesto_id) {
     const pres = (typeof presupuestos !== 'undefined' ? presupuestos : []).find(p => p.id === f.presupuesto_id);
-    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetallePresupuesto(${f.presupuesto_id})" style="${_bOK}">📋 Presupuesto ${pres ? pres.numero : ''}</a> `;
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');goPage('presupuestos');setTimeout(()=>verDetallePresupuesto(${f.presupuesto_id}),200)" style="${_bOK}">📋 Presupuesto ${pres ? pres.numero : ''}</a> `;
   }
   if (f.albaran_id) {
     const alb = (typeof albaranesData !== 'undefined' ? albaranesData : []).find(a => a.id === f.albaran_id);
-    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetalleAlbaran(${f.albaran_id})" style="${_bOK}">📄 Albarán ${alb ? alb.numero : ''}</a> `;
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');goPage('albaranes');setTimeout(()=>verDetalleAlbaran(${f.albaran_id}),200)" style="${_bOK}">📄 Albarán ${alb ? alb.numero : ''}</a> `;
   }
   if (f.trabajo_id) {
     refsHtml += `<a onclick="closeModal('mFacturaDetalle');goPage('trabajos');abrirFichaObra(${f.trabajo_id})" style="${_bOK}">🏗️ Obra</a> `;

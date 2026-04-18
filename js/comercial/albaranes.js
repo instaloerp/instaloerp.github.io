@@ -84,12 +84,12 @@ function renderAlbaranes(list) {
             const _bBtn = 'padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151';
             let btns = '';
             // Presupuesto origen: badge verde clickable si viene de un presupuesto
-            if (_tP) btns += '<a onclick="event.stopPropagation();verDetallePresupuesto('+a.presupuesto_id+')" style="'+_bOK+'">✅ Presupuesto</a> ';
+            if (_tP) btns += '<a onclick="event.stopPropagation();goPage(\'presupuestos\');setTimeout(()=>verDetallePresupuesto('+a.presupuesto_id+'),200)" style="'+_bOK+'">✅ Presupuesto</a> ';
             // Obra: badge verde si existe, botón si no y no facturado, oculto si facturado
             if (_tO) { btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+a.trabajo_id+')" style="'+_bOK+'">✅ Obra</a> '; }
             else if (!_tF) btns += '<button onclick="albaranToObra('+a.id+')" style="'+_bBtn+'" title="Crear obra">🏗️ Crear obra</button> ';
             // Factura: badge verde si existe, botón si no
-            if (_tF) btns += '<span style="padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Facturado</span>';
+            if (_tF) { const _facRef=_fAct2.find(f=>f.albaran_id===a.id)||_fAct2.find(f=>a.presupuesto_id&&f.presupuesto_id===a.presupuesto_id); btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+(_facRef?_facRef.id:0)+'),200)" style="'+_bOK+'">✅ Facturado</a>'; }
             else btns += '<button onclick="albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾 Facturar</button>';
             return btns;
           })()}
@@ -185,7 +185,7 @@ async function albaranToFactura(id) {
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Asignar trabajo_id si el albarán pertenece a una obra
     const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
-    const { error } = await sb.from('facturas').insert({
+    const { data: newFac, error } = await sb.from('facturas').insert({
       empresa_id: EMPRESA.id, numero,
       cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -195,7 +195,7 @@ async function albaranToFactura(id) {
       lineas: a.lineas, albaran_id: a.id,
       presupuesto_id: a.presupuesto_id || null,
       ...(_trabVinc ? {trabajo_id: _trabVinc} : {}),
-    });
+    }).select().single();
     if (error) { toast('Error: '+error.message,'error'); return; }
     await sb.from('albaranes').update({estado:'facturado'}).eq('id',id);
     const ab = albaranesData.find(x=>x.id===id); if(ab) { ab.estado='facturado'; }
@@ -205,8 +205,14 @@ async function albaranToFactura(id) {
     window.facturasData = facRefresh||[];
     filtrarAlbaranes();
     closeModal('mAbDetalle');
-    toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo','success');
+    toast('✅ Borrador de factura creado','success');
     loadDashboard();
+    // Abrir automáticamente el detalle de la nueva factura
+    if (newFac?.id) {
+      await loadFacturas();
+      goPage('facturas');
+      setTimeout(() => verDetalleFactura(newFac.id), 300);
+    }
     // Refrescar ficha de obra si está abierta y estamos en la página de obras
     const _pg1 = document.querySelector('.page.active')?.id;
     if (_pg1 === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId);
@@ -265,15 +271,15 @@ function verDetalleAlbaran(id) {
     const _refStyle = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
     if (a.presupuesto_id) {
       const pres = presupuestos.find(x=>x.id===a.presupuesto_id);
-      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');verDetallePresupuesto(${a.presupuesto_id})" style="${_refStyle}">✅ Presupuesto ${pres?.numero||''}</a> `;
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('presupuestos');setTimeout(()=>verDetallePresupuesto(${a.presupuesto_id}),200)" style="${_refStyle}">✅ Presupuesto ${pres?.numero||''}</a> `;
     }
     if (a.trabajo_id) {
       const obra = trabajos.find(t=>t.id===a.trabajo_id);
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('trabajos');abrirFichaObra(${a.trabajo_id})" style="${_refStyle}">✅ Obra ${obra?.numero||''}</a> `;
     }
     if (tieneFactura) {
-      const fac = (window.facturasData||[]).find(f => f.albaran_id === a.id);
-      refs += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700">✅ Factura ${fac?.numero||''}</span> `;
+      const fac = _fActDet.find(f => f.albaran_id === a.id) || _fActDet.find(f => a.presupuesto_id && f.presupuesto_id === a.presupuesto_id);
+      refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${fac?.id||0}),200)" style="${_refStyle}">✅ Factura ${fac?.numero||''}</a> `;
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
