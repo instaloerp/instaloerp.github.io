@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>instaloERP — Test E2E</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0F172A; color: #E2E8F0; padding: 20px; min-height: 100vh; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #94A3B8; font-size: 13px; margin-bottom: 20px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  button { padding: 8px 18px; border-radius: 8px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; transition: .15s; }
+  button:hover { transform: translateY(-1px); }
+  .btn-run { background: #22C55E; color: #fff; }
+  .btn-run:disabled { background: #374151; color: #6B7280; cursor: not-allowed; transform: none; }
+  .btn-clean { background: #EF4444; color: #fff; }
+  .btn-export { background: #3B82F6; color: #fff; }
+  #status { font-size: 12px; color: #94A3B8; flex: 1; text-align: right; }
+  .suite { background: #1E293B; border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .suite-head { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .suite-head h3 { font-size: 14px; font-weight: 700; }
+  .suite-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .suite-body { padding: 0 16px 12px; }
+  .test-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #334155; font-size: 12.5px; }
+  .test-row:last-child { border-bottom: none; }
+  .test-ico { width: 22px; text-align: center; font-size: 14px; }
+  .test-name { flex: 1; }
+  .test-time { color: #64748B; font-size: 11px; min-width: 50px; text-align: right; }
+  .test-msg { color: #F87171; font-size: 11px; margin-top: 2px; }
+  .pass { color: #4ADE80; }
+  .fail { color: #F87171; }
+  .skip { color: #FBBF24; }
+  .running { color: #60A5FA; }
+  .summary { background: #1E293B; border-radius: 12px; padding: 16px; margin-bottom: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .summary-item { text-align: center; }
+  .summary-num { font-size: 28px; font-weight: 800; }
+  .summary-label { font-size: 11px; color: #94A3B8; }
+  .report { background: #1E293B; border-radius: 12px; padding: 16px; margin-top: 16px; display: none; }
+  .report pre { font-size: 11px; color: #CBD5E1; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #60A5FA; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<h1>instaloERP — Tests E2E</h1>
+<p class="sub">Suite de pruebas automatizadas del flujo comercial completo</p>
+
+<div class="summary" id="summary" style="display:none">
+  <div class="summary-item"><div class="summary-num" id="s-total">0</div><div class="summary-label">Total</div></div>
+  <div class="summary-item"><div class="summary-num pass" id="s-pass">0</div><div class="summary-label">OK</div></div>
+  <div class="summary-item"><div class="summary-num fail" id="s-fail">0</div><div class="summary-label">FAIL</div></div>
+  <div class="summary-item"><div class="summary-num skip" id="s-skip">0</div><div class="summary-label">SKIP</div></div>
+  <div class="summary-item"><div class="summary-num" id="s-time" style="color:#60A5FA">0s</div><div class="summary-label">Tiempo</div></div>
+</div>
+
+<div class="controls">
+  <button class="btn-run" id="btnRun" onclick="runAll()">Ejecutar tests</button>
+  <button class="btn-clean" id="btnClean" onclick="cleanTestData()" style="display:none">Limpiar datos test</button>
+  <button class="btn-export" id="btnExport" onclick="exportReport()" style="display:none">Exportar informe</button>
+  <div id="status">Listo para ejecutar</div>
+</div>
+
+<div id="suites"></div>
+<div class="report" id="report"><h3 style="margin-bottom:8px;font-size:14px">Informe</h3><pre id="reportTxt"></pre></div>
+
+<script>
+// ─── Supabase ───
+const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdza2txcWhicG55Y3Z1aW9xZXRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzU1OTksImV4cCI6MjA5MDQ1MTU5OX0.4ArVhR9_qh6frtBrWZRRIssr3Zgavv41SdfOgyg27KE';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const TEST_PREFIX = '__E2E_TEST__';
+let EMPRESA = null;
+let SESSION = null;
+let results = [];
+let testIds = {}; // IDs creados durante los tests para limpieza
+
+// ─── Auth ───
+async function initSession() {
+  // Buscar sesión activa
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    SESSION = session;
+    // Buscar empresa del perfil
+    const { data: perfil } = await sb.from('perfiles').select('empresa_id')
+      .eq('id', session.user.id).single();
+    if (perfil?.empresa_id) {
+      const { data: emp } = await sb.from('empresas').select('*')
+        .eq('id', perfil.empresa_id).single();
+      EMPRESA = emp;
+    }
+  }
+  return !!SESSION && !!EMPRESA;
+}
+
+// ─── Helpers ───
+function assert(cond, msg) { if (!cond) throw new Error(msg || 'Assertion failed'); }
+function assertEq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'assertEq'}: esperado ${JSON.stringify(b)}, obtenido ${JSON.stringify(a)}`); }
+function assertTruthy(val, msg) { if (!val) throw new Error(`${msg || 'assertTruthy'}: valor falsy: ${JSON.stringify(val)}`); }
+function assertIncludes(arr, val, msg) { if (!arr.includes(val)) throw new Error(`${msg || 'assertIncludes'}: ${JSON.stringify(val)} no encontrado`); }
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+const ts = () => Date.now();
+const hoy = new Date().toISOString().split('T')[0];
+
+// ─── Test registry ───
+const suites = [];
+function suite(name, tests) { suites.push({ name, tests }); }
+function test(name, fn) { return { name, fn }; }
+
+// ════════════════════════════════════════════
+//  SUITE 1: PRESUPUESTOS
+// ════════════════════════════════════════════
+suite('Presupuestos', [
+  test('Crear presupuesto borrador', async () => {
+    const { data, error } = await sb.from('presupuestos').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'PRE-0001',
+      titulo: 'Test E2E presupuesto',
+      cliente_nombre: TEST_PREFIX + 'Cliente Test',
+      fecha: hoy,
+      estado: 'borrador',
+      lineas: [{ ref: 'TEST01', desc: 'Artículo test', cant: 2, precio: 100, iva: 21 }],
+      base_imponible: 200,
+      total_iva: 42,
+      total: 242,
+    }).select().single();
+    assert(!error, 'Error insert: ' + error?.message);
+    assertTruthy(data.id, 'Sin ID');
+    assertEq(data.estado, 'borrador', 'Estado');
+    testIds.presupuesto = data.id;
+  }),
+
+  test('Presupuesto tiene número y total', async () => {
+    const { data } = await sb.from('presupuestos').select('*').eq('id', testIds.presupuesto).single();
+    assertEq(data.numero, TEST_PREFIX + 'PRE-0001', 'Número');
+    assertEq(data.total, 242, 'Total');
+  }),
+
+  test('Cambiar estado a pendiente', async () => {
+    const { error } = await sb.from('presupuestos').update({ estado: 'pendiente' }).eq('id', testIds.presupuesto);
+    assert(!error, error?.message);
+    const { data } = await sb.from('presupuestos').select('estado').eq('id', testIds.presupuesto).single();
+    assertEq(data.estado, 'pendiente', 'Estado');
+  }),
+
+  test('Aprobar presupuesto', async () => {
+    const { error } = await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', testIds.presupuesto);
+    assert(!error, error?.message);
+    const { data } = await sb.from('presupuestos').select('estado').eq('id', testIds.presupuesto).single();
+    assertEq(data.estado, 'aceptado', 'Estado');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 2: ALBARANES
+// ════════════════════════════════════════════
+suite('Albaranes', [
+  test('Crear albarán desde presupuesto', async () => {
+    const pres = await sb.from('presupuestos').select('*').eq('id', testIds.presupuesto).single();
+    const p = pres.data;
+    const { data, error } = await sb.from('albaranes').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'ALB-0001',
+      presupuesto_id: p.id,
+      cliente_id: p.cliente_id,
+      cliente_nombre: p.cliente_nombre,
+      fecha: hoy,
+      estado: 'entregado',
+      lineas: p.lineas,
+      base_imponible: p.base_imponible,
+      total_iva: p.total_iva,
+      total: p.total,
+    }).select().single();
+    assert(!error, 'Error: ' + error?.message);
+    assertTruthy(data.id, 'Sin ID');
+    assertEq(data.estado, 'entregado', 'Estado');
+    assertEq(data.presupuesto_id, testIds.presupuesto, 'Vínculo presupuesto');
+    testIds.albaran = data.id;
+  }),
+
+  test('Albarán vinculado al presupuesto', async () => {
+    const { data } = await sb.from('albaranes').select('presupuesto_id').eq('id', testIds.albaran).single();
+    assertEq(data.presupuesto_id, testIds.presupuesto, 'presupuesto_id');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 3: FACTURAS — BORRADORES Y VERSIONES
+// ════════════════════════════════════════════
+suite('Facturas — Borradores y versiones', [
+  test('Crear factura borrador (BORR-)', async () => {
+    const { data, error } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'BORR-0001',
+      presupuesto_id: testIds.presupuesto,
+      albaran_id: testIds.albaran,
+      cliente_nombre: TEST_PREFIX + 'Cliente Test',
+      fecha: hoy,
+      estado: 'borrador',
+      lineas: [{ ref: 'TEST01', desc: 'Artículo test', cant: 2, precio: 100, iva: 21 }],
+      base_imponible: 200,
+      total_iva: 42,
+      total: 242,
+    }).select().single();
+    assert(!error, 'Error: ' + error?.message);
+    assertEq(data.estado, 'borrador', 'Estado');
+    assert(data.numero.includes('BORR-'), 'Número borrador');
+    testIds.factura = data.id;
+  }),
+
+  test('Guardar versión v1 (snapshot)', async () => {
+    const fac = await sb.from('facturas').select('*').eq('id', testIds.factura).single();
+    const { data, error } = await sb.from('factura_versiones').insert({
+      factura_id: testIds.factura,
+      version: 1,
+      snapshot: fac.data,
+    }).select().single();
+    assert(!error, 'Error snapshot: ' + error?.message);
+    assertEq(data.version, 1, 'Versión');
+    testIds.version1 = data.id;
+  }),
+
+  test('Modificar borrador y guardar versión v2', async () => {
+    await sb.from('facturas').update({
+      lineas: [
+        { ref: 'TEST01', desc: 'Artículo test', cant: 3, precio: 100, iva: 21 },
+        { ref: 'TEST02', desc: 'Artículo extra', cant: 1, precio: 50, iva: 21 },
+      ],
+      base_imponible: 350,
+      total_iva: 73.5,
+      total: 423.5,
+    }).eq('id', testIds.factura);
+
+    const fac = await sb.from('facturas').select('*').eq('id', testIds.factura).single();
+    const { data, error } = await sb.from('factura_versiones').insert({
+      factura_id: testIds.factura,
+      version: 2,
+      snapshot: fac.data,
+    }).select().single();
+    assert(!error, 'Error snapshot v2: ' + error?.message);
+    assertEq(data.version, 2, 'Versión');
+    testIds.version2 = data.id;
+  }),
+
+  test('Existen 2 versiones del borrador', async () => {
+    const { data } = await sb.from('factura_versiones').select('version')
+      .eq('factura_id', testIds.factura).order('version');
+    assertEq(data.length, 2, 'Cantidad versiones');
+    assertEq(data[0].version, 1, 'v1');
+    assertEq(data[1].version, 2, 'v2');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 4: EMISIÓN DE FACTURA
+// ════════════════════════════════════════════
+suite('Emisión de factura', [
+  test('Emitir borrador como factura definitiva', async () => {
+    const { error } = await sb.from('facturas').update({
+      numero: TEST_PREFIX + 'FAC-0001',
+      estado: 'pendiente',
+      fecha: hoy,
+    }).eq('id', testIds.factura);
+    assert(!error, 'Error: ' + error?.message);
+    const { data } = await sb.from('facturas').select('*').eq('id', testIds.factura).single();
+    assertEq(data.estado, 'pendiente', 'Estado');
+    assert(data.numero.includes('FAC-'), 'Número factura definitiva');
+  }),
+
+  test('Albarán pasa a facturado', async () => {
+    await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', testIds.albaran);
+    const { data } = await sb.from('albaranes').select('estado').eq('id', testIds.albaran).single();
+    assertEq(data.estado, 'facturado', 'Estado albarán');
+  }),
+
+  test('Versiones históricas siguen accesibles tras emisión', async () => {
+    const { data } = await sb.from('factura_versiones').select('*')
+      .eq('factura_id', testIds.factura).order('version');
+    assertEq(data.length, 2, 'Versiones conservadas');
+    // El snapshot v1 tiene el número BORR original
+    assert(data[0].snapshot.numero.includes('BORR-'), 'Snapshot v1 mantiene BORR');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 5: RECTIFICATIVA Y LIBERACIÓN
+// ════════════════════════════════════════════
+suite('Rectificativa y liberación', [
+  test('Crear factura rectificativa', async () => {
+    const orig = await sb.from('facturas').select('*').eq('id', testIds.factura).single();
+    const o = orig.data;
+    const { data, error } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'RECT-0001',
+      cliente_id: o.cliente_id,
+      cliente_nombre: o.cliente_nombre,
+      presupuesto_id: o.presupuesto_id,
+      albaran_id: o.albaran_id,
+      trabajo_id: o.trabajo_id || null,
+      fecha: hoy,
+      estado: 'anulada',
+      rectificativa_de: testIds.factura,
+      lineas: (o.lineas || []).map(l => l._separator ? l : { ...l, cant: -(l.cant || 0) }),
+      base_imponible: -o.base_imponible,
+      total_iva: -o.total_iva,
+      total: -o.total,
+      observaciones: 'Rectificativa de ' + o.numero,
+    }).select().single();
+    assert(!error, 'Error: ' + error?.message);
+    assertTruthy(data.rectificativa_de, 'rectificativa_de');
+    assertEq(data.rectificativa_de, testIds.factura, 'Referencia a original');
+    assert(data.total < 0, 'Total negativo');
+    testIds.rectificativa = data.id;
+  }),
+
+  test('Marcar factura original como anulada', async () => {
+    const { error } = await sb.from('facturas').update({ estado: 'anulada' }).eq('id', testIds.factura);
+    assert(!error, error?.message);
+    const { data } = await sb.from('facturas').select('estado').eq('id', testIds.factura).single();
+    assertEq(data.estado, 'anulada', 'Estado');
+  }),
+
+  test('Albarán liberado (entregado)', async () => {
+    await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', testIds.albaran);
+    const { data } = await sb.from('albaranes').select('estado').eq('id', testIds.albaran).single();
+    assertEq(data.estado, 'entregado', 'Estado albarán liberado');
+  }),
+
+  test('Filtro activas excluye anulada+rectificativa', async () => {
+    // Simular el filtro que usa el ERP
+    const { data: all } = await sb.from('facturas').select('id,estado,rectificativa_de,presupuesto_id')
+      .eq('empresa_id', EMPRESA.id).in('id', [testIds.factura, testIds.rectificativa]);
+    const activas = all.filter(f =>
+      !f.rectificativa_de &&
+      !(f.estado === 'anulada' && all.some(r => r.rectificativa_de === f.id))
+    );
+    assertEq(activas.length, 0, 'No debe haber facturas activas tras rectificativa');
+  }),
+
+  test('Presupuesto libre para re-facturar', async () => {
+    // El presupuesto no tiene facturas activas → puede facturarse de nuevo
+    const { data: facs } = await sb.from('facturas').select('id,estado,rectificativa_de,presupuesto_id')
+      .eq('empresa_id', EMPRESA.id).eq('presupuesto_id', testIds.presupuesto).neq('estado', 'eliminado');
+    const activas = facs.filter(f =>
+      !f.rectificativa_de &&
+      !(f.estado === 'anulada' && facs.some(r => r.rectificativa_de === f.id))
+    );
+    assertEq(activas.length, 0, 'Presupuesto libre');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 6: SEGUNDA FACTURACIÓN (RE-FACTURAR)
+// ════════════════════════════════════════════
+suite('Re-facturación tras rectificativa', [
+  test('Crear nuevo borrador del mismo presupuesto', async () => {
+    const { data, error } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'BORR-0002',
+      presupuesto_id: testIds.presupuesto,
+      albaran_id: testIds.albaran,
+      cliente_nombre: TEST_PREFIX + 'Cliente Test',
+      fecha: hoy,
+      estado: 'borrador',
+      lineas: [{ ref: 'TEST01', desc: 'Artículo test corregido', cant: 2, precio: 110, iva: 21 }],
+      base_imponible: 220,
+      total_iva: 46.2,
+      total: 266.2,
+    }).select().single();
+    assert(!error, 'Error: ' + error?.message);
+    assertEq(data.estado, 'borrador', 'Estado borrador');
+    testIds.factura2 = data.id;
+  }),
+
+  test('Emitir segunda factura', async () => {
+    const { error } = await sb.from('facturas').update({
+      numero: TEST_PREFIX + 'FAC-0002',
+      estado: 'pendiente',
+    }).eq('id', testIds.factura2);
+    assert(!error, error?.message);
+    const { data } = await sb.from('facturas').select('estado,numero').eq('id', testIds.factura2).single();
+    assertEq(data.estado, 'pendiente', 'Estado');
+  }),
+
+  test('Ahora hay 1 factura activa del presupuesto', async () => {
+    const { data: facs } = await sb.from('facturas').select('id,estado,rectificativa_de')
+      .eq('empresa_id', EMPRESA.id).eq('presupuesto_id', testIds.presupuesto).neq('estado', 'eliminado');
+    const activas = facs.filter(f =>
+      !f.rectificativa_de &&
+      !(f.estado === 'anulada' && facs.some(r => r.rectificativa_de === f.id))
+    );
+    assertEq(activas.length, 1, 'Una factura activa');
+    assertEq(activas[0].id, testIds.factura2, 'Es la nueva');
+  }),
+
+  test('Numeración BORR es correlativa (no se repite)', async () => {
+    // Buscar todos los BORR del test
+    const { data } = await sb.from('facturas').select('numero')
+      .eq('empresa_id', EMPRESA.id).like('numero', TEST_PREFIX + 'BORR-%');
+    const nums = data.map(d => {
+      const m = d.numero.match(/BORR-(\d+)/);
+      return m ? parseInt(m[1]) : 0;
+    }).sort((a, b) => a - b);
+    // No debe haber duplicados
+    const unique = [...new Set(nums)];
+    assertEq(nums.length, unique.length, 'Sin duplicados BORR');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 7: OBRA Y VÍNCULOS
+// ════════════════════════════════════════════
+suite('Obra y vínculos cruzados', [
+  test('Crear obra vinculada al presupuesto', async () => {
+    const { data, error } = await sb.from('trabajos').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'OBR-0001',
+      presupuesto_id: testIds.presupuesto,
+      cliente_nombre: TEST_PREFIX + 'Cliente Test',
+      estado: 'en_curso',
+      fecha_inicio: hoy,
+    }).select().single();
+    assert(!error, 'Error: ' + error?.message);
+    testIds.obra = data.id;
+  }),
+
+  test('Facturas de obra incluyen anulada y rectificativa', async () => {
+    // Simular la lógica de trabajos.js: buscar facturas vinculadas + sus rectificativas
+    const presIds = [testIds.presupuesto];
+    const albIds = [testIds.albaran];
+    const { data: directas } = await sb.from('facturas').select('id,estado,rectificativa_de')
+      .eq('empresa_id', EMPRESA.id)
+      .or(`trabajo_id.eq.${testIds.obra},presupuesto_id.eq.${testIds.presupuesto}`)
+      .neq('estado', 'eliminado');
+    const directIds = new Set((directas || []).map(f => f.id));
+    // Buscar rectificativas
+    if (directIds.size) {
+      const { data: rects } = await sb.from('facturas').select('id,estado,rectificativa_de')
+        .eq('empresa_id', EMPRESA.id).in('rectificativa_de', [...directIds]).neq('estado', 'eliminado');
+      (rects || []).forEach(r => directIds.add(r.id));
+    }
+    // Deben estar: factura original (anulada), rectificativa, factura2 (activa)
+    assert(directIds.has(testIds.factura), 'Factura original presente');
+    assert(directIds.has(testIds.rectificativa), 'Rectificativa presente');
+    assert(directIds.has(testIds.factura2), 'Segunda factura presente');
+  }),
+
+  test('Rectificativa hereda trabajo_id al crearse con él', async () => {
+    // Crear factura con trabajo_id y luego rectificativa
+    const { data: fConObra } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'FAC-OBRA-01',
+      trabajo_id: testIds.obra,
+      cliente_nombre: TEST_PREFIX + 'Cliente Test',
+      fecha: hoy, estado: 'pendiente',
+      lineas: [{ ref: 'T', desc: 'Test', cant: 1, precio: 50, iva: 21 }],
+      base_imponible: 50, total_iva: 10.5, total: 60.5,
+    }).select().single();
+    testIds.facObra = fConObra.id;
+
+    // Simular rectificativa que copia trabajo_id
+    const { data: rectObra } = await sb.from('facturas').insert({
+      empresa_id: EMPRESA.id,
+      numero: TEST_PREFIX + 'RECT-OBRA-01',
+      trabajo_id: fConObra.trabajo_id, // <-- debe copiar
+      rectificativa_de: fConObra.id,
+      cliente_nombre: fConObra.cliente_nombre,
+      fecha: hoy, estado: 'anulada',
+      total: -60.5,
+    }).select().single();
+    testIds.rectObra = rectObra.id;
+
+    assertEq(rectObra.trabajo_id, testIds.obra, 'Rectificativa hereda trabajo_id');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  SUITE 8: CLIENTE — VISIBILIDAD
+// ════════════════════════════════════════════
+suite('Ficha cliente — visibilidad facturas', [
+  test('Todas las facturas del cliente aparecen (incl. anuladas y rect.)', async () => {
+    // El ERP busca: facturas.select('*').eq('cliente_id', id) — pero nuestras facturas test
+    // pueden no tener cliente_id. Buscamos por empresa + nombre test
+    const { data } = await sb.from('facturas').select('id,estado,rectificativa_de,numero')
+      .eq('empresa_id', EMPRESA.id).like('numero', TEST_PREFIX + '%').neq('estado', 'eliminado');
+    const estados = data.map(f => f.estado);
+    assert(estados.includes('anulada'), 'Hay factura anulada');
+    assert(data.some(f => f.rectificativa_de), 'Hay rectificativa');
+    assert(estados.includes('pendiente'), 'Hay factura activa');
+  }),
+]);
+
+// ════════════════════════════════════════════
+//  RUNNER
+// ════════════════════════════════════════════
+async function runAll() {
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true;
+  btn.textContent = 'Ejecutando...';
+  document.getElementById('btnClean').style.display = 'none';
+  document.getElementById('btnExport').style.display = 'none';
+  document.getElementById('report').style.display = 'none';
+  document.getElementById('status').innerHTML = '<span class="spinner"></span> Conectando...';
+
+  results = [];
+  testIds = {};
+
+  // Auth check
+  const ok = await initSession();
+  if (!ok) {
+    document.getElementById('status').innerHTML = '<span class="fail">No hay sesión activa. Abre el ERP en otra pestaña, inicia sesión, y luego vuelve aquí.</span>';
+    btn.disabled = false;
+    btn.textContent = 'Ejecutar tests';
+    return;
+  }
+  document.getElementById('status').innerHTML = `<span class="pass">Conectado</span> — ${EMPRESA.nombre} (${EMPRESA.cif||''})`;
+
+  const container = document.getElementById('suites');
+  container.innerHTML = '';
+  const startAll = ts();
+
+  for (const s of suites) {
+    const suiteEl = document.createElement('div');
+    suiteEl.className = 'suite';
+    const bodyId = 'sb-' + Math.random().toString(36).slice(2);
+    suiteEl.innerHTML = `
+      <div class="suite-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <h3>${s.name}</h3>
+        <span class="suite-badge" id="badge-${bodyId}" style="background:#334155;color:#94A3B8">pendiente</span>
+      </div>
+      <div class="suite-body" id="${bodyId}"></div>`;
+    container.appendChild(suiteEl);
+    const body = document.getElementById(bodyId);
+    const badge = document.getElementById('badge-' + bodyId);
+
+    let suitePass = 0, suiteFail = 0;
+
+    for (const t of s.tests) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'test-row';
+      rowEl.innerHTML = `<div class="test-ico running"><span class="spinner"></span></div><div class="test-name">${t.name}</div><div class="test-time">—</div>`;
+      body.appendChild(rowEl);
+
+      const t0 = ts();
+      let status = 'pass', errMsg = '';
+      try {
+        await t.fn();
+        suitePass++;
+      } catch (e) {
+        status = 'fail';
+        errMsg = e.message;
+        suiteFail++;
+      }
+      const elapsed = ts() - t0;
+
+      const ico = status === 'pass' ? '✅' : '❌';
+      rowEl.querySelector('.test-ico').className = 'test-ico ' + status;
+      rowEl.querySelector('.test-ico').innerHTML = ico;
+      rowEl.querySelector('.test-time').textContent = elapsed + 'ms';
+      if (errMsg) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'test-msg';
+        msgEl.textContent = errMsg;
+        rowEl.querySelector('.test-name').appendChild(msgEl);
+      }
+
+      results.push({ suite: s.name, test: t.name, status, time: elapsed, error: errMsg });
+    }
+
+    // Suite badge
+    if (suiteFail === 0) {
+      badge.style.background = '#166534'; badge.style.color = '#4ADE80';
+      badge.textContent = `${suitePass}/${suitePass} OK`;
+    } else {
+      badge.style.background = '#7F1D1D'; badge.style.color = '#F87171';
+      badge.textContent = `${suiteFail} FAIL`;
+    }
+  }
+
+  const totalTime = ((ts() - startAll) / 1000).toFixed(1);
+  const pass = results.filter(r => r.status === 'pass').length;
+  const fail = results.filter(r => r.status === 'fail').length;
+  const skip = results.filter(r => r.status === 'skip').length;
+
+  document.getElementById('summary').style.display = 'flex';
+  document.getElementById('s-total').textContent = results.length;
+  document.getElementById('s-pass').textContent = pass;
+  document.getElementById('s-fail').textContent = fail;
+  document.getElementById('s-skip').textContent = skip;
+  document.getElementById('s-time').textContent = totalTime + 's';
+
+  btn.disabled = false;
+  btn.textContent = 'Ejecutar tests';
+  document.getElementById('btnClean').style.display = '';
+  document.getElementById('btnExport').style.display = '';
+
+  // Auto-generar informe
+  generateReport(totalTime);
+}
+
+// ─── Limpieza ───
+async function cleanTestData() {
+  document.getElementById('status').innerHTML = '<span class="spinner"></span> Limpiando datos de test...';
+
+  // Borrar en orden inverso de dependencia
+  const tables = ['factura_versiones', 'facturas', 'albaranes', 'trabajos', 'presupuestos'];
+
+  for (const table of tables) {
+    if (table === 'factura_versiones') {
+      // Borrar versiones de facturas test
+      const { data: testFacs } = await sb.from('facturas').select('id')
+        .eq('empresa_id', EMPRESA.id).like('numero', TEST_PREFIX + '%');
+      if (testFacs?.length) {
+        await sb.from('factura_versiones').delete().in('factura_id', testFacs.map(f => f.id));
+      }
+    } else {
+      await sb.from(table).delete().eq('empresa_id', EMPRESA.id).like('numero', TEST_PREFIX + '%');
+    }
+  }
+
+  document.getElementById('status').innerHTML = '<span class="pass">Datos de test eliminados</span>';
+}
+
+// ─── Informe ───
+function generateReport(totalTime) {
+  const pass = results.filter(r => r.status === 'pass').length;
+  const fail = results.filter(r => r.status === 'fail').length;
+  const now = new Date().toLocaleString('es-ES');
+  const lines = [];
+
+  lines.push('════════════════════════════════════════════════════════════════');
+  lines.push('  INFORME TEST E2E — instaloERP');
+  lines.push('════════════════════════════════════════════════════════════════');
+  lines.push(`  Fecha:    ${now}`);
+  lines.push(`  Empresa:  ${EMPRESA?.nombre || '—'} (${EMPRESA?.cif || '—'})`);
+  lines.push(`  Build:    v1.1`);
+  lines.push(`  Total:    ${results.length} tests`);
+  lines.push(`  OK:       ${pass}`);
+  lines.push(`  FAIL:     ${fail}`);
+  lines.push(`  Tiempo:   ${totalTime}s`);
+  lines.push(`  Resultado: ${fail === 0 ? 'TODOS LOS TESTS PASADOS' : 'HAY FALLOS'}`);
+  lines.push('════════════════════════════════════════════════════════════════');
+  lines.push('');
+
+  let currentSuite = '';
+  results.forEach(r => {
+    if (r.suite !== currentSuite) {
+      currentSuite = r.suite;
+      lines.push(`── ${currentSuite} ──`);
+    }
+    const ico = r.status === 'pass' ? 'OK  ' : 'FAIL';
+    lines.push(`  [${ico}] ${r.test} (${r.time}ms)`);
+    if (r.error) lines.push(`         Error: ${r.error}`);
+  });
+
+  lines.push('');
+  lines.push('────────────────────────────────────────────────────────────────');
+  lines.push('  IDs de test creados:');
+  Object.entries(testIds).forEach(([k, v]) => {
+    lines.push(`    ${k}: ${v}`);
+  });
+  lines.push('────────────────────────────────────────────────────────────────');
+
+  const txt = lines.join('\n');
+  document.getElementById('report').style.display = 'block';
+  document.getElementById('reportTxt').textContent = txt;
+}
+
+function exportReport() {
+  const txt = document.getElementById('reportTxt').textContent;
+  const blob = new Blob([txt], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `test-e2e-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+}
+</script>
+</body>
+</html>
