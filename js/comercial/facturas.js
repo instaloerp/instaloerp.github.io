@@ -100,8 +100,15 @@ function renderFacturas(list) {
 
   tbody.innerHTML = list.length ? list.map(f => {
     const est = ESTADOS[f.estado] || { label: f.estado || '—', ico:'❔', color:'var(--gris-400)', bg:'var(--gris-100)' };
-    return `<tr style="cursor:pointer" onclick="verDetalleFactura(${f.id})">
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (f.numero || '—')}</td>
+    // ¿Tiene rectificativa asociada? → bloqueada
+    const tieneRect = facLocalData.some(r => r.rectificativa_de === f.id);
+    const esRect = !!f.rectificativa_de;
+    const bloqueada = tieneRect && f.estado === 'anulada';
+    const rowStyle = bloqueada ? 'cursor:pointer;background:rgba(239,68,68,0.08);color:#991B1B' : 'cursor:pointer';
+    const lockBadge = bloqueada ? '<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700" title="Factura rectificada">🔒 Rectificada</span>' : '';
+
+    return `<tr style="${rowStyle}" onclick="verDetalleFactura(${f.id})">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (f.numero || '—')}${lockBadge}</td>
       <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
       <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-size:12px">${f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
@@ -116,7 +123,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
+          ${!bloqueada && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
             const _tA = !!f.albaran_id;
@@ -126,6 +133,7 @@ function renderFacturas(list) {
             if (_tP) refs += '<a onclick="event.stopPropagation();verDetallePresupuesto('+f.presupuesto_id+')" style="'+_bOK+'" title="Ver presupuesto origen">📋</a> ';
             if (_tA) refs += '<a onclick="event.stopPropagation();verDetalleAlbaran('+f.albaran_id+')" style="'+_bOK+'" title="Ver albarán origen">📄</a> ';
             if (_tO) refs += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+f.trabajo_id+')" style="'+_bOK+'" title="Ver obra">🏗️</a> ';
+            if (tieneRect) { const _r = facLocalData.find(r=>r.rectificativa_de===f.id); refs += '<a onclick="event.stopPropagation();verDetalleFactura('+(_r?_r.id:0)+')" style="padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none" title="Ver rectificativa">📝 '+(_r?_r.numero:'RECT')+'</a> '; }
             return refs;
           })()}
         </div>
@@ -145,6 +153,8 @@ function filtrarFacturas() {
   const des  = document.getElementById('fDesde')?.value || '';
   const has  = document.getElementById('fHasta')?.value || '';
   facFiltrados = facLocalData.filter(f => {
+    // Excluir rectificativas del listado principal (van a su pestaña)
+    if (f.rectificativa_de) return false;
     // Filtro de estado
     if (est === '_todas') {
       if (f.estado === 'anulada') return false; // Excluir anuladas
@@ -1100,4 +1110,54 @@ async function _generarPdfFactura(f, opts) {
       }
     } catch(e){ console.warn('No se pudo firmar copia factura:', e); }
   }
+}
+
+// ═══════════════════════════════════════════════
+//  PESTAÑA RECTIFICATIVAS
+// ═══════════════════════════════════════════════
+async function loadRectificativas() {
+  // Reusar datos de facturas si ya están cargados
+  if (!facLocalData.length) {
+    const { data } = await sb.from('facturas')
+      .select('*').eq('empresa_id', EMPRESA.id)
+      .neq('estado', 'eliminado')
+      .order('created_at', { ascending: false });
+    facLocalData = data || [];
+    window.facturasData = facLocalData;
+  }
+  renderRectificativas();
+}
+
+function renderRectificativas() {
+  const rects = facLocalData.filter(f => !!f.rectificativa_de);
+  const tbody = document.getElementById('rectTable');
+  if (!tbody) return;
+
+  // KPIs
+  const kTotal = document.getElementById('rk-total');
+  const kImporte = document.getElementById('rk-importe');
+  if (kTotal) kTotal.textContent = rects.length;
+  if (kImporte) kImporte.textContent = fmtE(rects.reduce((s, f) => s + Math.abs(f.total || 0), 0));
+
+  tbody.innerHTML = rects.length ? rects.map(f => {
+    const origFac = facLocalData.find(x => x.id === f.rectificativa_de);
+    const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
+    return `<tr style="cursor:pointer" onclick="verDetalleFactura(${f.id})">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${f.numero || '—'}</td>
+      <td style="font-size:12px">${fecha}</td>
+      <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
+      <td style="font-size:12px">
+        <a onclick="event.stopPropagation();verDetalleFactura(${f.rectificativa_de})" style="color:#991B1B;font-weight:700;cursor:pointer;text-decoration:underline">${origFac ? origFac.numero : 'FAC-' + f.rectificativa_de}</a>
+      </td>
+      <td style="text-align:right;font-weight:700;color:#991B1B">${fmtE(f.total || 0)}</td>
+      <td style="font-size:12px;color:var(--gris-400)">${f.observaciones || ''}</td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:3px">
+          <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
+          <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') :
+  '<tr><td colspan="7"><div class="empty"><div class="ei">📝</div><h3>Sin rectificativas</h3><p>Las facturas rectificativas aparecerán aquí al crearlas desde una factura original</p></div></td></tr>';
 }

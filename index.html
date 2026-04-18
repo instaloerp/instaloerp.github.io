@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 36</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 37</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -192,6 +192,7 @@ try {
         <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
         <button class="sb-item" onclick="goPage('albaranes')"><span class="ico">📄</span> Albaranes</button>
         <button class="sb-item" onclick="goPage('facturas')"><span class="ico">🧾</span> Facturas</button>
+        <button class="sb-item" onclick="goPage('rectificativas')"><span class="ico">📝</span> Rectificativas</button>
       </div>
 
       <!-- COMPRAS -->
@@ -1018,6 +1019,31 @@ try {
                 </tr>
               </thead>
               <tbody id="fTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- RECTIFICATIVAS -->
+      <div class="page" id="page-rectificativas">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px">
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">📝</div><div class="sv" id="rk-total">—</div><div class="sl">Rectificativas</div></div>
+          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">💶</div><div class="sv" id="rk-importe">—</div><div class="sl">Importe total</div></div>
+        </div>
+        <div class="card">
+          <div class="tw">
+            <table class="dt">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Factura original</th>
+                  <th>Total</th>
+                  <th>Observaciones</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="rectTable"></tbody>
             </table>
           </div>
         </div>

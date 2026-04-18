@@ -266,6 +266,7 @@ const _permisosPagina = {
   'presupuestos': 'presupuestos',
   'albaranes': 'facturas',
   'facturas': 'facturas',
+  'rectificativas': 'facturas',
   'proveedores': 'clientes',
   'presupuestos-compra': 'presupuestos',
   'pedidos-compra': 'presupuestos',
@@ -393,6 +394,7 @@ function goPage(id, opts){
   if(id==='presupuestos') loadPresupuestos();
   if(id==='albaranes') loadAlbaranes();
   if(id==='facturas') loadFacturas();
+  if(id==='rectificativas' && typeof loadRectificativas==='function') loadRectificativas();
   if(id==='fichajes') loadFichajes();
   if(id==='laboratorio' && typeof loadLaboratorio==='function') loadLaboratorio();
   if(id==='partes') loadPartes();
