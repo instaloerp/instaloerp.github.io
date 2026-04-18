@@ -336,39 +336,32 @@ function de_entrarEdicionFactura() {
 }
 
 async function _snapshotBorradorFactura(cfg) {
-  toast('📸 Guardando snapshot...', 'info');
+  // Mismo patrón que de_entrarEdicion() — probado y funcional en presupuestos
   const vTabla = cfg.versionesTabla;
   const vFk = cfg.versionesFk;
-  console.log('_snapshot: tabla=' + cfg.tabla + ' editId=' + cfg.editId + ' vTabla=' + vTabla + ' vFk=' + vFk);
+  const tableOk = await de_ensureVersionTable(vTabla, true);
+  if (!tableOk) { toast('⚠️ Tabla ' + vTabla + ' no encontrada', 'error'); return; }
 
-  const { data: current, error: errCurr } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
-  if (errCurr) { toast('❌ Error leyendo factura: ' + errCurr.message, 'error'); return; }
-  if (!current) { toast('❌ No se encontró la factura id=' + cfg.editId, 'error'); return; }
-  console.log('_snapshot: factura leída OK, empresa_id=' + current.empresa_id);
+  const { data: current } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
+  if (!current) { toast('⚠️ No se pudo leer la factura', 'error'); return; }
 
-  const { data: versExist, error: errVers } = await sb.from(vTabla)
-    .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
-  if (errVers) { toast('❌ Error leyendo versiones: ' + errVers.message, 'error'); return; }
-  const maxVer = (versExist && versExist.length) ? versExist[0].version : -1;
-  const verGuardar = maxVer + 1;
-  console.log('_snapshot: maxVer=' + maxVer + ' verGuardar=' + verGuardar);
-
-  const { data: yaExiste } = await sb.from(vTabla)
-    .select('id').eq(vFk, cfg.editId).eq('version', verGuardar).limit(1);
-  if (yaExiste && yaExiste.length) {
-    cfg._version = verGuardar + 1;
-    toast('ℹ️ Versión v' + verGuardar + ' ya existía', 'info');
-    return;
+  const ver = current.version || cfg._version || 1;
+  const { count } = await sb.from(vTabla)
+    .select('id', { count: 'exact', head: true })
+    .eq(vFk, cfg.editId)
+    .eq('version', ver);
+  if (!count || count === 0) {
+    const insertData = { version: ver };
+    insertData[vFk] = cfg.editId;
+    insertData.snapshot = current;
+    insertData.empresa_id = current.empresa_id || EMPRESA.id;
+    insertData.usuario_id = USER?.id || null;
+    insertData.usuario_nombre = USER?.nombre || USER?.email || null;
+    const { error: insErr } = await sb.from(vTabla).insert(insertData);
+    if (insErr) { toast('❌ Error versión: ' + insErr.message, 'error'); return; }
+    toast('✅ Versión v' + ver + ' guardada', 'success');
   }
-
-  const insertData = { version: verGuardar, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
-    usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
-  insertData[vFk] = cfg.editId;
-  console.log('_snapshot: insertando en ' + vTabla, JSON.stringify(Object.keys(insertData)));
-  const { error: insErr } = await sb.from(vTabla).insert(insertData);
-  if (insErr) { toast('❌ Error guardando versión: ' + insErr.message, 'error'); return; }
-  toast('✅ Versión v' + verGuardar + ' guardada', 'success');
-  cfg._version = verGuardar + 1;
+  cfg._version = ver + 1;
 }
 
 async function de_entrarEdicion() {
@@ -1307,13 +1300,13 @@ function de_renderLineas() {
 
 // ═══ VERSIONING ═══
 const _versionTableCache = {};
-async function de_ensureVersionTable(tableName) {
+async function de_ensureVersionTable(tableName, forceRecheck) {
   const tbl = tableName || 'presupuesto_versiones';
-  if (_versionTableCache[tbl] !== undefined) return _versionTableCache[tbl];
+  if (!forceRecheck && _versionTableCache[tbl] !== undefined) return _versionTableCache[tbl];
   try {
     const { error } = await sb.from(tbl).select('id').limit(1);
     _versionTableCache[tbl] = !error;
-    if (error) console.warn('⚠️ Tabla '+tbl+' no existe.');
+    if (error) console.warn('⚠️ Tabla '+tbl+' no accesible:', error.message);
   } catch(e) {
     _versionTableCache[tbl] = false;
   }
