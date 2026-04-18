@@ -684,8 +684,8 @@ async function presToFactura(id) {
     const _albsP = _aD.filter(a=>a.presupuesto_id===p.id);
     const yaFacturado = _fD.some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>_fD.some(f=>f.albaran_id===a.id));
     if (yaFacturado) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
-    if (!confirm('¿Convertir el presupuesto '+p.numero+' en factura?')) return;
-    const numero = await generarNumeroDoc('factura');
+    if (!confirm('¿Crear borrador de factura desde '+p.numero+'?')) return;
+    const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
     // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
@@ -696,7 +696,7 @@ async function presToFactura(id) {
       fecha: hoy.toISOString().split('T')[0],
       fecha_vencimiento: v.toISOString().split('T')[0],
       base_imponible: p.base_imponible, total_iva: p.total_iva, total: p.total,
-      estado: 'pendiente', observaciones: p.observaciones, lineas: p.lineas,
+      estado: 'borrador', observaciones: p.observaciones, lineas: p.lineas,
       presupuesto_id: p.id,
       ...(_obraVinc ? {trabajo_id: _obraVinc.id} : {}),
     });
@@ -716,7 +716,7 @@ async function presToFactura(id) {
     window.albaranesData = albRefresh2||[];
     filtrarPresupuestos();
     closeModal('mPresDetalle');
-    toast('✅ Factura creada','success');
+    toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo','success');
     loadDashboard();
     // Refrescar ficha de obra si está abierta
     { const _pg = document.querySelector('.page.active')?.id; if (_pg === 'page-trabajos' && typeof obraActualId !== 'undefined' && obraActualId && typeof abrirFichaObra === 'function') abrirFichaObra(obraActualId); }

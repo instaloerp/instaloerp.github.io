@@ -177,8 +177,8 @@ async function albaranToFactura(id) {
     // Comprobar si ya tiene factura
     const _fD4 = window.facturasData || [];
     if (_fD4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fD4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
-    if (!confirm('¿Convertir el albarán '+a.numero+' en factura?')) return;
-    const numero = await generarNumeroDoc('factura');
+    if (!confirm('¿Crear borrador de factura desde el albarán '+a.numero+'?')) return;
+    const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Asignar trabajo_id si el albarán pertenece a una obra
     const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
@@ -188,7 +188,7 @@ async function albaranToFactura(id) {
       fecha: hoy.toISOString().split('T')[0],
       fecha_vencimiento: v.toISOString().split('T')[0],
       base_imponible: a.total||0, total_iva: 0, total: a.total||0,
-      estado: 'pendiente', observaciones: a.observaciones,
+      estado: 'borrador', observaciones: a.observaciones,
       lineas: a.lineas, albaran_id: a.id,
       presupuesto_id: a.presupuesto_id || null,
       ...(_trabVinc ? {trabajo_id: _trabVinc} : {}),
@@ -202,7 +202,7 @@ async function albaranToFactura(id) {
     window.facturasData = facRefresh||[];
     filtrarAlbaranes();
     closeModal('mAbDetalle');
-    toast('✅ Factura creada — albarán marcado como facturado','success');
+    toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo','success');
     loadDashboard();
     // Refrescar ficha de obra si está abierta y estamos en la página de obras
     const _pg1 = document.querySelector('.page.active')?.id;
@@ -366,7 +366,7 @@ async function facturarAlbaranesMulti() {
       });
     });
 
-    const numero = await generarNumeroDoc('factura');
+    const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
 
     const { error } = await sb.from('facturas').insert({
@@ -376,7 +376,7 @@ async function facturarAlbaranesMulti() {
       fecha_vencimiento: v.toISOString().split('T')[0],
       base_imponible: Math.round(totalGlobal * 100) / 100,
       total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
-      estado: 'pendiente',
+      estado: 'borrador',
       observaciones: `Factura agrupada: ${nums}`,
       lineas: lineasTodas,
       albaran_ids: ids,
@@ -390,7 +390,7 @@ async function facturarAlbaranesMulti() {
       if (ab) { ab.estado = 'facturado'; }
     }
     renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
-    toast(`✅ Factura ${numero} creada con ${albs.length} albaranes`, 'success');
+    toast(`✅ Borrador ${numero} creado con ${albs.length} albaranes — revísalo y emítelo`, 'success');
     loadDashboard();
   } finally {
     _creando = false;

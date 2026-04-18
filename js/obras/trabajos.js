@@ -2623,9 +2623,9 @@ async function obraPresToFactura(presId) {
   const _aD4 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
   const _albsP2 = _aD4.filter(a=>a.presupuesto_id===p.id);
   if (_fD2.some(f=>f.presupuesto_id===p.id) || _albsP2.some(a=>_fD2.some(f=>f.albaran_id===a.id))) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
-  if (!confirm(`¿Crear factura desde ${p.numero}?`)) return;
+  if (!confirm(`¿Crear borrador de factura desde ${p.numero}?`)) return;
 
-  const numero = await generarNumeroDoc('factura');
+  const numero = await _generarNumeroBorrador();
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
 
   const { error } = await sb.from('facturas').insert({
@@ -2634,7 +2634,7 @@ async function obraPresToFactura(presId) {
     fecha: hoy.toISOString().split('T')[0],
     fecha_vencimiento: v.toISOString().split('T')[0],
     base_imponible: p.base_imponible, total_iva: p.total_iva, total: p.total,
-    estado: 'pendiente', observaciones: p.observaciones, lineas: p.lineas,
+    estado: 'borrador', observaciones: p.observaciones, lineas: p.lineas,
     presupuesto_id: p.id,
     trabajo_id: obraActualId,
   });
@@ -2650,8 +2650,8 @@ async function obraPresToFactura(presId) {
   window.facturasData = _fR2||[];
   const {data:_aR2} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.albaranesData = _aR2||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR2||[];
-  await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde presupuesto ${p.numero}`);
-  toast('🧾 Factura creada', 'success');
+  await registrarActividadObra(obraActualId, 'Borrador factura creado', `🧾 ${numero} desde presupuesto ${p.numero}`);
+  toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo', 'success');
   abrirFichaObra(obraActualId, false);
 }
 
@@ -2662,9 +2662,9 @@ async function obraAlbToFactura(albId) {
   // Comprobar si ya tiene factura
   const _fD3 = window.facturasData || [];
   if (_fD3.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
-  if (!confirm(`¿Crear factura desde ${a.numero}?`)) return;
+  if (!confirm(`¿Crear borrador de factura desde ${a.numero}?`)) return;
 
-  const numero = await generarNumeroDoc('factura');
+  const numero = await _generarNumeroBorrador();
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
 
   const { error } = await sb.from('facturas').insert({
@@ -2673,7 +2673,7 @@ async function obraAlbToFactura(albId) {
     fecha: hoy.toISOString().split('T')[0],
     fecha_vencimiento: v.toISOString().split('T')[0],
     base_imponible: a.total || 0, total_iva: 0, total: a.total || 0,
-    estado: 'pendiente', observaciones: a.observaciones,
+    estado: 'borrador', observaciones: a.observaciones,
     lineas: a.lineas, albaran_id: a.id,
     trabajo_id: obraActualId,
   });
@@ -2684,8 +2684,8 @@ async function obraAlbToFactura(albId) {
   window.facturasData = _fR3||[];
   const {data:_aR3} = await sb.from('albaranes').select('*').eq('empresa_id',EMPRESA.id).neq('estado','eliminado').order('created_at',{ascending:false});
   window.albaranesData = _aR3||[]; if (typeof albaranesData!=='undefined') albaranesData = _aR3||[];
-  await registrarActividadObra(obraActualId, 'Factura creada', `🧾 ${numero} desde albarán ${a.numero}`);
-  toast('🧾 Factura creada', 'success');
+  await registrarActividadObra(obraActualId, 'Borrador factura creado', `🧾 ${numero} desde albarán ${a.numero}`);
+  toast('✅ Borrador de factura creado — revísalo y emítelo cuando esté listo', 'success');
   abrirFichaObra(obraActualId, false);
 }
 
@@ -2717,7 +2717,7 @@ async function obraFacturarTodosAlb() {
     });
   });
 
-  const numero = await generarNumeroDoc('factura');
+  const numero = await _generarNumeroBorrador();
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
   const { error } = await sb.from('facturas').insert({
     empresa_id: EMPRESA.id, numero,
@@ -2726,7 +2726,7 @@ async function obraFacturarTodosAlb() {
     fecha_vencimiento: v.toISOString().split('T')[0],
     base_imponible: Math.round(totalGlobal * 100) / 100,
     total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
-    estado: 'pendiente',
+    estado: 'borrador',
     observaciones: `Factura agrupada obra: ${nums}`,
     lineas: lineasTodas,
     albaran_ids: albs.map(a => a.id),
@@ -2739,7 +2739,7 @@ async function obraFacturarTodosAlb() {
     await sb.from('albaranes').update({ estado: 'facturado' }).eq('id', a.id);
   }
   await registrarActividadObra(obraActualId, 'Factura agrupada creada', `🧾 ${numero} agrupando ${albs.length} albarán(es): ${nums}`);
-  toast(`✅ Factura ${numero} creada con ${albs.length} albarán${albs.length > 1 ? 'es' : ''}`, 'success');
+  toast(`✅ Borrador ${numero} creado con ${albs.length} albarán${albs.length > 1 ? 'es' : ''} — revísalo y emítelo`, 'success');
   abrirFichaObra(obraActualId, false); // Refrescar
 }
 
