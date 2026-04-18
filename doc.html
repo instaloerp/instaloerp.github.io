@@ -6,47 +6,29 @@
 <title>Documento</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
-.container{max-width:780px;margin:0 auto;padding:20px}
-.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:24px;margin-bottom:16px}
-.header{text-align:center;margin-bottom:16px}
-.header h1{font-size:20px;color:#1e40af;margin-bottom:4px}
-.header p{font-size:13px;color:#64748b}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-.info-item{background:#f8fafc;border-radius:8px;padding:12px}
-.info-label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px}
-.info-value{font-size:14px;font-weight:700}
-table{width:100%;border-collapse:collapse;margin:12px 0}
-th{background:#f1f5f9;padding:8px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
-td{padding:8px 10px;border-top:1px solid #e2e8f0;font-size:13px}
-.total-row{background:#f0f9ff;font-weight:800;font-size:16px}
-.cap-row{background:#eff6ff;font-weight:700;color:#1e40af;font-size:13px}
-.btn{padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .2s}
-.btn-blue{background:#3b82f6;color:#fff}.btn-blue:hover{background:#2563eb}
-.btn-gray{background:#e2e8f0;color:#475569}.btn-gray:hover{background:#cbd5e1}
-.toolbar{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
-.error{text-align:center;padding:60px 20px;color:#ef4444}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#f1f5f9;min-height:100vh;margin:0}
 .loading{text-align:center;padding:60px 20px;color:#64748b}
-.tipo-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
-.tipo-factura{background:#dcfce7;color:#15803d}
-.tipo-albaran{background:#fef3c7;color:#92400e}
-@media print {
+.error{text-align:center;padding:60px 20px;color:#ef4444}
+.toolbar{display:flex;gap:8px;justify-content:center;padding:16px;flex-wrap:wrap}
+.btn{padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .2s}
+.btn-blue{background:#1e40af;color:#fff}.btn-blue:hover{background:#1e3a8a}
+#doc-container{max-width:210mm;margin:0 auto}
+@media print{
   body{background:#fff}
   .toolbar,.no-print{display:none!important}
-  .card{box-shadow:none;border:1px solid #e2e8f0}
-  .container{padding:0}
 }
-@media(max-width:600px){.info-grid{grid-template-columns:1fr}.container{padding:12px}}
 </style>
 </head>
 <body>
-<div class="container" id="app">
+<div id="app">
   <div class="loading">
     <div style="font-size:32px;margin-bottom:12px">⏳</div>
     <p>Cargando documento...</p>
   </div>
 </div>
+
+<!-- Carga el renderer unificado (mismo que usa el ERP) -->
+<script src="js/comercial/html-documento.js"></script>
 
 <script>
 const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
@@ -60,17 +42,66 @@ function showError(msg) {
   document.getElementById('app').innerHTML = `<div class="error"><div style="font-size:48px;margin-bottom:12px">❌</div><h2>${msg}</h2><p style="color:#64748b;margin-top:8px">Contacte con la empresa que le envió el enlace.</p></div>`;
 }
 
-function fmtE(n) { return (n||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' \u20ac'; }
-function fmtD(s) { return s ? new Date(s).toLocaleDateString('es-ES') : '—'; }
+function fmtD(s){ return s ? new Date(s).toLocaleDateString('es-ES') : '—'; }
+
+// Simula window.EMPRESA a partir de los campos emp_* de la vista
+function setEmpresaFromView(d) {
+  window.EMPRESA = {
+    nombre:       d.emp_nombre || '',
+    razon_social: d.emp_razon || '',
+    cif:          d.emp_cif || '',
+    direccion:    d.emp_direccion || '',
+    cp:           d.emp_cp || '',
+    municipio:    d.emp_municipio || '',
+    provincia:    d.emp_provincia || '',
+    telefono:     d.emp_telefono || '',
+    email:        d.emp_email || '',
+    logo_url:     d.emp_logo || ''
+  };
+}
+
+// Construye el objeto cfg que espera _buildHtmlDocumento
+function buildCfg(tipo, d) {
+  const cfg = {
+    tipo: tipo,
+    numero: d.numero || '',
+    fecha: d.fecha,
+    cliente: {
+      nombre:    d.cli_nombre || '',
+      nif:       d.cli_nif || '',
+      direccion: d.cli_direccion || ''
+    },
+    lineas:         d.lineas || [],
+    base_imponible: d.base_imponible,
+    total_iva:      d.total_iva,
+    total:          d.total,
+    observaciones:  d.observaciones || d.notas || '',
+    firma_zona:     false,
+    datos_extra:    []
+  };
+
+  if (d.serie) cfg.datos_extra.push(['Serie', d.serie]);
+  if (tipo === 'FACTURA' && d.fecha_vencimiento) {
+    cfg.datos_extra.push(['Vencimiento', fmtD(d.fecha_vencimiento)]);
+  }
+  if (d.retencion) cfg.datos_extra.push(['Retención', d.retencion + ' €']);
+
+  // VeriFactu
+  if (d.verifactu_qr_url) cfg.verifactu_qr_url = d.verifactu_qr_url;
+  if (d.verifactu_csv) cfg.verifactu_csv = d.verifactu_csv;
+  if (d.verifactu_estado) cfg.verifactu_estado = d.verifactu_estado;
+
+  return cfg;
+}
 
 async function init() {
   if (!token) { showError('Enlace no válido'); return; }
 
-  // 1) Factura (vista pública con empresa+cliente snapshot)
+  // 1) Factura
   const { data: fac } = await sb.from('vista_factura_publica').select('*').eq('acceso_token', token).maybeSingle();
   if (fac) {
     document.title = 'Factura ' + (fac.numero || '');
-    renderDoc('factura', fac);
+    renderDoc('FACTURA', fac);
     return;
   }
 
@@ -78,11 +109,11 @@ async function init() {
   const { data: alb } = await sb.from('vista_albaran_publico').select('*').eq('acceso_token', token).maybeSingle();
   if (alb) {
     document.title = 'Albarán ' + (alb.numero || '');
-    renderDoc('albaran', alb);
+    renderDoc('ALBARÁN', alb);
     return;
   }
 
-  // 3) Presupuesto (compat con firma.html)
+  // 3) Presupuesto → redirige a firma.html
   const { data: pres } = await sb.from('presupuestos').select('id').eq('firma_token', token).maybeSingle();
   if (pres) { location.replace('firma.html?token=' + token); return; }
 
@@ -90,80 +121,28 @@ async function init() {
 }
 
 function renderDoc(tipo, d) {
-  const titulo = tipo === 'factura' ? 'FACTURA' : 'ALBARÁN';
-  const lineas = d.lineas || [];
-  let lineasHtml = '';
-  lineas.forEach(l => {
-    if (l.tipo === 'capitulo' || l.tipo === 'subcapitulo') {
-      lineasHtml += `<tr class="cap-row"><td colspan="4">${l.tipo==='subcapitulo'?'&nbsp;&nbsp;':''}${l.titulo||''}</td></tr>`;
-      return;
-    }
-    const sub = (l.cant||0)*(l.precio||0)*(1-((l.dto||0)/100));
-    lineasHtml += `<tr><td>${l.desc||''}</td><td style="text-align:right">${l.cant||0}</td><td style="text-align:right">${fmtE(l.precio||0)}</td><td style="text-align:right;font-weight:700">${fmtE(sub)}</td></tr>`;
-  });
+  // 1) Simular EMPRESA global
+  setEmpresaFromView(d);
 
-  const empLoc = [d.emp_cp, d.emp_municipio, d.emp_provincia].filter(Boolean).join(', ');
-  const empContact = [d.emp_telefono ? 'Tel: '+d.emp_telefono : '', d.emp_email].filter(Boolean).join(' · ');
-  const ref = d.titulo || d.referencia || '—';
+  // 2) Construir cfg
+  const cfg = buildCfg(tipo, d);
 
+  // 3) Generar HTML con el renderer unificado
+  const htmlDoc = window._buildHtmlDocumento(cfg);
+
+  // 4) Extraer solo el contenido del <body>
+  const tmp = document.createElement('div');
+  tmp.innerHTML = htmlDoc;
+  const bodyContent = tmp.querySelector('.doc');
+  const styleNode = tmp.querySelector('style');
+
+  // 5) Montar en la página
   document.getElementById('app').innerHTML = `
     <div class="toolbar no-print">
       <button class="btn btn-blue" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
     </div>
-    <div class="card header">
-      ${d.emp_logo ? `<img src="${d.emp_logo}" alt="" style="max-height:60px;margin-bottom:8px">` : ''}
-      <h1>${d.emp_nombre||'Empresa'}</h1>
-      <p>${d.emp_razon||''}${d.emp_cif?' · CIF: '+d.emp_cif:''}</p>
-      ${d.emp_direccion ? `<p>${d.emp_direccion}${empLoc?', '+empLoc:''}</p>` : ''}
-      ${empContact ? `<p>${empContact}</p>` : ''}
-    </div>
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div>
-          <span class="tipo-badge tipo-${tipo}">${titulo}</span>
-          <div style="font-size:22px;font-weight:800;color:#1e40af;margin-top:4px">${d.numero||''}${d.serie?' · '+d.serie:''}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:11px;color:#94a3b8">FECHA</div>
-          <div style="font-weight:700">${fmtD(d.fecha)}</div>
-          ${tipo==='factura' && d.fecha_vencimiento ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px">VENCIMIENTO</div><div style="font-weight:700">${fmtD(d.fecha_vencimiento)}</div>` : ''}
-        </div>
-      </div>
-      <div class="info-grid">
-        <div class="info-item">
-          <div class="info-label">Cliente</div>
-          <div class="info-value">${d.cli_nombre || '—'}</div>
-          ${d.cli_nif ? `<div style="font-size:12px;color:#64748b">${d.cli_nif}</div>` : ''}
-          ${d.cli_direccion ? `<div style="font-size:12px;color:#64748b;margin-top:3px">${d.cli_direccion}</div>` : ''}
-        </div>
-        <div class="info-item">
-          <div class="info-label">Referencia</div>
-          <div class="info-value">${ref}</div>
-          ${d.direccion_obra_texto ? `<div style="font-size:12px;color:#64748b;margin-top:3px">📍 ${d.direccion_obra_texto}</div>` : ''}
-        </div>
-      </div>
-      <table>
-        <thead><tr><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th></tr></thead>
-        <tbody>${lineasHtml || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sin líneas</td></tr>'}</tbody>
-      </table>
-      <table><tbody>
-        <tr><td style="text-align:right;color:#64748b">Base imponible</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(d.base_imponible||0)}</td></tr>
-        <tr><td style="text-align:right;color:#64748b">IVA</td><td style="text-align:right;font-weight:700;width:140px">${fmtE(d.total_iva||0)}</td></tr>
-        ${d.retencion ? `<tr><td style="text-align:right;color:#64748b">Retención</td><td style="text-align:right;font-weight:700;width:140px">−${fmtE(d.retencion)}</td></tr>` : ''}
-        <tr class="total-row"><td style="text-align:right">TOTAL</td><td style="text-align:right;width:140px">${fmtE(d.total||0)}</td></tr>
-      </tbody></table>
-      ${(d.observaciones || d.notas) ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b">${d.observaciones || d.notas}</div>` : ''}
-      ${tipo === 'factura' && d.verifactu_qr_url && d.verifactu_estado === 'correcto' ? `
-      <div style="margin-top:16px;padding:14px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:center;gap:16px">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(d.verifactu_qr_url)}" style="width:80px;height:80px" alt="QR VeriFactu">
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">Factura verificable — VeriFactu</div>
-          <div style="font-size:11px;color:#64748b">Esta factura ha sido registrada en la AEAT.${d.verifactu_csv ? ' CSV: '+d.verifactu_csv : ''}</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Escanee el código QR para verificar en la Agencia Tributaria.</div>
-        </div>
-      </div>` : ''}
-    </div>
-    <div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">Documento generado por ${d.emp_nombre||'el ERP'} · enlace privado</div>
+    ${styleNode ? '<style>' + styleNode.textContent + '</style>' : ''}
+    <div id="doc-container">${bodyContent ? bodyContent.outerHTML : ''}</div>
   `;
 }
 
