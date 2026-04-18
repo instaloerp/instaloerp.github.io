@@ -11,6 +11,7 @@ let facLocalData = [];
 let facFiltrados = [];
 let frLineas = [];
 let frClienteActual = null;
+let _facVerMap = {};  // { factura_id: maxVersion } — pre-cargado en loadFacturas
 
 // ═══════════════════════════════════════════════
 //  CARGA Y RENDERIZADO
@@ -22,6 +23,22 @@ async function loadFacturas() {
     .order('created_at', { ascending: false });
   facLocalData = data || [];
   window.facturasData = facLocalData;
+
+  // Pre-cargar versiones de borradores para mostrar badge en listado
+  _facVerMap = {};
+  const borrIds = facLocalData.filter(f => f.estado === 'borrador').map(f => f.id);
+  if (borrIds.length) {
+    const { data: verRows } = await sb.from('factura_versiones')
+      .select('factura_id, version').in('factura_id', borrIds)
+      .order('version', { ascending: false });
+    if (verRows) {
+      verRows.forEach(r => {
+        if (!_facVerMap[r.factura_id] || r.version > _facVerMap[r.factura_id])
+          _facVerMap[r.factura_id] = r.version;
+      });
+    }
+  }
+
   // Poblar selector de año con los años presentes en las facturas
   const anioSel = document.getElementById('fAnio');
   if (anioSel) {
@@ -107,8 +124,13 @@ function renderFacturas(list) {
     const rowStyle = bloqueada ? 'cursor:pointer;background:rgba(239,68,68,0.08);color:#991B1B' : 'cursor:pointer';
     const lockBadge = bloqueada ? '<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700" title="Factura rectificada">🔒 Rectificada</span>' : '';
 
-    return `<tr style="${rowStyle}" onclick="verDetalleFactura(${f.id})">
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : (f.numero || '—')}${lockBadge}</td>
+    // Badge de versión para borradores (como en presupuestos)
+    const _fVer = _facVerMap[f.id] || 0;
+    const _fVerBadge = _fVer > 1 ? `<button onclick="event.stopPropagation();toggleFacVersiones(${f.id},this)" style="font-size:10px;background:var(--azul-light);color:var(--azul);padding:2px 8px;border-radius:10px;font-weight:700;border:1.5px solid var(--azul);cursor:pointer;margin-left:4px" title="Ver versiones anteriores">v${_fVer} ▾</button>` : '';
+
+    const _esBorrFac = f.estado === 'borrador';
+    return `<tr data-fac-row="${f.id}" style="${rowStyle}" onclick="${_esBorrFac ? `abrirEditor('factura',${f.id})` : `verDetalleFactura(${f.id})`}">
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px"><div style="display:flex;align-items:center;gap:2px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : (f.numero || '—')}${_fVerBadge}${lockBadge}</div></td>
       <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
       <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-size:12px">${f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
@@ -730,6 +752,49 @@ async function _restaurarVersionBorrador(facturaId, versionId) {
   await loadFacturas();
   toast('♻️ Versión restaurada (nueva versión creada) ✓', 'success');
   verDetalleFactura(facturaId);
+}
+
+// ═══════════════════════════════════════════════
+//  VERSIONES (desplegable desde la lista, como presupuestos)
+// ═══════════════════════════════════════════════
+async function toggleFacVersiones(facId, btnEl) {
+  const row = document.querySelector(`tr[data-fac-row="${facId}"]`);
+  if (!row) return;
+  // Si ya hay subfilas expandidas, las quito
+  const expanded = row.parentElement.querySelectorAll(`tr[data-fac-ver-of="${facId}"]`);
+  if (expanded.length) {
+    expanded.forEach(r => r.remove());
+    btnEl.innerHTML = btnEl.innerHTML.replace('▴','▾');
+    return;
+  }
+  const { data: vers, error } = await sb.from('factura_versiones')
+    .select('*').eq('factura_id', facId).order('version', {ascending:false});
+  if (error) { toast('Error cargando versiones: '+error.message,'error'); return; }
+  if (!vers || !vers.length) { toast('No hay versiones anteriores','info'); return; }
+
+  const nCols = row.children.length;
+  const fmtEur = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+  let insertAfter = row;
+  vers.forEach(v => {
+    const d = v.snapshot || {};
+    const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
+    const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const subRow = document.createElement('tr');
+    subRow.setAttribute('data-fac-ver-of', facId);
+    subRow.style.cssText = 'background:#f8fafc;border-left:3px solid var(--azul)';
+    subRow.innerHTML = `<td colspan="${nCols}" style="padding:8px 16px 8px 40px">
+      <div style="display:flex;align-items:center;gap:14px;font-size:12px">
+        <span style="font-weight:700;color:var(--azul);min-width:30px">v${v.version}</span>
+        <span style="color:var(--gris-500)">${fecha} ${hora}</span>
+        <span style="color:var(--gris-600);flex:1">${d.cliente_nombre||'—'} · ${fmtEur(d.total||0)}</span>
+        <button onclick="event.stopPropagation();_verVersionBorrador(${v.id})" title="Ver esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer;font-size:11px;font-weight:600">👁️ Ver</button>
+        <button onclick="event.stopPropagation();_restaurarVersionBorrador(${facId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>
+      </div>
+    </td>`;
+    insertAfter.after(subRow);
+    insertAfter = subRow;
+  });
+  btnEl.innerHTML = btnEl.innerHTML.replace('▾','▴');
 }
 
 // ═══════════════════════════════════════════════
