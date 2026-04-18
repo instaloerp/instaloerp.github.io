@@ -672,7 +672,16 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
           if (tieneAlb) { const alb=albData.find(a=>a.presupuesto_id===p.id); acciones += `<a onclick="event.stopPropagation();verDetalleAlbaran(${alb.id})" style="${_bOK}">✅ Albarán</a> `; }
           else if (!tieneFac) acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToAlbaran(${p.id})" title="Albaranar" style="${_bBtn}">📄 Albaranar</button> `;
           if (tieneFac) { acciones += `<span style="${_bOK}">✅ Factura</span>`; }
-          else acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
+          else {
+            const _albsPO = albData.filter(a=>a.presupuesto_id===p.id);
+            const _fAnulO = factData.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.presupuesto_id===p.id || _albsPO.some(a=>f.albaran_id===a.id)) && factData.some(r => r.rectificativa_de === f.id));
+            if (_fAnulO) {
+              const _fRectO = factData.find(r => r.rectificativa_de === _fAnulO.id);
+              acciones += `<span style="padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700">🚫 ${_fAnulO.numero||'Anulada'}</span> `;
+              if (_fRectO) acciones += `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700">📝 ${_fRectO.numero||'RECT'}</span> `;
+            }
+            acciones += `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();obraPresToFactura(${p.id})" title="Facturar" style="${_bBtn}">🧾 Facturar</button>`;
+          }
         }
       }
       return `
@@ -742,7 +751,17 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(a._totalCalc)}</div>${estadoBadgeA(a.estado)}</div>
-          <div onclick="event.stopPropagation()">${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (a.estado!=='anulado' ? `<button class="btn btn-ghost btn-sm" onclick="obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>` : '')}</div>
+          <div onclick="event.stopPropagation()">${tieneFac ? `<span style="${_bOK};margin-left:8px">✅ Facturado</span>` : (()=>{
+            let _ab = '';
+            const _fAnulAb = factData.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.albaran_id===a.id || (a.presupuesto_id && f.presupuesto_id===a.presupuesto_id)) && factData.some(r => r.rectificativa_de === f.id));
+            if (_fAnulAb) {
+              const _fRectAb = factData.find(r => r.rectificativa_de === _fAnulAb.id);
+              _ab += `<span style="padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;margin-left:8px">🚫 ${_fAnulAb.numero||'Anulada'}</span> `;
+              if (_fRectAb) _ab += `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700">📝 ${_fRectAb.numero||'RECT'}</span> `;
+            }
+            if (a.estado!=='anulado') _ab += `<button class="btn btn-ghost btn-sm" onclick="obraAlbToFactura(${a.id})" title="Facturar" style="font-size:11px;padding:3px 6px;margin-left:8px">🧾 Facturar</button>`;
+            return _ab;
+          })()}</div>
         </div>
       </div>`;
     }).join('') :

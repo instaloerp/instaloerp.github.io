@@ -246,7 +246,17 @@ function renderPresupuestos(list) {
             if (_tA) { const _ab=(window.albaranesData||[]).find(a=>a.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();verDetalleAlbaran('+_ab.id+')" style="'+_bOK+'">✅ Albarán</a> '; }
             else if (!_tF) btns += '<button onclick="presToAlbaran('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Albaranar">📄 Albaranar</button> ';
             if (_tF) { const _fRef=_fAct.find(f=>f.presupuesto_id===p.id) || _fAct.find(f=>_albsP.some(a=>f.albaran_id===a.id)); btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+(_fRef?_fRef.id:0)+'),200)" style="'+_bOK+'">✅ Factura</a>'; }
-            else btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
+            else {
+              // Comprobar si hay factura anulada con rectificativa (liberada)
+              const _fAnul = _fAll.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.presupuesto_id===p.id || _albsP.some(a=>f.albaran_id===a.id)) && _fAll.some(r => r.rectificativa_de === f.id));
+              if (_fAnul) {
+                const _fRect = _fAll.find(r => r.rectificativa_de === _fAnul.id);
+                const _bRojo = 'padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
+                btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+_fAnul.id+'),200)" style="'+_bRojo+'" title="Factura anulada">🚫 '+(_fAnul.numero||'Anulada')+'</a> ';
+                if (_fRect) btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+_fRect.id+'),200)" style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none" title="Rectificativa">📝 '+(_fRect.numero||'RECT')+'</a> ';
+              }
+              btns += '<button onclick="presToFactura('+p.id+')" style="padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151" title="Facturar">🧾 Facturar</button>';
+            }
             if (p.pdf_firmado_url) btns += ` <div style="position:relative;display:inline-block" onclick="event.stopPropagation()"><button data-pdf-toggle onclick="var m=this.nextElementSibling;document.querySelectorAll('[data-pdf-menu]').forEach(x=>{if(x!==m)x.style.display='none'});m.style.display=m.style.display==='none'?'block':'none'" style="padding:4px 8px;border-radius:6px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;border:none;cursor:pointer">📄 PDF ▾</button><div data-pdf-menu style="display:none;position:absolute;right:0;bottom:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;min-width:170px;padding:4px 0;margin-bottom:2px"><a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')} — PDF Firmado')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">👁️ Ver</a><a href="#" onclick="event.preventDefault();descargarPdfFirmado('${p.pdf_firmado_url}','${(p.numero||'')}_firmado.pdf')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">⬇️ Descargar</a><a href="#" onclick="event.preventDefault();imprimirPdfFirmado('${p.pdf_firmado_url}')" style="display:block;padding:8px 14px;font-size:12px;color:#1e293b;text-decoration:none;white-space:nowrap" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🖨️ Imprimir</a></div></div>`;
             return btns;
           })()}
@@ -391,7 +401,7 @@ async function verDetallePresupuesto(id) {
   // Consultar directamente a Supabase para garantizar datos frescos
   const [_rAlb, _rFac, _rObr] = await Promise.all([
     sb.from('albaranes').select('id,numero,presupuesto_id').eq('empresa_id',EMPRESA.id).eq('presupuesto_id',p.id).neq('estado','eliminado'),
-    sb.from('facturas').select('id,numero,presupuesto_id,albaran_id').eq('empresa_id',EMPRESA.id).neq('estado','eliminado'),
+    sb.from('facturas').select('id,numero,presupuesto_id,albaran_id,estado,rectificativa_de').eq('empresa_id',EMPRESA.id).neq('estado','eliminado'),
     sb.from('trabajos').select('id,numero,presupuesto_id').eq('empresa_id',EMPRESA.id).eq('presupuesto_id',p.id).neq('estado','eliminado'),
   ]);
   const _albsP = _rAlb.data||[];
@@ -399,8 +409,9 @@ async function verDetallePresupuesto(id) {
   const _obrasP = _rObr.data||[];
   const tieneObra = _obrasP.length > 0;
   const tieneAlbaran = _albsP.length > 0;
-  // Factura: directa (presupuesto→factura) o indirecta (presupuesto→albarán→factura)
-  const tieneFactura = _facsAll.some(f => f.presupuesto_id === p.id) || _albsP.some(a => _facsAll.some(f => f.albaran_id === a.id));
+  // Factura activa: excluir rectificativas y anuladas con rectificativa
+  const _fAct = _facsAll.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _facsAll.some(r => r.rectificativa_de === f.id)));
+  const tieneFactura = _fAct.some(f => f.presupuesto_id === p.id) || _albsP.some(a => _fAct.some(f => f.albaran_id === a.id));
 
   // Badges de referencia — estilo verde unificado, clickables
   const refDiv = document.getElementById('presDetRefs');
@@ -416,11 +427,17 @@ async function verDetallePresupuesto(id) {
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');verDetalleAlbaran(${alb.id})" style="${_refStyle}">✅ Albarán ${alb.numero||''}</a> `;
     }
     if (tieneFactura) {
-      let fac = _facsAll.find(f => f.presupuesto_id === p.id);
-      if (!fac && _albsP.length) {
-        fac = _facsAll.find(f => f.albaran_id === _albsP[0].id);
-      }
+      let fac = _fAct.find(f => f.presupuesto_id === p.id) || _fAct.find(f => _albsP.some(a => f.albaran_id === a.id));
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${fac?.id||0}),200)" style="${_refStyle}">✅ Factura ${fac?.numero||''}</a> `;
+    } else {
+      // Comprobar si hay factura anulada con rectificativa (liberada)
+      const _fAnulDet = _facsAll.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.presupuesto_id===p.id || _albsP.some(a=>f.albaran_id===a.id)) && _facsAll.some(r => r.rectificativa_de === f.id));
+      if (_fAnulDet) {
+        const _fRectDet = _facsAll.find(r => r.rectificativa_de === _fAnulDet.id);
+        const _bRojoDet = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
+        refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${_fAnulDet.id}),200)" style="${_bRojoDet}" title="Factura anulada">🚫 ${_fAnulDet.numero||'Anulada'}</a> `;
+        if (_fRectDet) refs += `<a href="#" onclick="event.preventDefault();closeModal('mPresDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${_fRectDet.id}),200)" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer" title="Rectificativa">📝 ${_fRectDet.numero||'RECT'}</a> `;
+      }
     }
     // Información de aprobación según método
     if (p.estado === 'aceptado') {

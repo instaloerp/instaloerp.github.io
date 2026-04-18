@@ -90,7 +90,16 @@ function renderAlbaranes(list) {
             else if (!_tF) btns += '<button onclick="albaranToObra('+a.id+')" style="'+_bBtn+'" title="Crear obra">🏗️ Crear obra</button> ';
             // Factura: badge verde si existe, botón si no
             if (_tF) { const _facRef=_fAct2.find(f=>f.albaran_id===a.id)||_fAct2.find(f=>a.presupuesto_id&&f.presupuesto_id===a.presupuesto_id); btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+(_facRef?_facRef.id:0)+'),200)" style="'+_bOK+'">✅ Facturado</a>'; }
-            else btns += '<button onclick="albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾 Facturar</button>';
+            else {
+              const _fAnulA = _fAll2.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.albaran_id===a.id || (a.presupuesto_id && f.presupuesto_id===a.presupuesto_id)) && _fAll2.some(r => r.rectificativa_de === f.id));
+              if (_fAnulA) {
+                const _fRectA = _fAll2.find(r => r.rectificativa_de === _fAnulA.id);
+                const _bRojoA = 'padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
+                btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+_fAnulA.id+'),200)" style="'+_bRojoA+'" title="Factura anulada">🚫 '+(_fAnulA.numero||'Anulada')+'</a> ';
+                if (_fRectA) btns += '<a onclick="event.stopPropagation();goPage(\'facturas\');setTimeout(()=>verDetalleFactura('+_fRectA.id+'),200)" style="padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none" title="Rectificativa">📝 '+(_fRectA.numero||'RECT')+'</a> ';
+              }
+              btns += '<button onclick="albaranToFactura('+a.id+')" style="'+_bBtn+'" title="Facturar">🧾 Facturar</button>';
+            }
             return btns;
           })()}
         </div>
@@ -280,6 +289,14 @@ function verDetalleAlbaran(id) {
     if (tieneFactura) {
       const fac = _fActDet.find(f => f.albaran_id === a.id) || _fActDet.find(f => a.presupuesto_id && f.presupuesto_id === a.presupuesto_id);
       refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${fac?.id||0}),200)" style="${_refStyle}">✅ Factura ${fac?.numero||''}</a> `;
+    } else {
+      const _fAnulAD = _fAllDet.find(f => !f.rectificativa_de && f.estado === 'anulada' && (f.albaran_id===a.id || (a.presupuesto_id && f.presupuesto_id===a.presupuesto_id)) && _fAllDet.some(r => r.rectificativa_de === f.id));
+      if (_fAnulAD) {
+        const _fRectAD = _fAllDet.find(r => r.rectificativa_de === _fAnulAD.id);
+        const _bRojoAD = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer';
+        refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${_fAnulAD.id}),200)" style="${_bRojoAD}" title="Factura anulada">🚫 ${_fAnulAD.numero||'Anulada'}</a> `;
+        if (_fRectAD) refs += `<a href="#" onclick="event.preventDefault();closeModal('mAbDetalle');goPage('facturas');setTimeout(()=>verDetalleFactura(${_fRectAD.id}),200)" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer" title="Rectificativa">📝 ${_fRectAD.numero||'RECT'}</a> `;
+      }
     }
     refDiv.innerHTML = refs;
     refDiv.style.display = refs ? 'flex' : 'none';
