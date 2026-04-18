@@ -76,7 +76,9 @@ function renderAlbaranes(list) {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center" onclick="event.stopPropagation()">
           ${(()=>{
             const _tO = !!a.trabajo_id;
-            const _tF = (window.facturasData||[]).some(f=>f.albaran_id===a.id) || (a.presupuesto_id && (window.facturasData||[]).some(f=>f.presupuesto_id===a.presupuesto_id));
+            const _fAll2 = window.facturasData||[];
+            const _fAct2 = _fAll2.filter(f => !(f.estado === 'anulada' && _fAll2.some(r => r.rectificativa_de === f.id)));
+            const _tF = _fAct2.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fAct2.some(f=>f.presupuesto_id===a.presupuesto_id));
             const _tP = !!a.presupuesto_id;
             const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
             const _bBtn = 'padding:4px 8px;border-radius:6px;border:1px solid #D1D5DB;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#374151';
@@ -174,9 +176,10 @@ async function albaranToFactura(id) {
   try {
     const a = albaranesData.find(x=>x.id===id);
     if (!a) return;
-    // Comprobar si ya tiene factura
+    // Comprobar si ya tiene factura activa (excluir anuladas con rectificativa)
     const _fD4 = window.facturasData || [];
-    if (_fD4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fD4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
+    const _fAct4 = _fD4.filter(f => !(f.estado === 'anulada' && _fD4.some(r => r.rectificativa_de === f.id)));
+    if (_fAct4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fAct4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
     if (!confirm('¿Crear borrador de factura desde el albarán '+a.numero+'?')) return;
     const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
@@ -251,7 +254,9 @@ function verDetalleAlbaran(id) {
   }
   // ── Lógica inteligente de botones y referencias cruzadas ──
   const tieneObra    = !!a.trabajo_id || trabajos.some(t => t.presupuesto_id && (window.albaranesData||[]).some(ab => ab.id === a.id && ab.presupuesto_id === t.presupuesto_id));
-  const tieneFactura = (window.facturasData||[]).some(f => f.albaran_id === a.id) || (a.presupuesto_id && (window.facturasData||[]).some(f => f.presupuesto_id === a.presupuesto_id));
+  const _fAllDet = window.facturasData||[];
+  const _fActDet = _fAllDet.filter(f => !(f.estado === 'anulada' && _fAllDet.some(r => r.rectificativa_de === f.id)));
+  const tieneFactura = _fActDet.some(f => f.albaran_id === a.id) || (a.presupuesto_id && _fActDet.some(f => f.presupuesto_id === a.presupuesto_id));
 
   // Badges de referencia (navegación a documentos vinculados) — estilo verde unificado
   const refDiv = document.getElementById('abDetRefs');

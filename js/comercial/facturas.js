@@ -1275,8 +1275,36 @@ async function crearRectificativa(id) {
   // Marcar original como anulada
   await cambiarEstadoFac(id, 'anulada');
 
+  // ── Liberar documentos vinculados ──
+  // Albaranes marcados como "facturado" por esta factura → vuelven a "entregado"
+  if (orig.albaran_id) {
+    await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', orig.albaran_id);
+    const _abLocal = (window.albaranesData || []).find(a => a.id === orig.albaran_id);
+    if (_abLocal) _abLocal.estado = 'entregado';
+  }
+  // Si era factura agrupada de varios albaranes
+  if (Array.isArray(orig.albaran_ids) && orig.albaran_ids.length) {
+    for (const aId of orig.albaran_ids) {
+      await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', aId);
+      const _abL = (window.albaranesData || []).find(a => a.id === aId);
+      if (_abL) _abL.estado = 'entregado';
+    }
+  }
+  // Albaranes vinculados al mismo presupuesto que fueron marcados como facturados
+  if (orig.presupuesto_id) {
+    const { data: _albsPres } = await sb.from('albaranes')
+      .select('id').eq('presupuesto_id', orig.presupuesto_id).eq('estado', 'facturado');
+    if (_albsPres?.length) {
+      for (const a of _albsPres) {
+        await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', a.id);
+        const _abL2 = (window.albaranesData || []).find(x => x.id === a.id);
+        if (_abL2) _abL2.estado = 'entregado';
+      }
+    }
+  }
+
   closeModal('mFacturaDetalle');
-  toast('📝 Rectificativa ' + numero + ' creada ✓', 'success');
+  toast('📝 Rectificativa ' + numero + ' creada — documentos vinculados liberados ✓', 'success');
   await loadFacturas();
   loadDashboard();
 }

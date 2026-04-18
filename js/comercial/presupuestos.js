@@ -236,7 +236,9 @@ function renderPresupuestos(list) {
             const _tO = trabajos.some(t=>t.presupuesto_id===p.id);
             const _tA = (window.albaranesData||[]).some(a=>a.presupuesto_id===p.id);
             const _albsP = (window.albaranesData||[]).filter(a=>a.presupuesto_id===p.id);
-            const _tF = (window.facturasData||[]).some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>(window.facturasData||[]).some(f=>f.albaran_id===a.id));
+            const _fAll = window.facturasData||[];
+            const _fAct = _fAll.filter(f => !(f.estado === 'anulada' && _fAll.some(r => r.rectificativa_de === f.id)));
+            const _tF = _fAct.some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>_fAct.some(f=>f.albaran_id===a.id));
             const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none';
             let btns = '';
             if (_tO) { const _ob=trabajos.find(t=>t.presupuesto_id===p.id); btns += '<a onclick="event.stopPropagation();goPage(\'trabajos\');abrirFichaObra('+_ob.id+')" style="'+_bOK+'">✅ Obra</a> '; }
@@ -678,11 +680,12 @@ async function presToFactura(id) {
   try {
     const p = presupuestos.find(x=>x.id===id);
       if (!p) return;
-    // Comprobar si ya tiene factura (directa o indirecta vía albarán)
+    // Comprobar si ya tiene factura activa (excluir anuladas con rectificativa)
     const _aD = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
     const _fD = window.facturasData || [];
+    const _fActivas = _fD.filter(f => !(f.estado === 'anulada' && _fD.some(r => r.rectificativa_de === f.id)));
     const _albsP = _aD.filter(a=>a.presupuesto_id===p.id);
-    const yaFacturado = _fD.some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>_fD.some(f=>f.albaran_id===a.id));
+    const yaFacturado = _fActivas.some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>_fActivas.some(f=>f.albaran_id===a.id));
     if (yaFacturado) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
     if (!confirm('¿Crear borrador de factura desde '+p.numero+'?')) return;
     const numero = await _generarNumeroBorrador();
@@ -734,8 +737,9 @@ async function presToAlbaran(id) {
     // Comprobar si ya tiene albarán o factura directa
     const _aD2 = window.albaranesData || (typeof albaranesData!=='undefined' ? albaranesData : []);
     const _fD6 = window.facturasData || [];
-    if (_aD2.some(a=>a.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
-    if (_fD6.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
+    if (_aD2.some(a=>a.presupuesto_id===p.id && a.estado!=='anulado')) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
+    const _fActivas6 = _fD6.filter(f => !(f.estado === 'anulada' && _fD6.some(r => r.rectificativa_de === f.id)));
+    if (_fActivas6.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
     if (!confirm('¿Crear albarán desde el presupuesto '+p.numero+'?')) return;
     const numero = await generarNumeroDoc('albaran');
     const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
