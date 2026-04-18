@@ -272,7 +272,7 @@ function de_showVersion(ver, suffix) {
   const vDoc = document.getElementById('de_version_doc');
   const vLabel = document.getElementById('de_version_label');
   const text = 'v' + ver + (suffix ? ' ' + suffix : '');
-  if (ver && ver > 0 && deConfig.tipo==='presupuesto') {
+  if (ver && ver > 0 && (deConfig.tipo==='presupuesto' || deConfig.tipo==='factura')) {
     if (vBadge) { vBadge.textContent = text; vBadge.style.display = ''; }
     if (vDoc) { vDoc.textContent = text; vDoc.style.display = ''; }
     if (vLabel) vLabel.style.display = '';
