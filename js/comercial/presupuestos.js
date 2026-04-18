@@ -586,22 +586,25 @@ async function togglePresVersiones(presId, btnEl) {
 
   const nCols = row.children.length;
   const fmtEur = v => (v||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+  const maxVer = vers[0].version;  // vers ordenadas desc, la primera es la actual
   let insertAfter = row;
   vers.forEach(v => {
     const d = v.datos || {};
     const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
     const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const esActual = v.version === maxVer;
     const subRow = document.createElement('tr');
     subRow.setAttribute('data-pres-ver-of', presId);
     subRow.style.cssText = 'background:#f8fafc;border-left:3px solid var(--azul)';
     subRow.innerHTML = `<td colspan="${nCols}" style="padding:8px 16px 8px 40px">
       <div style="display:flex;align-items:center;gap:14px;font-size:12px">
         <span style="font-weight:700;color:var(--azul);min-width:30px">v${v.version}</span>
+        ${esActual ? '<span style="font-size:9px;background:#D1FAE5;color:#065F46;padding:2px 6px;border-radius:4px;font-weight:700">ACTUAL</span>' : ''}
         <span style="color:var(--gris-500)">${fecha} ${hora}</span>
         <span style="color:var(--gris-600);flex:1">${d.cliente_nombre||'—'} · ${d.titulo||''}</span>
         <span style="font-weight:700">${fmtEur(d.total||0)}</span>
         <button onclick="event.stopPropagation();abrirVersionEnEditor(${presId},${v.id})" title="Ver esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer;font-size:11px;font-weight:600">👁️ Ver</button>
-        <button onclick="event.stopPropagation();restaurarVersionDirecta(${presId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>
+        ${esActual ? '' : `<button onclick="event.stopPropagation();restaurarVersionDirecta(${presId},${v.id})" title="Restaurar esta versión" style="padding:4px 10px;border-radius:6px;border:1px solid var(--naranja);background:#fff;color:var(--naranja);cursor:pointer;font-size:11px;font-weight:600">♻️ Restaurar</button>`}
       </div>
     </td>`;
     insertAfter.after(subRow);
