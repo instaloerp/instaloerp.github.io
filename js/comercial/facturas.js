@@ -156,8 +156,10 @@ function filtrarFacturas() {
     // Excluir rectificativas del listado principal (van a su pestaña)
     if (f.rectificativa_de) return false;
     // Filtro de estado
+    // Las anuladas que tienen rectificativa asociada siempre se muestran (bloqueadas en rojo)
+    const tieneRectAsociada = facLocalData.some(r => r.rectificativa_de === f.id);
     if (est === '_todas') {
-      if (f.estado === 'anulada') return false; // Excluir anuladas
+      if (f.estado === 'anulada' && !tieneRectAsociada) return false; // Excluir anuladas normales, no las rectificadas
     } else if (est === 'cobrada') {
       if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false; // Compat legacy
     } else if (est) {
