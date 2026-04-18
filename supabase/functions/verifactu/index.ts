@@ -665,18 +665,23 @@ Deno.serve(async (req) => {
       }).eq("id", factura_id);
     }
 
+    // Campos planos para el frontend
+    const estadoFinal = respuestaAEAT?.estado === "Correcto" ? "correcto"
+      : respuestaAEAT?.estado === "AceptadoConErrores" ? "aceptado_errores"
+      : respuestaAEAT?.estado === "error_envio" ? "error_envio"
+      : respuestaAEAT?.simulacion ? "simulado"
+      : respuestaAEAT ? "incorrecto" : "pendiente";
+
     return jsonResp({
       ok: true,
-      registro_id: regInserted.id,
+      estado: estadoFinal,
+      csv: respuestaAEAT?.csv || null,
       huella,
       qr_url: qrUrl,
-      encadenamiento: {
-        es_primer_registro: esPrimerRegistro,
-        huella_anterior: huellaAnterior || null,
-      },
-      respuesta_aeat: respuestaAEAT,
+      descripcion_error: respuestaAEAT?.descripcionError || respuestaAEAT?.error || null,
+      codigo_error: respuestaAEAT?.codigoError || null,
+      registro_id: regInserted.id,
       modo: config.modo,
-      xml_preview: xml.substring(0, 500) + "...",
     });
 
   } catch (err: any) {

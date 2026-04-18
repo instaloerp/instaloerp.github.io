@@ -1760,11 +1760,15 @@ async function enviarFacturaAEAT(facturaId, action = 'alta') {
     }
 
     // Refrescar UI
-    renderFacturas();
-    // Si el modal de detalle está abierto, refrescarlo
-    const detId = document.getElementById('facDetId');
-    if (detId && parseInt(detId.value) === facturaId) {
-      verDetalleFactura(facturaId);
+    try {
+      renderFacturas();
+      // Si el modal de detalle está abierto, refrescarlo
+      const detId = document.getElementById('facDetId');
+      if (detId && parseInt(detId.value) === facturaId) {
+        verDetalleFactura(facturaId);
+      }
+    } catch (uiErr) {
+      console.warn('Error refrescando UI tras VeriFactu:', uiErr);
     }
 
   } catch (err) {
