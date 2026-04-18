@@ -1355,8 +1355,8 @@ async function guardarCfgPartes() {
     // Datos de la calculadora personal (para persistir entre sesiones)
     calc_coste_mensual: _parseNumES(document.getElementById('calc_coste_total')?.value),
     calc_equipo: _calcEquipo || [],
-    // Km/mes para calculadora coste/km (los vehículos y gastos ya están en Flota)
-    calc_km_mes: _parseNumES(document.getElementById('calc_km_mes')?.value),
+    // Km anuales para calculadora coste/km (los vehículos y gastos ya están en Flota)
+    calc_km_anual: _parseNumES(document.getElementById('calc_km_anual')?.value),
   };
   const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
   if (error) {
@@ -1516,9 +1516,9 @@ let _calcFlotaGastos = [];
 
 async function cargarCalculadoraKm() {
   const cfg = EMPRESA.config_partes || {};
-  const elKm = document.getElementById('calc_km_mes');
-  if (elKm && cfg.calc_km_mes) {
-    elKm.value = cfg.calc_km_mes.toLocaleString('es-ES', {minimumFractionDigits:0, maximumFractionDigits:0});
+  const elKm = document.getElementById('calc_km_anual');
+  if (elKm && cfg.calc_km_anual) {
+    elKm.value = cfg.calc_km_anual.toLocaleString('es-ES', {minimumFractionDigits:0, maximumFractionDigits:0});
   }
   // Cargar datos reales de Flota
   const eid = EMPRESA.id;
@@ -1544,28 +1544,19 @@ function _renderCalcFlotaResumen() {
   }
 
   const hoy = new Date();
-  const hace12m = new Date(hoy);
-  hace12m.setFullYear(hace12m.getFullYear() - 1);
-  const hace12mStr = hace12m.toISOString().slice(0, 10);
-
-  // Meses distintos con gastos registrados (para media de variables)
-  const mesesSet = new Set();
-  _calcFlotaGastos.filter(g => g.fecha >= hace12mStr).forEach(g => {
-    mesesSet.add(g.fecha.slice(0, 7));
-  });
-  const mesesConDatos = Math.max(mesesSet.size, 1);
-  const divisorVar = Math.min(mesesConDatos, 12); // divisor para gastos variables
+  const anioActual = hoy.getFullYear();
+  const inicioAnio = anioActual + '-01-01';
+  const mesesTranscurridos = hoy.getMonth() + (hoy.getDate() >= 15 ? 1 : 0) || 1;
 
   const numActivos = _calcFlotaVehiculos.length || 1;
 
-  // Gastos de flota (sin vehículo asignado) = variable, se reparte
-  const gastosFlotaTotal = _calcFlotaGastos
-    .filter(g => !g.vehiculo_id && g.fecha >= hace12mStr)
+  // Gastos de flota compartidos (sin vehículo) en lo que va de año
+  const gastosFlotaAnio = _calcFlotaGastos
+    .filter(g => !g.vehiculo_id && g.fecha >= inicioAnio)
     .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
 
   const conceptoIcos = { gasoil:'⛽', seguro:'🛡️', mantenimiento:'🔧', itv:'📋', neumaticos:'🛞', otros:'📎' };
 
-  // Helper: meses transcurridos desde fecha_compra
   function _mesesDesdeCompra(fechaStr) {
     if (!fechaStr) return 9999;
     const fc = new Date(fechaStr);
@@ -1573,52 +1564,45 @@ function _renderCalcFlotaResumen() {
   }
 
   let html = '<div style="display:flex;flex-direction:column;gap:8px">';
-  if (_calcFlotaGastos.length && mesesConDatos < 12) {
-    html += '<div style="padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:11px;color:#92400e;margin-bottom:4px">' +
-      '📅 Datos de gastos de <strong>'+mesesConDatos+' mes'+(mesesConDatos>1?'es':'')+'</strong>. ' +
-      'La media de gastos variables será más precisa con más meses.</div>';
-  }
-  let totalMesGlobal = 0;
+  html += '<div style="padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:11px;color:var(--azul);margin-bottom:4px">' +
+    '📅 Datos del año <strong>'+anioActual+'</strong> ('+mesesTranscurridos+' meses). El coste/km se calcula con km y gastos del mismo período.</div>';
+  let totalAnioGlobal = 0;
 
   _calcFlotaVehiculos.forEach(veh => {
-    // ── COSTES FIJOS (siempre /12, no dependen de datos) ──
+    // ── COSTES FIJOS prorrateados al período ──
     const precio = parseFloat(veh.precio_compra) || 0;
     const amortMeses = parseInt(veh.amort_meses) || 60;
-    const mesesTranscurridos = _mesesDesdeCompra(veh.fecha_compra);
-    // Amortización = 0 si ya está pagada
-    const amortMes = mesesTranscurridos >= amortMeses ? 0 : precio / amortMeses;
-    const amortRestante = Math.max(amortMeses - mesesTranscurridos, 0);
+    const mesesDesdeCompra = _mesesDesdeCompra(veh.fecha_compra);
+    const amortMes = mesesDesdeCompra >= amortMeses ? 0 : precio / amortMeses;
+    const amortRestante = Math.max(amortMeses - mesesDesdeCompra, 0);
     const seguroMes = (parseFloat(veh.seguro_anual) || 0) / 12;
     const impuestoMes = (parseFloat(veh.impuesto_anual) || 0) / 12;
-    const fijosMes = amortMes + seguroMes + impuestoMes;
+    const fijosPeriodo = (amortMes + seguroMes + impuestoMes) * mesesTranscurridos;
 
-    // ── COSTES VARIABLES (÷ meses con datos reales) ──
+    // ── COSTES VARIABLES del año ──
     const gastosDirectos = _calcFlotaGastos
-      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= inicioAnio)
       .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
 
     const porConcepto = {};
     _calcFlotaGastos
-      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= inicioAnio)
       .forEach(g => { porConcepto[g.concepto] = (porConcepto[g.concepto] || 0) + (parseFloat(g.importe) || 0); });
 
-    const variableDirectoMes = gastosDirectos / divisorVar;
-    const parteFlotaMes = gastosFlotaTotal / numActivos / divisorVar;
-    const variablesMes = variableDirectoMes + parteFlotaMes;
-
-    const totalMes = fijosMes + variablesMes;
-    totalMesGlobal += totalMes;
+    const parteFlota = gastosFlotaAnio / numActivos;
+    const totalVehAnio = fijosPeriodo + gastosDirectos + parteFlota;
+    totalAnioGlobal += totalVehAnio;
 
     const conceptosHtml = Object.entries(porConcepto).map(([c, total]) =>
-      `<span style="font-size:10px;color:var(--gris-500)" title="${c}: ${(total/divisorVar).toFixed(0)}€/mes">${conceptoIcos[c]||'📎'} ${(total/divisorVar).toFixed(0)}</span>`
+      `<span style="font-size:10px;color:var(--gris-500)" title="${c}: ${total.toFixed(0)}€ acum.">${conceptoIcos[c]||'📎'} ${total.toFixed(0)}€</span>`
     ).join(' · ');
 
     let fijosHtml = '';
-    if (seguroMes > 0) fijosHtml += ' · <span title="Seguro mensual">🛡️ '+seguroMes.toFixed(0)+'€</span>';
-    if (impuestoMes > 0) fijosHtml += ' · <span title="Impuesto mensual">🏛️ '+impuestoMes.toFixed(0)+'€</span>';
+    if (seguroMes > 0) fijosHtml += ' · <span title="Seguro ('+mesesTranscurridos+'m)">🛡️ '+(seguroMes*mesesTranscurridos).toFixed(0)+'€</span>';
+    if (impuestoMes > 0) fijosHtml += ' · <span title="Impuesto ('+mesesTranscurridos+'m)">🏛️ '+(impuestoMes*mesesTranscurridos).toFixed(0)+'€</span>';
 
     const amortLabel = amortRestante > 0
-      ? 'Amort: '+amortMes.toFixed(0)+'€ <span style="font-size:9px">('+amortRestante+'m rest.)</span>'
+      ? 'Amort: '+(amortMes*mesesTranscurridos).toFixed(0)+'€ <span style="font-size:9px">('+amortRestante+'m rest.)</span>'
       : '<span style="color:var(--verde)">Amortizada</span>';
 
     html += `<div style="border:1px solid var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-50)">
@@ -1626,12 +1610,12 @@ function _renderCalcFlotaResumen() {
         <span style="font-size:14px">🚐</span>
         <strong style="font-size:13px;flex:1">${veh.nombre}</strong>
         <span style="font-size:11px;color:var(--gris-400)">${veh.matricula || ''}</span>
-        <span style="font-size:13px;font-weight:700;color:var(--azul)">${totalMes.toFixed(0)}€/mes</span>
+        <span style="font-size:13px;font-weight:700;color:var(--azul)">${totalVehAnio.toFixed(0)}€</span>
       </div>
       <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--gris-500);flex-wrap:wrap">
-        <span title="Amortización mensual">📊 ${amortLabel}</span>${fijosHtml}
-        <span title="Gastos variables /mes (media ${divisorVar} mes${divisorVar>1?'es':''})">💰 Gastos: ${variableDirectoMes.toFixed(0)}€</span>
-        ${parteFlotaMes > 0 ? '<span title="Parte proporcional gastos flota compartidos /mes">🔄 Flota: '+parteFlotaMes.toFixed(0)+'€</span>' : ''}
+        <span title="Amortización acumulada">📊 ${amortLabel}</span>${fijosHtml}
+        <span title="Gastos directos acumulados">💰 Gastos: ${gastosDirectos.toFixed(0)}€</span>
+        ${parteFlota > 0 ? '<span title="Parte gastos flota compartidos">🔄 Flota: '+parteFlota.toFixed(0)+'€</span>' : ''}
       </div>
       ${conceptosHtml ? '<div style="margin-top:4px">'+conceptosHtml+'</div>' : ''}
     </div>`;
@@ -1639,8 +1623,8 @@ function _renderCalcFlotaResumen() {
 
   html += '</div>';
   html += '<div style="margin-top:10px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between;align-items:center">' +
-    '<span style="font-size:13px;font-weight:600">Total flota ('+numActivos+' vehículos)</span>' +
-    '<span style="font-size:16px;font-weight:800;color:var(--azul)">'+totalMesGlobal.toFixed(2)+'€/mes</span></div>';
+    '<span style="font-size:13px;font-weight:600">Total flota '+anioActual+' ('+numActivos+' vehículos, '+mesesTranscurridos+'m)</span>' +
+    '<span style="font-size:16px;font-weight:800;color:var(--azul)">'+totalAnioGlobal.toFixed(2)+'€</span></div>';
 
   if (!_calcFlotaGastos.length) {
     html += '<div style="margin-top:8px;padding:10px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">' +
@@ -1650,16 +1634,15 @@ function _renderCalcFlotaResumen() {
   cont.innerHTML = html;
 }
 
-// Helper compartida: calcula gastoMes total (fijos + variables)
-function _calcGastoMesTotal() {
+// Helper: calcula gasto total acumulado del año en curso
+// Devuelve { gastoPeriodo, mesesPeriodo } donde:
+//   gastoPeriodo = fijos prorrateados + gastos variables del año
+//   mesesPeriodo = meses transcurridos desde 1 enero
+function _calcGastoPeriodoAnual() {
   const hoy = new Date();
-  const hace12m = new Date(hoy);
-  hace12m.setFullYear(hace12m.getFullYear() - 1);
-  const hace12mStr = hace12m.toISOString().slice(0, 10);
-
-  const mSet = new Set();
-  _calcFlotaGastos.filter(g => g.fecha >= hace12mStr).forEach(g => mSet.add(g.fecha.slice(0, 7)));
-  const divisorVar = Math.min(Math.max(mSet.size, 1), 12);
+  const inicioAnio = hoy.getFullYear() + '-01-01';
+  // Meses transcurridos en el año (ej: abril = 4 si ya estamos en abril)
+  const mesesPeriodo = hoy.getMonth() + (hoy.getDate() >= 15 ? 1 : 0) || 1;
   const numActivos = _calcFlotaVehiculos.length || 1;
 
   function _mesesDesde(fechaStr) {
@@ -1668,43 +1651,39 @@ function _calcGastoMesTotal() {
     return (hoy.getFullYear() - fc.getFullYear()) * 12 + (hoy.getMonth() - fc.getMonth());
   }
 
-  let gastoMes = 0;
+  // ── FIJOS prorrateados al período ──
+  let fijosPeriodo = 0;
   _calcFlotaVehiculos.forEach(veh => {
-    // Fijos: amort (si no pagada) + seguro/12 + impuesto/12
     const precio = parseFloat(veh.precio_compra) || 0;
     const amortMeses = parseInt(veh.amort_meses) || 60;
     const transcurridos = _mesesDesde(veh.fecha_compra);
-    if (transcurridos < amortMeses) gastoMes += precio / amortMeses;
-    gastoMes += ((parseFloat(veh.seguro_anual) || 0) + (parseFloat(veh.impuesto_anual) || 0)) / 12;
-    // Variables: gastos directos del vehículo
-    const gastosDir = _calcFlotaGastos
-      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
-      .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
-    gastoMes += gastosDir / divisorVar;
+    if (transcurridos < amortMeses) fijosPeriodo += (precio / amortMeses) * mesesPeriodo;
+    fijosPeriodo += ((parseFloat(veh.seguro_anual) || 0) + (parseFloat(veh.impuesto_anual) || 0)) / 12 * mesesPeriodo;
   });
-  // Variables: gastos de flota compartidos
-  const gastosFlota = _calcFlotaGastos
-    .filter(g => !g.vehiculo_id && g.fecha >= hace12mStr)
-    .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
-  gastoMes += gastosFlota / divisorVar;
 
-  return gastoMes;
+  // ── VARIABLES: gastos registrados desde 1 enero ──
+  let variablesPeriodo = 0;
+  _calcFlotaGastos.filter(g => g.fecha >= inicioAnio).forEach(g => {
+    variablesPeriodo += parseFloat(g.importe) || 0;
+  });
+
+  return { gastoPeriodo: fijosPeriodo + variablesPeriodo, mesesPeriodo };
 }
 
 function calcularCosteKm() {
-  const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
+  const kmAnual = _parseNumES(document.getElementById('calc_km_anual')?.value);
   const resultado = document.getElementById('calc_resultado_km');
   if (!resultado) return;
 
-  const gastoMes = _calcGastoMesTotal();
+  const { gastoPeriodo } = _calcGastoPeriodoAnual();
 
-  if (gastoMes <= 0 || kmMes <= 0) { resultado.style.display = 'none'; return; }
+  if (gastoPeriodo <= 0 || kmAnual <= 0) { resultado.style.display = 'none'; return; }
 
-  const costeKm = gastoMes / kmMes;
+  const costeKm = gastoPeriodo / kmAnual;
   const tarifaActual = parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0;
   const margen = tarifaActual > 0 ? ((tarifaActual - costeKm) / costeKm * 100) : 0;
 
-  document.getElementById('calc_gasto_mes').textContent = gastoMes.toFixed(2) + '€';
+  document.getElementById('calc_gasto_periodo').textContent = gastoPeriodo.toFixed(2) + '€';
   document.getElementById('calc_coste_km').textContent = costeKm.toFixed(3) + '€';
   const elMargen = document.getElementById('calc_margen_km');
   elMargen.textContent = margen.toFixed(1) + '%';
@@ -1713,11 +1692,11 @@ function calcularCosteKm() {
 }
 
 function calcAplicarTarifaKm() {
-  const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
-  if (kmMes <= 0) return;
+  const kmAnual = _parseNumES(document.getElementById('calc_km_anual')?.value);
+  if (kmAnual <= 0) return;
 
-  const gastoMes = _calcGastoMesTotal();
-  const costeKm = Math.ceil(gastoMes / kmMes * 1000) / 1000;
+  const { gastoPeriodo } = _calcGastoPeriodoAnual();
+  const costeKm = Math.ceil(gastoPeriodo / kmAnual * 1000) / 1000;
   document.getElementById('cfg_tarifa_km').value = costeKm;
   calcularCosteKm();
   toast('📌 Tarifa km actualizada a ' + costeKm.toFixed(3) + '€/km (coste puro, ajusta margen)', 'info');

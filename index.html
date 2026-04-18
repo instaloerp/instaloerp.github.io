@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 34</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 35</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -2305,16 +2305,16 @@ try {
                   <div id="calc_flota_resumen" style="margin-bottom:16px"></div>
 
                   <div class="fg" style="margin-bottom:16px">
-                    <label>📏 Km totales / mes (todas las furgonetas)</label>
-                    <input id="calc_km_mes" type="text" inputmode="decimal" placeholder="8.000" style="font-size:16px;font-weight:700" oninput="calcularCosteKm()">
-                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Kilómetros totales mensuales. Cuando Movertis esté integrado se rellenará automáticamente.</small>
+                    <label>📏 Km totales año (todas las furgonetas, desde 1 enero)</label>
+                    <input id="calc_km_anual" type="text" inputmode="decimal" placeholder="40.000" style="font-size:16px;font-weight:700" oninput="calcularCosteKm()">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Km acumulados en lo que va de año (todas las furgonetas). Con Movertis se rellenará automáticamente.</small>
                   </div>
 
                   <div id="calc_resultado_km" style="display:none;margin-top:16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:16px">
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
                       <div>
-                        <div style="font-size:11px;color:#6b7280;margin-bottom:4px">Gasto total/mes</div>
-                        <div id="calc_gasto_mes" style="font-size:20px;font-weight:800;color:var(--azul)">—</div>
+                        <div style="font-size:11px;color:#6b7280;margin-bottom:4px">Gasto acumulado año</div>
+                        <div id="calc_gasto_periodo" style="font-size:20px;font-weight:800;color:var(--azul)">—</div>
                       </div>
                       <div>
                         <div style="font-size:11px;color:#6b7280;margin-bottom:4px">Coste real/km</div>
