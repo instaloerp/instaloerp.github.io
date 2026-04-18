@@ -557,13 +557,14 @@ function exportarFacturas() {
 //  NUMERACIÓN CORRELATIVA DE BORRADORES
 // ═══════════════════════════════════════════════
 async function _generarNumeroBorrador() {
+  // 1. Buscar en facturas actuales con número BORR-%
   const { data } = await sb.from('facturas')
     .select('numero')
     .eq('empresa_id', EMPRESA.id)
     .not('numero', 'is', null)
     .like('numero', 'BORR-%')
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(100);
 
   let maxNum = 0;
   if (data?.length) {
@@ -575,6 +576,24 @@ async function _generarNumeroBorrador() {
       }
     });
   }
+
+  // 2. También buscar en snapshots de factura_versiones
+  //    (borradores emitidos pierden su BORR-XXXX pero el snapshot lo conserva)
+  const { data: snaps } = await sb.from('factura_versiones')
+    .select('snapshot')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (snaps?.length) {
+    snaps.forEach(s => {
+      const num = s.snapshot?.numero || '';
+      const match = num.match(/BORR-(\d+)/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+  }
+
   return 'BORR-' + String(maxNum + 1).padStart(4, '0');
 }
 
@@ -665,34 +684,38 @@ async function _verVersionBorrador(versionId) {
       `</tbody></table>`;
   }
 
-  // Overlay modal para la versión
+  // Determinar si la factura actual es borrador (para mostrar u ocultar Restaurar)
+  const _facObjVer = facLocalData.find(f => f.id === v.factura_id);
+  const _esBorrVer = _facObjVer && _facObjVer.estado === 'borrador';
+
+  // Overlay modal para la versión (estilos inline para funcionar desde cualquier contexto)
+  const prev = document.getElementById('mVersionBorrador');
+  if (prev) prev.remove();
   const overlay = document.createElement('div');
   overlay.id = 'mVersionBorrador';
-  overlay.className = 'overlay active';
-  overlay.style.zIndex = '1100';
-  overlay.innerHTML = `<div class="modal" style="max-width:700px">
-    <div class="modal-h">
-      <span>📄</span>
-      <div>
-        <h2 style="font-size:15px;font-weight:800">Versión ${v.version} del borrador</h2>
-        <div style="font-size:11px;color:var(--gris-400)">${fecha} · ${v.usuario_nombre || 'Usuario'}</div>
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div style="background:white;border-radius:16px;max-width:700px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #eee">
+      <span style="font-size:22px">📄</span>
+      <div style="flex:1">
+        <h2 style="margin:0;font-size:15px;font-weight:800">Versión ${v.version}</h2>
+        <div style="font-size:11px;color:#888">${fecha}</div>
       </div>
-      <div style="margin-left:auto;display:flex;gap:6px;margin-right:8px">
-        <button class="btn btn-sm" onclick="_restaurarVersionBorrador(${v.factura_id},${v.id})" style="background:#D1FAE5;color:#065F46;border:1px solid #10B981">♻️ Restaurar esta versión</button>
-      </div>
-      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('mVersionBorrador').remove()">✕</button>
+      ${_esBorrVer ? `<button onclick="_restaurarVersionBorrador(${v.factura_id},${v.id})" style="padding:6px 14px;border-radius:8px;background:#D1FAE5;color:#065F46;border:1px solid #10B981;font-size:12px;font-weight:700;cursor:pointer">♻️ Restaurar</button>` : ''}
+      <button onclick="document.getElementById('mVersionBorrador').remove()" style="padding:6px 10px;border:none;background:none;font-size:18px;cursor:pointer;color:#999">✕</button>
     </div>
-    <div class="modal-b">
+    <div style="padding:16px 20px">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-        <div><span style="font-size:11px;color:var(--gris-400)">Cliente</span><div style="font-weight:600;font-size:13px">${snap.cliente_nombre || '—'}</div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div style="font-weight:600;font-size:13px">${snap.fecha || '—'}</div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Total</span><div style="font-weight:700;font-size:15px;color:var(--azul)">${fmtE(snap.total || 0)}</div></div>
+        <div><span style="font-size:11px;color:#888">Cliente</span><div style="font-weight:600;font-size:13px">${snap.cliente_nombre || '—'}</div></div>
+        <div><span style="font-size:11px;color:#888">Fecha</span><div style="font-weight:600;font-size:13px">${snap.fecha || '—'}</div></div>
+        <div><span style="font-size:11px;color:#888">Total</span><div style="font-weight:700;font-size:15px;color:#2563eb">${fmtE(snap.total || 0)}</div></div>
       </div>
-      <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">${lineasHtml || '<div style="padding:12px;color:var(--gris-400)">Sin líneas</div>'}</div>
-      ${snap.observaciones ? '<div style="margin-top:8px;padding:8px 10px;background:var(--gris-50);border-radius:8px;font-size:12px;color:var(--gris-600)">' + snap.observaciones + '</div>' : ''}
+      <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">${lineasHtml || '<div style="padding:12px;color:#888">Sin líneas</div>'}</div>
+      ${snap.observaciones ? '<div style="margin-top:8px;padding:8px 10px;background:#f9fafb;border-radius:8px;font-size:12px;color:#555">' + snap.observaciones + '</div>' : ''}
     </div>
-    <div class="modal-f" style="display:flex;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="document.getElementById('mVersionBorrador').remove()">Cerrar</button>
+    <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;justify-content:flex-end">
+      <button onclick="document.getElementById('mVersionBorrador').remove()" style="padding:8px 20px;border-radius:8px;border:1px solid #d1d5db;background:white;cursor:pointer;font-weight:600;font-size:13px">Cerrar</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
