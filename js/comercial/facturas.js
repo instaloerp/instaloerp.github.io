@@ -675,14 +675,25 @@ async function _verVersionBorrador(versionId) {
 
 // Restaurar una versión anterior del borrador
 async function _restaurarVersionBorrador(facturaId, versionId) {
-  if (!confirm('¿Restaurar esta versión?\n\nLas líneas y datos del borrador actual se sustituirán por los de esta versión.')) return;
+  if (!confirm('¿Restaurar esta versión?\n\nSe creará una nueva versión con los datos de la seleccionada. No se pierde nada.')) return;
 
   const { data: v, error } = await sb.from('factura_versiones')
     .select('snapshot').eq('id', versionId).single();
   if (error || !v) { toast('Error cargando versión', 'error'); return; }
 
+  // 1. Guardar el estado ACTUAL como nueva versión antes de sobreescribir
+  const fActual = facLocalData.find(x => x.id === facturaId);
+  if (fActual) {
+    try {
+      const countRes = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
+        .eq('factura_id', facturaId);
+      const vNum = ((countRes.count) || 0) + 1;
+      await _guardarVersionBorrador(facturaId, fActual, vNum);
+    } catch(e) { console.warn('Error guardando versión actual:', e); }
+  }
+
+  // 2. Aplicar los datos de la versión restaurada
   const snap = v.snapshot || {};
-  // Actualizar la factura con los datos de la versión — fecha a hoy
   const hoy = new Date().toISOString().split('T')[0];
   const updateObj = {
     lineas: snap.lineas || [],
@@ -698,6 +709,14 @@ async function _restaurarVersionBorrador(facturaId, versionId) {
   const { error: upErr } = await sb.from('facturas').update(updateObj).eq('id', facturaId);
   if (upErr) { toast('Error restaurando: ' + upErr.message, 'error'); return; }
 
+  // 3. Guardar la restauración como nueva versión también
+  try {
+    const countRes2 = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
+      .eq('factura_id', facturaId);
+    const vNum2 = ((countRes2.count) || 0) + 1;
+    await _guardarVersionBorrador(facturaId, { ...updateObj, id: facturaId, numero: fActual?.numero }, vNum2);
+  } catch(e) { console.warn('Error guardando versión restaurada:', e); }
+
   // Cerrar modales
   const mVer = document.getElementById('mVersionBorrador');
   if (mVer) mVer.remove();
@@ -705,7 +724,7 @@ async function _restaurarVersionBorrador(facturaId, versionId) {
 
   // Recargar y volver a abrir
   await loadFacturas();
-  toast('♻️ Versión restaurada ✓', 'success');
+  toast('♻️ Versión restaurada (nueva versión creada) ✓', 'success');
   verDetalleFactura(facturaId);
 }
 
