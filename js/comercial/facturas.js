@@ -793,7 +793,12 @@ async function crearRectificativa(id) {
   const yaRect = facLocalData.find(f => f.rectificativa_de === id);
   if (yaRect) { toast('Ya existe la rectificativa ' + yaRect.numero, 'warning'); return; }
 
-  if (!confirm('¿Crear factura rectificativa de ' + orig.numero + '?\nSe generará una factura con importes negativos que anula la original.')) return;
+  const estabaCobraba = orig.estado === 'cobrada' || orig.estado === 'pagada';
+  const msgConfirm = estabaCobraba
+    ? '¿Crear factura rectificativa de ' + orig.numero + '?\n\n⚠️ Esta factura ya estaba COBRADA (' + fmtE(orig.total || 0) + ').\nSe generará la rectificativa y quedará pendiente la DEVOLUCIÓN al cliente.'
+    : '¿Crear factura rectificativa de ' + orig.numero + '?\nSe generará una factura con importes negativos que anula la original.';
+
+  if (!confirm(msgConfirm)) return;
 
   // Generar número con prefijo RECT-
   const numero = 'RECT-' + (orig.numero || '');
@@ -808,6 +813,10 @@ async function crearRectificativa(id) {
   const iva = -(parseFloat(orig.total_iva) || 0);
   const total = -(parseFloat(orig.total) || 0);
 
+  const obsText = estabaCobraba
+    ? 'Factura rectificativa de ' + orig.numero + '. Anulación total. DEVOLUCIÓN PENDIENTE de ' + fmtE(Math.abs(total)) + ' al cliente.'
+    : 'Factura rectificativa de ' + orig.numero + '. Anulación total.';
+
   const obj = {
     empresa_id: EMPRESA.id,
     numero,
@@ -820,8 +829,8 @@ async function crearRectificativa(id) {
     base_imponible: Math.round(base * 100) / 100,
     total_iva: Math.round(iva * 100) / 100,
     total: Math.round(total * 100) / 100,
-    estado: 'pendiente',
-    observaciones: 'Factura rectificativa de ' + orig.numero + '. Anulación total.',
+    estado: estabaCobraba ? 'pendiente' : 'anulada',
+    observaciones: obsText,
     lineas: lineasRect,
     rectificativa_de: id,
     presupuesto_id: orig.presupuesto_id || null,
