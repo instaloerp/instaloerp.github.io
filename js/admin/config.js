@@ -247,7 +247,7 @@ function cfgTab(id,el){
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
   if (id === 'correo') cargarCuentasCorreoConfig();
   if (id === 'ia') loadConfigIA();
-  if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); }
+  if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); cargarCalculadoraKm(); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1352,9 +1352,13 @@ async function guardarCfgPartes() {
     tarifa_km: parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0.26,
     margen_ocr: parseFloat(document.getElementById('cfg_margen_ocr')?.value) || 30,
     iva_partes: parseFloat(document.getElementById('cfg_iva_partes')?.value) || 21,
-    // Datos de la calculadora (para persistir entre sesiones)
+    // Datos de la calculadora personal (para persistir entre sesiones)
     calc_coste_mensual: _parseNumES(document.getElementById('calc_coste_total')?.value),
     calc_equipo: _calcEquipo || [],
+    // Datos de la calculadora vehículos
+    calc_vehiculos: _calcVehiculos || [],
+    calc_km_mes: _parseNumES(document.getElementById('calc_km_mes')?.value),
+    calc_amort_meses: parseInt(document.getElementById('calc_amort_meses')?.value) || 96,
   };
   const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
   if (error) {
@@ -1506,4 +1510,124 @@ function calcAplicarTarifa() {
 }
 
 // Guardar datos de la calculadora junto con config_partes
-const _origGuardarCfgPartes = null; // placeholder — lógica integrada en guardarCfgPartes
+// ═══════════════════════════════════════════════
+//  CALCULADORA COSTE/KM VEHÍCULOS
+// ═══════════════════════════════════════════════
+
+let _calcVehiculos = [];
+
+const _vehiculoConceptos = [
+  { key: 'compra',       label: 'Precio compra',    placeholder: '25.000',  help: 'Se amortiza en los meses configurados' },
+  { key: 'gasoil',       label: 'Gasoil/mes',       placeholder: '350',     help: 'Gasto mensual en combustible' },
+  { key: 'seguro',       label: 'Seguro/mes',       placeholder: '80',      help: 'Prima mensual del seguro' },
+  { key: 'mantenimiento',label: 'Mantenimiento/mes', placeholder: '60',     help: 'Revisiones, averías, aceite...' },
+  { key: 'neumaticos',   label: 'Neumáticos/mes',   placeholder: '25',      help: 'Prorrateo mensual de neumáticos' },
+  { key: 'itv',          label: 'ITV/mes',           placeholder: '5',       help: 'Prorrateo mensual de la ITV' },
+  { key: 'otros',        label: 'Otros/mes',         placeholder: '0',       help: 'Peajes, parking, lavados...' },
+];
+
+function cargarCalculadoraKm() {
+  const cfg = EMPRESA.config_partes || {};
+  const saved = cfg.calc_vehiculos;
+  if (saved && saved.length) {
+    _calcVehiculos = saved;
+  } else {
+    _calcVehiculos = [];
+    for (let i = 0; i < 5; i++) {
+      const v = { nombre: 'Furgoneta ' + (i+1) };
+      _vehiculoConceptos.forEach(c => v[c.key] = 0);
+      _calcVehiculos.push(v);
+    }
+  }
+  const elKm = document.getElementById('calc_km_mes');
+  if (elKm && cfg.calc_km_mes) {
+    elKm.value = cfg.calc_km_mes.toLocaleString('es-ES', {minimumFractionDigits:0, maximumFractionDigits:0});
+  }
+  const elAmort = document.getElementById('calc_amort_meses');
+  if (elAmort && cfg.calc_amort_meses) elAmort.value = cfg.calc_amort_meses;
+  _renderCalcVehiculos();
+  calcularCosteKm();
+}
+
+function _renderCalcVehiculos() {
+  const cont = document.getElementById('calc_vehiculos');
+  if (!cont) return;
+  cont.innerHTML = _calcVehiculos.map((v, i) => {
+    const conceptosHtml = _vehiculoConceptos.map(c =>
+      `<div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;color:var(--gris-500);width:110px;text-align:right;flex-shrink:0" title="${c.help}">${c.label}</span>
+        <input type="text" inputmode="decimal" value="${v[c.key] ? v[c.key].toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}"
+          placeholder="${c.placeholder}" title="${c.help}"
+          onchange="_calcVehiculos[${i}]['${c.key}']=_parseNumES(this.value);calcularCosteKm()"
+          style="width:90px;border:1px solid var(--gris-200);border-radius:4px;padding:3px 6px;font-size:11px;text-align:right;outline:none">
+      </div>`
+    ).join('');
+    return `<div style="border:1px solid var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-50)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:14px">🚐</span>
+        <input value="${v.nombre||''}" placeholder="Nombre furgoneta"
+          onchange="_calcVehiculos[${i}].nombre=this.value"
+          style="flex:1;border:none;outline:none;font-size:13px;font-weight:600;background:transparent">
+        <button onclick="_calcVehiculos.splice(${i},1);_renderCalcVehiculos();calcularCosteKm()"
+          style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:13px" title="Quitar">✕</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${conceptosHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function calcAddVehiculo() {
+  const v = { nombre: 'Furgoneta ' + (_calcVehiculos.length + 1) };
+  _vehiculoConceptos.forEach(c => v[c.key] = 0);
+  _calcVehiculos.push(v);
+  _renderCalcVehiculos();
+}
+
+function calcularCosteKm() {
+  const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
+  const amortMeses = parseInt(document.getElementById('calc_amort_meses')?.value) || 96;
+  const resultado = document.getElementById('calc_resultado_km');
+  if (!resultado) return;
+
+  // Calcular gasto mensual total de todos los vehículos
+  let gastoMes = 0;
+  _calcVehiculos.forEach(v => {
+    // Amortización: precio compra / meses
+    gastoMes += (v.compra || 0) / amortMeses;
+    // Gastos mensuales directos
+    gastoMes += (v.gasoil || 0) + (v.seguro || 0) + (v.mantenimiento || 0) +
+                (v.neumaticos || 0) + (v.itv || 0) + (v.otros || 0);
+  });
+
+  if (gastoMes <= 0 || kmMes <= 0) {
+    resultado.style.display = 'none';
+    return;
+  }
+
+  const costeKm = gastoMes / kmMes;
+  const tarifaActual = parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0;
+  const margen = tarifaActual > 0 ? ((tarifaActual - costeKm) / costeKm * 100) : 0;
+
+  document.getElementById('calc_gasto_mes').textContent = gastoMes.toFixed(2) + '€';
+  document.getElementById('calc_coste_km').textContent = costeKm.toFixed(3) + '€';
+  const elMargen = document.getElementById('calc_margen_km');
+  elMargen.textContent = margen.toFixed(1) + '%';
+  elMargen.style.color = margen >= 20 ? '#15803d' : margen >= 0 ? '#ca8a04' : '#dc2626';
+  resultado.style.display = 'block';
+}
+
+function calcAplicarTarifaKm() {
+  const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
+  const amortMeses = parseInt(document.getElementById('calc_amort_meses')?.value) || 96;
+  let gastoMes = 0;
+  _calcVehiculos.forEach(v => {
+    gastoMes += (v.compra || 0) / amortMeses;
+    gastoMes += (v.gasoil || 0) + (v.seguro || 0) + (v.mantenimiento || 0) +
+                (v.neumaticos || 0) + (v.itv || 0) + (v.otros || 0);
+  });
+  if (kmMes <= 0) return;
+  const costeKm = Math.ceil(gastoMes / kmMes * 1000) / 1000;
+  document.getElementById('cfg_tarifa_km').value = costeKm;
+  calcularCosteKm();
+  toast('📌 Tarifa km actualizada a ' + costeKm.toFixed(3) + '€/km (coste puro, ajusta margen)', 'info');
+}
