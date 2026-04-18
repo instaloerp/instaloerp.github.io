@@ -1734,6 +1734,8 @@ async function enviarFacturaAEAT(facturaId, action = 'alta') {
 
     const result = await resp.json();
 
+    console.log('🔍 VeriFactu respuesta completa:', JSON.stringify(result, null, 2));
+
     if (!resp.ok) {
       toast(`Error AEAT: ${result.error || result.message || 'Error desconocido'}`, 'error');
       console.error('VeriFactu error:', result);
