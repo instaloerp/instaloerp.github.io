@@ -288,7 +288,6 @@ function buildRegistroAnulacionXML(params: {
             <sf:NumSerieFacturaAnulada>${escXml(factura.numero)}</sf:NumSerieFacturaAnulada>
             <sf:FechaExpedicionFacturaAnulada>${fechaAEAT}</sf:FechaExpedicionFacturaAnulada>
           </sf:IDFactura>
-          <sf:GeneradoPor>E</sf:GeneradoPor>
           ${encadenamiento}
           <sf:SistemaInformatico>
             <sf:NombreRazon>${escXml(config.nombre_razon)}</sf:NombreRazon>
@@ -636,12 +635,15 @@ Deno.serve(async (req) => {
         if (proxyData.ok && proxyData.xml_respuesta) {
           const parsed = parseRespuesta(proxyData.xml_respuesta);
 
-          const estadoFinal = parsed.estado === "Correcto" ? "correcto"
+          const estadoRegistro = parsed.estado === "Correcto" ? "correcto"
             : parsed.estado === "AceptadoConErrores" ? "aceptado_errores"
             : "incorrecto";
+          // Para anulaciones exitosas, marcar la factura como 'anulado' (distinto de 'correcto')
+          const estadoFactura = (action === "anulacion" && estadoRegistro === "correcto")
+            ? "anulado" : estadoRegistro;
 
           await sb.from("verifactu_registros").update({
-            estado: estadoFinal,
+            estado: estadoRegistro,
             csv_aeat: parsed.csv || null,
             codigo_error: parsed.codigoError || null,
             descripcion_error: parsed.descripcionError || null,
@@ -651,9 +653,9 @@ Deno.serve(async (req) => {
           }).eq("id", regInserted.id);
 
           await sb.from("facturas").update({
-            verifactu_estado: estadoFinal,
-            verifactu_csv: parsed.csv || null,
-            verifactu_qr_url: qrUrl || null,
+            verifactu_estado: estadoFactura,
+            verifactu_csv: action === "anulacion" ? null : (parsed.csv || null),
+            verifactu_qr_url: action === "anulacion" ? null : (qrUrl || null),
             verifactu_huella: huella,
             verifactu_enviado_at: new Date().toISOString(),
           }).eq("id", factura_id);
@@ -685,11 +687,13 @@ Deno.serve(async (req) => {
     }
 
     // Campos planos para el frontend
-    const estadoFinal = respuestaAEAT?.estado === "Correcto" ? "correcto"
+    const estadoBase = respuestaAEAT?.estado === "Correcto" ? "correcto"
       : respuestaAEAT?.estado === "AceptadoConErrores" ? "aceptado_errores"
       : respuestaAEAT?.estado === "error_envio" ? "error_envio"
       : respuestaAEAT?.simulacion ? "simulado"
       : respuestaAEAT ? "incorrecto" : "pendiente";
+    const estadoFinal = (action === "anulacion" && estadoBase === "correcto")
+      ? "anulado" : estadoBase;
 
     return jsonResp({
       ok: true,
