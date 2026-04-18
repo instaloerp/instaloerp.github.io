@@ -2293,34 +2293,21 @@ try {
                   </div>
                 </div>
 
-                <!-- ═══ CALCULADORA COSTE/KM VEHÍCULOS ═══ -->
+                <!-- ═══ CALCULADORA COSTE/KM (DATOS REALES DE FLOTA) ═══ -->
                 <div style="margin-top:24px;border-top:2px solid var(--gris-100);padding-top:20px">
                   <div style="background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.08));border-radius:10px;padding:16px;margin-bottom:16px">
-                    <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">🚗 Calculadora de coste/km</div>
+                    <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">🚗 Coste/km — datos reales de Flota</div>
                     <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
-                      Introduce los gastos de cada furgoneta para calcular el coste real por kilómetro. El precio de compra se amortiza a 8 años (96 meses).
+                      Calcula el coste real por kilómetro a partir de los gastos registrados en <a href="#" onclick="goPage('flota');return false" style="color:var(--azul);font-weight:600">Flota → Gastos</a> y la amortización de cada vehículo.
                     </div>
                   </div>
 
-                  <div style="margin-bottom:12px">
-                    <label style="font-weight:600;font-size:13px;color:var(--gris-700);margin-bottom:8px;display:block">🚐 Furgonetas</label>
-                    <div id="calc_vehiculos" style="display:flex;flex-direction:column;gap:10px"></div>
-                    <button onclick="calcAddVehiculo()" style="margin-top:8px;background:none;border:1px dashed var(--gris-300);border-radius:6px;cursor:pointer;color:var(--gris-500);font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:4px">
-                      <span style="font-size:15px">+</span> Añadir furgoneta
-                    </button>
-                  </div>
+                  <div id="calc_flota_resumen" style="margin-bottom:16px"></div>
 
-                  <div class="fg-row" style="margin-bottom:16px">
-                    <div class="fg">
-                      <label>📏 Km totales / mes (todas las furgonetas)</label>
-                      <input id="calc_km_mes" type="text" inputmode="decimal" placeholder="8.000" style="font-size:16px;font-weight:700" oninput="calcularCosteKm()">
-                      <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Kilómetros totales mensuales. Cuando Movertis esté integrado se rellenará automáticamente.</small>
-                    </div>
-                    <div class="fg">
-                      <label>📅 Amortización (meses)</label>
-                      <input id="calc_amort_meses" type="number" min="12" step="12" value="96" style="font-size:16px;font-weight:700" oninput="calcularCosteKm()">
-                      <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">96 meses = 8 años. Ajusta si quieres otro plazo.</small>
-                    </div>
+                  <div class="fg" style="margin-bottom:16px">
+                    <label>📏 Km totales / mes (todas las furgonetas)</label>
+                    <input id="calc_km_mes" type="text" inputmode="decimal" placeholder="8.000" style="font-size:16px;font-weight:700" oninput="calcularCosteKm()">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Kilómetros totales mensuales. Cuando Movertis esté integrado se rellenará automáticamente.</small>
                   </div>
 
                   <div id="calc_resultado_km" style="display:none;margin-top:16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:16px">

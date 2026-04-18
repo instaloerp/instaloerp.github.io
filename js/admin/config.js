@@ -1355,10 +1355,8 @@ async function guardarCfgPartes() {
     // Datos de la calculadora personal (para persistir entre sesiones)
     calc_coste_mensual: _parseNumES(document.getElementById('calc_coste_total')?.value),
     calc_equipo: _calcEquipo || [],
-    // Datos de la calculadora vehículos
-    calc_vehiculos: _calcVehiculos || [],
+    // Km/mes para calculadora coste/km (los vehículos y gastos ya están en Flota)
     calc_km_mes: _parseNumES(document.getElementById('calc_km_mes')?.value),
-    calc_amort_meses: parseInt(document.getElementById('calc_amort_meses')?.value) || 96,
   };
   const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
   if (error) {
@@ -1509,100 +1507,136 @@ function calcAplicarTarifa() {
   toast('📌 Tarifa base actualizada a ' + costeHora.toFixed(2) + '€/h (coste puro, ajusta margen)', 'info');
 }
 
-// Guardar datos de la calculadora junto con config_partes
 // ═══════════════════════════════════════════════
-//  CALCULADORA COSTE/KM VEHÍCULOS
+//  CALCULADORA COSTE/KM — DATOS REALES DE FLOTA
 // ═══════════════════════════════════════════════
 
-let _calcVehiculos = [];
+let _calcFlotaVehiculos = [];
+let _calcFlotaGastos = [];
 
-const _vehiculoConceptos = [
-  { key: 'compra',       label: 'Precio compra',    placeholder: '25.000',  help: 'Se amortiza en los meses configurados' },
-  { key: 'gasoil',       label: 'Gasoil/mes',       placeholder: '350',     help: 'Gasto mensual en combustible' },
-  { key: 'seguro',       label: 'Seguro/mes',       placeholder: '80',      help: 'Prima mensual del seguro' },
-  { key: 'mantenimiento',label: 'Mantenimiento/mes', placeholder: '60',     help: 'Revisiones, averías, aceite...' },
-  { key: 'neumaticos',   label: 'Neumáticos/mes',   placeholder: '25',      help: 'Prorrateo mensual de neumáticos' },
-  { key: 'itv',          label: 'ITV/mes',           placeholder: '5',       help: 'Prorrateo mensual de la ITV' },
-  { key: 'otros',        label: 'Otros/mes',         placeholder: '0',       help: 'Peajes, parking, lavados...' },
-];
-
-function cargarCalculadoraKm() {
+async function cargarCalculadoraKm() {
   const cfg = EMPRESA.config_partes || {};
-  const saved = cfg.calc_vehiculos;
-  if (saved && saved.length) {
-    _calcVehiculos = saved;
-  } else {
-    _calcVehiculos = [];
-    for (let i = 0; i < 5; i++) {
-      const v = { nombre: 'Furgoneta ' + (i+1) };
-      _vehiculoConceptos.forEach(c => v[c.key] = 0);
-      _calcVehiculos.push(v);
-    }
-  }
   const elKm = document.getElementById('calc_km_mes');
   if (elKm && cfg.calc_km_mes) {
     elKm.value = cfg.calc_km_mes.toLocaleString('es-ES', {minimumFractionDigits:0, maximumFractionDigits:0});
   }
-  const elAmort = document.getElementById('calc_amort_meses');
-  if (elAmort && cfg.calc_amort_meses) elAmort.value = cfg.calc_amort_meses;
-  _renderCalcVehiculos();
+  // Cargar datos reales de Flota
+  const eid = EMPRESA.id;
+  const [vRes, gRes] = await Promise.all([
+    sb.from('vehiculos').select('*').eq('empresa_id', eid).eq('activo', true).order('nombre'),
+    sb.from('vehiculo_gastos').select('*').eq('empresa_id', eid).order('fecha', { ascending: false })
+  ]);
+  _calcFlotaVehiculos = vRes.data || [];
+  _calcFlotaGastos = gRes.data || [];
+  _renderCalcFlotaResumen();
   calcularCosteKm();
 }
 
-function _renderCalcVehiculos() {
-  const cont = document.getElementById('calc_vehiculos');
+function _renderCalcFlotaResumen() {
+  const cont = document.getElementById('calc_flota_resumen');
   if (!cont) return;
-  cont.innerHTML = _calcVehiculos.map((v, i) => {
-    const conceptosHtml = _vehiculoConceptos.map(c =>
-      `<div style="display:flex;align-items:center;gap:4px">
-        <span style="font-size:11px;color:var(--gris-500);width:110px;text-align:right;flex-shrink:0" title="${c.help}">${c.label}</span>
-        <input type="text" inputmode="decimal" value="${v[c.key] ? v[c.key].toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}"
-          placeholder="${c.placeholder}" title="${c.help}"
-          onchange="_calcVehiculos[${i}]['${c.key}']=_parseNumES(this.value);calcularCosteKm()"
-          style="width:90px;border:1px solid var(--gris-200);border-radius:4px;padding:3px 6px;font-size:11px;text-align:right;outline:none">
-      </div>`
-    ).join('');
-    return `<div style="border:1px solid var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-50)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:14px">🚐</span>
-        <input value="${v.nombre||''}" placeholder="Nombre furgoneta"
-          onchange="_calcVehiculos[${i}].nombre=this.value"
-          style="flex:1;border:none;outline:none;font-size:13px;font-weight:600;background:transparent">
-        <button onclick="_calcVehiculos.splice(${i},1);_renderCalcVehiculos();calcularCosteKm()"
-          style="background:none;border:none;cursor:pointer;color:var(--rojo);font-size:13px" title="Quitar">✕</button>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${conceptosHtml}</div>
-    </div>`;
-  }).join('');
-}
 
-function calcAddVehiculo() {
-  const v = { nombre: 'Furgoneta ' + (_calcVehiculos.length + 1) };
-  _vehiculoConceptos.forEach(c => v[c.key] = 0);
-  _calcVehiculos.push(v);
-  _renderCalcVehiculos();
+  if (!_calcFlotaVehiculos.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gris-400)">' +
+      '<div style="font-size:30px;margin-bottom:6px">🚐</div>' +
+      '<div>No hay vehículos en Flota. <a href="#" onclick="goPage(\'flota\');return false" style="color:var(--azul)">Añadir vehículos</a></div></div>';
+    return;
+  }
+
+  const hoy = new Date();
+  const hace12m = new Date(hoy);
+  hace12m.setFullYear(hace12m.getFullYear() - 1);
+  const hace12mStr = hace12m.toISOString().slice(0, 10);
+
+  const numActivos = _calcFlotaVehiculos.length || 1;
+  const gastosFlota12m = _calcFlotaGastos
+    .filter(g => !g.vehiculo_id && g.fecha >= hace12mStr)
+    .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+
+  const conceptoIcos = { gasoil:'⛽', seguro:'🛡️', mantenimiento:'🔧', itv:'📋', neumaticos:'🛞', otros:'📎' };
+
+  let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+  let totalMesGlobal = 0;
+
+  _calcFlotaVehiculos.forEach(veh => {
+    const precio = parseFloat(veh.precio_compra) || 0;
+    const amortMeses = parseInt(veh.amort_meses) || 96;
+    const amortMes = precio / amortMeses;
+
+    const gastos12m = _calcFlotaGastos
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+
+    const porConcepto = {};
+    _calcFlotaGastos
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .forEach(g => { porConcepto[g.concepto] = (porConcepto[g.concepto] || 0) + (parseFloat(g.importe) || 0); });
+
+    const gastoMensualDirecto = gastos12m / 12;
+    const parteFlota = gastosFlota12m / numActivos / 12;
+    const totalMes = amortMes + gastoMensualDirecto + parteFlota;
+    totalMesGlobal += totalMes;
+
+    const conceptosHtml = Object.entries(porConcepto).map(([c, total]) =>
+      `<span style="font-size:10px;color:var(--gris-500)" title="${c}: ${(total/12).toFixed(0)}€/mes">${conceptoIcos[c]||'📎'} ${(total/12).toFixed(0)}</span>`
+    ).join(' · ');
+
+    html += `<div style="border:1px solid var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-50)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">🚐</span>
+        <strong style="font-size:13px;flex:1">${veh.nombre}</strong>
+        <span style="font-size:11px;color:var(--gris-400)">${veh.matricula || ''}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--azul)">${totalMes.toFixed(0)}€/mes</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--gris-500)">
+        <span title="Amortización mensual">📊 Amort: ${amortMes.toFixed(0)}€</span>
+        <span title="Gastos directos /mes (media 12m)">💰 Gastos: ${gastoMensualDirecto.toFixed(0)}€</span>
+        ${parteFlota > 0 ? '<span title="Parte proporcional gastos de flota">🔄 Flota: '+parteFlota.toFixed(0)+'€</span>' : ''}
+      </div>
+      ${conceptosHtml ? '<div style="margin-top:4px">'+conceptosHtml+'</div>' : ''}
+    </div>`;
+  });
+
+  html += '</div>';
+  html += '<div style="margin-top:10px;padding:10px;background:var(--azul-light);border-radius:8px;display:flex;justify-content:space-between;align-items:center">' +
+    '<span style="font-size:13px;font-weight:600">Total flota ('+numActivos+' vehículos)</span>' +
+    '<span style="font-size:16px;font-weight:800;color:var(--azul)">'+totalMesGlobal.toFixed(2)+'€/mes</span></div>';
+
+  if (!_calcFlotaGastos.length) {
+    html += '<div style="margin-top:8px;padding:10px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">' +
+      '⚠️ No hay gastos registrados aún. <a href="#" onclick="goPage(\'flota-gastos\');return false" style="color:var(--azul);font-weight:600">Registra gastos</a> para obtener el coste real.</div>';
+  }
+
+  cont.innerHTML = html;
 }
 
 function calcularCosteKm() {
   const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
-  const amortMeses = parseInt(document.getElementById('calc_amort_meses')?.value) || 96;
   const resultado = document.getElementById('calc_resultado_km');
   if (!resultado) return;
 
-  // Calcular gasto mensual total de todos los vehículos
-  let gastoMes = 0;
-  _calcVehiculos.forEach(v => {
-    // Amortización: precio compra / meses
-    gastoMes += (v.compra || 0) / amortMeses;
-    // Gastos mensuales directos
-    gastoMes += (v.gasoil || 0) + (v.seguro || 0) + (v.mantenimiento || 0) +
-                (v.neumaticos || 0) + (v.itv || 0) + (v.otros || 0);
-  });
+  const hoy = new Date();
+  const hace12m = new Date(hoy);
+  hace12m.setFullYear(hace12m.getFullYear() - 1);
+  const hace12mStr = hace12m.toISOString().slice(0, 10);
 
-  if (gastoMes <= 0 || kmMes <= 0) {
-    resultado.style.display = 'none';
-    return;
-  }
+  let gastoMes = 0;
+  _calcFlotaVehiculos.forEach(veh => {
+    const precio = parseFloat(veh.precio_compra) || 0;
+    const amortMeses = parseInt(veh.amort_meses) || 96;
+    gastoMes += precio / amortMeses;
+    const gastos12m = _calcFlotaGastos
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+    gastoMes += gastos12m / 12;
+  });
+  // Gastos de flota (sin vehículo)
+  const gastosFlota12m = _calcFlotaGastos
+    .filter(g => !g.vehiculo_id && g.fecha >= hace12mStr)
+    .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+  gastoMes += gastosFlota12m / 12;
+
+  if (gastoMes <= 0 || kmMes <= 0) { resultado.style.display = 'none'; return; }
 
   const costeKm = gastoMes / kmMes;
   const tarifaActual = parseFloat(document.getElementById('cfg_tarifa_km')?.value) || 0;
@@ -1618,14 +1652,28 @@ function calcularCosteKm() {
 
 function calcAplicarTarifaKm() {
   const kmMes = _parseNumES(document.getElementById('calc_km_mes')?.value);
-  const amortMeses = parseInt(document.getElementById('calc_amort_meses')?.value) || 96;
-  let gastoMes = 0;
-  _calcVehiculos.forEach(v => {
-    gastoMes += (v.compra || 0) / amortMeses;
-    gastoMes += (v.gasoil || 0) + (v.seguro || 0) + (v.mantenimiento || 0) +
-                (v.neumaticos || 0) + (v.itv || 0) + (v.otros || 0);
-  });
   if (kmMes <= 0) return;
+
+  const hoy = new Date();
+  const hace12m = new Date(hoy);
+  hace12m.setFullYear(hace12m.getFullYear() - 1);
+  const hace12mStr = hace12m.toISOString().slice(0, 10);
+
+  let gastoMes = 0;
+  _calcFlotaVehiculos.forEach(veh => {
+    const precio = parseFloat(veh.precio_compra) || 0;
+    const amortMeses = parseInt(veh.amort_meses) || 96;
+    gastoMes += precio / amortMeses;
+    const gastos12m = _calcFlotaGastos
+      .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
+      .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+    gastoMes += gastos12m / 12;
+  });
+  const gastosFlota12m = _calcFlotaGastos
+    .filter(g => !g.vehiculo_id && g.fecha >= hace12mStr)
+    .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
+  gastoMes += gastosFlota12m / 12;
+
   const costeKm = Math.ceil(gastoMes / kmMes * 1000) / 1000;
   document.getElementById('cfg_tarifa_km').value = costeKm;
   calcularCosteKm();
