@@ -906,6 +906,13 @@ async function emitirFacturaDefinitiva(id) {
   closeModal('mFacturaDetalle');
   await loadFacturas();
   loadDashboard();
+
+  // ── VeriFactu: envío automático a AEAT tras emitir ──
+  if (_isVfActivo()) {
+    try {
+      await enviarFacturaAEAT(id, 'alta', { auto: true });
+    } catch (e) { console.warn('Auto-envío VeriFactu tras emitir:', e); }
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1165,6 +1172,16 @@ async function guardarFacturaRapida(estado) {
     if (cliActualId) await abrirFicha(cliActualId);
     await loadPresupuestos();
     loadDashboard();
+
+    // ── VeriFactu: envío automático si es factura emitida (no borrador) ──
+    if (estado === 'pendiente' && _isVfActivo()) {
+      const facCreada = facLocalData.find(f => f.numero === numero);
+      if (facCreada) {
+        try {
+          await enviarFacturaAEAT(facCreada.id, 'alta', { auto: true });
+        } catch (e) { console.warn('Auto-envío VeriFactu nueva factura:', e); }
+      }
+    }
   } finally {
     _creando = false;
   }
@@ -1332,6 +1349,16 @@ async function crearRectificativa(id) {
   toast('📝 Rectificativa ' + numero + ' creada — documentos vinculados liberados ✓', 'success');
   await loadFacturas();
   loadDashboard();
+
+  // ── VeriFactu: envío automático de rectificativa a AEAT ──
+  if (_isVfActivo()) {
+    const rectCreada = facLocalData.find(f => f.numero === numero);
+    if (rectCreada) {
+      try {
+        await enviarFacturaAEAT(rectCreada.id, 'alta', { auto: true });
+      } catch (e) { console.warn('Auto-envío VeriFactu rectificativa:', e); }
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1707,27 +1734,33 @@ function _isVfActivo() {
   return !!(EMPRESA?.facturacion_electronica?.verifactu);
 }
 
-/** Enviar factura a AEAT vía Edge Function */
-async function enviarFacturaAEAT(facturaId, action = 'alta') {
+/** Enviar factura a AEAT vía Edge Function
+ *  @param {number} facturaId
+ *  @param {string} action - 'alta' | 'anulacion'
+ *  @param {object} opts - { auto: true } para envío automático sin confirmación
+ */
+async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
   const fac = facLocalData.find(f => f.id === facturaId);
   if (!fac) { toast('Factura no encontrada', 'error'); return; }
 
   // Validaciones
   if (fac.estado === 'borrador' || (fac.numero || '').startsWith('BORR-')) {
-    toast('No se pueden enviar borradores a AEAT. Emite la factura primero.', 'error');
+    if (!opts.auto) toast('No se pueden enviar borradores a AEAT. Emite la factura primero.', 'error');
     return;
   }
   if (fac.verifactu_estado === 'correcto' && action === 'alta') {
-    toast('Esta factura ya está registrada en AEAT', 'info');
+    if (!opts.auto) toast('Esta factura ya está registrada en AEAT', 'info');
     return;
   }
 
-  // Confirmación
-  const modoLabel = (EMPRESA._vf_modo || 'test') === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
-  const confirmMsg = action === 'alta'
-    ? `¿Enviar factura ${fac.numero} a AEAT (${modoLabel})?`
-    : `¿Enviar ANULACIÓN de factura ${fac.numero} a AEAT (${modoLabel})?`;
-  if (!confirm(confirmMsg)) return;
+  // Confirmación (saltar si es envío automático)
+  if (!opts.auto) {
+    const modoLabel = (EMPRESA._vf_modo || 'test') === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
+    const confirmMsg = action === 'alta'
+      ? `¿Enviar factura ${fac.numero} a AEAT (${modoLabel})?`
+      : `¿Enviar ANULACIÓN de factura ${fac.numero} a AEAT (${modoLabel})?`;
+    if (!confirm(confirmMsg)) return;
+  }
 
   toast('Enviando a AEAT...', 'info');
 
