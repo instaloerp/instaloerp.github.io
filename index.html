@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 27</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 28</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -2206,8 +2206,8 @@ try {
 
                   <div class="fg" style="margin-bottom:16px">
                     <label>💰 Coste total empresa (€/mes)</label>
-                    <input id="calc_coste_total" type="number" min="0" step="100" placeholder="17876.48" style="font-size:16px;font-weight:700" oninput="calcularCosteHora()">
-                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Suma de todos los costes de personal del listado de la gestoría</small>
+                    <input id="calc_coste_total" type="text" inputmode="decimal" placeholder="17.876,48" style="font-size:16px;font-weight:700" oninput="calcularCosteHora()">
+                    <small style="color:var(--gris-400);font-size:11px;margin-top:4px;display:block">Suma de todos los costes de personal del listado de la gestoría (acepta formato 17.876,48 o 17876.48)</small>
                   </div>
 
                   <div style="margin-bottom:12px">

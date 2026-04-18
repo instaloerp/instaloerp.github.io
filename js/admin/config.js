@@ -1353,7 +1353,7 @@ async function guardarCfgPartes() {
     margen_ocr: parseFloat(document.getElementById('cfg_margen_ocr')?.value) || 30,
     iva_partes: parseFloat(document.getElementById('cfg_iva_partes')?.value) || 21,
     // Datos de la calculadora (para persistir entre sesiones)
-    calc_coste_mensual: parseFloat(document.getElementById('calc_coste_total')?.value) || 0,
+    calc_coste_mensual: _parseNumES(document.getElementById('calc_coste_total')?.value),
     calc_equipo: _calcEquipo || [],
   };
   const { error } = await sb.from('empresas').update({ config_partes: cfg }).eq('id', EMPRESA.id);
@@ -1415,7 +1415,10 @@ function cargarCalculadora() {
     ];
   }
   const elCoste = document.getElementById('calc_coste_total');
-  if (elCoste && cfg.calc_coste_mensual) elCoste.value = cfg.calc_coste_mensual;
+  if (elCoste && cfg.calc_coste_mensual) {
+    // Mostrar en formato español
+    elCoste.value = cfg.calc_coste_mensual.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
   _renderCalcEquipo();
   calcularCosteHora();
 }
@@ -1454,8 +1457,23 @@ function calcAddPersona() {
   _renderCalcEquipo();
 }
 
+/** Parsea número en formato español (17.876,48) o inglés (17876.48) */
+function _parseNumES(str) {
+  if (!str) return 0;
+  // Si tiene coma, asumir formato español: quitar puntos de miles, coma → punto decimal
+  if (str.includes(',')) {
+    return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  // Si tiene más de un punto (ej: 17.876.48) → formato miles español sin coma
+  const dots = (str.match(/\./g) || []).length;
+  if (dots > 1) {
+    return parseFloat(str.replace(/\./g, '')) || 0;
+  }
+  return parseFloat(str) || 0;
+}
+
 function calcularCosteHora() {
-  const costeMensual = parseFloat(document.getElementById('calc_coste_total')?.value) || 0;
+  const costeMensual = _parseNumES(document.getElementById('calc_coste_total')?.value);
   const totalHoras = _calcEquipo.reduce((sum, p) => sum + (p.hFact||0) * (p.dias||0), 0);
   const resultado = document.getElementById('calc_resultado');
   if (!resultado) return;
@@ -1478,7 +1496,7 @@ function calcularCosteHora() {
 }
 
 function calcAplicarTarifa() {
-  const costeMensual = parseFloat(document.getElementById('calc_coste_total')?.value) || 0;
+  const costeMensual = _parseNumES(document.getElementById('calc_coste_total')?.value);
   const totalHoras = _calcEquipo.reduce((sum, p) => sum + (p.hFact||0) * (p.dias||0), 0);
   if (totalHoras <= 0) return;
   const costeHora = Math.ceil(costeMensual / totalHoras * 100) / 100;
