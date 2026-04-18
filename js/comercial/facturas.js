@@ -1204,11 +1204,16 @@ async function abrirFacturaRapida() {
 //  Generar número correlativo para rectificativas (serie propia RECT-)
 // ═══════════════════════════════════════════════
 async function _generarNumeroRectificativa() {
+  // Buscar serie configurada para rectificativas
+  const sRect = (series||[]).find(s => s.tipo === 'factura_rectificativa');
+  const prefijo = sRect?.serie ? sRect.serie + '-' : sRect?.prefijo || 'R-';
+  const digitos = sRect?.digitos || 4;
+
   const { data } = await sb.from('facturas')
     .select('numero')
     .eq('empresa_id', EMPRESA.id)
     .not('numero', 'is', null)
-    .like('numero', 'RECT-%')
+    .not('rectificativa_de', 'is', null)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -1222,7 +1227,7 @@ async function _generarNumeroRectificativa() {
       }
     });
   }
-  return 'RECT-' + String(maxNum + 1).padStart(4, '0');
+  return prefijo + String(maxNum + 1).padStart(digitos, '0');
 }
 
 // ═══════════════════════════════════════════════
