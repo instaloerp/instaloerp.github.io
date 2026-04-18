@@ -534,6 +534,8 @@ async function cargarCfgFacturacion() {
   if (vf) vf.checked = !!cfg.verifactu;
   if (fe) fe.checked = !!cfg.factura_electronica;
   if (sii) sii.checked = !!cfg.sii;
+  // Mostrar/ocultar panel VeriFactu según estado del toggle
+  toggleVerifactuPanel();
 }
 
 async function guardarCfgFacturacion() {
@@ -894,6 +896,192 @@ async function cargarCfgFirmaDocumentos() {
 // Función pública para consultar si un tipo de documento debe firmarse
 function debesFirmarDocumento(tipoDocumento) {
   return _cfgFirmaDocumentos[tipoDocumento] !== false;
+}
+
+// ═══════════════════════════════════════════════
+//  VERIFACTU — Configuración y conexión AEAT
+// ═══════════════════════════════════════════════
+
+/** Mostrar/ocultar panel de config VeriFactu según toggle */
+function toggleVerifactuPanel() {
+  const panel = document.getElementById('verifactu_config_panel');
+  const activo = document.getElementById('cfg_verifactu')?.checked;
+  if (panel) panel.style.display = activo ? '' : 'none';
+  if (activo) cargarCfgVerifactu();
+}
+
+/** Cargar configuración VeriFactu desde verifactu_config */
+async function cargarCfgVerifactu() {
+  try {
+    const { data, error } = await sb.from('verifactu_config')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .maybeSingle();
+
+    const cfg = data || {};
+    EMPRESA._vf_modo = cfg.modo || 'test';
+
+    // Rellenar campos
+    const modo = document.getElementById('cfg_vf_modo');
+    if (modo) modo.value = cfg.modo || 'test';
+
+    const nif = document.getElementById('cfg_vf_nif');
+    if (nif) nif.value = cfg.nif || EMPRESA?.cif || '';
+
+    const razon = document.getElementById('cfg_vf_razon');
+    if (razon) razon.value = cfg.nombre_razon || EMPRESA?.nombre || '';
+
+    // Cargar info del certificado predeterminado
+    cargarCertInfoVF();
+
+    // Verificar estado de conexión
+    verificarEstadoVF(cfg);
+
+  } catch (e) {
+    console.error('Error cargando config VeriFactu:', e);
+  }
+}
+
+/** Cargar info del certificado en el panel VeriFactu */
+async function cargarCertInfoVF() {
+  const el = document.getElementById('vf_cert_info');
+  if (!el) return;
+
+  try {
+    const { data } = await sb.from('certificados_digitales')
+      .select('nombre, titular, nif_titular, fecha_caducidad, activo, predeterminado')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('predeterminado', true)
+      .maybeSingle();
+
+    if (!data) {
+      el.innerHTML = `<div style="color:#d97706;display:flex;align-items:center;gap:6px">
+        <span style="font-size:16px">⚠️</span>
+        <div>
+          <div style="font-weight:700">Sin certificado digital</div>
+          <div style="font-size:11px;color:var(--gris-400)">Sube un certificado .pfx/.p12 en la pestaña "Certificado digital"</div>
+        </div>
+      </div>`;
+      return;
+    }
+
+    const caducado = data.fecha_caducidad && new Date(data.fecha_caducidad) < new Date();
+    const dias = data.fecha_caducidad ? Math.ceil((new Date(data.fecha_caducidad) - new Date()) / (1000*60*60*24)) : null;
+
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">${caducado ? '❌' : '✅'}</span>
+      <div>
+        <div style="font-weight:700;font-size:12px">${data.nombre || data.titular || 'Certificado'}</div>
+        <div style="font-size:11px;color:${caducado ? 'var(--rojo)' : 'var(--gris-400)'}">
+          ${data.nif_titular || ''} · ${caducado ? 'CADUCADO' : `Caduca en ${dias} días`}
+        </div>
+      </div>
+    </div>`;
+
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--rojo);font-size:11px">Error cargando certificado</span>`;
+  }
+}
+
+/** Verificar estado de conexión VeriFactu */
+function verificarEstadoVF(cfg) {
+  const el = document.getElementById('vf_estado_conexion');
+  if (!el) return;
+
+  const activo = cfg && cfg.activo;
+  const tieneNif = !!(cfg?.nif);
+  const modo = cfg?.modo || 'test';
+
+  if (!tieneNif) {
+    el.style.background = '#FEF3C7'; el.style.color = '#92400E';
+    el.innerHTML = `<span style="font-size:16px">⚠️</span><div><strong>Configuración incompleta</strong><div style="font-size:11px">Rellena el NIF y la razón social para activar VeriFactu</div></div>`;
+  } else if (!activo) {
+    el.style.background = '#FEF3C7'; el.style.color = '#92400E';
+    el.innerHTML = `<span style="font-size:16px">⏸️</span><div><strong>VeriFactu configurado pero no activo</strong><div style="font-size:11px">Guarda la configuración para activar</div></div>`;
+  } else {
+    const mLabel = modo === 'produccion' ? '🔴 PRODUCCIÓN' : '🟡 PRUEBAS';
+    el.style.background = modo === 'produccion' ? '#FEE2E2' : '#ECFDF5';
+    el.style.color = modo === 'produccion' ? '#991B1B' : '#166534';
+    el.innerHTML = `<span style="font-size:16px">${modo === 'produccion' ? '🔴' : '✅'}</span><div><strong>VeriFactu activo — ${mLabel}</strong><div style="font-size:11px">Las facturas se enviarán al entorno ${modo === 'produccion' ? 'real' : 'de pruebas'} de la AEAT</div></div>`;
+  }
+}
+
+/** Guardar configuración VeriFactu en verifactu_config */
+async function guardarCfgVerifactu() {
+  const modo = document.getElementById('cfg_vf_modo')?.value || 'test';
+  const nif = (document.getElementById('cfg_vf_nif')?.value || '').trim();
+  const razon = (document.getElementById('cfg_vf_razon')?.value || '').trim();
+
+  if (!nif) { toast('El NIF del obligado es obligatorio', 'error'); return; }
+
+  const payload = {
+    empresa_id: EMPRESA.id,
+    activo: true,
+    modo,
+    nif,
+    nombre_razon: razon,
+    nombre_sistema: 'instaloERP',
+    id_sistema: '01',
+    version_sistema: '1.1',
+    numero_instalacion: '001',
+    updated_at: new Date().toISOString(),
+  };
+
+  // Upsert
+  const { error } = await sb.from('verifactu_config')
+    .upsert(payload, { onConflict: 'empresa_id' });
+
+  if (error) {
+    toast('Error guardando: ' + error.message, 'error');
+    console.error('VeriFactu config error:', error);
+    return;
+  }
+
+  EMPRESA._vf_modo = modo;
+  toast('✅ Configuración VeriFactu guardada', 'success');
+  verificarEstadoVF({ activo: true, nif, modo });
+}
+
+/** Probar conexión con AEAT vía Edge Function */
+async function testConexionVerifactu() {
+  toast('Probando conexión con AEAT...', 'info');
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(
+      `${SUPA_URL}/functions/v1/verifactu`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'consulta',
+          empresa_id: EMPRESA.id,
+        }),
+      }
+    );
+
+    const result = await resp.json();
+
+    if (resp.ok) {
+      toast('✅ Conexión con AEAT correcta', 'success');
+    } else {
+      toast(`❌ Error: ${result.error || result.message || 'Sin respuesta'}`, 'error');
+    }
+  } catch (err) {
+    toast(`❌ Error de red: ${err.message}`, 'error');
+  }
+}
+
+/** Ver registros VeriFactu (abrir modal o navegar) */
+function verRegistrosVerifactu() {
+  // Ir a facturas con filtro de registros VeriFactu
+  goPage('facturas');
+  toast('📋 Registros VeriFactu — se muestran en cada factura', 'info');
 }
 
 // ═══════════════════════════════════════════════

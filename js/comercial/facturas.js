@@ -144,6 +144,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
+          ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') && !esRect ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
@@ -451,6 +452,14 @@ async function verDetalleFactura(id) {
     // Rectificativa — si no es borrador, no es ya rectificativa, y no tiene una asociada
     if (f.estado !== 'borrador' && !esRectificativa && !rectAsociada) {
       btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
+    }
+    // VeriFactu — enviar a AEAT si activo y no borrador ni rectificativa
+    if (_isVfActivo() && !esBorrador && !esRectificativa) {
+      if (f.verifactu_estado === 'correcto') {
+        btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:12px;font-weight:700">✅ Registrada en AEAT${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
+      } else {
+        btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Enviar a AEAT</button>`;
+      }
     }
     // Emitir factura definitiva — solo borradores
     if (esBorrador && !esRectificativa) {
@@ -1668,4 +1677,103 @@ function renderRectificativas() {
     </tr>`;
   }).join('') :
   '<tr><td colspan="7"><div class="empty"><div class="ei">📝</div><h3>Sin rectificativas</h3><p>Las facturas rectificativas aparecerán aquí al crearlas desde una factura original</p></div></td></tr>';
+}
+
+// ═══════════════════════════════════════════════
+//  VERIFACTU — Envío a AEAT
+// ═══════════════════════════════════════════════
+
+/** Comprueba si VeriFactu está activado en la config de empresa */
+function _isVfActivo() {
+  return !!(EMPRESA?.facturacion_electronica?.verifactu);
+}
+
+/** Enviar factura a AEAT vía Edge Function */
+async function enviarFacturaAEAT(facturaId, action = 'alta') {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac) { toast('Factura no encontrada', 'error'); return; }
+
+  // Validaciones
+  if (fac.estado === 'borrador' || (fac.numero || '').startsWith('BORR-')) {
+    toast('No se pueden enviar borradores a AEAT. Emite la factura primero.', 'error');
+    return;
+  }
+  if (fac.verifactu_estado === 'correcto' && action === 'alta') {
+    toast('Esta factura ya está registrada en AEAT', 'info');
+    return;
+  }
+
+  // Confirmación
+  const modoLabel = (EMPRESA._vf_modo || 'test') === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
+  const confirmMsg = action === 'alta'
+    ? `¿Enviar factura ${fac.numero} a AEAT (${modoLabel})?`
+    : `¿Enviar ANULACIÓN de factura ${fac.numero} a AEAT (${modoLabel})?`;
+  if (!confirm(confirmMsg)) return;
+
+  toast('Enviando a AEAT...', 'info');
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada. Inicia sesión de nuevo.', 'error'); return; }
+
+    const resp = await fetch(
+      `${SUPA_URL}/functions/v1/verifactu`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action,
+          factura_id: facturaId,
+          empresa_id: EMPRESA.id,
+        }),
+      }
+    );
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+      toast(`Error AEAT: ${result.error || result.message || 'Error desconocido'}`, 'error');
+      console.error('VeriFactu error:', result);
+      return;
+    }
+
+    // Actualizar datos locales
+    fac.verifactu_estado = result.estado || 'enviado';
+    fac.verifactu_csv = result.csv || null;
+    fac.verifactu_qr_url = result.qr_url || null;
+    fac.verifactu_huella = result.huella || null;
+
+    // Mostrar resultado según estado
+    if (result.estado === 'correcto') {
+      toast(`✅ Factura ${fac.numero} registrada en AEAT correctamente`, 'success');
+    } else if (result.estado === 'aceptado_errores') {
+      toast(`⚠️ AEAT aceptó con errores: ${result.descripcion_error || ''}`, 'warning');
+    } else if (result.estado === 'incorrecto') {
+      toast(`❌ AEAT rechazó: ${result.descripcion_error || result.codigo_error || 'Error'}`, 'error');
+    } else if (result.estado === 'simulado') {
+      toast(`🧪 Simulación completada — hash: ${(result.huella||'').substring(0,12)}...`, 'info');
+    } else {
+      toast(`📡 Estado: ${result.estado}`, 'info');
+    }
+
+    // Refrescar UI
+    renderFacturas();
+    // Si el modal de detalle está abierto, refrescarlo
+    const detId = document.getElementById('facDetId');
+    if (detId && parseInt(detId.value) === facturaId) {
+      verDetalleFactura(facturaId);
+    }
+
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+    console.error('VeriFactu fetch error:', err);
+  }
+}
+
+/** Anular factura en AEAT */
+async function anularFacturaAEAT(facturaId) {
+  return enviarFacturaAEAT(facturaId, 'anulacion');
 }
