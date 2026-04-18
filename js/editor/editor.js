@@ -336,26 +336,38 @@ function de_entrarEdicionFactura() {
 }
 
 async function _snapshotBorradorFactura(cfg) {
+  toast('📸 Guardando snapshot...', 'info');
   const vTabla = cfg.versionesTabla;
   const vFk = cfg.versionesFk;
-  const { data: current, error: errCurr } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
-  if (errCurr || !current) { console.warn('No se pudo leer factura para snapshot:', errCurr?.message); return; }
+  console.log('_snapshot: tabla=' + cfg.tabla + ' editId=' + cfg.editId + ' vTabla=' + vTabla + ' vFk=' + vFk);
 
-  const { data: versExist } = await sb.from(vTabla)
+  const { data: current, error: errCurr } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
+  if (errCurr) { toast('❌ Error leyendo factura: ' + errCurr.message, 'error'); return; }
+  if (!current) { toast('❌ No se encontró la factura id=' + cfg.editId, 'error'); return; }
+  console.log('_snapshot: factura leída OK, empresa_id=' + current.empresa_id);
+
+  const { data: versExist, error: errVers } = await sb.from(vTabla)
     .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
+  if (errVers) { toast('❌ Error leyendo versiones: ' + errVers.message, 'error'); return; }
   const maxVer = (versExist && versExist.length) ? versExist[0].version : -1;
   const verGuardar = maxVer + 1;
+  console.log('_snapshot: maxVer=' + maxVer + ' verGuardar=' + verGuardar);
 
   const { data: yaExiste } = await sb.from(vTabla)
     .select('id').eq(vFk, cfg.editId).eq('version', verGuardar).limit(1);
-  if (yaExiste && yaExiste.length) { cfg._version = verGuardar + 1; return; }
+  if (yaExiste && yaExiste.length) {
+    cfg._version = verGuardar + 1;
+    toast('ℹ️ Versión v' + verGuardar + ' ya existía', 'info');
+    return;
+  }
 
   const insertData = { version: verGuardar, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
     usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
   insertData[vFk] = cfg.editId;
+  console.log('_snapshot: insertando en ' + vTabla, JSON.stringify(Object.keys(insertData)));
   const { error: insErr } = await sb.from(vTabla).insert(insertData);
-  if (insErr) console.warn('Error guardando versión:', insErr.message);
-  else console.log('✅ Snapshot v' + verGuardar + ' guardado en ' + vTabla);
+  if (insErr) { toast('❌ Error guardando versión: ' + insErr.message, 'error'); return; }
+  toast('✅ Versión v' + verGuardar + ' guardada', 'success');
   cfg._version = verGuardar + 1;
 }
 
