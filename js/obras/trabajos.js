@@ -473,8 +473,22 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   const albData = (albs.data||[]).filter(a =>
     a.trabajo_id === id || _presIdsObra.has(a.presupuesto_id)
   );
-  const factData = (facts.data||[]).filter(f =>
+  let _allFacts = facts.data||[];
+  // Primer paso: facturas directamente vinculadas a la obra
+  const _factDirectas = _allFacts.filter(f =>
     f.trabajo_id === id || _presIdsObra.has(f.presupuesto_id) || albData.some(a => a.id === f.albaran_id)
+  );
+  const _factDirectasIds = new Set(_factDirectas.map(f=>f.id));
+  // Buscar rectificativas de facturas de esta obra que no vinieron en la consulta principal
+  const _rectFaltantes = _factDirectas.filter(f => !_allFacts.some(r => r.rectificativa_de === f.id));
+  if (_factDirectasIds.size) {
+    const { data: _rectData } = await sb.from('facturas').select('*').eq('empresa_id',EMPRESA.id)
+      .in('rectificativa_de', [..._factDirectasIds]).neq('estado','eliminado');
+    if (_rectData?.length) _allFacts = [..._allFacts, ..._rectData.filter(r => !_factDirectasIds.has(r.id))];
+  }
+  // Segundo paso: incluir rectificativas de facturas ya incluidas
+  const factData = _allFacts.filter(f =>
+    _factDirectasIds.has(f.id) || (f.rectificativa_de && _factDirectasIds.has(f.rectificativa_de))
   );
   const partesData = partes.data||[];
   const docsData = docs.data||[];
@@ -780,11 +794,18 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   if (pendienteCobro > 0) factResumen.push(resumenItem('Pte. cobro', fmtE(pendienteCobro), 'var(--rojo)'));
   const factHtml = factData.length ?
     resumenBar(factResumen) +
-    factData.map(f=>`
-      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="abrirEditor('factura',${f.id})">
-        <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
+    factData.map(f=>{
+      const _esRect = !!f.rectificativa_de;
+      const _esAnul = f.estado === 'anulada';
+      const _numStyle = _esAnul ? 'font-weight:700;font-size:12.5px;color:#991B1B' : (_esRect ? 'font-weight:700;font-size:12.5px;color:#92400E' : 'font-weight:700;font-size:12.5px');
+      const _prefix = _esRect ? '📝 ' : (_esAnul ? '🚫 ' : '');
+      const _click = f.estado === 'borrador' ? `abrirEditor('factura',${f.id})` : `verDetalleFactura(${f.id})`;
+      return `
+      <div class="ficha-doc-row" style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--gris-100);border-radius:6px;cursor:pointer" onclick="${_click}">
+        <div><div style="${_numStyle}">${_prefix}${f.numero||'—'}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}${_esRect ? ' · Rectificativa' : ''}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f._totalCalc)}</div>${estadoBadgeF(f.estado)}</div>
-      </div>`).join('') :
+      </div>`;
+    }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas vinculadas</p></div>';
 
   // ── FACTURACIÓN (Albaranes + Facturas combinados) ──

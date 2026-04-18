@@ -1242,6 +1242,7 @@ async function crearRectificativa(id) {
     rectificativa_de: id,
     presupuesto_id: orig.presupuesto_id || null,
     albaran_id: orig.albaran_id || null,
+    trabajo_id: orig.trabajo_id || null,
     // ── Campos VeriFactu (preparados para envío AEAT) ──
     // tipo_rectificativa: R1 = error fundado en derecho / devolución (Art. 80.Uno, Dos, Seis LIVA)
     // tipo_rectificacion: S = por sustitución (anulación total)

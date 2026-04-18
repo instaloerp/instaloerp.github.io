@@ -373,11 +373,18 @@ async function abrirFicha(id, tabActiva) {
   if (vencidas > 0) factResumen.push(resumenItem('Vencidas', vencidas+'', 'var(--rojo)'));
   const factHtml = (facts.data||[]).length ?
     resumenBar(factResumen) +
-    (facts.data||[]).map(f=>`
+    (facts.data||[]).map(f=>{
+      const _esRect = !!f.rectificativa_de;
+      const _esAnul = f.estado === 'anulada';
+      const _numStyle = _esAnul ? 'font-weight:700;font-size:12.5px;color:#991B1B' : (_esRect ? 'font-weight:700;font-size:12.5px;color:#92400E' : 'font-weight:700;font-size:12.5px');
+      const _prefix = _esRect ? '📝 ' : (_esAnul ? '🚫 ' : '');
+      const _sub = _esRect ? ' · Rectificativa' : '';
+      return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--gris-100);cursor:pointer" onclick="verDetalleFactura(${f.id})">
-        <div><div style="font-weight:700;font-size:12.5px">${f.numero}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}</div></div>
+        <div><div style="${_numStyle}">${_prefix}${f.numero||'—'}</div><div style="font-size:10.5px;color:var(--gris-400)">${f.fecha||'—'}${_sub}</div></div>
         <div style="text-align:right"><div style="font-weight:800;font-size:13px">${fmtE(f.total)}</div>${estadoBadgeF(f.estado)}</div>
-      </div>`).join('') :
+      </div>`;
+    }).join('') :
     '<div class="empty" style="padding:30px 0"><div class="ei">🧾</div><p>Sin facturas</p></div>';
   document.getElementById('ficha-hist-facturas').innerHTML = factHtml;
 
