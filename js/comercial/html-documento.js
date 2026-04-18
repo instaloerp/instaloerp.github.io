@@ -47,7 +47,7 @@
   }
   function _labelDatos(tipo){
     const t = (tipo||'').toUpperCase();
-    if (t === 'FACTURA')   return 'Datos de la factura';
+    if (t.startsWith('FACTURA')) return 'Datos de la factura';
     if (t === 'ALBARÁN' || t === 'ALBARAN') return 'Datos del albarán';
     return 'Datos del presupuesto';
   }

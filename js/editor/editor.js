@@ -325,21 +325,20 @@ async function de_entrarEdicionFactura() {
     if (current) {
       const { data: versExist } = await sb.from(vTabla)
         .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
-      const maxVer = (versExist && versExist.length) ? versExist[0].version : 0;
-      // Solo guardar snapshot si no existe ya esta versión
-      const verActual = cfg._version || maxVer || 0;
-      if (verActual > 0) {
-        const { data: yaExiste } = await sb.from(vTabla)
-          .select('id').eq(vFk, cfg.editId).eq('version', verActual).limit(1);
-        if (!yaExiste || !yaExiste.length) {
-          const insertData = { version: verActual, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
-            usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
-          insertData[vFk] = cfg.editId;
-          const { error: insErr } = await sb.from(vTabla).insert(insertData);
-          if (insErr) console.warn('Error guardando versión:', insErr.message);
-        }
+      const maxVer = (versExist && versExist.length) ? versExist[0].version : -1;
+      // Guardar snapshot del estado actual antes de editar (siempre)
+      const verGuardar = maxVer + 1;
+      const { data: yaExiste } = await sb.from(vTabla)
+        .select('id').eq(vFk, cfg.editId).eq('version', verGuardar).limit(1);
+      if (!yaExiste || !yaExiste.length) {
+        const insertData = { version: verGuardar, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
+          usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
+        insertData[vFk] = cfg.editId;
+        const { error: insErr } = await sb.from(vTabla).insert(insertData);
+        if (insErr) console.warn('Error guardando versión:', insErr.message);
+        else console.log('✅ Snapshot v' + verGuardar + ' guardado en ' + vTabla);
       }
-      cfg._version = (maxVer || 0) + 1;
+      cfg._version = verGuardar + 1;
     }
   }
 
