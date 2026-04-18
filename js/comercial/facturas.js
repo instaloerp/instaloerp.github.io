@@ -108,7 +108,7 @@ function renderFacturas(list) {
     const lockBadge = bloqueada ? '<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700" title="Factura rectificada">🔒 Rectificada</span>' : '';
 
     return `<tr style="${rowStyle}" onclick="verDetalleFactura(${f.id})">
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">Borrador</span>' : (f.numero || '—')}${lockBadge}</td>
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : (f.numero || '—')}${lockBadge}</td>
       <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
       <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-size:12px">${f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>

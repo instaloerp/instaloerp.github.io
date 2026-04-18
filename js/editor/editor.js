@@ -1323,13 +1323,16 @@ async function de_guardar(estado) {
   // - Borrador: NO number (stays as "(sin asignar)")
   // - Pendiente/any other: assign number
   let isNew = !cfg.editId;
-  const needsNumber = datos.numero === '(sin asignar)' || !datos.numero || (datos.numero||'').startsWith('BORR-');
-  if (needsNumber && estado !== 'borrador') {
+  const yaTieneBorrador = (datos.numero||'').startsWith('BORR-');
+  const needsNumber = datos.numero === '(sin asignar)' || !datos.numero;
+  // Si ya tiene número BORR- y estamos re-guardando borrador, NO regenerar número
+  const needsNewBorrNumber = !datos.numero || datos.numero === '(sin asignar)';
+  if ((needsNumber || yaTieneBorrador) && estado !== 'borrador') {
     datos.numero = await generarNumeroDoc(cfg.tipo);
     document.getElementById('de_numero').value = datos.numero;
     document.getElementById('de_numero_bar').textContent = datos.numero;
-  } else if (needsNumber && estado === 'borrador') {
-    // Borrador: numeración correlativa para facturas, timestamp para el resto
+  } else if (estado === 'borrador' && needsNewBorrNumber) {
+    // Borrador NUEVO: numeración correlativa para facturas, timestamp para el resto
     if (cfg.tipo === 'factura' && typeof _generarNumeroBorrador === 'function') {
       datos.numero = await _generarNumeroBorrador();
     } else {
@@ -1337,6 +1340,10 @@ async function de_guardar(estado) {
     }
     document.getElementById('de_numero_bar').textContent = '(borrador ' + datos.numero + ')';
     // Borrador: fecha optional
+    if (!datos.fecha) datos.fecha = null;
+  } else if (estado === 'borrador' && yaTieneBorrador) {
+    // Borrador existente: mantener número, solo actualizar barra
+    document.getElementById('de_numero_bar').textContent = '(borrador ' + datos.numero + ')';
     if (!datos.fecha) datos.fecha = null;
   }
 
@@ -1364,11 +1371,12 @@ async function de_guardar(estado) {
 
   // Versionado de borradores de factura
   if (cfg.tipo === 'factura' && estado === 'borrador' && savedId && typeof _guardarVersionBorrador === 'function') {
-    // Obtener número de versión actual
-    const { count } = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
-      .eq('factura_id', savedId).catch(() => ({ count: 0 }));
-    const vNum = (count || 0) + 1;
-    await _guardarVersionBorrador(savedId, { ...datos, id: savedId }, vNum);
+    try {
+      const countRes = await sb.from('factura_versiones').select('*', { count: 'exact', head: true })
+        .eq('factura_id', savedId);
+      const vNum = ((countRes.count) || 0) + 1;
+      await _guardarVersionBorrador(savedId, { ...datos, id: savedId }, vNum);
+    } catch(e) { console.warn('Versionado borrador:', e); }
   }
   registrarAudit(isNew?'crear':'modificar', cfg.tipo, savedId, (isNew?'Nuevo ':'Editado ')+cfg.tipo+' '+datos.numero+' — estado: '+datos.estado+(datos.version?' — v'+datos.version:''));
   const _toastMsg = isNew
@@ -1379,6 +1387,7 @@ async function de_guardar(estado) {
   // Recargar lista correspondiente
   if (cfg.tipo==='presupuesto') await loadPresupuestos();
   if (cfg.tipo==='albaran') await loadAlbaranes();
+  if (cfg.tipo==='factura' && typeof loadFacturas === 'function') await loadFacturas();
   loadDashboard();
 
   // Siempre cerrar editor al guardar manualmente (borrador o pendiente)
