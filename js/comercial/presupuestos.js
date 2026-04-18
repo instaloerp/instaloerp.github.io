@@ -307,11 +307,13 @@ function filtrarPresupuestos() {
 //  GESTIÓN DE ESTADOS
 // ═══════════════════════════════════════════════
 async function cambiarEstadoPres(id, estado) {
+  const p = presupuestos.find(x=>x.id===id);
+  const estadoAnterior = p?.estado || null;
   const { error } = await sb.from('presupuestos').update({ estado }).eq('id', id);
   if (error) { toast('Error: '+error.message,'error'); return; }
-  const p = presupuestos.find(x=>x.id===id);
   if (p) p.estado = estado;
   registrarAudit('cambiar_estado', 'presupuesto', id, 'Estado → '+estado+(p?' — '+p.numero:''));
+  if (typeof _registrarCambioEstado === 'function') _registrarCambioEstado('presupuesto', id, estadoAnterior, estado);
   renderPresupuestos(presupuestos);
   toast('Estado actualizado ✓','success');
   loadDashboard();

@@ -180,11 +180,14 @@ function filtrarFacturasPorKpi(estado) {
 //  GESTIÓN DE ESTADOS
 // ═══════════════════════════════════════════════
 async function cambiarEstadoFac(id, estado) {
+  const f = facLocalData.find(x => x.id === id);
+  const estadoAnterior = f?.estado || null;
   const { error } = await sb.from('facturas').update({ estado }).eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  const f = facLocalData.find(x => x.id === id);
   if (f) f.estado = estado;
   window.facturasData = facLocalData;
+  // Registrar en historial
+  _registrarCambioEstado('factura', id, estadoAnterior, estado);
   toast('Estado actualizado ✓', 'success');
   filtrarFacturas();
   loadDashboard();
@@ -368,6 +371,15 @@ async function verDetalleFactura(id) {
   const refsEl = document.getElementById('facDetRefs');
   let refsHtml = '';
   const _bOK = 'padding:4px 10px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:3px';
+  if (f.rectificativa_de) {
+    const origFac = facLocalData.find(x => x.id === f.rectificativa_de);
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetalleFactura(${f.rectificativa_de})" style="${_bOK};background:#FEE2E2;color:#991B1B">📝 Rectifica: ${origFac ? origFac.numero : 'FAC-' + f.rectificativa_de}</a> `;
+  }
+  // Comprobar si tiene rectificativa asociada
+  const rectAsociada = facLocalData.find(x => x.rectificativa_de === id);
+  if (rectAsociada) {
+    refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetalleFactura(${rectAsociada.id})" style="${_bOK};background:#FEF3C7;color:#92400E">📝 Rectificada por: ${rectAsociada.numero}</a> `;
+  }
   if (f.presupuesto_id) {
     const pres = (typeof presupuestos !== 'undefined' ? presupuestos : []).find(p => p.id === f.presupuesto_id);
     refsHtml += `<a onclick="closeModal('mFacturaDetalle');verDetallePresupuesto(${f.presupuesto_id})" style="${_bOK}">📋 Presupuesto ${pres ? pres.numero : ''}</a> `;
@@ -386,14 +398,32 @@ async function verDetalleFactura(id) {
     refsEl.style.display = 'none';
   }
 
-  // Footer buttons — hide cobrar if already paid/anulada
+  // Footer buttons
   const footerBtns = document.getElementById('facDetFooterBtns');
   if (footerBtns) {
-    if (f.estado === 'cobrada' || f.estado === 'pagada' || f.estado === 'anulada') {
-      footerBtns.innerHTML = '';
-    } else {
-      footerBtns.innerHTML = `<button class="btn btn-primary" onclick="closeModal('mFacturaDetalle');marcarCobrada(${f.id})" style="background:var(--verde)">💰 Registrar cobro</button>`;
+    let btns = '';
+    // Cobrar — si no cobrada/anulada
+    if (f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada') {
+      btns += `<button class="btn btn-primary" onclick="closeModal('mFacturaDetalle');marcarCobrada(${f.id})" style="background:var(--verde)">💰 Registrar cobro</button>`;
     }
+    // Recordatorio — si vencida o pendiente
+    if (f.estado === 'vencida' || f.estado === 'pendiente') {
+      btns += `<button class="btn btn-sm" onclick="enviarRecordatorioVencida(${f.id})" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B">📧 Enviar recordatorio</button>`;
+    }
+    // Rectificativa — si no es borrador, no es ya rectificativa, y no tiene una asociada
+    if (f.estado !== 'borrador' && !f.rectificativa_de && !rectAsociada) {
+      btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
+    }
+    footerBtns.innerHTML = btns;
+  }
+
+  // Historial de estados
+  const histEl = document.getElementById('facDetHistorial');
+  if (histEl) {
+    const historial = await _cargarHistorial('factura', id);
+    histEl.innerHTML = historial.length
+      ? '<div style="margin-top:12px;border-top:1px solid var(--gris-200);padding-top:10px"><div style="font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:6px">📋 Historial de cambios</div>' + _renderHistorialTimeline(historial) + '</div>'
+      : '';
   }
 
   openModal('mFacturaDetalle', true);
@@ -703,6 +733,150 @@ function p_updatePartida(idx, field, val) { fr_updateLinea(idx, field, val); }
 
 async function abrirFacturaRapida() {
   await nuevaFacturaRapida();
+}
+
+// ═══════════════════════════════════════════════
+//  FACTURA RECTIFICATIVA
+// ═══════════════════════════════════════════════
+async function crearRectificativa(id) {
+  const orig = facLocalData.find(x => x.id === id);
+  if (!orig) { toast('Factura no encontrada', 'error'); return; }
+  if (orig.estado === 'borrador') { toast('No puedes rectificar un borrador', 'error'); return; }
+  if (orig.rectificativa_de) { toast('Esta factura ya es una rectificativa', 'error'); return; }
+
+  // Comprobar si ya existe rectificativa para esta factura
+  const yaRect = facLocalData.find(f => f.rectificativa_de === id);
+  if (yaRect) { toast('Ya existe la rectificativa ' + yaRect.numero, 'warning'); return; }
+
+  if (!confirm('¿Crear factura rectificativa de ' + orig.numero + '?\nSe generará una factura con importes negativos que anula la original.')) return;
+
+  // Generar número con prefijo RECT-
+  const numero = 'RECT-' + (orig.numero || '');
+
+  // Crear líneas negativas (copiar las originales con signo invertido)
+  const lineasRect = (orig.lineas || []).map(l => {
+    if (l._separator) return l;
+    return { ...l, cant: -(l.cant || 0) };
+  });
+
+  const base = -(parseFloat(orig.base_imponible) || 0);
+  const iva = -(parseFloat(orig.total_iva) || 0);
+  const total = -(parseFloat(orig.total) || 0);
+
+  const obj = {
+    empresa_id: EMPRESA.id,
+    numero,
+    serie_id: orig.serie_id,
+    cliente_id: orig.cliente_id,
+    cliente_nombre: orig.cliente_nombre,
+    fecha: new Date().toISOString().split('T')[0],
+    fecha_vencimiento: null,
+    forma_pago_id: orig.forma_pago_id,
+    base_imponible: Math.round(base * 100) / 100,
+    total_iva: Math.round(iva * 100) / 100,
+    total: Math.round(total * 100) / 100,
+    estado: 'pendiente',
+    observaciones: 'Factura rectificativa de ' + orig.numero + '. Anulación total.',
+    lineas: lineasRect,
+    rectificativa_de: id,
+    presupuesto_id: orig.presupuesto_id || null,
+    albaran_id: orig.albaran_id || null,
+  };
+
+  const { data, error } = await sb.from('facturas').insert(obj).select().single();
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  // Marcar original como anulada
+  await cambiarEstadoFac(id, 'anulada');
+
+  closeModal('mFacturaDetalle');
+  toast('📝 Rectificativa ' + numero + ' creada ✓', 'success');
+  await loadFacturas();
+  loadDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  RECORDATORIO FACTURA VENCIDA
+// ═══════════════════════════════════════════════
+async function enviarRecordatorioVencida(id) {
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) { toast('Factura no encontrada', 'error'); return; }
+  if (f.estado !== 'vencida' && f.estado !== 'pendiente') {
+    toast('Solo se envían recordatorios de facturas pendientes o vencidas', 'warning'); return;
+  }
+
+  const cli = clientes.find(c => c.id === f.cliente_id);
+  const email = cli?.email;
+  if (!email) { toast('El cliente no tiene email configurado', 'error'); return; }
+
+  const diasVencida = f.fecha_vencimiento
+    ? Math.floor((Date.now() - new Date(f.fecha_vencimiento).getTime()) / 86400000)
+    : 0;
+
+  const asunto = 'Recordatorio: Factura ' + (f.numero || '') + ' pendiente de pago';
+  const cuerpo =
+    'Estimado/a ' + (f.cliente_nombre || cli?.nombre || 'cliente') + ',\n\n' +
+    'Le recordamos que la factura ' + (f.numero || '') + ' por importe de ' + fmtE(f.total || 0) +
+    ' con fecha de vencimiento ' + (f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—') +
+    (diasVencida > 0 ? ' (vencida hace ' + diasVencida + ' días)' : '') +
+    ' se encuentra pendiente de pago.\n\n' +
+    'Le agradeceríamos que procediera al abono a la mayor brevedad.\n\n' +
+    'Si ya ha realizado el pago, le rogamos disculpe esta comunicación y nos lo notifique.\n\n' +
+    'Un saludo cordial,\n' + (EMPRESA.nombre || '');
+
+  if (typeof nuevoCorreo === 'function') {
+    closeModal('mFacturaDetalle');
+    await nuevoCorreo(email, asunto, cuerpo, { tipo: 'recordatorio_factura', id: f.id, ref: f.numero || '' });
+    goPage('correo');
+  } else {
+    toast('⚠️ Configura el correo electrónico en Administración → Correo', 'warning');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  HISTORIAL DE CAMBIOS DE ESTADO
+// ═══════════════════════════════════════════════
+async function _registrarCambioEstado(tipo, docId, estadoAnterior, estadoNuevo) {
+  try {
+    await sb.from('documento_historial').insert({
+      empresa_id: EMPRESA.id,
+      documento_tipo: tipo,
+      documento_id: docId,
+      estado_anterior: estadoAnterior,
+      estado_nuevo: estadoNuevo,
+      usuario_id: USER?.id || null,
+      usuario_nombre: USER?.nombre || USER?.email || null,
+    });
+  } catch (e) { console.warn('No se pudo registrar historial:', e); }
+}
+
+async function _cargarHistorial(tipo, docId) {
+  const { data } = await sb.from('documento_historial')
+    .select('*')
+    .eq('documento_tipo', tipo)
+    .eq('documento_id', docId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return data || [];
+}
+
+function _renderHistorialTimeline(historial) {
+  if (!historial.length) return '<div style="color:var(--gris-400);font-size:12px;padding:8px 0">Sin historial de cambios</div>';
+
+  const ICOS = { borrador:'✏️', enviado:'📤', pendiente:'⏳', aceptado:'✅', rechazado:'❌',
+    cobrada:'💰', pagada:'💰', vencida:'⚠️', anulada:'🚫', entregado:'📦', facturado:'🧾', completado:'✅' };
+
+  return '<div style="display:flex;flex-direction:column;gap:6px">' +
+    historial.map(h => {
+      const fecha = h.created_at ? new Date(h.created_at).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      const ico = ICOS[h.estado_nuevo] || '🔄';
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--gris-100)">
+        <span>${ico}</span>
+        <span style="flex:1"><strong>${h.estado_anterior || '—'}</strong> → <strong>${h.estado_nuevo}</strong></span>
+        <span style="color:var(--gris-400);font-size:11px">${h.usuario_nombre || ''}</span>
+        <span style="color:var(--gris-400);font-size:10px;min-width:80px;text-align:right">${fecha}</span>
+      </div>`;
+    }).join('') + '</div>';
 }
 
 // ═══════════════════════════════════════════════

@@ -122,10 +122,12 @@ function filtrarAlbaranes() {
 //  GESTIÓN DE ESTADOS
 // ═══════════════════════════════════════════════
 async function cambiarEstadoAlb(id, estado) {
+  const a = albaranesData.find(x=>x.id===id);
+  const estadoAnterior = a?.estado || null;
   const { error } = await sb.from('albaranes').update({ estado }).eq('id', id);
   if (error) { toast('Error: '+error.message,'error'); return; }
-  const a = albaranesData.find(x=>x.id===id);
   if (a) a.estado = estado;
+  if (typeof _registrarCambioEstado === 'function') _registrarCambioEstado('albaran', id, estadoAnterior, estado);
   toast('Estado actualizado ✓','success');
   renderAlbaranes(abFiltrados.length ? abFiltrados : albaranesData);
   loadDashboard();
