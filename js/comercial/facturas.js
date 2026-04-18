@@ -144,7 +144,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') && !esRect ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
+          ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
@@ -453,8 +453,8 @@ async function verDetalleFactura(id) {
     if (f.estado !== 'borrador' && !esRectificativa && !rectAsociada) {
       btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
     }
-    // VeriFactu — enviar a AEAT si activo y no borrador ni rectificativa
-    if (_isVfActivo() && !esBorrador && !esRectificativa) {
+    // VeriFactu — enviar a AEAT si activo y no borrador (rectificativas también se envían)
+    if (_isVfActivo() && !esBorrador) {
       if (f.verifactu_estado === 'correcto') {
         btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:12px;font-weight:700">✅ Registrada en AEAT${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
       } else {

@@ -65,19 +65,27 @@ function formatDecimalHash(num: number): string {
   return num.toFixed(2);
 }
 
-/** ISO 8601 con timezone España */
+/** ISO 8601 con timezone España (Europe/Madrid) */
 function nowISOSpain(): string {
   const now = new Date();
-  // España peninsular: +01:00 (invierno) o +02:00 (verano)
-  const offset = now.getTimezoneOffset();
-  const absOff = Math.abs(offset);
-  const sign = offset <= 0 ? "+" : "-";
-  const hh = String(Math.floor(absOff / 60)).padStart(2, "0");
-  const mm = String(absOff % 60).padStart(2, "0");
-  // Forzamos +02:00 para CEST (abril-octubre)
-  const month = now.getMonth() + 1;
-  const tzOffset = month >= 3 && month <= 10 ? "+02:00" : "+01:00";
-  return now.toISOString().replace("Z", "").split(".")[0] + tzOffset;
+  // Obtener la hora real en zona horaria de España usando Intl
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value || "00";
+  const dateStr = `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`;
+
+  // Calcular offset real comparando hora UTC vs hora España
+  const utcH = now.getUTCHours();
+  const spainH = parseInt(get("hour"));
+  const diff = ((spainH - utcH) + 24) % 24;
+  const tzOffset = diff === 2 ? "+02:00" : "+01:00";
+
+  return dateStr + tzOffset;
 }
 
 /** SHA-256 hex — AEAT exige resultado en MAYÚSCULAS */
