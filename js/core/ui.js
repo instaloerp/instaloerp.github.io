@@ -1018,13 +1018,17 @@ function acBuscarArticulo(input, onSelect, priceField) {
     } else if (results.length === 0) {
       drop.innerHTML = '<div class="ac-empty">Sin resultados — se usará como texto libre</div>';
     } else {
-      drop.innerHTML = results.map((a, ri) =>
-        `<div class="ac-item${ri===0?' ac-sel':''}" data-ri="${ri}" onmousedown="_acSelIdx(${ri})">
+      drop.innerHTML = results.map((a, ri) => {
+        const thumb = a.foto_url
+          ? `<img src="${a.foto_url}" style="width:28px;height:28px;object-fit:cover;border-radius:4px;flex-shrink:0">`
+          : '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:4px;background:var(--gris-100);font-size:14px;flex-shrink:0">' + (a.tipo==='servicio'?'🔧':'📦') + '</span>';
+        return `<div class="ac-item${ri===0?' ac-sel':''}" data-ri="${ri}" onmousedown="_acSelIdx(${ri})" style="display:flex;align-items:center;gap:8px">
+          ${thumb}
           <span class="ac-code">${a.codigo||''}</span>
-          <span class="ac-name">${a.nombre||''}</span>
+          <span class="ac-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${a.nombre||''}</span>
           <span class="ac-price">${((a[pf]||a.precio_venta||0)).toFixed(2)} €</span>
-        </div>`
-      ).join('');
+        </div>`;
+      }).join('');
       // Pre-seleccionar el primero si solo hay uno
       if (results.length === 1) _AC.idx = 0;
     }

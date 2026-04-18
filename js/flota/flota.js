@@ -60,7 +60,7 @@ function _flotaKPIs() {
 
   const amortTotal = activos.reduce((s, v) => {
     const precio = parseFloat(v.precio_compra) || 0;
-    const meses = parseInt(v.amort_meses) || 60;
+    const meses = parseInt(v.amort_meses) || 96;
     const transcurridos = v.fecha_compra ? _flotaMesesEntre(new Date(v.fecha_compra), hoy) : 9999;
     return s + (transcurridos >= meses ? 0 : precio / meses);
   }, 0);
@@ -85,7 +85,7 @@ function _flotaTabla() {
 
   tbody.innerHTML = flotaVehiculos.map(veh => {
     const precio = parseFloat(veh.precio_compra) || 0;
-    const meses = parseInt(veh.amort_meses) || 60;
+    const meses = parseInt(veh.amort_meses) || 96;
 
     // Amortización restante
     let amortRestante = '—';
@@ -153,7 +153,7 @@ function editVehiculo(id) {
     veh_impuesto: veh.impuesto_anual ? _flotaFmtInput(veh.impuesto_anual) : '',
     veh_movertis: veh.movertis_unit_id || ''
   });
-  document.getElementById('veh_amort').value = veh.amort_meses || 60;
+  document.getElementById('veh_amort').value = veh.amort_meses || 96;
   document.getElementById('veh_activo').checked = veh.activo !== false;
   document.getElementById('veh_activo_wrap').style.display = 'flex';
   document.getElementById('veh_titulo').textContent = 'Editar vehículo';
@@ -165,7 +165,7 @@ function editVehiculo(id) {
 function _flotaShowAmortInfo(veh) {
   const info = document.getElementById('veh_amort_info');
   const precio = parseFloat(veh.precio_compra) || 0;
-  const meses = parseInt(veh.amort_meses) || 60;
+  const meses = parseInt(veh.amort_meses) || 96;
   const seguro = parseFloat(veh.seguro_anual) || 0;
   const impuesto = parseFloat(veh.impuesto_anual) || 0;
   const fijosMes = (seguro + impuesto) / 12;

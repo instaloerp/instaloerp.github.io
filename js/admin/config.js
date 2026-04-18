@@ -1571,7 +1571,7 @@ function _renderCalcFlotaResumen() {
   _calcFlotaVehiculos.forEach(veh => {
     // ── COSTES FIJOS prorrateados al período ──
     const precio = parseFloat(veh.precio_compra) || 0;
-    const amortMeses = parseInt(veh.amort_meses) || 60;
+    const amortMeses = parseInt(veh.amort_meses) || 96;
     const mesesDesdeCompra = _mesesDesdeCompra(veh.fecha_compra);
     const amortMes = mesesDesdeCompra >= amortMeses ? 0 : precio / amortMeses;
     const amortRestante = Math.max(amortMeses - mesesDesdeCompra, 0);
@@ -1655,7 +1655,7 @@ function _calcGastoPeriodoAnual() {
   let fijosPeriodo = 0;
   _calcFlotaVehiculos.forEach(veh => {
     const precio = parseFloat(veh.precio_compra) || 0;
-    const amortMeses = parseInt(veh.amort_meses) || 60;
+    const amortMeses = parseInt(veh.amort_meses) || 96;
     const transcurridos = _mesesDesde(veh.fecha_compra);
     if (transcurridos < amortMeses) fijosPeriodo += (precio / amortMeses) * mesesPeriodo;
     fijosPeriodo += ((parseFloat(veh.seguro_anual) || 0) + (parseFloat(veh.impuesto_anual) || 0)) / 12 * mesesPeriodo;

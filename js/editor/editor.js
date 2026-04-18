@@ -27,7 +27,7 @@ const DE_TIPOS = {
   factura: {
     ico:'🧾', titulo:'Factura', tipoSerie:'factura', tabla:'facturas',
     conIva:true, conDto:true, conFecha2:true, fecha2Label:'Vencimiento', conFpago:true,
-    conVersiones:false, conBorrador:true,
+    conVersiones:true, conBorrador:true, versionesTabla:'factura_versiones', versionesFk:'factura_id',
   },
 };
 
@@ -159,12 +159,14 @@ async function abrirEditor(tipo, editId) {
   const _vBtn = _cV ? '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>' : '';
 
   if (editId && isBorrador && _cB) {
-    // ── BORRADOR: edición directa, sin versiones ──
+    // ── BORRADOR: edición directa ──
     deConfig._mode = 'editing';
     de_showVersion(0);
     de_setReadonly(false);
     if (tipo === 'factura') {
-      btnBox.innerHTML = `<button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
+      const _vBtnFac = '<button class="btn btn-ghost btn-sm" onclick="de_verVersiones(event)">🕒 Versiones</button>';
+      btnBox.innerHTML = `${_vBtnFac}
+        <button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
         <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
     } else {
       btnBox.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="de_guardar('borrador')">📝 Borrador</button>
@@ -333,8 +335,17 @@ async function de_entrarEdicion() {
           .eq(vFk, cfg.editId)
           .eq('version', ver);
         if (!count || count === 0) {
-          const insertData = { version: ver, datos: current };
+          const insertData = { version: ver };
           insertData[vFk] = cfg.editId;
+          // factura_versiones usa 'snapshot' + empresa_id; el resto usa 'datos'
+          if (cfg.tipo === 'factura') {
+            insertData.snapshot = current;
+            insertData.empresa_id = current.empresa_id || (typeof EMPRESA !== 'undefined' ? EMPRESA.id : null);
+            insertData.usuario_id = (typeof USER !== 'undefined' && USER) ? USER.id : null;
+            insertData.usuario_nombre = (typeof USER !== 'undefined' && USER) ? (USER.nombre || USER.email) : null;
+          } else {
+            insertData.datos = current;
+          }
           const { error: insErr } = await sb.from(vTabla).insert(insertData);
           if (insErr) {
             console.warn('Error guardando versión:', insErr.message);
@@ -1507,19 +1518,27 @@ async function de_verVersiones(ev) {
 
   let items = '';
   const maxVer = vers.length ? vers[0].version : 0;
+  const esFact = deConfig.tipo === 'factura';
   vers.forEach(v => {
-    const d = v.datos||{};
+    const d = v.datos || v.snapshot || {};
     const fecha = new Date(v.created_at).toLocaleDateString('es-ES');
     const hora = new Date(v.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
     const esUltima = v.version === maxVer;
+    // Facturas: usar funciones propias de facturas.js; presupuestos: las de presupuestos.js
+    const fnVer = esFact
+      ? `_verVersionBorrador(${v.id})`
+      : `abrirVersionEnEditor(${deConfig.editId},${v.id})`;
+    const fnRestore = esFact
+      ? `_restaurarVersionBorrador(${deConfig.editId},${v.id})`
+      : `restaurarVersionDirecta(${deConfig.editId},${v.id})`;
     items += `<div class="hov-bg" style="padding:8px 12px;border-bottom:1px solid var(--gris-100);display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer">
       <div style="min-width:0">
         <div style="font-weight:700;font-size:12px">v${v.version}${esUltima?' <span style="font-size:10px;background:var(--azul);color:white;padding:1px 6px;border-radius:4px">actual</span>':''} <span style="font-weight:400;color:var(--gris-400);font-size:11px">${fecha} ${hora}</span></div>
         <div style="font-size:11px;color:var(--gris-500)">${d.cliente_nombre||'—'} — ${fmtE(d.total||0)}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();abrirVersionEnEditor(${deConfig.editId},${v.id})" title="Ver (solo lectura)" style="font-size:12px;padding:3px 6px">👁️</button>
-        ${!esUltima?'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById(\'de_ver_dropdown\').remove();restaurarVersionDirecta('+deConfig.editId+','+v.id+')" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>':''}
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();${fnVer}" title="Ver (solo lectura)" style="font-size:12px;padding:3px 6px">👁️</button>
+        ${!esUltima?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.getElementById('de_ver_dropdown').remove();${fnRestore}" title="Restaurar" style="font-size:12px;padding:3px 6px">♻️</button>`:''}
       </div>
     </div>`;
   });
@@ -1542,9 +1561,9 @@ async function de_verVersiones(ev) {
 
 async function de_restaurarVersion(versionId) {
   const vTabla = deConfig.versionesTabla || 'presupuesto_versiones';
-  const { data: v } = await sb.from(vTabla).select('datos').eq('id', versionId).single();
+  const { data: v } = await sb.from(vTabla).select('*').eq('id', versionId).single();
   if (!v) { toast('Error cargando versión','error'); return; }
-  const d = v.datos;
+  const d = v.datos || v.snapshot || {};
   // Load version data into editor
   de_setClienteSel(d.cliente_id);
   document.getElementById('de_fecha').value = d.fecha||'';
