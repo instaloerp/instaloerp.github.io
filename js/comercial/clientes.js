@@ -845,7 +845,7 @@ async function generarNumeroDoc(tipo) {
   if (!s && tipo === 'albaran') s = allSeries.find(x => x.tipo === 'alb' || x.tipo === 'albaran');
 
   const tabla = tablas[tipo] || tipo;
-  const prefijo = s?.prefijo || prefijos[tipo] || 'DOC-';
+  const prefijo = s?.prefijo || (s?.serie ? s.serie + '-' : null) || prefijos[tipo] || 'DOC-';
   const digitos = s?.digitos || 4;
 
   const { data: ultimo } = await sb.from(tabla)
