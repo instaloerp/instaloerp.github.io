@@ -234,7 +234,7 @@ function buildRegistroAltaXML(params: {
           <sf:DescripcionOperacion>${escXml(factura.observaciones || "Prestacion de servicios")}</sf:DescripcionOperacion>${destinatarioXml}
           <sf:Desglose>${desgloseXml}
           </sf:Desglose>
-          <sf:CuotaTotal>${formatDecimal(Math.abs(factura.total_iva || 0))}</sf:CuotaTotal>
+          <sf:CuotaTotal>${formatDecimal(factura.total_iva || 0)}</sf:CuotaTotal>
           <sf:ImporteTotal>${formatDecimal(factura.total || 0)}</sf:ImporteTotal>
           ${encadenamiento}
           <sf:SistemaInformatico>
@@ -468,10 +468,10 @@ Deno.serve(async (req) => {
       // ── REGISTRO ALTA ──
       const tipoFactura = factura.rectificativa_de ? "R1" : "F1";
       // Para el hash: siempre 2 decimales (AEAT spec)
-      const cuotaTotalHash = formatDecimalHash(Math.abs(factura.total_iva || 0));
+      const cuotaTotalHash = formatDecimalHash(factura.total_iva || 0);
       const importeTotalHash = formatDecimalHash(factura.total || 0);
       // Para el XML: siempre 2 decimales
-      const cuotaTotal = formatDecimal(Math.abs(factura.total_iva || 0));
+      const cuotaTotal = formatDecimal(factura.total_iva || 0);
       const importeTotal = formatDecimal(factura.total || 0);
 
       huella = await calcHashAlta({

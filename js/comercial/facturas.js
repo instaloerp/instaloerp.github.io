@@ -1765,6 +1765,10 @@ async function enviarFacturaAEAT(facturaId, action = 'alta') {
     // Refrescar UI
     try {
       await loadFacturas();
+      // Si estamos en la vista de rectificativas, repintar esa tabla también
+      if (document.getElementById('rectTable')) {
+        renderRectificativas();
+      }
       // Si el modal de detalle está abierto, refrescarlo
       const detId = document.getElementById('facDetId');
       if (detId && parseInt(detId.value) === facturaId) {
