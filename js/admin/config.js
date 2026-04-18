@@ -1562,6 +1562,9 @@ function _renderCalcFlotaResumen() {
     const precio = parseFloat(veh.precio_compra) || 0;
     const amortMeses = parseInt(veh.amort_meses) || 96;
     const amortMes = precio / amortMeses;
+    const seguroMes = (parseFloat(veh.seguro_anual) || 0) / 12;
+    const impuestoMes = (parseFloat(veh.impuesto_anual) || 0) / 12;
+    const fijosMes = seguroMes + impuestoMes;
 
     const gastos12m = _calcFlotaGastos
       .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
@@ -1574,12 +1577,16 @@ function _renderCalcFlotaResumen() {
 
     const gastoMensualDirecto = gastos12m / 12;
     const parteFlota = gastosFlota12m / numActivos / 12;
-    const totalMes = amortMes + gastoMensualDirecto + parteFlota;
+    const totalMes = amortMes + fijosMes + gastoMensualDirecto + parteFlota;
     totalMesGlobal += totalMes;
 
     const conceptosHtml = Object.entries(porConcepto).map(([c, total]) =>
       `<span style="font-size:10px;color:var(--gris-500)" title="${c}: ${(total/12).toFixed(0)}€/mes">${conceptoIcos[c]||'📎'} ${(total/12).toFixed(0)}</span>`
     ).join(' · ');
+
+    let fijosHtml = '';
+    if (seguroMes > 0) fijosHtml += ' · <span title="Seguro mensual">🛡️ '+seguroMes.toFixed(0)+'€</span>';
+    if (impuestoMes > 0) fijosHtml += ' · <span title="Impuesto mensual">🏛️ '+impuestoMes.toFixed(0)+'€</span>';
 
     html += `<div style="border:1px solid var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-50)">
       <div style="display:flex;align-items:center;gap:8px">
@@ -1588,8 +1595,8 @@ function _renderCalcFlotaResumen() {
         <span style="font-size:11px;color:var(--gris-400)">${veh.matricula || ''}</span>
         <span style="font-size:13px;font-weight:700;color:var(--azul)">${totalMes.toFixed(0)}€/mes</span>
       </div>
-      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--gris-500)">
-        <span title="Amortización mensual">📊 Amort: ${amortMes.toFixed(0)}€</span>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--gris-500);flex-wrap:wrap">
+        <span title="Amortización mensual">📊 Amort: ${amortMes.toFixed(0)}€</span>${fijosHtml}
         <span title="Gastos directos /mes (media 12m)">💰 Gastos: ${gastoMensualDirecto.toFixed(0)}€</span>
         ${parteFlota > 0 ? '<span title="Parte proporcional gastos de flota">🔄 Flota: '+parteFlota.toFixed(0)+'€</span>' : ''}
       </div>
@@ -1625,6 +1632,7 @@ function calcularCosteKm() {
     const precio = parseFloat(veh.precio_compra) || 0;
     const amortMeses = parseInt(veh.amort_meses) || 96;
     gastoMes += precio / amortMeses;
+    gastoMes += ((parseFloat(veh.seguro_anual) || 0) + (parseFloat(veh.impuesto_anual) || 0)) / 12;
     const gastos12m = _calcFlotaGastos
       .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
       .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);
@@ -1664,6 +1672,7 @@ function calcAplicarTarifaKm() {
     const precio = parseFloat(veh.precio_compra) || 0;
     const amortMeses = parseInt(veh.amort_meses) || 96;
     gastoMes += precio / amortMeses;
+    gastoMes += ((parseFloat(veh.seguro_anual) || 0) + (parseFloat(veh.impuesto_anual) || 0)) / 12;
     const gastos12m = _calcFlotaGastos
       .filter(g => g.vehiculo_id === veh.id && g.fecha >= hace12mStr)
       .reduce((s, g) => s + (parseFloat(g.importe) || 0), 0);

@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 31</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 32</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3884,10 +3884,14 @@ try {
       </div>
       <div class="fg-row g3" style="margin-bottom:11px">
         <div class="fg"><label>Fecha de compra</label><input type="date" id="veh_fecha_compra"></div>
-        <div class="fg"><label>Precio compra (€)</label><input type="text" inputmode="decimal" id="veh_precio_compra" placeholder="25.000"></div>
+        <div class="fg"><label>Precio compra (€ sin IVA)</label><input type="text" inputmode="decimal" id="veh_precio_compra" placeholder="25.000"></div>
         <div class="fg"><label>Amortización (meses)</label><input type="number" id="veh_amort" value="96" min="12" step="12"></div>
       </div>
       <div id="veh_amort_info" style="display:none;padding:10px;background:#eff6ff;border-radius:8px;font-size:12px;color:var(--azul);margin-bottom:11px"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>🛡️ Seguro anual (€ sin IVA)</label><input type="text" inputmode="decimal" id="veh_seguro" placeholder="800"></div>
+        <div class="fg"><label>🏛️ Impuesto circulación (€/año)</label><input type="text" inputmode="decimal" id="veh_impuesto" placeholder="150"></div>
+      </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Conductor habitual</label><select id="veh_conductor"><option value="">— Sin asignar —</option></select></div>
         <div class="fg"><label>ID Movertis (opcional)</label><input type="number" id="veh_movertis" placeholder="Para vincular con GPS"></div>
@@ -3928,7 +3932,7 @@ try {
         </div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Importe (€) *</label><input type="text" inputmode="decimal" id="gasto_importe" placeholder="350,00"></div>
+        <div class="fg"><label>Importe (€ sin IVA) *</label><input type="text" inputmode="decimal" id="gasto_importe" placeholder="350,00"></div>
         <div class="fg"><label>Fecha *</label><input type="date" id="gasto_fecha"></div>
       </div>
       <div class="fg" style="margin-bottom:11px">

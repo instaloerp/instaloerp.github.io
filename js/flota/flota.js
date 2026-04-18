@@ -129,7 +129,7 @@ function _flotaTabla() {
 
 function nuevoVehiculo() {
   document.getElementById('veh_id').value = '';
-  setVal({ veh_nombre: '', veh_matricula: '', veh_fecha_compra: '', veh_precio_compra: '', veh_movertis: '' });
+  setVal({ veh_nombre: '', veh_matricula: '', veh_fecha_compra: '', veh_precio_compra: '', veh_movertis: '', veh_seguro: '', veh_impuesto: '' });
   document.getElementById('veh_amort').value = '96';
   document.getElementById('veh_activo').checked = true;
   document.getElementById('veh_activo_wrap').style.display = 'none';
@@ -148,6 +148,8 @@ function editVehiculo(id) {
     veh_matricula: veh.matricula || '',
     veh_fecha_compra: veh.fecha_compra || '',
     veh_precio_compra: veh.precio_compra ? _flotaFmtInput(veh.precio_compra) : '',
+    veh_seguro: veh.seguro_anual ? _flotaFmtInput(veh.seguro_anual) : '',
+    veh_impuesto: veh.impuesto_anual ? _flotaFmtInput(veh.impuesto_anual) : '',
     veh_movertis: veh.movertis_unit_id || ''
   });
   document.getElementById('veh_amort').value = veh.amort_meses || 96;
@@ -161,23 +163,32 @@ function editVehiculo(id) {
 
 function _flotaShowAmortInfo(veh) {
   const info = document.getElementById('veh_amort_info');
-  if (!veh.fecha_compra || !veh.precio_compra) { info.style.display = 'none'; return; }
   const precio = parseFloat(veh.precio_compra) || 0;
   const meses = parseInt(veh.amort_meses) || 96;
-  const compra = new Date(veh.fecha_compra);
-  const hoy = new Date();
-  const transcurridos = _flotaMesesEntre(compra, hoy);
-  const restantes = Math.max(0, meses - transcurridos);
-  const cuotaMes = precio / meses;
-  const pendiente = cuotaMes * restantes;
+  const seguro = parseFloat(veh.seguro_anual) || 0;
+  const impuesto = parseFloat(veh.impuesto_anual) || 0;
+  const fijosMes = (seguro + impuesto) / 12;
 
-  if (restantes <= 0) {
-    info.innerHTML = '✅ Vehículo totalmente amortizado';
-  } else {
-    info.innerHTML = `📊 Cuota: <strong>${_flotaFmt(cuotaMes)}€/mes</strong> · ` +
-      `Faltan <strong>${restantes} meses</strong> · ` +
-      `Pendiente: <strong>${_flotaFmt(pendiente)}€</strong>`;
+  let parts = [];
+
+  if (veh.fecha_compra && precio > 0) {
+    const compra = new Date(veh.fecha_compra);
+    const hoy = new Date();
+    const transcurridos = _flotaMesesEntre(compra, hoy);
+    const restantes = Math.max(0, meses - transcurridos);
+    const cuotaMes = precio / meses;
+    const pendiente = cuotaMes * restantes;
+    if (restantes <= 0) {
+      parts.push('✅ Amortizado');
+    } else {
+      parts.push(`📊 Amort: <strong>${_flotaFmt(cuotaMes)}€/mes</strong> · Faltan <strong>${restantes} meses</strong>`);
+    }
   }
+  if (seguro > 0) parts.push(`🛡️ Seguro: <strong>${_flotaFmt(seguro)}€/año</strong> (${_flotaFmt(seguro/12)}€/mes)`);
+  if (impuesto > 0) parts.push(`🏛️ Impuesto: <strong>${_flotaFmt(impuesto)}€/año</strong> (${_flotaFmt(impuesto/12)}€/mes)`);
+
+  if (!parts.length) { info.style.display = 'none'; return; }
+  info.innerHTML = parts.join('<br>');
   info.style.display = 'block';
 }
 
@@ -188,6 +199,10 @@ async function saveVehiculo() {
 
   const precioStr = document.getElementById('veh_precio_compra').value;
   const precio = precioStr ? _parseNumES(precioStr) : null;
+  const seguroStr = document.getElementById('veh_seguro').value;
+  const seguro = seguroStr ? _parseNumES(seguroStr) : null;
+  const impuestoStr = document.getElementById('veh_impuesto').value;
+  const impuesto = impuestoStr ? _parseNumES(impuestoStr) : null;
 
   const conductorSel = document.getElementById('veh_conductor');
   const conductorId = conductorSel?.value || null;
@@ -202,6 +217,8 @@ async function saveVehiculo() {
     fecha_compra: v('veh_fecha_compra') || null,
     precio_compra: precio,
     amort_meses: parseInt(document.getElementById('veh_amort').value) || 96,
+    seguro_anual: seguro,
+    impuesto_anual: impuesto,
     movertis_unit_id: v('veh_movertis') ? parseInt(v('veh_movertis')) : null,
     conductor_id: conductorId || null,
     activo: document.getElementById('veh_activo').checked
