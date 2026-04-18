@@ -313,38 +313,11 @@ async function de_desbloquearExportado() {
   abrirEditor(cfg.tipo, cfg.editId);
 }
 
-async function de_entrarEdicionFactura() {
+function de_entrarEdicionFactura() {
   const cfg = deConfig;
-  if (!cfg.editId) return;
+  if (!cfg.editId) { console.warn('de_entrarEdicionFactura: no editId'); return; }
 
-  // Guardar snapshot de la versión actual antes de editar
-  if (cfg.conVersiones) {
-    try {
-      const vTabla = cfg.versionesTabla;
-      const vFk = cfg.versionesFk;
-      const { data: current, error: errCurr } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
-      if (errCurr) console.warn('Error leyendo factura:', errCurr.message);
-      if (current) {
-        const { data: versExist } = await sb.from(vTabla)
-          .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
-        const maxVer = (versExist && versExist.length) ? versExist[0].version : -1;
-        const verGuardar = maxVer + 1;
-        const { data: yaExiste } = await sb.from(vTabla)
-          .select('id').eq(vFk, cfg.editId).eq('version', verGuardar).limit(1);
-        if (!yaExiste || !yaExiste.length) {
-          const insertData = { version: verGuardar, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
-            usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
-          insertData[vFk] = cfg.editId;
-          const { error: insErr } = await sb.from(vTabla).insert(insertData);
-          if (insErr) console.warn('Error guardando versión:', insErr.message);
-          else console.log('✅ Snapshot v' + verGuardar + ' guardado en ' + vTabla);
-        }
-        cfg._version = verGuardar + 1;
-      }
-    } catch (e) { console.error('Error en versionado factura:', e); }
-  }
-
-  // Desbloquear para editar
+  // 1. Desbloquear INMEDIATAMENTE (feedback al usuario)
   cfg._mode = 'editing';
   de_setReadonly(false);
   de_renderLineas();
@@ -354,8 +327,36 @@ async function de_entrarEdicionFactura() {
   btnBox.innerHTML = `${_vBtnFac}
     <button class="btn btn-primary btn-sm" onclick="de_guardar('borrador')">💾 Guardar</button>
     <button class="btn btn-sm" onclick="de_emitirFactura()" style="background:#059669;color:white;border:none">🧾 Emitir factura</button>`;
-  de_showVersion(cfg._version || 0);
-  toast('✏️ Modo edición — versión v' + (cfg._version || 1), 'info');
+  toast('✏️ Modo edición', 'info');
+
+  // 2. Guardar snapshot en segundo plano (no bloquea la UI)
+  if (cfg.conVersiones) {
+    _snapshotBorradorFactura(cfg).catch(e => console.error('Error snapshot:', e));
+  }
+}
+
+async function _snapshotBorradorFactura(cfg) {
+  const vTabla = cfg.versionesTabla;
+  const vFk = cfg.versionesFk;
+  const { data: current, error: errCurr } = await sb.from(cfg.tabla).select('*').eq('id', cfg.editId).single();
+  if (errCurr || !current) { console.warn('No se pudo leer factura para snapshot:', errCurr?.message); return; }
+
+  const { data: versExist } = await sb.from(vTabla)
+    .select('version').eq(vFk, cfg.editId).order('version', { ascending: false }).limit(1);
+  const maxVer = (versExist && versExist.length) ? versExist[0].version : -1;
+  const verGuardar = maxVer + 1;
+
+  const { data: yaExiste } = await sb.from(vTabla)
+    .select('id').eq(vFk, cfg.editId).eq('version', verGuardar).limit(1);
+  if (yaExiste && yaExiste.length) { cfg._version = verGuardar + 1; return; }
+
+  const insertData = { version: verGuardar, snapshot: current, empresa_id: current.empresa_id || EMPRESA.id,
+    usuario_id: USER?.id || null, usuario_nombre: USER?.nombre || USER?.email || null };
+  insertData[vFk] = cfg.editId;
+  const { error: insErr } = await sb.from(vTabla).insert(insertData);
+  if (insErr) console.warn('Error guardando versión:', insErr.message);
+  else console.log('✅ Snapshot v' + verGuardar + ' guardado en ' + vTabla);
+  cfg._version = verGuardar + 1;
 }
 
 async function de_entrarEdicion() {
@@ -1480,9 +1481,27 @@ async function de_guardar(estado) {
   return savedId;
 }
 
-async function de_emitirFactura() {
-  // Confirmar antes de emitir — una vez emitida no se puede editar
-  if (!confirm('¿Emitir factura definitiva?\n\nSe asignará un número correlativo (FAC-XXXX) y ya no se podrá editar.\n\nEsta acción no se puede deshacer.')) return;
+function de_emitirFactura() {
+  // Modal personalizado para confirmar emisión
+  const overlay = document.createElement('div');
+  overlay.id = '_emitirOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:32px 36px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🧾</div>
+      <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111">Emitir factura definitiva</h2>
+      <p style="color:#555;font-size:15px;line-height:1.5;margin:0 0 8px">Se asignará un número correlativo <strong style="color:#059669">FAC-XXXX</strong> y ya no se podrá editar.</p>
+      <p style="color:#b91c1c;font-size:13px;font-weight:600;margin:0 0 24px">⚠️ Esta acción no se puede deshacer</p>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button onclick="document.getElementById('_emitirOverlay').remove()" style="padding:10px 24px;border-radius:10px;border:1px solid #ddd;background:#f5f5f5;color:#555;font-size:15px;font-weight:600;cursor:pointer">Cancelar</button>
+        <button onclick="document.getElementById('_emitirOverlay').remove();_doEmitirFactura()" style="padding:10px 28px;border-radius:10px;border:none;background:#059669;color:white;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(5,150,105,.4)">Emitir factura</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function _doEmitirFactura() {
   // Guardar primero como borrador por si hay cambios sin guardar
   const id = await de_guardar('borrador');
   if (!id) return;
