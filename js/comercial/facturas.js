@@ -123,7 +123,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${!bloqueada && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
+          ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
             const _tA = !!f.albaran_id;
@@ -414,16 +414,16 @@ async function verDetalleFactura(id) {
   const footerBtns = document.getElementById('facDetFooterBtns');
   if (footerBtns) {
     let btns = '';
-    // Cobrar — si no cobrada/anulada
-    if (f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada') {
+    // Cobrar — si no cobrada/anulada y NO es rectificativa
+    if (f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && !esRectificativa) {
       btns += `<button class="btn btn-primary" onclick="closeModal('mFacturaDetalle');marcarCobrada(${f.id})" style="background:var(--verde)">💰 Registrar cobro</button>`;
     }
-    // Recordatorio — si vencida o pendiente
-    if (f.estado === 'vencida' || f.estado === 'pendiente') {
+    // Recordatorio — si vencida o pendiente y NO es rectificativa
+    if ((f.estado === 'vencida' || f.estado === 'pendiente') && !esRectificativa) {
       btns += `<button class="btn btn-sm" onclick="enviarRecordatorioVencida(${f.id})" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B">📧 Enviar recordatorio</button>`;
     }
     // Rectificativa — si no es borrador, no es ya rectificativa, y no tiene una asociada
-    if (f.estado !== 'borrador' && !f.rectificativa_de && !rectAsociada) {
+    if (f.estado !== 'borrador' && !esRectificativa && !rectAsociada) {
       btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
     }
     footerBtns.innerHTML = btns;
