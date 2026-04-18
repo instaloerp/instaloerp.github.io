@@ -457,6 +457,11 @@ async function verDetalleFactura(id) {
     if (_isVfActivo() && !esBorrador) {
       if (f.verifactu_estado === 'correcto') {
         btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:12px;font-weight:700">✅ Registrada en AEAT${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
+        // Mostrar QR VeriFactu si existe
+        if (f.verifactu_qr_url) {
+          const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(f.verifactu_qr_url)}`;
+          btns += `<a href="${f.verifactu_qr_url}" target="_blank" title="Verificar en AEAT" style="margin-left:4px"><img src="${qrImg}" style="width:48px;height:48px;border-radius:4px;vertical-align:middle;border:1px solid #d1d5db"></a>`;
+        }
       } else {
         btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Enviar a AEAT</button>`;
       }
@@ -1594,7 +1599,10 @@ function _cfgFactura(f) {
       ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
       ['IVA', 'IVA al 21 % incluido en el total final.']
     ],
-    firma_zona: false
+    firma_zona: false,
+    verifactu_qr_url: f.verifactu_qr_url || null,
+    verifactu_csv: f.verifactu_csv || null,
+    verifactu_estado: f.verifactu_estado || null
   };
 }
 

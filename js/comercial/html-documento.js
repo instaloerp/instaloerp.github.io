@@ -361,6 +361,20 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 </div>`;
   }
 
+  function _renderVerifactuQR(cfg){
+    if (!cfg.verifactu_qr_url || cfg.verifactu_estado !== 'correcto') return '';
+    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(cfg.verifactu_qr_url)}`;
+    return `
+<div style="margin-top:16px;padding:12px 16px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:center;gap:16px;page-break-inside:avoid">
+  <img src="${qrImg}" style="width:80px;height:80px" alt="QR VeriFactu">
+  <div style="flex:1">
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">Factura verificable — VeriFactu</div>
+    <div style="font-size:8.5px;color:#64748b;line-height:1.4">Esta factura ha sido registrada en la AEAT.${cfg.verifactu_csv ? ' CSV: '+_esc(cfg.verifactu_csv) : ''}</div>
+    <div style="font-size:7.5px;color:#94a3b8;margin-top:2px">Escanee el código QR para verificar en la Agencia Tributaria.</div>
+  </div>
+</div>`;
+  }
+
   function _renderPie(E){
     const partes = [E.nombre, E.cif && ('CIF '+E.cif), E.direccion, E.telefono, E.email].filter(Boolean).join(' · ');
     return `<div class="pie"><span>${_esc(partes)}</span><span class="pag"></span></div>`;
@@ -397,6 +411,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   ${_renderObservaciones(cfg.observaciones)}
   ${_renderCondiciones(cfg.condiciones)}
   ${_renderFirma(cfg, E)}
+  ${_renderVerifactuQR(cfg)}
 </div>
 ${_renderPie(E)}
 </body>
