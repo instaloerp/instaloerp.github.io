@@ -351,12 +351,8 @@ async function _snapshotBorradorFactura(cfg) {
     .eq(vFk, cfg.editId)
     .eq('version', ver);
   if (!count || count === 0) {
-    const insertData = { version: ver };
+    const insertData = { version: ver, snapshot: current };
     insertData[vFk] = cfg.editId;
-    insertData.snapshot = current;
-    insertData.empresa_id = current.empresa_id || EMPRESA.id;
-    insertData.usuario_id = USER?.id || null;
-    insertData.usuario_nombre = USER?.nombre || USER?.email || null;
     const { error: insErr } = await sb.from(vTabla).insert(insertData);
     if (insErr) { toast('❌ Error versión: ' + insErr.message, 'error'); return; }
     toast('✅ Versión v' + ver + ' guardada', 'success');
@@ -390,12 +386,9 @@ async function de_entrarEdicion() {
         if (!count || count === 0) {
           const insertData = { version: ver };
           insertData[vFk] = cfg.editId;
-          // factura_versiones usa 'snapshot' + empresa_id; el resto usa 'datos'
+          // factura_versiones usa 'snapshot'; presupuesto_versiones usa 'datos'
           if (cfg.tipo === 'factura') {
             insertData.snapshot = current;
-            insertData.empresa_id = current.empresa_id || (typeof EMPRESA !== 'undefined' ? EMPRESA.id : null);
-            insertData.usuario_id = (typeof USER !== 'undefined' && USER) ? USER.id : null;
-            insertData.usuario_nombre = (typeof USER !== 'undefined' && USER) ? (USER.nombre || USER.email) : null;
           } else {
             insertData.datos = current;
           }

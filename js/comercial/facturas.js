@@ -563,12 +563,9 @@ async function _generarNumeroBorrador() {
 // ═══════════════════════════════════════════════
 async function _guardarVersionBorrador(facturaId, datos, versionNum) {
   const { error } = await sb.from('factura_versiones').insert({
-    empresa_id: EMPRESA.id,
     factura_id: facturaId,
     version: versionNum,
     snapshot: datos,
-    usuario_id: USER?.id || null,
-    usuario_nombre: USER?.nombre || USER?.email || null,
   });
   if (error) {
     console.error('Error guardando versión borrador v' + versionNum + ':', error.message);
