@@ -153,6 +153,15 @@ function renderDoc(tipo, d) {
         <tr class="total-row"><td style="text-align:right">TOTAL</td><td style="text-align:right;width:140px">${fmtE(d.total||0)}</td></tr>
       </tbody></table>
       ${(d.observaciones || d.notas) ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b">${d.observaciones || d.notas}</div>` : ''}
+      ${tipo === 'factura' && d.verifactu_qr_url && d.verifactu_estado === 'correcto' ? `
+      <div style="margin-top:16px;padding:14px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:center;gap:16px">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(d.verifactu_qr_url)}" style="width:80px;height:80px" alt="QR VeriFactu">
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">Factura verificable — VeriFactu</div>
+          <div style="font-size:11px;color:#64748b">Esta factura ha sido registrada en la AEAT.${d.verifactu_csv ? ' CSV: '+d.verifactu_csv : ''}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Escanee el código QR para verificar en la Agencia Tributaria.</div>
+        </div>
+      </div>` : ''}
     </div>
     <div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">Documento generado por ${d.emp_nombre||'el ERP'} · enlace privado</div>
   `;
