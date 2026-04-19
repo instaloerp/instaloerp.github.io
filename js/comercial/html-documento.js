@@ -479,17 +479,15 @@ ${_renderPie(E)}
     wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
     const docClone = doc.cloneNode(true);
-    // Eliminar el .pie (position:fixed) del clon — html2canvas lo interpreta mal
-    // y crea espacio extra. El pie se estampa manualmente con jsPDF después.
-    const pieEl = docClone.querySelector('.pie');
-    if (pieEl) pieEl.remove();
+    // Reducir padding-top del clon para PDF (el margen de html2pdf ya añade espacio)
+    docClone.style.paddingTop = '2mm';
     wrapper.appendChild(docClone);
     document.body.appendChild(wrapper);
 
     try {
       await _esperarImagenes(wrapper);
       const opt = {
-        margin:       [5, 0, 14, 0],   // mm — top reducido (el .doc tiene padding interno)
+        margin:       [2, 0, 14, 0],   // mm — top mínimo (padding ajustado en el clon)
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff' },
