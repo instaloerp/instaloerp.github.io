@@ -2326,6 +2326,12 @@ function calcAplicarTarifaKm() {
 // ═══════════════════════════════════════════════
 
 async function verificarInstalacion() {
+  // Rellenar info del sistema
+  const elBuild = document.getElementById('sys_build');
+  const elSupa = document.getElementById('sys_supa_url');
+  if (elBuild) elBuild.textContent = document.getElementById('erpBuildVersion')?.textContent || '—';
+  if (elSupa) elSupa.textContent = typeof SUPA_URL !== 'undefined' ? SUPA_URL.replace('https://','').split('.')[0] + '.supabase.co' : '—';
+
   const el = document.getElementById('install_check_result');
   if (!el) return;
   el.innerHTML = '<div style="color:var(--gris-400);font-size:12px">Verificando instalación...</div>';

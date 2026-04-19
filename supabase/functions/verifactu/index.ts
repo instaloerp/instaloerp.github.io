@@ -187,8 +187,8 @@ function buildRegistroAltaXML(params: {
   const desgloseXml = desglose.map(d => `
             <sf:DetalleDesglose>
               <sf:Impuesto>01</sf:Impuesto>
-              <sf:ClaveRegimen>01</sf:ClaveRegimen>
-              <sf:CalificacionOperacion>S1</sf:CalificacionOperacion>
+              <sf:ClaveRegimen>${factura.clave_regimen || '01'}</sf:ClaveRegimen>
+              <sf:CalificacionOperacion>${factura.calificacion_operacion || 'S1'}</sf:CalificacionOperacion>
               <sf:TipoImpositivo>${formatDecimal(d.tipo)}</sf:TipoImpositivo>
               <sf:BaseImponibleOimporteNoSujeto>${formatDecimal(d.base)}</sf:BaseImponibleOimporteNoSujeto>
               <sf:CuotaRepercutida>${formatDecimal(d.cuota)}</sf:CuotaRepercutida>
@@ -418,6 +418,11 @@ async function handleRegistro(
 
   if (action === "alta" || action === "subsanacion") {
     const tipoFactura = factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1");
+
+    // Validación: F1 requiere NIF del cliente
+    if (tipoFactura === "F1" && !factura.cliente_nif) {
+      throw new Error("Las facturas F1 requieren NIF del cliente para VeriFactu");
+    }
     const cuotaTotalHash = formatDecimalHash(factura.total_iva || 0);
     const importeTotalHash = formatDecimalHash(factura.total || 0);
     const importeTotal = formatDecimal(factura.total || 0);
