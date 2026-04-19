@@ -177,7 +177,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   function _renderCabecera(E, cfg){
     const dirLinea1 = E.direccion || '';
     const dirLinea2 = [E.cp, E.municipio, E.provincia && '('+E.provincia+')'].filter(Boolean).join(' ');
-    const hasQR = cfg && cfg.verifactu_qr_url && cfg.verifactu_estado === 'correcto';
+    const hasQR = cfg && cfg.verifactu_qr_url && (cfg.verifactu_estado === 'correcto' || cfg.verifactu_estado === 'simulado' || cfg.verifactu_estado === 'aceptado_errores');
     const qrHtml = hasQR
       ? `<div class="cab-qr">
            <div class="qr-lbl">QR tributario:</div>
@@ -478,13 +478,18 @@ ${_renderPie(E)}
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
-    wrapper.appendChild(doc.cloneNode(true));
+    const docClone = doc.cloneNode(true);
+    // Eliminar el .pie (position:fixed) del clon — html2canvas lo interpreta mal
+    // y crea espacio extra. El pie se estampa manualmente con jsPDF después.
+    const pieEl = docClone.querySelector('.pie');
+    if (pieEl) pieEl.remove();
+    wrapper.appendChild(docClone);
     document.body.appendChild(wrapper);
 
     try {
       await _esperarImagenes(wrapper);
       const opt = {
-        margin:       [10, 0, 14, 0],   // mm — el .doc ya tiene padding interno
+        margin:       [5, 0, 14, 0],   // mm — top reducido (el .doc tiene padding interno)
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff' },
