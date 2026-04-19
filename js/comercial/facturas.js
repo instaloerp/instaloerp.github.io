@@ -282,7 +282,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
+          ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
@@ -596,8 +596,11 @@ async function verDetalleFactura(id) {
     }
     // VeriFactu — enviar a AEAT si activo y no borrador (rectificativas también se envían)
     if (_isVfActivo() && !esBorrador) {
-      if (f.verifactu_estado === 'correcto') {
-        btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:12px;font-weight:700">✅ Registrada en AEAT${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
+      if (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' || f.verifactu_estado === 'aceptado_errores') {
+        const vfLabel = f.verifactu_estado === 'aceptado_errores' ? '⚠️ AEAT con avisos' : '✅ Registrada en AEAT';
+        const vfBg = f.verifactu_estado === 'aceptado_errores' ? '#FEF3C7' : '#D1FAE5';
+        const vfColor = f.verifactu_estado === 'aceptado_errores' ? '#92400E' : '#065F46';
+        btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:${vfBg};color:${vfColor};font-size:12px;font-weight:700">${vfLabel}${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
         // Botón subsanar — corregir datos no fiscales y reenviar
         btns += `<button class="btn btn-sm" onclick="abrirSubsanacion(${f.id})" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;font-weight:600" title="Corregir descripciones u observaciones sin crear rectificativa">🔧 Subsanar</button>`;
         // Mostrar QR VeriFactu si existe
@@ -2125,7 +2128,7 @@ function renderRectificativas() {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
-          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
+          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
         </div>
       </td>
     </tr>`;
@@ -2156,7 +2159,7 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
     if (!opts.auto) toast('No se pueden enviar borradores a AEAT. Emite la factura primero.', 'error');
     return;
   }
-  if (fac.verifactu_estado === 'correcto' && action === 'alta') {
+  if ((fac.verifactu_estado === 'correcto' || fac.verifactu_estado === 'simulado' || fac.verifactu_estado === 'aceptado_errores') && action === 'alta') {
     if (!opts.auto) toast('Esta factura ya está registrada en AEAT', 'info');
     return;
   }
@@ -2263,7 +2266,7 @@ let _subsFacId = null;
 function abrirSubsanacion(id) {
   const f = facLocalData.find(x => x.id === id);
   if (!f) { toast('Factura no encontrada', 'error'); return; }
-  if (f.verifactu_estado !== 'correcto' && f.verifactu_estado !== 'simulado') {
+  if (f.verifactu_estado !== 'correcto' && f.verifactu_estado !== 'simulado' && f.verifactu_estado !== 'aceptado_errores') {
     toast('Solo se pueden subsanar facturas registradas en AEAT', 'warning'); return;
   }
 
@@ -2377,7 +2380,7 @@ async function _guardarSubsanacion() {
   // Si cambian observaciones → subsanación AEAT (Subsanacion="S")
   // Si solo cambian descripciones de líneas → solo guardar local (FAQ AEAT: no exige nuevo registro)
   const necesitaAEAT = hayObsCambio && _isVfActivo() &&
-    (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado');
+    (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' || f.verifactu_estado === 'aceptado_errores');
 
   const msgAEAT = necesitaAEAT
     ? 'Las <b>observaciones</b> forman parte del registro AEAT (DescripcionOperacion).<br>Se reenviará el registro con el mecanismo de subsanación.'
