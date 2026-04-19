@@ -1486,7 +1486,7 @@ async function crearRectificativa(id) {
 function _mostrarSelectorTipoRect() {
   const orig = _rectOrig;
   // Cerrar modal detalle para evitar conflictos de z-index
-  document.querySelectorAll('.overlay.open').forEach(o => { o.classList.remove('open'); o.style.pointerEvents = 'none'; });
+  document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
 
   const ol = document.createElement('div');
   ol.id = 'rectTipoSelector';
