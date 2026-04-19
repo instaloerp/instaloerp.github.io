@@ -197,12 +197,13 @@ async function loadFacturas() {
 
 function renderFacturas(list) {
   const ESTADOS = {
-    borrador:  { label:'Borrador',  ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
-    pendiente: { label:'Pendiente', ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
-    cobrada:   { label:'Cobrada',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
-    pagada:    { label:'Cobrada',   ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' }, // compat legacy
-    vencida:   { label:'Vencida',   ico:'⚠️', color:'var(--rojo)',       bg:'var(--rojo-light)' },
-    anulada:   { label:'Anulada',   ico:'🚫', color:'var(--gris-400)',   bg:'var(--gris-100)' },
+    borrador:     { label:'Borrador',     ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
+    pendiente:    { label:'Pendiente',    ico:'⏳', color:'var(--amarillo)',   bg:'var(--amarillo-light)' },
+    cobrada:      { label:'Cobrada',      ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' },
+    pagada:       { label:'Cobrada',      ico:'✅', color:'var(--verde)',      bg:'var(--verde-light)' }, // compat legacy
+    vencida:      { label:'Vencida',      ico:'⚠️', color:'var(--rojo)',       bg:'var(--rojo-light)' },
+    rectificada:  { label:'Rectificada',  ico:'📐', color:'#d97706',          bg:'#fef3c7' },
+    anulada:      { label:'Anulada',      ico:'🚫', color:'var(--gris-400)',   bg:'var(--gris-100)' },
   };
 
   // Auto-vencer facturas pendientes cuya fecha_vencimiento ha pasado
@@ -216,12 +217,12 @@ function renderFacturas(list) {
   });
 
   // KPIs — dinámicos sobre la lista filtrada visible
-  const noAnuladas = list.filter(f => f.estado !== 'anulada');
+  const noAnuladas = list.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada');
   const borradores = list.filter(f => f.estado === 'borrador');
   const pends    = list.filter(f => f.estado === 'pendiente');
   const vencidas = list.filter(f => f.estado === 'vencida');
   const cobradas = list.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
-  const anuladas = list.filter(f => f.estado === 'anulada');
+  const anuladas = list.filter(f => f.estado === 'anulada' || f.estado === 'rectificada');
 
   const kTotal    = document.getElementById('fk-total');
   const kBorr     = document.getElementById('fk-borradores');
@@ -257,7 +258,7 @@ function renderFacturas(list) {
     // ¿Tiene rectificativa asociada? → bloqueada
     const tieneRect = facLocalData.some(r => r.rectificativa_de === f.id);
     const esRect = !!f.rectificativa_de;
-    const bloqueada = tieneRect && f.estado === 'anulada';
+    const bloqueada = tieneRect && (f.estado === 'anulada' || f.estado === 'rectificada');
     const rowStyle = bloqueada ? 'cursor:pointer;background:rgba(239,68,68,0.08);color:#991B1B' : 'cursor:pointer';
     const lockBadge = bloqueada ? '<span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700" title="Factura rectificada">🔒 Rectificada</span>' : '';
 
@@ -282,7 +283,7 @@ function renderFacturas(list) {
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
           ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
-          ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
+          ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
             const _tA = !!f.albaran_id;
@@ -318,7 +319,7 @@ function filtrarFacturas() {
     // Las anuladas que tienen rectificativa asociada siempre se muestran (bloqueadas en rojo)
     const tieneRectAsociada = facLocalData.some(r => r.rectificativa_de === f.id);
     if (est === '_todas') {
-      if (f.estado === 'anulada' && !tieneRectAsociada) return false; // Excluir anuladas normales, no las rectificadas
+      if ((f.estado === 'anulada' || f.estado === 'rectificada') && !tieneRectAsociada) return false; // Excluir anuladas/rectificadas sueltas
     } else if (est === 'cobrada') {
       if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false; // Compat legacy
     } else if (est) {
@@ -368,11 +369,12 @@ function cambiarEstadoFacMenu(event, id) {
   event.stopPropagation();
   document.querySelectorAll('.est-menu-popup').forEach(m => m.remove());
   const ESTADOS = [
-    { key: 'borrador',  ico: '✏️', label: 'Borrador' },
-    { key: 'pendiente', ico: '⏳', label: 'Pendiente' },
-    { key: 'cobrada',   ico: '✅', label: 'Cobrada' },
-    { key: 'vencida',   ico: '⚠️', label: 'Vencida' },
-    { key: 'anulada',   ico: '🚫', label: 'Anulada' },
+    { key: 'borrador',     ico: '✏️', label: 'Borrador' },
+    { key: 'pendiente',    ico: '⏳', label: 'Pendiente' },
+    { key: 'cobrada',      ico: '✅', label: 'Cobrada' },
+    { key: 'vencida',      ico: '⚠️', label: 'Vencida' },
+    { key: 'rectificada',  ico: '📐', label: 'Rectificada' },
+    { key: 'anulada',      ico: '🚫', label: 'Anulada' },
   ];
   const menu = document.createElement('div');
   menu.className = 'est-menu-popup';
@@ -491,9 +493,11 @@ async function verDetalleFactura(id) {
   document.getElementById('facDetFecha').textContent = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
   document.getElementById('facDetVence').textContent = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
 
-  const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', cobrada: 'Cobrada', pagada: 'Cobrada', vencida: 'Vencida', anulada: 'Anulada' };
-  const COLORES = { pendiente: 'var(--amarillo)', cobrada: 'var(--verde)', pagada: 'var(--verde)', vencida: 'var(--rojo)', anulada: 'var(--gris-400)' };
-  document.getElementById('facDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[f.estado] || 'var(--gris-400)'}">${ESTADOS[f.estado] || f.estado || '—'}</span>`;
+  const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', cobrada: 'Cobrada', pagada: 'Cobrada', vencida: 'Vencida', rectificada: 'Rectificada', anulada: 'Anulada' };
+  const COLORES = { pendiente: 'var(--amarillo)', cobrada: 'var(--verde)', pagada: 'var(--verde)', vencida: 'var(--rojo)', rectificada: '#d97706', anulada: 'var(--gris-400)' };
+  const tipoVFLabels = {F1:'Completa',F2:'Simplificada',F3:'Sustitutiva',R1:'Rect. errores',R2:'Rect. concurso',R3:'Rect. incobrables',R4:'Rect. otras',R5:'Rect. simplificada'};
+  const tipoVFBadge = f.tipo_rectificativa ? `<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;color:#1e40af;background:#DBEAFE;margin-left:6px" title="${tipoVFLabels[f.tipo_rectificativa]||f.tipo_rectificativa}">${f.tipo_rectificativa}</span>` : '';
+  document.getElementById('facDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[f.estado] || 'var(--gris-400)'}">${ESTADOS[f.estado] || f.estado || '—'}</span>${tipoVFBadge}`;
 
   // Forma de pago
   const fpEl = document.getElementById('facDetFpago');
@@ -579,7 +583,7 @@ async function verDetalleFactura(id) {
   if (footerBtns) {
     let btns = '';
     // Cobrar — si no cobrada/anulada y NO es rectificativa
-    if (f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && !esRectificativa) {
+    if (f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' && !esRectificativa) {
       btns += `<button class="btn btn-primary" onclick="closeModal('mFacturaDetalle');marcarCobrada(${f.id})" style="background:var(--verde)">💰 Registrar cobro</button>`;
     }
     // Recordatorio — si vencida o pendiente y NO es rectificativa
@@ -587,27 +591,26 @@ async function verDetalleFactura(id) {
       btns += `<button class="btn btn-sm" onclick="enviarRecordatorioVencida(${f.id})" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B">📧 Enviar recordatorio</button>`;
     }
     // Rectificativa — si no es borrador, no es ya rectificativa, y no tiene una asociada
-    if (f.estado !== 'borrador' && !esRectificativa && !rectAsociada) {
+    if (f.estado !== 'borrador' && f.estado !== 'anulada' && f.estado !== 'rectificada' && !esRectificativa && !rectAsociada) {
       btns += `<button class="btn btn-sm" onclick="crearRectificativa(${f.id})" style="background:#FEE2E2;color:#991B1B;border:1px solid #EF4444">📝 Crear rectificativa</button>`;
     }
     // VeriFactu — enviar a AEAT si activo y no borrador (rectificativas también se envían)
     if (_isVfActivo() && !esBorrador) {
       if (f.verifactu_estado === 'correcto') {
         btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:12px;font-weight:700">✅ Registrada en AEAT${f.verifactu_csv ? ' · CSV: '+f.verifactu_csv : ''}</span>`;
+        // Botón subsanar — corregir datos no fiscales y reenviar
+        btns += `<button class="btn btn-sm" onclick="abrirSubsanacion(${f.id})" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;font-weight:600" title="Corregir descripciones u observaciones sin crear rectificativa">🔧 Subsanar</button>`;
         // Mostrar QR VeriFactu si existe
         if (f.verifactu_qr_url) {
           const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(f.verifactu_qr_url)}`;
           btns += `<a href="${f.verifactu_qr_url}" target="_blank" title="Verificar en AEAT" style="margin-left:4px"><img src="${qrImg}" style="width:48px;height:48px;border-radius:4px;vertical-align:middle;border:1px solid #d1d5db"></a>`;
         }
-        // Botón anular registro AEAT
-        btns += `<button class="btn btn-sm" onclick="anularFacturaAEAT(${f.id})" style="background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;font-weight:700;margin-left:6px" title="Anular registro en AEAT">🗑️ Anular AEAT</button>`;
       } else if (f.verifactu_estado === 'anulado') {
         btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600">🗑️ Anulada en AEAT</span>`;
         btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Reenviar a AEAT</button>`;
       } else if (f.verifactu_estado === 'incorrecto') {
         btns += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:11px;font-weight:600">❌ Error AEAT</span>`;
         btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Reintentar</button>`;
-        btns += `<button class="btn btn-sm" onclick="anularFacturaAEAT(${f.id})" style="background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;font-weight:700">🗑️ Anular AEAT</button>`;
       } else {
         btns += `<button class="btn btn-sm" onclick="enviarFacturaAEAT(${f.id})" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #1D4ED8;font-weight:700">📡 Enviar a AEAT</button>`;
       }
@@ -1022,18 +1025,23 @@ async function emitirFacturaDefinitiva(id) {
 
     // Paso 2: Guardar
     _updateStep(1, 'Guardando ' + numero + '...');
+    // Determinar tipo VeriFactu automáticamente
+    const tipoVF = _determinarTipoFacturaVF(f);
     const updateObj = {
       numero,
       estado: 'pendiente',
       fecha: f.fecha || hoy,
       fecha_vencimiento: f.fecha_vencimiento || null,
       borrador_origen: f.numero,
+      tipo_rectificativa: tipoVF,  // F1, F2 o F3 — la Edge Function lo lee
     };
 
     const { error } = await sb.from('facturas').update(updateObj).eq('id', id);
     if (error) {
-      if (error.message && error.message.includes('borrador_origen')) {
+      // Fallback: quitar campos opcionales si la columna no existe
+      if (error.message && (error.message.includes('borrador_origen') || error.message.includes('tipo_rectificativa') || error.message.includes('column'))) {
         delete updateObj.borrador_origen;
+        delete updateObj.tipo_rectificativa;
         const r2 = await sb.from('facturas').update(updateObj).eq('id', id);
         if (r2.error) { _stepperDone(r2.error.message, false); return; }
       } else {
@@ -1424,11 +1432,34 @@ async function _generarNumeroRectificativa() {
 }
 
 // ═══════════════════════════════════════════════
-//  CREAR RECTIFICATIVA
-//  Cumple RD 1619/2012 (serie propia correlativa, referencia a original)
-//  y prepara campos VeriFactu (tipo_rectificativa, tipo_rectificacion,
-//  base_rectificada, cuota_rectificada, factura_rectificada_numero/fecha)
+//  CREAR RECTIFICATIVA — Según documentación AEAT VeriFactu
+//  Dos flujos: "I" (por diferencias) y "S" (por sustitución)
+//  Ref: https://sede.agenciatributaria.gob.es/.../procedimientos-facturacion.html
 // ═══════════════════════════════════════════════
+
+// Estado temporal del editor de rectificativa
+let _rectOrig = null;         // factura original
+let _rectLineas = [];         // líneas editables
+let _rectTipo = 'I';          // 'I' o 'S'
+let _rectTipoR = 'R1';       // R1-R5 (tipo registro AEAT)
+
+// ── Determinar tipo factura VeriFactu automáticamente ──
+// F1 = completa (con destinatario), F2 = simplificada (sin destinatario, ≤400€/3000€),
+// F3 = sustitutiva de simplificada, R1-R5 = rectificativas
+function _determinarTipoFacturaVF(fac) {
+  // Rectificativas: el tipo lo elige el usuario (R1-R5)
+  if (fac.rectificativa_de) return fac.tipo_rectificativa || 'R1';
+  // F3: sustitutiva de simplificada — se marca manualmente
+  if (fac.tipo_rectificativa === 'F3') return 'F3';
+  // F2: simplificada — sin destinatario
+  if (!fac.cliente_id && !fac.cliente_nombre) return 'F2';
+  // Verificar si el cliente tiene NIF/CIF — si no, podría ser simplificada
+  const cli = (typeof clientes !== 'undefined' ? clientes : []).find(c => c.id === fac.cliente_id);
+  if (cli && !cli.nif && !cli.cif && (fac.total || 0) <= 400) return 'F2';
+  // Por defecto: F1 completa
+  return 'F1';
+}
+
 async function crearRectificativa(id) {
   const orig = facLocalData.find(x => x.id === id);
   if (!orig) { toast('Factura no encontrada', 'error'); return; }
@@ -1439,121 +1470,425 @@ async function crearRectificativa(id) {
   const yaRect = facLocalData.find(f => f.rectificativa_de === id);
   if (yaRect) { toast('Ya existe la rectificativa ' + yaRect.numero, 'warning'); return; }
 
+  _rectOrig = orig;
+  // Mostrar selector de tipo
+  _mostrarSelectorTipoRect();
+}
+
+function _mostrarSelectorTipoRect() {
+  const orig = _rectOrig;
+  const ol = document.createElement('div');
+  ol.id = 'rectTipoSelector';
+  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9998;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
+  ol.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+      <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;color:#1e293b">Rectificar factura ${orig.numero}</h3>
+      <p style="margin:0 0 20px;font-size:13px;color:#64748b">Original: ${fmtE(orig.base_imponible||0)} base + ${fmtE(orig.total_iva||0)} IVA = <b>${fmtE(orig.total||0)}</b></p>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="_iniciarRectificativa('I')" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s"
+          onmouseover="this.style.borderColor='#3b82f6';this.style.background='#f0f7ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+          <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por diferencias (I)</div>
+          <div style="font-size:12px;color:#64748b;line-height:1.4">Corregir importes parcialmente. Solo se registra la diferencia.<br>
+          <span style="color:#3b82f6">Ejemplo: quitar una línea de 200€ → rectificativa de -200€</span></div>
+        </button>
+        <button onclick="_iniciarRectificativa('S')" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s"
+          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+          <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por sustitución (S)</div>
+          <div style="font-size:12px;color:#64748b;line-height:1.4">Reemplazar la factura completa con importes correctos.<br>
+          <span style="color:#f59e0b">Ejemplo: factura de 1.000€ debía ser 800€ → rectificativa con 800€</span></div>
+        </button>
+      </div>
+
+      <div style="margin-top:16px;text-align:right">
+        <button onclick="document.getElementById('rectTipoSelector').remove()" style="padding:8px 18px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#64748b">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ol);
+}
+
+function _iniciarRectificativa(tipo) {
+  document.getElementById('rectTipoSelector')?.remove();
+  _rectTipo = tipo;
+  _rectTipoR = 'R1';  // reset al tipo más habitual
+  const orig = _rectOrig;
+
+  // Copiar líneas originales para edición
+  _rectLineas = (orig.lineas || []).filter(l => !l._separator).map(l => ({
+    desc: l.desc || '', cant: l.cant || 0, precio: l.precio || 0,
+    dto1: l.dto1 || 0, dto2: l.dto2 || 0, dto3: l.dto3 || 0,
+    iva: l.iva || 21, articulo_id: l.articulo_id || null,
+    _origCant: l.cant || 0, _origPrecio: l.precio || 0,
+    _incluir: true  // checkbox para tipo I
+  }));
+
+  _mostrarEditorRect();
+}
+
+function _mostrarEditorRect() {
+  const orig = _rectOrig;
+  const esI = _rectTipo === 'I';
+  const titulo = esI ? 'Rectificativa por diferencias (I)' : 'Rectificativa por sustitución (S)';
+  const subtitulo = esI
+    ? 'Desmarca o modifica las líneas que quieres corregir. Solo se registrará la diferencia.'
+    : 'Ajusta las líneas al importe CORRECTO final. Se informará a AEAT del importe original y el nuevo.';
+
+  const ol = document.createElement('div');
+  ol.id = 'rectEditor';
+  ol.className = 'overlay';
+  ol.style.cssText = 'display:flex;z-index:9997';
+  ol.innerHTML = `
+    <div class="modal modal-lg" style="max-width:860px">
+      <div class="modal-h">
+        <span>${esI ? '📐' : '🔄'}</span>
+        <h2>${titulo}</h2>
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('rectEditor').remove()">✕</button>
+      </div>
+      <div class="modal-b">
+        <p style="font-size:12.5px;color:var(--gris-500);margin:0 0 12px">${subtitulo}</p>
+        <div style="background:var(--gris-50);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px">
+          <b>Factura original:</b> ${orig.numero} — ${fmtE(orig.base_imponible||0)} base + ${fmtE(orig.total_iva||0)} IVA = <b>${fmtE(orig.total||0)}</b>
+        </div>
+
+        <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="background:var(--gris-50)">
+              <tr>
+                ${esI ? '<th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:36px;text-align:center">Incl.</th>' : ''}
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:70px">Cant.</th>
+                <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:90px">Precio</th>
+                <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:60px">IVA%</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:90px;text-align:right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="rect_lineas"></tbody>
+          </table>
+        </div>
+
+        <div id="rect_resumen" style="margin-top:14px"></div>
+
+        <div class="fg" style="margin-top:12px"><label style="font-weight:700;font-size:12px;color:var(--gris-600);margin-bottom:4px;display:block">Tipo de rectificativa (AEAT)</label>
+          <select id="rect_tipoR" onchange="_rectTipoR=this.value;document.getElementById('rect_tipoR_desc').textContent=this.options[this.selectedIndex].dataset.desc||''"
+            style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;font-family:var(--font);outline:none;background:#fff;cursor:pointer">
+            <option value="R1" selected data-desc="Errores en importes, base imponible, tipo IVA, etc. Es la más habitual.">R1 — Error en datos o importes (art. 80.1, 80.2 y 80.6 LIVA)</option>
+            <option value="R2" data-desc="El cliente está en concurso de acreedores y no puede pagar.">R2 — Concurso de acreedores (art. 80.3 LIVA)</option>
+            <option value="R3" data-desc="El cliente no paga pasados los plazos legales: crédito incobrable.">R3 — Créditos incobrables (art. 80.4 LIVA)</option>
+            <option value="R4" data-desc="Otros errores: datos de cabecera, destinatario incorrecto, etc.">R4 — Otras causas (art. 80 resto / art. 84 LIVA)</option>
+            <option value="R5" data-desc="Solo para rectificar facturas simplificadas (sin destinatario).">R5 — Rectificativa de factura simplificada</option>
+          </select>
+          <div id="rect_tipoR_desc" style="font-size:11px;color:var(--gris-400);margin-top:4px;line-height:1.3">Errores en importes, base imponible, tipo IVA, etc. Es la más habitual.</div>
+        </div>
+
+        <div class="fg" style="margin-top:12px"><label>Motivo de la rectificación</label>
+          <textarea id="rect_motivo" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;font-family:var(--font);outline:none"
+            placeholder="Descripción del motivo (ej: error en cantidad, descuento no aplicado...)">Rectificativa de ${orig.numero}</textarea>
+        </div>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-secondary" onclick="document.getElementById('rectEditor').remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="_guardarRectificativa()">Emitir rectificativa</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ol);
+  _rectRenderLineas();
+}
+
+function _rectToggleLinea(idx) {
+  _rectLineas[idx]._incluir = !_rectLineas[idx]._incluir;
+  _rectRenderLineas();
+}
+
+function _rectUpdateLinea(idx, field, val) {
+  if (field === 'cant' || field === 'precio' || field === 'iva') {
+    _rectLineas[idx][field] = parseFloat(val) || 0;
+  } else {
+    _rectLineas[idx][field] = val;
+  }
+  _rectRenderLineas();
+}
+
+function _rectRenderLineas() {
+  const esI = _rectTipo === 'I';
+  const orig = _rectOrig;
+  const baseOrig = parseFloat(orig.base_imponible) || 0;
+  const ivaOrig = parseFloat(orig.total_iva) || 0;
+
+  let baseRect = 0, ivaRect = 0;
+
+  document.getElementById('rect_lineas').innerHTML = _rectLineas.map((l, i) => {
+    const sub = l.cant * l.precio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
+    const iva = sub * (l.iva / 100);
+
+    if (esI) {
+      // Tipo I: calcular diferencia vs original
+      if (l._incluir) {
+        const origSub = l._origCant * l._origPrecio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
+        const diff = sub - origSub;
+        const diffIva = diff * (l.iva / 100);
+        baseRect += diff;
+        ivaRect += diffIva;
+      } else {
+        // Línea desmarcada = se quita entera → diferencia negativa
+        const origSub = l._origCant * l._origPrecio * (1 - (l.dto1||0)/100) * (1 - (l.dto2||0)/100) * (1 - (l.dto3||0)/100);
+        baseRect -= origSub;
+        ivaRect -= origSub * (l.iva / 100);
+      }
+    } else {
+      // Tipo S: importes correctos finales
+      baseRect += sub;
+      ivaRect += iva;
+    }
+
+    const opacidad = (esI && !l._incluir) ? 'opacity:.4' : '';
+    const disabled = (esI && !l._incluir) ? 'disabled' : '';
+
+    return `<tr style="border-top:1px solid var(--gris-100);${opacidad}">
+      ${esI ? `<td style="padding:7px 6px;text-align:center">
+        <input type="checkbox" ${l._incluir ? 'checked' : ''} onchange="_rectToggleLinea(${i})" style="cursor:pointer">
+      </td>` : ''}
+      <td style="padding:7px 10px;font-size:12.5px">${l.desc}</td>
+      <td style="padding:7px 6px"><input type="number" value="${l.cant}" step="0.01" ${disabled}
+        onchange="_rectUpdateLinea(${i},'cant',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px"><input type="number" value="${l.precio}" step="0.01" ${disabled}
+        onchange="_rectUpdateLinea(${i},'precio',this.value)"
+        style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 6px;font-size:12px;text-align:right;outline:none"></td>
+      <td style="padding:7px 6px">
+        <select ${disabled} onchange="_rectUpdateLinea(${i},'iva',this.value)"
+          style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:4px 5px;font-size:12px;outline:none">
+          ${tiposIva.map(t=>`<option value="${t.porcentaje}" ${t.porcentaje==l.iva?'selected':''}>${t.porcentaje}%</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(sub)}</td>
+    </tr>`;
+  }).join('');
+
+  // Resumen
+  const totalRect = baseRect + ivaRect;
+  const resumenEl = document.getElementById('rect_resumen');
+
+  if (esI) {
+    // Tipo I: mostrar la diferencia que se va a registrar
+    const hayDiff = Math.abs(baseRect) > 0.005 || Math.abs(ivaRect) > 0.005;
+    resumenEl.innerHTML = `
+      <div style="display:flex;justify-content:flex-end">
+        <div style="width:320px;background:${hayDiff ? '#fef3c7' : '#f1f5f9'};border-radius:9px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+            Diferencia a registrar (tipo I)
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:var(--gris-500)">Base imponible</span><span style="font-weight:600;color:${baseRect<0?'#dc2626':'#16a34a'}">${baseRect>=0?'+':''}${fmtE(baseRect)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:var(--gris-500)">Cuota IVA</span><span style="font-weight:600;color:${ivaRect<0?'#dc2626':'#16a34a'}">${ivaRect>=0?'+':''}${fmtE(ivaRect)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:15px;font-weight:800;border-top:2px solid rgba(0,0,0,.1);margin-top:4px">
+            <span>Total rectificación</span><span style="color:${totalRect<0?'#dc2626':'#16a34a'}">${totalRect>=0?'+':''}${fmtE(totalRect)}</span>
+          </div>
+          ${!hayDiff ? '<div style="font-size:11px;color:#ef4444;margin-top:4px">⚠️ No hay diferencia — modifica cantidades o desmarca líneas</div>' : ''}
+        </div>
+      </div>`;
+  } else {
+    // Tipo S: mostrar importes finales correctos + originales rectificados
+    resumenEl.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;gap:12px">
+        <div style="width:240px;background:#fee2e2;border-radius:9px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#991b1b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+            Original (se rectifica)
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#7f1d1d">Base</span><span style="font-weight:600;text-decoration:line-through">${fmtE(baseOrig)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#7f1d1d">Cuota</span><span style="font-weight:600;text-decoration:line-through">${fmtE(ivaOrig)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;font-weight:700;border-top:1px solid rgba(0,0,0,.1);margin-top:2px"><span>Total</span><span style="text-decoration:line-through">${fmtE(baseOrig+ivaOrig)}</span></div>
+        </div>
+        <div style="width:240px;background:#dcfce7;border-radius:9px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+            Correcto (nuevo importe)
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#14532d">Base</span><span style="font-weight:600">${fmtE(baseRect)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#14532d">Cuota</span><span style="font-weight:600">${fmtE(ivaRect)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:15px;font-weight:800;border-top:2px solid rgba(0,0,0,.1);margin-top:2px"><span>Total</span><span style="color:var(--azul)">${fmtE(totalRect)}</span></div>
+        </div>
+      </div>`;
+  }
+}
+
+async function _guardarRectificativa() {
+  const orig = _rectOrig;
+  const esI = _rectTipo === 'I';
+  const baseOrig = parseFloat(orig.base_imponible) || 0;
+  const ivaOrig = parseFloat(orig.total_iva) || 0;
+  const totalOrig = parseFloat(orig.total) || 0;
   const estabaCobrada = orig.estado === 'cobrada' || orig.estado === 'pagada';
-  const msgConfirm = estabaCobrada
-    ? '¿Crear factura rectificativa de ' + orig.numero + '?\n\n⚠️ Esta factura ya estaba COBRADA (' + fmtE(orig.total || 0) + ').\nSe generará la rectificativa y quedará pendiente la DEVOLUCIÓN al cliente.'
-    : '¿Crear factura rectificativa de ' + orig.numero + '?\nSe generará una factura con importes negativos que anula la original.';
 
-  if (!confirm(msgConfirm)) return;
+  // Calcular importes según tipo
+  let baseRect = 0, ivaRect = 0, lineasGuardar = [];
 
+  if (esI) {
+    // Tipo I: solo la diferencia
+    _rectLineas.forEach(l => {
+      const origSub = l._origCant * l._origPrecio * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
+      if (l._incluir) {
+        const newSub = l.cant * l.precio * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
+        const diff = newSub - origSub;
+        if (Math.abs(diff) > 0.005) {
+          const diffCant = l.cant - l._origCant;
+          const diffPrecio = l.precio !== l._origPrecio ? l.precio : l._origPrecio;
+          lineasGuardar.push({
+            desc: l.desc, cant: diffCant !== 0 ? diffCant : l.cant,
+            precio: diffCant !== 0 ? l._origPrecio : (l.precio - l._origPrecio),
+            dto1: l.dto1, dto2: l.dto2, dto3: l.dto3, iva: l.iva
+          });
+          baseRect += diff;
+          ivaRect += diff * (l.iva / 100);
+        }
+      } else {
+        // Línea eliminada: registrar con cantidad negativa
+        lineasGuardar.push({
+          desc: l.desc, cant: -(l._origCant), precio: l._origPrecio,
+          dto1: l.dto1, dto2: l.dto2, dto3: l.dto3, iva: l.iva
+        });
+        baseRect -= origSub;
+        ivaRect -= origSub * (l.iva / 100);
+      }
+    });
+
+    if (Math.abs(baseRect) < 0.005 && Math.abs(ivaRect) < 0.005) {
+      toast('No hay diferencia para rectificar', 'warning');
+      return;
+    }
+  } else {
+    // Tipo S: importes correctos finales
+    _rectLineas.forEach(l => {
+      const sub = l.cant * l.precio * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
+      baseRect += sub;
+      ivaRect += sub * (l.iva / 100);
+      lineasGuardar.push({
+        desc: l.desc, cant: l.cant, precio: l.precio,
+        dto1: l.dto1, dto2: l.dto2, dto3: l.dto3, iva: l.iva
+      });
+    });
+
+    // Comprobar que hay cambio real
+    if (Math.abs(baseRect - baseOrig) < 0.005 && Math.abs(ivaRect - ivaOrig) < 0.005) {
+      toast('Los importes son idénticos a la original — no hay nada que rectificar', 'warning');
+      return;
+    }
+  }
+
+  baseRect = Math.round(baseRect * 100) / 100;
+  ivaRect = Math.round(ivaRect * 100) / 100;
+  const totalRect = Math.round((baseRect + ivaRect) * 100) / 100;
+
+  const motivo = document.getElementById('rect_motivo')?.value || 'Rectificativa de ' + orig.numero;
+  // Leer tipo R seleccionado del desplegable
+  _rectTipoR = document.getElementById('rect_tipoR')?.value || 'R1';
+
+  // Confirmación con detalle completo
+  const msgTipo = esI ? 'por diferencias (I)' : 'por sustitución (S)';
+  const tipoRLabels = {R1:'Error datos/importes',R2:'Concurso acreedores',R3:'Créditos incobrables',R4:'Otras causas',R5:'Rect. simplificada'};
+  const msgImporte = esI ? fmtE(totalRect) : fmtE(totalRect) + ' (antes: ' + fmtE(totalOrig) + ')';
+  if (!confirm('¿Emitir rectificativa de ' + orig.numero + '?\n\n'
+    + 'Tipo corrección: ' + msgTipo + '\n'
+    + 'Tipo AEAT: ' + _rectTipoR + ' — ' + (tipoRLabels[_rectTipoR]||'') + '\n'
+    + 'Importe: ' + msgImporte + '\n'
+    + 'Motivo: ' + motivo)) return;
+
+  // Cerrar editor
+  document.getElementById('rectEditor')?.remove();
+
+  // Stepper
   const vfActivo = _isVfActivo();
-  const pasosRect = [
-    { label: 'Generando número rectificativa', sub: 'Consultando serie...' },
+  const pasos = [
+    { label: 'Generando número', sub: 'Serie rectificativa...' },
     { label: 'Guardando rectificativa', sub: 'Insertando en base de datos...' },
-    { label: 'Anulando factura original', sub: 'Actualizando estados...' },
+    { label: 'Actualizando original', sub: 'Marcando como rectificada...' },
     ...(vfActivo ? [
-      { label: 'Registrando en AEAT', sub: 'Enviando XML firmado...' },
+      { label: 'Registrando en AEAT', sub: 'Enviando XML...' },
       { label: 'Verificando respuesta', sub: 'Procesando resultado...' },
     ] : []),
   ];
-  _showStepper('Creando rectificativa', pasosRect);
-  _updateStep(0, 'Consultando serie de rectificativas...');
+  _showStepper('Creando rectificativa', pasos);
+  _updateStep(0);
 
-  // Número correlativo propio (R-0001, R-0002...)
   const numero = await _generarNumeroRectificativa();
 
-  // Líneas negativas (copiar originales con signo invertido)
-  const lineasRect = (orig.lineas || []).map(l => {
-    if (l._separator) return l;
-    return { ...l, cant: -(l.cant || 0) };
-  });
+  const obsText = motivo + (estabaCobrada && esI && totalRect < 0
+    ? '. DEVOLUCIÓN PENDIENTE de ' + fmtE(Math.abs(totalRect)) + ' al cliente.'
+    : '');
 
-  const baseOrig = parseFloat(orig.base_imponible) || 0;
-  const ivaOrig  = parseFloat(orig.total_iva) || 0;
-  const totalOrig = parseFloat(orig.total) || 0;
-
-  const obsText = estabaCobrada
-    ? 'Rectificativa de ' + orig.numero + '. Anulación total por sustitución (Art. 80 LIVA). DEVOLUCIÓN PENDIENTE de ' + fmtE(totalOrig) + ' al cliente.'
-    : 'Rectificativa de ' + orig.numero + '. Anulación total por sustitución (Art. 80 LIVA).';
-
+  // Serie: usar serie de rectificativas si existe, si no la de la original
+  const sRect = (series||[]).find(s => s.tipo === 'factura_rectificativa');
   const obj = {
     empresa_id: EMPRESA.id,
     numero,
-    serie_id: orig.serie_id,
+    serie_id: sRect?.id || orig.serie_id,
     cliente_id: orig.cliente_id,
     cliente_nombre: orig.cliente_nombre,
     fecha: new Date().toISOString().split('T')[0],
     fecha_vencimiento: null,
     forma_pago_id: orig.forma_pago_id,
-    base_imponible: Math.round(-baseOrig * 100) / 100,
-    total_iva: Math.round(-ivaOrig * 100) / 100,
-    total: Math.round(-totalOrig * 100) / 100,
-    estado: estabaCobrada ? 'pendiente' : 'anulada',
+    base_imponible: baseRect,
+    total_iva: ivaRect,
+    total: totalRect,
+    estado: 'pendiente',
     observaciones: obsText,
-    lineas: lineasRect,
-    rectificativa_de: id,
+    lineas: lineasGuardar,
+    rectificativa_de: orig.id,
     presupuesto_id: orig.presupuesto_id || null,
     albaran_id: orig.albaran_id || null,
     trabajo_id: orig.trabajo_id || null,
-    // ── Campos VeriFactu (preparados para envío AEAT) ──
-    // tipo_rectificativa: R1 = error fundado en derecho / devolución (Art. 80.Uno, Dos, Seis LIVA)
-    // tipo_rectificacion: S = por sustitución (anulación total)
-    // base_rectificada / cuota_rectificada: importes originales antes de rectificar
-    // factura_rectificada_numero / fecha: referencia inequívoca a la original
-    tipo_rectificativa: 'R1',
-    tipo_rectificacion: 'S',
-    base_rectificada: Math.round(baseOrig * 100) / 100,
-    cuota_rectificada: Math.round(ivaOrig * 100) / 100,
+    // ── Campos VeriFactu según AEAT ──
+    tipo_rectificativa: _rectTipoR,  // R1-R5 seleccionado por el usuario
+    tipo_rectificacion: _rectTipo,   // 'I' o 'S'
     factura_rectificada_numero: orig.numero,
     factura_rectificada_fecha: orig.fecha,
   };
 
+  // Tipo S: añadir base_rectificada / cuota_rectificada (importes ORIGINALES)
+  // Tipo I: NO se rellenan estos campos (documentación AEAT)
+  if (!esI) {
+    obj.base_rectificada = Math.round(baseOrig * 100) / 100;
+    obj.cuota_rectificada = Math.round(ivaOrig * 100) / 100;
+  }
+
   _updateStep(1, 'Insertando ' + numero + '...');
+  let insertOk = false;
   const { data, error } = await sb.from('facturas').insert(obj).select().single();
   if (error) {
-    // Si falla por columnas VeriFactu que aún no existen, reintentar sin ellas
     if (error.message && (error.message.includes('tipo_rectificativa') || error.message.includes('column'))) {
-      delete obj.tipo_rectificativa;
-      delete obj.tipo_rectificacion;
-      delete obj.base_rectificada;
-      delete obj.cuota_rectificada;
-      delete obj.factura_rectificada_numero;
-      delete obj.factura_rectificada_fecha;
+      delete obj.tipo_rectificativa; delete obj.tipo_rectificacion;
+      delete obj.base_rectificada; delete obj.cuota_rectificada;
+      delete obj.factura_rectificada_numero; delete obj.factura_rectificada_fecha;
       const r2 = await sb.from('facturas').insert(obj).select().single();
       if (r2.error) { _stepperDone(r2.error.message, false); return; }
-    } else {
-      _stepperDone(error.message, false); return;
-    }
-  }
+      insertOk = true;
+    } else { _stepperDone(error.message, false); return; }
+  } else { insertOk = true; }
 
-  // Marcar original como anulada
-  _updateStep(2, 'Anulando ' + orig.numero + '...');
-  await cambiarEstadoFac(id, 'anulada');
+  // Marcar original como rectificada (no anulada — sigue existiendo en AEAT)
+  _updateStep(2, 'Actualizando ' + orig.numero + '...');
+  await cambiarEstadoFac(orig.id, 'rectificada');
 
-  // ── Liberar documentos vinculados ──
-  // Albaranes marcados como "facturado" por esta factura → vuelven a "entregado"
-  if (orig.albaran_id) {
-    await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', orig.albaran_id);
-    const _abLocal = (window.albaranesData || []).find(a => a.id === orig.albaran_id);
-    if (_abLocal) _abLocal.estado = 'entregado';
-  }
-  // Si era factura agrupada de varios albaranes
-  if (Array.isArray(orig.albaran_ids) && orig.albaran_ids.length) {
-    for (const aId of orig.albaran_ids) {
-      await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', aId);
-      const _abL = (window.albaranesData || []).find(a => a.id === aId);
-      if (_abL) _abL.estado = 'entregado';
+  // ── Liberar documentos vinculados si es sustitución total ──
+  if (!esI || totalRect <= -totalOrig + 0.01) {
+    if (orig.albaran_id) {
+      await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', orig.albaran_id);
+      const _abLocal = (window.albaranesData || []).find(a => a.id === orig.albaran_id);
+      if (_abLocal) _abLocal.estado = 'entregado';
     }
-  }
-  // Albaranes vinculados al mismo presupuesto que fueron marcados como facturados
-  if (orig.presupuesto_id) {
-    const { data: _albsPres } = await sb.from('albaranes')
-      .select('id').eq('presupuesto_id', orig.presupuesto_id).eq('estado', 'facturado');
-    if (_albsPres?.length) {
-      for (const a of _albsPres) {
-        await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', a.id);
-        const _abL2 = (window.albaranesData || []).find(x => x.id === a.id);
-        if (_abL2) _abL2.estado = 'entregado';
+    if (Array.isArray(orig.albaran_ids) && orig.albaran_ids.length) {
+      for (const aId of orig.albaran_ids) {
+        await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', aId);
+        const _abL = (window.albaranesData || []).find(a => a.id === aId);
+        if (_abL) _abL.estado = 'entregado';
+      }
+    }
+    if (orig.presupuesto_id) {
+      const { data: _albsPres } = await sb.from('albaranes')
+        .select('id').eq('presupuesto_id', orig.presupuesto_id).eq('estado', 'facturado');
+      if (_albsPres?.length) {
+        for (const a of _albsPres) {
+          await sb.from('albaranes').update({ estado: 'entregado' }).eq('id', a.id);
+          const _abL2 = (window.albaranesData || []).find(x => x.id === a.id);
+          if (_abL2) _abL2.estado = 'entregado';
+        }
       }
     }
   }
@@ -1562,7 +1897,7 @@ async function crearRectificativa(id) {
   await loadFacturas();
   loadDashboard();
 
-  // ── VeriFactu: envío automático de rectificativa a AEAT ──
+  // ── VeriFactu: envío automático ──
   if (vfActivo) {
     _updateStep(3, 'Enviando ' + numero + ' a AEAT...');
     const rectCreada = facLocalData.find(f => f.numero === numero);
@@ -1946,7 +2281,7 @@ function renderRectificativas() {
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
-          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button><button onclick="anularFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #FECACA;background:#FEF2F2;cursor:pointer;font-size:10px;font-weight:700;color:#991B1B" title="Anular registro AEAT">🗑️</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
+          ${_isVfActivo() ? (f.verifactu_estado === 'correcto' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
         </div>
       </td>
     </tr>`;
@@ -2071,4 +2406,179 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
 /** Anular factura en AEAT */
 async function anularFacturaAEAT(facturaId) {
   return enviarFacturaAEAT(facturaId, 'anulacion');
+}
+
+// ═══════════════════════════════════════════════
+//  SUBSANACIÓN — Corregir datos NO fiscales de factura emitida
+//  (descripciones, observaciones, datos informativos)
+//  Se reenvía a AEAT como nueva alta que reemplaza el registro anterior
+// ═══════════════════════════════════════════════
+let _subsLineas = [];
+let _subsFacId = null;
+
+function abrirSubsanacion(id) {
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) { toast('Factura no encontrada', 'error'); return; }
+  if (f.verifactu_estado !== 'correcto' && f.verifactu_estado !== 'simulado') {
+    toast('Solo se pueden subsanar facturas registradas en AEAT', 'warning'); return;
+  }
+
+  _subsFacId = id;
+  _subsLineas = (f.lineas || []).filter(l => !l._separator).map(l => ({
+    ...l, _origDesc: l.desc || ''
+  }));
+
+  const ol = document.createElement('div');
+  ol.id = 'subsEditor';
+  ol.className = 'overlay';
+  ol.style.cssText = 'display:flex;z-index:9997';
+  ol.innerHTML = `
+    <div class="modal modal-lg" style="max-width:780px">
+      <div class="modal-h">
+        <span>🔧</span>
+        <h2>Subsanar factura ${f.numero}</h2>
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('subsEditor').remove()">✕</button>
+      </div>
+      <div class="modal-b">
+        <div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#9A3412;line-height:1.5">
+          <b>Subsanación</b> — Corrige solo datos <b>no fiscales</b>: descripciones de líneas, observaciones, textos informativos.<br>
+          <b>NO</b> se pueden cambiar importes, cantidades, precios, IVA, NIF ni datos del cliente.<br>
+          Se reenviará la factura corregida a AEAT sustituyendo el registro anterior.
+        </div>
+
+        <div style="margin-bottom:14px">
+          <label style="font-weight:700;font-size:13px;margin-bottom:6px;display:block">Líneas de factura (solo descripción editable)</label>
+          <div style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse">
+              <thead style="background:var(--gris-50)">
+                <tr>
+                  <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
+                  <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:60px;text-align:right">Cant.</th>
+                  <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:80px;text-align:right">Precio</th>
+                  <th style="padding:8px 6px;font-size:11px;font-weight:700;color:var(--gris-500);width:50px;text-align:right">IVA</th>
+                  <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:90px;text-align:right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody id="subs_lineas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="fg"><label>Observaciones / Notas</label>
+          <textarea id="subs_obs" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;resize:none;font-family:var(--font);outline:none">${f.observaciones || f.notas || ''}</textarea>
+        </div>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-secondary" onclick="document.getElementById('subsEditor').remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="_guardarSubsanacion()" style="background:#EA580C">🔧 Subsanar y reenviar a AEAT</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ol);
+  _subsRenderLineas();
+}
+
+function _subsUpdateDesc(idx, val) {
+  _subsLineas[idx].desc = val;
+  // No re-render para no perder foco del input
+}
+
+function _subsRenderLineas() {
+  document.getElementById('subs_lineas').innerHTML = _subsLineas.map((l, i) => {
+    const sub = (l.cant||0) * (l.precio||0) * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
+    const changed = l.desc !== l._origDesc;
+    const bgStyle = changed ? 'background:#FFF7ED' : '';
+    return `<tr style="border-top:1px solid var(--gris-100);${bgStyle}">
+      <td style="padding:7px 10px">
+        <input value="${(l.desc||'').replace(/"/g,'&quot;')}"
+          onchange="_subsUpdateDesc(${i},this.value);this.closest('tr').style.background=this.value!=='${(l._origDesc||'').replace(/'/g,"\\'")}' ? '#FFF7ED' : ''"
+          style="width:100%;border:1px solid var(--gris-200);border-radius:5px;padding:5px 8px;font-size:12.5px;outline:none;background:transparent">
+        ${changed ? '<span style="font-size:10px;color:#9A3412;display:block;margin-top:2px">Antes: '+l._origDesc+'</span>' : ''}
+      </td>
+      <td style="padding:7px 6px;text-align:right;font-size:12px;color:var(--gris-500)">${l.cant}</td>
+      <td style="padding:7px 6px;text-align:right;font-size:12px;color:var(--gris-500)">${fmtE(l.precio||0)}</td>
+      <td style="padding:7px 6px;text-align:right;font-size:12px;color:var(--gris-500)">${l.iva||21}%</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmtE(sub)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function _guardarSubsanacion() {
+  const f = facLocalData.find(x => x.id === _subsFacId);
+  if (!f) { toast('Factura no encontrada', 'error'); return; }
+
+  const nuevaObs = document.getElementById('subs_obs')?.value || '';
+
+  // Reconstruir líneas con descripciones actualizadas
+  const lineasActualizadas = (f.lineas || []).map((l, i) => {
+    if (l._separator) return l;
+    // Buscar la línea correspondiente en _subsLineas
+    const idx = (f.lineas || []).filter((x, j) => j < i && !x._separator).length;
+    const sl = _subsLineas[idx];
+    if (sl) return { ...l, desc: sl.desc };
+    return l;
+  });
+
+  // Verificar que hay cambios
+  const origObs = f.observaciones || f.notas || '';
+  const hayDescCambio = _subsLineas.some(l => l.desc !== l._origDesc);
+  const hayObsCambio = nuevaObs !== origObs;
+
+  if (!hayDescCambio && !hayObsCambio) {
+    toast('No hay cambios para subsanar', 'info');
+    return;
+  }
+
+  if (!confirm('¿Subsanar factura ' + f.numero + ' y reenviar a AEAT?\n\nSolo se han modificado datos no fiscales (descripciones/observaciones). Los importes no cambian.')) return;
+
+  document.getElementById('subsEditor')?.remove();
+
+  // Stepper
+  const pasos = [
+    { label: 'Guardando cambios', sub: 'Actualizando descripciones...' },
+    { label: 'Reenviando a AEAT', sub: 'Enviando subsanación...' },
+    { label: 'Verificando respuesta', sub: 'Procesando resultado...' },
+  ];
+  _showStepper('Subsanando factura', pasos);
+  _updateStep(0);
+
+  // 1. Guardar cambios en BD
+  const updateObj = { lineas: lineasActualizadas };
+  if (hayObsCambio) updateObj.observaciones = nuevaObs;
+
+  const { error } = await sb.from('facturas').update(updateObj).eq('id', f.id);
+  if (error) { _stepperDone('Error: ' + error.message, false); return; }
+
+  // Actualizar datos locales
+  f.lineas = lineasActualizadas;
+  if (hayObsCambio) f.observaciones = nuevaObs;
+
+  // 2. Reenviar a AEAT como alta (subsanación = reenvío corregido)
+  _updateStep(1, 'Enviando ' + f.numero + '...');
+
+  // Resetear estado VeriFactu para permitir reenvío
+  f.verifactu_estado = null;
+  await sb.from('facturas').update({ verifactu_estado: null }).eq('id', f.id);
+
+  try {
+    await enviarFacturaAEAT(f.id, 'alta', { auto: true, stepper: true });
+    _updateStep(2);
+    await loadFacturas();
+    const fUpd = facLocalData.find(x => x.id === f.id);
+    const est = fUpd?.verifactu_estado || 'enviado';
+    if (est === 'correcto' || est === 'simulado') {
+      _stepperDone('Subsanación de ' + f.numero + ' registrada en AEAT ✓', true);
+    } else if (est === 'aceptado_errores') {
+      _stepperDone('Aceptada con avisos', true);
+    } else {
+      _stepperDone('AEAT: ' + est, false);
+    }
+  } catch (e) {
+    _stepperDone('Error AEAT: ' + (e.message || ''), false);
+  }
+
+  // Refrescar detalle si está abierto
+  const detId = document.getElementById('facDetId');
+  if (detId && parseInt(detId.value) === f.id) {
+    verDetalleFactura(f.id);
+  }
 }

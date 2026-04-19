@@ -363,14 +363,19 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 
   function _renderVerifactuQR(cfg){
     if (!cfg.verifactu_qr_url || cfg.verifactu_estado !== 'correcto') return '';
-    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(cfg.verifactu_qr_url)}`;
+    // QR según normativa AEAT: tamaño 30-40mm, nivel corrección M, texto obligatorio
+    // 35mm ≈ 132px a 96dpi (en CSS mm es más fiable para impresión)
+    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(cfg.verifactu_qr_url)}`;
     return `
-<div style="margin-top:16px;padding:12px 16px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:center;gap:16px;page-break-inside:avoid">
-  <img src="${qrImg}" style="width:80px;height:80px" alt="QR VeriFactu">
-  <div style="flex:1">
-    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">Factura verificable — VeriFactu</div>
-    <div style="font-size:8.5px;color:#64748b;line-height:1.4">Esta factura ha sido registrada en la AEAT.${cfg.verifactu_csv ? ' CSV: '+_esc(cfg.verifactu_csv) : ''}</div>
-    <div style="font-size:7.5px;color:#94a3b8;margin-top:2px">Escanee el código QR para verificar en la Agencia Tributaria.</div>
+<div style="margin:8px 0 12px;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:flex-start;gap:14px;page-break-inside:avoid">
+  <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+    <div style="font-size:8px;font-weight:700;color:#1e293b;margin-bottom:3px">QR tributario:</div>
+    <img src="${qrImg}" style="width:35mm;height:35mm;min-width:35mm;min-height:35mm" alt="QR VeriFactu">
+    <div style="font-size:7px;font-weight:600;color:#1e40af;margin-top:3px;text-align:center;line-height:1.2;max-width:40mm">Factura verificable en la sede<br>electr\u00f3nica de la AEAT</div>
+  </div>
+  <div style="flex:1;padding-top:6px">
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">VERI*FACTU</div>
+    <div style="font-size:8px;color:#64748b;line-height:1.4">Esta factura ha sido registrada en la Agencia Tributaria.${cfg.verifactu_csv ? '<br>CSV: '+_esc(cfg.verifactu_csv) : ''}</div>
   </div>
 </div>`;
   }
@@ -404,6 +409,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 <div class="doc" style="position:relative">
   ${marcaAguaHtml}
   ${_renderCabecera(E)}
+  ${_renderVerifactuQR(cfg)}
   ${_renderTitulo(cfg)}
   ${_renderTarjetas(cfg)}
   ${cuerpoLineas}
@@ -411,7 +417,6 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   ${_renderObservaciones(cfg.observaciones)}
   ${_renderCondiciones(cfg.condiciones)}
   ${_renderFirma(cfg, E)}
-  ${_renderVerifactuQR(cfg)}
 </div>
 ${_renderPie(E)}
 </body>
