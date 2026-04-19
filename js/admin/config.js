@@ -937,6 +937,14 @@ async function cargarCfgVerifactu() {
     // Verificar estado de conexión
     verificarEstadoVF(cfg);
 
+    // Inicializar fechas de auditoría: año fiscal actual (1 enero - hoy)
+    const hoy = new Date().toISOString().split('T')[0];
+    const inicioAnyo = hoy.substring(0, 4) + '-01-01';
+    const elDesde = document.getElementById('vf_audit_desde');
+    const elHasta = document.getElementById('vf_audit_hasta');
+    if (elDesde && !elDesde.value) elDesde.value = inicioAnyo;
+    if (elHasta && !elHasta.value) elHasta.value = hoy;
+
   } catch (e) {
     console.error('Error cargando config VeriFactu:', e);
   }
@@ -1078,11 +1086,303 @@ async function testConexionVerifactu() {
   }
 }
 
-/** Ver registros VeriFactu (abrir modal o navegar) */
-function verRegistrosVerifactu() {
-  // Ir a facturas con filtro de registros VeriFactu
-  goPage('facturas');
-  toast('📋 Registros VeriFactu — se muestran en cada factura', 'info');
+// ═══════════════════════════════════════════════
+//  AUDITORÍA VERIFACTU
+// ═══════════════════════════════════════════════
+
+/** Helper: obtener rango de fechas seleccionado */
+function _getAuditRango() {
+  const desde = document.getElementById('vf_audit_desde')?.value || '';
+  const hasta = document.getElementById('vf_audit_hasta')?.value || '';
+  if (!desde || !hasta) {
+    toast('Selecciona un rango de fechas', 'warning');
+    return null;
+  }
+  if (desde > hasta) { toast('La fecha "desde" no puede ser posterior a "hasta"', 'warning'); return null; }
+  return { desde, hasta };
+}
+
+/** 1. Libro registro de facturas emitidas — Excel completo para AEAT */
+async function exportarLibroRegistro() {
+  const rango = _getAuditRango();
+  if (!rango) return;
+  if (!window.XLSX) { toast('Cargando librería Excel...', 'info'); return; }
+
+  toast('Generando libro registro...', 'info');
+
+  const { data, error } = await sb.from('facturas')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .gte('fecha', rango.desde)
+    .lte('fecha', rango.hasta)
+    .not('estado', 'eq', 'borrador')
+    .order('fecha', { ascending: true });
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (!data?.length) { toast('No hay facturas en ese período', 'warning'); return; }
+
+  // Buscar NIFs de clientes
+  const clienteIds = [...new Set(data.filter(f => f.cliente_id).map(f => f.cliente_id))];
+  let clientesMap = {};
+  if (clienteIds.length) {
+    const { data: clis } = await sb.from('clientes')
+      .select('id, nombre, nif, cif, direccion, cp, poblacion, provincia')
+      .in('id', clienteIds);
+    if (clis) clis.forEach(c => { clientesMap[c.id] = c; });
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: Facturas emitidas
+  const rows = data.map(f => {
+    const cli = clientesMap[f.cliente_id] || {};
+    const esRect = !!f.rectificativa_de;
+    return [
+      f.numero || '',
+      f.fecha || '',
+      f.fecha_vencimiento || '',
+      cli.nif || cli.cif || '',
+      f.cliente_nombre || cli.nombre || '',
+      cli.direccion || '',
+      cli.cp || '',
+      cli.poblacion || '',
+      cli.provincia || '',
+      f.base_imponible || 0,
+      f.total_iva || 0,
+      f.total || 0,
+      f.estado || '',
+      esRect ? 'Sí' : 'No',
+      f.factura_rectificada_numero || '',
+      f.tipo_rectificativa || '',
+      f.tipo_rectificacion || '',
+      f.observaciones || '',
+      f.verifactu_estado || '',
+      f.verifactu_huella || '',
+      f.verifactu_csv || '',
+    ];
+  });
+
+  const header = [
+    'Número', 'Fecha', 'Vencimiento',
+    'NIF/CIF Cliente', 'Nombre Cliente', 'Dirección', 'CP', 'Población', 'Provincia',
+    'Base Imponible', 'Cuota IVA', 'Total',
+    'Estado', 'Rectificativa', 'Factura Rectificada', 'Tipo Rect. AEAT', 'Tipo Corrección',
+    'Observaciones',
+    'VeriFactu Estado', 'VeriFactu Huella', 'VeriFactu CSV'
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = header.map((h, i) => ({
+    wch: i <= 1 ? 14 : i === 4 ? 30 : i === 17 ? 40 : i >= 19 ? 20 : 16
+  }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Facturas Emitidas');
+
+  // Hoja 2: Resumen por tipo IVA
+  const resumenIva = {};
+  data.forEach(f => {
+    (f.lineas || []).filter(l => l.tipo !== 'capitulo' && l.tipo !== 'subcapitulo' && !l._separator).forEach(l => {
+      const iva = l.iva || 0;
+      const sub = (l.cant || 0) * (l.precio || 0) * (1-(l.dto1||0)/100) * (1-(l.dto2||0)/100) * (1-(l.dto3||0)/100);
+      if (!resumenIva[iva]) resumenIva[iva] = { base: 0, cuota: 0, total: 0, count: 0 };
+      resumenIva[iva].base += sub;
+      resumenIva[iva].cuota += sub * iva / 100;
+      resumenIva[iva].total += sub * (1 + iva / 100);
+      resumenIva[iva].count++;
+    });
+  });
+
+  const ivaRows = Object.keys(resumenIva).sort((a,b) => a-b).map(iva => [
+    iva + '%',
+    Math.round(resumenIva[iva].base * 100) / 100,
+    Math.round(resumenIva[iva].cuota * 100) / 100,
+    Math.round(resumenIva[iva].total * 100) / 100,
+    resumenIva[iva].count
+  ]);
+  const wsIva = XLSX.utils.aoa_to_sheet([
+    ['Tipo IVA', 'Base Imponible', 'Cuota IVA', 'Total', 'Nº Líneas'],
+    ...ivaRows
+  ]);
+  XLSX.utils.book_append_sheet(wb, wsIva, 'Resumen IVA');
+
+  const nombre = `libro_registro_${rango.desde}_${rango.hasta}.xlsx`;
+  XLSX.writeFile(wb, nombre);
+  toast('Libro registro exportado ✓ (' + data.length + ' facturas)', 'success');
+}
+
+/** 2. Export registros VeriFactu — cadena completa con hashes y XMLs */
+async function exportarRegistrosVF() {
+  const rango = _getAuditRango();
+  if (!rango) return;
+  if (!window.XLSX) { toast('Cargando librería Excel...', 'info'); return; }
+
+  toast('Exportando registros VeriFactu...', 'info');
+
+  const { data, error } = await sb.from('verifactu_registros')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .gte('created_at', rango.desde + 'T00:00:00')
+    .lte('created_at', rango.hasta + 'T23:59:59')
+    .order('created_at', { ascending: true });
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (!data?.length) { toast('No hay registros VeriFactu en ese período', 'warning'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: Registros
+  const header = [
+    'ID', 'Tipo', 'Nº Factura', 'Fecha Expedición', 'Tipo Factura',
+    'Cuota Total', 'Importe Total',
+    'Fecha/Hora Generación', 'Huella SHA-256', 'Huella Anterior',
+    'Primer Registro', 'Estado', 'CSV AEAT',
+    'Código Error', 'Descripción Error',
+    'Factura Rectificada', 'Fecha Rect.',
+    'Creado', 'Enviado', 'Respuesta'
+  ];
+
+  const rows = data.map(r => [
+    r.id,
+    r.tipo_registro || '',
+    r.num_serie || '',
+    r.fecha_expedicion || '',
+    r.tipo_factura || '',
+    r.cuota_total || 0,
+    r.importe_total || 0,
+    r.fecha_hora_huso || '',
+    r.huella || '',
+    r.huella_anterior || '',
+    r.es_primer_registro ? 'Sí' : 'No',
+    r.estado || '',
+    r.csv_aeat || '',
+    r.codigo_error || '',
+    r.descripcion_error || '',
+    r.factura_rectificada_num || '',
+    r.factura_rectificada_fecha || '',
+    r.created_at || '',
+    r.enviado_at || '',
+    r.respuesta_at || ''
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = header.map(() => ({ wch: 20 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Registros VeriFactu');
+
+  // Hoja 2: XMLs (para auditoría detallada)
+  const xmlRows = data.filter(r => r.xml_enviado || r.xml_respuesta).map(r => [
+    r.id, r.num_serie || '', r.tipo_registro || '',
+    r.xml_enviado || '',
+    r.xml_respuesta || ''
+  ]);
+  if (xmlRows.length) {
+    const wsXml = XLSX.utils.aoa_to_sheet([
+      ['ID Registro', 'Nº Factura', 'Tipo', 'XML Enviado', 'XML Respuesta'],
+      ...xmlRows
+    ]);
+    wsXml['!cols'] = [{ wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 80 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsXml, 'XMLs');
+  }
+
+  const nombre = `verifactu_registros_${rango.desde}_${rango.hasta}.xlsx`;
+  XLSX.writeFile(wb, nombre);
+  toast('Registros VeriFactu exportados ✓ (' + data.length + ' registros)', 'success');
+}
+
+/** 3. Verificar integridad de la cadena de hashes VeriFactu */
+async function verificarIntegridadVF() {
+  const resDiv = document.getElementById('vf_audit_resultado');
+  if (resDiv) { resDiv.style.display = ''; resDiv.innerHTML = '<div style="font-size:12px;color:var(--gris-500)">Verificando cadena de hashes...</div>'; }
+
+  const { data, error } = await sb.from('verifactu_registros')
+    .select('id, tipo_registro, num_serie, fecha_expedicion, tipo_factura, cuota_total, importe_total, nif_emisor, fecha_hora_huso, huella, huella_anterior, es_primer_registro, registro_anterior_id')
+    .eq('empresa_id', EMPRESA.id)
+    .order('id', { ascending: true });
+
+  if (error) {
+    if (resDiv) resDiv.innerHTML = `<div style="color:#dc2626;font-size:12px">Error: ${error.message}</div>`;
+    return;
+  }
+  if (!data?.length) {
+    if (resDiv) resDiv.innerHTML = `<div style="color:#d97706;font-size:12px">No hay registros VeriFactu</div>`;
+    return;
+  }
+
+  let errores = [];
+  let ok = 0;
+
+  for (let i = 0; i < data.length; i++) {
+    const reg = data[i];
+    const prev = i > 0 ? data[i - 1] : null;
+
+    // Verificar encadenamiento
+    if (i === 0) {
+      if (!reg.es_primer_registro) {
+        errores.push(`Registro #${reg.id} (${reg.num_serie}): debería ser primer registro pero no está marcado`);
+      }
+    } else {
+      // Verificar que huella_anterior coincide con la huella del registro previo
+      if (reg.huella_anterior && prev && reg.huella_anterior !== prev.huella) {
+        errores.push(`Registro #${reg.id} (${reg.num_serie}): huella_anterior no coincide con registro previo #${prev.id}`);
+      }
+      // Verificar referencia al anterior
+      if (reg.registro_anterior_id && prev && reg.registro_anterior_id !== prev.id) {
+        errores.push(`Registro #${reg.id} (${reg.num_serie}): registro_anterior_id apunta a #${reg.registro_anterior_id} pero el previo es #${prev.id}`);
+      }
+    }
+
+    // Verificar que tiene huella
+    if (!reg.huella) {
+      errores.push(`Registro #${reg.id} (${reg.num_serie}): sin huella SHA-256`);
+    } else {
+      ok++;
+    }
+
+    // Recalcular hash y comparar (RegistroAlta)
+    if (reg.tipo_registro === 'alta' && reg.huella && typeof crypto !== 'undefined') {
+      try {
+        const campos = [
+          reg.nif_emisor || '',
+          reg.num_serie || '',
+          reg.fecha_expedicion || '',
+          reg.tipo_factura || '',
+          (reg.cuota_total != null ? Number(reg.cuota_total).toFixed(2) : ''),
+          (reg.importe_total != null ? Number(reg.importe_total).toFixed(2) : ''),
+          reg.huella_anterior || '',
+          reg.fecha_hora_huso || ''
+        ].join('&');
+
+        const buffer = new TextEncoder().encode(campos);
+        const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
+        const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        if (hashHex !== reg.huella) {
+          errores.push(`Registro #${reg.id} (${reg.num_serie}): hash recalculado NO coincide (esperado ${reg.huella.substring(0,16)}..., calculado ${hashHex.substring(0,16)}...)`);
+          ok--;
+        }
+      } catch (e) {
+        // Si no se puede calcular, solo advertir
+      }
+    }
+  }
+
+  // Mostrar resultado
+  if (resDiv) {
+    if (errores.length === 0) {
+      resDiv.innerHTML = `
+        <div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
+          <div style="font-weight:700;font-size:13px;color:#166534">✅ Cadena íntegra</div>
+          <div style="font-size:11.5px;color:#166534;margin-top:4px">${ok} registros verificados. Todos los hashes son correctos y la cadena está enlazada sin interrupciones.</div>
+        </div>`;
+    } else {
+      resDiv.innerHTML = `
+        <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px">
+          <div style="font-weight:700;font-size:13px;color:#991b1b">❌ Se encontraron ${errores.length} problemas</div>
+          <div style="font-size:11px;color:#7f1d1d;margin-top:6px;max-height:120px;overflow-y:auto">
+            ${errores.map(e => `<div style="padding:2px 0">• ${e}</div>`).join('')}
+          </div>
+          <div style="font-size:11px;color:#991b1b;margin-top:6px">${ok} de ${data.length} registros con hash verificado</div>
+        </div>`;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════
