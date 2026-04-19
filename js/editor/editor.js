@@ -65,6 +65,18 @@ async function abrirEditor(tipo, editId) {
   if (fpagoLabel) fpagoLabel.style.display = cfg.conFpago?'':'none';
   if (fpagoSel) fpagoSel.style.display = cfg.conFpago?'':'none';
 
+  // VeriFactu: mostrar campos solo para facturas y si VeriFactu está activo
+  const _vfVisible = tipo === 'factura' && typeof _isVfActivo === 'function' && _isVfActivo();
+  const _vfDisplay = _vfVisible ? '' : 'none';
+  const elRegLabel = document.getElementById('de_regimen_label');
+  const elRegSel = document.getElementById('edClaveRegimen');
+  const elCalLabel = document.getElementById('de_califop_label');
+  const elCalSel = document.getElementById('edCalifOp');
+  if (elRegLabel) elRegLabel.style.display = _vfDisplay;
+  if (elRegSel) { elRegSel.style.display = _vfDisplay; elRegSel.value = '01'; }
+  if (elCalLabel) elCalLabel.style.display = _vfDisplay;
+  if (elCalSel) { elCalSel.style.display = _vfDisplay; elCalSel.value = 'S1'; }
+
   // Limpiar selector de cliente (el buscador se llena al escribir)
   const sel = document.getElementById('de_cliente');
   if (sel) sel.value = '';
@@ -114,6 +126,11 @@ async function abrirEditor(tipo, editId) {
       document.getElementById('de_titulo').value = doc.titulo||doc.referencia||'';
       document.getElementById('de_obs_largo').value = doc.observaciones||'';
       if (cfg.conFpago && doc.forma_pago_id) document.getElementById('de_fpago').value = doc.forma_pago_id;
+      // VeriFactu: cargar clave_regimen y calificacion_operacion
+      if (_vfVisible) {
+        if (doc.clave_regimen) document.getElementById('edClaveRegimen').value = doc.clave_regimen;
+        if (doc.calificacion_operacion) document.getElementById('edCalifOp').value = doc.calificacion_operacion;
+      }
       // Cargar líneas
       deLineas = (doc.lineas||[]).map(l => {
         if (l.tipo==='capitulo') return {tipo:'capitulo', titulo:l.titulo||'', collapsed:false};
@@ -1354,6 +1371,11 @@ function de_buildDatos() {
     else datos.fecha_vencimiento = f2||null;
   }
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
+  // VeriFactu: guardar clave_regimen y calificacion_operacion solo para facturas con VeriFactu activo
+  if (cfg.tipo === 'factura' && typeof _isVfActivo === 'function' && _isVfActivo()) {
+    datos.clave_regimen = document.getElementById('edClaveRegimen')?.value || '01';
+    datos.calificacion_operacion = document.getElementById('edCalifOp')?.value || 'S1';
+  }
   const _tituloVal = document.getElementById('de_titulo').value||null;
   if (cfg.tipo==='presupuesto') datos.titulo = _tituloVal;
   else if (cfg.tipo==='albaran') datos.referencia = _tituloVal;

@@ -94,7 +94,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .cab-logo-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cab-qr{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
 .cab-qr .qr-lbl{font-size:7px;font-weight:700;color:#1e293b;margin-bottom:2px}
-.cab-qr img{width:30mm;height:30mm}
+.cab-qr img{width:32mm;height:32mm}
 .cab-qr .qr-veri{font-size:7px;font-weight:700;color:#1e40af;margin-top:2px}
 .cab-empresa-info{text-align:right;font-size:9px;color:#64748b;line-height:1.5;margin-left:auto}
 .cab-empresa-info .nombre-corp{font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
@@ -180,9 +180,9 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     const hasQR = cfg && cfg.verifactu_qr_url && (cfg.verifactu_estado === 'correcto' || cfg.verifactu_estado === 'simulado' || cfg.verifactu_estado === 'aceptado_errores');
     const qrHtml = hasQR
       ? `<div class="cab-qr">
-           <div class="qr-lbl">QR tributario:</div>
+           <div class="qr-lbl">Factura verificable en la sede</div>
            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(cfg.verifactu_qr_url)}" alt="QR VeriFactu">
-           <div class="qr-veri">VERI*FACTU</div>
+           <div class="qr-veri">electrónica de la AEAT</div>
          </div>`
       : '';
     // Con QR: QR izq | logo centrado absoluto | datos dcha
