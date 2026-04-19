@@ -8,8 +8,8 @@ let usuariosFotoFile = null;
 let todosUsuarios = [];
 
 async function loadUsuarios() {
-  // Cargar invitaciones y solicitudes si es superadmin
-  if (CP?.es_superadmin) {
+  // Cargar invitaciones y solicitudes si es admin
+  if (CP?.es_superadmin || CP?.rol === 'admin') {
     loadInvitaciones();
     loadSolicitudes();
   }
@@ -19,17 +19,23 @@ async function loadUsuarios() {
   document.getElementById('usrCount').textContent = users.length + ' usuarios';
 
   const ROL_INFO = {
-    admin:         { label:'Administrador',      ico:'⭐', color:'#D97706', bg:'#FFFBEB' },
-    administrativo:{ label:'Administrativo',      ico:'🖥️', color:'#2563EB', bg:'#EFF6FF' },
-    encargado:     { label:'Encargado almacén',   ico:'📦', color:'#7C3AED', bg:'#F5F3FF' },
-    operario:      { label:'Operario de campo',   ico:'👷', color:'#059669', bg:'#ECFDF5' },
+    admin:     { label:'Administrador',    ico:'⭐', color:'#D97706', bg:'#FFFBEB' },
+    oficina:   { label:'Oficina',          ico:'🖥️', color:'#2563EB', bg:'#EFF6FF' },
+    almacen:   { label:'Almacén',          ico:'📦', color:'#7C3AED', bg:'#F5F3FF' },
+    operario:  { label:'Operario',         ico:'👷', color:'#059669', bg:'#ECFDF5' },
+    comercial: { label:'Comercial',        ico:'💼', color:'#0891B2', bg:'#ECFEFF' },
   };
   const AVC2 = ['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2'];
 
   // Separar por tipo
-  const admins = users.filter(u => u.es_superadmin || u.rol === 'admin' || u.rol === 'administrativo');
+  const admins = users.filter(u => u.es_superadmin || u.rol === 'admin');
+  const ofi = users.filter(u => !u.es_superadmin && u.rol === 'oficina');
+  const alm = users.filter(u => u.rol === 'almacen');
   const operarios = users.filter(u => u.rol === 'operario');
-  const otros = users.filter(u => !admins.includes(u) && !operarios.includes(u));
+  const comerciales = users.filter(u => u.rol === 'comercial');
+  // Usuarios con rol legacy o sin rol → "otros"
+  const classified = new Set([...admins,...ofi,...alm,...operarios,...comerciales].map(u=>u.id));
+  const otros = users.filter(u => !classified.has(u.id));
 
   function renderUserCard(u) {
     const rolKey = u.es_superadmin ? 'admin' : (u.rol || 'operario');
@@ -63,18 +69,19 @@ async function loadUsuarios() {
   }
 
   let html = '';
-  if (admins.length) {
-    html += `<div style="grid-column:1/-1;margin-top:8px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">🖥️ Administración <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${admins.length})</span></div></div>`;
-    html += admins.map(renderUserCard).join('');
-  }
-  if (operarios.length) {
-    html += `<div style="grid-column:1/-1;margin-top:16px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">👷 Operarios de campo <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${operarios.length})</span></div></div>`;
-    html += operarios.map(renderUserCard).join('');
-  }
-  if (otros.length) {
-    html += `<div style="grid-column:1/-1;margin-top:16px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">📋 Otros <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${otros.length})</span></div></div>`;
-    html += otros.map(renderUserCard).join('');
-  }
+  const groups = [
+    { label:'⭐ Administradores', list:admins },
+    { label:'🖥️ Oficina', list:ofi },
+    { label:'📦 Almacén', list:alm },
+    { label:'👷 Operarios', list:operarios },
+    { label:'💼 Comerciales', list:comerciales },
+    { label:'📋 Otros', list:otros },
+  ];
+  groups.forEach((g,i) => {
+    if (!g.list.length) return;
+    html += `<div style="grid-column:1/-1;margin-top:${i?16:8}px"><div style="font-size:13px;font-weight:800;color:var(--gris-600);display:flex;align-items:center;gap:6px">${g.label} <span style="font-size:11px;font-weight:600;color:var(--gris-400)">(${g.list.length})</span></div></div>`;
+    html += g.list.map(renderUserCard).join('');
+  });
 
   document.getElementById('usuariosGrid').innerHTML = html || '<div class="empty" style="grid-column:1/-1"><div class="ei">👷</div><h3>Sin usuarios</h3><p>Crea el primer usuario del equipo</p></div>';
 }
@@ -99,9 +106,9 @@ function nuevoUsuarioModal() {
   prev.innerHTML = '?';
   prev.style.background = 'var(--azul)';
   usuariosFotoFile = null;
-  // Permisos por defecto para operario
-  ['up_clientes','up_presupuestos','up_facturas','up_stock','up_config','up_usuarios'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
-  ['up_trabajos','up_partes'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=true; });
+  // Renderizar editor de permisos granulares
+  renderPermisosEditor('permisosEditorContainer');
+  setPermisosByRol('operario');
   // Disponible partes por defecto true para nuevo operario
   const elDP = document.getElementById('up_disponible_partes');
   if(elDP) elDP.checked = true;
@@ -132,16 +139,8 @@ async function saveUsuario() {
   if (!nombre || !email) { toast('Nombre y email son obligatorios','error'); return; }
   if (!id && pass.length < 8) { toast('La contraseña debe tener mínimo 8 caracteres','error'); return; }
 
-  const permisos = {
-    clientes: document.getElementById('up_clientes').checked,
-    presupuestos: document.getElementById('up_presupuestos').checked,
-    facturas: document.getElementById('up_facturas').checked,
-    trabajos: document.getElementById('up_trabajos').checked,
-    partes: document.getElementById('up_partes').checked,
-    stock: document.getElementById('up_stock').checked,
-    config: document.getElementById('up_config').checked,
-    usuarios: document.getElementById('up_usuarios').checked,
-  };
+  // Leer permisos del editor granular
+  const permisos = typeof readPermisosFromUI === 'function' ? readPermisosFromUI() : {};
 
   let avatar_url = null;
 
@@ -220,16 +219,24 @@ function editUsuario(uid) {
     prev.style.background = '#1B4FD8';
   }
 
-  const p = u.permisos || {};
+  // Renderizar editor de permisos granulares y cargar datos
+  renderPermisosEditor('permisosEditorContainer');
   const isAdmin = u.es_superadmin || rol === 'admin';
-  ['clientes','presupuestos','facturas','trabajos','partes','stock'].forEach(k => {
-    const el = document.getElementById('up_'+k);
-    if(el) el.checked = isAdmin ? true : (p[k] || false);
-  });
-  const elCfg = document.getElementById('up_config');
-  const elUsr = document.getElementById('up_usuarios');
-  if(elCfg) elCfg.checked = isAdmin ? true : (p['config'] || p['configuracion'] || false);
-  if(elUsr) elUsr.checked = isAdmin ? true : (p['usuarios'] || false);
+  if (isAdmin) {
+    writePermisosToUI(PERM_PRESETS.admin);
+  } else if (u.permisos && typeof u.permisos === 'object') {
+    // Detectar formato: si tiene claves de sección como objetos → formato nuevo
+    const isNewFormat = Object.values(u.permisos).some(v => typeof v === 'object');
+    if (isNewFormat) {
+      writePermisosToUI(u.permisos);
+    } else {
+      // Formato antiguo → aplicar preset del rol actual como base
+      const preset = PERM_PRESETS[rol] || PERM_PRESETS.operario;
+      writePermisosToUI(preset);
+    }
+  } else {
+    setPermisosByRol(rol);
+  }
 
   // Disponible para partes
   const elDP = document.getElementById('up_disponible_partes');

@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 106</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 108</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -355,7 +355,7 @@ try {
               <div style="width:1px;height:20px;background:var(--gris-200)"></div>
               <button class="btn btn-ghost btn-sm" onclick="exportarClientes()">📤 Exportar</button>
               <button class="btn btn-secondary btn-sm" onclick="openModal('mImportarClientes')">📥 Importar</button>
-              <button class="btn btn-primary btn-sm" onclick="resetFormCliente();openModal('mCliente')">+ Nuevo</button>
+              <button class="btn btn-primary btn-sm" data-perm="clientes:crear" onclick="resetFormCliente();openModal('mCliente')">+ Nuevo</button>
             </div>
           </div>
           <!-- Barra búsqueda y filtros -->
@@ -459,7 +459,7 @@ try {
           <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
             <p style="font-size:11.5px;color:var(--gris-400)" id="provCount">—</p>
               <button class="btn btn-secondary" onclick="openModal('mImportarProveedores')">📥 Importar Excel</button>
-              <button class="btn btn-primary" onclick="openModal('mProveedor')">+ Nuevo proveedor</button>
+              <button class="btn btn-primary" data-perm="compras:crear" onclick="openModal('mProveedor')">+ Nuevo proveedor</button>
           </div>
           <div class="card">
             <div class="tw"><table class="dt"><thead><tr><th data-sort="proveedor">Proveedor</th><th data-sort="cif">CIF</th><th data-sort="telefono">Teléfono</th><th data-sort="email">Email pedidos</th><th data-sort="municipio">Municipio</th><th>Acciones</th></tr></thead><tbody id="provTable"></tbody></table></div>
@@ -552,7 +552,7 @@ try {
           <p style="font-size:11.5px;color:var(--gris-400)" id="artCount">—</p>
             <button class="btn btn-secondary" onclick="exportarArticulosExcel()">📤 Exportar</button>
             <button class="btn btn-secondary" onclick="openModal('mImportarArticulos')">📥 Importar</button>
-            <button class="btn btn-primary" onclick="nuevoArticulo()">+ Nuevo artículo</button>
+            <button class="btn btn-primary" data-perm="almacen:crear" onclick="nuevoArticulo()">+ Nuevo artículo</button>
         </div>
         <div class="card">
           <div class="card-h" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -588,7 +588,7 @@ try {
           <p style="font-size:11.5px;color:var(--gris-400)" id="srvCount">—</p>
           <button class="btn btn-secondary" onclick="exportarServiciosExcel()">📤 Exportar</button>
           <button class="btn btn-secondary" onclick="openModal('mImportarServicios')">📥 Importar</button>
-          <button class="btn btn-primary" onclick="nuevoServicio()">+ Nuevo servicio</button>
+          <button class="btn btn-primary" data-perm="almacen:crear" onclick="nuevoServicio()">+ Nuevo servicio</button>
         </div>
         <div class="card">
           <div class="card-h" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -614,7 +614,7 @@ try {
           <div class="sc" style="--c:var(--naranja);--bg:var(--naranja-light)"><div class="si">🔧</div><div class="sv" id="flota_kpi_amort">—</div><div class="sl">Amortización/mes</div></div>
         </div>
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
-          <button class="btn btn-primary" onclick="nuevoVehiculo()">+ Nuevo vehículo</button>
+          <button class="btn btn-primary" data-perm="flota:crear" onclick="nuevoVehiculo()">+ Nuevo vehículo</button>
         </div>
         <div class="card">
           <div class="tw"><table class="dt"><thead><tr>
@@ -642,7 +642,7 @@ try {
             </select>
             <input type="month" id="filtro_gasto_mes" onchange="renderGastos()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none">
           </div>
-          <button class="btn btn-primary" onclick="nuevoGasto()">+ Nuevo gasto</button>
+          <button class="btn btn-primary" data-perm="flota:crear" onclick="nuevoGasto()">+ Nuevo gasto</button>
         </div>
         <div class="card">
           <div class="tw"><table class="dt"><thead><tr>
@@ -655,7 +655,7 @@ try {
       <div class="page" id="page-almacenes">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div><h2 style="font-size:17px;font-weight:800">Almacenes</h2><p style="font-size:11.5px;color:var(--gris-400)">Central + furgonetas</p></div>
-          <button class="btn btn-primary" onclick="nuevoAlmacen()">+ Nuevo almacén</button>
+          <button class="btn btn-primary" data-perm="almacen:crear" onclick="nuevoAlmacen()">+ Nuevo almacén</button>
         </div>
         <div id="almGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
       </div>
@@ -682,7 +682,7 @@ try {
               <input type="date" id="trHasta" onchange="filtrarTrabajos()"
                 style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
               <button class="btn btn-ghost btn-sm" onclick="exportarObras()">📤 Exportar</button>
-              <button class="btn btn-primary btn-sm" onclick="abrirNuevaObra()">+ Nueva obra</button>
+              <button class="btn btn-primary btn-sm" data-perm="obras:crear" onclick="abrirNuevaObra()">+ Nueva obra</button>
             </div>
           </div>
           <div class="card"><div class="tw"><table class="dt"><thead><tr><th data-sort="numero">Nº</th><th data-sort="titulo">Título</th><th data-sort="cliente">Cliente</th><th data-sort="fecha" data-sort-type="date">Fecha</th><th data-sort="estado">Estado</th></tr></thead><tbody id="trabTable"></tbody></table></div></div>
@@ -812,7 +812,7 @@ try {
                 <option value="">Todas las periodicidades</option><option value="mensual">Mensual</option><option value="trimestral">Trimestral</option><option value="semestral">Semestral</option><option value="anual">Anual</option>
               </select>
               <button class="btn btn-ghost btn-sm" onclick="exportarMantenimientos()">📤 Exportar</button>
-              <button class="btn btn-primary btn-sm" onclick="nuevoMantenimiento()">+ Nuevo mantenimiento</button>
+              <button class="btn btn-primary btn-sm" data-perm="obras:crear" onclick="nuevoMantenimiento()">+ Nuevo mantenimiento</button>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
@@ -878,7 +878,7 @@ try {
             <input type="date" id="presHasta" onchange="filtrarPresupuestos()"
               style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportarPresupuestos()">📤 Exportar</button>
-            <button class="btn btn-primary btn-sm" onclick="abrirNuevoPresupuesto()">+ Nuevo presupuesto</button>
+            <button class="btn btn-primary btn-sm" data-perm="ventas:crear" onclick="abrirNuevoPresupuesto()">+ Nuevo presupuesto</button>
           </div>
         </div>
         <!-- KPIs rápidos -->
@@ -933,7 +933,7 @@ try {
             <input type="date" id="abHasta" onchange="filtrarAlbaranes()"
               style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportarAlbaranes()">📤 Exportar</button>
-            <button class="btn btn-primary btn-sm" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>
+            <button class="btn btn-primary btn-sm" data-perm="ventas:crear" onclick="abrirNuevoAlbaran()">+ Nuevo albarán</button>
           </div>
         </div>
         <!-- KPIs rápidos -->
@@ -985,7 +985,7 @@ try {
             <input type="date" id="fHasta" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" placeholder="Hasta">
             <button class="btn btn-ghost btn-sm" onclick="exportarFacturas()">📤 Exportar</button>
             <button class="btn btn-ghost btn-sm" onclick="generarRemesaSEPA()" title="Generar remesa SEPA de adeudo directo desde facturas pendientes">🏦 Remesa SEPA</button>
-            <button class="btn btn-primary btn-sm" onclick="abrirNuevaFactura()">+ Nueva factura</button>
+            <button class="btn btn-primary btn-sm" data-perm="facturacion:crear" onclick="abrirNuevaFactura()">+ Nueva factura</button>
           </div>
         </div>
         <!-- KPIs — fila única, valores fijos (no cambian al filtrar) -->
@@ -1065,7 +1065,7 @@ try {
             <input type="date" id="prcFiltroHasta" onchange="filtrarPresupuestosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportPresupuestosCompra()">📤 Exportar</button>
             <button class="btn btn-sm" onclick="importarConIA('presupuesto')" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600">🤖 Importar con IA</button>
-            <button class="btn btn-primary btn-sm" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
+            <button class="btn btn-primary btn-sm" data-perm="compras:crear" onclick="nuevoPresupuestoCompra()">+ Nuevo Presupuesto</button>
           </div>
         </div>
         <!-- KPIs rápidos -->
@@ -1120,7 +1120,7 @@ try {
             <input type="date" id="pcFiltroHasta" onchange="filtrarPedidosCompra()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
             <button class="btn btn-ghost btn-sm" onclick="exportPedidosCompra()">📊 Exportar</button>
             <button class="btn btn-sm" onclick="importarConIA('pedido')" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600">🤖 Importar con IA</button>
-            <button class="btn btn-primary btn-sm" onclick="nuevoPedidoCompra()">+ Nuevo Pedido</button>
+            <button class="btn btn-primary btn-sm" data-perm="compras:crear" onclick="nuevoPedidoCompra()">+ Nuevo Pedido</button>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px">
@@ -1145,7 +1145,7 @@ try {
             <input id="rcFiltroTexto" oninput="filtrarRecepciones()" placeholder="🔍 Buscar por nº, proveedor, obra u observaciones..." style="width:100%;padding:9px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;outline:none">
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="nuevaRecepcion()">+ Nuevo Albarán</button>
+            <button class="btn btn-primary btn-sm" data-perm="compras:crear" onclick="nuevaRecepcion()">+ Nuevo Albarán</button>
             <button class="btn btn-sm" onclick="importarConIA('albaran')" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600">🤖 Importar con IA</button>
             <button class="btn btn-secondary btn-sm" onclick="exportRecepciones()">📊 Excel</button>
             <button id="rcFacturarMulti" class="btn btn-sm" onclick="facturarRecepcionesMulti()" style="display:none;background:var(--azul);color:#fff;border:none;font-weight:600">🧾 Facturar seleccionados</button>
@@ -1191,7 +1191,7 @@ try {
             <input id="fpFiltroTexto" oninput="filtrarFacturasProv()" placeholder="🔍 Buscar por nº, proveedor, obra u observaciones..." style="width:100%;padding:9px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;outline:none">
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="nuevaFacturaProv()">+ Nueva Factura</button>
+            <button class="btn btn-primary btn-sm" data-perm="compras:crear" onclick="nuevaFacturaProv()">+ Nueva Factura</button>
             <button class="btn btn-sm" onclick="importarConIA('factura')" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;font-weight:600">🤖 Importar con IA</button>
             <button class="btn btn-secondary btn-sm" onclick="exportFacturasProv()">📊 Excel</button>
           </div>
@@ -1399,7 +1399,7 @@ try {
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
             <button class="btn btn-sm" style="background:#16A34A;color:#fff;font-weight:700" onclick="abrirCalculoMinimos()">📊 Calcular Mínimos</button>
             <button class="btn btn-sm" style="background:#F97316;color:#fff;font-weight:700" onclick="generarReposicion()">🔄 Generar Reposición</button>
-            <button class="btn btn-primary btn-sm" onclick="nuevoTraspasoModal()">+ Nuevo Traspaso</button>
+            <button class="btn btn-primary btn-sm" data-perm="almacen:crear" onclick="nuevoTraspasoModal()">+ Nuevo Traspaso</button>
             <button class="btn btn-secondary btn-sm" onclick="exportTraspasos()">📊 Excel</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
@@ -1446,7 +1446,7 @@ try {
       <!-- PARTES DE TRABAJO -->
       <div class="page" id="page-partes">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="goPage('planificador')">+ Nuevo Parte</button>
+            <button class="btn btn-primary btn-sm" data-perm="obras:crear" onclick="goPage('planificador')">+ Nuevo Parte</button>
             <button class="btn btn-secondary btn-sm" onclick="exportPartes()">📊 Excel</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
@@ -1919,7 +1919,7 @@ try {
       <div class="page" id="page-usuarios">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px">
           <p style="font-size:11.5px;color:var(--gris-400)" id="usrCount">—</p>
-          <button class="btn btn-primary" onclick="nuevoUsuarioModal()">+ Nuevo usuario</button>
+          <button class="btn btn-primary" data-perm="configuracion:crear" onclick="nuevoUsuarioModal()">+ Nuevo usuario</button>
         </div>
         <div id="usuariosGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
 
@@ -3485,10 +3485,11 @@ try {
         <div class="fg"><label>Contraseña *</label><input id="usr_pass" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"><div class="hint">El usuario podrá cambiarla después</div></div>
         <div class="fg"><label>Rol</label>
           <select id="usr_rol" onchange="setPermisosByRol(this.value)">
-            <option value="operario">Operario</option>
-            <option value="administrativo">Administrativo</option>
-            <option value="encargado">Encargado de almacén</option>
-            <option value="admin">Administrador</option>
+            <option value="operario">👷 Operario</option>
+            <option value="almacen">📦 Almacén</option>
+            <option value="oficina">🖥️ Oficina</option>
+            <option value="comercial">💼 Comercial</option>
+            <option value="admin">⭐ Administrador</option>
           </select>
         </div>
       </div>
@@ -3496,18 +3497,9 @@ try {
         <div><span style="font-size:13px;font-weight:700">📍 Disponible para partes de trabajo</span><div style="font-size:10.5px;color:var(--gris-400);margin-top:2px">Aparece en el selector de operarios al programar citas</div></div>
         <label class="toggle"><input type="checkbox" id="up_disponible_partes"><span class="toggle-sl"></span></label>
       </div>
-      <div style="background:var(--gris-50);border-radius:9px;padding:13px;margin-top:4px">
+      <div style="margin-top:4px">
         <div style="font-size:11.5px;font-weight:700;color:var(--gris-600);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">🔐 Permisos de acceso</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--gris-200);border-radius:8px;overflow:hidden">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">👥 Clientes</span><label class="toggle"><input type="checkbox" id="up_clientes" checked><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">📋 Presupuestos</span><label class="toggle"><input type="checkbox" id="up_presupuestos" checked><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">🧾 Facturas</span><label class="toggle"><input type="checkbox" id="up_facturas"><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">🏗️ Obras</span><label class="toggle"><input type="checkbox" id="up_trabajos" checked><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200)"><span style="font-size:13px">📝 Partes</span><label class="toggle"><input type="checkbox" id="up_partes" checked><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--gris-200);border-left:1px solid var(--gris-200)"><span style="font-size:13px">📦 Stock</span><label class="toggle"><input type="checkbox" id="up_stock"><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px"><span style="font-size:13px">⚙️ Configuración</span><label class="toggle"><input type="checkbox" id="up_config"><span class="toggle-sl"></span></label></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-left:1px solid var(--gris-200)"><span style="font-size:13px">👷 Usuarios</span><label class="toggle"><input type="checkbox" id="up_usuarios"><span class="toggle-sl"></span></label></div>
-        </div>
+        <div class="pe-container" id="permisosEditorContainer"></div>
       </div>
     </div>
     <div class="modal-f">
@@ -4833,6 +4825,7 @@ try {
     'js/core/ui.js',
     'js/core/dashboard.js',
     'js/core/sidebar.js',
+    'js/core/permisos.js',
     'js/core/preview_doc.js',
     'js/core/smart_close.js',
     // Comercial

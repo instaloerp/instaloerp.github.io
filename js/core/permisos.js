@@ -1,0 +1,507 @@
+// ═══════════════════════════════════════════════
+// SISTEMA DE PERMISOS GRANULARES — instaloERP
+// CRUD (Ver/Editar/Crear/Eliminar) por sección
+// + sub-módulos + opciones de visualización
+// ═══════════════════════════════════════════════
+
+// ── Definición de secciones ─────────────────────
+const PERM_SECTIONS = [
+  { key:'acceso', label:'Acceso', ico:'📱', crud:false, items:[
+    {key:'web', label:'Acceso a través de la web'},
+    {key:'movil', label:'Acceso a través de apps móviles'}
+  ]},
+  { key:'inicio', label:'Inicio', ico:'🏠', crud:false, items:[
+    {key:'importes', label:'Importes totales en dashboard'}
+  ]},
+  { key:'clientes', label:'Clientes', ico:'👥', crud:true, items:[] },
+  { key:'ventas', label:'Ventas', ico:'💰', crud:true, items:[
+    {key:'presupuestos', label:'Presupuestos'},
+    {key:'albaranes', label:'Albaranes de venta'}
+  ]},
+  { key:'facturacion', label:'Facturación', ico:'🧾', crud:true, items:[
+    {key:'facturas', label:'Facturas'},
+    {key:'rectificativas', label:'Rectificativas / Abonos'}
+  ]},
+  { key:'compras', label:'Compras', ico:'🛒', crud:true, items:[
+    {key:'proveedores', label:'Proveedores'},
+    {key:'presup_compra', label:'Presupuestos de compra'},
+    {key:'pedidos', label:'Pedidos a proveedor'},
+    {key:'albaranes_prov', label:'Albaranes de proveedor'},
+    {key:'facturas_prov', label:'Facturas de proveedor'},
+    {key:'calendario_pagos', label:'Calendario de pagos'},
+    {key:'ocr', label:'OCR facturas'}
+  ]},
+  { key:'almacen', label:'Almacén / Catálogo', ico:'📦', crud:true, items:[
+    {key:'articulos', label:'Artículos'},
+    {key:'servicios', label:'Servicios'},
+    {key:'almacenes', label:'Almacenes'},
+    {key:'stock', label:'Control de stock'},
+    {key:'consumos', label:'Consumos'},
+    {key:'incidencias', label:'Incidencias'},
+    {key:'traspasos', label:'Traspasos'},
+    {key:'activos', label:'Activos'},
+    {key:'etiquetas_qr', label:'Etiquetas QR'}
+  ]},
+  { key:'obras', label:'Gestión de obras', ico:'🏗️', crud:true, items:[
+    {key:'trabajos', label:'Obras / Trabajos'},
+    {key:'mantenimientos', label:'Mantenimientos'},
+    {key:'partes', label:'Partes de trabajo'},
+    {key:'planificador', label:'Planificador'}
+  ]},
+  { key:'agenda', label:'Agenda', ico:'📅', crud:false, items:[
+    {key:'calendario', label:'Calendario'},
+    {key:'tareas', label:'Mis tareas'}
+  ]},
+  { key:'flota', label:'Flota', ico:'🚗', crud:true, items:[
+    {key:'vehiculos', label:'Vehículos'},
+    {key:'gastos', label:'Gastos de flota'}
+  ]},
+  { key:'comunicaciones', label:'Comunicaciones', ico:'📧', crud:false, items:[
+    {key:'correo', label:'Correo'}
+  ]},
+  { key:'personal', label:'Personal', ico:'👤', crud:false, items:[
+    {key:'fichajes', label:'Fichajes'}
+  ]},
+  { key:'configuracion', label:'Configuración', ico:'⚙️', crud:true, items:[
+    {key:'empresa', label:'Datos de empresa'},
+    {key:'usuarios', label:'Gestión de usuarios'},
+    {key:'audit_log', label:'Auditoría'},
+    {key:'papelera', label:'Papelera'},
+    {key:'laboratorio', label:'Laboratorio'}
+  ]},
+  { key:'opciones', label:'Opciones de visualización', ico:'👁️', crud:false, items:[
+    {key:'precios_venta', label:'Mostrar precios de venta'},
+    {key:'precios_compra', label:'Mostrar precios de compra'},
+    {key:'rentabilidad', label:'Mostrar rentabilidad'},
+    {key:'ver_stock', label:'Mostrar stock en listados'},
+    {key:'sumatorios', label:'Mostrar sumatorios en listados'}
+  ]}
+];
+
+// ── Mapeo página → permiso ──────────────────────
+const PAGE_PERM_MAP = {
+  // Clientes
+  'clientes':            {sec:'clientes'},
+  // Ventas
+  'presupuestos':        {sec:'ventas', sub:'presupuestos'},
+  'albaranes':           {sec:'ventas', sub:'albaranes'},
+  // Facturación
+  'facturas':            {sec:'facturacion', sub:'facturas'},
+  'rectificativas':      {sec:'facturacion', sub:'rectificativas'},
+  // Compras
+  'proveedores':         {sec:'compras', sub:'proveedores'},
+  'presupuestos-compra': {sec:'compras', sub:'presup_compra'},
+  'pedidos-compra':      {sec:'compras', sub:'pedidos'},
+  'albaranes-proveedor': {sec:'compras', sub:'albaranes_prov'},
+  'facturas-proveedor':  {sec:'compras', sub:'facturas_prov'},
+  'calendario-pagos':    {sec:'compras', sub:'calendario_pagos'},
+  'ocr':                 {sec:'compras', sub:'ocr'},
+  // Almacén
+  'articulos':           {sec:'almacen', sub:'articulos'},
+  'servicios':           {sec:'almacen', sub:'servicios'},
+  'almacenes-page':      {sec:'almacen', sub:'almacenes'},
+  'stock':               {sec:'almacen', sub:'stock'},
+  'consumos':            {sec:'almacen', sub:'consumos'},
+  'incidencias-stock':   {sec:'almacen', sub:'incidencias'},
+  'traspasos':           {sec:'almacen', sub:'traspasos'},
+  'activos':             {sec:'almacen', sub:'activos'},
+  'etiquetas-qr':        {sec:'almacen', sub:'etiquetas_qr'},
+  // Obras
+  'trabajos':            {sec:'obras', sub:'trabajos'},
+  'mantenimientos':      {sec:'obras', sub:'mantenimientos'},
+  'partes':              {sec:'obras', sub:'partes'},
+  'planificador':        {sec:'obras', sub:'planificador'},
+  // Agenda
+  'calendario':          {sec:'agenda', sub:'calendario'},
+  'mistareas':           {sec:'agenda', sub:'tareas'},
+  // Flota
+  'flota':               {sec:'flota', sub:'vehiculos'},
+  'flota-gastos':        {sec:'flota', sub:'gastos'},
+  // Comunicaciones
+  'correo':              {sec:'comunicaciones', sub:'correo'},
+  // Personal
+  'fichajes':            {sec:'personal', sub:'fichajes'},
+  // Config
+  'configuracion':       {sec:'configuracion', sub:'empresa'},
+  'usuarios':            {sec:'configuracion', sub:'usuarios'},
+  'audit-log':           {sec:'configuracion', sub:'audit_log'},
+  'papelera':            {sec:'configuracion', sub:'papelera'},
+  'laboratorio':         {sec:'configuracion', sub:'laboratorio'},
+};
+
+// Mapeo inverso: clave antigua → nueva sección (backward compat)
+const _OLD_KEY_MAP = {
+  'clientes':'clientes', 'presupuestos':'ventas', 'facturas':'facturacion',
+  'compras':'compras', 'trabajos':'obras', 'partes':'obras',
+  'stock':'almacen', 'flota':'flota', 'config':'configuracion', 'usuarios':'configuracion'
+};
+
+// ── Generar preset "todo true" ──────────────────
+function _permAllTrue() {
+  const p = {};
+  PERM_SECTIONS.forEach(sec => {
+    p[sec.key] = {};
+    if (sec.crud) { p[sec.key].ver=true; p[sec.key].editar=true; p[sec.key].crear=true; p[sec.key].eliminar=true; }
+    sec.items.forEach(it => { p[sec.key][it.key] = true; });
+  });
+  return p;
+}
+
+// ── Presets por rol ─────────────────────────────
+const PERM_PRESETS = {
+  admin: _permAllTrue(),
+
+  oficina: {
+    acceso:        {web:true, movil:true},
+    inicio:        {importes:true},
+    clientes:      {ver:true, editar:true, crear:true, eliminar:true},
+    ventas:        {ver:true, editar:true, crear:true, eliminar:true, presupuestos:true, albaranes:true},
+    facturacion:   {ver:true, editar:true, crear:true, eliminar:true, facturas:true, rectificativas:true},
+    compras:       {ver:true, editar:true, crear:true, eliminar:true, proveedores:true, presup_compra:true, pedidos:true, albaranes_prov:true, facturas_prov:true, calendario_pagos:true, ocr:true},
+    almacen:       {ver:true, editar:true, crear:true, eliminar:true, articulos:true, servicios:true, almacenes:true, stock:true, consumos:true, incidencias:true, traspasos:true, activos:true, etiquetas_qr:true},
+    obras:         {ver:true, editar:true, crear:true, eliminar:true, trabajos:true, mantenimientos:true, partes:true, planificador:true},
+    agenda:        {calendario:true, tareas:true},
+    flota:         {ver:true, editar:true, crear:true, eliminar:true, vehiculos:true, gastos:true},
+    comunicaciones:{correo:true},
+    personal:      {fichajes:true},
+    configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
+    opciones:      {precios_venta:true, precios_compra:true, rentabilidad:true, ver_stock:true, sumatorios:true}
+  },
+
+  almacen: {
+    acceso:        {web:true, movil:true},
+    inicio:        {importes:false},
+    clientes:      {ver:false, editar:false, crear:false, eliminar:false},
+    ventas:        {ver:false, editar:false, crear:false, eliminar:false, presupuestos:false, albaranes:false},
+    facturacion:   {ver:false, editar:false, crear:false, eliminar:false, facturas:false, rectificativas:false},
+    compras:       {ver:true, editar:true, crear:true, eliminar:false, proveedores:true, presup_compra:true, pedidos:true, albaranes_prov:true, facturas_prov:false, calendario_pagos:false, ocr:false},
+    almacen:       {ver:true, editar:true, crear:true, eliminar:true, articulos:true, servicios:true, almacenes:true, stock:true, consumos:true, incidencias:true, traspasos:true, activos:true, etiquetas_qr:true},
+    obras:         {ver:true, editar:true, crear:false, eliminar:false, trabajos:true, mantenimientos:true, partes:true, planificador:false},
+    agenda:        {calendario:true, tareas:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
+    comunicaciones:{correo:false},
+    personal:      {fichajes:true},
+    configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
+    opciones:      {precios_venta:false, precios_compra:true, rentabilidad:false, ver_stock:true, sumatorios:true}
+  },
+
+  operario: {
+    acceso:        {web:false, movil:true},
+    inicio:        {importes:false},
+    clientes:      {ver:false, editar:false, crear:false, eliminar:false},
+    ventas:        {ver:false, editar:false, crear:false, eliminar:false, presupuestos:false, albaranes:false},
+    facturacion:   {ver:false, editar:false, crear:false, eliminar:false, facturas:false, rectificativas:false},
+    compras:       {ver:false, editar:false, crear:false, eliminar:false, proveedores:false, presup_compra:false, pedidos:false, albaranes_prov:false, facturas_prov:false, calendario_pagos:false, ocr:false},
+    almacen:       {ver:false, editar:false, crear:false, eliminar:false, articulos:false, servicios:false, almacenes:false, stock:false, consumos:false, incidencias:false, traspasos:false, activos:false, etiquetas_qr:false},
+    obras:         {ver:true, editar:true, crear:false, eliminar:false, trabajos:true, mantenimientos:false, partes:true, planificador:false},
+    agenda:        {calendario:true, tareas:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
+    comunicaciones:{correo:false},
+    personal:      {fichajes:true},
+    configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
+    opciones:      {precios_venta:false, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:false}
+  },
+
+  comercial: {
+    acceso:        {web:true, movil:true},
+    inicio:        {importes:false},
+    clientes:      {ver:true, editar:true, crear:true, eliminar:false},
+    ventas:        {ver:true, editar:true, crear:true, eliminar:false, presupuestos:true, albaranes:true},
+    facturacion:   {ver:true, editar:false, crear:false, eliminar:false, facturas:true, rectificativas:false},
+    compras:       {ver:false, editar:false, crear:false, eliminar:false, proveedores:false, presup_compra:false, pedidos:false, albaranes_prov:false, facturas_prov:false, calendario_pagos:false, ocr:false},
+    almacen:       {ver:true, editar:false, crear:false, eliminar:false, articulos:true, servicios:true, almacenes:false, stock:false, consumos:false, incidencias:false, traspasos:false, activos:false, etiquetas_qr:false},
+    obras:         {ver:true, editar:false, crear:false, eliminar:false, trabajos:true, mantenimientos:false, partes:false, planificador:false},
+    agenda:        {calendario:true, tareas:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
+    comunicaciones:{correo:true},
+    personal:      {fichajes:true},
+    configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
+    opciones:      {precios_venta:true, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:true}
+  }
+};
+
+
+// ═══════════════════════════════════════════════
+//  COMPROBACIÓN DE PERMISOS
+// ═══════════════════════════════════════════════
+
+/**
+ * Comprobar si el usuario tiene permiso para una acción
+ * @param {string} sec   — clave de sección (ej: 'ventas', 'compras')
+ * @param {string} action — 'ver'|'editar'|'crear'|'eliminar' o clave de sub-item
+ * @returns {boolean}
+ */
+function canDo(sec, action) {
+  if (!CP) return false;
+  if (CP.es_superadmin || CP.rol === 'admin') return true;
+  const p = CP.permisos;
+  if (!p) return false;
+
+  // Formato nuevo: {ventas: {ver:true, editar:true, presupuestos:true, ...}}
+  const val = p[sec];
+  if (val && typeof val === 'object') {
+    if (!action) return val.ver !== false;
+    return val[action] === true;
+  }
+
+  // Formato antiguo: {clientes:true, presupuestos:true, ...}
+  // Intentar mapear a la sección antigua
+  if (typeof val === 'boolean') return val;
+  // Buscar en claves antiguas
+  const oldKey = Object.keys(_OLD_KEY_MAP).find(k => _OLD_KEY_MAP[k] === sec);
+  if (oldKey && typeof p[oldKey] === 'boolean') return p[oldKey];
+
+  return false;
+}
+
+/**
+ * Comprobar si el usuario puede acceder a una página del sidebar
+ * Reemplaza a userCanAccess() — backward compatible
+ * @param {string} pageId — id de la página (ej: 'clientes', 'presupuestos-compra')
+ * @returns {boolean}
+ */
+function canAccessPage(pageId) {
+  if (!CP) return false;
+  if (CP.es_superadmin || CP.rol === 'admin') return true;
+
+  // Dashboard siempre accesible
+  if (pageId === 'dashboard') return true;
+
+  const p = CP.permisos;
+  if (!p) return false;
+
+  const m = PAGE_PERM_MAP[pageId];
+  if (!m) return true; // página desconocida → permitir
+
+  const secData = p[m.sec];
+
+  // Formato nuevo
+  if (secData && typeof secData === 'object') {
+    // La sección tiene "ver"? (secciones CRUD)
+    if ('ver' in secData && !secData.ver) return false;
+    // Sub-ítem desactivado?
+    if (m.sub && secData[m.sub] === false) return false;
+    return true;
+  }
+
+  // Formato antiguo — buscar clave directa
+  if (typeof secData === 'boolean') return secData;
+
+  // Buscar clave antigua mapeada
+  // ej: pageId='proveedores' → sec='compras' → oldKey='compras' → p.compras
+  const oldKeys = Object.entries(_OLD_KEY_MAP).filter(([k,v]) => v === m.sec).map(([k]) => k);
+  for (const ok of oldKeys) {
+    if (typeof p[ok] === 'boolean') return p[ok];
+  }
+
+  // Páginas sin mapeo antiguo: calendario, mistareas, correo, fichajes — permitir por defecto
+  return true;
+}
+
+// Alias — reemplaza a userCanAccess
+function userCanAccess(pageId) { return canAccessPage(pageId); }
+
+
+// ═══════════════════════════════════════════════
+//  UI: EDITOR DE PERMISOS
+// ═══════════════════════════════════════════════
+
+/**
+ * Renderiza el editor completo de permisos en un contenedor
+ * @param {string} containerId — id del div contenedor
+ */
+function renderPermisosEditor(containerId) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+
+  let html = '';
+  PERM_SECTIONS.forEach(sec => {
+    const hasCrud = sec.crud;
+    const hasItems = sec.items.length > 0;
+
+    // — Header de sección —
+    html += `<div class="pe-sec" id="pe_sec_${sec.key}">`;
+    html += `<div class="pe-header" onclick="peToggle('${sec.key}')">`;
+    html += `<div class="pe-h-left">`;
+    html += `<span class="pe-arrow" id="pe_arrow_${sec.key}">▸</span>`;
+    html += `<span class="pe-ico">${sec.ico}</span>`;
+    html += `<span class="pe-label">${sec.label}</span>`;
+    html += `</div>`;
+
+    if (hasCrud) {
+      html += `<div class="pe-crud" onclick="event.stopPropagation()">`;
+      [{k:'ver',l:'Ver'},{k:'editar',l:'Editar'},{k:'crear',l:'Crear'},{k:'eliminar',l:'Elim.'}].forEach(a => {
+        html += `<label class="pe-crud-label" title="${a.l}">`;
+        html += `<input type="checkbox" id="pe_${sec.key}_${a.k}" onchange="peOnCrud('${sec.key}','${a.k}')">`;
+        html += `<span>${a.l}</span></label>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`; // .pe-header
+
+    // — Sub-ítems —
+    if (hasItems) {
+      html += `<div class="pe-items" id="pe_items_${sec.key}" style="display:none">`;
+      // Toggle all
+      html += `<div class="pe-toggle-all">`;
+      html += `<label class="pe-item-label"><input type="checkbox" id="pe_${sec.key}_ALL" onchange="peToggleAll('${sec.key}',this.checked)"><span style="font-weight:700;color:var(--gris-600)">Todos los permisos</span></label>`;
+      html += `</div>`;
+      html += `<div class="pe-items-grid">`;
+      sec.items.forEach(it => {
+        html += `<label class="pe-item-label"><input type="checkbox" id="pe_${sec.key}_${it.key}"><span>${it.label}</span></label>`;
+      });
+      html += `</div></div>`; // .pe-items-grid + .pe-items
+    }
+
+    html += `</div>`; // .pe-sec
+  });
+
+  c.innerHTML = html;
+}
+
+/** Expandir / colapsar sub-ítems */
+function peToggle(secKey) {
+  const items = document.getElementById('pe_items_' + secKey);
+  const arrow = document.getElementById('pe_arrow_' + secKey);
+  if (!items) return;
+  const open = items.style.display !== 'none';
+  items.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▸' : '▾';
+}
+
+/** Cuando se cambia un toggle CRUD */
+function peOnCrud(secKey, action) {
+  const ver = document.getElementById(`pe_${secKey}_ver`);
+  if (action === 'ver' && ver && !ver.checked) {
+    // Sin "Ver" → desactivar todo
+    ['editar','crear','eliminar'].forEach(a => {
+      const el = document.getElementById(`pe_${secKey}_${a}`);
+      if (el) el.checked = false;
+    });
+    // Desactivar sub-ítems
+    peToggleAll(secKey, false);
+    const allCb = document.getElementById(`pe_${secKey}_ALL`);
+    if (allCb) allCb.checked = false;
+  } else if (action !== 'ver' && ver) {
+    // Activar cualquier CRUD → auto-activar Ver
+    ver.checked = true;
+  }
+}
+
+/** Toggle all sub-items de una sección */
+function peToggleAll(secKey, checked) {
+  const sec = PERM_SECTIONS.find(s => s.key === secKey);
+  if (!sec) return;
+  sec.items.forEach(it => {
+    const el = document.getElementById(`pe_${secKey}_${it.key}`);
+    if (el) el.checked = checked;
+  });
+}
+
+/** Leer permisos del UI → objeto JSONB */
+function readPermisosFromUI() {
+  const perms = {};
+  PERM_SECTIONS.forEach(sec => {
+    perms[sec.key] = {};
+    if (sec.crud) {
+      ['ver','editar','crear','eliminar'].forEach(a => {
+        const el = document.getElementById(`pe_${sec.key}_${a}`);
+        perms[sec.key][a] = el ? el.checked : false;
+      });
+    }
+    sec.items.forEach(it => {
+      const el = document.getElementById(`pe_${sec.key}_${it.key}`);
+      perms[sec.key][it.key] = el ? el.checked : false;
+    });
+  });
+  return perms;
+}
+
+/** Escribir objeto JSONB → UI */
+function writePermisosToUI(perms) {
+  if (!perms) perms = {};
+  PERM_SECTIONS.forEach(sec => {
+    const secData = perms[sec.key];
+    if (sec.crud) {
+      ['ver','editar','crear','eliminar'].forEach(a => {
+        const el = document.getElementById(`pe_${sec.key}_${a}`);
+        if (el) el.checked = secData && typeof secData === 'object' ? (secData[a] === true) : false;
+      });
+    }
+    let allChecked = true;
+    sec.items.forEach(it => {
+      const el = document.getElementById(`pe_${sec.key}_${it.key}`);
+      let val = false;
+      if (secData && typeof secData === 'object') {
+        val = secData[it.key] === true;
+      }
+      if (el) el.checked = val;
+      if (!val) allChecked = false;
+    });
+    // "Todos" toggle
+    const allCb = document.getElementById(`pe_${sec.key}_ALL`);
+    if (allCb) allCb.checked = sec.items.length > 0 && allChecked;
+  });
+}
+
+/** Aplicar preset de rol → UI (override de la función vieja) */
+function setPermisosByRol(rol) {
+  const preset = PERM_PRESETS[rol];
+  if (!preset) return;
+
+  // Si el editor granular está renderizado, usarlo
+  const container = document.getElementById('permisosEditorContainer');
+  if (container && container.innerHTML) {
+    writePermisosToUI(preset);
+    return;
+  }
+
+  // Fallback: toggles simples (formato antiguo)
+  const simple = {
+    clientes: preset.clientes?.ver || false,
+    presupuestos: preset.ventas?.ver || false,
+    facturas: preset.facturacion?.ver || false,
+    compras: preset.compras?.ver || false,
+    trabajos: preset.obras?.ver || false,
+    partes: preset.obras?.partes || false,
+    stock: preset.almacen?.ver || false,
+    flota: preset.flota?.ver || false,
+    config: preset.configuracion?.ver || false,
+    usuarios: preset.configuracion?.usuarios || false,
+  };
+  Object.keys(simple).forEach(k => {
+    const el = document.getElementById('up_'+k);
+    if (el) el.checked = simple[k];
+  });
+}
+
+
+// ═══════════════════════════════════════════════
+//  ENFORCEMENT: ocultar/mostrar botones CRUD
+//  según permisos del usuario logueado
+// ═══════════════════════════════════════════════
+
+/**
+ * Mapeo de botones de acción → permiso CRUD requerido
+ * data-perm="seccion:accion" en el HTML, ej: data-perm="clientes:crear"
+ * Se evalúa con canDo() automáticamente
+ */
+function applyPermButtons() {
+  document.querySelectorAll('[data-perm]').forEach(el => {
+    const [sec, action] = el.dataset.perm.split(':');
+    el.style.display = canDo(sec, action) ? '' : 'none';
+  });
+}
+
+/**
+ * Guard para acciones protegidas — llamar antes de ejecutar crear/editar/eliminar
+ * @param {string} sec — sección de permisos
+ * @param {string} action — 'crear'|'editar'|'eliminar'
+ * @returns {boolean} — true si permitido
+ */
+function guardPerm(sec, action) {
+  if (canDo(sec, action)) return true;
+  const labels = {crear:'crear',editar:'editar',eliminar:'eliminar'};
+  toast(`🔒 No tienes permiso para ${labels[action] || action} en esta sección`, 'error');
+  return false;
+}

@@ -323,15 +323,10 @@ function goPage(id, opts){
     }
   } catch(e) { /* no romper navegación */ }
 
-  // ── Permission Check ──
-  // Pages accessible to everyone without permission check
-  const pagesLibres = ['dashboard', 'calendario', 'mistareas', 'correo', 'fichajes'];
-  if (!pagesLibres.includes(id) && typeof CP !== 'undefined' && CP && CP.permisos && !CP.es_superadmin) {
-    const permNeeded = _permisosPagina[id];
-    if (permNeeded && CP.permisos[permNeeded] === false) {
-      toast('🔒 No tienes permiso para acceder a esta sección', 'error');
-      return;
-    }
+  // ── Permission Check (usa canAccessPage de permisos.js) ──
+  if (typeof canAccessPage === 'function' && !canAccessPage(id)) {
+    toast('🔒 No tienes permiso para acceder a esta sección', 'error');
+    return;
   }
 
   // Si la página es "pronto", inyectar contenido de "en construcción"
@@ -1011,16 +1006,7 @@ document.addEventListener('keydown', function(e) {
   }, 50);
 });
 
-function setPermisosByRol(rol) {
-  const presets = {
-    operario:      {clientes:false, presupuestos:false, facturas:false, trabajos:true,  partes:true,  stock:false, config:false, usuarios:false},
-    administrativo:{clientes:true,  presupuestos:true,  facturas:true,  trabajos:true,  partes:true,  stock:true,  config:false, usuarios:false},
-    encargado:     {clientes:false, presupuestos:false, facturas:false, trabajos:true,  partes:true,  stock:true,  config:false, usuarios:false},
-    admin:         {clientes:true,  presupuestos:true,  facturas:true,  trabajos:true,  partes:true,  stock:true,  config:true,  usuarios:true},
-  };
-  const p = presets[rol] || presets.operario;
-  Object.keys(p).forEach(k => { const el = document.getElementById('up_'+k); if(el) el.checked = p[k]; });
-}
+// setPermisosByRol → movido a js/core/permisos.js (sistema granular nivel 3)
 
 // Cerrar dropdown al hacer click fuera
 document.addEventListener('click', (e) => {

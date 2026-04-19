@@ -610,16 +610,18 @@ async function mostrarApp() {
   try { document.getElementById('s-login')?.remove(); } catch(e) {}
   // Sidebar
   document.getElementById('sbNombre').textContent = CP?.nombre || CU.email;
-  const rolTxt = CP?.es_superadmin ? 'Admin' : 'Usuario';
+  const _rolLabels = {admin:'Admin',oficina:'Oficina',almacen:'Almacén',operario:'Operario',comercial:'Comercial'};
+  const rolTxt = CP?.es_superadmin ? 'Admin' : (_rolLabels[CP?.rol] || 'Usuario');
   const empTxt = EMPRESA?.nombre || '';
   document.getElementById('sbRol').textContent = empTxt ? `${empTxt} · ${rolTxt}` : rolTxt;
   document.getElementById('sbAv').textContent = (CP?.nombre||'?')[0].toUpperCase();
   // sb-emp-selector eliminado — empresa se muestra en sbRol
   const elEmpNombre = document.getElementById('sbEmpNombre'); if(elEmpNombre) elEmpNombre.textContent = EMPRESA?.nombre || '—';
   const elEmpAv = document.getElementById('sbEmpAv'); if(elEmpAv) elEmpAv.textContent = (EMPRESA?.nombre||'E')[0].toUpperCase();
-  const elEmpRole = document.getElementById('sbEmpRole'); if(elEmpRole) elEmpRole.textContent = CP?.es_superadmin ? 'Administrador' : 'Usuario';
+  const elEmpRole = document.getElementById('sbEmpRole'); if(elEmpRole) elEmpRole.textContent = CP?.es_superadmin ? 'Administrador' : (_rolLabels[CP?.rol] || 'Usuario');
   // Admin menu
-  if (CP?.es_superadmin) {
+  const isAdminUser = CP?.es_superadmin || CP?.rol === 'admin';
+  if (isAdminUser) {
     const as1=document.getElementById('adminSec'); if(as1)as1.style.display='block'; const as2=document.getElementById('adminSection'); if(as2)as2.style.display='block';
     const bu=document.getElementById('btnUsuarios'); if(bu)bu.style.display='flex'; const bc=document.getElementById('btnConfig'); if(bc)bc.style.display='flex'; const bl=document.getElementById('btnLaboratorio'); if(bl)bl.style.display='flex';
   }
@@ -649,6 +651,8 @@ async function mostrarApp() {
   // Cargar datos
   await cargarTodos();
   loadDashboard();
+  // Aplicar permisos CRUD a botones de acción
+  if (typeof applyPermButtons === 'function') applyPermButtons();
   // Suscripción Realtime — notificaciones de partes
   initRealtimePartes();
 }

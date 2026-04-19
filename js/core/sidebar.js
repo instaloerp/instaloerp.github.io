@@ -247,7 +247,7 @@ function userCanAccess(pageId) {
 
   // Check if user has permission
   if (typeof CP === 'undefined' || !CP) return false;
-  if (CP.es_superadmin) return true;
+  if (CP.es_superadmin || CP.rol === 'admin') return true;
   if (!CP.permisos) return false;
 
   // Get required permission for this page
@@ -257,13 +257,13 @@ function userCanAccess(pageId) {
     'albaranes': 'facturas',
     'facturas': 'facturas',
     'rectificativas': 'facturas',
-    'proveedores': 'clientes',
-    'presupuestos-compra': 'presupuestos',
-    'pedidos-compra': 'presupuestos',
-    'albaranes-proveedor': 'facturas',
-    'facturas-proveedor': 'facturas',
-    'calendario-pagos': 'facturas',
-    'ocr': 'facturas',
+    'proveedores': 'compras',
+    'presupuestos-compra': 'compras',
+    'pedidos-compra': 'compras',
+    'albaranes-proveedor': 'compras',
+    'facturas-proveedor': 'compras',
+    'calendario-pagos': 'compras',
+    'ocr': 'compras',
     'flota': 'flota',
     'flota-gastos': 'flota',
     'articulos': 'stock',
@@ -272,6 +272,7 @@ function userCanAccess(pageId) {
     'consumos': 'stock',
     'incidencias-stock': 'stock',
     'traspasos': 'stock',
+    'activos': 'stock',
     'trabajos': 'trabajos',
     'mantenimientos': 'trabajos',
     'partes': 'partes',
@@ -310,6 +311,8 @@ function applySbItemVisibility() {
     if (visibles.length === 0) sec.style.display = 'none';
     else sec.style.display = '';
   });
+  // Aplicar permisos CRUD a botones de acción (crear/editar/eliminar)
+  if (typeof applyPermButtons === 'function') applyPermButtons();
 }
 
 // Drag & Drop para reordenar favoritos
