@@ -162,8 +162,9 @@ function buildRegistroAltaXML(params: {
   encadenamiento: string;
   fechaHoraHuso: string;
   huella: string;
+  subsanacion?: boolean;
 }): string {
-  const { config, factura, desglose, encadenamiento, fechaHoraHuso, huella } = params;
+  const { config, factura, desglose, encadenamiento, fechaHoraHuso, huella, subsanacion } = params;
 
   // Tipo de factura: R1/R2/R3/R4/R5 para rectificativas, F1/F2/F3 para normales
   const tipoFactura = factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1");
@@ -239,7 +240,8 @@ function buildRegistroAltaXML(params: {
             <sf:NumSerieFactura>${escXml(factura.numero)}</sf:NumSerieFactura>
             <sf:FechaExpedicionFactura>${fechaAEAT}</sf:FechaExpedicionFactura>
           </sf:IDFactura>
-          <sf:NombreRazonEmisor>${escXml(config.nombre_razon)}</sf:NombreRazonEmisor>
+          <sf:NombreRazonEmisor>${escXml(config.nombre_razon)}</sf:NombreRazonEmisor>${subsanacion ? `
+          <sf:Subsanacion>S</sf:Subsanacion>` : ""}
           <sf:TipoFactura>${tipoFactura}</sf:TipoFactura>${rectificativaXml}
           <sf:DescripcionOperacion>${escXml(factura.observaciones || "Prestacion de servicios")}</sf:DescripcionOperacion>${destinatarioXml}
           <sf:Desglose>${desgloseXml}
@@ -414,7 +416,7 @@ async function handleRegistro(
   let xml = "";
   let qrUrl = "";
 
-  if (action === "alta") {
+  if (action === "alta" || action === "subsanacion") {
     const tipoFactura = factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1");
     const cuotaTotalHash = formatDecimalHash(factura.total_iva || 0);
     const importeTotalHash = formatDecimalHash(factura.total || 0);
@@ -441,7 +443,7 @@ async function handleRegistro(
           </sf:RegistroAnterior></sf:Encadenamiento>`;
 
     const desglose = calcDesglose(factura.lineas || [], null);
-    xml = buildRegistroAltaXML({ config, factura, desglose, encadenamiento, fechaHoraHuso, huella });
+    xml = buildRegistroAltaXML({ config, factura, desglose, encadenamiento, fechaHoraHuso, huella, subsanacion: action === "subsanacion" });
     qrUrl = `${QR_BASE[modo]}?nif=${encodeURIComponent(config.nif)}&numserie=${encodeURIComponent(factura.numero)}&fecha=${encodeURIComponent(fechaAEAT)}&importe=${encodeURIComponent(importeTotal)}`;
 
   } else if (action === "anulacion") {
@@ -464,7 +466,7 @@ async function handleRegistro(
 
     xml = buildRegistroAnulacionXML({ config, factura, encadenamiento, fechaHoraHuso, huella });
   } else {
-    return { ok: false, error: "Acción no válida. Usar: alta, anulacion" };
+    return { ok: false, error: "Acción no válida. Usar: alta, anulacion, subsanacion" };
   }
 
   // 4. Guardar registro PENDIENTE
@@ -666,30 +668,12 @@ Deno.serve(async (req) => {
       return jsonResp({ error: "Falta factura_id para acción " + action }, 400);
     }
 
-    // ── SUBSANACIÓN: anular registro anterior + nuevo alta ──
-    // Subsanación = corrección de datos no fiscales (descripciones, observaciones)
-    // Flujo AEAT: 1) Anular registro existente  2) Nuevo alta con datos corregidos
-    if (action === "subsanacion") {
-      // Paso 1: Llamar internamente como anulación
-      const anulResp = await handleRegistro(sb, "anulacion", factura_id, empresa_id, config);
-      if (!anulResp.ok || (anulResp.estado !== "correcto" && anulResp.estado !== "anulado" && anulResp.estado !== "simulado")) {
-        return jsonResp({
-          ok: false,
-          error: "Error anulando registro previo: " + (anulResp.descripcion_error || anulResp.estado),
-          fase: "anulacion",
-          ...anulResp,
-        });
-      }
-      // Paso 2: Nuevo alta con datos corregidos (ya guardados en BD)
-      const altaResp = await handleRegistro(sb, "alta", factura_id, empresa_id, config);
-      return jsonResp({
-        ...altaResp,
-        subsanacion: true,
-        anulacion_previa: { estado: anulResp.estado, csv: anulResp.csv },
-      });
-    }
+    // ── SUBSANACIÓN: RegistroAlta con <Subsanacion>S</Subsanacion> ──
+    // Mecanismo AEAT correcto: enviar nuevo RegistroAlta con mismo IDFactura
+    // y campo Subsanacion="S" (XSD: RegistroFacturacionAltaType → Subsanacion)
+    // NO es anulación + alta (eso da error 3000 "duplicado")
 
-    // Ejecutar alta o anulación
+    // Ejecutar alta, anulación o subsanación
     const result = await handleRegistro(sb, action, factura_id, empresa_id, config);
     return jsonResp(result, result.ok ? 200 : 500);
 
