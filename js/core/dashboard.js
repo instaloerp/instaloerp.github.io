@@ -18,12 +18,12 @@ async function loadDashboard() {
   const todasFacturas = facts.data || [];
   const todosPresups = presups.data || [];
 
-  // KPIs facturación — excluir anuladas y rectificadas de los totales
-  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada');
+  // KPIs facturación — excluir anuladas, rectificadas Y rectificativas (abonos) de los totales
+  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && !f.rectificativa_de);
   const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.total||0), 0);
   const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.total||0), 0);
-  const pendCobro = todasFacturas.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.total||0), 0);
-  const vencidas = todasFacturas.filter(f => f.estado === 'vencida').length;
+  const pendCobro = todasFacturas.filter(f => (f.estado === 'pendiente' || f.estado === 'vencida') && !f.rectificativa_de).reduce((s,f) => s + (f.total||0), 0);
+  const vencidas = todasFacturas.filter(f => f.estado === 'vencida' && !f.rectificativa_de).length;
   const presupPend = todosPresups.filter(p => p.estado === 'pendiente' || p.estado === 'enviado').length;
 
   // KPIs facturas proveedor pendientes pago
@@ -56,8 +56,8 @@ async function loadDashboard() {
       </div>`).join('') :
     '<div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div>';
 
-  // Facturas pendientes cobro
-  const factPend = todasFacturas.filter(f=>f.estado==='pendiente'||f.estado==='vencida').slice(0,5);
+  // Facturas pendientes cobro — excluir rectificativas (abonos)
+  const factPend = todasFacturas.filter(f=>(f.estado==='pendiente'||f.estado==='vencida') && !f.rectificativa_de).slice(0,5);
   document.getElementById('d-fact-list').innerHTML = factPend.length ?
     factPend.map(f=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100)">
