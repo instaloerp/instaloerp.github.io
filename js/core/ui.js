@@ -871,6 +871,45 @@ function prioBadge(p){const m={Urgente:'<span class="badge bg-red">🔴</span>',
 
 function toast(msg,type='info'){const c=document.getElementById('toast');const t=document.createElement('div');t.className=`ti ${type}`;t.innerHTML=`<span>${{success:'✅',error:'❌',info:'ℹ️'}[type]}</span> ${msg}`;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3800);}
 
+/**
+ * Modal de confirmación bonito — reemplaza confirm() nativo.
+ * Devuelve Promise<boolean>.
+ *
+ * @param {Object} opts
+ *   titulo:     Título principal (ej: 'Emitir factura definitiva')
+ *   mensaje:    Texto descriptivo (acepta HTML)
+ *   aviso:      Texto de aviso rojo (ej: 'Esta acción no se puede deshacer')
+ *   icono:      Emoji grande (default: '⚠️')
+ *   btnOk:      Texto botón aceptar (default: 'Aceptar')
+ *   btnCancel:  Texto botón cancelar (default: 'Cancelar')
+ *   colorOk:    Color botón aceptar (default: '#059669')
+ */
+function confirmModal(opts = {}) {
+  return new Promise(resolve => {
+    const id = '_confirmOverlay_' + Date.now();
+    const ov = document.createElement('div');
+    ov.id = id;
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s';
+    const colorOk = opts.colorOk || '#059669';
+    ov.innerHTML = `
+      <div style="background:white;border-radius:16px;padding:32px 36px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">${opts.icono || '⚠️'}</div>
+        <h2 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#111">${opts.titulo || 'Confirmar'}</h2>
+        <div style="color:#555;font-size:14px;line-height:1.6;margin:0 0 8px;text-align:left">${opts.mensaje || ''}</div>
+        ${opts.aviso ? `<p style="color:#b91c1c;font-size:13px;font-weight:600;margin:8px 0 20px">⚠️ ${opts.aviso}</p>` : '<div style="height:16px"></div>'}
+        <div style="display:flex;gap:12px;justify-content:center">
+          <button id="${id}_no" style="padding:10px 24px;border-radius:10px;border:1px solid #ddd;background:#f5f5f5;color:#555;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s">${opts.btnCancel || 'Cancelar'}</button>
+          <button id="${id}_si" style="padding:10px 28px;border-radius:10px;border:none;background:${colorOk};color:white;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px ${colorOk}66;transition:opacity .15s">${opts.btnOk || 'Aceptar'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = (val) => { ov.remove(); resolve(val); };
+    document.getElementById(id + '_si').onclick = () => close(true);
+    document.getElementById(id + '_no').onclick = () => close(false);
+    ov.addEventListener('click', e => { if (e.target === ov) close(false); });
+  });
+}
+
 // ═══════════════════════════════════════════════
 //  NAVEGACIÓN TAB / ENTER EN LÍNEAS DE DOCUMENTO
 //  Tab = avanza campo (sin confirmar). Enter = confirma y avanza.

@@ -1004,7 +1004,15 @@ async function emitirFacturaDefinitiva(id) {
   const lineas = f.lineas || [];
   if (!lineas.filter(l => !l._separator).length) { toast('El borrador no tiene líneas', 'error'); return; }
 
-  if (!confirm('¿Emitir factura definitiva?\n\nSe asignará número correlativo y no se podrá volver a editar.\nBorrador actual: ' + f.numero)) return;
+  const okEmitir = await confirmModal({
+    icono: '🧾',
+    titulo: 'Emitir factura definitiva',
+    mensaje: `Se asignará un número correlativo <strong style="color:#059669">definitivo</strong> y ya no se podrá editar.<br><br>Borrador actual: <strong>${f.numero}</strong>`,
+    aviso: 'Esta acción no se puede deshacer',
+    btnOk: 'Emitir factura',
+    btnCancel: 'Cancelar'
+  });
+  if (!okEmitir) return;
 
   const vfActivo = _isVfActivo();
   const pasos = [
@@ -1784,11 +1792,21 @@ async function _guardarRectificativa() {
   const msgTipo = esI ? 'por diferencias (I)' : 'por sustitución (S)';
   const tipoRLabels = {R1:'Error datos/importes',R2:'Concurso acreedores',R3:'Créditos incobrables',R4:'Otras causas',R5:'Rect. simplificada'};
   const msgImporte = esI ? fmtE(totalRect) : fmtE(totalRect) + ' (antes: ' + fmtE(totalOrig) + ')';
-  if (!confirm('¿Emitir rectificativa de ' + orig.numero + '?\n\n'
-    + 'Tipo corrección: ' + msgTipo + '\n'
-    + 'Tipo AEAT: ' + _rectTipoR + ' — ' + (tipoRLabels[_rectTipoR]||'') + '\n'
-    + 'Importe: ' + msgImporte + '\n'
-    + 'Motivo: ' + motivo)) return;
+  const okRect = await confirmModal({
+    icono: '📋',
+    titulo: 'Emitir rectificativa de ' + orig.numero,
+    mensaje: `<div style="text-align:left;font-size:13px;line-height:1.8">
+      <div><strong>Tipo corrección:</strong> ${msgTipo}</div>
+      <div><strong>Tipo AEAT:</strong> ${_rectTipoR} — ${tipoRLabels[_rectTipoR]||''}</div>
+      <div><strong>Importe:</strong> ${msgImporte}</div>
+      <div><strong>Motivo:</strong> ${motivo}</div>
+    </div>`,
+    aviso: 'Esta acción no se puede deshacer',
+    btnOk: 'Emitir rectificativa',
+    btnCancel: 'Cancelar',
+    colorOk: '#dc2626'
+  });
+  if (!okRect) return;
 
   // Cerrar editor
   document.getElementById('rectEditor')?.remove();
