@@ -96,7 +96,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .cab-qr .qr-lbl{font-size:7px;font-weight:700;color:#1e293b;margin-bottom:2px}
 .cab-qr img{width:30mm;height:30mm}
 .cab-qr .qr-veri{font-size:7px;font-weight:700;color:#1e40af;margin-top:2px}
-.cab-empresa-info{text-align:right;font-size:9px;color:#64748b;line-height:1.5}
+.cab-empresa-info{text-align:right;font-size:9px;color:#64748b;line-height:1.5;margin-left:auto}
 .cab-empresa-info .nombre-corp{font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
 .titulo-doc{margin:6px 0 14px;padding-bottom:10px;border-bottom:3px solid #1e40af}
 .titulo-doc .tipo{font-size:26px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:1.5px;line-height:1}
