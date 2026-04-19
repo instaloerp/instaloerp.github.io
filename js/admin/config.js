@@ -1336,23 +1336,36 @@ async function verificarIntegridadVF() {
       ok++;
     }
 
-    // Recalcular hash y comparar (RegistroAlta)
-    if (reg.tipo_registro === 'alta' && reg.huella && typeof crypto !== 'undefined') {
+    // Recalcular hash y comparar
+    if (reg.huella && typeof crypto !== 'undefined') {
       try {
-        const campos = [
-          reg.nif_emisor || '',
-          reg.num_serie || '',
-          reg.fecha_expedicion || '',
-          reg.tipo_factura || '',
-          (reg.cuota_total != null ? Number(reg.cuota_total).toFixed(2) : ''),
-          (reg.importe_total != null ? Number(reg.importe_total).toFixed(2) : ''),
-          reg.huella_anterior || '',
-          reg.fecha_hora_huso || ''
-        ].join('&');
+        let campos;
+        if (reg.tipo_registro === 'alta') {
+          // Formato AEAT: "nombreCampo=valor&nombreCampo=valor&..."
+          campos = [
+            `IDEmisorFactura=${reg.nif_emisor || ''}`,
+            `NumSerieFactura=${reg.num_serie || ''}`,
+            `FechaExpedicionFactura=${reg.fecha_expedicion || ''}`,
+            `TipoFactura=${reg.tipo_factura || ''}`,
+            `CuotaTotal=${reg.cuota_total != null ? Number(reg.cuota_total).toFixed(2) : ''}`,
+            `ImporteTotal=${reg.importe_total != null ? Number(reg.importe_total).toFixed(2) : ''}`,
+            `Huella=${reg.huella_anterior || ''}`,
+            `FechaHoraHusoGenRegistro=${reg.fecha_hora_huso || ''}`
+          ].join('&');
+        } else {
+          // Anulación
+          campos = [
+            `IDEmisorFacturaAnulada=${reg.nif_emisor || ''}`,
+            `NumSerieFacturaAnulada=${reg.num_serie || ''}`,
+            `FechaExpedicionFacturaAnulada=${reg.fecha_expedicion || ''}`,
+            `Huella=${reg.huella_anterior || ''}`,
+            `FechaHoraHusoGenRegistro=${reg.fecha_hora_huso || ''}`
+          ].join('&');
+        }
 
         const buffer = new TextEncoder().encode(campos);
         const hashBuf = await crypto.subtle.digest('SHA-256', buffer);
-        const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 
         if (hashHex !== reg.huella) {
           errores.push(`Registro #${reg.id} (${reg.num_serie}): hash recalculado NO coincide (esperado ${reg.huella.substring(0,16)}..., calculado ${hashHex.substring(0,16)}...)`);
