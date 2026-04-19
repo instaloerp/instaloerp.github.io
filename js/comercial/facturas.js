@@ -1485,23 +1485,24 @@ async function crearRectificativa(id) {
 
 function _mostrarSelectorTipoRect() {
   const orig = _rectOrig;
+  // Cerrar modal detalle para evitar conflictos de z-index
+  document.querySelectorAll('.overlay.open').forEach(o => { o.classList.remove('open'); o.style.pointerEvents = 'none'; });
+
   const ol = document.createElement('div');
   ol.id = 'rectTipoSelector';
-  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10001;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
+  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10001;display:flex;align-items:center;justify-content:center';
   ol.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2)">
       <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;color:#1e293b">Rectificar factura ${orig.numero}</h3>
       <p style="margin:0 0 20px;font-size:13px;color:#64748b">Original: ${fmtE(orig.base_imponible||0)} base + ${fmtE(orig.total_iva||0)} IVA = <b>${fmtE(orig.total||0)}</b></p>
 
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button onclick="_iniciarRectificativa('I')" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s"
-          onmouseover="this.style.borderColor='#3b82f6';this.style.background='#f0f7ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+        <button id="_rectBtnI" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s">
           <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por diferencias (I)</div>
           <div style="font-size:12px;color:#64748b;line-height:1.4">Corregir importes parcialmente. Solo se registra la diferencia.<br>
           <span style="color:#3b82f6">Ejemplo: quitar una línea de 200€ → rectificativa de -200€</span></div>
         </button>
-        <button onclick="_iniciarRectificativa('S')" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s"
-          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+        <button id="_rectBtnS" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s">
           <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por sustitución (S)</div>
           <div style="font-size:12px;color:#64748b;line-height:1.4">Reemplazar la factura completa con importes correctos.<br>
           <span style="color:#f59e0b">Ejemplo: factura de 1.000€ debía ser 800€ → rectificativa con 800€</span></div>
@@ -1509,10 +1510,16 @@ function _mostrarSelectorTipoRect() {
       </div>
 
       <div style="margin-top:16px;text-align:right">
-        <button onclick="document.getElementById('rectTipoSelector').remove()" style="padding:8px 18px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#64748b">Cancelar</button>
+        <button id="_rectBtnCancel" style="padding:8px 18px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#64748b">Cancelar</button>
       </div>
     </div>`;
   document.body.appendChild(ol);
+
+  // Event listeners (más fiable que onclick inline)
+  document.getElementById('_rectBtnI').addEventListener('click', () => _iniciarRectificativa('I'));
+  document.getElementById('_rectBtnS').addEventListener('click', () => _iniciarRectificativa('S'));
+  document.getElementById('_rectBtnCancel').addEventListener('click', () => ol.remove());
+  ol.addEventListener('click', e => { if (e.target === ol) ol.remove(); });
 }
 
 function _iniciarRectificativa(tipo) {
