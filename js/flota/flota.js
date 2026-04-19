@@ -283,7 +283,7 @@ async function delVehiculo(id) {
   const msg = gastosAsociados > 0
     ? `¿Eliminar "${veh.nombre}"?\n\nTiene ${gastosAsociados} gasto(s) asociado(s) que también se eliminarán.\nEl almacén-furgoneta asociado se desactivará.\n\nEsto no se puede deshacer.`
     : `¿Eliminar "${veh.nombre}"?\n\nEl almacén-furgoneta asociado se desactivará.\n\nEsto no se puede deshacer.`;
-  if (!confirm(msg)) return;
+  const ok = await confirmModal({titulo:'Eliminar vehículo',mensaje:msg,aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
 
   // Desactivar almacén vinculado (no eliminar para no perder stock)
   await sb.from('almacenes').update({ activo: false })
@@ -450,7 +450,7 @@ async function saveGasto() {
 async function delGasto(id) {
   const g = flotaGastos.find(x => x.id === id);
   if (!g) return;
-  if (!confirm('¿Eliminar este gasto?\n\nEsto no se puede deshacer.')) return;
+  const okG = await confirmModal({titulo:'Eliminar gasto',mensaje:'¿Eliminar este gasto?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okG) return;
   const { error } = await sb.from('vehiculo_gastos').delete().eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   await _flotaCargar();

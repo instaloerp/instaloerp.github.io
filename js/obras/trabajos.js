@@ -2437,7 +2437,7 @@ async function cerrarObra() {
   if (avisos.length) {
     msg = '⚠️ Hay elementos pendientes:\n\n' + avisos.join('\n') + '\n\n¿Cerrar la obra de todas formas?';
   }
-  if (!confirm(msg)) return;
+  const okCerrar = await confirmModal({titulo:'Cerrar obra',mensaje:msg,btnOk:'Cerrar obra',colorOk:'#dc2626'}); if (!okCerrar) return;
 
   // Cerrar obra
   const { error } = await sb.from('trabajos').update({ estado: 'finalizado' }).eq('id', obraActualId);
@@ -2459,7 +2459,7 @@ async function reabrirObra() {
   const t = trabajos.find(x => x.id === obraActualId);
   if (!t) return;
 
-  if (!confirm('¿Reabrir esta obra? Se generará un registro en el historial.')) return;
+  const okReabrir = await confirmModal({titulo:'Reabrir obra',mensaje:'¿Reabrir esta obra? Se generará un registro en el historial.',btnOk:'Reabrir'}); if (!okReabrir) return;
 
   // Calcular cuál sería el estado correcto según el workflow
   const eid = EMPRESA.id;
@@ -2606,7 +2606,7 @@ function programarParteBorrador(parteId) {
 
 async function obraAprobarPres(presId) {
   if (!obraActualId) return;
-  if (!confirm('¿Aprobar este presupuesto?')) return;
+  const okAprob = await confirmModal({titulo:'Aprobar presupuesto',mensaje:'¿Aprobar este presupuesto?',btnOk:'Aprobar'}); if (!okAprob) return;
   const { error } = await sb.from('presupuestos').update({ estado: 'aceptado' }).eq('id', presId);
   if (error) { toast('Error: '+error.message,'error'); return; }
   const p = (typeof presupuestos !== 'undefined') ? presupuestos.find(x=>x.id===presId) : null;
@@ -2629,7 +2629,7 @@ async function obraPresToAlbaran(presId) {
   if (_aD3.some(a=>a.presupuesto_id===p.id && a.estado!=='anulado')) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
   const _fAct5 = _fD5.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD5.some(r => r.rectificativa_de === f.id)));
   if (_fAct5.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
-  if (!confirm(`¿Crear albarán desde ${p.numero}?`)) return;
+  const okAlb = await confirmModal({titulo:'Crear albarán',mensaje:`¿Crear albarán desde ${p.numero}?`,btnOk:'Crear albarán'}); if (!okAlb) return;
 
   const numero = await generarNumeroDoc('albaran');
   const lineas = (p.lineas || []).filter(l => l.tipo !== 'capitulo').map(l => ({
@@ -2669,7 +2669,7 @@ async function obraPresToFactura(presId) {
   const _albsP2 = _aD4.filter(a=>a.presupuesto_id===p.id);
   const _fAct2b = _fD2.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD2.some(r => r.rectificativa_de === f.id)));
   if (_fAct2b.some(f=>f.presupuesto_id===p.id) || _albsP2.some(a=>_fAct2b.some(f=>f.albaran_id===a.id))) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
-  if (!confirm(`¿Crear borrador de factura desde ${p.numero}?`)) return;
+  const okFactP = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear borrador de factura desde ${p.numero}?`,btnOk:'Crear factura'}); if (!okFactP) return;
 
   const numero = await _generarNumeroBorrador();
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -2709,7 +2709,7 @@ async function obraAlbToFactura(albId) {
   const _fD3 = window.facturasData || [];
   const _fAct3 = _fD3.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD3.some(r => r.rectificativa_de === f.id)));
   if (_fAct3.some(f=>f.albaran_id===a.id)) { toast('🔒 Este albarán ya tiene factura','error'); return; }
-  if (!confirm(`¿Crear borrador de factura desde ${a.numero}?`)) return;
+  const okFactA = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear borrador de factura desde ${a.numero}?`,btnOk:'Crear factura'}); if (!okFactA) return;
 
   const numero = await _generarNumeroBorrador();
   const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -2751,7 +2751,7 @@ async function obraFacturarTodosAlb() {
   if (clienteIds.size > 1) { toast('Los albaranes tienen clientes distintos', 'error'); return; }
 
   const nums = albs.map(a => a.numero).join(', ');
-  if (!confirm(`¿Crear una factura agrupando ${albs.length} albarán${albs.length > 1 ? 'es' : ''}?\n\n${nums}`)) return;
+  const okAgrp = await confirmModal({titulo:'Agrupar en factura',mensaje:`¿Crear una factura agrupando ${albs.length} albarán${albs.length > 1 ? 'es' : ''}?`,aviso:nums,btnOk:'Crear factura'}); if (!okAgrp) return;
 
   // Combinar líneas
   let lineasTodas = [];
@@ -2885,7 +2885,7 @@ async function guardarNotaObra() {
 }
 
 async function eliminarNotaObra(id) {
-  if (!confirm('¿Eliminar nota?')) return;
+  const okNota = await confirmModal({titulo:'Eliminar nota',mensaje:'¿Eliminar esta nota?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okNota) return;
   await sb.from('notas_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Nota eliminada', `🗑️ Nota #${id} eliminada`);
   await abrirFichaObra(obraActualId, false);
@@ -2924,7 +2924,7 @@ async function subirDocObra(input) {
 }
 
 async function eliminarDocObra(id) {
-  if (!confirm('¿Eliminar documento?')) return;
+  const okDoc = await confirmModal({titulo:'Eliminar documento',mensaje:'¿Eliminar este documento?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okDoc) return;
   await sb.from('documentos_trabajo').delete().eq('id', id);
   await registrarActividadObra(obraActualId, 'Documento eliminado', `🗑️ Documento #${id} eliminado`);
   await abrirFichaObra(obraActualId, false);
@@ -2934,7 +2934,7 @@ async function eliminarDocObra(id) {
 
 async function eliminarAuditEntry(id) {
   if (!(CP?.rol === 'superadmin' || CP?.rol === 'admin')) { toast('Solo el superadmin puede eliminar registros','error'); return; }
-  if (!confirm('¿Eliminar esta entrada del registro?')) return;
+  const okAudit = await confirmModal({titulo:'Eliminar entrada',mensaje:'¿Eliminar esta entrada del registro?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okAudit) return;
   await sb.from('audit_log').delete().eq('id', id);
   await abrirFichaObra(obraActualId, false);
   obraTab('historial');
@@ -3079,7 +3079,7 @@ async function saveTrabajo() {
 }
 
 async function delTrabajo(id) {
-  if(!confirm('¿Eliminar obra?'))return;
+  const okDel = await confirmModal({titulo:'Eliminar obra',mensaje:'¿Eliminar esta obra?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okDel) return;
   const obraElim = trabajos.find(t=>t.id===id);
   await registrarActividadObra(id, 'Obra eliminada', `🗑️ ${obraElim?.numero||''} — ${obraElim?.titulo||'Sin título'}`);
   await sb.from('trabajos').delete().eq('id',id);
@@ -3090,7 +3090,7 @@ async function delTrabajo(id) {
 // ═══════════════════════════════════════════════
 // EXPORTAR OBRAS
 // ═══════════════════════════════════════════════
-function exportarObras() {
+async function exportarObras() {
   const list = document.getElementById('trSearch')?.value || document.getElementById('trEstado')?.value ?
     trabajos.filter(t => {
       const q = (document.getElementById('trSearch')?.value||'').toLowerCase();
@@ -3104,7 +3104,7 @@ function exportarObras() {
       return true;
     }) : trabajos;
   if (!list.length) { toast('No hay datos para exportar','info'); return; }
-  if (!confirm(`¿Exportar ${list.length} obra(s) a Excel?`)) return;
+  const okExp = await confirmModal({titulo:'Exportar',mensaje:`¿Exportar ${list.length} obra(s) a Excel?`,btnOk:'Exportar'}); if (!okExp) return;
   const rows = list.map(t => ({
     'Número': t.numero,
     'Título': t.titulo,
@@ -3198,7 +3198,7 @@ async function addOperarioObra(obraId) {
 
 async function quitarOperarioObra(obraId, operarioObraId) {
   const op = obraEquipoData.find(o => o.id === operarioObraId);
-  if (!confirm(`¿Quitar a ${op?.usuario_nombre || 'este operario'} de la obra?`)) return;
+  const okQuitar = await confirmModal({titulo:'Quitar operario',mensaje:`¿Quitar a ${op?.usuario_nombre || 'este operario'} de la obra?`,btnOk:'Quitar',colorOk:'#dc2626'}); if (!okQuitar) return;
   await sb.from('operarios_obra').delete().eq('id', operarioObraId);
   toast('Operario quitado de la obra','info');
   registrarActividadObra(obraId, 'Equipo modificado', `❌ ${op?.usuario_nombre||'Operario'} quitado de la obra`);

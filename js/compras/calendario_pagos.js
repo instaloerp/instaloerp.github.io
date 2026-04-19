@@ -242,7 +242,7 @@ async function asignarBancoPago(facturaId, bancoId) {
 async function registrarPagoCalendario(facturaId) {
   const fp = calPagosData.find(p => p.factura_id === facturaId && p.tipo_movimiento === 'pago');
   if (!fp) return;
-  if (!confirm(`¿Registrar pago de ${fmtE(fp.importe)} a ${fp.entidad_nombre}?`)) return;
+  const okPago = await confirmModal({titulo:'Registrar pago',mensaje:`¿Registrar pago de ${fmtE(fp.importe)} a ${fp.entidad_nombre}?`,btnOk:'Registrar pago'}); if (!okPago) return;
 
   await sb.from('pagos_proveedor').insert({
     empresa_id: EMPRESA.id,
@@ -266,7 +266,7 @@ async function registrarPagoCalendario(facturaId) {
 async function registrarCobroCalendario(facturaId) {
   const fc = calPagosData.find(p => p.factura_id === facturaId && p.tipo_movimiento === 'cobro');
   if (!fc) return;
-  if (!confirm(`¿Registrar cobro de ${fmtE(fc.importe)} de ${fc.entidad_nombre}?`)) return;
+  const okCobro = await confirmModal({titulo:'Registrar cobro',mensaje:`¿Registrar cobro de ${fmtE(fc.importe)} de ${fc.entidad_nombre}?`,btnOk:'Registrar cobro'}); if (!okCobro) return;
 
   await sb.from('facturas').update({
     estado: 'cobrada'
@@ -293,10 +293,10 @@ function verFacturaVenta(id) {
 // ═══════════════════════════════════════════════
 //  EXPORTAR
 // ═══════════════════════════════════════════════
-function exportarCalendarioPagos() {
+async function exportarCalendarioPagos() {
   if (!window.XLSX) { toast('Cargando librería Excel...', 'info'); return; }
   const lista = calPagosFiltrados.length ? calPagosFiltrados : calPagosData;
-  if (!confirm('¿Exportar ' + lista.length + ' movimientos a Excel?')) return;
+  const okExp = await confirmModal({titulo:'Exportar',mensaje:`¿Exportar ${lista.length} movimientos a Excel?`,btnOk:'Exportar'}); if (!okExp) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Tipo', 'Vencimiento', 'Entidad', 'Factura', 'Banco', 'Importe', 'Estado'],

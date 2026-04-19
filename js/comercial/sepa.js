@@ -705,7 +705,7 @@ async function generarRemesaSEPA() {
     return;
   }
 
-  if (!confirm(`¿Generar remesa SEPA con ${facturasValidas.length} factura(s)?\n${sinIban > 0 ? sinIban + ' factura(s) excluidas por no tener IBAN del cliente.' : ''}`)) return;
+  const okSepa = await confirmModal({titulo:'Generar remesa SEPA',mensaje:`¿Generar remesa SEPA con ${facturasValidas.length} factura(s)?`,aviso:sinIban > 0 ? `${sinIban} factura(s) excluidas por no tener IBAN del cliente.` : '',btnOk:'Generar remesa'}); if (!okSepa) return;
 
   const cuentaEmpresa = (cuentasBancarias||[]).find(b => b.predeterminada) || (cuentasBancarias||[])[0];
   if (!cuentaEmpresa?.iban) {

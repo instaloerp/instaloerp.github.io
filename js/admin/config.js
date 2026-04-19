@@ -210,11 +210,11 @@ async function delFamiliaConfig(id) {
   const f = familias.find(x => x.id === id); if (!f) return;
   const hijos = familias.filter(h => h.parent_id === id);
   if (hijos.length > 0) {
-    if (!confirm('Esta familia tiene ' + hijos.length + ' subfamilia(s). ¿Eliminar todo?')) return;
+    const ok = await confirmModal({titulo: 'Eliminar familia y subfamilias', mensaje: 'Esta familia tiene ' + hijos.length + ' subfamilia(s). ¿Eliminar todo?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
     // Eliminar hijos primero
     for (const h of hijos) { await sb.from('familias_articulos').delete().eq('id', h.id); }
   } else {
-    if (!confirm('¿Eliminar "' + f.nombre + '"?')) return;
+    const ok = await confirmModal({titulo: 'Eliminar familia', mensaje: '¿Eliminar "' + f.nombre + '"?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
   }
   await sb.from('familias_articulos').delete().eq('id', id);
   if (_cfgFamSelId === id) _cfgFamSelId = null;
@@ -222,7 +222,7 @@ async function delFamiliaConfig(id) {
 }
 
 async function delCfg(tabla,id,tipo) {
-  if(!confirm('¿Eliminar?'))return;
+  const ok = await confirmModal({titulo: 'Eliminar registro', mensaje: '¿Eliminar este registro?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
   await sb.from(tabla).delete().eq('id',id);
   await reloadCfg(tipo); toast('Eliminado','info');
 }
@@ -515,7 +515,7 @@ function _validarIBAN(iban) {
 }
 
 async function delCuentaBancaria(id) {
-  if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+  const ok = await confirmModal({titulo: 'Eliminar cuenta bancaria', mensaje: '¿Eliminar esta cuenta bancaria?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
   const { error } = await sb.from('cuentas_bancarias').delete().eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   toast('Cuenta eliminada', 'info');
@@ -815,7 +815,7 @@ async function setPredeterminadoCert(certId) {
 }
 
 async function eliminarCertificado(certId) {
-  if (!confirm('¿Eliminar este certificado? Los documentos ya firmados no se verán afectados.')) return;
+  const ok = await confirmModal({titulo: 'Eliminar certificado', mensaje: '¿Eliminar este certificado? Los documentos ya firmados no se verán afectados.', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
 
   // Obtener path para borrar de Storage
   const { data: cert } = await sb.from('certificados_digitales').select('archivo_path').eq('id', certId).single();
@@ -1835,7 +1835,7 @@ async function guardarCuentaCorreo() {
 }
 
 async function delCuentaCorreo(id) {
-  if (!confirm('¿Eliminar esta cuenta de correo?')) return;
+  const ok = await confirmModal({titulo: 'Eliminar cuenta de correo', mensaje: '¿Eliminar esta cuenta de correo?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626'}); if (!ok) return;
   const { error } = await sb.from('cuentas_correo').delete().eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   toast('Cuenta eliminada', 'success');

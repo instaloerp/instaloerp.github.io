@@ -1623,7 +1623,7 @@ async function validarParteCompleto(parteId) {
   if (matsFurgoneta.length) confirmMsg += `• Traspaso almacén → furgoneta (${matsFurgoneta.length} artículos)\n`;
   if (albaranesCompra.length) confirmMsg += `• ${albaranesCompra.length} albarán(es) de compra externa registrado(s)\n`;
   confirmMsg += '\n¿Continuar?';
-  if (!confirm(confirmMsg)) return;
+  const okValidar = await confirmModal({titulo:'Validar parte',mensaje:confirmMsg,btnOk:'Validar'}); if (!okValidar) return;
 
   try {
     // 1. Cambiar estado a revisado
@@ -1872,7 +1872,7 @@ async function generarTraspasoAlmacen(parte, materialesFurgoneta) {
 async function eliminarParte(id) {
   const parte = partesData.find(p => p.id === id);
   if (!parte) return;
-  if (!confirm(`¿Eliminar el parte ${parte.numero}? Esta acción no se puede deshacer.`)) return;
+  const okElim = await confirmModal({titulo:'Eliminar parte',mensaje:`¿Eliminar el parte ${parte.numero}?`,aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okElim) return;
 
   closeModal('dtlPartes');
 

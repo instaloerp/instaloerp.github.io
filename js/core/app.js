@@ -579,8 +579,8 @@ async function crearDatosIniciales(empId) {
   ]);
 }
 
-function forceCacheClear() {
-  if (!confirm('Se va a borrar la caché y recargar la aplicación.\n\n¿Continuar?')) return;
+async function forceCacheClear() {
+  const ok = await confirmModal({titulo:'Borrar caché',mensaje:'Se va a borrar la caché y recargar la aplicación.',btnOk:'Borrar y recargar',colorOk:'#dc2626'}); if (!ok) return;
   if ('caches' in window) { caches.keys().then(names => names.forEach(n => caches.delete(n))); }
   if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
   window.location.reload(true);

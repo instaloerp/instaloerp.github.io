@@ -125,8 +125,8 @@ function filtrarCliTipo(v) {
 
 // filtrarCliProv eliminado — provincia se busca desde el buscador general
 
-function exportarClientes() {
-  if (!confirm('¿Exportar ' + clientes.length + ' clientes a Excel?')) return;
+async function exportarClientes() {
+  const ok = await confirmModal({ titulo: 'Exportar clientes', mensaje: '¿Exportar ' + clientes.length + ' clientes a Excel?' }); if (!ok) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Nombre','Tipo','NIF/CIF','Teléfono','Móvil','Email','Dirección','Municipio','CP','Provincia','Observaciones'],
@@ -539,7 +539,7 @@ async function _guardarCuentaCli() {
 
   if (!iban) { toast('Introduce un IBAN', 'error'); return; }
   if (iban && typeof _validarIBAN === 'function' && !_validarIBAN(iban)) {
-    if (!confirm('El IBAN no parece válido. ¿Guardar igualmente?')) return;
+    const okIban = await confirmModal({ titulo: 'IBAN no válido', mensaje: 'El IBAN no parece válido. ¿Guardar igualmente?', icono: '⚠️' }); if (!okIban) return;
   }
 
   const cuentasExist = _getCuentasCli(cliActualId);
@@ -591,8 +591,9 @@ async function _guardarCuentaCli() {
 
   // Avisar sobre mandato SEPA para la nueva cuenta
   if (esNueva) {
-    setTimeout(() => {
-      if (confirm('Cuenta bancaria guardada.\n\n⚠️ Para adeudos directos (domiciliación) necesitas un mandato SEPA firmado.\n\n¿Gestionar mandato SEPA ahora?')) {
+    setTimeout(async () => {
+      const okSepa = await confirmModal({ titulo: 'Mandato SEPA', mensaje: 'Cuenta bancaria guardada.\n\nPara adeudos directos (domiciliación) necesitas un mandato SEPA firmado.\n\n¿Gestionar mandato SEPA ahora?', icono: '⚠️', btnOk: 'Gestionar mandato', btnCancel: 'Más tarde' });
+      if (okSepa) {
         const newCb = _getCuentasCli(cliActualId).find(cb => cb.iban === iban);
         if (newCb) _gestionarMandatoCuenta(newCb.id);
         else if (typeof generarMandatoSEPA === 'function') generarMandatoSEPA('cliente');
@@ -626,7 +627,7 @@ async function _setPredeterminadaCli(cbeId) {
 }
 
 async function _eliminarCuentaCli(cbeId) {
-  if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar cuenta bancaria', mensaje: '¿Eliminar esta cuenta bancaria?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('cuentas_bancarias_entidad').delete().eq('id', cbeId);
   cuentasBancariasEntidad = cuentasBancariasEntidad.filter(x => x.id !== cbeId);
   toast('Cuenta eliminada', 'info');
@@ -706,14 +707,14 @@ async function subirDocumento(input) {
 }
 
 async function eliminarDoc(id) {
-  if (!confirm('¿Eliminar documento?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar documento', mensaje: '¿Eliminar documento?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('documentos_cliente').delete().eq('id',id);
   await abrirFicha(cliActualId, 'documentos');
   toast('Documento eliminado','info');
 }
 
 async function eliminarNota(id) {
-  if (!confirm('¿Eliminar nota?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar nota', mensaje: '¿Eliminar nota?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('notas_cliente').delete().eq('id',id);
   await abrirFicha(cliActualId, 'notas');
   toast('Nota eliminada','info');
@@ -1132,7 +1133,7 @@ async function saveDireccion() {
 }
 
 async function delDireccion(id) {
-  if(!confirm('¿Eliminar dirección?'))return;
+  const ok = await confirmModal({ titulo: 'Eliminar dirección', mensaje: '¿Eliminar dirección?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('direcciones_cliente').delete().eq('id',id);
   await abrirFicha(cliActualId);
   toast('Eliminada','info');
@@ -1208,7 +1209,7 @@ async function saveCliente() {
 
   // Validar formato NIF (aviso, no bloquea)
   if (nif && !validarNIF(nif, tipo)) {
-    if (!confirm('El NIF/CIF no parece válido. ¿Guardar igualmente?')) return;
+    const okNif = await confirmModal({ titulo: 'NIF/CIF no válido', mensaje: 'El NIF/CIF no parece válido. ¿Guardar igualmente?', icono: '⚠️' }); if (!okNif) return;
   }
 
   const id = document.getElementById('c_id').value;
@@ -1378,14 +1379,14 @@ async function delCliente(id) {
     toast(`No se puede eliminar: cliente tiene ${cT||0} obras, ${cP||0} presup, ${cA||0} albaranes, ${cF||0} facturas vinculados`, 'error');
     return;
   }
-  if(!confirm('¿Eliminar cliente?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar cliente', mensaje: '¿Eliminar cliente?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('clientes').delete().eq('id',id);
   clientes = clientes.filter(c=>c.id!==id); renderClientes(clientes); loadDashboard();
   toast('Cliente eliminado','info');
 }
 
 async function delContacto(id) {
-  if(!confirm('¿Eliminar contacto?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar contacto', mensaje: '¿Eliminar contacto?', colorOk: '#dc2626', aviso: 'Esta acción no se puede deshacer' }); if (!ok) return;
   await sb.from('contactos_cliente').delete().eq('id', id);
   await abrirFicha(cliActualId);
   toast('Contacto eliminado','info');

@@ -148,7 +148,7 @@ async function cambiarEstadoAlb(id, estado) {
 //  ELIMINAR Y DUPLICAR
 // ═══════════════════════════════════════════════
 async function delAlbaran(id) {
-  if (!confirm('¿Eliminar este albarán?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar albarán', mensaje: '¿Eliminar este albarán?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626' }); if (!ok) return;
   await sb.from('albaranes').delete().eq('id', id);
   albaranesData = albaranesData.filter(x=>x.id!==id);
   abFiltrados = abFiltrados.filter(x=>x.id!==id);
@@ -189,7 +189,7 @@ async function albaranToFactura(id) {
     const _fD4 = window.facturasData || [];
     const _fAct4 = _fD4.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD4.some(r => r.rectificativa_de === f.id)));
     if (_fAct4.some(f=>f.albaran_id===a.id) || (a.presupuesto_id && _fAct4.some(f=>f.presupuesto_id===a.presupuesto_id))) { toast('🔒 Este albarán ya tiene factura','error'); return; }
-    if (!confirm('¿Crear borrador de factura desde el albarán '+a.numero+'?')) return;
+    const ok = await confirmModal({ titulo: 'Crear factura', mensaje: '¿Crear borrador de factura desde el albarán '+a.numero+'?' }); if (!ok) return;
     const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Asignar trabajo_id si el albarán pertenece a una obra
@@ -323,10 +323,10 @@ async function editarAlbaran(id) {
 // ═══════════════════════════════════════════════
 //  EXPORTAR
 // ═══════════════════════════════════════════════
-function exportarAlbaranes() {
+async function exportarAlbaranes() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
   const lista = abFiltrados.length ? abFiltrados : albaranesData;
-  if (!confirm('¿Exportar ' + lista.length + ' albaranes a Excel?')) return;
+  const ok = await confirmModal({ titulo: 'Exportar albaranes', mensaje: '¿Exportar ' + lista.length + ' albaranes a Excel?' }); if (!ok) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Referencia','Fecha','Total','Estado'],
@@ -379,7 +379,7 @@ async function facturarAlbaranesMulti() {
     if (clienteIds.size > 1) { toast('Todos los albaranes deben ser del mismo cliente','error'); return; }
 
     const nums = albs.map(a => a.numero).join(', ');
-    if (!confirm(`¿Crear una factura agrupando ${albs.length} albaranes?\n\n${nums}`)) return;
+    const ok = await confirmModal({ titulo: 'Facturar albaranes agrupados', mensaje: `¿Crear una factura agrupando ${albs.length} albaranes?\n\n${nums}` }); if (!ok) return;
 
     // Combinar líneas con referencia al albarán
     let lineasTodas = [];
@@ -438,7 +438,7 @@ async function albaranToObra(id) {
     if (a.trabajo_id && (typeof trabajos !== 'undefined') && trabajos.some(t=>t.id===a.trabajo_id)) {
       toast('🔒 Este albarán ya tiene obra vinculada','error'); return;
     }
-    if (!confirm(`¿Crear obra desde el albarán ${a.numero}?`)) return;
+    const ok = await confirmModal({ titulo: 'Crear obra', mensaje: `¿Crear obra desde el albarán ${a.numero}?` }); if (!ok) return;
     const c = clientes.find(x=>x.id===a.cliente_id);
     const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
     // Calcular número de obra correcto (max existente + 1)

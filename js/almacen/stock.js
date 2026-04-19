@@ -486,7 +486,7 @@ function _updateCalcMinResumen() {
 async function aplicarMinimosCalculados() {
   const cambios = _calcMinData.filter(d => d.aplicar && (d.minimo_sugerido !== d.minimo_actual || d.maximo_sugerido !== d.maximo_actual));
   if (!cambios.length) { toast('No hay cambios que aplicar', 'warning'); return; }
-  if (!confirm(`¿Aplicar stock mínimo/máximo a ${cambios.length} artículo(s)?`)) return;
+  const ok = await confirmModal({titulo:'Aplicar mínimos/máximos',mensaje:`¿Aplicar stock mínimo/máximo a ${cambios.length} artículo(s)?`,btnOk:'Aplicar'}); if (!ok) return;
 
   toast(`🔄 Aplicando ${cambios.length} mínimos/máximos...`, 'info');
   let ok = 0, errores = 0;

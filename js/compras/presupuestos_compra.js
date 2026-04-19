@@ -271,12 +271,12 @@ function actualizarKpisPrc() {
 // ACCIONES RÁPIDAS
 // ═══════════════════════════════════════════════
 async function prcAceptar(id) {
-  if (!confirm('¿Aceptar este presupuesto de compra?')) return;
+  const ok = await confirmModal({titulo:'Aceptar presupuesto',mensaje:'¿Aceptar este presupuesto de compra?',btnOk:'Aceptar'}); if (!ok) return;
   await cambiarEstadoPrc(id, 'aceptado');
 }
 
 async function prcReactivar(id) {
-  if (!confirm('¿Reactivar este presupuesto? Se volverá a poner como pendiente.')) return;
+  const okR = await confirmModal({titulo:'Reactivar presupuesto',mensaje:'¿Reactivar este presupuesto? Se volverá a poner como pendiente.',btnOk:'Reactivar'}); if (!okR) return;
   // Extender validez 30 días
   const v = new Date(); v.setDate(v.getDate() + 30);
   await sb.from('presupuestos_compra').update({estado:'pendiente', valido_hasta: v.toISOString().split('T')[0]}).eq('id', id);
@@ -650,7 +650,7 @@ async function cambiarEstadoPrc(id, nuevoEstado) {
 // ELIMINAR
 // ═══════════════════════════════════════════════
 async function eliminarPresupuestoCompra(id) {
-  if (!confirm('¿Eliminar presupuesto de compra?')) return;
+  const okDel = await confirmModal({titulo:'Eliminar presupuesto',mensaje:'¿Eliminar este presupuesto de compra?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okDel) return;
   await sb.from('presupuestos_compra').delete().eq('id', id);
   presupuestosCompra = presupuestosCompra.filter(p => p.id !== id);
   filtrarPresupuestosCompra();
@@ -661,10 +661,10 @@ async function eliminarPresupuestoCompra(id) {
 // ═══════════════════════════════════════════════
 // EXPORTAR
 // ═══════════════════════════════════════════════
-function exportPresupuestosCompra() {
+async function exportPresupuestosCompra() {
   const data = prcFiltrados.length ? prcFiltrados : presupuestosCompra;
   if (!data.length) { toast('No hay datos para exportar', 'info'); return; }
-  if (!confirm(`¿Exportar ${data.length} presupuesto(s) de compra a Excel?`)) return;
+  const okExp = await confirmModal({titulo:'Exportar',mensaje:`¿Exportar ${data.length} presupuesto(s) de compra a Excel?`,btnOk:'Exportar'}); if (!okExp) return;
   const rows = data.map(p => ({
     'Número': p.numero,
     'Fecha': p.fecha,
@@ -693,7 +693,7 @@ async function prcToPedido(id) {
     const p = presupuestosCompra.find(x => x.id === id);
     if (!p) return;
     if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
-    if (!confirm(`¿Crear pedido de compra desde ${p.numero}?`)) return;
+    const okPed = await confirmModal({titulo:'Crear pedido',mensaje:`¿Crear pedido de compra desde ${p.numero}?`,btnOk:'Crear pedido'}); if (!okPed) return;
     const numero = await generarNumeroDoc('pedido_compra');
     const { error } = await sb.from('pedidos_compra').insert({
       empresa_id: EMPRESA.id, numero,
@@ -725,7 +725,7 @@ async function prcToRecepcion(id) {
     const p = presupuestosCompra.find(x => x.id === id);
     if (!p) return;
     if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
-    if (!confirm(`¿Crear albarán de proveedor desde ${p.numero}?`)) return;
+    const okAlb = await confirmModal({titulo:'Crear albarán',mensaje:`¿Crear albarán de proveedor desde ${p.numero}?`,btnOk:'Crear albarán'}); if (!okAlb) return;
     const numero = await generarNumeroDoc('recepcion');
     const lineas = (p.lineas || []).map(l => ({
       ...l, cantidad_pedida: l.cant || l.cantidad || 0, cantidad_recibida: 0
@@ -759,7 +759,7 @@ async function prcToFacturaProv(id) {
     const p = presupuestosCompra.find(x => x.id === id);
     if (!p) return;
     if (p.exportado_bloqueado) { toast('🔒 Este presupuesto ya fue exportado a '+p.exportado_a,'error'); return; }
-    if (!confirm(`¿Crear factura de proveedor desde ${p.numero}?`)) return;
+    const okFact = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear factura de proveedor desde ${p.numero}?`,btnOk:'Crear factura'}); if (!okFact) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const venc = new Date(); venc.setDate(venc.getDate() + 30);
     const { error } = await sb.from('facturas_proveedor').insert({

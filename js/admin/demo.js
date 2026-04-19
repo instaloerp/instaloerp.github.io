@@ -319,7 +319,7 @@ async function runDemo() {
 
 // Limpiar datos de demo
 async function limpiarDemo() {
-  if (!confirm('¿Eliminar TODOS los datos creados por la demo? (artículos DEMO-*, proveedor, cliente, documentos)')) return;
+  const ok = await confirmModal({titulo:'Limpiar demo',mensaje:'¿Eliminar TODOS los datos creados por la demo?',aviso:'Se borrarán artículos DEMO-*, proveedor, cliente y documentos de demo',btnOk:'Eliminar todo',colorOk:'#dc2626'}); if (!ok) return;
   const eid = EMPRESA.id;
   toast('🗑️ Limpiando datos demo...', 'info');
 

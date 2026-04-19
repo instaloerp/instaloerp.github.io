@@ -312,7 +312,7 @@ async function de_desbloquearExportado() {
   const cfg = deConfig;
   if (!cfg.editId) return;
   const destino = cfg._exportado_a || 'otro documento';
-  if (!confirm(`⚠️ SUPERADMIN: ¿Desbloquear este ${cfg.tipo}?\n\nFue exportado a "${destino}". Al desbloquearlo podrás editarlo y volver a exportarlo.\n\n¿Continuar?`)) return;
+  const okDesb = await confirmModal({titulo:'Desbloquear documento',mensaje:`¿Desbloquear este ${cfg.tipo}?`,aviso:`Fue exportado a "${destino}". Al desbloquearlo podrás editarlo y volver a exportarlo.`,btnOk:'Desbloquear',colorOk:'#dc2626'}); if (!okDesb) return;
   const { error } = await sb.from(cfg.tabla).update({ exportado_bloqueado: false, exportado_a: null }).eq('id', cfg.editId);
   if (error) { toast('Error: '+error.message,'error'); return; }
   toast('🔓 Documento desbloqueado por superadmin','success');

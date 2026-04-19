@@ -502,7 +502,7 @@ async function editarPresupuesto(id) {
 //  ELIMINAR Y RESTAURAR
 // ═══════════════════════════════════════════════
 async function delPresupuesto(id) {
-  if (!confirm('¿Anular este presupuesto? Se marcará como anulado y no se eliminará.')) return;
+  const ok = await confirmModal({titulo: 'Anular presupuesto', mensaje: '¿Anular este presupuesto? Se marcará como anulado y no se eliminará.', icono: '🚫', colorOk: '#dc2626'}); if (!ok) return;
   const p = presupuestos.find(x=>x.id===id);
   const { error } = await sb.from('presupuestos').update({estado:'anulado'}).eq('id', id);
   if (error) { toast('Error: '+error.message,'error'); return; }
@@ -516,10 +516,11 @@ async function delPresupuesto(id) {
 async function restaurarEstadoPres(id, nuevoEstado, fromEditor) {
   const p = presupuestos.find(x=>x.id===id);
   const esCaducado = p?.estado === 'caducado';
-  const msg = esCaducado
-    ? '♻️ Reactivar presupuesto '+(p?.numero||'')+'?\n\nSe extenderá la fecha de validez 15 días desde hoy y volverá a estado "pendiente".'
+  const titulo = esCaducado ? 'Reactivar presupuesto' : 'Restaurar presupuesto';
+  const mensaje = esCaducado
+    ? 'Reactivar presupuesto '+(p?.numero||'')+'?\n\nSe extenderá la fecha de validez 15 días desde hoy y volverá a estado "pendiente".'
     : '¿Restaurar este presupuesto a estado "'+nuevoEstado+'"?';
-  if (!confirm(msg)) return;
+  const ok = await confirmModal({titulo, mensaje, icono: '♻️'}); if (!ok) return;
 
   const updateData = {estado: nuevoEstado};
   if (esCaducado) {
@@ -558,12 +559,12 @@ async function eliminarDefinitivamente(id) {
     if (r3.data?.length) vinculados.push(...r3.data.map(d=>({tabla:'trabajos',id:d.id,num:d.numero,label:'Obra'})));
   } catch(e) { console.warn('Error checking vinculados:', e); }
 
-  let msg = '⚠️ ELIMINAR DEFINITIVAMENTE el presupuesto '+(p?.numero||id)+'?\n\n⛔ Esta acción NO se puede deshacer.\nEl documento se eliminará permanentemente del sistema.';
+  let mensaje = 'El presupuesto '+(p?.numero||id)+' se eliminará permanentemente del sistema.';
   if (vinculados.length) {
     const lista = vinculados.map(v=>v.label+' '+v.num).join(', ');
-    msg += '\n\n🔗 Docs vinculados que también se eliminarán:\n'+lista;
+    mensaje += '\n\nDocs vinculados que también se eliminarán:\n'+lista;
   }
-  if (!confirm(msg)) return;
+  const ok = await confirmModal({titulo: 'Eliminar definitivamente', mensaje, icono: '⛔', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626', btnOk: 'Eliminar'}); if (!ok) return;
 
   for (const v of vinculados) {
     const { error: vErr } = await sb.from(v.tabla).update({estado:'eliminado'}).eq('id', v.id);
@@ -660,7 +661,7 @@ async function abrirVersionEnEditor(presId, versionId) {
 async function restaurarVersionDirecta(presId, versionId) {
   const { data: v } = await sb.from('presupuesto_versiones').select('version').eq('id', versionId).single();
   if (!v) { toast('Error','error'); return; }
-  if (!confirm('¿Restaurar v'+v.version+'?\n\nSe abrirá el editor con los datos de esa versión. Debes pulsar "Guardar" para que los cambios se apliquen (se creará una versión nueva).')) return;
+  const ok = await confirmModal({titulo: 'Restaurar versión', mensaje: '¿Restaurar v'+v.version+'?\n\nSe abrirá el editor con los datos de esa versión. Debes pulsar "Guardar" para que los cambios se apliquen (se creará una versión nueva).', icono: '♻️'}); if (!ok) return;
   await abrirEditor('presupuesto', presId);
   setTimeout(async () => {
     if (typeof de_restaurarVersion === 'function') {
@@ -672,10 +673,10 @@ async function restaurarVersionDirecta(presId, versionId) {
 // ═══════════════════════════════════════════════
 //  EXPORTAR
 // ═══════════════════════════════════════════════
-function exportarPresupuestos() {
+async function exportarPresupuestos() {
   if (!window.XLSX) { toast('Cargando...','info'); return; }
   const lista = presFiltrados.length ? presFiltrados : presupuestos;
-  if (!confirm('¿Exportar ' + lista.length + ' presupuestos a Excel?')) return;
+  const ok = await confirmModal({titulo: 'Exportar a Excel', mensaje: '¿Exportar ' + lista.length + ' presupuestos a Excel?', icono: '📊'}); if (!ok) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número','Cliente','Título','Fecha','Válido hasta','Total','Estado'],
@@ -704,7 +705,7 @@ async function presToFactura(id) {
     const _albsP = _aD.filter(a=>a.presupuesto_id===p.id);
     const yaFacturado = _fActivas.some(f=>f.presupuesto_id===p.id) || _albsP.some(a=>_fActivas.some(f=>f.albaran_id===a.id));
     if (yaFacturado) { toast('🔒 Este presupuesto ya tiene factura','error'); return; }
-    if (!confirm('¿Crear borrador de factura desde '+p.numero+'?')) return;
+    const ok = await confirmModal({titulo: 'Crear factura', mensaje: '¿Crear borrador de factura desde '+p.numero+'?', icono: '📄'}); if (!ok) return;
     const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
@@ -763,7 +764,7 @@ async function presToAlbaran(id) {
     if (_aD2.some(a=>a.presupuesto_id===p.id && a.estado!=='anulado')) { toast('🔒 Este presupuesto ya tiene albarán','error'); return; }
     const _fActivas6 = _fD6.filter(f => !f.rectificativa_de && !(f.estado === 'anulada' && _fD6.some(r => r.rectificativa_de === f.id)));
     if (_fActivas6.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
-    if (!confirm('¿Crear albarán desde el presupuesto '+p.numero+'?')) return;
+    const ok = await confirmModal({titulo: 'Crear albarán', mensaje: '¿Crear albarán desde el presupuesto '+p.numero+'?', icono: '📦'}); if (!ok) return;
     const numero = await generarNumeroDoc('albaran');
     const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
       desc:l.desc||'', cant:l.cant||1, precio:l.precio||0
@@ -812,7 +813,7 @@ async function presToObra(id) {
     if (!p) return;
     // Comprobar si ya tiene obra
     if (trabajos.some(t=>t.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene obra','error'); return; }
-    if (!confirm('¿Crear obra desde el presupuesto '+p.numero+'?')) return;
+    const ok = await confirmModal({titulo: 'Crear obra', mensaje: '¿Crear obra desde el presupuesto '+p.numero+'?', icono: '🏗️'}); if (!ok) return;
     const c = clientes.find(x=>x.id===p.cliente_id);
     const dirParts = [c?.direccion_fiscal||c?.direccion, c?.cp_fiscal||c?.cp, c?.municipio_fiscal||c?.municipio, c?.provincia_fiscal||c?.provincia].filter(Boolean).join(', ');
     const yr = new Date().getFullYear();
@@ -947,7 +948,7 @@ async function enviarEnlaceFirmaEmail(presId, firmaUrl) {
 async function aprobarDirecto() {
   const presId = parseInt(document.getElementById('aprobarPresId').value);
   if (!presId) return;
-  if (!confirm('¿Aprobar sin documento firmado?')) return;
+  const ok = await confirmModal({titulo: 'Aprobar sin documento', mensaje: '¿Aprobar sin documento firmado?', icono: '✅'}); if (!ok) return;
   await _completarAprobacion(presId, null, 'Aprobado sin documento');
 }
 

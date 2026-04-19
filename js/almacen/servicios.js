@@ -474,7 +474,7 @@ async function _saveServicioLineas(servicioId) {
 
 // ── Eliminar servicio ──
 async function delServicio(id) {
-  if (!confirm('¿Eliminar este servicio?')) return;
+  const ok = await confirmModal({titulo:'Eliminar servicio',mensaje:'¿Eliminar este servicio?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   toast('Eliminando...');
   try {
     await sb.from('servicio_lineas').delete().eq('servicio_id', id);

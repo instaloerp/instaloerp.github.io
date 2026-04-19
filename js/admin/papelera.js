@@ -143,7 +143,7 @@ async function verEliminado(tabla, id) {
 async function restaurarEliminado(tabla, id, numero) {
   if (!CP?.es_superadmin) { toast('Solo superadmin','error'); return; }
   const nuevoEstado = (tabla==='presupuestos') ? 'anulado' : 'pendiente';
-  if (!confirm('♻️ Restaurar '+numero+'?\n\nSe restaurará con estado "'+nuevoEstado+'"')) return;
+  const ok = await confirmModal({titulo:'Restaurar',mensaje:`¿Restaurar ${numero}?`,aviso:`Se restaurará con estado "${nuevoEstado}"`,btnOk:'Restaurar'}); if (!ok) return;
   const { error } = await sb.from(tabla).update({estado: nuevoEstado}).eq('id', id);
   if (error) { toast('Error: '+error.message,'error'); return; }
   registrarAudit('restaurar', tabla.replace(/s$/,''), id, 'Restaurado desde papelera: '+numero+' → '+nuevoEstado);

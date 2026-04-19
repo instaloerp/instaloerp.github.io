@@ -602,7 +602,7 @@ async function pedidoToRecepcion(id) {
 // ELIMINAR PEDIDO
 // ═══════════════════════════════════════════════
 async function delPedidoCompra(id) {
-  if (!confirm('¿Eliminar pedido de compra?')) return;
+  const ok = await confirmModal({titulo:'Eliminar pedido',mensaje:'¿Eliminar este pedido de compra?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('pedidos_compra').delete().eq('id', id);
   pedidosCompra = pedidosCompra.filter(p => p.id !== id);
   renderPedidosCompra(pedidosCompra);
@@ -634,7 +634,7 @@ async function pedidoToFacturaProv(id) {
     const pc = pedidosCompra.find(x => x.id === id);
     if (!pc) return;
     if (pc.exportado_bloqueado) { toast('🔒 Este pedido ya fue exportado a '+pc.exportado_a,'error'); return; }
-    if (!confirm(`¿Crear factura de proveedor desde el pedido ${pc.numero}?`)) return;
+    const okFact = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear factura de proveedor desde el pedido ${pc.numero}?`,btnOk:'Crear factura'}); if (!okFact) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
     const { error } = await sb.from('facturas_proveedor').insert({

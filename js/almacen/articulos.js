@@ -538,7 +538,7 @@ async function saveArticulo() {
 
 // ─── ELIMINAR ──────────────────────────────────
 async function delArticulo(id) {
-  if (!confirm('¿Eliminar este artículo y todos sus datos asociados?')) return;
+  const ok = await confirmModal({titulo:'Eliminar artículo',mensaje:'¿Eliminar este artículo y todos sus datos asociados?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('articulos').delete().eq('id', id);
   articulos = articulos.filter(a => String(a.id) !== String(id));
   filtrarArticulos();
@@ -741,7 +741,7 @@ async function saveArtProveedor() {
 }
 
 async function delArtProveedor(id) {
-  if (!confirm('¿Eliminar este proveedor del artículo?')) return;
+  const okProv = await confirmModal({titulo:'Eliminar proveedor',mensaje:'¿Eliminar este proveedor del artículo?',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okProv) return;
   await sb.from('articulos_proveedores').delete().eq('id', id);
   const artId = document.getElementById('art_id').value;
   _invalidarArtProvMap(); // Actualizar columna de proveedor en la lista
@@ -876,7 +876,7 @@ async function saveArtHistorial() {
 }
 
 async function delArtHistorial(id) {
-  if (!confirm('¿Eliminar este registro?')) return;
+  const okHist = await confirmModal({titulo:'Eliminar registro',mensaje:'¿Eliminar este registro?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okHist) return;
   await sb.from('articulos_historial').delete().eq('id', id);
   const artId = document.getElementById('art_id').value;
   await loadArtHistorial(artId);
@@ -994,7 +994,7 @@ function fileToDataUrl(file) {
 
 async function exportarArticulosExcel() {
   const lista = artFiltrados.length ? artFiltrados : articulos;
-  if (!confirm('¿Exportar ' + lista.length + ' artículos a Excel?')) return;
+  const okExp = await confirmModal({titulo:'Exportar',mensaje:`¿Exportar ${lista.length} artículos a Excel?`,btnOk:'Exportar'}); if (!okExp) return;
 
   // Cargar proveedores por artículo con detalle completo
   toast('Preparando exportación…', 'info');

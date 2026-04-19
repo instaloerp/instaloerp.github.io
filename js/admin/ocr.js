@@ -624,7 +624,7 @@ function ocrVerVinculado(id) {
 
 // ─── Eliminar documento OCR ───
 async function ocrEliminar(id) {
-  if (!confirm('¿Eliminar este documento OCR?')) return;
+  const okDel = await confirmModal({titulo:'Eliminar documento OCR',mensaje:'¿Eliminar este documento OCR?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okDel) return;
 
   // 1. Borrado optimista: quitar de la cache local y re-renderizar YA (sin esperar a la DB)
   _ocrDocs = _ocrDocs.filter(d => d.id !== id);
@@ -1013,7 +1013,7 @@ async function _ocrConfirmarValidacion() {
   const tipoLabels = {factura:'factura',albaran:'albarán',pedido:'pedido',presupuesto:'presupuesto'};
   const tipoLabel = tipoLabels[tipoDoc] || 'albarán';
   const seleccionados = ediciones.filter(e => e.seleccionado).length;
-  if (!confirm(`¿Confirmar la validación?\n\n• Se procesarán ${seleccionados} de ${materiales.length} artículo(s)\n• Se generará ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}\n• Se crearán artículos/proveedor nuevos si no existen`)) {
+  const okVal = await confirmModal({titulo:'Confirmar validación',mensaje:`Se procesarán ${seleccionados} de ${materiales.length} artículo(s).\nSe generará ${tipoLabel} de proveedor nº ${numDocEdit || '(auto)'}.\nSe crearán artículos/proveedor nuevos si no existen.`,btnOk:'Validar'}); if (!okVal) {
     if (btn) { btn.disabled = false; btn.textContent = '✅ Validar, confirmar stock y generar documento'; }
     return;
   }

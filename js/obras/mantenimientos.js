@@ -469,7 +469,7 @@ async function saveMantenimiento() {
 }
 
 async function delMantenimiento(id) {
-  if (!confirm('¿Eliminar mantenimiento?')) return;
+  const ok = await confirmModal({titulo:'Eliminar mantenimiento',mensaje:'¿Eliminar este mantenimiento?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('mantenimientos').delete().eq('id', id);
   mantenimientos = mantenimientos.filter(m=>m.id!==id);
   filtrarMantenimientos();
@@ -488,7 +488,7 @@ async function generarParteMant() {
 async function generarParteDesdeLista(mantId) {
   const m = mantenimientos.find(x=>x.id===mantId);
   if (!m) return;
-  if (!confirm(`¿Generar parte de trabajo para "${m.equipo}"?\nSe cargará el checklist con ${(m.checklist||[]).length} tareas.`)) return;
+  const okParte = await confirmModal({titulo:'Generar parte',mensaje:`¿Generar parte de trabajo para "${m.equipo}"?`,aviso:`Se cargará el checklist con ${(m.checklist||[]).length} tareas`,btnOk:'Generar parte'}); if (!okParte) return;
 
   // Crear parte de trabajo vinculado al mantenimiento
   const numParte = `PRT-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
@@ -571,7 +571,7 @@ async function guardarNotaMant() {
 }
 
 async function eliminarNotaMant(id) {
-  if (!confirm('¿Eliminar nota?')) return;
+  const okNota = await confirmModal({titulo:'Eliminar nota',mensaje:'¿Eliminar esta nota?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okNota) return;
   await sb.from('notas_mantenimiento').delete().eq('id', id);
   await abrirFichaMant(mantActualId);
   mantTab('notas');
@@ -605,7 +605,7 @@ async function subirDocMant(input) {
 }
 
 async function eliminarDocMant(id) {
-  if (!confirm('¿Eliminar documento?')) return;
+  const okDoc = await confirmModal({titulo:'Eliminar documento',mensaje:'¿Eliminar este documento?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okDoc) return;
   await sb.from('documentos_mantenimiento').delete().eq('id', id);
   await abrirFichaMant(mantActualId);
   mantTab('documentos');
@@ -615,10 +615,10 @@ async function eliminarDocMant(id) {
 // ═══════════════════════════════════════════════
 // EXPORTAR
 // ═══════════════════════════════════════════════
-function exportarMantenimientos() {
+async function exportarMantenimientos() {
   const data = mtFiltrados.length ? mtFiltrados : mantenimientos;
   if (!data.length) { toast('No hay datos','info'); return; }
-  if (!confirm(`¿Exportar ${data.length} mantenimiento(s) a Excel?`)) return;
+  const okExp = await confirmModal({titulo:'Exportar',mensaje:`¿Exportar ${data.length} mantenimiento(s) a Excel?`,btnOk:'Exportar'}); if (!okExp) return;
   const rows = data.map(m => ({
     'Número': m.numero,
     'Cliente': m.cliente_nombre,

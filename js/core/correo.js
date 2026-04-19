@@ -1120,7 +1120,7 @@ async function guardarBorradorCorreo() {
 //  ELIMINAR CORREO
 // ═══════════════════════════════════════════════
 async function eliminarCorreo(id) {
-  if (!confirm('¿Eliminar este correo?')) return;
+  const ok = await confirmModal({titulo:'Eliminar correo',mensaje:'¿Eliminar este correo?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   try {
     await sb.from('correos').delete().eq('id', id);
     correos = correos.filter(c => c.id !== id);

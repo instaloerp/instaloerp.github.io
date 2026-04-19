@@ -147,7 +147,7 @@ async function deleteAlmacen() {
   const id = document.getElementById('alm_id').value;
   if (!id) return;
   const a = almacenes.find(x => x.id == id);
-  if (!confirm(`¿Eliminar "${a?.nombre}"?\n\nEsto no se puede deshacer.`)) return;
+  const ok = await confirmModal({titulo:'Eliminar almacén',mensaje:`¿Eliminar "${a?.nombre}"?`,aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   const { error } = await sb.from('almacenes').delete().eq('id', id);
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   closeModal('mAlmacen');

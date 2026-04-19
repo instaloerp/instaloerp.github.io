@@ -272,7 +272,7 @@ async function marcarPreparado(traspId) {
   if (!id) return;
   const trasp = traspasosData.find(t => t.id === id);
   if (!trasp || trasp.estado !== 'pendiente') { toast('Solo se pueden preparar traspasos pendientes','warning'); return; }
-  if (!confirm('¿Marcar como Preparado? El material se descuenta del central y se deja en la estantería del operario.')) return;
+  const okPrep = await confirmModal({titulo:'Marcar preparado',mensaje:'¿Marcar como Preparado?',aviso:'El material se descuenta del central y se deja en la estantería del operario',btnOk:'Marcar preparado'}); if (!okPrep) return;
 
   try {
     // Al marcar en tránsito: restamos del central (sale el material)
@@ -315,7 +315,7 @@ async function completarTraspaso(traspId) {
   if (!trasp) return;
 
   if (trasp.estado === 'completado') { toast('Ya está completado','warning'); return; }
-  if (!confirm('¿Completar traspaso? Se sumará el stock en el almacén destino.')) return;
+  const okComp = await confirmModal({titulo:'Completar traspaso',mensaje:'¿Completar traspaso?',aviso:'Se sumará el stock en el almacén destino',btnOk:'Completar'}); if (!okComp) return;
 
   try {
     const yaDescontadoOrigen = (trasp.estado === 'preparado');
@@ -387,7 +387,7 @@ async function anularTraspaso(traspId) {
   const trasp = traspasosData.find(t => t.id === id);
   if (!trasp) return;
   if (trasp.estado === 'completado') { toast('No se puede anular un traspaso completado','warning'); return; }
-  if (!confirm('¿Anular este traspaso?')) return;
+  const okAnul = await confirmModal({titulo:'Anular traspaso',mensaje:'¿Anular este traspaso?',aviso:'Si estaba preparado, se devolverá el stock al origen',btnOk:'Anular',colorOk:'#dc2626'}); if (!okAnul) return;
 
   try {
     // Si estaba en tránsito, devolver stock al origen
@@ -426,7 +426,7 @@ async function anularTraspaso(traspId) {
 
 // Borrar traspaso
 async function delTraspaso(traspId) {
-  if (!confirm('¿Borrar este traspaso? Esta acción no se puede deshacer.')) return;
+  const okDel = await confirmModal({titulo:'Borrar traspaso',mensaje:'¿Borrar este traspaso?',aviso:'Esta acción no se puede deshacer',btnOk:'Borrar',colorOk:'#dc2626'}); if (!okDel) return;
 
   try {
     await sb.from('traspasos').delete().eq('id', traspId);

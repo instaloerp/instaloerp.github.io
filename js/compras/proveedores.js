@@ -76,7 +76,7 @@ async function saveProveedor() {
 }
 
 async function delProv(id) {
-  if(!confirm('¿Eliminar proveedor?'))return;
+  const ok = await confirmModal({titulo:'Eliminar proveedor',mensaje:'¿Eliminar este proveedor?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('proveedores').delete().eq('id',id);
   proveedores=proveedores.filter(p=>p.id!==id); renderProveedores(proveedores);
   if (provActualId === id) setProvVista('lista');
@@ -208,7 +208,7 @@ async function _guardarCuentaProv() {
 
   if (!iban) { toast('Introduce un IBAN', 'error'); return; }
   if (iban && typeof _validarIBAN === 'function' && !_validarIBAN(iban)) {
-    if (!confirm('El IBAN no parece válido. ¿Guardar igualmente?')) return;
+    const okIban = await confirmModal({titulo:'IBAN no válido',mensaje:'El IBAN no parece válido. ¿Guardar igualmente?',aviso:'Verifica el IBAN antes de continuar',btnOk:'Guardar igualmente',colorOk:'#dc2626'}); if (!okIban) return;
   }
 
   const cuentasExist = _getCuentasProv(provActualId);
@@ -243,10 +243,9 @@ async function _guardarCuentaProv() {
   _renderFichaProvBanco(p);
 
   if (esNueva) {
-    setTimeout(() => {
-      if (confirm('Cuenta bancaria guardada.\n\n⚠️ Para autorizar adeudos directos necesitas un mandato SEPA.\n\n¿Gestionar mandato SEPA ahora?')) {
-        if (typeof generarMandatoSEPA === 'function') generarMandatoSEPA('proveedor');
-      }
+    setTimeout(async () => {
+      const okSepa = await confirmModal({titulo:'Mandato SEPA',mensaje:'Cuenta bancaria guardada.\n\nPara autorizar adeudos directos necesitas un mandato SEPA.',btnOk:'Gestionar mandato SEPA',btnCancel:'Ahora no'});
+      if (okSepa && typeof generarMandatoSEPA === 'function') generarMandatoSEPA('proveedor');
     }, 300);
   }
 }
@@ -273,7 +272,7 @@ async function _setPredeterminadaProv(cbeId) {
 }
 
 async function _eliminarCuentaProv(cbeId) {
-  if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+  const okElim = await confirmModal({titulo:'Eliminar cuenta',mensaje:'¿Eliminar esta cuenta bancaria?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!okElim) return;
   await sb.from('cuentas_bancarias_entidad').delete().eq('id', cbeId);
   cuentasBancariasEntidad = cuentasBancariasEntidad.filter(x => x.id !== cbeId);
   toast('Cuenta eliminada', 'info');

@@ -243,7 +243,7 @@ function editUsuario(uid) {
 }
 
 async function delUsuario(id) {
-  if(!confirm('¿Eliminar usuario?'))return;
+  const ok = await confirmModal({titulo:'Eliminar usuario',mensaje:'¿Eliminar este usuario?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('perfiles').delete().eq('id',id);
   await loadUsuarios();
   toast('Usuario eliminado','info');

@@ -347,7 +347,7 @@ async function _labFichajeCrear() {
 }
 
 async function _labFichajeBorrarHoy() {
-  if (!confirm('¿Borrar TODOS los fichajes de HOY marcados como [TEST LAB]?\n\nSolo se eliminarán los registros con observaciones=[TEST LAB]')) return;
+  const okLab = await confirmModal({titulo:'Borrar fichajes TEST',mensaje:'¿Borrar TODOS los fichajes de HOY marcados como [TEST LAB]?',aviso:'Solo se eliminarán los registros con observaciones=[TEST LAB]',btnOk:'Borrar',colorOk:'#dc2626'}); if (!okLab) return;
 
   const hoy = new Date().toISOString().split('T')[0];
   const { error } = await sb.from('fichajes')

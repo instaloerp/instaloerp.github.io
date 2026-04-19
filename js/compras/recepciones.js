@@ -888,7 +888,7 @@ async function _confirmarIncidencia() {
 // ELIMINAR RECEPCIÓN
 // ═══════════════════════════════════════════════
 async function delRecepcion(id) {
-  if (!confirm('¿Eliminar albarán?')) return;
+  const ok = await confirmModal({titulo:'Eliminar albarán',mensaje:'¿Eliminar este albarán de proveedor?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('recepciones').delete().eq('id', id);
   recepciones = recepciones.filter(r => r.id !== id);
   renderRecepciones(recepciones);
@@ -920,7 +920,7 @@ async function recepcionToFacturaProv(id) {
     const r = recepciones.find(x => x.id === id);
     if (!r) return;
     if (r.exportado_bloqueado) { toast('🔒 Este albarán ya fue exportado a factura','error'); return; }
-    if (!confirm(`¿Crear factura de proveedor desde el albarán ${r.numero}?`)) return;
+    const okFact = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear factura de proveedor desde el albarán ${r.numero}?`,btnOk:'Crear factura'}); if (!okFact) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
     const total = r.lineas ? r.lineas.reduce((s, l) => {const bruto=(l.cantidad_recibida||l.cant||0)*(l.precio||0);return s+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : (r.total || 0);
@@ -964,7 +964,7 @@ async function facturarRecepcionesMulti() {
     if (provIds.size > 1) { toast('Los albaranes deben ser del mismo proveedor', 'error'); return; }
 
     const nums = recs.map(r => r.numero).join(', ');
-    if (!confirm(`¿Crear una factura agrupando ${recs.length} albaranes proveedor?\n\n${nums}`)) return;
+    const okAgrp = await confirmModal({titulo:'Agrupar en factura',mensaje:`¿Crear una factura agrupando ${recs.length} albaranes proveedor?`,aviso:nums,btnOk:'Crear factura'}); if (!okAgrp) return;
 
     let lineasTodas = [];
     let totalGlobal = 0;

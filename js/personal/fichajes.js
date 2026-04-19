@@ -379,7 +379,7 @@ async function saveFichaje() {
 }
 
 async function delFichaje(id) {
-  if (!confirm('¿Eliminar fichaje?')) return;
+  const ok = await confirmModal({titulo:'Eliminar fichaje',mensaje:'¿Eliminar este fichaje?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
 
   const { error } = await sb.from('fichajes').delete().eq('id', id);
   if (error) {

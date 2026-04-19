@@ -675,7 +675,7 @@ async function pagarFacturaProv(id) {
     const fp = facturasProveedor.find(x => x.id === id);
     if (!fp) return;
 
-    if (!confirm(`¿Registrar pago de ${fmtE(fp.total)}?`)) return;
+    const okPago = await confirmModal({titulo:'Registrar pago',mensaje:`¿Registrar pago de ${fmtE(fp.total)}?`,btnOk:'Registrar pago'}); if (!okPago) return;
 
     // Insertar registro de pago
     await sb.from('pagos_proveedor').insert({
@@ -697,7 +697,7 @@ async function pagarFacturaProv(id) {
 // ELIMINAR FACTURA
 // ═══════════════════════════════════════════════
 async function delFacturaProv(id) {
-  if (!confirm('¿Eliminar factura de proveedor?')) return;
+  const ok = await confirmModal({titulo:'Eliminar factura',mensaje:'¿Eliminar esta factura de proveedor?',aviso:'Esta acción no se puede deshacer',btnOk:'Eliminar',colorOk:'#dc2626'}); if (!ok) return;
   await sb.from('facturas_proveedor').delete().eq('id', id);
   facturasProveedor = facturasProveedor.filter(f => f.id !== id);
   renderFacturasProv(facturasProveedor);

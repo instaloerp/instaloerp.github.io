@@ -685,7 +685,7 @@ async function delFactura(id) {
     const esBorr = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
     if (!esBorr) { toast('Solo se pueden eliminar facturas en borrador', 'error'); return; }
   }
-  if (!confirm('¿Eliminar esta factura?')) return;
+  const ok = await confirmModal({ titulo: 'Eliminar factura', mensaje: '¿Eliminar esta factura?', aviso: 'Esta acción no se puede deshacer', colorOk: '#dc2626' }); if (!ok) return;
   await sb.from('facturas').delete().eq('id', id);
   facLocalData = facLocalData.filter(x => x.id !== id);
   facFiltrados = facFiltrados.filter(x => x.id !== id);
@@ -698,10 +698,10 @@ async function delFactura(id) {
 // ═══════════════════════════════════════════════
 //  EXPORTAR A EXCEL
 // ═══════════════════════════════════════════════
-function exportarFacturas() {
+async function exportarFacturas() {
   if (!window.XLSX) { toast('Cargando librería Excel...', 'info'); return; }
   const lista = facFiltrados.length ? facFiltrados : facLocalData;
-  if (!confirm('¿Exportar ' + lista.length + ' facturas a Excel?')) return;
+  const ok = await confirmModal({ titulo: 'Exportar a Excel', mensaje: '¿Exportar ' + lista.length + ' facturas a Excel?' }); if (!ok) return;
   const wb = XLSX.utils.book_new();
   const data = [
     ['Número', 'Cliente', 'Fecha', 'Vencimiento', 'Base imponible', 'IVA', 'Total', 'Estado'],
@@ -889,7 +889,7 @@ async function _verVersionBorrador(versionId) {
 
 // Restaurar una versión anterior del borrador
 async function _restaurarVersionBorrador(facturaId, versionId) {
-  if (!confirm('¿Restaurar esta versión?\n\nSe creará una nueva versión con los datos de la seleccionada. No se pierde nada.')) return;
+  const ok = await confirmModal({ titulo: 'Restaurar versión', mensaje: 'Se creará una nueva versión con los datos de la seleccionada. No se pierde nada.' }); if (!ok) return;
 
   const { data: v, error } = await sb.from('factura_versiones')
     .select('snapshot').eq('id', versionId).single();
@@ -2167,10 +2167,11 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
   // Confirmación (saltar si es envío automático)
   if (!opts.auto) {
     const modoLabel = (EMPRESA._vf_modo || 'test') === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
+    const confirmTitulo = action === 'alta' ? 'Enviar a AEAT' : 'Anular en AEAT';
     const confirmMsg = action === 'alta'
       ? `¿Enviar factura ${fac.numero} a AEAT (${modoLabel})?`
       : `¿Enviar ANULACIÓN de factura ${fac.numero} a AEAT (${modoLabel})?`;
-    if (!confirm(confirmMsg)) return;
+    const ok = await confirmModal({ titulo: confirmTitulo, mensaje: confirmMsg }); if (!ok) return;
   }
 
   if (!opts.stepper) toast('Enviando a AEAT...', 'info');
