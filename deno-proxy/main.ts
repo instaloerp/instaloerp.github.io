@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════════
-//  Proxy mTLS para VeriFactu — Deno Deploy
-//  instaloERP v1.1 · v2 (usa node:https para mTLS real)
+//  Proxy mTLS — VeriFactu + FACe — Deno Deploy
+//  instaloERP v1.1 · v3 (VeriFactu + FACe)
 // ════════════════════════════════════════════════════════════════
 //
 //  Deno.createHttpClient NO soporta certChain/privateKey en Deploy.
@@ -11,15 +11,29 @@
 //    KEY_PEM      — Clave privada PEM (texto completo)
 //    PROXY_SECRET — Token para autenticar peticiones
 //
+//  Soporta dos servicios:
+//    servicio = "verifactu" (por defecto) → AEAT VeriFactu
+//    servicio = "face"                    → FACe (MINHAP)
+//
 // ════════════════════════════════════════════════════════════════
 
 import * as https from "node:https";
 import { URL } from "node:url";
 
-const ENDPOINTS: Record<string, string> = {
+// Endpoints VeriFactu (AEAT)
+const VERIFACTU_ENDPOINTS: Record<string, string> = {
   test: "https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP",
   produccion: "https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP",
 };
+
+// Endpoints FACe (MINHAP)
+const FACE_ENDPOINTS: Record<string, string> = {
+  test: "https://se-face-webservice.redsara.es/facturasrcf2",
+  produccion: "https://webservice.face.gob.es/facturasrcf2",
+};
+
+// Retrocompatibilidad
+const ENDPOINTS = VERIFACTU_ENDPOINTS;
 
 /** Hace una petición HTTPS con certificado de cliente (mTLS) */
 function httpsRequest(
@@ -90,15 +104,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // 2. Leer body
     const body = await req.json();
-    const { xml, modo } = body;
+    const { xml, modo, servicio = "verifactu" } = body;
 
     if (!xml || !modo) {
       return jsonResp({ error: "Faltan parámetros: xml, modo" }, 400);
     }
 
-    const endpoint = ENDPOINTS[modo];
+    // Seleccionar endpoints según servicio
+    const endpointsMap = servicio === "face" ? FACE_ENDPOINTS : VERIFACTU_ENDPOINTS;
+    const endpoint = endpointsMap[modo];
     if (!endpoint) {
-      return jsonResp({ error: `Modo no válido: ${modo}. Usar: test, produccion` }, 400);
+      return jsonResp({ error: `Modo no válido: ${modo}. Usar: test, produccion (servicio: ${servicio})` }, 400);
     }
 
     // 3. Cargar certificado
@@ -123,23 +139,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }, 500);
     }
 
-    // 4. Enviar SOAP a AEAT con mTLS via node:https
-    const aeatResp = await httpsRequest(endpoint, xml, certPem, keyPem);
+    // 4. Enviar SOAP con mTLS via node:https
+    const soapResp = await httpsRequest(endpoint, xml, certPem, keyPem);
 
     // 5. Devolver respuesta
     return jsonResp({
-      ok: aeatResp.status >= 200 && aeatResp.status < 300,
-      status: aeatResp.status,
-      xml_respuesta: aeatResp.body,
+      ok: soapResp.status >= 200 && soapResp.status < 300,
+      status: soapResp.status,
+      xml_respuesta: soapResp.body,
       endpoint,
-      version: "v2-node-https",
+      servicio,
+      version: "v3-verifactu-face",
       timestamp: new Date().toISOString(),
     });
 
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    return jsonResp({ error: errorMsg, stack: errorStack, version: "v2-node-https" }, 500);
+    return jsonResp({ error: errorMsg, stack: errorStack, version: "v3-verifactu-face" }, 500);
   }
 });
 

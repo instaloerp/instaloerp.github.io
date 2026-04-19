@@ -530,19 +530,20 @@ async function cargarCfgFacturacion() {
   // Leer config de la empresa
   const cfg = EMPRESA.facturacion_electronica || {};
   const vf = document.getElementById('cfg_verifactu');
-  const fe = document.getElementById('cfg_factura_electronica');
+  const face = document.getElementById('cfg_face');
   const sii = document.getElementById('cfg_sii');
   if (vf) vf.checked = !!cfg.verifactu;
-  if (fe) fe.checked = !!cfg.factura_electronica;
+  if (face) face.checked = !!cfg.face;
   if (sii) sii.checked = !!cfg.sii;
-  // Mostrar/ocultar panel VeriFactu según estado del toggle
+  // Mostrar/ocultar paneles según estado de toggles
   toggleVerifactuPanel();
+  toggleFacePanel();
 }
 
 async function guardarCfgFacturacion() {
   const cfg = {
     verifactu: document.getElementById('cfg_verifactu')?.checked || false,
-    factura_electronica: document.getElementById('cfg_factura_electronica')?.checked || false,
+    face: document.getElementById('cfg_face')?.checked || false,
     sii: document.getElementById('cfg_sii')?.checked || false,
   };
   const { error } = await sb.from('empresas').update({ facturacion_electronica: cfg }).eq('id', EMPRESA.id);
@@ -1086,6 +1087,73 @@ async function testConexionVerifactu() {
     }
   } catch (err) {
     toast(`❌ Error de red: ${err.message}`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  FACe — Configuración
+// ═══════════════════════════════════════════════
+
+function toggleFacePanel() {
+  const panel = document.getElementById('face_config_panel');
+  const activo = document.getElementById('cfg_face')?.checked;
+  if (panel) panel.style.display = activo ? '' : 'none';
+  if (activo) cargarCfgFace();
+}
+
+async function cargarCfgFace() {
+  try {
+    const faceConfig = (EMPRESA.config?.face || {});
+    const modoEl = document.getElementById('cfg_face_modo');
+    const correoEl = document.getElementById('cfg_face_correo');
+    if (modoEl) modoEl.value = faceConfig.modo || 'test';
+    if (correoEl) correoEl.value = faceConfig.correo || EMPRESA.email || '';
+  } catch (err) {
+    console.warn('Error cargando config FACe:', err);
+  }
+}
+
+async function guardarCfgFace() {
+  const modo = document.getElementById('cfg_face_modo')?.value || 'test';
+  const correo = document.getElementById('cfg_face_correo')?.value || '';
+
+  // Guardar en empresas.config.face
+  const config = EMPRESA.config || {};
+  config.face = { activo: true, modo, correo };
+
+  const { error } = await sb.from('empresas').update({ config }).eq('id', EMPRESA.id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  EMPRESA.config = config;
+  toast('Configuración FACe guardada ✓', 'success');
+}
+
+async function testConexionFace() {
+  toast('Probando conexión con FACe...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    // Enviar consulta test — factura_id 0 debería devolver error controlado
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'consultar', factura_id: 0, empresa_id: EMPRESA.id }),
+    });
+    const result = await resp.json();
+
+    if (resp.status === 404) {
+      // Es esperado: factura no encontrada = Edge Function responde correctamente
+      toast('✅ Edge Function FACe responde correctamente', 'success');
+    } else if (resp.ok) {
+      toast('✅ Conexión con FACe correcta', 'success');
+    } else {
+      toast(`⚠️ Respuesta: ${result.error || JSON.stringify(result)}`, 'warning');
+    }
+  } catch (err) {
+    toast(`❌ Error de red: ${err.message}. ¿Está desplegada la Edge Function "face"?`, 'error');
   }
 }
 

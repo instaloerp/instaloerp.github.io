@@ -728,7 +728,8 @@ async function eliminarNota(id) {
 function resetFormCliente() {
   const ids = ['c_id','c_nombre','c_razon','c_nif','c_tel','c_movil','c_email',
                 'c_dir','c_muni','c_cp','c_prov','c_descuento','c_notas',
-                'c_iban','c_bic','c_banco_entidad','c_banco_titular'];
+                'c_iban','c_bic','c_banco_entidad','c_banco_titular',
+                'c_face_oc','c_face_og','c_face_ut'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -745,7 +746,19 @@ function resetFormCliente() {
   if (ibanMsg) ibanMsg.textContent = '';
   const ibanStatus = document.getElementById('c_iban_status');
   if (ibanStatus) ibanStatus.textContent = '';
+  // Reset FACe
+  const esAP = document.getElementById('c_es_ap');
+  if (esAP) esAP.checked = false;
+  const facePanel = document.getElementById('c_face_panel');
+  if (facePanel) facePanel.style.display = 'none';
   cliTipoChanged(); // ajustar visibilidad de razón social
+}
+
+/** Toggle panel DIR3 en cliente */
+function toggleClienteFace() {
+  const chk = document.getElementById('c_es_ap');
+  const panel = document.getElementById('c_face_panel');
+  if (panel) panel.style.display = chk?.checked ? '' : 'none';
 }
 
 /** Muestra/oculta el campo Razón social según el tipo seleccionado */
@@ -1164,9 +1177,14 @@ function editCliente(id) {
     c_cp:c.cp_fiscal||'',c_prov:c.provincia_fiscal||'',c_descuento:c.descuento_habitual||0,
     c_notas:c.observaciones||'',c_iban:c.iban||'',c_bic:c.bic||'',
     c_banco_entidad:c.banco_entidad||'',c_banco_titular:c.banco_titular||'',
-    c_razon:c.razon_social||''});
+    c_razon:c.razon_social||'',
+    c_face_oc:c.face_oficina_contable||'',c_face_og:c.face_organo_gestor||'',c_face_ut:c.face_unidad_tramitadora||''});
   document.getElementById('c_tipo').value = c.tipo||'Particular';
   document.getElementById('mCliTit').textContent = 'Editar Cliente';
+  // FACe
+  const esAP = document.getElementById('c_es_ap');
+  if (esAP) esAP.checked = !!c.es_administracion_publica;
+  toggleClienteFace();
   cliTipoChanged(); // ajustar razón social y labels según tipo
   // Validar IBAN si existe
   const ibanEl = document.getElementById('c_iban');
@@ -1225,7 +1243,11 @@ async function saveCliente() {
     iban: v('c_iban').replace(/\s/g,'').toUpperCase() || null,
     bic: v('c_bic').toUpperCase() || null,
     banco_entidad: v('c_banco_entidad') || null,
-    banco_titular: v('c_banco_titular') || null
+    banco_titular: v('c_banco_titular') || null,
+    es_administracion_publica: document.getElementById('c_es_ap')?.checked || false,
+    face_oficina_contable: v('c_face_oc').trim() || null,
+    face_organo_gestor: v('c_face_og').trim() || null,
+    face_unidad_tramitadora: v('c_face_ut').trim() || null
   };
   const fpId = parseInt(document.getElementById('c_fpago').value);
   if (fpId) obj.forma_pago_id = fpId;

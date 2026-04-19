@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 104</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 105</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -2158,14 +2158,52 @@ try {
 
                     <div class="fg-row" style="align-items:center;gap:12px">
                       <label class="toggle-switch">
-                        <input type="checkbox" id="cfg_factura_electronica" onchange="guardarCfgFacturacion()">
+                        <input type="checkbox" id="cfg_face" onchange="toggleFacePanel();guardarCfgFacturacion()">
                         <span class="toggle-slider"></span>
                       </label>
                       <div>
-                        <div style="font-weight:700;font-size:13px">Factura electrónica (Facturae)</div>
-                        <div style="font-size:11.5px;color:var(--gris-400)">Genera facturas en formato Facturae 3.2.2 para envío electrónico a administraciones públicas y empresas.</div>
+                        <div style="font-weight:700;font-size:13px">FACe — Factura electrónica a AAPP</div>
+                        <div style="font-size:11.5px;color:var(--gris-400)">Envío de facturas electrónicas a Administraciones Públicas vía FACe (Facturae 3.2.2 + firma XAdES).</div>
                       </div>
                     </div>
+
+                    <!-- ── Panel FACe (visible solo si activo) ── -->
+                    <div id="face_config_panel" style="display:none;margin-left:52px;padding:16px;background:var(--gris-50);border-radius:10px;border:1.5px solid var(--gris-200)">
+                      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--gris-700)">Configuración FACe</div>
+
+                      <!-- Modo -->
+                      <div class="fg" style="margin-bottom:12px">
+                        <label style="font-size:12px;font-weight:600">Entorno</label>
+                        <select id="cfg_face_modo" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--gris-200);font-size:13px">
+                          <option value="test">Pruebas (staging FACe)</option>
+                          <option value="produccion">Producción (envío real a FACe)</option>
+                        </select>
+                        <div style="font-size:10px;color:var(--gris-400);margin-top:4px">Usa "Pruebas" hasta verificar que todo funciona con la plataforma FACe</div>
+                      </div>
+
+                      <!-- Correo notificaciones -->
+                      <div class="fg" style="margin-bottom:12px">
+                        <label style="font-size:12px;font-weight:600">Email de notificaciones</label>
+                        <input id="cfg_face_correo" type="email" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--gris-200);font-size:13px" placeholder="correo@empresa.com">
+                        <div style="font-size:10px;color:var(--gris-400);margin-top:4px">FACe envía notificaciones de estado a este correo</div>
+                      </div>
+
+                      <!-- Certificado -->
+                      <div class="fg" style="margin-bottom:12px">
+                        <label style="font-size:12px;font-weight:600">Certificado digital</label>
+                        <div id="face_cert_info" style="padding:10px;border-radius:6px;border:1px solid var(--gris-200);background:white;font-size:12px;color:var(--gris-500)">
+                          Se reutiliza el certificado configurado en VeriFactu
+                        </div>
+                      </div>
+
+                      <!-- Botones -->
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-primary btn-sm" onclick="guardarCfgFace()" style="font-weight:700">💾 Guardar configuración</button>
+                        <button class="btn btn-secondary btn-sm" onclick="testConexionFace()">🔌 Probar conexión</button>
+                      </div>
+                    </div>
+                    <!-- ── Fin panel FACe ── -->
+
                     <div class="fg-row" style="align-items:center;gap:12px">
                       <label class="toggle-switch">
                         <input type="checkbox" id="cfg_sii" onchange="guardarCfgFacturacion()">
@@ -2584,6 +2622,27 @@ try {
         <div class="fg"><label>Entidad bancaria</label><input id="c_banco_entidad" placeholder="CaixaBank, BBVA..."></div>
       </div>
       <div class="fg" style="margin-bottom:11px"><label>Titular de la cuenta</label><input id="c_banco_titular" placeholder="Si es diferente al nombre del cliente" style="width:100%"></div>
+      <!-- FACe — Administración Pública -->
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 11px;padding-top:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="font-weight:700;font-size:12px;color:var(--gris-500)">🏛️ Facturación electrónica (FACe)</div>
+          <label class="toggle-switch" style="transform:scale(0.85)">
+            <input type="checkbox" id="c_es_ap" onchange="toggleClienteFace()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:11px;color:var(--gris-400)">Es Administración Pública</span>
+        </div>
+      </div>
+      <div id="c_face_panel" style="display:none;margin-bottom:11px">
+        <div class="fg-row g3" style="margin-bottom:8px">
+          <div class="fg"><label>Oficina Contable (DIR3)</label><input id="c_face_oc" placeholder="Ej: L01280796" style="font-family:monospace"></div>
+          <div class="fg"><label>Órgano Gestor (DIR3)</label><input id="c_face_og" placeholder="Ej: A01002823" style="font-family:monospace"></div>
+          <div class="fg"><label>Unidad Tramitadora (DIR3)</label><input id="c_face_ut" placeholder="Ej: A01002823" style="font-family:monospace"></div>
+        </div>
+        <div style="font-size:10px;color:var(--gris-400);line-height:1.5">
+          Los códigos DIR3 se encuentran en el directorio <a href="https://face.gob.es/es/directorio/administraciones/" target="_blank" style="color:var(--azul)">face.gob.es</a>. Son obligatorios para enviar facturas electrónicas a la Administración Pública.
+        </div>
+      </div>
       <div class="fg"><label>Observaciones internas</label><textarea id="c_notas" autocorrect="on" spellcheck="true"></textarea></div>
     </div>
     <div class="modal-f">
@@ -4401,6 +4460,20 @@ try {
         <div><span style="font-size:11px;color:var(--gris-400)">Vencimiento</span><div id="facDetVence" style="font-weight:600">—</div></div>
         <div><span style="font-size:11px;color:var(--gris-400)">Forma de pago</span><div id="facDetFpago" style="font-weight:600">—</div></div>
         <div><span style="font-size:11px;color:var(--gris-400)">Estado</span><div id="facDetEstado">—</div></div>
+      </div>
+      <!-- FACe status (visible solo si aplica) -->
+      <div id="facDetFaceWrap" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;border:1.5px solid var(--gris-200);background:var(--gris-50)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px">🏛️</span>
+            <div>
+              <div style="font-size:11px;color:var(--gris-400)">FACe — Estado</div>
+              <div id="facDetFaceEstado" style="font-weight:700;font-size:13px">—</div>
+            </div>
+            <div id="facDetFaceReg" style="font-size:11px;color:var(--gris-400);margin-left:8px"></div>
+          </div>
+          <div id="facDetFaceBtns" style="display:flex;gap:6px"></div>
+        </div>
       </div>
       <div style="margin-bottom:12px">
         <label style="font-weight:700;font-size:13px;display:block;margin-bottom:8px">Líneas de la factura</label>

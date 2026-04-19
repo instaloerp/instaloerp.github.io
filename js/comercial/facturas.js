@@ -283,6 +283,7 @@ function renderFacturas(list) {
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
           ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
+          ${f.face_estado ? (f.face_estado === 'pagada' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="FACe: Pagada">🏛️✅</span>` : f.face_estado === 'rechazada' || f.face_estado === 'anulada' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}">🏛️❌</span>` : `<span style="padding:3px 8px;border-radius:6px;background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}${f.face_numero_registro ? ' · Reg: '+f.face_numero_registro : ''}">🏛️</span>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
           ${(()=>{
             const _tP = !!f.presupuesto_id;
@@ -506,6 +507,57 @@ async function verDetalleFactura(id) {
   if (fpEl) {
     const fp = (typeof formasPago !== 'undefined' ? formasPago : []).find(x => x.id === f.forma_pago_id);
     fpEl.textContent = fp ? fp.nombre : '—';
+  }
+
+  // ── FACe status ──
+  const faceWrap = document.getElementById('facDetFaceWrap');
+  if (faceWrap) {
+    if (f.face_estado || f.face_numero_registro) {
+      faceWrap.style.display = '';
+      const FACE_COLORS = {
+        registrada:'#2563EB', contabilizada:'#7C3AED', pagada:'#059669',
+        rechazada:'#DC2626', anulada:'var(--gris-400)', simulado:'#D97706'
+      };
+      const FACE_LABELS = {
+        registrada:'Registrada', contabilizada:'Contabilizada', pagada:'Pagada',
+        rechazada:'Rechazada', anulada:'Anulada', simulado:'Simulado'
+      };
+      const faceColor = FACE_COLORS[f.face_estado] || 'var(--gris-500)';
+      const faceLabel = FACE_LABELS[f.face_estado] || f.face_estado || '—';
+      document.getElementById('facDetFaceEstado').innerHTML = `<span style="color:${faceColor}">${faceLabel}</span>`;
+      const regEl = document.getElementById('facDetFaceReg');
+      if (regEl) regEl.textContent = f.face_numero_registro ? `Nº registro: ${f.face_numero_registro}` : '';
+
+      // Botones FACe según estado
+      const faceBtns = document.getElementById('facDetFaceBtns');
+      let btnsHtml = '';
+      if (!f.face_estado || f.face_estado === 'simulado') {
+        btnsHtml += `<button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
+      }
+      if (f.face_estado && f.face_estado !== 'simulado') {
+        btnsHtml += `<button class="btn btn-sm" onclick="consultarFacturaFACe(${id})" style="background:#F0FDF4;color:#166534;border:1px solid #86EFAC;font-weight:600">🔄 Consultar estado</button>`;
+      }
+      if (f.face_estado === 'registrada' || f.face_estado === 'contabilizada') {
+        btnsHtml += `<button class="btn btn-sm" onclick="anularFacturaFACe(${id})" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;font-weight:600">❌ Anular</button>`;
+      }
+      if (faceBtns) faceBtns.innerHTML = btnsHtml;
+    } else {
+      // Mostrar si el cliente es AP
+      const cli = clientes ? clientes.find(c => c.id === f.cliente_id) : null;
+      if (cli && cli.es_administracion_publica) {
+        faceWrap.style.display = '';
+        document.getElementById('facDetFaceEstado').innerHTML = '<span style="color:var(--gris-400)">No enviada</span>';
+        document.getElementById('facDetFaceReg').textContent = '';
+        const faceBtns = document.getElementById('facDetFaceBtns');
+        if (faceBtns && f.estado !== 'borrador') {
+          faceBtns.innerHTML = `<button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
+        } else if (faceBtns) {
+          faceBtns.innerHTML = '';
+        }
+      } else {
+        faceWrap.style.display = 'none';
+      }
+    }
   }
 
   // Líneas
@@ -2256,6 +2308,130 @@ async function enviarFacturaAEAT(facturaId, action = 'alta', opts = {}) {
 /** Anular factura en AEAT */
 async function anularFacturaAEAT(facturaId) {
   return enviarFacturaAEAT(facturaId, 'anulacion');
+}
+
+// ═══════════════════════════════════════════════
+//  FACe — Factura electrónica a Administraciones Públicas
+// ═══════════════════════════════════════════════
+
+/** Enviar factura a FACe */
+async function enviarFacturaFACe(facturaId) {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac) { toast('Factura no encontrada', 'error'); return; }
+  if (fac.estado === 'borrador') { toast('No se pueden enviar borradores a FACe', 'error'); return; }
+  if (fac.face_estado && fac.face_estado !== 'simulado') {
+    toast('Esta factura ya se envió a FACe', 'info'); return;
+  }
+
+  const ok = await confirmModal({
+    titulo: 'Enviar a FACe',
+    mensaje: `¿Enviar factura ${fac.numero} a FACe (Administración Pública)?`,
+    icono: '🏛️'
+  });
+  if (!ok) return;
+
+  toast('Enviando a FACe...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'enviar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { toast(`Error FACe: ${result.error || 'Error desconocido'}`, 'error'); return; }
+
+    fac.face_estado = result.estado || 'registrada';
+    fac.face_numero_registro = result.numero_registro || null;
+
+    if (result.simulado) {
+      toast(`🧪 FACe simulación — XML generado correctamente`, 'info');
+    } else if (result.ok) {
+      toast(`✅ Factura ${fac.numero} enviada a FACe. Registro: ${result.numero_registro || ''}`, 'success');
+    } else {
+      toast(`❌ FACe rechazó: ${result.descripcion || ''}`, 'error');
+    }
+
+    await loadFacturas();
+    verDetalleFactura(facturaId);
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+  }
+}
+
+/** Consultar estado de factura en FACe */
+async function consultarFacturaFACe(facturaId) {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac || !fac.face_numero_registro) { toast('Sin número de registro FACe', 'error'); return; }
+
+  toast('Consultando FACe...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'consultar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { toast(`Error: ${result.error}`, 'error'); return; }
+
+    toast(`🏛️ Estado FACe: ${result.estado || result.codigo_estado || '—'}`, 'info');
+    await loadFacturas();
+    verDetalleFactura(facturaId);
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+  }
+}
+
+/** Anular factura en FACe */
+async function anularFacturaFACe(facturaId) {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac || !fac.face_numero_registro) { toast('Sin número de registro FACe', 'error'); return; }
+
+  const ok = await confirmModal({
+    titulo: 'Anular en FACe',
+    mensaje: `¿Solicitar anulación de factura ${fac.numero} en FACe?\nRegistro: ${fac.face_numero_registro}`,
+    icono: '❌'
+  });
+  if (!ok) return;
+
+  toast('Anulando en FACe...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'anular', factura_id: facturaId, empresa_id: EMPRESA.id, motivo: 'Anulación solicitada' }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { toast(`Error: ${result.error}`, 'error'); return; }
+
+    if (result.ok) {
+      toast(`✅ Anulación solicitada en FACe`, 'success');
+    } else {
+      toast(`❌ FACe rechazó la anulación: ${result.descripcion || ''}`, 'error');
+    }
+
+    await loadFacturas();
+    verDetalleFactura(facturaId);
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════
