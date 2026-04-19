@@ -38,6 +38,7 @@ async function saveEmpresa() {
   if (logoFile) {
     const ext = logoFile.name.split('.').pop();
     const { data: up, error: upErr } = await sb.storage.from('fotos-partes').upload(`logos/${EMPRESA.id}_logo.${ext}`, logoFile, { upsert: true });
+    if (upErr) { console.error('Error subiendo logo:', upErr); toast('Error subiendo logo: ' + upErr.message, 'error'); }
     if (up) {
       const { data: url } = sb.storage.from('fotos-partes').getPublicUrl(up.path);
       obj.logo_url = url.publicUrl;
