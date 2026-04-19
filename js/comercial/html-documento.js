@@ -190,7 +190,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     return `
 <div class="cabecera">
   ${qrHtml}
-  <div class="${logoClass}"><img src="${_esc(_logoSrc(E))}" alt="Logo"></div>
+  <div class="${logoClass}"><img src="${_esc(_logoSrc(E))}" alt="Logo" onerror="this.onerror=null;this.src='assets/logo-empresa.png'"></div>
   <div class="cab-empresa-info">
     <div class="nombre-corp">${_esc(E.nombre||'')}</div>
     ${E.cif ? `<div>CIF ${_esc(E.cif)}</div>` : ''}
