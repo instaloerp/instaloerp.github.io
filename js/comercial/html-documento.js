@@ -534,4 +534,5 @@ ${_renderPie(E)}
   window._imprimirDocumento     = _imprimirDocumento;
   window._descargarPdfDocumento = _descargarPdfDocumento;
   window._documentoPdfBase64    = _documentoPdfBase64;
+  window._renderToPdfExport     = _renderToPdf;
 })();

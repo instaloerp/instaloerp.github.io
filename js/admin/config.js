@@ -1418,7 +1418,7 @@ async function descargarPdfsMasivo() {
   const rango = _getAuditRango();
   if (!rango) return;
   if (!window.JSZip) { toast('Librería JSZip no disponible', 'error'); return; }
-  if (typeof _pdfFacturaBase64 !== 'function') {
+  if (typeof _cfgFactura !== 'function' || !window._renderToPdfExport) {
     toast('Generador de PDF no disponible — abre primero la sección Facturas para cargar el generador', 'warning');
     return;
   }
@@ -1463,11 +1463,14 @@ async function descargarPdfsMasivo() {
   for (let i = 0; i < facs.length; i++) {
     const f = facs[i];
     try {
-      // Usar EXACTAMENTE la misma función que la descarga individual
-      const b64 = await _pdfFacturaBase64(f);
-      if (b64) {
+      // Generar PDF con _cfgFactura (misma función que descarga individual)
+      // y obtener arraybuffer directo (evita problemas de codificación base64)
+      const cfg = _cfgFactura(f);
+      const pdf = await window._renderToPdfExport(cfg);
+      if (pdf) {
+        const arrayBuf = pdf.output('arraybuffer');
         const nombre = (f.numero || 'factura_' + f.id).replace(/[^a-zA-Z0-9-]/g, '_') + '.pdf';
-        zip.file(nombre, b64, { base64: true });
+        zip.file(nombre, arrayBuf);
         generados++;
       } else {
         erroresPdf++;
