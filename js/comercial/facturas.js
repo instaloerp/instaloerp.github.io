@@ -216,12 +216,13 @@ function renderFacturas(list) {
     }
   });
 
-  // KPIs — dinámicos sobre la lista filtrada visible
-  const borradores = list.filter(f => f.estado === 'borrador');
-  const pends    = list.filter(f => f.estado === 'pendiente');
-  const vencidas = list.filter(f => f.estado === 'vencida');
-  const cobradas = list.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
-  const anuladas = list.filter(f => f.estado === 'anulada' || f.estado === 'rectificada');
+  // KPIs — SIEMPRE sobre TODOS los datos (sin filtrar), excluyendo solo las rectificativas (van a su pestaña)
+  const _kpiBase = facLocalData.filter(f => !f.rectificativa_de);
+  const borradores = _kpiBase.filter(f => f.estado === 'borrador');
+  const pends    = _kpiBase.filter(f => f.estado === 'pendiente');
+  const vencidas = _kpiBase.filter(f => f.estado === 'vencida');
+  const cobradas = _kpiBase.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
+  const anuladas = _kpiBase.filter(f => f.estado === 'anulada' || f.estado === 'rectificada');
 
   const kTotal    = document.getElementById('fk-total');
   const kBorr     = document.getElementById('fk-borradores');
@@ -231,7 +232,7 @@ function renderFacturas(list) {
   const kAnul     = document.getElementById('fk-anuladas');
   const kImpPend  = document.getElementById('fk-imp-pend');
   const kImpCobr  = document.getElementById('fk-imp-cobr');
-  if (kTotal)   kTotal.textContent   = list.length;
+  if (kTotal)   kTotal.textContent   = _kpiBase.length;
   if (kBorr)    kBorr.textContent    = borradores.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kVenc)    kVenc.textContent    = vencidas.length;

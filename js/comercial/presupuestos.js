@@ -161,13 +161,14 @@ function renderPresupuestos(list) {
   const kBorr     = document.getElementById('pk-borradores');
   const kImpPend  = document.getElementById('pk-imp-pend');
   const kImpAcep  = document.getElementById('pk-imp-acep');
-  const pends = list.filter(p=>p.estado==='pendiente');
-  const aceps = list.filter(p=>p.estado==='aceptado');
-  const borrs = list.filter(p=>p.estado==='borrador');
-  if (kTotal)   kTotal.textContent   = list.length;
+  // KPIs — SIEMPRE sobre TODOS los datos (sin filtrar)
+  const pends = presupuestos.filter(p=>p.estado==='pendiente');
+  const aceps = presupuestos.filter(p=>p.estado==='aceptado');
+  const borrs = presupuestos.filter(p=>p.estado==='borrador');
+  if (kTotal)   kTotal.textContent   = presupuestos.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kAcep)    kAcep.textContent    = aceps.length;
-  if (kCad)     kCad.textContent     = list.filter(p=>p.estado==='caducado').length;
+  if (kCad)     kCad.textContent     = presupuestos.filter(p=>p.estado==='caducado').length;
   if (kBorr)    kBorr.textContent    = borrs.length;
   if (kImpPend) kImpPend.textContent = fmtE(pends.reduce((s,p)=>s+(p.total||0),0));
   if (kImpAcep) kImpAcep.textContent = fmtE(aceps.reduce((s,p)=>s+(p.total||0),0));
