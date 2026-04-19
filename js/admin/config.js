@@ -1144,11 +1144,13 @@ async function testConexionFace() {
     });
     const result = await resp.json();
 
-    if (resp.status === 404) {
-      // Es esperado: factura no encontrada = Edge Function responde correctamente
+    if (resp.status === 404 || resp.status === 400) {
+      // Es esperado: factura no encontrada o faltan parámetros = Edge Function responde correctamente
       toast('✅ Edge Function FACe responde correctamente', 'success');
     } else if (resp.ok) {
       toast('✅ Conexión con FACe correcta', 'success');
+    } else if (resp.status === 401) {
+      toast('❌ Error de autenticación. Verifica que "Verify JWT" está desmarcado en la Edge Function.', 'error');
     } else {
       toast(`⚠️ Respuesta: ${result.error || JSON.stringify(result)}`, 'warning');
     }
