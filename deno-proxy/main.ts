@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════════
 //  Proxy mTLS — VeriFactu + FACe — Deno Deploy
-//  instaloERP v1.1 · v4 (WS-Security + XAdES signing for FACe)
+//  instaloERP v1.1 · v5 (WS-Security RSA-SHA512 + XAdES + endpoint SSPP)
 // ════════════════════════════════════════════════════════════════
 //
 //  Variables de entorno en Deno Deploy:
@@ -25,9 +25,10 @@ const VERIFACTU_ENDPOINTS: Record<string, string> = {
   produccion: "https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP",
 };
 
+// SSPP = proveedores (enviar facturas). RCF = organismos (recibir).
 const FACE_ENDPOINTS: Record<string, string> = {
-  test: "https://se-face-webservice.redsara.es/facturasrcf2",
-  produccion: "https://webservice.face.gob.es/facturasrcf2",
+  test: "https://se-face-webservice.redsara.es/facturasspp2",
+  produccion: "https://webservice.face.gob.es/facturasspp2",
 };
 
 // ─── Helpers crypto ───
@@ -40,16 +41,16 @@ function sha256B64(data: string): string {
   return crypto.createHash("sha256").update(data, "utf8").digest("base64");
 }
 
-function sha1BufB64(data: Buffer): string {
-  return crypto.createHash("sha1").update(data).digest("base64");
+function sha512B64(data: string): string {
+  return crypto.createHash("sha512").update(data, "utf8").digest("base64");
 }
 
 function sha256BufB64(data: Buffer): string {
   return crypto.createHash("sha256").update(data).digest("base64");
 }
 
-function rsaSignSha1(data: string, keyPem: string): string {
-  const sign = crypto.createSign("RSA-SHA1");
+function rsaSignSha512(data: string, keyPem: string): string {
+  const sign = crypto.createSign("RSA-SHA512");
   sign.update(data, "utf8");
   return sign.sign(keyPem, "base64");
 }
@@ -102,72 +103,82 @@ const NS_WEB = "https://webservice.face.gob.es";
 
 /**
  * Build a WS-Security signed SOAP envelope for FACe.
- * Signs the Body and Timestamp with the client certificate.
+ * Signs the Body and Timestamp with RSA-SHA512 + SHA-512.
+ * Follows FACe's WS-Security 1.0 / BSP 1.0 requirements.
  */
 function buildWSSecuritySOAP(
   bodyInnerXml: string,
   certPem: string,
   keyPem: string,
+  soapAction: string,
 ): string {
   const certB64 = extractCertB64(certPem);
-  const certId = xmlId();
-  const bodyId = xmlId();
-  const tsId = xmlId();
+  const certId = "CertId-" + crypto.randomUUID();
+  const bodyId = "BodyId-" + crypto.randomUUID();
+  const tsId = "TimestampId-" + crypto.randomUUID();
+  const sigId = "SignatureId-" + crypto.randomUUID();
+  const keyInfoId = "KeyId-" + crypto.randomUUID();
+  const secTokId = "SecTokId-" + crypto.randomUUID();
 
   const created = isoNow();
   const expires = isoExpires();
 
   // ── Exclusive C14N forms for digest computation ──
+  // Each element gets all visibly utilized namespace declarations
 
-  // Timestamp in exc-c14n form (standalone, with explicit namespace)
+  // Timestamp in exc-c14n form
   const tsC14n = `<wsu:Timestamp xmlns:wsu="${NS_WSU}" wsu:Id="${tsId}"><wsu:Created>${created}</wsu:Created><wsu:Expires>${expires}</wsu:Expires></wsu:Timestamp>`;
 
-  // Body in exc-c14n form (standalone, with explicit namespaces)
+  // Body in exc-c14n form (namespace declarations sorted alphabetically by prefix)
   const bodyC14n = `<soapenv:Body xmlns:soapenv="${NS_SOAPENV}" xmlns:wsu="${NS_WSU}" wsu:Id="${bodyId}">${bodyInnerXml}</soapenv:Body>`;
 
-  // Compute digests (SHA-1 for WS-Security compatibility with FACe)
-  const tsDigest = sha1B64(tsC14n);
-  const bodyDigest = sha1B64(bodyC14n);
+  // Compute digests with SHA-512 (required by FACe)
+  const tsDigest = sha512B64(tsC14n);
+  const bodyDigest = sha512B64(bodyC14n);
 
-  // ── Build SignedInfo ──
+  // ── Build SignedInfo (RSA-SHA512) ──
+  // IMPORTANTE: C14N requiere tags expandidos (no auto-cerrados />)
+  // IMPORTANTE: Transforms con Exc-C14N obligatorios — sin ellos se usa Inclusive C14N
+  //             y los digests no coinciden (Inclusive incluye TODOS los ns del Envelope)
   const signedInfoInner =
     `<ds:CanonicalizationMethod Algorithm="${NS_EXCC14N}"></ds:CanonicalizationMethod>` +
-    `<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod>` +
-    `<ds:Reference URI="#${bodyId}">` +
-      `<ds:Transforms><ds:Transform Algorithm="${NS_EXCC14N}"></ds:Transform></ds:Transforms>` +
-      `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>` +
-      `<ds:DigestValue>${bodyDigest}</ds:DigestValue>` +
-    `</ds:Reference>` +
+    `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></ds:SignatureMethod>` +
     `<ds:Reference URI="#${tsId}">` +
       `<ds:Transforms><ds:Transform Algorithm="${NS_EXCC14N}"></ds:Transform></ds:Transforms>` +
-      `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>` +
+      `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
       `<ds:DigestValue>${tsDigest}</ds:DigestValue>` +
+    `</ds:Reference>` +
+    `<ds:Reference URI="#${bodyId}">` +
+      `<ds:Transforms><ds:Transform Algorithm="${NS_EXCC14N}"></ds:Transform></ds:Transforms>` +
+      `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
+      `<ds:DigestValue>${bodyDigest}</ds:DigestValue>` +
     `</ds:Reference>`;
 
   // Exc-C14N of SignedInfo for signing
   const signedInfoC14n = `<ds:SignedInfo xmlns:ds="${NS_DS}">${signedInfoInner}</ds:SignedInfo>`;
 
-  // Sign
-  const signatureValue = rsaSignSha1(signedInfoC14n, keyPem);
+  // Sign with RSA-SHA512
+  const signatureValue = rsaSignSha512(signedInfoC14n, keyPem);
 
   // ── Assemble SOAP ──
+  // Namespaces declared on Envelope (as Facturae-PHP does)
   const soap =
     `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<soapenv:Envelope xmlns:soapenv="${NS_SOAPENV}" xmlns:web="${NS_WEB}">` +
+    `<soapenv:Envelope xmlns:soapenv="${NS_SOAPENV}" xmlns:web="${NS_WEB}" xmlns:ds="${NS_DS}" xmlns:wsu="${NS_WSU}" xmlns:wsse="${NS_WSSE}">` +
       `<soapenv:Header>` +
-        `<wsse:Security xmlns:wsse="${NS_WSSE}" xmlns:wsu="${NS_WSU}">` +
+        `<wsse:Security soapenv:mustUnderstand="1">` +
           `<wsse:BinarySecurityToken ` +
             `EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary" ` +
-            `ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" ` +
-            `wsu:Id="${certId}">${certB64}</wsse:BinarySecurityToken>` +
-          `<ds:Signature xmlns:ds="${NS_DS}">` +
+            `wsu:Id="${certId}" ` +
+            `ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3">${certB64}</wsse:BinarySecurityToken>` +
+          `<ds:Signature Id="${sigId}">` +
             `<ds:SignedInfo>${signedInfoInner}</ds:SignedInfo>` +
             `<ds:SignatureValue>${signatureValue}</ds:SignatureValue>` +
-            `<ds:KeyInfo>` +
-              `<wsse:SecurityTokenReference>` +
+            `<ds:KeyInfo Id="${keyInfoId}">` +
+              `<wsse:SecurityTokenReference wsu:Id="${secTokId}">` +
                 `<wsse:Reference ` +
-                  `ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" ` +
-                  `URI="#${certId}"/>` +
+                  `URI="#${certId}" ` +
+                  `ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"></wsse:Reference>` +
               `</wsse:SecurityTokenReference>` +
             `</ds:KeyInfo>` +
           `</ds:Signature>` +
@@ -177,7 +188,7 @@ function buildWSSecuritySOAP(
           `</wsu:Timestamp>` +
         `</wsse:Security>` +
       `</soapenv:Header>` +
-      `<soapenv:Body xmlns:wsu="${NS_WSU}" wsu:Id="${bodyId}">` +
+      `<soapenv:Body wsu:Id="${bodyId}">` +
         bodyInnerXml +
       `</soapenv:Body>` +
     `</soapenv:Envelope>`;
@@ -417,27 +428,35 @@ function signFacturaeXades(xmlFacturae: string, certPem: string, keyPem: string)
 
 // ─── FACe SOAP body builders ───
 
+// FACe WSDL es RPC/encoded — wrapper <request>, hijos sin namespace prefix.
+// IMPORTANTE: xmlns:web DEBE declararse en el elemento que lo usa (Exc-C14N).
+// IMPORTANTE: tags vacíos deben expandirse (C14N no admite />).
 function buildFaceEnviarBody(signedXmlB64: string, correo: string): string {
   return `<web:enviarFactura xmlns:web="${NS_WEB}">` +
-    `<web:correo>${escXml(correo)}</web:correo>` +
-    `<web:factura>` +
-      `<web:factura>${signedXmlB64}</web:factura>` +
-      `<web:nombre>factura.xsig</web:nombre>` +
-      `<web:mime>application/xml</web:mime>` +
-    `</web:factura>` +
+    `<request>` +
+      `<correo>${escXml(correo)}</correo>` +
+      `<factura>` +
+        `<factura>${signedXmlB64}</factura>` +
+        `<nombre>factura.xsig</nombre>` +
+        `<mime>application/xml</mime>` +
+      `</factura>` +
+      `<anexos></anexos>` +
+    `</request>` +
   `</web:enviarFactura>`;
 }
 
 function buildFaceAnularBody(numeroRegistro: string, motivo: string): string {
+  // WSDL: anularFacturaIn tiene 2 parts separados (no <request>)
   return `<web:anularFactura xmlns:web="${NS_WEB}">` +
-    `<web:numeroRegistro>${escXml(numeroRegistro)}</web:numeroRegistro>` +
-    `<web:motivo>${escXml(motivo)}</web:motivo>` +
+    `<numeroRegistro>${escXml(numeroRegistro)}</numeroRegistro>` +
+    `<motivo>${escXml(motivo)}</motivo>` +
   `</web:anularFactura>`;
 }
 
 function buildFaceConsultarBody(numeroRegistro: string): string {
+  // WSDL: consultarFacturaIn tiene 1 part separado (no <request>)
   return `<web:consultarFactura xmlns:web="${NS_WEB}">` +
-    `<web:numeroRegistro>${escXml(numeroRegistro)}</web:numeroRegistro>` +
+    `<numeroRegistro>${escXml(numeroRegistro)}</numeroRegistro>` +
   `</web:consultarFactura>`;
 }
 
@@ -454,6 +473,7 @@ function httpsRequest(
   body: string,
   cert: string,
   key: string,
+  soapAction = "",
 ): Promise<{ status: number; body: string; headers: Record<string, string> }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
@@ -466,7 +486,7 @@ function httpsRequest(
       key,
       headers: {
         "Content-Type": "text/xml; charset=UTF-8",
-        "SOAPAction": "",
+        "SOAPAction": soapAction,
         "Content-Length": Buffer.byteLength(body, "utf-8"),
       },
       rejectUnauthorized: true,
@@ -559,8 +579,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // 5. Procesar según servicio
     if (servicio === "face") {
-      // ── FACe: WS-Security signed SOAP ──
+      // ── FACe: WS-Security signed SOAP (RSA-SHA512) ──
       let bodyContent: string;
+      // SOAPAction: https://webservice.face.gob.es#<operacion>
+      const faceAction = accion || "enviarFactura";
+      const soapAction = `${NS_WEB}#${faceAction}`;
 
       if (accion === "enviarFactura" && xml_facturae) {
         // Sign Facturae XML with XAdES-ENVELOPED
@@ -579,10 +602,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       // Build WS-Security signed SOAP envelope
-      const signedSoap = buildWSSecuritySOAP(bodyContent, certPem, keyPem);
+      const signedSoap = buildWSSecuritySOAP(bodyContent, certPem, keyPem, soapAction);
 
-      // Send via mTLS
-      const soapResp = await httpsRequest(endpoint, signedSoap, certPem, keyPem);
+      // Send via mTLS (con SOAPAction header)
+      const soapResp = await httpsRequest(endpoint, signedSoap, certPem, keyPem, soapAction);
 
       return jsonResp({
         ok: soapResp.status >= 200 && soapResp.status < 300,
@@ -591,8 +614,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         endpoint,
         servicio: "face",
         accion,
-        version: "v4-wssec-xades",
+        version: "v5-sha512",
         timestamp: new Date().toISOString(),
+        // Diagnóstico: primeros 1500 chars del SOAP enviado
+        debug_soap_enviado: signedSoap.substring(0, 1500),
+        debug_soap_length: signedSoap.length,
       });
 
     } else {

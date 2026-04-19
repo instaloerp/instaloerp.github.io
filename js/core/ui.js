@@ -904,9 +904,18 @@ function confirmModal(opts = {}) {
       </div>`;
     document.body.appendChild(ov);
     const close = (val) => { ov.remove(); resolve(val); };
-    document.getElementById(id + '_si').onclick = () => close(true);
-    document.getElementById(id + '_no').onclick = () => close(false);
+    const btnSi = document.getElementById(id + '_si');
+    const btnNo = document.getElementById(id + '_no');
+    btnSi.onclick = () => close(true);
+    btnNo.onclick = () => close(false);
     ov.addEventListener('click', e => { if (e.target === ov) close(false); });
+    // Capturar Enter/Escape y evitar que se propague al fondo
+    ov.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); close(true); }
+      if (e.key === 'Escape') { e.preventDefault(); close(false); }
+    });
+    btnSi.focus();
   });
 }
 

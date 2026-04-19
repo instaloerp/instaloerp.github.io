@@ -25,8 +25,8 @@ const PROXY_SECRET  = Deno.env.get("FACE_PROXY_SECRET") || Deno.env.get("VERIFAC
 
 // Endpoints FACe (MINHAP)
 const FACE_ENDPOINTS: Record<string, string> = {
-  produccion: "https://webservice.face.gob.es/facturasrcf2?wsdl",
-  test:       "https://se-face-webservice.redsara.es/facturasrcf2?wsdl",
+  produccion: "https://webservice.face.gob.es/facturasspp2",
+  test:       "https://se-face-webservice.redsara.es/facturasspp2",
 };
 
 // ─── Helpers XML ───
@@ -684,20 +684,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       // Parsear respuesta FACe
       let faceResp = { ok: true, codigo: "", descripcion: "Simulado", numeroRegistro: undefined as string | undefined, codigoEstado: undefined as string | undefined, estado: undefined as string | undefined };
-      if (resultado.xml_respuesta) {
+
+      // Comprobar primero si el proxy reportó error HTTP
+      const proxyOk = resultado.ok !== false && resultado.status >= 200 && resultado.status < 300;
+
+      if (resultado.xml_respuesta && resultado.xml_respuesta.includes("<") && !resultado.xml_respuesta.includes("<!DOCTYPE html>")) {
+        // Respuesta SOAP válida de FACe — parsear
         faceResp = parseFACeResponse(resultado.xml_respuesta);
-        // Si el proxy devolvió error HTTP pero la respuesta SOAP es parseable
-        if (!faceResp.ok && resultado.error) {
-          faceResp.descripcion = faceResp.descripcion || resultado.error;
-        }
-      } else if (resultado.error) {
-        // Error del proxy sin respuesta XML (fallo de conexión, cert, etc.)
-        faceResp = { ok: false, codigo: "PROXY", descripcion: resultado.error };
+      } else if (!proxyOk || resultado.error) {
+        // Error: proxy falló, o FACe devolvió HTML/error en vez de SOAP
+        const desc = resultado.error
+          || (resultado.xml_respuesta?.includes("<!DOCTYPE html>") ? `FACe devolvió error HTTP ${resultado.status || "?"}` : "Error desconocido del proxy")
+          || "Error de conexión con FACe";
+        faceResp = { ok: false, codigo: `HTTP-${resultado.status || "?"}`, descripcion: desc };
       } else if (resultado.simulado) {
         faceResp = { ok: true, codigo: "0", descripcion: "Simulación", numeroRegistro: `SIM-${Date.now()}`, codigoEstado: "1200", estado: "Registrada (simulada)" };
       }
 
-      // Guardar en face_envios
+      // Guardar en face_envios (incluir diagnósticos del proxy)
       await sbAdmin.from("face_envios").insert({
         empresa_id,
         factura_id,
@@ -705,7 +709,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         numero_registro: faceResp.numeroRegistro || null,
         codigo_estado: faceResp.codigoEstado || (faceResp.ok ? "1200" : null),
         estado: faceResp.estado || (faceResp.ok ? "Registrada" : "Error"),
-        motivo_rechazo: faceResp.ok ? null : faceResp.descripcion,
+        motivo_rechazo: faceResp.ok ? null : (faceResp.descripcion + (resultado.debug_soap_enviado ? ` [SOAP: ${resultado.debug_soap_enviado.substring(0, 500)}...]` : "")),
         xml_facturae: xmlFacturae,
         xml_respuesta: resultado.xml_respuesta || null,
       });
