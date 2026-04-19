@@ -88,9 +88,14 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:#fff;line-height:1.45}
 .doc{max-width:210mm;margin:0 auto;padding:18mm 16mm 22mm;position:relative}
-.cabecera{position:relative;display:flex;justify-content:flex-end;align-items:flex-start;min-height:70px;margin-bottom:18px}
-.cab-logo{position:absolute;top:-8px;left:0;display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0;z-index:2}
+.cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:70px;margin-bottom:18px}
+.cab-logo{position:absolute;top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0}
 .cab-logo img{height:90px;width:auto;max-width:240px;object-fit:contain;display:block}
+.cab-logo-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.cab-qr{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.cab-qr .qr-lbl{font-size:7px;font-weight:700;color:#1e293b;margin-bottom:2px}
+.cab-qr img{width:30mm;height:30mm}
+.cab-qr .qr-veri{font-size:7px;font-weight:700;color:#1e40af;margin-top:2px}
 .cab-empresa-info{text-align:right;font-size:9px;color:#64748b;line-height:1.5}
 .cab-empresa-info .nombre-corp{font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
 .titulo-doc{margin:6px 0 14px;padding-bottom:10px;border-bottom:3px solid #1e40af}
@@ -169,11 +174,23 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 `;
 
   // ─── Construcción de bloques ──────────────────────────────
-  function _renderCabecera(E){
+  function _renderCabecera(E, cfg){
     const dir = [E.direccion, E.cp && (E.cp+' '+(E.municipio||'')), E.provincia && '('+E.provincia+')'].filter(Boolean).join(' · ');
+    const hasQR = cfg && cfg.verifactu_qr_url && cfg.verifactu_estado === 'correcto';
+    const qrHtml = hasQR
+      ? `<div class="cab-qr">
+           <div class="qr-lbl">QR tributario:</div>
+           <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(cfg.verifactu_qr_url)}" alt="QR VeriFactu">
+           <div class="qr-veri">VERI*FACTU</div>
+         </div>`
+      : '';
+    // Con QR: QR izq | logo centrado absoluto | datos dcha
+    // Sin QR: logo izq absoluto | datos dcha (como antes)
+    const logoClass = hasQR ? 'cab-logo-center' : 'cab-logo';
     return `
 <div class="cabecera">
-  <div class="cab-logo"><img src="${_esc(_logoSrc(E))}" alt="Logo"></div>
+  ${qrHtml}
+  <div class="${logoClass}"><img src="${_esc(_logoSrc(E))}" alt="Logo"></div>
   <div class="cab-empresa-info">
     <div class="nombre-corp">${_esc(E.nombre||'')}</div>
     ${E.cif ? `<div>CIF ${_esc(E.cif)}</div>` : ''}
@@ -361,24 +378,6 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 </div>`;
   }
 
-  function _renderVerifactuQR(cfg){
-    if (!cfg.verifactu_qr_url || cfg.verifactu_estado !== 'correcto') return '';
-    // QR según normativa AEAT: tamaño 30-40mm, nivel corrección M, texto obligatorio
-    // 35mm ≈ 132px a 96dpi (en CSS mm es más fiable para impresión)
-    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(cfg.verifactu_qr_url)}`;
-    return `
-<div style="margin:8px 0 12px;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;display:flex;align-items:flex-start;gap:14px;page-break-inside:avoid">
-  <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
-    <div style="font-size:8px;font-weight:700;color:#1e293b;margin-bottom:3px">QR tributario:</div>
-    <img src="${qrImg}" style="width:35mm;height:35mm;min-width:35mm;min-height:35mm" alt="QR VeriFactu">
-    <div style="font-size:7px;font-weight:600;color:#1e40af;margin-top:3px;text-align:center;line-height:1.2;max-width:40mm">Factura verificable en la sede<br>electr\u00f3nica de la AEAT</div>
-  </div>
-  <div style="flex:1;padding-top:6px">
-    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1e40af;margin-bottom:4px">VERI*FACTU</div>
-    <div style="font-size:8px;color:#64748b;line-height:1.4">Esta factura ha sido registrada en la Agencia Tributaria.${cfg.verifactu_csv ? '<br>CSV: '+_esc(cfg.verifactu_csv) : ''}</div>
-  </div>
-</div>`;
-  }
 
   function _renderPie(E){
     const partes = [E.nombre, E.cif && ('CIF '+E.cif), E.direccion, E.telefono, E.email].filter(Boolean).join(' · ');
@@ -398,18 +397,21 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:90px;font-weight:900;color:rgba(239,68,68,0.08);letter-spacing:12px;white-space:nowrap;pointer-events:none;z-index:0;user-select:none">${_esc(cfg.marca_agua)}</div>`
       : '';
 
+    // Base URL para que las rutas relativas funcionen en ventanas popup (about:blank)
+    const baseUrl = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('about:'))
+      ? window.location.origin + window.location.pathname.replace(/[^/]*$/, '')
+      : '';
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8">${baseUrl ? `\n<base href="${baseUrl}">` : ''}
 <title>${_esc(cfg.tipo||'Documento')} ${_esc(cfg.numero||'')}</title>
 <style>${CSS}</style>
 </head>
 <body>
 <div class="doc" style="position:relative">
   ${marcaAguaHtml}
-  ${_renderCabecera(E)}
-  ${_renderVerifactuQR(cfg)}
+  ${_renderCabecera(E, cfg)}
   ${_renderTitulo(cfg)}
   ${_renderTarjetas(cfg)}
   ${cuerpoLineas}

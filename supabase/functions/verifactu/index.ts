@@ -644,7 +644,25 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ xml, modo }),
         });
 
-        const proxyData = await proxyResp.json();
+        // Leer respuesta como texto primero — el proxy puede devolver JSON o XML/HTML
+        const proxyRaw = await proxyResp.text();
+        console.log("[VeriFactu] Proxy status:", proxyResp.status, "body (primeros 500):", proxyRaw.substring(0, 500));
+
+        let proxyData: any;
+        try {
+          proxyData = JSON.parse(proxyRaw);
+        } catch (_jsonErr) {
+          // El proxy devolvió XML/HTML directamente (no lo envolvió en JSON)
+          // Intentar tratar como respuesta XML de AEAT directa
+          if (proxyRaw.includes("<") && (proxyRaw.includes("EstadoRegistro") || proxyRaw.includes("RespuestaRegFactu") || proxyRaw.includes("Envelope"))) {
+            // Es XML de AEAT — extraer la respuesta SOAP
+            const xmlBody = proxyRaw.includes("<soap:Body>") || proxyRaw.includes("<soapenv:Body>")
+              ? proxyRaw : proxyRaw;
+            proxyData = { ok: true, xml_respuesta: xmlBody };
+          } else {
+            throw new Error(`Proxy devolvió respuesta no-JSON (status ${proxyResp.status}): ${proxyRaw.substring(0, 200)}`);
+          }
+        }
 
         if (proxyData.ok && proxyData.xml_respuesta) {
           const parsed = parseRespuesta(proxyData.xml_respuesta);
