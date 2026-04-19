@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 102</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 103</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1967,6 +1967,7 @@ try {
             <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
             <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
             <button class="cfg-menu-item" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
+            <button class="cfg-menu-item" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -2455,6 +2456,41 @@ try {
                   </div>
                 </div>
 
+              </div>
+            </div>
+
+            <!-- ═══ SISTEMA ═══ -->
+            <div class="cfg-panel card" id="cfg-sistema">
+              <div class="card-h">
+                <h3>🔧 Sistema</h3>
+              </div>
+              <div class="card-b" style="padding:20px">
+                <div style="background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.08));border-radius:10px;padding:16px;margin-bottom:20px">
+                  <div style="font-weight:700;font-size:14px;color:var(--azul);margin-bottom:6px">Verificación de instalación</div>
+                  <div style="font-size:12.5px;color:var(--gris-600);line-height:1.6">
+                    Comprueba que todas las tablas y estructuras de la base de datos están correctamente instaladas. Si falta algo, te indicará qué ejecutar.
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="verificarInstalacion()" style="margin-bottom:16px">🔍 Verificar instalación</button>
+                <div id="install_check_result"></div>
+
+                <div style="margin-top:24px;border-top:2px solid var(--gris-100);padding-top:20px">
+                  <div style="font-weight:700;font-size:13px;color:var(--gris-700);margin-bottom:8px">Información del sistema</div>
+                  <div style="font-size:12px;color:var(--gris-500);line-height:2">
+                    <div><strong>Versión:</strong> instaloERP v1.1</div>
+                    <div><strong>Build:</strong> <span id="sys_build"></span></div>
+                    <div><strong>Supabase:</strong> <span id="sys_supa_url"></span></div>
+                  </div>
+                </div>
+
+                <script>
+                  document.getElementById('sys_build')?.replaceWith(document.createTextNode(
+                    document.querySelector('.footer-build')?.textContent || '—'
+                  ));
+                  document.getElementById('sys_supa_url')?.replaceWith(document.createTextNode(
+                    typeof SUPA_URL !== 'undefined' ? SUPA_URL.replace('https://','').split('.')[0] + '.supabase.co' : '—'
+                  ));
+                </script>
               </div>
             </div>
 

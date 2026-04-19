@@ -248,6 +248,7 @@ function cfgTab(id,el){
   if (id === 'correo') cargarCuentasCorreoConfig();
   if (id === 'ia') loadConfigIA();
   if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); cargarCalculadoraKm(); }
+  if (id === 'sistema') verificarInstalacion();
 }
 
 // ═══════════════════════════════════════════════
@@ -2318,4 +2319,102 @@ function calcAplicarTarifaKm() {
   document.getElementById('cfg_tarifa_km').value = costeKm;
   calcularCosteKm();
   toast('📌 Tarifa km actualizada a ' + costeKm.toFixed(3) + '€/km (coste puro, ajusta margen)', 'info');
+}
+
+// ═══════════════════════════════════════════════
+//  VERIFICACIÓN DE INSTALACIÓN
+// ═══════════════════════════════════════════════
+
+async function verificarInstalacion() {
+  const el = document.getElementById('install_check_result');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--gris-400);font-size:12px">Verificando instalación...</div>';
+
+  try {
+    // Intentar llamar a la función RPC verificar_instalacion
+    const { data, error } = await sb.rpc('verificar_instalacion');
+
+    if (error) {
+      // Si la función no existe, verificar manualmente probando cada tabla
+      el.innerHTML = '<div style="color:#d97706;font-size:12px">⚠️ Función verificar_instalacion no encontrada. Verificando tablas manualmente...</div>';
+      await _verificarTablasManual(el);
+      return;
+    }
+
+    // Mostrar resultado
+    if (data.instalacion_completa) {
+      el.innerHTML = `<div style="background:#ECFDF5;padding:12px;border-radius:8px;border:1px solid #86efac">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#166534">
+          <span style="font-size:18px">✅</span> Instalación completa
+        </div>
+        <div style="font-size:11px;color:#166534;margin-top:4px">
+          ${data.tablas_ok} de ${data.total_tablas} tablas verificadas · v${data.version}
+        </div>
+      </div>`;
+    } else {
+      el.innerHTML = `<div style="background:#FEF2F2;padding:12px;border-radius:8px;border:1px solid #fca5a5">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#991B1B">
+          <span style="font-size:18px">❌</span> Instalación incompleta
+        </div>
+        <div style="font-size:11px;color:#991B1B;margin-top:4px">
+          ${data.tablas_ok} de ${data.total_tablas} tablas · Faltan: ${data.faltantes.join(', ')}
+        </div>
+        <div style="font-size:11px;color:#991B1B;margin-top:6px">
+          Ejecuta <code>instaloerp_install.sql</code> en Supabase → SQL Editor para crear las tablas faltantes.
+        </div>
+      </div>`;
+    }
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--rojo);font-size:12px">Error verificando: ${e.message}</div>`;
+  }
+}
+
+async function _verificarTablasManual(el) {
+  const tablas = [
+    'empresas','perfiles','tipos_iva','unidades_medida','formas_pago','series_numeracion',
+    'clientes','contactos_cliente','direcciones_cliente','proveedores',
+    'familias_articulos','articulos','servicios','almacenes','stock','movimientos_stock',
+    'presupuestos','albaranes','facturas','factura_versiones','presupuesto_versiones',
+    'presupuestos_compra','pedidos_compra','recepciones','facturas_proveedor',
+    'trabajos','partes_trabajo','mantenimientos','revisiones_mantenimiento',
+    'vehiculos','vehiculo_gastos','fichajes',
+    'documentos','documentos_ocr','certificados_digitales',
+    'verifactu_config','verifactu_registros',
+    'cuentas_bancarias','cuentas_correo','invitaciones',
+    'audit_log','correos'
+  ];
+
+  const ok = [];
+  const fail = [];
+
+  for (const t of tablas) {
+    try {
+      const { error } = await sb.from(t).select('id', { count: 'exact', head: true });
+      if (error && error.code === '42P01') fail.push(t);
+      else ok.push(t);
+    } catch { fail.push(t); }
+  }
+
+  if (fail.length === 0) {
+    el.innerHTML = `<div style="background:#ECFDF5;padding:12px;border-radius:8px;border:1px solid #86efac">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#166534">
+        <span style="font-size:18px">✅</span> Instalación completa
+      </div>
+      <div style="font-size:11px;color:#166534;margin-top:4px">
+        ${ok.length} tablas verificadas correctamente
+      </div>
+    </div>`;
+  } else {
+    el.innerHTML = `<div style="background:#FEF2F2;padding:12px;border-radius:8px;border:1px solid #fca5a5">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#991B1B">
+        <span style="font-size:18px">❌</span> Faltan ${fail.length} tablas
+      </div>
+      <div style="font-size:11px;color:#991B1B;margin-top:4px">
+        ${ok.length} OK · Faltan: <b>${fail.join(', ')}</b>
+      </div>
+      <div style="font-size:11px;color:#991B1B;margin-top:6px">
+        Ejecuta <code>instaloerp_install.sql</code> en Supabase → SQL Editor
+      </div>
+    </div>`;
+  }
 }
