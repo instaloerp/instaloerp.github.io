@@ -165,12 +165,14 @@ function buildRegistroAltaXML(params: {
 }): string {
   const { config, factura, desglose, encadenamiento, fechaHoraHuso, huella } = params;
 
-  const tipoFactura = factura.rectificativa_de ? "R1" : "F1";
+  // Tipo de factura: R1/R2/R3/R4/R5 para rectificativas, F1/F2/F3 para normales
+  const tipoFactura = factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1");
   const fechaAEAT = formatFechaAEAT(factura.fecha);
 
-  // Destinatario
+  // Destinatario — F2 (simplificada) y R5 (rect. simplificada) NO pueden llevar Destinatarios (AEAT rechaza)
   let destinatarioXml = "";
-  if (factura.cliente_nif) {
+  const sinDestinatario = tipoFactura === "F2" || tipoFactura === "R5";
+  if (factura.cliente_nif && !sinDestinatario) {
     destinatarioXml = `
           <sf:Destinatarios>
             <sf:IDDestinatario>
@@ -191,22 +193,30 @@ function buildRegistroAltaXML(params: {
               <sf:CuotaRepercutida>${formatDecimal(d.cuota)}</sf:CuotaRepercutida>
             </sf:DetalleDesglose>`).join("");
 
-  // Rectificativa
+  // Rectificativa — según tipo "I" (diferencias) o "S" (sustitución)
+  // Ref: AEAT FAQ "Procedimientos de facturación"
   let rectificativaXml = "";
   if (factura.rectificativa_de && factura.factura_rectificada_numero) {
+    const tipoRect = factura.tipo_rectificacion || "S";  // I o S
     rectificativaXml = `
-          <sf:TipoRectificativa>S</sf:TipoRectificativa>
+          <sf:TipoRectificativa>${tipoRect}</sf:TipoRectificativa>
           <sf:FacturasRectificadas>
             <sf:IDFacturaRectificada>
               <sf:IDEmisorFactura>${escXml(config.nif)}</sf:IDEmisorFactura>
               <sf:NumSerieFactura>${escXml(factura.factura_rectificada_numero)}</sf:NumSerieFactura>
               <sf:FechaExpedicionFactura>${formatFechaAEAT(factura.factura_rectificada_fecha)}</sf:FechaExpedicionFactura>
             </sf:IDFacturaRectificada>
-          </sf:FacturasRectificadas>
+          </sf:FacturasRectificadas>`;
+
+    // Tipo S: DEBE incluir ImporteRectificacion con base/cuota originales
+    // Tipo I: NO se incluyen estos campos (AEAT doc)
+    if (tipoRect === "S" && (factura.base_rectificada != null || factura.cuota_rectificada != null)) {
+      rectificativaXml += `
           <sf:ImporteRectificacion>
             <sf:BaseRectificada>${formatDecimal(Math.abs(factura.base_rectificada || 0))}</sf:BaseRectificada>
             <sf:CuotaRectificada>${formatDecimal(Math.abs(factura.cuota_rectificada || 0))}</sf:CuotaRectificada>
           </sf:ImporteRectificacion>`;
+    }
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -317,7 +327,11 @@ function calcDesglose(lineas: any[], tipoIvaMap: any): { tipo: number; base: num
 
   for (const l of lineas) {
     if (l._separator) continue;
-    const base = (l.cant || 0) * (l.precio || 0);
+    // Aplicar descuentos encadenados (dto1, dto2, dto3) igual que en el ERP
+    let base = (l.cant || 0) * (l.precio || 0);
+    if (l.dto1) base *= (1 - (l.dto1 / 100));
+    if (l.dto2) base *= (1 - (l.dto2 / 100));
+    if (l.dto3) base *= (1 - (l.dto3 / 100));
     const tipoIva = l.iva ?? 21;
     if (!porTipo[tipoIva]) porTipo[tipoIva] = { base: 0, cuota: 0 };
     porTipo[tipoIva].base += base;
@@ -465,7 +479,7 @@ Deno.serve(async (req) => {
 
     if (action === "alta") {
       // ── REGISTRO ALTA ──
-      const tipoFactura = factura.rectificativa_de ? "R1" : "F1";
+      const tipoFactura = factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1");
       // Para el hash: siempre 2 decimales (AEAT spec)
       const cuotaTotalHash = formatDecimalHash(factura.total_iva || 0);
       const importeTotalHash = formatDecimalHash(factura.total || 0);
@@ -536,7 +550,7 @@ Deno.serve(async (req) => {
       nif_emisor: config.nif,
       num_serie: factura.numero,
       fecha_expedicion: fechaAEAT,
-      tipo_factura: factura.rectificativa_de ? "R1" : "F1",
+      tipo_factura: factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1"),
       cuota_total: Math.abs(factura.total_iva || 0),
       importe_total: factura.total || 0,
       fecha_hora_huso: fechaHoraHuso,
