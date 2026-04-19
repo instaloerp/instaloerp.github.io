@@ -27,7 +27,7 @@ function _showStepper(titulo, pasos) {
 
   const ol = document.createElement('div');
   ol.id = 'vfStepper';
-  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
+  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:10010;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
   ol.innerHTML = `
     <style>
       @keyframes vfFadeIn{from{opacity:0}to{opacity:1}}
@@ -2468,7 +2468,7 @@ function abrirSubsanacion(id) {
         <div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#9A3412;line-height:1.5">
           <b>Subsanación</b> — Corrige solo datos <b>no fiscales</b>: descripciones de líneas, observaciones, textos informativos.<br>
           <b>NO</b> se pueden cambiar importes, cantidades, precios, IVA, NIF ni datos del cliente.<br>
-          Se reenviará la factura corregida a AEAT sustituyendo el registro anterior.
+          Si se modifican observaciones, se reenviará el registro a AEAT con subsanación.
         </div>
 
         <div style="margin-bottom:14px">
@@ -2553,12 +2553,23 @@ async function _guardarSubsanacion() {
     return;
   }
 
+  // DescripcionOperacion (observaciones) SÍ está en el RegistroAlta AEAT.
+  // Descripciones de líneas NO están en el registro (solo el desglose por tipo IVA).
+  // Si cambian observaciones → subsanación AEAT (Subsanacion="S")
+  // Si solo cambian descripciones de líneas → solo guardar local (FAQ AEAT: no exige nuevo registro)
+  const necesitaAEAT = hayObsCambio && _isVfActivo() &&
+    (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado');
+
+  const msgAEAT = necesitaAEAT
+    ? 'Las <b>observaciones</b> forman parte del registro AEAT (DescripcionOperacion).<br>Se reenviará el registro con el mecanismo de subsanación.'
+    : 'Solo se han modificado datos <b>no fiscales</b> que no están en el registro AEAT.<br>Los importes no cambian.';
+
   const ok = await confirmModal({
     icono: '🔧',
     titulo: 'Subsanar factura ' + f.numero,
-    mensaje: 'Solo se han modificado datos <b>no fiscales</b> (descripciones/observaciones).<br>Los importes no cambian.',
-    aviso: 'El registro en AEAT sigue siendo válido (los datos fiscales no cambian).',
-    btnOk: '🔧 Guardar subsanación',
+    mensaje: msgAEAT,
+    aviso: necesitaAEAT ? 'Se enviará un nuevo registro sustitutivo a AEAT' : 'El registro en AEAT no cambia.',
+    btnOk: necesitaAEAT ? '🔧 Subsanar y reenviar a AEAT' : '🔧 Guardar subsanación',
     colorOk: '#EA580C'
   });
   if (!ok) return;
@@ -2568,10 +2579,15 @@ async function _guardarSubsanacion() {
   // Stepper
   const pasos = [
     { label: 'Guardando cambios', sub: 'Actualizando descripciones y observaciones...' },
+    ...(necesitaAEAT ? [
+      { label: 'Subsanando en AEAT', sub: 'Enviando registro sustitutivo (Subsanacion=S)...' },
+      { label: 'Verificando respuesta', sub: 'Procesando resultado AEAT...' },
+    ] : []),
     { label: 'Actualizando datos locales', sub: 'Refrescando vista...' },
   ];
   _showStepper('Subsanando factura', pasos);
-  _updateStep(0);
+  let paso = 0;
+  _updateStep(paso);
 
   // 1. Guardar cambios en BD
   const updateObj = { lineas: lineasActualizadas };
@@ -2584,14 +2600,36 @@ async function _guardarSubsanacion() {
   f.lineas = lineasActualizadas;
   if (hayObsCambio) f.observaciones = nuevaObs;
 
-  // 2. Refrescar vista
-  _updateStep(1);
+  // 2. Si observaciones cambiaron → subsanación AEAT
+  if (necesitaAEAT) {
+    paso++;
+    _updateStep(paso);
+    try {
+      const resp = await sb.functions.invoke('verifactu', {
+        body: { action: 'subsanacion', factura_id: f.id, empresa_id: f.empresa_id }
+      });
+      paso++;
+      _updateStep(paso);
+      const data = resp.data;
+      if (data && data.ok && (data.estado === 'correcto' || data.estado === 'simulado' || data.estado === 'aceptado_errores')) {
+        console.log('[Subsanación AEAT] OK:', data);
+      } else {
+        console.warn('[Subsanación AEAT] Respuesta:', data);
+        _stepperDone('Subsanación local guardada, pero AEAT respondió: ' + (data?.descripcion_error || data?.estado || 'error desconocido'), false);
+        return;
+      }
+    } catch (err) {
+      console.error('[Subsanación AEAT] Error:', err);
+      _stepperDone('Subsanación local guardada, pero error al enviar a AEAT: ' + err.message, false);
+      return;
+    }
+  }
+
+  // 3. Refrescar vista
+  paso++;
+  _updateStep(paso);
   await loadFacturas();
   _stepperDone('Subsanación de ' + f.numero + ' guardada correctamente ✓', true);
-
-  // Nota: No se reenvía a AEAT porque las descripciones/observaciones son datos
-  // no fiscales que no forman parte del hash VeriFactu. El registro en AEAT
-  // sigue siendo válido (importes, NIF, fecha no han cambiado).
 
   // Refrescar detalle si está abierto
   const detId = document.getElementById('facDetId');
