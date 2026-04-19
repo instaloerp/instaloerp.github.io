@@ -462,53 +462,36 @@ ${_renderPie(E)}
     ));
   }
 
-  // Renderiza el HTML en un iframe aislado y devuelve un jsPDF (vía html2pdf)
-  // El iframe evita que los estilos del ERP contaminen el documento.
+  // Renderiza el HTML en un contenedor invisible y devuelve un jsPDF (vía html2pdf)
   async function _renderToPdf(cfg){
     if (!window.html2pdf) {
       throw new Error('html2pdf.js no está cargado');
     }
     const html = _buildHtmlDocumento(cfg);
+    // Extraer sólo el .doc (sin <html><body>) para incrustarlo en un contenedor offscreen
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     const doc = tmp.querySelector('.doc');
     const styleNode = tmp.querySelector('style');
     if (!doc) throw new Error('Documento mal formado');
 
-    // Crear iframe oculto para aislar CSS
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:0;border:none;visibility:hidden';
-    document.body.appendChild(iframe);
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
+    if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
+    wrapper.appendChild(doc.cloneNode(true));
+    document.body.appendChild(wrapper);
 
     try {
-      const iDoc = iframe.contentDocument || iframe.contentWindow.document;
-      iDoc.open();
-      iDoc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#fff"></body></html>');
-      iDoc.close();
-
-      // Inyectar estilos y documento en el iframe
-      if (styleNode) iDoc.head.appendChild(iDoc.importNode(styleNode, true));
-      const docClone = iDoc.importNode(doc, true);
-      // Padding top mínimo — el margen de html2pdf ya añade espacio
-      docClone.style.paddingTop = '2mm';
-      iDoc.body.appendChild(docClone);
-
-      // Ajustar iframe al contenido
-      iframe.style.height = iDoc.body.scrollHeight + 'px';
-
-      await _esperarImagenes(iDoc.body);
-      // Pequeña pausa para que el layout se estabilice
-      await new Promise(r => setTimeout(r, 100));
-
+      await _esperarImagenes(wrapper);
       const opt = {
-        margin:       [2, 0, 14, 0],
+        margin:       [10, 0, 14, 0],   // mm — el .doc ya tiene padding interno
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff' },
         jsPDF:        { unit:'mm', format:'a4', orientation:'portrait' },
         pagebreak:    { mode:['css','legacy'], avoid:['.capitulo','.resumen-bloque','.firma','.firma-bloque'] }
       };
-      const worker = window.html2pdf().set(opt).from(iDoc.querySelector('.doc'));
+      const worker = window.html2pdf().set(opt).from(wrapper.querySelector('.doc'));
       const pdf = await worker.toPdf().get('pdf');
       // Stamp pie con numeración
       const totalPag = pdf.internal.getNumberOfPages();
@@ -523,7 +506,7 @@ ${_renderPie(E)}
       }
       return pdf;
     } finally {
-      iframe.remove();
+      wrapper.remove();
     }
   }
 

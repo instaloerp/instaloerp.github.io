@@ -1418,8 +1418,8 @@ async function descargarPdfsMasivo() {
   const rango = _getAuditRango();
   if (!rango) return;
   if (!window.JSZip) { toast('Librería JSZip no disponible', 'error'); return; }
-  if (typeof _pdfFacturaBase64 !== 'function' && typeof window._documentoPdfBase64 !== 'function') {
-    toast('Generador de PDF no disponible — abre primero la sección Facturas', 'warning');
+  if (typeof _pdfFacturaBase64 !== 'function') {
+    toast('Generador de PDF no disponible — abre primero la sección Facturas para cargar el generador', 'warning');
     return;
   }
 
@@ -1444,6 +1444,16 @@ async function descargarPdfsMasivo() {
     // Los clientes ya están en memoria (variable global)
   }
 
+  // Asegurar que clientes estén cargados (necesario para _pdfFacturaBase64 → _cfgFactura)
+  if (typeof clientes === 'undefined' || !clientes.length) {
+    const { data: cliData } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id);
+    window.clientes = cliData || [];
+  }
+  // Asegurar que facLocalData tenga los datos (necesario para _pdfFacturaBase64)
+  if (typeof facLocalData === 'undefined' || !facLocalData.length) {
+    window.facLocalData = facs;
+  }
+
   const zip = new JSZip();
   let generados = 0;
   let erroresPdf = 0;
@@ -1453,41 +1463,8 @@ async function descargarPdfsMasivo() {
   for (let i = 0; i < facs.length; i++) {
     const f = facs[i];
     try {
-      // Construir cfg igual que _cfgFactura en facturas.js
-      const cli = (typeof clientes !== 'undefined' ? clientes : []).find(x => x.id === f.cliente_id) || {};
-      const lineasPlanas = (f.lineas || []).filter(l => l && l.tipo !== 'capitulo');
-      const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
-      const cfg = {
-        tipo: esBorrador ? 'FACTURA PROFORMA' : 'FACTURA',
-        numero: f.numero,
-        fecha: f.fecha,
-        titulo: f.titulo || f.referencia,
-        cliente: {
-          nombre: f.cliente_nombre || cli.nombre || '—',
-          nif: cli.nif, direccion: cli.direccion_fiscal || cli.direccion,
-          cp: cli.cp_fiscal || cli.cp, municipio: cli.municipio_fiscal || cli.municipio,
-          provincia: cli.provincia_fiscal || cli.provincia,
-          email: cli.email, telefono: cli.telefono
-        },
-        lineas: lineasPlanas,
-        base_imponible: f.base_imponible, total_iva: f.total_iva, total: f.total,
-        observaciones: f.observaciones,
-        datos_extra: [
-          f.fecha_vencimiento ? ['Vencimiento', new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')] : null,
-          f.forma_pago ? ['Forma de pago', f.forma_pago] : null
-        ].filter(Boolean),
-        condiciones: [
-          ['Forma de pago', f.forma_pago || 'Transferencia bancaria.'],
-          ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
-          ['IVA', 'IVA al 21 % incluido en el total final.']
-        ],
-        firma_zona: false,
-        verifactu_qr_url: f.verifactu_qr_url || null,
-        verifactu_csv: f.verifactu_csv || null,
-        verifactu_estado: f.verifactu_estado || null
-      };
-
-      const b64 = await window._documentoPdfBase64(cfg);
+      // Usar EXACTAMENTE la misma función que la descarga individual
+      const b64 = await _pdfFacturaBase64(f);
       if (b64) {
         const nombre = (f.numero || 'factura_' + f.id).replace(/[^a-zA-Z0-9-]/g, '_') + '.pdf';
         zip.file(nombre, b64, { base64: true });
