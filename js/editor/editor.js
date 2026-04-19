@@ -1514,7 +1514,7 @@ async function _doEmitirFactura() {
   if (!id) return;
   // Ahora emitir usando la función de facturas.js
   if (typeof emitirFacturaDefinitiva === 'function') {
-    await emitirFacturaDefinitiva(id);
+    await emitirFacturaDefinitiva(id, { skipConfirm: true });
   } else {
     // Fallback: guardar directamente como pendiente
     await de_guardar('pendiente');

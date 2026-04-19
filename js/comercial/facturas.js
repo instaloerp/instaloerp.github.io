@@ -993,7 +993,7 @@ async function toggleFacVersiones(facId, btnEl) {
 //  EMITIR FACTURA DEFINITIVA (borrador → factura real)
 //  Asigna número correlativo, genera registro para VeriFactu
 // ═══════════════════════════════════════════════
-async function emitirFacturaDefinitiva(id) {
+async function emitirFacturaDefinitiva(id, opts = {}) {
   const f = facLocalData.find(x => x.id === id);
   if (!f) { toast('Factura no encontrada', 'error'); return; }
   if (f.estado !== 'borrador') { toast('Solo se pueden emitir borradores', 'error'); return; }
@@ -1002,8 +1002,10 @@ async function emitirFacturaDefinitiva(id) {
   // Validar que tiene cliente y líneas
   if (!f.cliente_id) { toast('El borrador no tiene cliente asignado', 'error'); return; }
   const lineas = f.lineas || [];
-  if (!lineas.filter(l => !l._separator).length) { toast('El borrador no tiene líneas', 'error'); return; }
+  if (!lineas.filter(l => !l._separator && l.tipo !== 'capitulo' && l.tipo !== 'subcapitulo').length) { toast('El borrador no tiene líneas', 'error'); return; }
 
+  // Si viene del editor (ya confirmó allí), saltar la confirmación
+  if (!opts.skipConfirm) {
   const okEmitir = await confirmModal({
     icono: '🧾',
     titulo: 'Emitir factura definitiva',
@@ -1013,6 +1015,7 @@ async function emitirFacturaDefinitiva(id) {
     btnCancel: 'Cancelar'
   });
   if (!okEmitir) return;
+  } // fin skipConfirm
 
   const vfActivo = _isVfActivo();
   const pasos = [
@@ -1497,15 +1500,15 @@ function _mostrarSelectorTipoRect() {
       <p style="margin:0 0 20px;font-size:13px;color:#64748b">Original: ${fmtE(orig.base_imponible||0)} base + ${fmtE(orig.total_iva||0)} IVA = <b>${fmtE(orig.total||0)}</b></p>
 
       <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="_rectBtnS" style="text-align:left;padding:16px 18px;border:2px solid #f59e0b;border-radius:12px;background:#fffbeb;cursor:pointer;transition:all .15s">
+          <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">⭐ Por sustitución (S) — Recomendado</div>
+          <div style="font-size:12px;color:#64748b;line-height:1.4">Indica el importe CORRECTO completo. Más intuitivo y claro.<br>
+          <span style="color:#f59e0b">Ejemplo: factura de 1.000€ debía ser 800€ → rectificativa con 800€</span></div>
+        </button>
         <button id="_rectBtnI" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s">
           <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por diferencias (I)</div>
-          <div style="font-size:12px;color:#64748b;line-height:1.4">Corregir importes parcialmente. Solo se registra la diferencia.<br>
-          <span style="color:#3b82f6">Ejemplo: quitar una línea de 200€ → rectificativa de -200€</span></div>
-        </button>
-        <button id="_rectBtnS" style="text-align:left;padding:16px 18px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s">
-          <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:4px">Por sustitución (S)</div>
-          <div style="font-size:12px;color:#64748b;line-height:1.4">Reemplazar la factura completa con importes correctos.<br>
-          <span style="color:#f59e0b">Ejemplo: factura de 1.000€ debía ser 800€ → rectificativa con 800€</span></div>
+          <div style="font-size:12px;color:#64748b;line-height:1.4">Solo registra la diferencia respecto a la original. Para ajustes parciales.<br>
+          <span style="color:#3b82f6">Ejemplo: faltaba una línea de 200€ → rectificativa de +200€</span></div>
         </button>
       </div>
 
@@ -1529,7 +1532,7 @@ function _iniciarRectificativa(tipo) {
   const orig = _rectOrig;
 
   // Copiar líneas originales para edición
-  _rectLineas = (orig.lineas || []).filter(l => !l._separator).map(l => ({
+  _rectLineas = (orig.lineas || []).filter(l => !l._separator && l.tipo !== 'capitulo' && l.tipo !== 'subcapitulo').map(l => ({
     desc: l.desc || '', cant: l.cant || 0, precio: l.precio || 0,
     dto1: l.dto1 || 0, dto2: l.dto2 || 0, dto3: l.dto3 || 0,
     iva: l.iva || 21, articulo_id: l.articulo_id || null,
@@ -2449,7 +2452,7 @@ function abrirSubsanacion(id) {
   }
 
   _subsFacId = id;
-  _subsLineas = (f.lineas || []).filter(l => !l._separator).map(l => ({
+  _subsLineas = (f.lineas || []).filter(l => !l._separator && l.tipo !== 'capitulo' && l.tipo !== 'subcapitulo').map(l => ({
     ...l, _origDesc: l.desc || ''
   }));
 
