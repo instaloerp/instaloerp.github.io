@@ -1032,6 +1032,8 @@ async function guardarCfgVerifactu() {
     id_sistema: '01',
     version_sistema: '1.1',
     numero_instalacion: '001',
+    nif_fabricante: '21677091M',
+    nombre_fabricante: 'JORDÁ MONCHO JORGE',
     updated_at: new Date().toISOString(),
   };
 

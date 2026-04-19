@@ -250,8 +250,8 @@ function buildRegistroAltaXML(params: {
           <sf:ImporteTotal>${formatDecimal(factura.total || 0)}</sf:ImporteTotal>
           ${encadenamiento}
           <sf:SistemaInformatico>
-            <sf:NombreRazon>${escXml(config.nombre_razon)}</sf:NombreRazon>
-            <sf:NIF>${escXml(config.nif)}</sf:NIF>
+            <sf:NombreRazon>${escXml(config.nombre_fabricante || config.nombre_razon)}</sf:NombreRazon>
+            <sf:NIF>${escXml(config.nif_fabricante || config.nif)}</sf:NIF>
             <sf:NombreSistemaInformatico>${escXml(config.nombre_sistema)}</sf:NombreSistemaInformatico>
             <sf:IdSistemaInformatico>${escXml(config.id_sistema)}</sf:IdSistemaInformatico>
             <sf:Version>${escXml(config.version_sistema)}</sf:Version>
@@ -302,8 +302,8 @@ function buildRegistroAnulacionXML(params: {
           </sf:IDFactura>
           ${encadenamiento}
           <sf:SistemaInformatico>
-            <sf:NombreRazon>${escXml(config.nombre_razon)}</sf:NombreRazon>
-            <sf:NIF>${escXml(config.nif)}</sf:NIF>
+            <sf:NombreRazon>${escXml(config.nombre_fabricante || config.nombre_razon)}</sf:NombreRazon>
+            <sf:NIF>${escXml(config.nif_fabricante || config.nif)}</sf:NIF>
             <sf:NombreSistemaInformatico>${escXml(config.nombre_sistema)}</sf:NombreSistemaInformatico>
             <sf:IdSistemaInformatico>${escXml(config.id_sistema)}</sf:IdSistemaInformatico>
             <sf:Version>${escXml(config.version_sistema)}</sf:Version>
