@@ -1293,7 +1293,7 @@ async function verificarIntegridadVF() {
   if (resDiv) { resDiv.style.display = ''; resDiv.innerHTML = '<div style="font-size:12px;color:var(--gris-500)">Verificando cadena de hashes...</div>'; }
 
   const { data, error } = await sb.from('verifactu_registros')
-    .select('id, tipo_registro, num_serie, fecha_expedicion, tipo_factura, cuota_total, importe_total, nif_emisor, fecha_hora_huso, huella, huella_anterior, es_primer_registro, registro_anterior_id')
+    .select('id, factura_id, tipo_registro, num_serie, fecha_expedicion, tipo_factura, cuota_total, importe_total, nif_emisor, fecha_hora_huso, huella, huella_anterior, es_primer_registro, registro_anterior_id')
     .eq('empresa_id', EMPRESA.id)
     .order('id', { ascending: true });
 
@@ -1304,6 +1304,17 @@ async function verificarIntegridadVF() {
   if (!data?.length) {
     if (resDiv) resDiv.innerHTML = `<div style="color:#d97706;font-size:12px">No hay registros VeriFactu</div>`;
     return;
+  }
+
+  // Cargar facturas asociadas para recalcular hash con valores originales
+  // (cuota_total en verifactu_registros usa Math.abs, pero el hash usa el valor con signo)
+  const facIds = [...new Set(data.filter(r => r.factura_id).map(r => r.factura_id))];
+  let facMap = {};
+  if (facIds.length) {
+    const { data: facs } = await sb.from('facturas')
+      .select('id, total_iva, total')
+      .in('id', facIds);
+    if (facs) facs.forEach(f => { facMap[f.id] = f; });
   }
 
   let errores = [];
@@ -1319,11 +1330,9 @@ async function verificarIntegridadVF() {
         errores.push(`Registro #${reg.id} (${reg.num_serie}): debería ser primer registro pero no está marcado`);
       }
     } else {
-      // Verificar que huella_anterior coincide con la huella del registro previo
       if (reg.huella_anterior && prev && reg.huella_anterior !== prev.huella) {
         errores.push(`Registro #${reg.id} (${reg.num_serie}): huella_anterior no coincide con registro previo #${prev.id}`);
       }
-      // Verificar referencia al anterior
       if (reg.registro_anterior_id && prev && reg.registro_anterior_id !== prev.id) {
         errores.push(`Registro #${reg.id} (${reg.num_serie}): registro_anterior_id apunta a #${reg.registro_anterior_id} pero el previo es #${prev.id}`);
       }
@@ -1336,24 +1345,28 @@ async function verificarIntegridadVF() {
       ok++;
     }
 
-    // Recalcular hash y comparar
+    // Recalcular hash usando los valores originales de la factura
+    // (la Edge Function usa factura.total_iva y factura.total con signo para el hash)
     if (reg.huella && typeof crypto !== 'undefined') {
       try {
+        const fac = facMap[reg.factura_id];
+        // Usar valores de la factura si disponible, si no del registro
+        const cuotaHash = fac ? Number(fac.total_iva || 0).toFixed(2) : Number(reg.cuota_total || 0).toFixed(2);
+        const importeHash = fac ? Number(fac.total || 0).toFixed(2) : Number(reg.importe_total || 0).toFixed(2);
+
         let campos;
-        if (reg.tipo_registro === 'alta') {
-          // Formato AEAT: "nombreCampo=valor&nombreCampo=valor&..."
+        if (reg.tipo_registro === 'alta' || reg.tipo_registro === 'subsanacion') {
           campos = [
             `IDEmisorFactura=${reg.nif_emisor || ''}`,
             `NumSerieFactura=${reg.num_serie || ''}`,
             `FechaExpedicionFactura=${reg.fecha_expedicion || ''}`,
             `TipoFactura=${reg.tipo_factura || ''}`,
-            `CuotaTotal=${reg.cuota_total != null ? Number(reg.cuota_total).toFixed(2) : ''}`,
-            `ImporteTotal=${reg.importe_total != null ? Number(reg.importe_total).toFixed(2) : ''}`,
+            `CuotaTotal=${cuotaHash}`,
+            `ImporteTotal=${importeHash}`,
             `Huella=${reg.huella_anterior || ''}`,
             `FechaHoraHusoGenRegistro=${reg.fecha_hora_huso || ''}`
           ].join('&');
         } else {
-          // Anulación
           campos = [
             `IDEmisorFacturaAnulada=${reg.nif_emisor || ''}`,
             `NumSerieFacturaAnulada=${reg.num_serie || ''}`,
@@ -1395,6 +1408,127 @@ async function verificarIntegridadVF() {
           <div style="font-size:11px;color:#991b1b;margin-top:6px">${ok} de ${data.length} registros con hash verificado</div>
         </div>`;
     }
+  }
+}
+
+/** 4. Descarga masiva de PDFs de facturas en ZIP */
+async function descargarPdfsMasivo() {
+  const rango = _getAuditRango();
+  if (!rango) return;
+  if (!window.JSZip) { toast('Librería JSZip no disponible', 'error'); return; }
+  if (typeof _pdfFacturaBase64 !== 'function' && typeof window._documentoPdfBase64 !== 'function') {
+    toast('Generador de PDF no disponible — abre primero la sección Facturas', 'warning');
+    return;
+  }
+
+  const resDiv = document.getElementById('vf_audit_resultado');
+  if (resDiv) { resDiv.style.display = ''; resDiv.innerHTML = '<div style="font-size:12px;color:var(--gris-500)">Cargando facturas del período...</div>'; }
+
+  // Cargar facturas del período (sin borradores)
+  const { data: facs, error } = await sb.from('facturas')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .gte('fecha', rango.desde)
+    .lte('fecha', rango.hasta)
+    .not('estado', 'eq', 'borrador')
+    .order('fecha', { ascending: true });
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (!facs?.length) { toast('No hay facturas en ese período', 'warning'); if (resDiv) resDiv.style.display = 'none'; return; }
+
+  // Cargar clientes para construir cfg del PDF
+  const cliIds = [...new Set(facs.filter(f => f.cliente_id).map(f => f.cliente_id))];
+  if (cliIds.length && typeof clientes !== 'undefined') {
+    // Los clientes ya están en memoria (variable global)
+  }
+
+  const zip = new JSZip();
+  let generados = 0;
+  let erroresPdf = 0;
+
+  if (resDiv) resDiv.innerHTML = `<div style="font-size:12px;color:var(--gris-500)">Generando PDFs: 0 / ${facs.length}...</div>`;
+
+  for (let i = 0; i < facs.length; i++) {
+    const f = facs[i];
+    try {
+      // Construir cfg igual que _cfgFactura en facturas.js
+      const cli = (typeof clientes !== 'undefined' ? clientes : []).find(x => x.id === f.cliente_id) || {};
+      const lineasPlanas = (f.lineas || []).filter(l => l && l.tipo !== 'capitulo');
+      const esBorrador = f.estado === 'borrador' || (f.numero || '').startsWith('BORR-');
+      const cfg = {
+        tipo: esBorrador ? 'FACTURA PROFORMA' : 'FACTURA',
+        numero: f.numero,
+        fecha: f.fecha,
+        titulo: f.titulo || f.referencia,
+        cliente: {
+          nombre: f.cliente_nombre || cli.nombre || '—',
+          nif: cli.nif, direccion: cli.direccion_fiscal || cli.direccion,
+          cp: cli.cp_fiscal || cli.cp, municipio: cli.municipio_fiscal || cli.municipio,
+          provincia: cli.provincia_fiscal || cli.provincia,
+          email: cli.email, telefono: cli.telefono
+        },
+        lineas: lineasPlanas,
+        base_imponible: f.base_imponible, total_iva: f.total_iva, total: f.total,
+        observaciones: f.observaciones,
+        datos_extra: [
+          f.fecha_vencimiento ? ['Vencimiento', new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')] : null,
+          f.forma_pago ? ['Forma de pago', f.forma_pago] : null
+        ].filter(Boolean),
+        condiciones: [
+          ['Forma de pago', f.forma_pago || 'Transferencia bancaria.'],
+          ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
+          ['IVA', 'IVA al 21 % incluido en el total final.']
+        ],
+        firma_zona: false,
+        verifactu_qr_url: f.verifactu_qr_url || null,
+        verifactu_csv: f.verifactu_csv || null,
+        verifactu_estado: f.verifactu_estado || null
+      };
+
+      const b64 = await window._documentoPdfBase64(cfg);
+      if (b64) {
+        const nombre = (f.numero || 'factura_' + f.id).replace(/[^a-zA-Z0-9-]/g, '_') + '.pdf';
+        zip.file(nombre, b64, { base64: true });
+        generados++;
+      } else {
+        erroresPdf++;
+      }
+    } catch (e) {
+      console.error('Error generando PDF de ' + (f.numero || f.id), e);
+      erroresPdf++;
+    }
+
+    // Actualizar progreso cada 5 facturas
+    if (i % 5 === 0 && resDiv) {
+      resDiv.innerHTML = `<div style="font-size:12px;color:var(--gris-500)">Generando PDFs: ${i + 1} / ${facs.length}...</div>`;
+    }
+  }
+
+  if (generados === 0) {
+    toast('No se pudo generar ningún PDF', 'error');
+    if (resDiv) resDiv.style.display = 'none';
+    return;
+  }
+
+  if (resDiv) resDiv.innerHTML = `<div style="font-size:12px;color:var(--gris-500)">Comprimiendo ${generados} PDFs...</div>`;
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `facturas_${rango.desde}_${rango.hasta}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const msg = erroresPdf > 0
+    ? `${generados} PDFs descargados (${erroresPdf} con error)`
+    : `${generados} PDFs descargados ✓`;
+  toast(msg, erroresPdf > 0 ? 'warning' : 'success');
+
+  if (resDiv) {
+    resDiv.innerHTML = `<div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534">
+      ✅ ZIP generado: ${generados} facturas del ${rango.desde} al ${rango.hasta}${erroresPdf > 0 ? ' (' + erroresPdf + ' errores)' : ''}
+    </div>`;
   }
 }
 

@@ -478,7 +478,7 @@ async function handleRegistro(
     num_serie: factura.numero,
     fecha_expedicion: fechaAEAT,
     tipo_factura: factura.tipo_rectificativa || (factura.rectificativa_de ? "R1" : "F1"),
-    cuota_total: Math.abs(factura.total_iva || 0),
+    cuota_total: factura.total_iva || 0,
     importe_total: factura.total || 0,
     fecha_hora_huso: fechaHoraHuso,
     huella,
