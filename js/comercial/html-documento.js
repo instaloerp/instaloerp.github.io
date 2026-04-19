@@ -87,10 +87,10 @@
   const CSS = `
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:#fff;line-height:1.45}
-.doc{max-width:210mm;margin:0 auto;padding:18mm 16mm 22mm;position:relative}
+.doc{max-width:210mm;margin:0 auto;padding:10mm 16mm 22mm;position:relative}
 .cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:70px;margin-bottom:18px}
 .cab-logo{position:absolute;top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0}
-.cab-logo img{height:90px;width:auto;max-width:240px;object-fit:contain;display:block}
+.cab-logo img,.cab-logo-center img{height:90px;width:auto;max-width:240px;object-fit:contain;display:block}
 .cab-logo-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cab-qr{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
 .cab-qr .qr-lbl{font-size:7px;font-weight:700;color:#1e293b;margin-bottom:2px}
