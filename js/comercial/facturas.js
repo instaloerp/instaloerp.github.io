@@ -1487,7 +1487,7 @@ function _mostrarSelectorTipoRect() {
   const orig = _rectOrig;
   const ol = document.createElement('div');
   ol.id = 'rectTipoSelector';
-  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9998;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
+  ol.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10001;display:flex;align-items:center;justify-content:center;animation:vfFadeIn .2s';
   ol.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2)">
       <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;color:#1e293b">Rectificar factura ${orig.numero}</h3>
@@ -1544,7 +1544,7 @@ function _mostrarEditorRect() {
   const ol = document.createElement('div');
   ol.id = 'rectEditor';
   ol.className = 'overlay';
-  ol.style.cssText = 'display:flex;z-index:9997';
+  ol.style.cssText = 'display:flex;z-index:10002';
   ol.innerHTML = `
     <div class="modal modal-lg" style="max-width:860px">
       <div class="modal-h">
@@ -2449,7 +2449,7 @@ function abrirSubsanacion(id) {
   const ol = document.createElement('div');
   ol.id = 'subsEditor';
   ol.className = 'overlay';
-  ol.style.cssText = 'display:flex;z-index:9997';
+  ol.style.cssText = 'display:flex;z-index:10002';
   ol.innerHTML = `
     <div class="modal modal-lg" style="max-width:780px">
       <div class="modal-h">

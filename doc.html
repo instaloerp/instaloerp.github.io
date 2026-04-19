@@ -62,9 +62,12 @@ function setEmpresaFromView(d) {
 
 // Construye el objeto cfg que espera _buildHtmlDocumento
 function buildCfg(tipo, d) {
+  // Detectar borradores por número BORR-* o estado borrador
+  const esBorrador = (d.numero || '').startsWith('BORR-') || d.estado === 'borrador';
   const cfg = {
-    tipo: tipo,
+    tipo: esBorrador ? tipo + ' PROFORMA' : tipo,
     numero: d.numero || '',
+    marca_agua: esBorrador ? 'PROFORMA' : null,
     fecha: d.fecha,
     cliente: {
       nombre:    d.cli_nombre || '',
