@@ -44,11 +44,11 @@ function renderAlbaranes(list) {
   const kEntr     = document.getElementById('ak-entregados');
   const kFact     = document.getElementById('ak-facturados');
   const kImporte  = document.getElementById('ak-importe');
-  if (kTotal)   kTotal.textContent   = albaranesData.length;
-  if (kPend)    kPend.textContent    = albaranesData.filter(a=>a.estado==='pendiente').length;
-  if (kEntr)    kEntr.textContent    = albaranesData.filter(a=>a.estado==='entregado').length;
-  if (kFact)    kFact.textContent    = albaranesData.filter(a=>a.estado==='facturado').length;
-  if (kImporte) kImporte.textContent = fmtE(albaranesData.reduce((s,a)=>s+(a.total||0),0));
+  if (kTotal)   kTotal.textContent   = list.length;
+  if (kPend)    kPend.textContent    = list.filter(a=>a.estado==='pendiente').length;
+  if (kEntr)    kEntr.textContent    = list.filter(a=>a.estado==='entregado').length;
+  if (kFact)    kFact.textContent    = list.filter(a=>a.estado==='facturado').length;
+  if (kImporte) kImporte.textContent = fmtE(list.reduce((s,a)=>s+(a.total||0),0));
 
   const tbody = document.getElementById('abTable');
   if (!tbody) return;

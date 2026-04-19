@@ -217,7 +217,6 @@ function renderFacturas(list) {
   });
 
   // KPIs — dinámicos sobre la lista filtrada visible
-  const noAnuladas = list.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada');
   const borradores = list.filter(f => f.estado === 'borrador');
   const pends    = list.filter(f => f.estado === 'pendiente');
   const vencidas = list.filter(f => f.estado === 'vencida');
@@ -232,7 +231,7 @@ function renderFacturas(list) {
   const kAnul     = document.getElementById('fk-anuladas');
   const kImpPend  = document.getElementById('fk-imp-pend');
   const kImpCobr  = document.getElementById('fk-imp-cobr');
-  if (kTotal)   kTotal.textContent   = noAnuladas.length;
+  if (kTotal)   kTotal.textContent   = list.length;
   if (kBorr)    kBorr.textContent    = borradores.length;
   if (kPend)    kPend.textContent    = pends.length;
   if (kVenc)    kVenc.textContent    = vencidas.length;
@@ -322,6 +321,8 @@ function filtrarFacturas() {
       if ((f.estado === 'anulada' || f.estado === 'rectificada') && !tieneRectAsociada) return false; // Excluir anuladas/rectificadas sueltas
     } else if (est === 'cobrada') {
       if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false; // Compat legacy
+    } else if (est === 'anulada') {
+      if (f.estado !== 'anulada' && f.estado !== 'rectificada') return false; // Agrupar anuladas + rectificadas
     } else if (est) {
       if (f.estado !== est) return false;
     }

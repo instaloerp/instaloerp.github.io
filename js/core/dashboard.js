@@ -18,9 +18,10 @@ async function loadDashboard() {
   const todasFacturas = facts.data || [];
   const todosPresups = presups.data || [];
 
-  // KPIs facturación
-  const factMes = todasFacturas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.total||0), 0);
-  const factAno = todasFacturas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.total||0), 0);
+  // KPIs facturación — excluir anuladas y rectificadas de los totales
+  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada');
+  const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.total||0), 0);
+  const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.total||0), 0);
   const pendCobro = todasFacturas.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.total||0), 0);
   const vencidas = todasFacturas.filter(f => f.estado === 'vencida').length;
   const presupPend = todosPresups.filter(p => p.estado === 'pendiente' || p.estado === 'enviado').length;
