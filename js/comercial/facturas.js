@@ -2553,7 +2553,15 @@ async function _guardarSubsanacion() {
     return;
   }
 
-  if (!confirm('¿Subsanar factura ' + f.numero + ' y reenviar a AEAT?\n\nSolo se han modificado datos no fiscales (descripciones/observaciones). Los importes no cambian.')) return;
+  const ok = await confirmModal({
+    icono: '🔧',
+    titulo: 'Subsanar factura ' + f.numero,
+    mensaje: 'Solo se han modificado datos <b>no fiscales</b> (descripciones/observaciones).<br>Los importes no cambian.',
+    aviso: 'Se reenviará la factura corregida a AEAT sustituyendo el registro anterior.',
+    btnOk: '🔧 Subsanar y reenviar',
+    colorOk: '#EA580C'
+  });
+  if (!ok) return;
 
   document.getElementById('subsEditor')?.remove();
 
@@ -2577,15 +2585,11 @@ async function _guardarSubsanacion() {
   f.lineas = lineasActualizadas;
   if (hayObsCambio) f.observaciones = nuevaObs;
 
-  // 2. Reenviar a AEAT como alta (subsanación = reenvío corregido)
-  _updateStep(1, 'Enviando ' + f.numero + '...');
-
-  // Resetear estado VeriFactu para permitir reenvío
-  f.verifactu_estado = null;
-  await sb.from('facturas').update({ verifactu_estado: null }).eq('id', f.id);
+  // 2. Reenviar a AEAT como subsanación (anulación + nuevo alta)
+  _updateStep(1, 'Enviando subsanación ' + f.numero + '...');
 
   try {
-    await enviarFacturaAEAT(f.id, 'alta', { auto: true, stepper: true });
+    await enviarFacturaAEAT(f.id, 'subsanacion', { auto: true, stepper: true });
     _updateStep(2);
     await loadFacturas();
     const fUpd = facLocalData.find(x => x.id === f.id);
