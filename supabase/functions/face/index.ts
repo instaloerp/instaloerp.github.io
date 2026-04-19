@@ -483,62 +483,11 @@ function mapFormaPago(fp: string | undefined): string {
   return "04"; // Transferencia por defecto
 }
 
-// ─── SOAP FACe ───
+// ─── Parser respuesta FACe ───
+// El proxy v4 construye los SOAP Envelopes internamente (WS-Security + XAdES).
+// La Edge Function solo envía parámetros y recibe la respuesta SOAP cruda.
 
-/** Construye el SOAP Envelope para enviarFactura a FACe */
-function buildSOAPEnviarFactura(xmlFacturae: string, correo: string): string {
-  // FACe espera el XML firmado en base64
-  const b64 = btoa(unescape(encodeURIComponent(xmlFacturae)));
-  const mimeType = "application/xml";
-  const fileName = "factura.xsig";
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:web="https://webservice.face.gob.es">
-  <soapenv:Header/>
-  <soapenv:Body>
-    <web:enviarFactura>
-      <web:correo>${esc(correo)}</web:correo>
-      <web:factura>
-        <web:factura>${b64}</web:factura>
-        <web:nombre>${fileName}</web:nombre>
-        <web:mime>${mimeType}</web:mime>
-      </web:factura>
-    </web:enviarFactura>
-  </soapenv:Body>
-</soapenv:Envelope>`;
-}
-
-/** Construye el SOAP Envelope para anularFactura */
-function buildSOAPAnularFactura(numeroRegistro: string, motivo: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:web="https://webservice.face.gob.es">
-  <soapenv:Header/>
-  <soapenv:Body>
-    <web:anularFactura>
-      <web:numeroRegistro>${esc(numeroRegistro)}</web:numeroRegistro>
-      <web:motivo>${esc(motivo)}</web:motivo>
-    </web:anularFactura>
-  </soapenv:Body>
-</soapenv:Envelope>`;
-}
-
-/** Construye el SOAP Envelope para consultarFactura */
-function buildSOAPConsultarFactura(numeroRegistro: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:web="https://webservice.face.gob.es">
-  <soapenv:Header/>
-  <soapenv:Body>
-    <web:consultarFactura>
-      <web:numeroRegistro>${esc(numeroRegistro)}</web:numeroRegistro>
-    </web:consultarFactura>
-  </soapenv:Body>
-</soapenv:Envelope>`;
-}
-
-/** Parsea la respuesta SOAP de FACe */
+/** Parsea la respuesta SOAP de FACe (con o sin namespace prefixes) */
 function parseFACeResponse(xmlResp: string): {
   ok: boolean;
   codigo: string;
@@ -547,27 +496,47 @@ function parseFACeResponse(xmlResp: string): {
   codigoEstado?: string;
   estado?: string;
 } {
-  // Extraer código resultado
-  const codMatch = xmlResp.match(/<codigo>(.*?)<\/codigo>/);
-  const descMatch = xmlResp.match(/<descripcion>(.*?)<\/descripcion>/);
-  const regMatch = xmlResp.match(/<numeroRegistro>(.*?)<\/numeroRegistro>/);
+  // Detectar SOAP Fault primero
+  const faultMatch = xmlResp.match(/<(?:[\w-]+:)?Fault[^>]*>[\s\S]*?<faultcode>([\s\S]*?)<\/faultcode>[\s\S]*?<faultstring>([\s\S]*?)<\/faultstring>/i);
+  if (faultMatch) {
+    return {
+      ok: false,
+      codigo: faultMatch[1].trim(),
+      descripcion: faultMatch[2].trim(),
+    };
+  }
 
-  // Estado de la factura (en consultarFactura)
-  const codEstMatch = xmlResp.match(/<codigoEstado>(.*?)<\/codigoEstado>/i)
-    || xmlResp.match(/<codigo_estado>(.*?)<\/codigo_estado>/i);
-  const estMatch = xmlResp.match(/<descripcionEstado>(.*?)<\/descripcionEstado>/i)
-    || xmlResp.match(/<descripcion_estado>(.*?)<\/descripcion_estado>/i);
+  // Extraer contenido del Body (ignorando namespaces)
+  const bodyMatch = xmlResp.match(/<(?:[\w-]+:)?Body[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?Body>/i);
+  const body = bodyMatch ? bodyMatch[1] : xmlResp;
 
-  const codigo = codMatch?.[1] || "";
+  // Buscar tags con o sin namespace prefix: <ns2:codigo>, <codigo>, <web:codigo>, etc.
+  const tag = (name: string) => {
+    const re = new RegExp(`<(?:[\\w-]+:)?${name}[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${name}>`, "i");
+    const m = body.match(re);
+    return m ? m[1].trim() : "";
+  };
+
+  // resultado.codigo (0 = ok en FACe)
+  const codigo = tag("codigo");
+  // resultado.descripcion
+  const descripcion = tag("descripcion");
+  // enviarFactura → numero de registro
+  const numeroRegistro = tag("numeroRegistro") || tag("numero_registro");
+  // consultarFactura → estado
+  const codigoEstado = tag("codigoEstado") || tag("codigo_estado");
+  const estado = tag("descripcionEstado") || tag("descripcion_estado");
+
+  // FACe devuelve codigo "0" cuando todo va bien
   const ok = codigo === "0" || codigo === "";
 
   return {
     ok,
     codigo,
-    descripcion: descMatch?.[1] || "",
-    numeroRegistro: regMatch?.[1],
-    codigoEstado: codEstMatch?.[1],
-    estado: estMatch?.[1],
+    descripcion,
+    numeroRegistro: numeroRegistro || undefined,
+    codigoEstado: codigoEstado || undefined,
+    estado: estado || undefined,
   };
 }
 
@@ -680,10 +649,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Generar XML Facturae 3.2.2
       const xmlFacturae = generarFacturaeXML(factura, cliente, empresa);
 
-      // Construir SOAP
-      const soapXml = buildSOAPEnviarFactura(xmlFacturae, correo);
-
-      // Enviar al proxy (que firma y reenvía a FACe)
+      // Enviar al proxy v4 (firma XAdES + WS-Security + mTLS)
       const endpoint = FACE_ENDPOINTS[modo];
       if (!endpoint) {
         return json({ error: `Modo FACe no válido: ${modo}` }, 400);
@@ -698,8 +664,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
             "Authorization": `Bearer ${PROXY_SECRET}`,
           },
           body: JSON.stringify({
-            xml: soapXml,
             xml_facturae: xmlFacturae,
+            correo,
             modo,
             servicio: "face",
             accion: "enviarFactura",
@@ -720,6 +686,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let faceResp = { ok: true, codigo: "", descripcion: "Simulado", numeroRegistro: undefined as string | undefined, codigoEstado: undefined as string | undefined, estado: undefined as string | undefined };
       if (resultado.xml_respuesta) {
         faceResp = parseFACeResponse(resultado.xml_respuesta);
+        // Si el proxy devolvió error HTTP pero la respuesta SOAP es parseable
+        if (!faceResp.ok && resultado.error) {
+          faceResp.descripcion = faceResp.descripcion || resultado.error;
+        }
+      } else if (resultado.error) {
+        // Error del proxy sin respuesta XML (fallo de conexión, cert, etc.)
+        faceResp = { ok: false, codigo: "PROXY", descripcion: resultado.error };
       } else if (resultado.simulado) {
         faceResp = { ok: true, codigo: "0", descripcion: "Simulación", numeroRegistro: `SIM-${Date.now()}`, codigoEstado: "1200", estado: "Registrada (simulada)" };
       }
@@ -765,8 +738,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return json({ error: "La factura no tiene número de registro FACe" }, 400);
       }
 
-      const soapXml = buildSOAPAnularFactura(nreg, motivo || "Anulación solicitada por el emisor");
-
       let resultado;
       if (PROXY_URL) {
         const proxyResp = await fetch(PROXY_URL, {
@@ -775,7 +746,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${PROXY_SECRET}`,
           },
-          body: JSON.stringify({ xml: soapXml, modo, servicio: "face", accion: "anularFactura" }),
+          body: JSON.stringify({
+            modo,
+            servicio: "face",
+            accion: "anularFactura",
+            numero_registro: nreg,
+            motivo: motivo || "Anulación solicitada por el emisor",
+          }),
         });
         resultado = await proxyResp.json();
       } else {
@@ -785,6 +762,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let faceResp = { ok: true, codigo: "0", descripcion: "Anulada", numeroRegistro: nreg, codigoEstado: "2600", estado: "Anulada" };
       if (resultado.xml_respuesta) {
         faceResp = { ...faceResp, ...parseFACeResponse(resultado.xml_respuesta) };
+      } else if (resultado.error) {
+        faceResp = { ok: false, codigo: "PROXY", descripcion: resultado.error, numeroRegistro: nreg, codigoEstado: undefined, estado: undefined };
       }
 
       // Guardar
@@ -814,8 +793,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return json({ error: "La factura no tiene número de registro FACe" }, 400);
       }
 
-      const soapXml = buildSOAPConsultarFactura(nreg);
-
       let resultado;
       if (PROXY_URL) {
         const proxyResp = await fetch(PROXY_URL, {
@@ -824,7 +801,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${PROXY_SECRET}`,
           },
-          body: JSON.stringify({ xml: soapXml, modo, servicio: "face", accion: "consultarFactura" }),
+          body: JSON.stringify({
+            modo,
+            servicio: "face",
+            accion: "consultarFactura",
+            numero_registro: nreg,
+          }),
         });
         resultado = await proxyResp.json();
       } else {
@@ -834,6 +816,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let faceResp = { ok: true, codigo: "0", descripcion: "", numeroRegistro: nreg, codigoEstado: factura.face_estado === "simulado" ? "1200" : undefined, estado: undefined as string | undefined };
       if (resultado.xml_respuesta) {
         faceResp = { ...faceResp, ...parseFACeResponse(resultado.xml_respuesta) };
+      } else if (resultado.error) {
+        faceResp = { ok: false, codigo: "PROXY", descripcion: resultado.error, numeroRegistro: nreg, codigoEstado: undefined, estado: undefined };
       }
 
       // Guardar consulta
