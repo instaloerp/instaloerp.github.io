@@ -479,14 +479,14 @@ ${_renderPie(E)}
     wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
     const docClone = doc.cloneNode(true);
-    docClone.style.setProperty('padding-top', '0mm', 'important');
+    docClone.style.setProperty('padding-top', '5mm', 'important');
     wrapper.appendChild(docClone);
     document.body.appendChild(wrapper);
 
     try {
       await _esperarImagenes(wrapper);
       const opt = {
-        margin:       [0, 0, 14, 0],   // mm — sin margen top, el QR va pegado arriba
+        margin:       [0, 0, 14, 0],   // mm — margen top en el padding del clon
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff' },
