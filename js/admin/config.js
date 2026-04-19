@@ -249,6 +249,7 @@ function cfgTab(id,el){
   if (id === 'ia') loadConfigIA();
   if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); cargarCalculadoraKm(); }
   if (id === 'sistema') verificarInstalacion();
+  if (id === 'plan') renderPlanConfig();
 }
 
 // ═══════════════════════════════════════════════

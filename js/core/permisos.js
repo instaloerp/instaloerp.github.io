@@ -2,7 +2,94 @@
 // SISTEMA DE PERMISOS GRANULARES — instaloERP
 // CRUD (Ver/Editar/Crear/Eliminar) por sección
 // + sub-módulos + opciones de visualización
+// + sistema de módulos por plan (básico/profesional/premium)
 // ═══════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════
+//  PLANES Y MÓDULOS
+// ═══════════════════════════════════════════════
+
+const PLANES_DEF = {
+  basico: {
+    label: 'Básico',
+    ico: '⭐',
+    color: '#2563EB',
+    modulos: ['clientes','ventas','facturacion','agenda']
+  },
+  profesional: {
+    label: 'Profesional',
+    ico: '🚀',
+    color: '#7C3AED',
+    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen']
+  },
+  premium: {
+    label: 'Premium',
+    ico: '👑',
+    color: '#D97706',
+    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen','obras','flota','personal','comunicaciones']
+  }
+};
+
+// Todos los módulos posibles (para UI)
+const TODOS_MODULOS = [
+  { key:'clientes',       label:'Clientes',        ico:'👥' },
+  { key:'ventas',         label:'Ventas',           ico:'💰' },
+  { key:'facturacion',    label:'Facturación',      ico:'🧾' },
+  { key:'agenda',         label:'Agenda',           ico:'📅' },
+  { key:'compras',        label:'Compras',          ico:'🛒' },
+  { key:'almacen',        label:'Almacén / Catálogo',ico:'📦' },
+  { key:'obras',          label:'Gestión de obras', ico:'🏗️' },
+  { key:'flota',          label:'Flota',            ico:'🚗' },
+  { key:'personal',       label:'Personal',         ico:'👤' },
+  { key:'comunicaciones', label:'Comunicaciones',   ico:'📧' },
+];
+
+/**
+ * Comprobar si un módulo está activo para la empresa actual
+ * @param {string} modKey — clave del módulo (ej: 'compras', 'obras')
+ * @returns {boolean}
+ */
+function moduloActivo(modKey) {
+  // Secciones que siempre están activas (no dependen de módulos)
+  const siempre = ['acceso','inicio','configuracion','opciones'];
+  if (siempre.includes(modKey)) return true;
+
+  // Si no hay empresa cargada, permitir todo (por seguridad)
+  if (!EMPRESA) return true;
+
+  // Si la empresa tiene modulos definidos, usar esos
+  if (EMPRESA.modulos && typeof EMPRESA.modulos === 'object') {
+    return EMPRESA.modulos[modKey] === true;
+  }
+
+  // Sin campo modulos → asumir premium (backward compat)
+  return true;
+}
+
+/**
+ * Obtener los módulos del plan actual de la empresa
+ * @returns {string[]} — array de claves de módulos activos
+ */
+function getModulosActivos() {
+  if (EMPRESA?.modulos && typeof EMPRESA.modulos === 'object') {
+    return Object.keys(EMPRESA.modulos).filter(k => EMPRESA.modulos[k] === true);
+  }
+  // Sin datos → todo activo
+  return TODOS_MODULOS.map(m => m.key);
+}
+
+/**
+ * Obtener el plan que corresponde a los módulos actuales
+ * @returns {string} — 'basico'|'profesional'|'premium'
+ */
+function getPlanActual() {
+  const activos = getModulosActivos();
+  if (activos.length >= PLANES_DEF.premium.modulos.length) return 'premium';
+  if (activos.length >= PLANES_DEF.profesional.modulos.length) return 'profesional';
+  return 'basico';
+}
+
 
 // ── Definición de secciones ─────────────────────
 const PERM_SECTIONS = [
@@ -233,6 +320,8 @@ const PERM_PRESETS = {
  */
 function canDo(sec, action) {
   if (!CP) return false;
+  // Módulo no contratado → sin acceso (ni para admin)
+  if (!moduloActivo(sec)) return false;
   if (CP.es_superadmin || CP.rol === 'admin') return true;
   const p = CP.permisos;
   if (!p) return false;
@@ -262,16 +351,20 @@ function canDo(sec, action) {
  */
 function canAccessPage(pageId) {
   if (!CP) return false;
-  if (CP.es_superadmin || CP.rol === 'admin') return true;
 
   // Dashboard siempre accesible
   if (pageId === 'dashboard') return true;
 
-  const p = CP.permisos;
-  if (!p) return false;
-
   const m = PAGE_PERM_MAP[pageId];
   if (!m) return true; // página desconocida → permitir
+
+  // Módulo no contratado → bloquear incluso para admin
+  if (!moduloActivo(m.sec)) return false;
+
+  if (CP.es_superadmin || CP.rol === 'admin') return true;
+
+  const p = CP.permisos;
+  if (!p) return false;
 
   const secData = p[m.sec];
 
@@ -504,4 +597,68 @@ function guardPerm(sec, action) {
   const labels = {crear:'crear',editar:'editar',eliminar:'eliminar'};
   toast(`🔒 No tienes permiso para ${labels[action] || action} en esta sección`, 'error');
   return false;
+}
+
+
+// ═══════════════════════════════════════════════
+//  PANEL CONFIGURACIÓN: PLAN Y MÓDULOS
+// ═══════════════════════════════════════════════
+
+function renderPlanConfig() {
+  const activos = getModulosActivos();
+  const planKey = getPlanActual();
+  const plan = PLANES_DEF[planKey];
+
+  // — Info del plan actual —
+  const infoEl = document.getElementById('planActualInfo');
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px;padding:20px;background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(217,119,6,.04));border:2px solid rgba(217,119,6,.2);border-radius:12px">
+        <div style="font-size:40px">${plan.ico}</div>
+        <div>
+          <div style="font-size:18px;font-weight:800;color:${plan.color}">Plan ${plan.label}</div>
+          <div style="font-size:12.5px;color:var(--gris-500);margin-top:2px">${activos.length} de ${TODOS_MODULOS.length} módulos activos</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px">
+        ${TODOS_MODULOS.map(m => {
+          const activo = activos.includes(m.key);
+          return `<span style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;${activo
+            ? 'background:#ECFDF5;color:#059669;border:1px solid #A7F3D0'
+            : 'background:var(--gris-50);color:var(--gris-400);border:1px solid var(--gris-200)'}">${m.ico} ${m.label} ${activo ? '✓' : '🔒'}</span>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // — Comparativa de planes —
+  const compEl = document.getElementById('planesComparativa');
+  if (compEl) {
+    let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';
+    Object.entries(PLANES_DEF).forEach(([key, p]) => {
+      const isCurrent = key === planKey;
+      html += `<div style="border:2px solid ${isCurrent ? p.color : 'var(--gris-200)'};border-radius:12px;padding:16px;${isCurrent ? 'background:rgba('+_hexToRgb(p.color)+',.04)' : ''}">
+        <div style="text-align:center;margin-bottom:12px">
+          <div style="font-size:28px">${p.ico}</div>
+          <div style="font-size:15px;font-weight:800;color:${p.color};margin-top:4px">${p.label}</div>
+          ${isCurrent ? '<div style="font-size:10px;font-weight:700;color:#059669;background:#ECFDF5;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:4px">PLAN ACTUAL</div>' : ''}
+        </div>
+        <div style="font-size:12px;color:var(--gris-600)">
+          ${TODOS_MODULOS.map(m => {
+            const included = p.modulos.includes(m.key);
+            return `<div style="padding:4px 0;${included ? '' : 'opacity:.35'}">${included ? '✅' : '❌'} ${m.label}</div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    compEl.innerHTML = html;
+  }
+}
+
+// Helper: hex color to rgb string
+function _hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
 }

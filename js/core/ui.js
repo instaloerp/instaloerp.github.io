@@ -323,6 +323,14 @@ function goPage(id, opts){
     }
   } catch(e) { /* no romper navegación */ }
 
+  // ── Check módulo contratado ──
+  if (typeof PAGE_PERM_MAP !== 'undefined' && typeof moduloActivo === 'function') {
+    const _map = PAGE_PERM_MAP[id];
+    if (_map && !moduloActivo(_map.sec)) {
+      toast('🔒 Este módulo no está incluido en tu plan actual. Contacta con soporte para ampliar.', 'error');
+      return;
+    }
+  }
   // ── Permission Check (usa canAccessPage de permisos.js) ──
   if (typeof canAccessPage === 'function' && !canAccessPage(id)) {
     toast('🔒 No tienes permiso para acceder a esta sección', 'error');

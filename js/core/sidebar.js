@@ -299,7 +299,32 @@ function applySbItemVisibility() {
     const isHidden = sbHidden.includes(pageId);
     const isProonto = PAGES_PRONTO.has(pageId) && !sbShown.includes(pageId);
     const hasPermission = userCanAccess(pageId);
-    btn.style.display = (inFavs || isHidden || isProonto || !hasPermission) ? 'none' : '';
+
+    // Check si el módulo está contratado
+    const mapping = typeof PAGE_PERM_MAP !== 'undefined' ? PAGE_PERM_MAP[pageId] : null;
+    const modContratado = mapping ? (typeof moduloActivo === 'function' ? moduloActivo(mapping.sec) : true) : true;
+
+    // Quitar clase locked previa
+    btn.classList.remove('sb-locked');
+    const oldLock = btn.querySelector('.sb-lock-badge');
+    if (oldLock) oldLock.remove();
+
+    if (!modContratado) {
+      // Módulo no contratado → mostrar con candado
+      btn.style.display = (inFavs || isHidden) ? 'none' : '';
+      btn.style.opacity = '0.45';
+      btn.style.pointerEvents = 'auto';
+      btn.classList.add('sb-locked');
+      if (!btn.querySelector('.sb-lock-badge')) {
+        btn.insertAdjacentHTML('beforeend', '<span class="sb-lock-badge" style="margin-left:auto;font-size:11px">🔒</span>');
+      }
+    } else if (inFavs || isHidden || isProonto || !hasPermission) {
+      btn.style.display = 'none';
+      btn.style.opacity = '';
+    } else {
+      btn.style.display = '';
+      btn.style.opacity = '';
+    }
   });
   // Ocultar secciones enteras si todos sus items están ocultos
   document.querySelectorAll('.sb-section-items').forEach(sec => {

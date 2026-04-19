@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 108</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 109</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -1968,6 +1968,7 @@ try {
             <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
             <button class="cfg-menu-item" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
             <button class="cfg-menu-item" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
+            <button class="cfg-menu-item" onclick="cfgTab('plan',this)"><span class="ico">👑</span> Plan y módulos</button>
           </div>
           <div>
             <!-- Empresa -->
@@ -2521,6 +2522,20 @@ try {
                   </div>
                 </div>
 
+              </div>
+            </div>
+
+            <!-- Plan y módulos -->
+            <div class="cfg-panel card" id="cfg-plan">
+              <div class="card-h">
+                <h3>👑 Plan y módulos</h3>
+              </div>
+              <div class="card-b" style="padding:20px">
+                <div id="planActualInfo"></div>
+                <div style="margin-top:20px">
+                  <div style="font-weight:700;font-size:13px;color:var(--gris-700);margin-bottom:12px">Comparativa de planes</div>
+                  <div id="planesComparativa"></div>
+                </div>
               </div>
             </div>
 
