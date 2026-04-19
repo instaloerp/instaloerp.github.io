@@ -1550,8 +1550,8 @@ function _mostrarEditorRect() {
 
   const ol = document.createElement('div');
   ol.id = 'rectEditor';
-  ol.className = 'overlay';
-  ol.style.cssText = 'display:flex;z-index:10002';
+  ol.className = 'overlay open';
+  ol.style.cssText = 'z-index:10002';
   ol.innerHTML = `
     <div class="modal modal-lg" style="max-width:860px">
       <div class="modal-h">
@@ -2455,8 +2455,8 @@ function abrirSubsanacion(id) {
 
   const ol = document.createElement('div');
   ol.id = 'subsEditor';
-  ol.className = 'overlay';
-  ol.style.cssText = 'display:flex;z-index:10002';
+  ol.className = 'overlay open';
+  ol.style.cssText = 'z-index:10002';
   ol.innerHTML = `
     <div class="modal modal-lg" style="max-width:780px">
       <div class="modal-h">
