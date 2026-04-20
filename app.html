@@ -1544,7 +1544,32 @@ function filtrarStockFurgoneta(q) {
 // ═══════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════
+// ── Permisos de acceso a apps ──────────────────
+// Lee CP.permisos.acceso.app_operario / app_admin / app_almacen
+// Superadmin siempre tiene acceso a todo.
+// Backward compat: si no hay permisos nuevos, usa lógica antigua.
+function _canApp(modo) {
+  if (CP?.es_superadmin) return true;
+  const acc = CP?.permisos?.acceso;
+  if (!acc) {
+    // Backward compat: sin permisos nuevos → lógica antigua
+    if (modo === 'operario') return true;
+    if (modo === 'jefe') return false;
+    if (modo === 'almacen') return CP?.acceso_almacen === true;
+    return false;
+  }
+  if (modo === 'operario') return acc.app_operario !== false; // default true
+  if (modo === 'jefe')     return acc.app_admin === true;
+  if (modo === 'almacen')  return acc.app_almacen === true;
+  return false;
+}
+
+function _modosDisponibles() {
+  return ['operario','jefe','almacen'].filter(m => _canApp(m));
+}
+
 function setModo(modo) {
+  if (!_canApp(modo)) { toast('No tienes acceso a este modo','error'); return; }
   localStorage.setItem('instalo_modo', modo);
   closeModoDropdown();
   showApp();
@@ -1554,9 +1579,7 @@ function toggleModoDropdown() {
   const dd = document.getElementById('modoDropdown');
   if (dd.classList.contains('open')) { closeModoDropdown(); return; }
   // Solo abrir si tiene más de un modo disponible
-  const esSuperAdmin = CP?.es_superadmin === true;
-  const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
-  if (!esSuperAdmin && !tieneAlmacen) return; // Solo operario, no mostrar
+  if (_modosDisponibles().length <= 1) return;
   dd.classList.add('open');
   // Cerrar al tocar fuera
   setTimeout(() => document.addEventListener('click', _closeModoOutside, { once: true }), 10);
@@ -1568,8 +1591,6 @@ function _closeModoOutside(e) {
 }
 
 function _updateModoUI(modoActual) {
-  const esSuperAdmin = CP?.es_superadmin === true;
-  const tieneAlmacen = esSuperAdmin || CP?.acceso_almacen === true;
   const label = document.getElementById('hdrModoLabel');
   const userArea = document.getElementById('modoUserArea');
 
@@ -1584,8 +1605,10 @@ function _updateModoUI(modoActual) {
   label.style.background = m.bg;
   label.style.color = m.color;
 
+  const disponibles = _modosDisponibles();
+
   // Mostrar etiqueta y cursor solo si puede cambiar de modo
-  if (esSuperAdmin || tieneAlmacen) {
+  if (disponibles.length > 1) {
     label.style.display = '';
     userArea.style.cursor = 'pointer';
   } else {
@@ -1597,8 +1620,7 @@ function _updateModoUI(modoActual) {
   const dd = document.getElementById('modoDropdown');
   dd.querySelectorAll('.modo-dropdown-item').forEach(item => {
     const modo = item.dataset.modo;
-    if (modo === 'jefe') item.style.display = esSuperAdmin ? '' : 'none';
-    if (modo === 'almacen') item.style.display = tieneAlmacen ? '' : 'none';
+    item.style.display = _canApp(modo) ? '' : 'none';
   });
   // Checks
   ['operario','jefe','almacen'].forEach(k => {
@@ -1608,18 +1630,31 @@ function _updateModoUI(modoActual) {
 }
 
 async function showApp() {
-  // Primera carga: URL param establece el modo y se guarda en localStorage
-  // Después: el botón toggle cambia localStorage directamente
+  // ── Determinar modo ────────────────────────────
   const _params = new URLSearchParams(window.location.search);
   const modoURL = _params.get('modo');
   const modoLocal = localStorage.getItem('instalo_modo');
-  // Solo leer URL si no hay valor guardado aún
-  if (!modoLocal && modoURL) {
-    localStorage.setItem('instalo_modo', modoURL);
+  if (!modoLocal && modoURL) localStorage.setItem('instalo_modo', modoURL);
+
+  let modoFinal = localStorage.getItem('instalo_modo') || 'operario';
+
+  // Verificar que el usuario tiene permiso para este modo
+  if (!_canApp(modoFinal)) {
+    // Forzar al primer modo disponible
+    const disponibles = _modosDisponibles();
+    if (disponibles.length === 0) {
+      toast('No tienes acceso a ningún modo de la app. Contacta con tu administrador.', 'error');
+      await sb.auth.signOut();
+      CU = null; CP = null; EMPRESA = null;
+      showScreen('s-login');
+      return;
+    }
+    modoFinal = disponibles[0];
+    localStorage.setItem('instalo_modo', modoFinal);
   }
-  const modoFinal = localStorage.getItem('instalo_modo');
+
   esModoAlmacen = modoFinal === 'almacen';
-  esJefe = !esModoAlmacen && modoFinal !== 'operario' && CP?.es_superadmin === true;
+  esJefe = modoFinal === 'jefe';
   showScreen('s-app');
 
   // Header
@@ -1627,7 +1662,7 @@ async function showApp() {
   document.getElementById('hdrNombre').textContent = CP?.nombre || CU.email;
 
   // Etiqueta modo + dropdown
-  _updateModoUI(esModoAlmacen ? 'almacen' : esJefe ? 'jefe' : 'operario');
+  _updateModoUI(modoFinal);
 
   // Bottom nav
   renderBottomNav();

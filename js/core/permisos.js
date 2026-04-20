@@ -94,8 +94,10 @@ function getPlanActual() {
 // ── Definición de secciones ─────────────────────
 const PERM_SECTIONS = [
   { key:'acceso', label:'Acceso', ico:'📱', crud:false, items:[
-    {key:'web', label:'Acceso a través de la web'},
-    {key:'movil', label:'Acceso a través de apps móviles'}
+    {key:'web', label:'Acceso al ERP web (escritorio)'},
+    {key:'app_operario', label:'App móvil — Modo Operario'},
+    {key:'app_admin', label:'App móvil — Modo Administrador'},
+    {key:'app_almacen', label:'App móvil — Modo Almacén'}
   ]},
   { key:'inicio', label:'Inicio', ico:'🏠', crud:false, items:[
     {key:'importes', label:'Importes totales en dashboard'}
@@ -239,7 +241,7 @@ const PERM_PRESETS = {
   admin: _permAllTrue(),
 
   oficina: {
-    acceso:        {web:true, movil:true},
+    acceso:        {web:true, app_operario:false, app_admin:true, app_almacen:false},
     inicio:        {importes:true},
     clientes:      {ver:true, editar:true, crear:true, eliminar:true},
     ventas:        {ver:true, editar:true, crear:true, eliminar:true, presupuestos:true, albaranes:true},
@@ -256,7 +258,7 @@ const PERM_PRESETS = {
   },
 
   almacen: {
-    acceso:        {web:true, movil:true},
+    acceso:        {web:true, app_operario:false, app_admin:false, app_almacen:true},
     inicio:        {importes:false},
     clientes:      {ver:false, editar:false, crear:false, eliminar:false},
     ventas:        {ver:false, editar:false, crear:false, eliminar:false, presupuestos:false, albaranes:false},
@@ -273,7 +275,7 @@ const PERM_PRESETS = {
   },
 
   operario: {
-    acceso:        {web:false, movil:true},
+    acceso:        {web:false, app_operario:true, app_admin:false, app_almacen:false},
     inicio:        {importes:false},
     clientes:      {ver:false, editar:false, crear:false, eliminar:false},
     ventas:        {ver:false, editar:false, crear:false, eliminar:false, presupuestos:false, albaranes:false},
@@ -290,7 +292,7 @@ const PERM_PRESETS = {
   },
 
   comercial: {
-    acceso:        {web:true, movil:true},
+    acceso:        {web:true, app_operario:true, app_admin:false, app_almacen:false},
     inicio:        {importes:false},
     clientes:      {ver:true, editar:true, crear:true, eliminar:false},
     ventas:        {ver:true, editar:true, crear:true, eliminar:false, presupuestos:true, albaranes:true},
