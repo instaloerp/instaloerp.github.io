@@ -412,6 +412,10 @@ function goPage(id, opts){
   if(id==='incidencias-stock' && typeof loadIncidencias==='function') loadIncidencias();
   if(id==='flota' && typeof renderFlota==='function') renderFlota();
   if(id==='flota-gastos' && typeof renderGastos==='function') renderGastos();
+  if(id==='tesoreria-cuentas' && typeof renderTesCuentas==='function') renderTesCuentas();
+  if(id==='tesoreria-movimientos' && typeof renderTesMovimientos==='function') renderTesMovimientos();
+  if(id==='tesoreria-conciliacion' && typeof renderTesConciliacion==='function') renderTesConciliacion();
+  if(id==='tesoreria-importar' && typeof renderTesImportar==='function') renderTesImportar();
   if(id==='traspasos') loadTraspasos();
   if(id==='mantenimientos') loadMantenimientos();
   if(id==='presupuestos-compra') loadPresupuestosCompra();

@@ -27,7 +27,7 @@ const PLANES_DEF = {
     label: 'Premium',
     ico: '👑',
     color: '#D97706',
-    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen','obras','flota','personal','comunicaciones']
+    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen','obras','flota','personal','comunicaciones','tesoreria']
   }
 };
 
@@ -43,6 +43,7 @@ const TODOS_MODULOS = [
   { key:'flota',          label:'Flota',            ico:'🚗' },
   { key:'personal',       label:'Personal',         ico:'👤' },
   { key:'comunicaciones', label:'Comunicaciones',   ico:'📧' },
+  { key:'tesoreria',      label:'Tesorería',        ico:'🏦' },
 ];
 
 /**
@@ -151,6 +152,12 @@ const PERM_SECTIONS = [
   { key:'personal', label:'Personal', ico:'👤', crud:false, items:[
     {key:'fichajes', label:'Fichajes'}
   ]},
+  { key:'tesoreria', label:'Tesorería', ico:'🏦', crud:true, items:[
+    {key:'cuentas', label:'Cuentas bancarias'},
+    {key:'movimientos', label:'Movimientos'},
+    {key:'conciliacion', label:'Conciliación'},
+    {key:'importar', label:'Importar extractos'}
+  ]},
   { key:'configuracion', label:'Configuración', ico:'⚙️', crud:true, items:[
     {key:'empresa', label:'Datos de empresa'},
     {key:'usuarios', label:'Gestión de usuarios'},
@@ -210,6 +217,11 @@ const PAGE_PERM_MAP = {
   'correo':              {sec:'comunicaciones', sub:'correo'},
   // Personal
   'fichajes':            {sec:'personal', sub:'fichajes'},
+  // Tesorería
+  'tesoreria-cuentas':   {sec:'tesoreria', sub:'cuentas'},
+  'tesoreria-movimientos':{sec:'tesoreria', sub:'movimientos'},
+  'tesoreria-conciliacion':{sec:'tesoreria', sub:'conciliacion'},
+  'tesoreria-importar':  {sec:'tesoreria', sub:'importar'},
   // Config
   'configuracion':       {sec:'configuracion', sub:'empresa'},
   'usuarios':            {sec:'configuracion', sub:'usuarios'},
@@ -253,6 +265,7 @@ const PERM_PRESETS = {
     flota:         {ver:true, editar:true, crear:true, eliminar:true, vehiculos:true, gastos:true},
     comunicaciones:{correo:true},
     personal:      {fichajes:true},
+    tesoreria:     {ver:true, editar:true, crear:true, eliminar:false, cuentas:true, movimientos:true, conciliacion:true, importar:true},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:true, precios_compra:true, rentabilidad:true, ver_stock:true, sumatorios:true}
   },
@@ -270,6 +283,7 @@ const PERM_PRESETS = {
     flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
     comunicaciones:{correo:false},
     personal:      {fichajes:true},
+    tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:false, precios_compra:true, rentabilidad:false, ver_stock:true, sumatorios:true}
   },
@@ -287,6 +301,7 @@ const PERM_PRESETS = {
     flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
     comunicaciones:{correo:false},
     personal:      {fichajes:true},
+    tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:false, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:false}
   },
@@ -304,6 +319,7 @@ const PERM_PRESETS = {
     flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
     comunicaciones:{correo:true},
     personal:      {fichajes:true},
+    tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:true, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:true}
   }
