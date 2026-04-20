@@ -3,12 +3,37 @@
 // ═══════════════════════════════════════════════
 
 function renderEmpresasList() {
-  document.getElementById('empresasList').innerHTML = empresas.map(e=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;border:2px solid ${e.id===EMPRESA.id?'var(--azul)':'var(--gris-200)'};background:${e.id===EMPRESA.id?'var(--azul-light)':'#fff'};margin-bottom:7px;transition:border-color .12s,background .12s" onclick="cambiarEmpresa('${e.id}')">
-      <div style="width:32px;height:32px;border-radius:7px;background:var(--azul);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0">${e.nombre[0]}</div>
-      <div style="flex:1"><div style="font-weight:700;font-size:13px">${e.nombre}</div></div>
-      ${e.id===EMPRESA.id?'<span style="color:var(--azul);font-size:12px;font-weight:700">✓ Activa</span>':''}
-    </div>`).join('');
+  const planLabels = { basico:'Básico', profesional:'Profesional', premium:'Premium', pro:'Premium', trial:'Trial' };
+  const planColors = { basico:'#2563EB', profesional:'#7C3AED', premium:'#D97706', pro:'#D97706', trial:'#64748B' };
+  const planIcos   = { basico:'⭐', profesional:'🚀', premium:'👑', pro:'👑', trial:'🔓' };
+
+  document.getElementById('empresasList').innerHTML = empresas.map(e => {
+    const activa = e.id === EMPRESA.id;
+    const plan = e.plan || 'trial';
+    const logo = e.logo_url
+      ? `<img src="${e.logo_url}" style="width:100%;height:100%;object-fit:contain;padding:3px">`
+      : `<span style="font-size:18px;font-weight:800;color:#fff">${(e.nombre||'?')[0].toUpperCase()}</span>`;
+    const logoBg = e.logo_url ? '#fff' : 'var(--azul)';
+
+    return `
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;cursor:pointer;
+      border:2px solid ${activa ? 'var(--azul)' : 'var(--gris-200)'};
+      background:${activa ? 'var(--azul-light)' : '#fff'};
+      margin-bottom:10px;transition:all .15s ease"
+      onclick="cambiarEmpresa('${e.id}')">
+      <div style="width:44px;height:44px;border-radius:10px;background:${logoBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--gris-200);overflow:hidden">${logo}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.nombre}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+          ${e.cif ? `<span style="font-size:11px;color:var(--gris-500)">${e.cif}</span>` : ''}
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:${planColors[plan]||'#64748B'}15;color:${planColors[plan]||'#64748B'}">${planIcos[plan]||''} ${planLabels[plan]||plan}</span>
+        </div>
+      </div>
+      ${activa
+        ? '<div style="display:flex;align-items:center;gap:4px;color:var(--azul);font-size:12px;font-weight:700;flex-shrink:0"><span style="width:8px;height:8px;border-radius:50%;background:var(--azul);display:inline-block"></span> Activa</div>'
+        : '<div style="font-size:11px;color:var(--gris-400);font-weight:600;flex-shrink:0">Cambiar</div>'}
+    </div>`;
+  }).join('');
 }
 
 async function cambiarEmpresa(id) {
