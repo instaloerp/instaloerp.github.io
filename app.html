@@ -1545,20 +1545,31 @@ function filtrarStockFurgoneta(q) {
 // APP INIT
 // ═══════════════════════════════════════════════
 // ── Permisos de acceso a apps ──────────────────
-// Lee CP.permisos.acceso.app_operario / app_admin / app_almacen
-// Superadmin siempre tiene acceso a todo.
-// Backward compat: si no hay permisos nuevos, usa lógica antigua.
+// Dos capas: 1) módulos de la empresa (plan contratado)  2) permisos del usuario
+// Superadmin siempre tiene acceso (dentro de los módulos contratados).
+// Backward compat: sin claves app_* → lógica antigua.
 function _canApp(modo) {
+  // ── Capa 1: módulos de la empresa (plan) ──
+  // App Operario / Admin necesitan módulo "obras" (partes de trabajo)
+  // App Almacén necesita módulo "almacen"
+  const mods = EMPRESA?.modulos || {};
+  if (modo === 'operario' && mods.obras === false) return false;
+  if (modo === 'jefe'     && mods.obras === false) return false;
+  if (modo === 'almacen'  && mods.almacen === false) return false;
+
+  // ── Capa 2: permisos del usuario ──
   if (CP?.es_superadmin) return true;
   const acc = CP?.permisos?.acceso;
-  if (!acc) {
-    // Backward compat: sin permisos nuevos → lógica antigua
+  // Sin permisos nuevos → lógica antigua
+  const tieneNuevosPermisos = acc && ('app_operario' in acc || 'app_admin' in acc || 'app_almacen' in acc);
+  if (!tieneNuevosPermisos) {
     if (modo === 'operario') return true;
     if (modo === 'jefe') return false;
     if (modo === 'almacen') return CP?.acceso_almacen === true;
     return false;
   }
-  if (modo === 'operario') return acc.app_operario !== false; // default true
+  // Permisos nuevos → respetar toggles
+  if (modo === 'operario') return acc.app_operario === true;
   if (modo === 'jefe')     return acc.app_admin === true;
   if (modo === 'almacen')  return acc.app_almacen === true;
   return false;
