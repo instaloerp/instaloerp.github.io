@@ -89,25 +89,26 @@ function _tesCuentasHTML() {
     const activa = c.activa !== false;
     const color = c.color || '#2563EB';
     return `
-    <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;
-      border:1px solid var(--gris-200);margin-bottom:8px;cursor:pointer;transition:all .15s;
-      opacity:${activa?1:0.5}" onclick="tesEditarCuenta('${c.id}')">
-      <div style="width:44px;height:44px;border-radius:10px;background:${color}15;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <span style="font-size:20px">🏦</span>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">${c.nombre}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin-top:2px">
-          ${c.iban ? c.iban : ''}${c.entidad ? (c.iban?' · ':'')+c.entidad : ''}
+    <div style="padding:14px 16px;border-radius:12px;border:1px solid var(--gris-200);margin-bottom:8px;transition:all .15s;opacity:${activa?1:0.5}">
+      <div style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="tesEditarCuenta('${c.id}')">
+        <div style="width:44px;height:44px;border-radius:10px;background:${color}15;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:20px">🏦</span>
         </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${c.nombre}</div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:2px">
+            ${c.iban ? c.iban : ''}${c.entidad ? (c.iban?' · ':'')+c.entidad : ''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
+          ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400)">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
+        </div>
+        <button class="btn btn-secondary btn-sm" style="flex-shrink:0;font-size:11px" onclick="event.stopPropagation();_tesCuentaSel='${c.id}';goPage('tesoreria-movimientos')">
+          Movimientos →
+        </button>
       </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
-        ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400)">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
-      </div>
-      <button class="btn btn-secondary btn-sm" style="flex-shrink:0;font-size:11px" onclick="event.stopPropagation();goPage('tesoreria-movimientos');_tesCuentaSel='${c.id}'">
-        Movimientos →
-      </button>
+      ${_tesCuentaOpenBankingBtns(c)}
     </div>`;
   }).join('');
 }
@@ -527,54 +528,885 @@ async function _tesRecalcularSaldo(cuentaId) {
 
 
 // ═══════════════════════════════════════════════
-//  CONCILIACIÓN (placeholder — se completará en task #96)
+//  CONCILIACIÓN BANCARIA
+//  Vincula movimientos con facturas (N:N, pagos parciales)
 // ═══════════════════════════════════════════════
+
+let _concFactVenta = [];
+let _concFactCompra = [];
+let _concMovPend = [];
 
 async function renderTesConciliacion() {
   const page = document.getElementById('page-tesoreria-conciliacion');
   if (!page) return;
+
+  // Cargar movimientos pendientes/parciales
+  const {data: movs} = await sb.from('movimientos_bancarios').select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .in('estado', ['pendiente','parcial'])
+    .order('fecha_operacion', {ascending:false}).limit(200);
+  _concMovPend = movs || [];
+
+  // Cargar facturas venta no anuladas
+  const {data: fv} = await sb.from('facturas').select('id,numero,fecha,total,cliente_nombre,estado')
+    .eq('empresa_id', EMPRESA.id).neq('estado','anulada').neq('estado','eliminado')
+    .order('fecha',{ascending:false}).limit(500);
+  _concFactVenta = fv || [];
+
+  // Cargar facturas compra no anuladas
+  const {data: fc} = await sb.from('facturas_proveedor').select('id,numero,fecha,total,proveedor_nombre,estado')
+    .eq('empresa_id', EMPRESA.id).neq('estado','anulada')
+    .order('fecha',{ascending:false}).limit(500);
+  _concFactCompra = fc || [];
+
+  // Cargar conciliaciones existentes
+  const {data: concs} = await sb.from('conciliaciones').select('*').eq('empresa_id', EMPRESA.id);
+  tesConciliaciones = concs || [];
+
+  // Calcular importes ya conciliados por factura
+  const concByFact = {};
+  const concByFactProv = {};
+  tesConciliaciones.forEach(c => {
+    if (c.factura_id) concByFact[c.factura_id] = (concByFact[c.factura_id]||0) + parseFloat(c.importe||0);
+    if (c.factura_prov_id) concByFactProv[c.factura_prov_id] = (concByFactProv[c.factura_prov_id]||0) + parseFloat(c.importe||0);
+  });
+
+  const pendientes = _concMovPend.length;
+  const totalPend = _concMovPend.reduce((s,m)=>s+Math.abs(parseFloat(m.importe)||0),0);
+
   page.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div>
         <h2 style="font-size:17px;font-weight:800">🔗 Conciliación bancaria</h2>
         <p style="font-size:11.5px;color:var(--gris-400)">Vincula movimientos con facturas emitidas y recibidas</p>
       </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="_concAutoMatch()">⚡ Auto-conciliar</button>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-b" style="padding:40px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">🔗</div>
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Conciliación bancaria</h3>
-        <p style="font-size:13px;color:var(--gris-400);max-width:400px;margin:0 auto">
-          Próximamente podrás vincular movimientos bancarios con tus facturas de venta y compra,
-          incluyendo pagos parciales y agrupados.
-        </p>
+
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">
+      <div class="card" style="padding:14px;text-align:center">
+        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Pendientes</div>
+        <div style="font-size:20px;font-weight:800;color:#F59E0B;margin-top:2px">${pendientes}</div>
+      </div>
+      <div class="card" style="padding:14px;text-align:center">
+        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Importe pendiente</div>
+        <div style="font-size:20px;font-weight:800;margin-top:2px">${_tesFmt(totalPend)} €</div>
+      </div>
+      <div class="card" style="padding:14px;text-align:center">
+        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Conciliados</div>
+        <div style="font-size:20px;font-weight:800;color:var(--verde);margin-top:2px">${tesConciliaciones.length}</div>
+      </div>
+    </div>
+
+    <!-- Lista de movimientos pendientes -->
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl" style="width:100%">
+        <thead>
+          <tr>
+            <th style="width:85px">Fecha</th>
+            <th>Concepto</th>
+            <th style="width:110px;text-align:right">Importe</th>
+            <th style="width:100px;text-align:right">Conciliado</th>
+            <th style="width:80px;text-align:center">Estado</th>
+            <th style="width:100px;text-align:center">Acción</th>
+          </tr>
+        </thead>
+        <tbody>${_concMovPend.length ? _concMovPend.map(m => {
+    const imp = parseFloat(m.importe)||0;
+    const conc = parseFloat(m.importe_conciliado)||0;
+    const pend = Math.abs(imp) - Math.abs(conc);
+    return `<tr>
+      <td style="font-size:12px">${_tesFecha(m.fecha_operacion)}</td>
+      <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.concepto||'—'}</td>
+      <td style="text-align:right;font-weight:700;color:${_tesColor(imp)}">${imp>0?'+':''}${_tesFmt(imp)} €</td>
+      <td style="text-align:right;font-size:12px;color:var(--gris-500)">${conc?_tesFmt(conc)+' €':'—'}</td>
+      <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${m.estado==='parcial'?'#3B82F615':'#F59E0B15'};color:${m.estado==='parcial'?'#3B82F6':'#F59E0B'}">${m.estado==='parcial'?'Parcial':'Pendiente'}</span></td>
+      <td style="text-align:center">
+        <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="_concVincular('${m.id}',${imp})">🔗 Vincular</button>
+        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="_concIgnorar('${m.id}')">Ignorar</button>
+      </td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gris-400)">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
+      <strong>Todo conciliado</strong><br><span style="font-size:12px">No hay movimientos pendientes de conciliar</span>
+    </td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+// Modal para vincular un movimiento con factura(s)
+function _concVincular(movId, importe) {
+  const esIngreso = importe > 0;
+  const facturas = esIngreso ? _concFactVenta : _concFactCompra;
+  const label = esIngreso ? 'Factura de venta (cobro)' : 'Factura de compra (pago)';
+  const absImp = Math.abs(importe);
+  const mov = _concMovPend.find(m=>m.id===movId);
+  const yaConciliado = Math.abs(parseFloat(mov?.importe_conciliado)||0);
+  const pendiente = absImp - yaConciliado;
+
+  const optsFacturas = facturas.map(f =>
+    `<option value="${f.id}">${f.numero||'S/N'} — ${f.cliente_nombre||f.proveedor_nombre||'?'} — ${_tesFmt(f.total)} €</option>`
+  ).join('');
+
+  const html = `
+    <div style="padding:20px">
+      <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">🔗 Conciliar movimiento</h3>
+      <p style="font-size:12px;color:var(--gris-400);margin-bottom:16px">
+        ${mov?.concepto||'Sin concepto'} · <strong style="color:${_tesColor(importe)}">${importe>0?'+':''}${_tesFmt(importe)} €</strong>
+        ${yaConciliado>0 ? ` · Ya conciliado: ${_tesFmt(yaConciliado)} € · Pendiente: ${_tesFmt(pendiente)} €` : ''}
+      </p>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:600">${label}</label>
+          <select id="conc_factura" class="input" style="font-size:12px">${optsFacturas}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600">Importe a conciliar</label>
+          <input id="conc_importe" class="input" type="number" step="0.01" value="${pendiente.toFixed(2)}">
+          <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Puede ser parcial (menor que el total del movimiento)</div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600">Notas</label>
+          <input id="conc_notas" class="input" placeholder="Opcional">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <button class="btn btn-secondary" onclick="closeModal('mConc')">Cancelar</button>
+        <button class="btn btn-primary" onclick="_concGuardar('${movId}',${importe})">Conciliar</button>
       </div>
     </div>`;
+
+  let modal = document.getElementById('mConc');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'mConc';
+    modal.className = 'modal';
+    modal.innerHTML = `<div class="modal-content" style="max-width:500px"><div id="mConcBody"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('mConcBody').innerHTML = html;
+  openModal('mConc');
+}
+
+async function _concGuardar(movId, movImporte) {
+  const esIngreso = movImporte > 0;
+  const factId = document.getElementById('conc_factura').value;
+  const impConc = parseFloat(document.getElementById('conc_importe').value);
+  const notas = document.getElementById('conc_notas').value.trim() || null;
+
+  if (!factId) { toast('Selecciona una factura','error'); return; }
+  if (!impConc || impConc <= 0) { toast('Importe inválido','error'); return; }
+
+  const obj = {
+    empresa_id: EMPRESA.id,
+    movimiento_id: movId,
+    importe: impConc,
+    notas,
+    usuario_id: CU?.id || null
+  };
+  if (esIngreso) obj.factura_id = factId;
+  else obj.factura_prov_id = factId;
+
+  const {error} = await sb.from('conciliaciones').insert(obj);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+
+  // Actualizar importe_conciliado y estado del movimiento
+  const mov = _concMovPend.find(m=>m.id===movId);
+  const nuevoConc = Math.abs(parseFloat(mov?.importe_conciliado)||0) + impConc;
+  const absTotal = Math.abs(movImporte);
+  const nuevoEstado = nuevoConc >= absTotal ? 'conciliado' : 'parcial';
+
+  await sb.from('movimientos_bancarios').update({
+    importe_conciliado: nuevoConc,
+    estado: nuevoEstado
+  }).eq('id', movId);
+
+  closeModal('mConc');
+  toast(`Movimiento ${nuevoEstado === 'conciliado' ? 'conciliado ✓' : 'parcialmente conciliado'}`,'success');
+  renderTesConciliacion();
+}
+
+async function _concIgnorar(movId) {
+  if (typeof confirmModal === 'function') {
+    confirmModal('¿Marcar este movimiento como ignorado?', async () => {
+      await sb.from('movimientos_bancarios').update({estado:'ignorado'}).eq('id', movId);
+      toast('Movimiento ignorado','success');
+      renderTesConciliacion();
+    });
+  }
+}
+
+// Auto-conciliación: busca coincidencias exactas de importe entre movimientos y facturas
+async function _concAutoMatch() {
+  let matched = 0;
+
+  for (const mov of _concMovPend) {
+    const imp = parseFloat(mov.importe) || 0;
+    const absImp = Math.abs(imp);
+    if (absImp === 0) continue;
+
+    // Buscar factura con total exacto
+    let factura = null;
+    let esProv = false;
+
+    if (imp > 0) {
+      // Ingreso → buscar factura de venta con ese total
+      factura = _concFactVenta.find(f => {
+        const concExist = tesConciliaciones.filter(c=>c.factura_id===f.id).reduce((s,c)=>s+parseFloat(c.importe||0),0);
+        return Math.abs(parseFloat(f.total) - concExist - absImp) < 0.02;
+      });
+    } else {
+      // Gasto → buscar factura proveedor con ese total
+      esProv = true;
+      factura = _concFactCompra.find(f => {
+        const concExist = tesConciliaciones.filter(c=>c.factura_prov_id===f.id).reduce((s,c)=>s+parseFloat(c.importe||0),0);
+        return Math.abs(parseFloat(f.total) - concExist - absImp) < 0.02;
+      });
+    }
+
+    if (factura) {
+      const obj = {
+        empresa_id: EMPRESA.id,
+        movimiento_id: mov.id,
+        importe: absImp,
+        notas: 'Auto-conciliado',
+        usuario_id: CU?.id || null
+      };
+      if (esProv) obj.factura_prov_id = factura.id;
+      else obj.factura_id = factura.id;
+
+      const {error} = await sb.from('conciliaciones').insert(obj);
+      if (!error) {
+        await sb.from('movimientos_bancarios').update({
+          importe_conciliado: absImp,
+          estado: 'conciliado'
+        }).eq('id', mov.id);
+        matched++;
+      }
+    }
+  }
+
+  if (matched > 0) {
+    toast(`⚡ ${matched} movimiento${matched>1?'s':''} conciliado${matched>1?'s':''} automáticamente`,'success');
+    renderTesConciliacion();
+  } else {
+    toast('No se encontraron coincidencias exactas','info');
+  }
 }
 
 
 // ═══════════════════════════════════════════════
-//  IMPORTAR EXTRACTOS (placeholder — se completará en task #95)
+//  IMPORTAR EXTRACTOS — Norma 43 (AEB) y CSV
 // ═══════════════════════════════════════════════
 
+let _impMovsPrev = []; // movimientos parseados para preview
+
 async function renderTesImportar() {
+  await _tesCargarCuentas();
   const page = document.getElementById('page-tesoreria-importar');
   if (!page) return;
+
+  const optsCuenta = tesCuentas.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+
   page.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div>
         <h2 style="font-size:17px;font-weight:800">📥 Importar extractos</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">Importa movimientos desde ficheros Norma 43 o CSV</p>
+        <p style="font-size:11.5px;color:var(--gris-400)">Importa movimientos desde ficheros Norma 43 (AEB) o CSV bancario</p>
       </div>
     </div>
-    <div class="card">
-      <div class="card-b" style="padding:40px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">📥</div>
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Importar extractos bancarios</h3>
-        <p style="font-size:13px;color:var(--gris-400);max-width:400px;margin:0 auto">
-          Próximamente podrás importar extractos en formato Norma 43 (AEB) y CSV
-          para cargar movimientos automáticamente.
-        </p>
+
+    <div class="card" style="padding:20px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end">
+        <div>
+          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">Cuenta destino *</label>
+          <select id="imp_cuenta" class="input">${optsCuenta}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">Formato del fichero</label>
+          <select id="imp_formato" class="input">
+            <option value="auto">Detectar automáticamente</option>
+            <option value="n43">Norma 43 (AEB Cuaderno 43)</option>
+            <option value="csv">CSV genérico</option>
+          </select>
+        </div>
       </div>
+      <div style="margin-top:16px">
+        <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">Fichero</label>
+        <div id="impDropZone" style="border:2px dashed var(--gris-300);border-radius:12px;padding:30px;text-align:center;cursor:pointer;transition:all .2s"
+          onclick="document.getElementById('imp_file').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--azul)';this.style.background='var(--azul-light)'"
+          ondragleave="this.style.borderColor='var(--gris-300)';this.style.background=''"
+          ondrop="event.preventDefault();this.style.borderColor='var(--gris-300)';this.style.background='';_impFileSelected(event.dataTransfer.files[0])">
+          <div style="font-size:36px;margin-bottom:8px">📄</div>
+          <div style="font-size:13px;font-weight:600">Arrastra tu fichero aquí o haz clic para seleccionar</div>
+          <div style="font-size:11px;color:var(--gris-400);margin-top:4px">Norma 43 (.n43, .txt, .aeb) o CSV (.csv)</div>
+        </div>
+        <input type="file" id="imp_file" accept=".n43,.txt,.aeb,.csv,.tsv" style="display:none" onchange="_impFileSelected(this.files[0])">
+      </div>
+    </div>
+
+    <!-- Preview de movimientos parseados -->
+    <div id="impPreview" style="display:none">
+      <div class="card" style="padding:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-size:13px;font-weight:700" id="impPreviewCount">0 movimientos</span>
+          <span style="font-size:12px;color:var(--gris-400)" id="impPreviewResumen"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="_impCancelar()">Cancelar</button>
+          <button class="btn btn-primary" onclick="_impConfirmar()">✅ Importar todos</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:auto;max-height:400px">
+        <table class="tbl" style="width:100%">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th style="text-align:right">Importe</th><th>Referencia</th></tr></thead>
+          <tbody id="impPreviewTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Info formatos -->
+    <div class="card" style="padding:16px;margin-top:16px;background:#f8fafc">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">ℹ️ Formatos soportados</div>
+      <div style="font-size:12px;color:var(--gris-500);line-height:1.6">
+        <strong>Norma 43 (Cuaderno 43 AEB)</strong> — Formato estándar español. Tu banco lo ofrece al descargar extractos. Extensiones .n43, .txt, .aeb<br>
+        <strong>CSV genérico</strong> — Fichero con columnas: fecha, concepto, importe (separador ; o ,). La primera fila debe ser cabecera.
+      </div>
+    </div>
+  `;
+}
+
+function _impFileSelected(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const content = e.target.result;
+    const formato = document.getElementById('imp_formato').value;
+
+    // Detectar formato
+    let movs;
+    if (formato === 'n43' || (formato === 'auto' && _impEsNorma43(content))) {
+      movs = _impParseNorma43(content);
+    } else {
+      movs = _impParseCSV(content);
+    }
+
+    _impMovsPrev = movs;
+    _impMostrarPreview(movs);
+  };
+  reader.readAsText(file, 'ISO-8859-1'); // Norma 43 usa latin1
+}
+
+function _impEsNorma43(content) {
+  // Norma 43 empieza con registros tipo 11 (cabecera cuenta) o 00
+  const lines = content.split('\n');
+  for (const l of lines) {
+    const trimmed = l.trim();
+    if (!trimmed) continue;
+    return /^\d{2}/.test(trimmed) && trimmed.length >= 72;
+  }
+  return false;
+}
+
+// ── Parser Norma 43 (AEB Cuaderno 43) ────────
+function _impParseNorma43(content) {
+  const lines = content.split('\n');
+  const movs = [];
+  let currentMov = null;
+
+  for (const line of lines) {
+    const l = line.replace(/\r/g, '');
+    if (l.length < 2) continue;
+    const tipo = l.substring(0, 2);
+
+    if (tipo === '22') {
+      // Registro de movimiento principal
+      // Pos 10-15: fecha operación (AAMMDD)
+      // Pos 16-21: fecha valor (AAMMDD)
+      // Pos 22-23: concepto común (2 dígitos)
+      // Pos 27: signo (1=haber/ingreso, 2=debe/gasto)
+      // Pos 28-41: importe (14 dígitos, 2 decimales)
+      // Pos 42-52: nº documento
+      // Pos 53-62: referencia 1
+      // Pos 63-78: referencia 2
+      const fechaOp = _impN43Fecha(l.substring(10, 16));
+      const fechaVal = _impN43Fecha(l.substring(16, 22));
+      const signo = l.substring(27, 28);
+      const impRaw = parseInt(l.substring(28, 42)) / 100;
+      const importe = signo === '2' ? -impRaw : impRaw;
+      const ref1 = l.substring(52, 62).trim();
+      const ref2 = l.substring(62, 78).trim();
+
+      currentMov = {
+        fecha_operacion: fechaOp,
+        fecha_valor: fechaVal,
+        importe,
+        referencia: (ref1 + ' ' + ref2).trim() || null,
+        concepto: '',
+        _conceptoParts: []
+      };
+      movs.push(currentMov);
+    }
+    else if (tipo === '23' && currentMov) {
+      // Registro complementario de concepto
+      // Pos 4-42: concepto libre (campo 1)
+      // Pos 43-80: concepto libre (campo 2)
+      const c1 = l.substring(4, 42).trim();
+      const c2 = (l.length > 42) ? l.substring(42, 80).trim() : '';
+      if (c1) currentMov._conceptoParts.push(c1);
+      if (c2) currentMov._conceptoParts.push(c2);
+    }
+  }
+
+  // Unir partes de concepto
+  movs.forEach(m => {
+    m.concepto = m._conceptoParts.join(' ').trim() || 'Movimiento importado';
+    delete m._conceptoParts;
+  });
+
+  return movs;
+}
+
+function _impN43Fecha(aammdd) {
+  if (!aammdd || aammdd.length !== 6) return new Date().toISOString().slice(0,10);
+  const yy = parseInt(aammdd.substring(0, 2));
+  const mm = aammdd.substring(2, 4);
+  const dd = aammdd.substring(4, 6);
+  const year = yy > 50 ? 1900 + yy : 2000 + yy;
+  return `${year}-${mm}-${dd}`;
+}
+
+// ── Parser CSV genérico ──────────────────────
+function _impParseCSV(content) {
+  const lines = content.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  // Detectar separador
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g,''));
+
+  // Buscar columnas clave
+  const idate = header.findIndex(h => /fecha|date|f\.\s*oper/i.test(h));
+  const iconcept = header.findIndex(h => /concepto|descripci|detail|text/i.test(h));
+  const iamount = header.findIndex(h => /importe|amount|cantidad|monto|cargo|abono/i.test(h));
+  const iref = header.findIndex(h => /ref|document|numer/i.test(h));
+
+  // Si hay columnas cargo/abono separadas
+  const icargo = header.findIndex(h => /cargo|debe|debit/i.test(h));
+  const iabono = header.findIndex(h => /abono|haber|credit|ingreso/i.test(h));
+
+  if (idate === -1) { toast('No se encuentra columna de fecha en el CSV','error'); return []; }
+
+  const movs = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = _csvSplitLine(lines[i], sep);
+    if (!cols || cols.length < 2) continue;
+
+    const fechaRaw = cols[idate]?.replace(/['"]/g,'').trim();
+    const fecha = _impParseFecha(fechaRaw);
+    if (!fecha) continue;
+
+    let importe;
+    if (iamount !== -1) {
+      importe = _impParseNum(cols[iamount]);
+    } else if (icargo !== -1 || iabono !== -1) {
+      const cargo = icargo !== -1 ? Math.abs(_impParseNum(cols[icargo])) : 0;
+      const abono = iabono !== -1 ? Math.abs(_impParseNum(cols[iabono])) : 0;
+      importe = abono > 0 ? abono : -cargo;
+    } else {
+      continue;
+    }
+
+    if (!importe || importe === 0) continue;
+
+    movs.push({
+      fecha_operacion: fecha,
+      fecha_valor: null,
+      concepto: (iconcept !== -1 ? cols[iconcept]?.replace(/['"]/g,'').trim() : '') || 'Movimiento CSV',
+      importe,
+      referencia: iref !== -1 ? cols[iref]?.replace(/['"]/g,'').trim() || null : null
+    });
+  }
+  return movs;
+}
+
+function _csvSplitLine(line, sep) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === sep && !inQuotes) { result.push(current); current = ''; continue; }
+    current += ch;
+  }
+  result.push(current);
+  return result;
+}
+
+function _impParseFecha(s) {
+  if (!s) return null;
+  // DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
+  let m;
+  if ((m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/))) {
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  if ((m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/))) {
+    return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function _impParseNum(s) {
+  if (!s) return 0;
+  s = s.replace(/['"]/g,'').trim();
+  // Formato español: 1.234,56 → 1234.56
+  if (s.includes(',') && (s.indexOf(',') > s.lastIndexOf('.') || !s.includes('.'))) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  }
+  return parseFloat(s) || 0;
+}
+
+function _impMostrarPreview(movs) {
+  const prev = document.getElementById('impPreview');
+  const table = document.getElementById('impPreviewTable');
+  const count = document.getElementById('impPreviewCount');
+  const resumen = document.getElementById('impPreviewResumen');
+
+  if (!movs.length) {
+    toast('No se encontraron movimientos en el fichero','error');
+    return;
+  }
+
+  const ingresos = movs.filter(m=>m.importe>0).reduce((s,m)=>s+m.importe,0);
+  const gastos = movs.filter(m=>m.importe<0).reduce((s,m)=>s+Math.abs(m.importe),0);
+
+  count.textContent = `${movs.length} movimiento${movs.length>1?'s':''}`;
+  resumen.textContent = ` · Ingresos: +${_tesFmt(ingresos)} € · Gastos: -${_tesFmt(gastos)} €`;
+
+  table.innerHTML = movs.map(m => `
+    <tr>
+      <td style="font-size:12px;white-space:nowrap">${_tesFecha(m.fecha_operacion)}</td>
+      <td style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.concepto}</td>
+      <td style="text-align:right;font-weight:700;color:${_tesColor(m.importe)}">${m.importe>0?'+':''}${_tesFmt(m.importe)} €</td>
+      <td style="font-size:11px;color:var(--gris-400)">${m.referencia||''}</td>
+    </tr>`).join('');
+
+  prev.style.display = '';
+}
+
+function _impCancelar() {
+  _impMovsPrev = [];
+  document.getElementById('impPreview').style.display = 'none';
+  document.getElementById('imp_file').value = '';
+}
+
+async function _impConfirmar() {
+  const cuentaId = document.getElementById('imp_cuenta').value;
+  if (!cuentaId) { toast('Selecciona una cuenta','error'); return; }
+  if (!_impMovsPrev.length) { toast('No hay movimientos','error'); return; }
+
+  const formato = document.getElementById('imp_formato').value;
+  const origen = formato === 'csv' ? 'csv' : 'norma43';
+
+  // Insertar en lotes de 50
+  let insertados = 0;
+  const lotes = [];
+  for (let i = 0; i < _impMovsPrev.length; i += 50) {
+    lotes.push(_impMovsPrev.slice(i, i + 50));
+  }
+
+  for (const lote of lotes) {
+    const rows = lote.map(m => ({
+      empresa_id: EMPRESA.id,
+      cuenta_id: cuentaId,
+      fecha_operacion: m.fecha_operacion,
+      fecha_valor: m.fecha_valor || null,
+      concepto: m.concepto,
+      importe: m.importe,
+      referencia: m.referencia,
+      estado: 'pendiente',
+      origen,
+      origen_ref: null
+    }));
+
+    const {error, data} = await sb.from('movimientos_bancarios').insert(rows).select();
+    if (error) { toast('Error importando: '+error.message,'error'); break; }
+    insertados += (data?.length || 0);
+  }
+
+  // Recalcular saldo
+  await _tesRecalcularSaldo(cuentaId);
+
+  _impMovsPrev = [];
+  toast(`✅ ${insertados} movimientos importados correctamente`, 'success');
+  renderTesImportar();
+}
+
+
+// ═══════════════════════════════════════════════
+//  OPEN BANKING — GoCardless (ex-Nordigen)
+//  Conexión directa con bancos vía API
+// ═══════════════════════════════════════════════
+
+let _obInstitutions = null; // cache de bancos disponibles
+
+async function _obCall(body) {
+  const session = await sb.auth.getSession();
+  const token = session?.data?.session?.access_token;
+  const resp = await fetch(`${SUPA_URL}/functions/v1/nordigen`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'apikey': SUPA_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// Añadir botón Open Banking en la vista de cuentas
+function _tesCuentaOpenBankingBtns(cuenta) {
+  if (!cuenta) return '';
+  if (cuenta.nordigen_conectado) {
+    const lastSync = cuenta.nordigen_ultimo_sync ? _tesFecha(cuenta.nordigen_ultimo_sync) : 'Nunca';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#10B98115;color:#10B981">🔗 Conectado</span>
+        <span style="font-size:10px;color:var(--gris-400)">Última sync: ${lastSync}</span>
+        <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obSyncCuenta('${cuenta.id}','${cuenta.nordigen_account_id}')">🔄 Sincronizar</button>
+        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obDesconectar('${cuenta.id}','${cuenta.nordigen_requisition_id}')">Desconectar</button>
+      </div>`;
+  }
+  if (cuenta.nordigen_requisition_id && !cuenta.nordigen_conectado) {
+    return `
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#F59E0B15;color:#F59E0B">⏳ Pendiente autorización</span>
+        <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obCheckStatus('${cuenta.id}','${cuenta.nordigen_requisition_id}')">Verificar estado</button>
+        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obDesconectar('${cuenta.id}','${cuenta.nordigen_requisition_id}')">Cancelar</button>
+      </div>`;
+  }
+  return `
+    <div style="margin-top:8px">
+      <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obConectar('${cuenta.id}')">🏦 Conectar banco (Open Banking)</button>
     </div>`;
+}
+
+// Modal para seleccionar banco y conectar
+async function obConectar(cuentaId) {
+  // Mostrar modal con spinner
+  let modal = document.getElementById('mOB');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'mOB';
+    modal.className = 'modal';
+    modal.innerHTML = `<div class="modal-content" style="max-width:560px"><div id="mOBBody"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('mOBBody').innerHTML = `
+    <div style="padding:30px;text-align:center">
+      <div class="spinner" style="margin:0 auto 12px"></div>
+      <div style="font-size:13px;color:var(--gris-400)">Cargando bancos disponibles...</div>
+    </div>`;
+  openModal('mOB');
+
+  try {
+    // Cargar instituciones (cache)
+    if (!_obInstitutions) {
+      _obInstitutions = await _obCall({ action: 'institutions', country: 'ES' });
+    }
+    const bancos = _obInstitutions || [];
+
+    // Ordenar por nombre
+    bancos.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    document.getElementById('mOBBody').innerHTML = `
+      <div style="padding:20px">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">🏦 Conectar banco — Open Banking</h3>
+        <p style="font-size:12px;color:var(--gris-400);margin-bottom:16px">
+          Selecciona tu banco para autorizar el acceso de solo lectura a tus movimientos.
+          La conexión es segura y regulada por la UE (PSD2).
+        </p>
+
+        <input id="ob_buscar" class="input" placeholder="🔍 Buscar banco..." style="margin-bottom:12px"
+          oninput="_obFiltrarBancos(this.value)">
+
+        <div id="obBancosList" style="max-height:350px;overflow:auto;border:1px solid var(--gris-200);border-radius:10px">
+          ${_obBancosHTML(bancos, cuentaId)}
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-secondary" onclick="closeModal('mOB')">Cancelar</button>
+        </div>
+
+        <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:11px;color:#166534">
+          🔒 <strong>Seguro y regulado</strong> — Usamos GoCardless (licenciado por el FCA y regulado bajo PSD2).
+          Solo lectura: nunca se pueden realizar pagos ni transferencias.
+        </div>
+      </div>`;
+
+  } catch (err) {
+    document.getElementById('mOBBody').innerHTML = `
+      <div style="padding:30px;text-align:center">
+        <div style="font-size:36px;margin-bottom:12px">⚠️</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">Error al cargar bancos</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:16px">${err.message}</div>
+        <button class="btn btn-secondary" onclick="closeModal('mOB')">Cerrar</button>
+      </div>`;
+  }
+}
+
+function _obBancosHTML(bancos, cuentaId) {
+  return bancos.map(b => `
+    <div class="ob-banco" data-name="${(b.name||'').toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--gris-100);cursor:pointer;transition:background .1s"
+      onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background=''"
+      onclick="_obSeleccionarBanco('${b.id}','${cuentaId}')">
+      ${b.logo ? `<img src="${b.logo}" style="width:32px;height:32px;border-radius:6px;object-fit:contain;border:1px solid var(--gris-200)">` : '<div style="width:32px;height:32px;border-radius:6px;background:var(--gris-100);display:flex;align-items:center;justify-content:center">🏦</div>'}
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${b.name}</div>
+        ${b.bic ? `<div style="font-size:10px;color:var(--gris-400)">${b.bic}</div>` : ''}
+      </div>
+      <div style="font-size:14px;color:var(--gris-300)">→</div>
+    </div>
+  `).join('');
+}
+
+function _obFiltrarBancos(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.ob-banco').forEach(el => {
+    const name = el.dataset.name || '';
+    el.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+
+async function _obSeleccionarBanco(institutionId, cuentaId) {
+  const body = document.getElementById('mOBBody');
+  body.innerHTML = `
+    <div style="padding:30px;text-align:center">
+      <div class="spinner" style="margin:0 auto 12px"></div>
+      <div style="font-size:13px;color:var(--gris-400)">Creando enlace de autorización...</div>
+    </div>`;
+
+  try {
+    // URL de retorno: la misma página del ERP
+    const redirectUrl = window.location.origin + window.location.pathname + '?ob_return=1&cuenta=' + cuentaId;
+
+    const result = await _obCall({
+      action: 'connect',
+      institution_id: institutionId,
+      redirect_url: redirectUrl,
+      empresa_id: EMPRESA.id,
+      cuenta_id: cuentaId
+    });
+
+    body.innerHTML = `
+      <div style="padding:30px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">🔗</div>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Autoriza el acceso en tu banco</h3>
+        <p style="font-size:12px;color:var(--gris-400);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">
+          Se abrirá una ventana de tu banco donde deberás autorizar el acceso de solo lectura.
+          Cuando termines, vuelve aquí y verifica el estado.
+        </p>
+        <a href="${result.link}" target="_blank" class="btn btn-primary" style="font-size:14px;padding:10px 24px">
+          🏦 Ir al banco para autorizar
+        </a>
+        <div style="margin-top:16px">
+          <button class="btn btn-secondary" onclick="closeModal('mOB');renderTesCuentas()">Cerrar y verificar después</button>
+        </div>
+      </div>`;
+
+  } catch (err) {
+    body.innerHTML = `
+      <div style="padding:30px;text-align:center">
+        <div style="font-size:36px;margin-bottom:12px">❌</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">Error</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:16px">${err.message}</div>
+        <button class="btn btn-secondary" onclick="closeModal('mOB')">Cerrar</button>
+      </div>`;
+  }
+}
+
+async function obCheckStatus(cuentaId, requisitionId) {
+  toast('Verificando estado...','info');
+  try {
+    const result = await _obCall({ action: 'status', requisition_id: requisitionId, cuenta_id: cuentaId });
+    if (result.status === 'LN') {
+      toast('✅ Banco conectado correctamente. Sincronizando movimientos...','success');
+      // Auto-sync
+      const cuenta = tesCuentas.find(c => c.id == cuentaId);
+      if (result.accounts?.[0]) {
+        await obSyncCuenta(cuentaId, result.accounts[0]);
+      }
+      renderTesCuentas();
+    } else if (result.status === 'EX') {
+      toast('La autorización ha expirado. Vuelve a conectar el banco.','error');
+    } else {
+      toast(`Estado: ${result.status}. Completa la autorización en tu banco.`,'info');
+    }
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function obSyncCuenta(cuentaId, nordigenAccountId) {
+  toast('🔄 Sincronizando movimientos...','info');
+  try {
+    const result = await _obCall({
+      action: 'sync',
+      empresa_id: EMPRESA.id,
+      cuenta_id: cuentaId,
+      nordigen_account_id: nordigenAccountId
+    });
+    toast(`✅ ${result.message}`, 'success');
+    renderTesCuentas();
+  } catch (err) {
+    toast('Error sincronizando: ' + err.message, 'error');
+  }
+}
+
+async function obDesconectar(cuentaId, requisitionId) {
+  if (typeof confirmModal === 'function') {
+    confirmModal('¿Desconectar este banco? Los movimientos ya importados se conservan.', async () => {
+      try {
+        await _obCall({ action: 'disconnect', cuenta_id: cuentaId, requisition_id: requisitionId });
+        toast('Banco desconectado', 'success');
+        renderTesCuentas();
+      } catch (err) {
+        toast('Error: ' + err.message, 'error');
+      }
+    });
+  }
+}
+
+// Comprobar si venimos de un retorno de Open Banking
+function _obCheckReturn() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('ob_return') === '1') {
+    const cuentaId = params.get('cuenta');
+    // Limpiar URL
+    window.history.replaceState({}, '', window.location.pathname);
+    if (cuentaId) {
+      // Auto-verificar estado tras un breve delay
+      setTimeout(async () => {
+        await _tesCargarCuentas();
+        const cuenta = tesCuentas.find(c => c.id == cuentaId);
+        if (cuenta?.nordigen_requisition_id) {
+          goPage('tesoreria-cuentas');
+          obCheckStatus(cuentaId, cuenta.nordigen_requisition_id);
+        }
+      }, 1500);
+    }
+  }
+}
+
+// Ejecutar al cargar
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', () => setTimeout(_obCheckReturn, 2000));
 }
