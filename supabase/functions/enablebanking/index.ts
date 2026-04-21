@@ -60,10 +60,11 @@ async function ebFetch(path: string, options: RequestInit = {}): Promise<any> {
 
 /** Listar bancos disponibles por país */
 async function listInstitutions(country: string = "ES") {
-  const data = await ebFetch(`/aspsps?country=${country}`);
+  const path = country ? `/aspsps?country=${country}` : `/aspsps`;
+  const data = await ebFetch(path);
   // Normalizar respuesta para que el frontend use .id, .name, .logo, .bic
   const aspsps = data?.aspsps || data || [];
-  return aspsps.map((a: any) => ({
+  return (Array.isArray(aspsps) ? aspsps : []).map((a: any) => ({
     id: a.name,          // En Enable Banking el identificador es el nombre del ASPSP
     name: a.name,
     country: a.country || country,

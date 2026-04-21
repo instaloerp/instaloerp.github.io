@@ -1201,83 +1201,87 @@ function _tesCuentaOpenBankingBtns(cuenta) {
 
 // Modal para seleccionar banco y conectar
 async function obConectar(cuentaId) {
-  // Mostrar modal con spinner
   let modal = document.getElementById('mOB');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mOB';
     modal.className = 'overlay';
-    modal.innerHTML = `<div class="modal" style="max-width:560px"><div id="mOBBody"></div></div>`;
+    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mOBBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mOBBody').innerHTML = `
-    <div style="padding:30px;text-align:center">
-      <div class="spinner" style="margin:0 auto 12px"></div>
-      <div style="font-size:13px;color:var(--gris-400)">Cargando bancos disponibles...</div>
+    <div style="padding:32px;text-align:center">
+      <div class="spinner" style="margin:0 auto 16px"></div>
+      <div style="font-size:13px;color:var(--gris-400)">Conectando con Open Banking...</div>
     </div>`;
   openModal('mOB');
 
   try {
-    // Cargar instituciones (cache)
     if (!_obInstitutions) {
-      const resp = await _obCall({ action: 'institutions', country: 'ES' });
-      _obInstitutions = Array.isArray(resp) ? resp : (resp?.aspsps || resp?.data || []);
+      // Intentar ES primero, si no hay resultados cargar todos (sandbox)
+      let resp = await _obCall({ action: 'institutions', country: 'ES' });
+      let list = Array.isArray(resp) ? resp : (resp?.aspsps || resp?.data || []);
+      if (!list.length) {
+        resp = await _obCall({ action: 'institutions', country: '' });
+        list = Array.isArray(resp) ? resp : (resp?.aspsps || resp?.data || []);
+      }
+      _obInstitutions = list;
     }
     const bancos = Array.isArray(_obInstitutions) ? [..._obInstitutions] : [];
-
-    // Ordenar por nombre
     bancos.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+    const numBancos = bancos.length;
     document.getElementById('mOBBody').innerHTML = `
-      <div style="padding:20px">
-        <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">🏦 Conectar banco — Open Banking</h3>
-        <p style="font-size:12px;color:var(--gris-400);margin-bottom:16px">
-          Selecciona tu banco para autorizar el acceso de solo lectura a tus movimientos.
-          La conexión es segura y regulada por la UE (PSD2).
+      <div class="modal-h" style="padding:20px 24px;border-bottom:1.5px solid var(--gris-100)">
+        <h3 style="font-size:15px;font-weight:800;margin:0">Conectar banco</h3>
+        <p style="font-size:11.5px;color:var(--gris-400);margin:4px 0 0">
+          Acceso de solo lectura a movimientos · PSD2 · ${numBancos} banco${numBancos!==1?'s':''}
         </p>
-
-        <input id="ob_buscar" class="input" placeholder="🔍 Buscar banco..." style="margin-bottom:12px"
-          oninput="_obFiltrarBancos(this.value)">
-
-        <div id="obBancosList" style="max-height:350px;overflow:auto;border:1px solid var(--gris-200);border-radius:10px">
-          ${_obBancosHTML(bancos, cuentaId)}
+      </div>
+      <div style="padding:16px 24px 12px">
+        <div style="position:relative">
+          <input id="ob_buscar" class="input" placeholder="Buscar banco..." style="padding-left:32px"
+            oninput="_obFiltrarBancos(this.value)">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--gris-300)">🔍</span>
         </div>
-
-        <div style="display:flex;justify-content:flex-end;margin-top:16px">
-          <button class="btn btn-secondary" onclick="closeModal('mOB')">Cancelar</button>
+      </div>
+      <div id="obBancosList" style="max-height:340px;overflow-y:auto;margin:0 24px;border:1px solid var(--gris-200);border-radius:10px">
+        ${_obBancosHTML(bancos, cuentaId)}
+      </div>
+      <div style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--gris-100);margin-top:12px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#166534">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#dcfce7;font-size:10px">🔒</span>
+          Enable Banking · AISP regulado PSD2
         </div>
-
-        <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:11px;color:#166534">
-          🔒 <strong>Seguro y regulado</strong> — Usamos Enable Banking (AISP registrado, regulado bajo PSD2).
-          Solo lectura: nunca se pueden realizar pagos ni transferencias.
-        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('mOB')">Cancelar</button>
       </div>`;
 
   } catch (err) {
     document.getElementById('mOBBody').innerHTML = `
-      <div style="padding:30px;text-align:center">
-        <div style="font-size:36px;margin-bottom:12px">⚠️</div>
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px">Error al cargar bancos</div>
-        <div style="font-size:12px;color:var(--gris-400);margin-bottom:16px">${err.message}</div>
+      <div style="padding:40px 30px;text-align:center">
+        <div style="width:48px;height:48px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:22px">⚠️</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px">Error al cargar bancos</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:20px;max-width:320px;margin-left:auto;margin-right:auto">${err.message}</div>
         <button class="btn btn-secondary" onclick="closeModal('mOB')">Cerrar</button>
       </div>`;
   }
 }
 
 function _obBancosHTML(bancos, cuentaId) {
+  if (!bancos.length) return '<div style="padding:30px;text-align:center;color:var(--gris-400);font-size:12px">No se encontraron bancos disponibles</div>';
   return bancos.map(b => {
     const safeName = (b.id||b.name||'').replace(/'/g, "\\'");
     const safeCountry = (b.country||'ES').replace(/'/g, "\\'");
     return `
-    <div class="ob-banco" data-name="${(b.name||'').toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--gris-100);cursor:pointer;transition:background .1s"
-      onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background=''"
+    <div class="ob-banco" data-name="${(b.name||'').toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--gris-100);cursor:pointer;transition:background .15s"
+      onmouseover="this.style.background='var(--azul-50,#eff6ff)'" onmouseout="this.style.background=''"
       onclick="_obSeleccionarBanco('${safeName}','${safeCountry}','${cuentaId}')">
-      ${b.logo ? `<img src="${b.logo}" style="width:32px;height:32px;border-radius:6px;object-fit:contain;border:1px solid var(--gris-200)">` : '<div style="width:32px;height:32px;border-radius:6px;background:var(--gris-100);display:flex;align-items:center;justify-content:center">🏦</div>'}
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600">${b.name}</div>
-        ${b.bic ? `<div style="font-size:10px;color:var(--gris-400)">${b.bic}</div>` : ''}
+      ${b.logo ? `<img src="${b.logo}" style="width:36px;height:36px;border-radius:8px;object-fit:contain;border:1px solid var(--gris-200);background:#fff">` : `<div style="width:36px;height:36px;border-radius:8px;background:var(--azul-50,#eff6ff);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--azul)">🏦</div>`}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.name}</div>
+        ${b.bic ? `<div style="font-size:10px;color:var(--gris-400);margin-top:1px">${b.bic}</div>` : (b.country ? `<div style="font-size:10px;color:var(--gris-400);margin-top:1px">${b.country}</div>` : '')}
       </div>
-      <div style="font-size:14px;color:var(--gris-300)">→</div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gris-300)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
   }).join('');
 }
@@ -1312,18 +1316,17 @@ async function _obSeleccionarBanco(institutionId, institutionCountry, cuentaId) 
     });
 
     body.innerHTML = `
-      <div style="padding:30px;text-align:center">
-        <div style="font-size:48px;margin-bottom:12px">🔗</div>
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">Autoriza el acceso en tu banco</h3>
-        <p style="font-size:12px;color:var(--gris-400);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">
-          Se abrirá una ventana de tu banco donde deberás autorizar el acceso de solo lectura.
-          Cuando termines, vuelve aquí y verifica el estado.
+      <div style="padding:40px 30px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--azul-50,#eff6ff);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px">🏦</div>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">Autoriza el acceso en tu banco</h3>
+        <p style="font-size:12px;color:var(--gris-400);margin-bottom:24px;max-width:340px;margin-left:auto;margin-right:auto;line-height:1.5">
+          Se abrirá la web de tu banco. Autoriza el acceso de solo lectura y volverás aquí automáticamente.
         </p>
-        <a href="${result.link}" target="_blank" class="btn btn-primary" style="font-size:14px;padding:10px 24px">
-          🏦 Ir al banco para autorizar
+        <a href="${result.link}" target="_blank" class="btn btn-primary" style="font-size:13px;padding:10px 28px;border-radius:8px">
+          Ir al banco para autorizar →
         </a>
-        <div style="margin-top:16px">
-          <button class="btn btn-secondary" onclick="closeModal('mOB');renderTesCuentas()">Cerrar y verificar después</button>
+        <div style="margin-top:14px">
+          <button class="btn btn-secondary btn-sm" onclick="closeModal('mOB');renderTesCuentas()">Verificar después</button>
         </div>
       </div>`;
 
