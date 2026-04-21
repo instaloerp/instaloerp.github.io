@@ -1158,7 +1158,7 @@ let _obInstitutions = null; // cache de bancos disponibles
 async function _obCall(body) {
   const session = await sb.auth.getSession();
   const token = session?.data?.session?.access_token;
-  const resp = await fetch(`${SUPA_URL}/functions/v1/nordigen`, {
+  const resp = await fetch(`${SUPA_URL}/functions/v1/enablebanking`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1247,7 +1247,7 @@ async function obConectar(cuentaId) {
         </div>
 
         <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:11px;color:#166534">
-          🔒 <strong>Seguro y regulado</strong> — Usamos GoCardless (licenciado por el FCA y regulado bajo PSD2).
+          🔒 <strong>Seguro y regulado</strong> — Usamos Enable Banking (AISP registrado, regulado bajo PSD2).
           Solo lectura: nunca se pueden realizar pagos ni transferencias.
         </div>
       </div>`;
@@ -1264,18 +1264,21 @@ async function obConectar(cuentaId) {
 }
 
 function _obBancosHTML(bancos, cuentaId) {
-  return bancos.map(b => `
+  return bancos.map(b => {
+    const safeName = (b.id||b.name||'').replace(/'/g, "\\'");
+    const safeCountry = (b.country||'ES').replace(/'/g, "\\'");
+    return `
     <div class="ob-banco" data-name="${(b.name||'').toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--gris-100);cursor:pointer;transition:background .1s"
       onmouseover="this.style.background='var(--azul-light)'" onmouseout="this.style.background=''"
-      onclick="_obSeleccionarBanco('${b.id}','${cuentaId}')">
+      onclick="_obSeleccionarBanco('${safeName}','${safeCountry}','${cuentaId}')">
       ${b.logo ? `<img src="${b.logo}" style="width:32px;height:32px;border-radius:6px;object-fit:contain;border:1px solid var(--gris-200)">` : '<div style="width:32px;height:32px;border-radius:6px;background:var(--gris-100);display:flex;align-items:center;justify-content:center">🏦</div>'}
       <div style="flex:1">
         <div style="font-size:13px;font-weight:600">${b.name}</div>
         ${b.bic ? `<div style="font-size:10px;color:var(--gris-400)">${b.bic}</div>` : ''}
       </div>
       <div style="font-size:14px;color:var(--gris-300)">→</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function _obFiltrarBancos(query) {
@@ -1286,7 +1289,7 @@ function _obFiltrarBancos(query) {
   });
 }
 
-async function _obSeleccionarBanco(institutionId, cuentaId) {
+async function _obSeleccionarBanco(institutionId, institutionCountry, cuentaId) {
   const body = document.getElementById('mOBBody');
   body.innerHTML = `
     <div style="padding:30px;text-align:center">
@@ -1295,12 +1298,13 @@ async function _obSeleccionarBanco(institutionId, cuentaId) {
     </div>`;
 
   try {
-    // URL de retorno: la misma página del ERP
-    const redirectUrl = window.location.origin + window.location.pathname + '?ob_return=1&cuenta=' + cuentaId;
+    // URL de retorno: exactamente la registrada en Enable Banking (sin query params)
+    const redirectUrl = window.location.origin + window.location.pathname;
 
     const result = await _obCall({
       action: 'connect',
       institution_id: institutionId,
+      institution_country: institutionCountry || 'ES',
       redirect_url: redirectUrl,
       empresa_id: EMPRESA.id,
       cuenta_id: cuentaId
@@ -1336,19 +1340,15 @@ async function _obSeleccionarBanco(institutionId, cuentaId) {
 async function obCheckStatus(cuentaId, requisitionId) {
   toast('Verificando estado...','info');
   try {
-    const result = await _obCall({ action: 'status', requisition_id: requisitionId, cuenta_id: cuentaId });
-    if (result.status === 'LN') {
+    // Recargar cuenta desde BD para ver si ya tiene nordigen_account_id (callback ya procesado)
+    await _tesCargarCuentas();
+    const cuenta = tesCuentas.find(c => c.id == cuentaId);
+    if (cuenta?.nordigen_conectado && cuenta?.nordigen_account_id) {
       toast('✅ Banco conectado correctamente. Sincronizando movimientos...','success');
-      // Auto-sync
-      const cuenta = tesCuentas.find(c => c.id == cuentaId);
-      if (result.accounts?.[0]) {
-        await obSyncCuenta(cuentaId, result.accounts[0]);
-      }
+      await obSyncCuenta(cuentaId, cuenta.nordigen_account_id);
       renderTesCuentas();
-    } else if (result.status === 'EX') {
-      toast('La autorización ha expirado. Vuelve a conectar el banco.','error');
     } else {
-      toast(`Estado: ${result.status}. Completa la autorización en tu banco.`,'info');
+      toast('⏳ La autorización aún no se ha completado. Abre el enlace del banco y autoriza el acceso.','info');
     }
   } catch (err) {
     toast('Error: ' + err.message, 'error');
@@ -1375,7 +1375,7 @@ async function obDesconectar(cuentaId, requisitionId) {
   if (typeof confirmModal === 'function') {
     confirmModal('¿Desconectar este banco? Los movimientos ya importados se conservan.', async () => {
       try {
-        await _obCall({ action: 'disconnect', cuenta_id: cuentaId, requisition_id: requisitionId });
+        await _obCall({ action: 'disconnect', cuenta_id: cuentaId });
         toast('Banco desconectado', 'success');
         renderTesCuentas();
       } catch (err) {
@@ -1386,23 +1386,39 @@ async function obDesconectar(cuentaId, requisitionId) {
 }
 
 // Comprobar si venimos de un retorno de Open Banking
+// Enable Banking redirige con ?code=XXX&state=instaloerp_CUENTAID_TIMESTAMP
 function _obCheckReturn() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('ob_return') === '1') {
-    const cuentaId = params.get('cuenta');
+  const code = params.get('code');
+  const state = params.get('state') || '';
+
+  // Extraer cuentaId del state: formato "instaloerp_CUENTAID_TIMESTAMP"
+  let cuentaId = null;
+  if (state.startsWith('instaloerp_')) {
+    const parts = state.split('_');
+    if (parts.length >= 3) cuentaId = parts[1];
+  }
+
+  if (code && cuentaId) {
     // Limpiar URL
     window.history.replaceState({}, '', window.location.pathname);
-    if (cuentaId) {
-      // Auto-verificar estado tras un breve delay
-      setTimeout(async () => {
-        await _tesCargarCuentas();
-        const cuenta = tesCuentas.find(c => c.id == cuentaId);
-        if (cuenta?.nordigen_requisition_id) {
-          goPage('tesoreria-cuentas');
-          obCheckStatus(cuentaId, cuenta.nordigen_requisition_id);
+
+    setTimeout(async () => {
+      toast('🔄 Procesando autorización bancaria...', 'info');
+      try {
+        const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId });
+        if (result.status === 'LN' && result.accounts?.length) {
+          toast('✅ Banco conectado correctamente. Sincronizando movimientos...', 'success');
+          await obSyncCuenta(cuentaId, result.accounts[0]);
+        } else if (result.status === 'NO_ACCOUNTS') {
+          toast('⚠️ No se encontraron cuentas en la autorización.', 'error');
         }
-      }, 1500);
-    }
+        goPage('tesoreria-cuentas');
+      } catch (err) {
+        toast('Error procesando autorización: ' + err.message, 'error');
+        goPage('tesoreria-cuentas');
+      }
+    }, 1500);
   }
 }
 
