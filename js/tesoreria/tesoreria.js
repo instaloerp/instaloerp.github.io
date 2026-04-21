@@ -124,111 +124,76 @@ function _tesMostrarModalCuenta(c) {
   const esNueva = !c;
   const verSaldos = canDo('tesoreria','ver_saldos');
   const esConectada = c?.nordigen_conectado;
-  // Escapar comillas dobles en valores para evitar romper atributos HTML
   const _esc = v => (v||'').replace(/"/g,'&quot;');
-  const html = `
-    <div style="padding:20px">
-      <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">${esNueva ? '🏦 Nueva cuenta bancaria' : '✏️ Editar cuenta'}</h3>
 
-      <!-- Datos de la cuenta -->
-      <div style="display:grid;gap:12px">
-        <div>
-          <label style="font-size:12px;font-weight:600">Nombre *</label>
-          <input id="tes_c_nombre" class="input" value="${_esc(c?.nombre)}" placeholder="Ej: CaixaBank Principal">
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">IBAN</label>
-            <input id="tes_c_iban" class="input" value="${_esc(c?.iban)}" placeholder="ES12 1234 5678 9012 3456 7890">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600">Nº cuenta (si no IBAN)</label>
-            <input id="tes_c_numcuenta" class="input" value="${_esc(c?.numero_cuenta)}" placeholder="1234 5678 90 1234567890">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">Entidad</label>
-            <input id="tes_c_entidad" class="input" value="${_esc(c?.entidad)}" placeholder="CaixaBank, Santander...">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600">SWIFT/BIC</label>
-            <input id="tes_c_swift" class="input" value="${_esc(c?.bic)}" placeholder="CAIXESBBXXX">
-          </div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600">Titular</label>
-          <input id="tes_c_titular" class="input" value="${_esc(c?.titular)}" placeholder="Nombre del titular de la cuenta">
-        </div>
-
-        <!-- Ficha del banco -->
-        <div style="border-top:1px solid var(--gris-200);padding-top:12px;margin-top:4px">
-          <div style="font-size:12px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Datos del banco</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div>
-              <label style="font-size:12px;font-weight:600">Sucursal</label>
-              <input id="tes_c_sucursal" class="input" value="${_esc(c?.sucursal)}" placeholder="Oficina / sucursal">
-            </div>
-            <div>
-              <label style="font-size:12px;font-weight:600">Teléfono banco</label>
-              <input id="tes_c_telfbanco" class="input" value="${_esc(c?.telefono_banco)}" placeholder="981 123 456">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
-            <div>
-              <label style="font-size:12px;font-weight:600">Persona de contacto</label>
-              <input id="tes_c_contacto" class="input" value="${_esc(c?.contacto_banco)}" placeholder="Nombre del gestor">
-            </div>
-            <div>
-              <label style="font-size:12px;font-weight:600">Email banco</label>
-              <input id="tes_c_emailbanco" class="input" value="${_esc(c?.email_banco)}" placeholder="gestor@banco.es">
-            </div>
-          </div>
-        </div>
-
-        <!-- Config -->
-        <div style="border-top:1px solid var(--gris-200);padding-top:12px;margin-top:4px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            ${verSaldos && !esConectada ? `<div>
-              <label style="font-size:12px;font-weight:600">Saldo actual</label>
-              <input id="tes_c_saldo" class="input" type="number" step="0.01" value="${c?.saldo||0}">
-            </div>` : '<div></div>'}
-            <div>
-              <label style="font-size:12px;font-weight:600">Color</label>
-              <input id="tes_c_color" type="color" value="${c?.color||'#2563EB'}" style="width:100%;height:36px;border:1px solid var(--gris-200);border-radius:8px;cursor:pointer">
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-            <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input id="tes_c_activo" type="checkbox" ${c?.activa!==false?'checked':''}>
-              Cuenta activa
-            </label>
-            ${esConectada ? '<span style="font-size:11px;color:#16A34A;font-weight:600">Open Banking conectada</span>' : ''}
-          </div>
-        </div>
-
-        <div>
-          <label style="font-size:12px;font-weight:600">Notas / observaciones</label>
-          <textarea id="tes_c_notas" class="input" rows="2" placeholder="Notas internas...">${c?.notas||c?.observaciones||''}</textarea>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-        ${!esNueva ? `<button class="btn" style="background:var(--rojo);color:#fff;margin-right:auto" onclick="tesEliminarCuenta('${c.id}')">Eliminar</button>` : ''}
-        <button class="btn btn-secondary" onclick="closeModal('mTesCuenta')">Cancelar</button>
-        <button class="btn btn-primary" onclick="tesGuardarCuenta('${c?.id||''}')">${esNueva?'Crear cuenta':'Guardar'}</button>
-      </div>
-    </div>`;
-
-  // Reusar modal genérico
+  // Reusar o crear overlay
   let modal = document.getElementById('mTesCuenta');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mTesCuenta';
     modal.className = 'overlay';
-    modal.innerHTML = `<div class="modal" style="max-width:580px"><div id="mTesCuentaBody"></div></div>`;
+    modal.innerHTML = `<div class="modal" style="max-width:560px"><div id="mTesCuentaBody"></div></div>`;
     document.body.appendChild(modal);
   }
-  document.getElementById('mTesCuentaBody').innerHTML = html;
+
+  document.getElementById('mTesCuentaBody').innerHTML = `
+    <div class="modal-h">
+      <span>🏦</span>
+      <h2>${esNueva ? 'Nueva cuenta bancaria' : 'Editar cuenta'}</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mTesCuenta')">✕</button>
+    </div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg" style="flex:2"><label>Nombre *</label><input id="tes_c_nombre" value="${_esc(c?.nombre)}" placeholder="Ej: CaixaBank Principal"></div>
+        <div class="fg"><label>Entidad</label><input id="tes_c_entidad" value="${_esc(c?.entidad)}" placeholder="CaixaBank, Santander..."></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg" style="flex:2"><label>IBAN</label><input id="tes_c_iban" value="${_esc(c?.iban)}" placeholder="ES12 1234 5678 9012 3456 7890"></div>
+        <div class="fg"><label>SWIFT/BIC</label><input id="tes_c_swift" value="${_esc(c?.bic)}" placeholder="CAIXESBBXXX"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Nº cuenta (si no IBAN)</label><input id="tes_c_numcuenta" value="${_esc(c?.numero_cuenta)}" placeholder="1234 5678 90 1234567890"></div>
+        <div class="fg"><label>Titular</label><input id="tes_c_titular" value="${_esc(c?.titular)}" placeholder="Nombre del titular"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 10px;padding-top:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Datos del banco / sucursal</div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Sucursal</label><input id="tes_c_sucursal" value="${_esc(c?.sucursal)}" placeholder="Oficina / sucursal"></div>
+        <div class="fg"><label>Teléfono banco</label><input id="tes_c_telfbanco" value="${_esc(c?.telefono_banco)}" placeholder="981 123 456"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Persona de contacto</label><input id="tes_c_contacto" value="${_esc(c?.contacto_banco)}" placeholder="Nombre del gestor"></div>
+        <div class="fg"><label>Email banco</label><input id="tes_c_emailbanco" value="${_esc(c?.email_banco)}" placeholder="gestor@banco.es"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 10px;padding-top:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Configuración</div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        ${verSaldos && !esConectada ? `<div class="fg"><label>Saldo actual</label><input id="tes_c_saldo" type="number" step="0.01" value="${c?.saldo||0}"></div>` : ''}
+        <div class="fg"><label>Color</label><input id="tes_c_color" type="color" value="${c?.color||'#2563EB'}" style="width:100%;height:36px;border:1px solid var(--gris-200);border-radius:8px;cursor:pointer"></div>
+        <div class="fg" style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px;padding-bottom:4px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="tes_c_activo" ${c?.activa!==false?'checked':''} style="width:18px;height:18px"> Activa
+          </label>
+          ${esConectada ? '<span style="font-size:10px;color:#16A34A;font-weight:600;white-space:nowrap">🔗 Open Banking</span>' : ''}
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Observaciones</label>
+        <textarea id="tes_c_notas" rows="2" style="width:100%;padding:8px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;font-family:var(--font);resize:vertical" placeholder="Notas internas...">${_esc(c?.notas||c?.observaciones)}</textarea>
+      </div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:space-between">
+      ${!esNueva ? `<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="tesEliminarCuenta('${c.id}')">🗑️ Eliminar</button>` : '<div></div>'}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('mTesCuenta')">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="tesGuardarCuenta('${c?.id||''}')">${esNueva?'Crear cuenta':'Guardar'}</button>
+      </div>
+    </div>`;
+
   openModal('mTesCuenta');
 }
 
