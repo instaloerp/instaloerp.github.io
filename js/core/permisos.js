@@ -150,7 +150,10 @@ const PERM_SECTIONS = [
     {key:'correo', label:'Correo'}
   ]},
   { key:'personal', label:'Personal', ico:'👤', crud:false, items:[
-    {key:'fichajes', label:'Fichajes'}
+    {key:'fichajes', label:'Fichajes'},
+    {key:'ausencias', label:'Ausencias'},
+    {key:'timeline', label:'Timeline operarios'},
+    {key:'calendario_laboral', label:'Calendario laboral'}
   ]},
   { key:'tesoreria', label:'Tesorería', ico:'🏦', crud:true, items:[
     {key:'cuentas', label:'Cuentas bancarias'},
