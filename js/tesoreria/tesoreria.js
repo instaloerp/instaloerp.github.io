@@ -525,7 +525,12 @@ async function tesEliminarMovimiento(id) {
 }
 
 // Recalcular saldo de una cuenta sumando todos sus movimientos
+// Solo para cuentas sin Open Banking; las conectadas usan el saldo real del banco
 async function _tesRecalcularSaldo(cuentaId) {
+  // Si la cuenta está conectada por OB, no pisar el saldo real del banco
+  const cuenta = tesCuentas.find(c => c.id === cuentaId);
+  if (cuenta?.nordigen_conectado) return;
+
   const {data} = await sb.from('movimientos_bancarios')
     .select('importe')
     .eq('cuenta_id', cuentaId);

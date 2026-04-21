@@ -200,24 +200,34 @@ async function syncTransactions(
       const ref = t.transaction_id || t.entry_reference || "";
       return ref && !existSet.has(ref);
     })
-    .map((t: any) => ({
-      empresa_id: empresaId,
-      cuenta_id: cuentaBancariaId,
-      fecha_operacion:
-        t.booking_date || t.value_date || new Date().toISOString().slice(0, 10),
-      fecha_valor: t.value_date || null,
-      concepto:
-        t.remittance_information?.join(" ") ||
-        t.creditor_name ||
-        t.debtor_name ||
-        t.additional_information ||
-        "Movimiento Open Banking",
-      importe: parseFloat(t.transaction_amount?.amount || 0),
-      referencia: t.transaction_id || t.entry_reference || null,
-      estado: "pendiente",
-      origen: "nordigen", // mantenemos por compatibilidad con el enum SQL
-      origen_ref: t.transaction_id || t.entry_reference || null,
-    }));
+    .map((t: any) => {
+      // Enable Banking / Berlin Group: transaction_amount.amount puede ser
+      // siempre positivo, con credit_debit_indicator = "CRDT" | "DBIT"
+      // O puede ya venir con signo. Normalizamos:
+      let importe = parseFloat(t.transaction_amount?.amount || 0);
+      const cdi = (t.credit_debit_indicator || "").toUpperCase();
+      if (cdi === "DBIT" && importe > 0) importe = -importe;
+      if (cdi === "CRDT" && importe < 0) importe = Math.abs(importe);
+
+      return {
+        empresa_id: empresaId,
+        cuenta_id: cuentaBancariaId,
+        fecha_operacion:
+          t.booking_date || t.value_date || new Date().toISOString().slice(0, 10),
+        fecha_valor: t.value_date || null,
+        concepto:
+          t.remittance_information?.join(" ") ||
+          t.creditor_name ||
+          t.debtor_name ||
+          t.additional_information ||
+          "Movimiento Open Banking",
+        importe,
+        referencia: t.transaction_id || t.entry_reference || null,
+        estado: "pendiente",
+        origen: "nordigen",
+        origen_ref: t.transaction_id || t.entry_reference || null,
+      };
+    });
 
   let inserted = 0;
   if (rows.length) {
@@ -240,10 +250,15 @@ async function syncTransactions(
       balances.find((b: any) => b.balance_type === "closingBooked") ||
       balances[0];
     if (interim?.balance_amount?.amount) {
+      // El saldo puede venir con credit_debit_indicator
+      let saldo = parseFloat(interim.balance_amount.amount);
+      const balCdi = (interim.credit_debit_indicator || "").toUpperCase();
+      if (balCdi === "DBIT" && saldo > 0) saldo = -saldo;
+
       await sb
         .from("cuentas_bancarias")
         .update({
-          saldo: parseFloat(interim.balance_amount.amount),
+          saldo,
           saldo_fecha: new Date().toISOString(),
           nordigen_ultimo_sync: new Date().toISOString(),
         })
