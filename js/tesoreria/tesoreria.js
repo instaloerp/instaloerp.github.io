@@ -183,8 +183,8 @@ function _tesMostrarModalCuenta(c) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mTesCuenta';
-    modal.className = 'modal';
-    modal.innerHTML = `<div class="modal-content" style="max-width:520px"><div id="mTesCuentaBody"></div></div>`;
+    modal.className = 'overlay';
+    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mTesCuentaBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mTesCuentaBody').innerHTML = html;
@@ -451,8 +451,8 @@ function _tesMostrarModalMov(m) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mTesMov';
-    modal.className = 'modal';
-    modal.innerHTML = `<div class="modal-content" style="max-width:520px"><div id="mTesMovBody"></div></div>`;
+    modal.className = 'overlay';
+    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mTesMovBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mTesMovBody').innerHTML = html;
@@ -683,8 +683,8 @@ function _concVincular(movId, importe) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mConc';
-    modal.className = 'modal';
-    modal.innerHTML = `<div class="modal-content" style="max-width:500px"><div id="mConcBody"></div></div>`;
+    modal.className = 'overlay';
+    modal.innerHTML = `<div class="modal" style="max-width:500px"><div id="mConcBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mConcBody').innerHTML = html;
@@ -1206,8 +1206,8 @@ async function obConectar(cuentaId) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mOB';
-    modal.className = 'modal';
-    modal.innerHTML = `<div class="modal-content" style="max-width:560px"><div id="mOBBody"></div></div>`;
+    modal.className = 'overlay';
+    modal.innerHTML = `<div class="modal" style="max-width:560px"><div id="mOBBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mOBBody').innerHTML = `
