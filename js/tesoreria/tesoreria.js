@@ -1452,13 +1452,22 @@ function _obCheckReturn() {
 async function _obProcessCallback(code, cuentaId) {
   toast('🔄 Procesando autorización bancaria...', 'info');
   try {
-    const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId });
+    const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId, empresa_id: EMPRESA.id });
     if (result.status === 'LN' && result.accounts?.length) {
-      toast('✅ Banco conectado correctamente', 'success');
-      try {
-        await obSyncCuenta(cuentaId, result.accounts[0]);
-      } catch (syncErr) {
-        toast('Banco conectado. Sincroniza movimientos manualmente.', 'info');
+      const extra = result.created_extra || 0;
+      toast(`✅ ${result.total_accounts || result.accounts.length} cuenta${result.accounts.length>1?'s':''} conectada${result.accounts.length>1?'s':''}${extra ? ` (${extra} nueva${extra>1?'s':''} creada${extra>1?'s':''})` : ''}`, 'success');
+      // Recargar cuentas para tener las nuevas
+      await _tesCargarCuentas();
+      // Sincronizar todas las cuentas conectadas
+      for (const accUid of result.accounts) {
+        const cuenta = tesCuentas.find(c => c.nordigen_account_id === accUid);
+        if (cuenta) {
+          try {
+            await obSyncCuenta(cuenta.id, accUid);
+          } catch (syncErr) {
+            console.warn('Error sincronizando cuenta', accUid, syncErr);
+          }
+        }
       }
     } else if (result.status === 'NO_ACCOUNTS') {
       toast('⚠️ No se encontraron cuentas en la autorización.', 'error');

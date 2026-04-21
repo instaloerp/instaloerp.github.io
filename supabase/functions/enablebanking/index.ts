@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
 
       // ── Callback: el usuario volvió del banco con un code ──
       case "callback": {
-        const { code, cuenta_id } = body;
+        const { code, cuenta_id, empresa_id } = body;
         if (!code || !cuenta_id) {
           throw new Error("Faltan parámetros: code, cuenta_id");
         }
@@ -373,6 +373,7 @@ Deno.serve(async (req) => {
         const accounts = session?.accounts || [];
 
         if (accounts.length > 0) {
+          // Primera cuenta → vincular a la cuenta existente que el usuario eligió
           const accUid = accounts[0].uid;
           const iban = accounts[0].iban || null;
 
@@ -387,9 +388,67 @@ Deno.serve(async (req) => {
             .update(updateData)
             .eq("id", cuenta_id);
 
+          // Cuentas adicionales → crear automáticamente
+          const createdAccounts: string[] = [accUid];
+          if (accounts.length > 1 && empresa_id) {
+            // Obtener la cuenta original para copiar entidad/color
+            const { data: cuentaOrig } = await sb
+              .from("cuentas_bancarias")
+              .select("entidad, color")
+              .eq("id", cuenta_id)
+              .single();
+
+            for (let i = 1; i < accounts.length; i++) {
+              const acc = accounts[i];
+              const accIban = acc.iban || null;
+              // Verificar que no existe ya una cuenta con este account_id
+              const { data: existente } = await sb
+                .from("cuentas_bancarias")
+                .select("id")
+                .eq("empresa_id", empresa_id)
+                .eq("nordigen_account_id", acc.uid)
+                .maybeSingle();
+
+              if (!existente) {
+                const ibanCorto = accIban
+                  ? "···" + accIban.slice(-4)
+                  : `Cuenta ${i + 1}`;
+                const { data: nueva } = await sb
+                  .from("cuentas_bancarias")
+                  .insert({
+                    empresa_id,
+                    nombre: `${cuentaOrig?.entidad || "Banco"} ${ibanCorto}`,
+                    iban: accIban,
+                    entidad: cuentaOrig?.entidad || null,
+                    color: cuentaOrig?.color || "#2563EB",
+                    activa: true,
+                    saldo: 0,
+                    nordigen_account_id: acc.uid,
+                    nordigen_conectado: true,
+                    nordigen_requisition_id: null,
+                  })
+                  .select("id")
+                  .single();
+                if (nueva) createdAccounts.push(acc.uid);
+              } else {
+                // Ya existe → actualizar conexión
+                await sb
+                  .from("cuentas_bancarias")
+                  .update({
+                    nordigen_account_id: acc.uid,
+                    nordigen_conectado: true,
+                  })
+                  .eq("id", existente.id);
+                createdAccounts.push(acc.uid);
+              }
+            }
+          }
+
           result = {
             status: "LN",
-            accounts: accounts.map((a: any) => a.uid),
+            accounts: createdAccounts,
+            total_accounts: accounts.length,
+            created_extra: accounts.length - 1,
             session_id: session.session_id || null,
           };
         } else {
