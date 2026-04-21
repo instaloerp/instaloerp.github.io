@@ -1304,7 +1304,7 @@ async function _obSeleccionarBanco(institutionId, institutionCountry, cuentaId) 
 
   try {
     // URL de retorno: debe coincidir EXACTAMENTE con la registrada en Enable Banking
-    const redirectUrl = 'https://instaloerp.github.io/versiones/v1.1/index.html';
+    const redirectUrl = window.location.origin + '/index.html';
 
     const result = await _obCall({
       action: 'connect',
