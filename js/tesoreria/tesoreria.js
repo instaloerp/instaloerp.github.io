@@ -116,7 +116,7 @@ function tesNuevaCuenta() {
 
 function tesEditarCuenta(id) {
   if (!canDo('tesoreria','editar')) { toast('Sin permiso','error'); return; }
-  const c = tesCuentas.find(x=>x.id===id);
+  const c = tesCuentas.find(x=> String(x.id) === String(id));
   if (c) _tesMostrarModalCuenta(c);
 }
 
@@ -124,6 +124,8 @@ function _tesMostrarModalCuenta(c) {
   const esNueva = !c;
   const verSaldos = canDo('tesoreria','ver_saldos');
   const esConectada = c?.nordigen_conectado;
+  // Escapar comillas dobles en valores para evitar romper atributos HTML
+  const _esc = v => (v||'').replace(/"/g,'&quot;');
   const html = `
     <div style="padding:20px">
       <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">${esNueva ? '🏦 Nueva cuenta bancaria' : '✏️ Editar cuenta'}</h3>
@@ -132,31 +134,31 @@ function _tesMostrarModalCuenta(c) {
       <div style="display:grid;gap:12px">
         <div>
           <label style="font-size:12px;font-weight:600">Nombre *</label>
-          <input id="tes_c_nombre" class="input" value="${c?.nombre||''}" placeholder="Ej: CaixaBank Principal">
+          <input id="tes_c_nombre" class="input" value="${_esc(c?.nombre)}" placeholder="Ej: CaixaBank Principal">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label style="font-size:12px;font-weight:600">IBAN</label>
-            <input id="tes_c_iban" class="input" value="${c?.iban||''}" placeholder="ES12 1234 5678 9012 3456 7890">
+            <input id="tes_c_iban" class="input" value="${_esc(c?.iban)}" placeholder="ES12 1234 5678 9012 3456 7890">
           </div>
           <div>
             <label style="font-size:12px;font-weight:600">Nº cuenta (si no IBAN)</label>
-            <input id="tes_c_numcuenta" class="input" value="${c?.numero_cuenta||''}" placeholder="1234 5678 90 1234567890">
+            <input id="tes_c_numcuenta" class="input" value="${_esc(c?.numero_cuenta)}" placeholder="1234 5678 90 1234567890">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label style="font-size:12px;font-weight:600">Entidad</label>
-            <input id="tes_c_entidad" class="input" value="${c?.entidad||''}" placeholder="CaixaBank, Santander...">
+            <input id="tes_c_entidad" class="input" value="${_esc(c?.entidad)}" placeholder="CaixaBank, Santander...">
           </div>
           <div>
             <label style="font-size:12px;font-weight:600">SWIFT/BIC</label>
-            <input id="tes_c_swift" class="input" value="${c?.bic||''}" placeholder="CAIXESBBXXX">
+            <input id="tes_c_swift" class="input" value="${_esc(c?.bic)}" placeholder="CAIXESBBXXX">
           </div>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600">Titular</label>
-          <input id="tes_c_titular" class="input" value="${c?.titular||''}" placeholder="Nombre del titular de la cuenta">
+          <input id="tes_c_titular" class="input" value="${_esc(c?.titular)}" placeholder="Nombre del titular de la cuenta">
         </div>
 
         <!-- Ficha del banco -->
@@ -165,21 +167,21 @@ function _tesMostrarModalCuenta(c) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div>
               <label style="font-size:12px;font-weight:600">Sucursal</label>
-              <input id="tes_c_sucursal" class="input" value="${c?.sucursal||''}" placeholder="Oficina / sucursal">
+              <input id="tes_c_sucursal" class="input" value="${_esc(c?.sucursal)}" placeholder="Oficina / sucursal">
             </div>
             <div>
               <label style="font-size:12px;font-weight:600">Teléfono banco</label>
-              <input id="tes_c_telfbanco" class="input" value="${c?.telefono_banco||''}" placeholder="981 123 456">
+              <input id="tes_c_telfbanco" class="input" value="${_esc(c?.telefono_banco)}" placeholder="981 123 456">
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
             <div>
               <label style="font-size:12px;font-weight:600">Persona de contacto</label>
-              <input id="tes_c_contacto" class="input" value="${c?.contacto_banco||''}" placeholder="Nombre del gestor">
+              <input id="tes_c_contacto" class="input" value="${_esc(c?.contacto_banco)}" placeholder="Nombre del gestor">
             </div>
             <div>
               <label style="font-size:12px;font-weight:600">Email banco</label>
-              <input id="tes_c_emailbanco" class="input" value="${c?.email_banco||''}" placeholder="gestor@banco.es">
+              <input id="tes_c_emailbanco" class="input" value="${_esc(c?.email_banco)}" placeholder="gestor@banco.es">
             </div>
           </div>
         </div>
