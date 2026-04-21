@@ -1422,31 +1422,47 @@ function _obCheckReturn() {
     // Limpiar URL
     window.history.replaceState({}, '', window.location.pathname);
 
-    setTimeout(async () => {
-      toast('🔄 Procesando autorización bancaria...', 'info');
+    // Si no hay sesión activa, guardar para después del login
+    if (typeof EMPRESA === 'undefined' || !EMPRESA?.id) {
+      sessionStorage.setItem('ob_pending_code', code);
+      sessionStorage.setItem('ob_pending_cuenta', cuentaId);
+      return;
+    }
+
+    _obProcessCallback(code, cuentaId);
+  }
+}
+
+/** Procesar callback de Open Banking (code → sesión → sync) */
+async function _obProcessCallback(code, cuentaId) {
+  toast('🔄 Procesando autorización bancaria...', 'info');
+  try {
+    const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId });
+    if (result.status === 'LN' && result.accounts?.length) {
+      toast('✅ Banco conectado correctamente', 'success');
       try {
-        const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId });
-        if (result.status === 'LN' && result.accounts?.length) {
-          toast('✅ Banco conectado correctamente', 'success');
-          // Solo sincronizar si tenemos sesión activa (EMPRESA cargada)
-          if (typeof EMPRESA !== 'undefined' && EMPRESA?.id) {
-            try {
-              await obSyncCuenta(cuentaId, result.accounts[0]);
-            } catch (syncErr) {
-              toast('Banco conectado. Sincroniza movimientos desde Tesorería.', 'info');
-            }
-          } else {
-            toast('Inicia sesión y sincroniza desde Tesorería > Cuentas bancarias', 'info');
-          }
-        } else if (result.status === 'NO_ACCOUNTS') {
-          toast('⚠️ No se encontraron cuentas en la autorización.', 'error');
-        }
-        goPage('tesoreria-cuentas');
-      } catch (err) {
-        toast('Error procesando autorización: ' + err.message, 'error');
-        goPage('tesoreria-cuentas');
+        await obSyncCuenta(cuentaId, result.accounts[0]);
+      } catch (syncErr) {
+        toast('Banco conectado. Sincroniza movimientos manualmente.', 'info');
       }
-    }, 1500);
+    } else if (result.status === 'NO_ACCOUNTS') {
+      toast('⚠️ No se encontraron cuentas en la autorización.', 'error');
+    }
+    goPage('tesoreria-cuentas');
+  } catch (err) {
+    toast('Error procesando autorización: ' + err.message, 'error');
+    goPage('tesoreria-cuentas');
+  }
+}
+
+/** Llamar después del login para procesar OB pendiente */
+function obCheckPending() {
+  const code = sessionStorage.getItem('ob_pending_code');
+  const cuentaId = sessionStorage.getItem('ob_pending_cuenta');
+  if (code && cuentaId) {
+    sessionStorage.removeItem('ob_pending_code');
+    sessionStorage.removeItem('ob_pending_cuenta');
+    setTimeout(() => _obProcessCallback(code, cuentaId), 1000);
   }
 }
 

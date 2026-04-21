@@ -182,11 +182,15 @@ async function init() {
   const wasActive = sessionStorage.getItem('erp_session_active');
 
   if (session) {
-    if (!wasActive) {
+    // Si venimos de un redirect de Open Banking, restaurar sesión aunque sea pestaña nueva
+    const _obReturn = new URLSearchParams(window.location.search).has('code') ||
+                      new URLSearchParams(window.location.search).has('error');
+    if (!wasActive && !_obReturn) {
       await sb.auth.signOut();
       showScreen('s-login');
       return;
     }
+    if (_obReturn) sessionStorage.setItem('erp_session_active', 'true');
     CU = session.user;
     await cargarPerfil();
     if (CP?.empresa_id) {
@@ -197,6 +201,9 @@ async function init() {
       }
       mostrarApp();
       resetSessionTimer();
+      if (typeof obCheckPending === 'function') obCheckPending();
+      // Procesar callback OB si venimos de redirect bancario
+      if (_obReturn && typeof _obCheckReturn === 'function') setTimeout(_obCheckReturn, 500);
       const dias = diasRestantes();
       if (dias !== null && dias <= 5 && EMPRESA.plan === 'trial') {
         toast(`Tu prueba gratuita expira en ${dias} día${dias !== 1 ? 's' : ''}`, 'warning');
@@ -304,6 +311,9 @@ async function doLogin() {
 
   mostrarApp();
   resetSessionTimer();
+
+  // Procesar callback Open Banking pendiente (si venimos de redirect bancario)
+  if (typeof obCheckPending === 'function') obCheckPending();
 
   // Aviso si quedan pocos días de prueba
   const dias = diasRestantes();
