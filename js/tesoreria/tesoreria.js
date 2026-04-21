@@ -331,30 +331,31 @@ async function tesEliminarCuenta(id) {
 
 async function renderTesMovimientos() {
   await _tesCargarCuentas();
-  const cId = _tesCuentaSel || (tesCuentas[0]?.id || null);
-  _tesCuentaSel = cId;
+  // _tesCuentaSel: null/undefined = sin filtro (todas), string/number = filtrar por cuenta
+  // No forzar al primer banco si el usuario eligió "todas"
+  const cId = _tesCuentaSel != null && _tesCuentaSel !== '' ? _tesCuentaSel : null;
   await _tesCargarMovimientos(cId);
 
   const page = document.getElementById('page-tesoreria-movimientos');
   if (!page) return;
 
   const verSaldos = canDo('tesoreria','ver_saldos');
-  const cuentaActual = tesCuentas.find(c=>c.id===cId);
+  const cuentaActual = tesCuentas.find(c=>String(c.id)===String(cId));
   const ingresos = tesMovimientos.filter(m=>m.importe>0).reduce((s,m)=>s+parseFloat(m.importe),0);
   const gastos = tesMovimientos.filter(m=>m.importe<0).reduce((s,m)=>s+Math.abs(parseFloat(m.importe)),0);
 
-  const optsCuenta = tesCuentas.map(c => `<option value="${c.id}" ${c.id===cId?'selected':''}>${c.nombre}</option>`).join('');
+  const optsCuenta = tesCuentas.map(c => `<option value="${c.id}" ${String(c.id)===String(cId)?'selected':''}>${c.nombre}</option>`).join('');
 
-  // Topbar limpio (filtros van dentro de la página como en Presupuestos)
+  // Topbar: botón volver + nuevo movimiento
   const tb = document.getElementById('topbarBtns');
-  if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary btn-sm" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : '';
+  if (tb) tb.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="goPage('tesoreria-cuentas')">← Cuentas</button>${canDo('tesoreria','crear') ? ' <button class="btn btn-primary btn-sm" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : ''}`;
 
   page.innerHTML = `
     <!-- Barra filtros (patrón Presupuestos) -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;min-width:180px" onchange="_tesCuentaSel=this.value;renderTesMovimientos()">
-          <option value="">Todas las cuentas</option>
+        <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;min-width:180px" onchange="_tesCuentaSel=this.value?Number(this.value):null;renderTesMovimientos()">
+          <option value="" ${!cId?'selected':''}>Todas las cuentas</option>
           ${optsCuenta}
         </select>
         <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" onchange="_tesMovFiltros.estado=this.value;renderTesMovimientos()">

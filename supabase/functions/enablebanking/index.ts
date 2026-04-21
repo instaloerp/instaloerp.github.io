@@ -241,7 +241,9 @@ async function syncTransactions(
     }
   }
 
-  // Actualizar saldo desde API (con fallback a suma de movimientos)
+  // Actualizar saldo desde API
+  // Nota: algunos bancos (Abanca) devuelven siempre 0 en el balance API.
+  // En esos casos, NO pisamos el saldo manual que el usuario haya puesto.
   let saldoActualizado = false;
   try {
     const bal = await getBalances(ebAccountUid);
@@ -250,47 +252,36 @@ async function syncTransactions(
       balances.find((b: any) => b.balance_type === "interimAvailable") ||
       balances.find((b: any) => b.balance_type === "closingBooked") ||
       balances[0];
-    if (interim?.balance_amount?.amount) {
+    if (interim?.balance_amount?.amount != null) {
       let saldo = parseFloat(interim.balance_amount.amount);
       const balCdi = (interim.credit_debit_indicator || "").toUpperCase();
       if (balCdi === "DBIT" && saldo > 0) saldo = -saldo;
 
-      await sb
-        .from("cuentas_bancarias")
-        .update({
-          saldo,
-          saldo_fecha: new Date().toISOString(),
-          nordigen_ultimo_sync: new Date().toISOString(),
-        })
-        .eq("id", cuentaBancariaId);
-      saldoActualizado = true;
+      // Solo actualizar saldo si la API devuelve un valor distinto de 0.
+      // Si devuelve 0, no pisamos el saldo existente (puede ser manual o
+      // de un banco que no informa bien el saldo vía API como Abanca).
+      if (saldo !== 0) {
+        await sb
+          .from("cuentas_bancarias")
+          .update({
+            saldo,
+            saldo_fecha: new Date().toISOString(),
+            nordigen_ultimo_sync: new Date().toISOString(),
+          })
+          .eq("id", cuentaBancariaId);
+        saldoActualizado = true;
+      }
     }
   } catch (_) {
-    // API de saldos falló — se intentará fallback abajo
+    // API de saldos falló
   }
 
-  // Fallback: si la API no devolvió saldo, calcular desde movimientos
+  // Si no se actualizó el saldo, al menos actualizar la fecha de sync
   if (!saldoActualizado) {
-    try {
-      const { data: sumData } = await sb.rpc("sum_movimientos_cuenta", {
-        p_cuenta_id: cuentaBancariaId,
-      });
-      const saldoCalc = sumData ?? 0;
-      await sb
-        .from("cuentas_bancarias")
-        .update({
-          saldo: saldoCalc,
-          saldo_fecha: new Date().toISOString(),
-          nordigen_ultimo_sync: new Date().toISOString(),
-        })
-        .eq("id", cuentaBancariaId);
-    } catch (_) {
-      // Último recurso: al menos actualizar fecha sync
-      await sb
-        .from("cuentas_bancarias")
-        .update({ nordigen_ultimo_sync: new Date().toISOString() })
-        .eq("id", cuentaBancariaId);
-    }
+    await sb
+      .from("cuentas_bancarias")
+      .update({ nordigen_ultimo_sync: new Date().toISOString() })
+      .eq("id", cuentaBancariaId);
   }
 
   return { inserted, message: `${inserted} nuevas transacciones importadas` };
