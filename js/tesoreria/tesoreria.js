@@ -1376,16 +1376,19 @@ async function obSyncCuenta(cuentaId, nordigenAccountId) {
 }
 
 async function obDesconectar(cuentaId, requisitionId) {
-  if (typeof confirmModal === 'function') {
-    confirmModal('¿Desconectar este banco? Los movimientos ya importados se conservan.', async () => {
-      try {
-        await _obCall({ action: 'disconnect', cuenta_id: cuentaId });
-        toast('Banco desconectado', 'success');
-        renderTesCuentas();
-      } catch (err) {
-        toast('Error: ' + err.message, 'error');
-      }
-    });
+  const ok = await confirmModal({
+    titulo: 'Desconectar banco',
+    mensaje: '¿Desconectar este banco? Los movimientos ya importados se conservan.',
+    btnOk: 'Desconectar',
+    colorOk: '#dc2626'
+  });
+  if (!ok) return;
+  try {
+    await _obCall({ action: 'disconnect', cuenta_id: cuentaId });
+    toast('Banco desconectado', 'success');
+    renderTesCuentas();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
   }
 }
 
