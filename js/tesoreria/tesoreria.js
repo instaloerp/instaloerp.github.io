@@ -1406,6 +1406,18 @@ function _obCheckReturn() {
     if (parts.length >= 3) cuentaId = parts[1];
   }
 
+  // Si el banco devolvió un error (usuario canceló, server_error, etc.)
+  const obError = params.get('error');
+  if (obError) {
+    window.history.replaceState({}, '', window.location.pathname);
+    const desc = params.get('error_description') || obError;
+    setTimeout(() => {
+      toast(`⚠️ Autorización bancaria cancelada: ${desc}`, 'warning');
+      goPage('tesoreria-cuentas');
+    }, 500);
+    return;
+  }
+
   if (code && cuentaId) {
     // Limpiar URL
     window.history.replaceState({}, '', window.location.pathname);
