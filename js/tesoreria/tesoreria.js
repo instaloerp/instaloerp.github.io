@@ -15,6 +15,65 @@ const _tesFmt = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maxi
 const _tesFecha = d => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 const _tesColor = (imp) => imp >= 0 ? 'var(--verde)' : 'var(--rojo)';
 
+// ── Auto-relleno por IBAN ───────────────────
+// Mapa: código entidad (4 dígitos del IBAN ES pos 4-7) → { nombre, bic }
+const _tesEntidadesIBAN = {
+  '0049': { nombre: 'Santander', bic: 'BSCHESMMXXX' },
+  '0075': { nombre: 'Santander (Banesto)', bic: 'BSCHESMMXXX' },
+  '0081': { nombre: 'Sabadell', bic: 'BSABESBBXXX' },
+  '0182': { nombre: 'BBVA', bic: 'BBVAESMMXXX' },
+  '2100': { nombre: 'CaixaBank', bic: 'CAIXESBBXXX' },
+  '0128': { nombre: 'Bankinter', bic: 'BKBKESMMXXX' },
+  '2085': { nombre: 'Ibercaja', bic: 'CAZABORJXXX' },
+  '2095': { nombre: 'Kutxabank', bic: 'BASABORJXXX' },
+  '2080': { nombre: 'Abanca', bic: 'CAABORJXXX' },
+  '0073': { nombre: 'Openbank', bic: 'OPENESMMXXX' },
+  '0019': { nombre: 'Deutsche Bank', bic: 'DEUTESBBXXX' },
+  '0065': { nombre: 'Barclays', bic: 'BARCESMMXXX' },
+  '0487': { nombre: 'Banco Mare Nostrum', bic: 'GBMNESMMXXX' },
+  '0186': { nombre: 'Banco Mediolanum', bic: 'BFIVESBBXXX' },
+  '0239': { nombre: 'EVO Banco', bic: 'ABORESMAXXX' },
+  '1465': { nombre: 'ING', bic: 'INGDESMMXXX' },
+  '0162': { nombre: 'Banco Cooperativo', bic: 'BCOEESMMXXX' },
+  '3058': { nombre: 'Cajamar', bic: 'CCABORJXXX' },
+  '3085': { nombre: 'Caja Rural', bic: 'BCOEESMMXXX' },
+  '0030': { nombre: 'Banco Español de Crédito', bic: 'ESPCESMMXXX' },
+  '0057': { nombre: 'Banco Depositario BBVA', bic: 'BBVAESMMXXX' },
+  '2038': { nombre: 'Bankia (ahora CaixaBank)', bic: 'CAABORJXXX' },
+  '2103': { nombre: 'Unicaja', bic: 'UCJAES2MXXX' },
+  '0083': { nombre: 'Renta 4', bic: 'RENTEAMMXXX' },
+  '0487': { nombre: 'Banco Mare Nostrum', bic: 'GBMNESMMXXX' },
+  '0234': { nombre: 'Banca Privada Wiese', bic: '' },
+  '0138': { nombre: 'Bankoa (Abanca)', bic: 'BKOAES22XXX' },
+  '3183': { nombre: 'Caja Rural de Asturias', bic: '' },
+  '0108': { nombre: 'Banco de Galicia', bic: '' },
+};
+
+function _tesAutorellenoIBAN() {
+  const ibanEl = document.getElementById('tes_c_iban');
+  if (!ibanEl) return;
+  const iban = ibanEl.value.replace(/\s/g,'').toUpperCase();
+  // IBAN español: ES + 2 dígitos control + 4 dígitos entidad + 4 dígitos sucursal + ...
+  if (iban.length < 8 || !iban.startsWith('ES')) return;
+
+  const codEntidad = iban.substring(4, 8);
+  const codSucursal = iban.length >= 12 ? iban.substring(8, 12) : '';
+  const entidad = _tesEntidadesIBAN[codEntidad];
+
+  if (entidad) {
+    // Solo auto-rellenar si están vacíos
+    const nombreEl = document.getElementById('tes_c_nombre');
+    const entidadEl = document.getElementById('tes_c_entidad');
+    const bicEl = document.getElementById('tes_c_swift');
+    const sucursalEl = document.getElementById('tes_c_sucursal');
+
+    if (entidadEl && !entidadEl.value.trim()) entidadEl.value = entidad.nombre;
+    if (bicEl && !bicEl.value.trim() && entidad.bic) bicEl.value = entidad.bic;
+    if (nombreEl && !nombreEl.value.trim()) nombreEl.value = entidad.nombre + (iban.length >= 24 ? ' ···' + iban.slice(-4) : '');
+    if (sucursalEl && !sucursalEl.value.trim() && codSucursal) sucursalEl.value = 'Oficina ' + codSucursal;
+  }
+}
+
 // ── Cargar datos ─────────────────────────────
 async function _tesCargarCuentas() {
   const {data} = await sb.from('cuentas_bancarias').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
@@ -148,7 +207,7 @@ function _tesMostrarModalCuenta(c) {
         <div class="fg"><label>Entidad</label><input id="tes_c_entidad" value="${_esc(c?.entidad)}" placeholder="CaixaBank, Santander..."></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg" style="flex:2"><label>IBAN</label><input id="tes_c_iban" value="${_esc(c?.iban)}" placeholder="ES12 1234 5678 9012 3456 7890"></div>
+        <div class="fg" style="flex:2"><label>IBAN</label><input id="tes_c_iban" value="${_esc(c?.iban)}" placeholder="ES12 1234 5678 9012 3456 7890" oninput="_tesAutorellenoIBAN()"></div>
         <div class="fg"><label>SWIFT/BIC</label><input id="tes_c_swift" value="${_esc(c?.bic)}" placeholder="CAIXESBBXXX"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
@@ -378,91 +437,82 @@ function tesNuevoMovimiento() {
 
 function tesEditarMovimiento(id) {
   if (!canDo('tesoreria','editar')) { toast('Sin permiso','error'); return; }
-  const m = tesMovimientos.find(x=>x.id===id);
+  const m = tesMovimientos.find(x=> String(x.id) === String(id));
   if (m) _tesMostrarModalMov(m);
 }
 
 function _tesMostrarModalMov(m) {
   const esNuevo = !m;
+  const _esc = v => (v||'').replace(/"/g,'&quot;');
   const optsCuenta = tesCuentas.map(c =>
-    `<option value="${c.id}" ${(m?.cuenta_id||_tesCuentaSel)===c.id?'selected':''}>${c.nombre}</option>`
+    `<option value="${c.id}" ${String(m?.cuenta_id||_tesCuentaSel)===String(c.id)?'selected':''}>${c.nombre}</option>`
   ).join('');
-
-  const html = `
-    <div style="padding:20px">
-      <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">${esNuevo ? '📊 Nuevo movimiento' : '✏️ Editar movimiento'}</h3>
-      <div style="display:grid;gap:12px">
-        <div>
-          <label style="font-size:12px;font-weight:600">Cuenta *</label>
-          <select id="tes_m_cuenta" class="input">${optsCuenta}</select>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">Fecha operación *</label>
-            <input id="tes_m_fecha" class="input" type="date" value="${m?.fecha_operacion||new Date().toISOString().slice(0,10)}">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600">Fecha valor</label>
-            <input id="tes_m_fechavalor" class="input" type="date" value="${m?.fecha_valor||''}">
-          </div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600">Concepto</label>
-          <input id="tes_m_concepto" class="input" value="${m?.concepto||''}" placeholder="Descripción del movimiento">
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">Importe * <span style="font-size:10px;color:var(--gris-400)">(+ ingreso, - gasto)</span></label>
-            <input id="tes_m_importe" class="input" type="number" step="0.01" value="${m?.importe||''}">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600">Categoría</label>
-            <select id="tes_m_cat" class="input">
-              <option value="">— Sin categoría —</option>
-              <option value="ventas" ${m?.categoria==='ventas'?'selected':''}>💰 Ventas</option>
-              <option value="compras" ${m?.categoria==='compras'?'selected':''}>🛒 Compras</option>
-              <option value="nominas" ${m?.categoria==='nominas'?'selected':''}>👷 Nóminas</option>
-              <option value="impuestos" ${m?.categoria==='impuestos'?'selected':''}>🏛️ Impuestos</option>
-              <option value="otros" ${m?.categoria==='otros'?'selected':''}>📋 Otros</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">Referencia</label>
-            <input id="tes_m_ref" class="input" value="${m?.referencia||''}" placeholder="Ref. bancaria">
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:600">Estado</label>
-            <select id="tes_m_estado" class="input">
-              <option value="pendiente" ${m?.estado==='pendiente'?'selected':''}>Pendiente</option>
-              <option value="parcial" ${m?.estado==='parcial'?'selected':''}>Parcial</option>
-              <option value="conciliado" ${m?.estado==='conciliado'?'selected':''}>Conciliado</option>
-              <option value="ignorado" ${m?.estado==='ignorado'?'selected':''}>Ignorado</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600">Notas</label>
-          <textarea id="tes_m_notas" class="input" rows="2">${m?.notas||''}</textarea>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-        ${!esNuevo ? `<button class="btn" style="background:var(--rojo);color:#fff;margin-right:auto" onclick="tesEliminarMovimiento('${m.id}')">Eliminar</button>` : ''}
-        <button class="btn btn-secondary" onclick="closeModal('mTesMov')">Cancelar</button>
-        <button class="btn btn-primary" onclick="tesGuardarMovimiento('${m?.id||''}')">${esNuevo?'Crear':'Guardar'}</button>
-      </div>
-    </div>`;
 
   let modal = document.getElementById('mTesMov');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mTesMov';
     modal.className = 'overlay';
-    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mTesMovBody"></div></div>`;
+    modal.innerHTML = `<div class="modal" style="max-width:560px"><div id="mTesMovBody"></div></div>`;
     document.body.appendChild(modal);
   }
-  document.getElementById('mTesMovBody').innerHTML = html;
+
+  document.getElementById('mTesMovBody').innerHTML = `
+    <div class="modal-h">
+      <span>📊</span>
+      <h2>${esNuevo ? 'Nuevo movimiento' : 'Editar movimiento'}</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mTesMov')">✕</button>
+    </div>
+    <div class="modal-b">
+      <div class="fg" style="margin-bottom:11px">
+        <label>Cuenta *</label>
+        <select id="tes_m_cuenta">${optsCuenta}</select>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Fecha operación *</label><input id="tes_m_fecha" type="date" value="${m?.fecha_operacion||new Date().toISOString().slice(0,10)}"></div>
+        <div class="fg"><label>Fecha valor</label><input id="tes_m_fechavalor" type="date" value="${m?.fecha_valor||''}"></div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Concepto</label>
+        <input id="tes_m_concepto" value="${_esc(m?.concepto)}" placeholder="Descripción del movimiento">
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Importe * <span style="font-size:10px;color:var(--gris-400)">(+ ingreso, - gasto)</span></label><input id="tes_m_importe" type="number" step="0.01" value="${m?.importe||''}"></div>
+        <div class="fg"><label>Categoría</label>
+          <select id="tes_m_cat">
+            <option value="">— Sin categoría —</option>
+            <option value="ventas" ${m?.categoria==='ventas'?'selected':''}>Ventas</option>
+            <option value="compras" ${m?.categoria==='compras'?'selected':''}>Compras</option>
+            <option value="nominas" ${m?.categoria==='nominas'?'selected':''}>Nóminas</option>
+            <option value="impuestos" ${m?.categoria==='impuestos'?'selected':''}>Impuestos</option>
+            <option value="otros" ${m?.categoria==='otros'?'selected':''}>Otros</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Referencia</label><input id="tes_m_ref" value="${_esc(m?.referencia)}" placeholder="Ref. bancaria"></div>
+        <div class="fg"><label>Estado</label>
+          <select id="tes_m_estado">
+            <option value="pendiente" ${m?.estado==='pendiente'?'selected':''}>Pendiente</option>
+            <option value="parcial" ${m?.estado==='parcial'?'selected':''}>Parcial</option>
+            <option value="conciliado" ${m?.estado==='conciliado'?'selected':''}>Conciliado</option>
+            <option value="ignorado" ${m?.estado==='ignorado'?'selected':''}>Ignorado</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Notas</label>
+        <textarea id="tes_m_notas" rows="2" style="resize:vertical">${_esc(m?.notas)}</textarea>
+      </div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:space-between">
+      ${!esNuevo ? `<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="tesEliminarMovimiento('${m.id}')">🗑️ Eliminar</button>` : '<div></div>'}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('mTesMov')">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="tesGuardarMovimiento('${m?.id||''}')">${esNuevo?'Crear':'Guardar'}</button>
+      </div>
+    </div>`;
+
   openModal('mTesMov');
 }
 
@@ -508,17 +558,22 @@ async function tesGuardarMovimiento(id) {
 
 async function tesEliminarMovimiento(id) {
   if (!canDo('tesoreria','eliminar')) { toast('Sin permiso para eliminar','error'); return; }
-  const m = tesMovimientos.find(x=>x.id===id);
-  if (typeof confirmModal === 'function') {
-    confirmModal('¿Eliminar este movimiento?', async () => {
-      const {error} = await sb.from('movimientos_bancarios').delete().eq('id', id);
-      if (error) { toast('Error: '+error.message,'error'); return; }
-      closeModal('mTesMov');
-      if (m?.cuenta_id) await _tesRecalcularSaldo(m.cuenta_id);
-      toast('Movimiento eliminado','success');
-      renderTesMovimientos();
-    });
-  }
+  if (typeof confirmModal !== 'function') return;
+  const ok = await confirmModal({
+    titulo: 'Eliminar movimiento',
+    mensaje: '¿Eliminar este movimiento bancario?',
+    aviso: 'Esta acción no se puede deshacer',
+    btnOk: 'Eliminar',
+    colorOk: '#DC2626'
+  });
+  if (!ok) return;
+  const m = tesMovimientos.find(x=> String(x.id) === String(id));
+  const {error} = await sb.from('movimientos_bancarios').delete().eq('id', id);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  closeModal('mTesMov');
+  if (m?.cuenta_id) await _tesRecalcularSaldo(m.cuenta_id);
+  toast('Movimiento eliminado','success');
+  renderTesMovimientos();
 }
 
 // Recalcular saldo de una cuenta sumando todos sus movimientos
@@ -650,43 +705,45 @@ function _concVincular(movId, importe) {
     `<option value="${f.id}">${f.numero||'S/N'} — ${f.cliente_nombre||f.proveedor_nombre||'?'} — ${_tesFmt(f.total)} €</option>`
   ).join('');
 
-  const html = `
-    <div style="padding:20px">
-      <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">🔗 Conciliar movimiento</h3>
-      <p style="font-size:12px;color:var(--gris-400);margin-bottom:16px">
-        ${mov?.concepto||'Sin concepto'} · <strong style="color:${_tesColor(importe)}">${importe>0?'+':''}${_tesFmt(importe)} €</strong>
-        ${yaConciliado>0 ? ` · Ya conciliado: ${_tesFmt(yaConciliado)} € · Pendiente: ${_tesFmt(pendiente)} €` : ''}
-      </p>
-      <div style="display:grid;gap:12px">
-        <div>
-          <label style="font-size:12px;font-weight:600">${label}</label>
-          <select id="conc_factura" class="input" style="font-size:12px">${optsFacturas}</select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600">Importe a conciliar</label>
-          <input id="conc_importe" class="input" type="number" step="0.01" value="${pendiente.toFixed(2)}">
-          <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Puede ser parcial (menor que el total del movimiento)</div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600">Notas</label>
-          <input id="conc_notas" class="input" placeholder="Opcional">
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-        <button class="btn btn-secondary" onclick="closeModal('mConc')">Cancelar</button>
-        <button class="btn btn-primary" onclick="_concGuardar('${movId}',${importe})">Conciliar</button>
-      </div>
-    </div>`;
-
   let modal = document.getElementById('mConc');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'mConc';
     modal.className = 'overlay';
-    modal.innerHTML = `<div class="modal" style="max-width:500px"><div id="mConcBody"></div></div>`;
+    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mConcBody"></div></div>`;
     document.body.appendChild(modal);
   }
-  document.getElementById('mConcBody').innerHTML = html;
+
+  document.getElementById('mConcBody').innerHTML = `
+    <div class="modal-h">
+      <span>🔗</span>
+      <h2>Conciliar movimiento</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mConc')">✕</button>
+    </div>
+    <div class="modal-b">
+      <div style="padding:10px 14px;border-radius:8px;background:var(--gris-50);margin-bottom:14px;font-size:12px;color:var(--gris-500)">
+        ${mov?.concepto||'Sin concepto'} · <strong style="color:${_tesColor(importe)}">${importe>0?'+':''}${_tesFmt(importe)} €</strong>
+        ${yaConciliado>0 ? ` · Ya conciliado: ${_tesFmt(yaConciliado)} € · Pendiente: ${_tesFmt(pendiente)} €` : ''}
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>${label}</label>
+        <select id="conc_factura" style="font-size:12px">${optsFacturas}</select>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Importe a conciliar</label>
+        <input id="conc_importe" type="number" step="0.01" value="${pendiente.toFixed(2)}">
+        <div style="font-size:10px;color:var(--gris-400);margin-top:2px">Puede ser parcial (menor que el total del movimiento)</div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Notas</label>
+        <input id="conc_notas" placeholder="Opcional">
+      </div>
+    </div>
+    <div class="modal-f" style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('mConc')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="_concGuardar('${movId}',${importe})">Conciliar</button>
+    </div>`;
+
   openModal('mConc');
 }
 
@@ -729,13 +786,17 @@ async function _concGuardar(movId, movImporte) {
 }
 
 async function _concIgnorar(movId) {
-  if (typeof confirmModal === 'function') {
-    confirmModal('¿Marcar este movimiento como ignorado?', async () => {
-      await sb.from('movimientos_bancarios').update({estado:'ignorado'}).eq('id', movId);
-      toast('Movimiento ignorado','success');
-      renderTesConciliacion();
-    });
-  }
+  if (typeof confirmModal !== 'function') return;
+  const ok = await confirmModal({
+    titulo: 'Ignorar movimiento',
+    mensaje: '¿Marcar este movimiento como ignorado?',
+    btnOk: 'Ignorar',
+    colorOk: '#94A3B8'
+  });
+  if (!ok) return;
+  await sb.from('movimientos_bancarios').update({estado:'ignorado'}).eq('id', movId);
+  toast('Movimiento ignorado','success');
+  renderTesConciliacion();
 }
 
 // Auto-conciliación: busca coincidencias exactas de importe entre movimientos y facturas
@@ -1228,23 +1289,23 @@ async function obConectar(cuentaId) {
 
     const numBancos = bancos.length;
     document.getElementById('mOBBody').innerHTML = `
-      <div class="modal-h" style="padding:20px 24px;border-bottom:1.5px solid var(--gris-100)">
-        <h3 style="font-size:15px;font-weight:800;margin:0">Conectar banco</h3>
-        <p style="font-size:11.5px;color:var(--gris-400);margin:4px 0 0">
-          Acceso de solo lectura a movimientos · PSD2 · ${numBancos} banco${numBancos!==1?'s':''}
-        </p>
+      <div class="modal-h">
+        <span>🏦</span>
+        <h2>Conectar banco</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('mOB')">✕</button>
       </div>
-      <div style="padding:16px 24px 12px">
-        <div style="position:relative">
-          <input id="ob_buscar" class="input" placeholder="Buscar banco..." style="padding-left:32px"
-            oninput="_obFiltrarBancos(this.value)">
-          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--gris-300)">🔍</span>
+      <div class="modal-b" style="padding-bottom:0">
+        <div style="font-size:11.5px;color:var(--gris-400);margin-bottom:12px">
+          Acceso de solo lectura a movimientos · PSD2 · ${numBancos} banco${numBancos!==1?'s':''}
+        </div>
+        <div class="fg" style="margin-bottom:12px">
+          <input id="ob_buscar" placeholder="🔍 Buscar banco..." oninput="_obFiltrarBancos(this.value)">
+        </div>
+        <div id="obBancosList" style="max-height:340px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:10px">
+          ${_obBancosHTML(bancos, cuentaId)}
         </div>
       </div>
-      <div id="obBancosList" style="max-height:340px;overflow-y:auto;margin:0 24px;border:1px solid var(--gris-200);border-radius:10px">
-        ${_obBancosHTML(bancos, cuentaId)}
-      </div>
-      <div style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--gris-100);margin-top:12px">
+      <div class="modal-f" style="display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#166534">
           <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#dcfce7;font-size:10px">🔒</span>
           Enable Banking · AISP regulado PSD2
