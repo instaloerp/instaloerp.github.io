@@ -241,7 +241,8 @@ async function syncTransactions(
     }
   }
 
-  // Actualizar saldo desde API
+  // Actualizar saldo desde API (con fallback a suma de movimientos)
+  let saldoActualizado = false;
   try {
     const bal = await getBalances(ebAccountUid);
     const balances = bal?.balances || [];
@@ -250,7 +251,6 @@ async function syncTransactions(
       balances.find((b: any) => b.balance_type === "closingBooked") ||
       balances[0];
     if (interim?.balance_amount?.amount) {
-      // El saldo puede venir con credit_debit_indicator
       let saldo = parseFloat(interim.balance_amount.amount);
       const balCdi = (interim.credit_debit_indicator || "").toUpperCase();
       if (balCdi === "DBIT" && saldo > 0) saldo = -saldo;
@@ -263,14 +263,34 @@ async function syncTransactions(
           nordigen_ultimo_sync: new Date().toISOString(),
         })
         .eq("id", cuentaBancariaId);
+      saldoActualizado = true;
     }
   } catch (_) {
-    await sb
-      .from("cuentas_bancarias")
-      .update({
-        nordigen_ultimo_sync: new Date().toISOString(),
-      })
-      .eq("id", cuentaBancariaId);
+    // API de saldos falló — se intentará fallback abajo
+  }
+
+  // Fallback: si la API no devolvió saldo, calcular desde movimientos
+  if (!saldoActualizado) {
+    try {
+      const { data: sumData } = await sb.rpc("sum_movimientos_cuenta", {
+        p_cuenta_id: cuentaBancariaId,
+      });
+      const saldoCalc = sumData ?? 0;
+      await sb
+        .from("cuentas_bancarias")
+        .update({
+          saldo: saldoCalc,
+          saldo_fecha: new Date().toISOString(),
+          nordigen_ultimo_sync: new Date().toISOString(),
+        })
+        .eq("id", cuentaBancariaId);
+    } catch (_) {
+      // Último recurso: al menos actualizar fecha sync
+      await sb
+        .from("cuentas_bancarias")
+        .update({ nordigen_ultimo_sync: new Date().toISOString() })
+        .eq("id", cuentaBancariaId);
+    }
   }
 
   return { inserted, message: `${inserted} nuevas transacciones importadas` };

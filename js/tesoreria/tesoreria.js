@@ -45,24 +45,20 @@ async function renderTesCuentas() {
 
   const verSaldos = canDo('tesoreria','ver_saldos');
 
+  // Topbar: botón nueva cuenta
+  const tb = document.getElementById('topbarBtns');
+  if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevaCuenta()">+ Nueva cuenta</button>' : '';
+
   // Calcular KPIs
   const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => s + (parseFloat(c.saldo)||0), 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
 
   page.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div>
-        <h2 style="font-size:17px;font-weight:800">🏦 Cuentas bancarias</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">Gestiona tus cuentas y saldos</p>
-      </div>
-      ${canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevaCuenta()">+ Nueva cuenta</button>' : ''}
-    </div>
-
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
       ${verSaldos ? `<div class="card" style="padding:16px;text-align:center">
         <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Saldo total</div>
-        <div style="font-size:22px;font-weight:800;color:${saldoTotal>=0?'var(--verde)':'var(--rojo)'};margin-top:4px">${_tesFmt(saldoTotal)} €</div>
+        <div style="font-size:22px;font-weight:800;color:${saldoTotal>=0?'#16A34A':'var(--rojo)'};margin-top:4px">${_tesFmt(saldoTotal)} €</div>
       </div>` : ''}
       <div class="card" style="padding:16px;text-align:center">
         <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Cuentas activas</div>
@@ -130,9 +126,12 @@ function tesEditarCuenta(id) {
 function _tesMostrarModalCuenta(c) {
   const esNueva = !c;
   const verSaldos = canDo('tesoreria','ver_saldos');
+  const esConectada = c?.nordigen_conectado;
   const html = `
     <div style="padding:20px">
       <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">${esNueva ? '🏦 Nueva cuenta bancaria' : '✏️ Editar cuenta'}</h3>
+
+      <!-- Datos de la cuenta -->
       <div style="display:grid;gap:12px">
         <div>
           <label style="font-size:12px;font-weight:600">Nombre *</label>
@@ -144,35 +143,74 @@ function _tesMostrarModalCuenta(c) {
             <input id="tes_c_iban" class="input" value="${c?.iban||''}" placeholder="ES12 1234 5678 9012 3456 7890">
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600">Entidad</label>
-            <input id="tes_c_entidad" class="input" value="${c?.entidad||''}" placeholder="CaixaBank, Santander...">
+            <label style="font-size:12px;font-weight:600">Nº cuenta (si no IBAN)</label>
+            <input id="tes_c_numcuenta" class="input" value="${c?.numero_cuenta||''}" placeholder="1234 5678 90 1234567890">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600">Entidad</label>
+            <input id="tes_c_entidad" class="input" value="${c?.entidad||''}" placeholder="CaixaBank, Santander...">
+          </div>
           <div>
             <label style="font-size:12px;font-weight:600">SWIFT/BIC</label>
             <input id="tes_c_swift" class="input" value="${c?.bic||''}" placeholder="CAIXESBBXXX">
           </div>
-          ${verSaldos ? `<div>
-            <label style="font-size:12px;font-weight:600">Saldo actual</label>
-            <input id="tes_c_saldo" class="input" type="number" step="0.01" value="${c?.saldo||0}">
-          </div>` : '<div></div>'}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:12px;font-weight:600">Color</label>
-            <input id="tes_c_color" type="color" value="${c?.color||'#2563EB'}" style="width:100%;height:36px;border:1px solid var(--gris-200);border-radius:8px;cursor:pointer">
+        <div>
+          <label style="font-size:12px;font-weight:600">Titular</label>
+          <input id="tes_c_titular" class="input" value="${c?.titular||''}" placeholder="Nombre del titular de la cuenta">
+        </div>
+
+        <!-- Ficha del banco -->
+        <div style="border-top:1px solid var(--gris-200);padding-top:12px;margin-top:4px">
+          <div style="font-size:12px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Datos del banco</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:12px;font-weight:600">Sucursal</label>
+              <input id="tes_c_sucursal" class="input" value="${c?.sucursal||''}" placeholder="Oficina / sucursal">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600">Teléfono banco</label>
+              <input id="tes_c_telfbanco" class="input" value="${c?.telefono_banco||''}" placeholder="981 123 456">
+            </div>
           </div>
-          <div style="display:flex;align-items:end;gap:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+            <div>
+              <label style="font-size:12px;font-weight:600">Persona de contacto</label>
+              <input id="tes_c_contacto" class="input" value="${c?.contacto_banco||''}" placeholder="Nombre del gestor">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600">Email banco</label>
+              <input id="tes_c_emailbanco" class="input" value="${c?.email_banco||''}" placeholder="gestor@banco.es">
+            </div>
+          </div>
+        </div>
+
+        <!-- Config -->
+        <div style="border-top:1px solid var(--gris-200);padding-top:12px;margin-top:4px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            ${verSaldos && !esConectada ? `<div>
+              <label style="font-size:12px;font-weight:600">Saldo actual</label>
+              <input id="tes_c_saldo" class="input" type="number" step="0.01" value="${c?.saldo||0}">
+            </div>` : '<div></div>'}
+            <div>
+              <label style="font-size:12px;font-weight:600">Color</label>
+              <input id="tes_c_color" type="color" value="${c?.color||'#2563EB'}" style="width:100%;height:36px;border:1px solid var(--gris-200);border-radius:8px;cursor:pointer">
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
             <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer">
               <input id="tes_c_activo" type="checkbox" ${c?.activa!==false?'checked':''}>
               Cuenta activa
             </label>
+            ${esConectada ? '<span style="font-size:11px;color:#16A34A;font-weight:600">Open Banking conectada</span>' : ''}
           </div>
         </div>
+
         <div>
-          <label style="font-size:12px;font-weight:600">Notas</label>
-          <textarea id="tes_c_notas" class="input" rows="2" placeholder="Notas internas...">${c?.notas||''}</textarea>
+          <label style="font-size:12px;font-weight:600">Notas / observaciones</label>
+          <textarea id="tes_c_notas" class="input" rows="2" placeholder="Notas internas...">${c?.notas||c?.observaciones||''}</textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -188,7 +226,7 @@ function _tesMostrarModalCuenta(c) {
     modal = document.createElement('div');
     modal.id = 'mTesCuenta';
     modal.className = 'overlay';
-    modal.innerHTML = `<div class="modal" style="max-width:520px"><div id="mTesCuentaBody"></div></div>`;
+    modal.innerHTML = `<div class="modal" style="max-width:580px"><div id="mTesCuentaBody"></div></div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('mTesCuentaBody').innerHTML = html;
@@ -204,13 +242,19 @@ async function tesGuardarCuenta(id) {
     empresa_id: EMPRESA.id,
     nombre,
     iban: document.getElementById('tes_c_iban').value.trim() || null,
+    numero_cuenta: document.getElementById('tes_c_numcuenta')?.value.trim() || null,
     entidad: document.getElementById('tes_c_entidad').value.trim() || null,
     bic: document.getElementById('tes_c_swift').value.trim() || null,
+    titular: document.getElementById('tes_c_titular')?.value.trim() || null,
+    sucursal: document.getElementById('tes_c_sucursal')?.value.trim() || null,
+    telefono_banco: document.getElementById('tes_c_telfbanco')?.value.trim() || null,
+    contacto_banco: document.getElementById('tes_c_contacto')?.value.trim() || null,
+    email_banco: document.getElementById('tes_c_emailbanco')?.value.trim() || null,
     color: document.getElementById('tes_c_color').value,
     activa: document.getElementById('tes_c_activo').checked,
     notas: document.getElementById('tes_c_notas').value.trim() || null
   };
-  // Solo incluir saldo si el usuario tiene permiso de ver_saldos
+  // Solo incluir saldo si el usuario tiene permiso de ver_saldos y es cuenta manual
   if (saldoEl) {
     obj.saldo = parseFloat(saldoEl.value) || 0;
     obj.saldo_fecha = new Date().toISOString();
@@ -263,20 +307,20 @@ async function renderTesMovimientos() {
 
   const optsCuenta = tesCuentas.map(c => `<option value="${c.id}" ${c.id===cId?'selected':''}>${c.nombre}</option>`).join('');
 
+  // Topbar: selector de cuenta + botón nuevo movimiento
+  const tb = document.getElementById('topbarBtns');
+  if (tb) tb.innerHTML = `
+    <select class="input" style="font-size:12px;min-width:180px" onchange="_tesCuentaSel=this.value;renderTesMovimientos()">
+      <option value="">Todas las cuentas</option>
+      ${optsCuenta}
+    </select>
+    ${canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : ''}
+  `;
+  // Subtítulo con cuenta actual
+  const pgSub = document.getElementById('pgSub');
+  if (pgSub) pgSub.textContent = cuentaActual ? cuentaActual.nombre : 'Todas las cuentas';
+
   page.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div>
-        <h2 style="font-size:17px;font-weight:800">📊 Movimientos bancarios</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">${cuentaActual ? cuentaActual.nombre : 'Todas las cuentas'}</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select class="input" style="font-size:12px;min-width:180px" onchange="_tesCuentaSel=this.value;renderTesMovimientos()">
-          <option value="">Todas las cuentas</option>
-          ${optsCuenta}
-        </select>
-        ${canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : ''}
-      </div>
-    </div>
 
     <!-- KPIs período -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
@@ -326,7 +370,7 @@ async function renderTesMovimientos() {
 
     <!-- Tabla movimientos -->
     <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl" style="width:100%">
+      <table class="dt" style="width:100%">
         <thead>
           <tr>
             <th style="width:90px">Fecha</th>
@@ -589,17 +633,11 @@ async function renderTesConciliacion() {
   const pendientes = _concMovPend.length;
   const totalPend = _concMovPend.reduce((s,m)=>s+Math.abs(parseFloat(m.importe)||0),0);
 
-  page.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div>
-        <h2 style="font-size:17px;font-weight:800">🔗 Conciliación bancaria</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">Vincula movimientos con facturas emitidas y recibidas</p>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="_concAutoMatch()">⚡ Auto-conciliar</button>
-      </div>
-    </div>
+  // Topbar: botón auto-conciliar
+  const tb = document.getElementById('topbarBtns');
+  if (tb) tb.innerHTML = '<button class="btn btn-secondary" onclick="_concAutoMatch()">⚡ Auto-conciliar</button>';
 
+  page.innerHTML = `
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">
       <div class="card" style="padding:14px;text-align:center">
@@ -618,7 +656,7 @@ async function renderTesConciliacion() {
 
     <!-- Lista de movimientos pendientes -->
     <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl" style="width:100%">
+      <table class="dt" style="width:100%">
         <thead>
           <tr>
             <th style="width:85px">Fecha</th>
@@ -826,14 +864,11 @@ async function renderTesImportar() {
 
   const optsCuenta = tesCuentas.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
 
-  page.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div>
-        <h2 style="font-size:17px;font-weight:800">📥 Importar extractos</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">Importa movimientos desde ficheros Norma 43 (AEB) o CSV bancario</p>
-      </div>
-    </div>
+  // Topbar limpio para importar
+  const tb = document.getElementById('topbarBtns');
+  if (tb) tb.innerHTML = '';
 
+  page.innerHTML = `
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end">
         <div>
@@ -877,7 +912,7 @@ async function renderTesImportar() {
         </div>
       </div>
       <div class="card" style="padding:0;overflow:auto;max-height:400px">
-        <table class="tbl" style="width:100%">
+        <table class="dt" style="width:100%">
           <thead><tr><th>Fecha</th><th>Concepto</th><th style="text-align:right">Importe</th><th>Referencia</th></tr></thead>
           <tbody id="impPreviewTable"></tbody>
         </table>
