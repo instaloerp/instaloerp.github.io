@@ -136,8 +136,9 @@ async function createSession(code: string) {
 }
 
 /** Obtener transacciones de una cuenta */
-async function getTransactions(accountUid: string) {
-  return await ebFetch(`/accounts/${accountUid}/transactions`);
+async function getTransactions(accountUid: string, dateFrom?: string) {
+  const params = dateFrom ? `?date_from=${dateFrom}` : '';
+  return await ebFetch(`/accounts/${accountUid}/transactions${params}`);
 }
 
 /** Obtener saldos de una cuenta */
@@ -160,26 +161,31 @@ async function syncTransactions(
     .eq("id", cuentaBancariaId)
     .single();
 
-  // Obtener transacciones
-  const txData = await getTransactions(ebAccountUid);
+  // Calcular date_from: última sync o 1 año atrás (máximo permitido por PSD2/banco)
+  const lastSync = cuenta?.nordigen_ultimo_sync;
+  let dateFrom: string;
+  if (lastSync) {
+    // Desde la última sincronización (con 1 día de margen para no perder nada)
+    const d = new Date(lastSync);
+    d.setDate(d.getDate() - 1);
+    dateFrom = d.toISOString().slice(0, 10);
+  } else {
+    // Primera sync: pedir hasta 1 año atrás (el banco limitará si no soporta tanto)
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    dateFrom = d.toISOString().slice(0, 10);
+  }
+
+  // Obtener transacciones desde date_from
+  const txData = await getTransactions(ebAccountUid, dateFrom);
   const transactions = txData?.transactions || [];
 
   if (!transactions.length) {
     return { inserted: 0, message: "Sin nuevas transacciones" };
   }
 
-  // Filtrar por fecha si hay último sync
-  const lastSync = cuenta?.nordigen_ultimo_sync;
-  const filtered = lastSync
-    ? transactions.filter((t: any) => {
-        const txDate = t.booking_date || t.value_date || "";
-        return txDate >= new Date(lastSync).toISOString().slice(0, 10);
-      })
-    : transactions;
-
-  if (!filtered.length) {
-    return { inserted: 0, message: "Sin nuevas transacciones" };
-  }
+  // Usar todas las transacciones (ya vienen filtradas por date_from)
+  const filtered = transactions;
 
   // Evitar duplicados: buscar origen_ref existentes
   const refs = filtered

@@ -15,6 +15,61 @@ const _tesFmt = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maxi
 const _tesFecha = d => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 const _tesColor = (imp) => imp >= 0 ? 'var(--verde)' : 'var(--rojo)';
 
+// ── Logos de bancos ─────────────────────────
+// URLs de logos oficiales por código de entidad (4 dígitos del IBAN)
+const _tesBancoLogos = {
+  '0049': 'https://logo.clearbit.com/santander.com',
+  '0075': 'https://logo.clearbit.com/santander.com',
+  '0081': 'https://logo.clearbit.com/bancsabadell.com',
+  '0182': 'https://logo.clearbit.com/bbva.com',
+  '2100': 'https://logo.clearbit.com/caixabank.com',
+  '0128': 'https://logo.clearbit.com/bankinter.com',
+  '2085': 'https://logo.clearbit.com/ibercaja.es',
+  '2095': 'https://logo.clearbit.com/kutxabank.es',
+  '2080': 'https://logo.clearbit.com/abanca.com',
+  '0073': 'https://logo.clearbit.com/openbank.es',
+  '1465': 'https://logo.clearbit.com/ing.es',
+  '2103': 'https://logo.clearbit.com/unicajabanco.es',
+  '3058': 'https://logo.clearbit.com/cajamar.es',
+  '0019': 'https://logo.clearbit.com/db.com',
+  '0186': 'https://logo.clearbit.com/bancomediolanum.es',
+  '0239': 'https://logo.clearbit.com/evobanco.com',
+};
+// Fallback: buscar por nombre
+const _tesBancoLogosByName = {
+  'santander': 'https://logo.clearbit.com/santander.com',
+  'bbva': 'https://logo.clearbit.com/bbva.com',
+  'caixabank': 'https://logo.clearbit.com/caixabank.com',
+  'caixa': 'https://logo.clearbit.com/caixabank.com',
+  'sabadell': 'https://logo.clearbit.com/bancsabadell.com',
+  'abanca': 'https://logo.clearbit.com/abanca.com',
+  'bankinter': 'https://logo.clearbit.com/bankinter.com',
+  'ibercaja': 'https://logo.clearbit.com/ibercaja.es',
+  'kutxabank': 'https://logo.clearbit.com/kutxabank.es',
+  'ing': 'https://logo.clearbit.com/ing.es',
+  'unicaja': 'https://logo.clearbit.com/unicajabanco.es',
+  'openbank': 'https://logo.clearbit.com/openbank.es',
+  'cajamar': 'https://logo.clearbit.com/cajamar.es',
+  'evo': 'https://logo.clearbit.com/evobanco.com',
+  'mediolanum': 'https://logo.clearbit.com/bancomediolanum.es',
+  'deutsche': 'https://logo.clearbit.com/db.com',
+};
+
+function _tesBancoLogo(cuenta) {
+  // 1. Intentar por código de entidad del IBAN
+  const iban = (cuenta.iban || '').replace(/\s/g, '').toUpperCase();
+  if (iban.length >= 8 && iban.startsWith('ES')) {
+    const cod = iban.substring(4, 8);
+    if (_tesBancoLogos[cod]) return _tesBancoLogos[cod];
+  }
+  // 2. Intentar por nombre de la cuenta o entidad
+  const nombre = ((cuenta.nombre || '') + ' ' + (cuenta.entidad || '')).toLowerCase();
+  for (const [key, url] of Object.entries(_tesBancoLogosByName)) {
+    if (nombre.includes(key)) return url;
+  }
+  return null;
+}
+
 // ── Auto-relleno por IBAN ───────────────────
 // Mapa: código entidad (4 dígitos del IBAN ES pos 4-7) → { nombre, bic }
 const _tesEntidadesIBAN = {
@@ -153,11 +208,16 @@ function _tesCuentasHTML() {
     const saldo = parseFloat(c.saldo) || 0;
     const activa = c.activa !== false;
     const color = c.color || '#2563EB';
+    const logo = _tesBancoLogo(c);
+    const logoHTML = logo
+      ? `<img src="${logo}" style="width:30px;height:30px;border-radius:6px;object-fit:contain" onerror="this.style.display='none';this.nextElementSibling.style.display=''">`
+        + `<span style="font-size:20px;display:none">🏦</span>`
+      : `<span style="font-size:20px">🏦</span>`;
     return `
     <div style="padding:14px 16px;border-radius:12px;border:1px solid var(--gris-200);margin-bottom:8px;transition:all .15s;opacity:${activa?1:0.5}">
       <div style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="tesEditarCuenta('${c.id}')">
         <div style="width:44px;height:44px;border-radius:10px;background:${color}15;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <span style="font-size:20px">🏦</span>
+          ${logoHTML}
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:14px">${c.nombre}</div>
