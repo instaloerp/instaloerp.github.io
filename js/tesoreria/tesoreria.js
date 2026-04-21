@@ -43,6 +43,8 @@ async function renderTesCuentas() {
   const page = document.getElementById('page-tesoreria-cuentas');
   if (!page) return;
 
+  const verSaldos = canDo('tesoreria','ver_saldos');
+
   // Calcular KPIs
   const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => s + (parseFloat(c.saldo)||0), 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
@@ -58,10 +60,10 @@ async function renderTesCuentas() {
 
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
-      <div class="card" style="padding:16px;text-align:center">
+      ${verSaldos ? `<div class="card" style="padding:16px;text-align:center">
         <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Saldo total</div>
         <div style="font-size:22px;font-weight:800;color:${saldoTotal>=0?'var(--verde)':'var(--rojo)'};margin-top:4px">${_tesFmt(saldoTotal)} €</div>
-      </div>
+      </div>` : ''}
       <div class="card" style="padding:16px;text-align:center">
         <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Cuentas activas</div>
         <div style="font-size:22px;font-weight:800;margin-top:4px">${numActivas}</div>
@@ -84,6 +86,7 @@ function _tesCuentasHTML() {
     </div>`;
   }
 
+  const verSaldos = canDo('tesoreria','ver_saldos');
   return tesCuentas.map(c => {
     const saldo = parseFloat(c.saldo) || 0;
     const activa = c.activa !== false;
@@ -100,10 +103,10 @@ function _tesCuentasHTML() {
             ${c.iban ? c.iban : ''}${c.entidad ? (c.iban?' · ':'')+c.entidad : ''}
           </div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
+        ${verSaldos ? `<div style="text-align:right;flex-shrink:0">
           <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
           ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400)">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
-        </div>
+        </div>` : ''}
         <button class="btn btn-secondary btn-sm" style="flex-shrink:0;font-size:11px" onclick="event.stopPropagation();_tesCuentaSel='${c.id}';goPage('tesoreria-movimientos')">
           Movimientos →
         </button>
@@ -126,6 +129,7 @@ function tesEditarCuenta(id) {
 
 function _tesMostrarModalCuenta(c) {
   const esNueva = !c;
+  const verSaldos = canDo('tesoreria','ver_saldos');
   const html = `
     <div style="padding:20px">
       <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">${esNueva ? '🏦 Nueva cuenta bancaria' : '✏️ Editar cuenta'}</h3>
@@ -149,10 +153,10 @@ function _tesMostrarModalCuenta(c) {
             <label style="font-size:12px;font-weight:600">SWIFT/BIC</label>
             <input id="tes_c_swift" class="input" value="${c?.bic||''}" placeholder="CAIXESBBXXX">
           </div>
-          <div>
+          ${verSaldos ? `<div>
             <label style="font-size:12px;font-weight:600">Saldo actual</label>
             <input id="tes_c_saldo" class="input" type="number" step="0.01" value="${c?.saldo||0}">
-          </div>
+          </div>` : '<div></div>'}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
@@ -195,18 +199,22 @@ async function tesGuardarCuenta(id) {
   const nombre = document.getElementById('tes_c_nombre').value.trim();
   if (!nombre) { toast('Introduce el nombre','error'); return; }
 
+  const saldoEl = document.getElementById('tes_c_saldo');
   const obj = {
     empresa_id: EMPRESA.id,
     nombre,
     iban: document.getElementById('tes_c_iban').value.trim() || null,
     entidad: document.getElementById('tes_c_entidad').value.trim() || null,
     bic: document.getElementById('tes_c_swift').value.trim() || null,
-    saldo: parseFloat(document.getElementById('tes_c_saldo').value) || 0,
-    saldo_fecha: new Date().toISOString(),
     color: document.getElementById('tes_c_color').value,
     activa: document.getElementById('tes_c_activo').checked,
     notas: document.getElementById('tes_c_notas').value.trim() || null
   };
+  // Solo incluir saldo si el usuario tiene permiso de ver_saldos
+  if (saldoEl) {
+    obj.saldo = parseFloat(saldoEl.value) || 0;
+    obj.saldo_fecha = new Date().toISOString();
+  }
 
   let error;
   if (id) {
@@ -248,6 +256,7 @@ async function renderTesMovimientos() {
   const page = document.getElementById('page-tesoreria-movimientos');
   if (!page) return;
 
+  const verSaldos = canDo('tesoreria','ver_saldos');
   const cuentaActual = tesCuentas.find(c=>c.id===cId);
   const ingresos = tesMovimientos.filter(m=>m.importe>0).reduce((s,m)=>s+parseFloat(m.importe),0);
   const gastos = tesMovimientos.filter(m=>m.importe<0).reduce((s,m)=>s+Math.abs(parseFloat(m.importe)),0);
@@ -324,20 +333,21 @@ async function renderTesMovimientos() {
             <th>Concepto</th>
             <th style="width:90px">Categoría</th>
             <th style="width:110px;text-align:right">Importe</th>
-            <th style="width:110px;text-align:right">Saldo</th>
+            ${verSaldos ? '<th style="width:110px;text-align:right">Saldo</th>' : ''}
             <th style="width:85px;text-align:center">Estado</th>
             <th style="width:40px"></th>
           </tr>
         </thead>
-        <tbody id="tesMovTable">${_tesMovTablaHTML()}</tbody>
+        <tbody id="tesMovTable">${_tesMovTablaHTML(verSaldos)}</tbody>
       </table>
     </div>
   `;
 }
 
-function _tesMovTablaHTML() {
+function _tesMovTablaHTML(verSaldos) {
+  const numCols = verSaldos ? 7 : 6;
   if (!tesMovimientos.length) {
-    return `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gris-400)">
+    return `<tr><td colspan="${numCols}" style="text-align:center;padding:40px;color:var(--gris-400)">
       <div style="font-size:40px;margin-bottom:8px">📊</div>
       <strong>Sin movimientos</strong><br>
       <span style="font-size:12px">Añade movimientos manualmente o importa un extracto bancario</span>
@@ -357,7 +367,7 @@ function _tesMovTablaHTML() {
       <td style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.concepto||'').replace(/"/g,'&quot;')}">${m.concepto||'—'}</td>
       <td style="font-size:11px">${catIcos[m.categoria]||''} ${m.categoria||'—'}</td>
       <td style="text-align:right;font-weight:700;color:${_tesColor(imp)};font-size:13px">${imp>0?'+':''}${_tesFmt(imp)} €</td>
-      <td style="text-align:right;font-size:12px;color:var(--gris-500)">${saldo!=null?_tesFmt(saldo)+' €':'—'}</td>
+      ${verSaldos ? `<td style="text-align:right;font-size:12px;color:var(--gris-500)">${saldo!=null?_tesFmt(saldo)+' €':'—'}</td>` : ''}
       <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${estCol}15;color:${estCol}">${estadoLabels[m.estado]||m.estado}</span></td>
       <td style="text-align:center;font-size:14px">›</td>
     </tr>`;
