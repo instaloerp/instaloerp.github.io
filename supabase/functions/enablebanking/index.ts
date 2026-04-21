@@ -62,15 +62,42 @@ async function ebFetch(path: string, options: RequestInit = {}): Promise<any> {
 async function listInstitutions(country: string = "ES") {
   const path = country ? `/aspsps?country=${country}` : `/aspsps`;
   const data = await ebFetch(path);
-  // Normalizar respuesta para que el frontend use .id, .name, .logo, .bic
-  const aspsps = data?.aspsps || data || [];
+  // Normalizar: la API devuelve directamente un array o {aspsps:[...]}
+  const aspsps = Array.isArray(data) ? data : (data?.aspsps || data?.results || []);
   return (Array.isArray(aspsps) ? aspsps : []).map((a: any) => ({
-    id: a.name,          // En Enable Banking el identificador es el nombre del ASPSP
+    id: a.name,
     name: a.name,
     country: a.country || country,
-    logo: a.logo || null,
+    logo: a.logo || a.logo_url || null,
     bic: a.bic || null,
   }));
+}
+
+/** Debug: devuelve la respuesta cruda de la API para diagnóstico */
+async function debugAspsps(country: string) {
+  const jwt = await makeJWT();
+  const path = country ? `/aspsps?country=${country}` : `/aspsps`;
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${jwt}`,
+    },
+  });
+  const status = res.status;
+  const text = await res.text();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch (_) {}
+  return {
+    _debug: true,
+    status,
+    url: `${API_BASE}${path}`,
+    responseType: typeof parsed,
+    isArray: Array.isArray(parsed),
+    keys: parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.keys(parsed) : null,
+    count: Array.isArray(parsed) ? parsed.length : (parsed?.aspsps?.length || null),
+    first3: Array.isArray(parsed) ? parsed.slice(0,3) : (parsed?.aspsps?.slice?.(0,3) || null),
+    rawPreview: text.substring(0, 500),
+  };
 }
 
 /** Iniciar autorización con un banco */
@@ -277,6 +304,13 @@ Deno.serve(async (req) => {
     let result: any;
 
     switch (action) {
+      // ── Debug (temporal) ──
+      case "debug": {
+        const country = body.country || "ES";
+        result = await debugAspsps(country);
+        break;
+      }
+
       // ── Listar bancos ──
       case "institutions": {
         const country = body.country || "ES";
