@@ -239,15 +239,20 @@ async function tesGuardarCuenta(id) {
 
 async function tesEliminarCuenta(id) {
   if (!canDo('tesoreria','eliminar')) { toast('Sin permiso para eliminar','error'); return; }
-  if (typeof confirmModal === 'function') {
-    confirmModal('¿Eliminar esta cuenta y todos sus movimientos?', async () => {
-      const {error} = await sb.from('cuentas_bancarias').delete().eq('id', id);
-      if (error) { toast('Error: '+error.message,'error'); return; }
-      closeModal('mTesCuenta');
-      toast('Cuenta eliminada','success');
-      renderTesCuentas();
-    });
-  }
+  if (typeof confirmModal !== 'function') return;
+  const ok = await confirmModal({
+    titulo: 'Eliminar cuenta',
+    mensaje: '¿Eliminar esta cuenta bancaria y todos sus movimientos asociados?',
+    aviso: 'Esta acción no se puede deshacer',
+    btnOk: 'Eliminar',
+    colorOk: '#DC2626'
+  });
+  if (!ok) return;
+  const {error} = await sb.from('cuentas_bancarias').delete().eq('id', id);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  closeModal('mTesCuenta');
+  toast('Cuenta eliminada','success');
+  renderTesCuentas();
 }
 
 
