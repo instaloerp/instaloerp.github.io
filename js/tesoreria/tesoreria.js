@@ -1220,9 +1220,10 @@ async function obConectar(cuentaId) {
   try {
     // Cargar instituciones (cache)
     if (!_obInstitutions) {
-      _obInstitutions = await _obCall({ action: 'institutions', country: 'ES' });
+      const resp = await _obCall({ action: 'institutions', country: 'ES' });
+      _obInstitutions = Array.isArray(resp) ? resp : (resp?.aspsps || resp?.data || []);
     }
-    const bancos = _obInstitutions || [];
+    const bancos = Array.isArray(_obInstitutions) ? [..._obInstitutions] : [];
 
     // Ordenar por nombre
     bancos.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
