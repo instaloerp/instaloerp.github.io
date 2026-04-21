@@ -489,7 +489,7 @@ async function aplicarMinimosCalculados() {
   const ok = await confirmModal({titulo:'Aplicar mínimos/máximos',mensaje:`¿Aplicar stock mínimo/máximo a ${cambios.length} artículo(s)?`,btnOk:'Aplicar'}); if (!ok) return;
 
   toast(`🔄 Aplicando ${cambios.length} mínimos/máximos...`, 'info');
-  let ok = 0, errores = 0;
+  let okCount = 0, errores = 0;
 
   for (const d of cambios) {
     if (!d.almacen_id || !d.articulo_id) continue;
@@ -500,17 +500,17 @@ async function aplicarMinimosCalculados() {
       const { error } = await sb.from('stock')
         .update({ stock_minimo: d.minimo_sugerido, stock_maximo: d.maximo_sugerido })
         .eq('empresa_id', EMPRESA.id).eq('articulo_id', d.articulo_id).eq('almacen_id', d.almacen_id);
-      if (error) { errores++; } else { ok++; d.minimo_actual = d.minimo_sugerido; d.maximo_actual = d.maximo_sugerido; }
+      if (error) { errores++; } else { okCount++; d.minimo_actual = d.minimo_sugerido; d.maximo_actual = d.maximo_sugerido; }
     } else {
       const { error } = await sb.from('stock').insert({
         empresa_id: EMPRESA.id, articulo_id: d.articulo_id, almacen_id: d.almacen_id,
         cantidad: 0, stock_minimo: d.minimo_sugerido, stock_provisional: 0, stock_reservado: 0
       });
-      if (error) { errores++; } else { ok++; d.minimo_actual = d.minimo_sugerido; }
+      if (error) { errores++; } else { okCount++; d.minimo_actual = d.minimo_sugerido; }
     }
   }
 
-  toast(`✅ ${ok} mínimo(s) aplicado(s)${errores ? `, ${errores} error(es)` : ''}`, errores ? 'warning' : 'success');
+  toast(`✅ ${okCount} mínimo(s) aplicado(s)${errores ? `, ${errores} error(es)` : ''}`, errores ? 'warning' : 'success');
   _renderCalcMinTabla();
   _updateCalcMinResumen();
   if (typeof loadStock === 'function') loadStock();
