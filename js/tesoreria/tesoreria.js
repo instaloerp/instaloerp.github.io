@@ -53,17 +53,14 @@ async function renderTesCuentas() {
   const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => s + (parseFloat(c.saldo)||0), 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
 
+  const numConectadas = tesCuentas.filter(c=>c.nordigen_conectado).length;
+
   page.innerHTML = `
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
-      ${verSaldos ? `<div class="card" style="padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Saldo total</div>
-        <div style="font-size:22px;font-weight:800;color:${saldoTotal>=0?'#16A34A':'var(--rojo)'};margin-top:4px">${_tesFmt(saldoTotal)} €</div>
-      </div>` : ''}
-      <div class="card" style="padding:16px;text-align:center">
-        <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Cuentas activas</div>
-        <div style="font-size:22px;font-weight:800;margin-top:4px">${numActivas}</div>
-      </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px">
+      ${verSaldos ? `<div class="sc" style="--c:${saldoTotal>=0?'var(--verde)':'var(--rojo)'};--bg:${saldoTotal>=0?'var(--verde-light)':'var(--rojo-light)'}"><div class="si">💶</div><div class="sv">${_tesFmt(saldoTotal)} €</div><div class="sl">Saldo total</div></div>` : ''}
+      <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">🏦</div><div class="sv">${numActivas}</div><div class="sl">Cuentas activas</div></div>
+      ${numConectadas ? `<div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">🔗</div><div class="sv">${numConectadas}</div><div class="sl">Open Banking</div></div>` : ''}
     </div>
 
     <!-- Lista cuentas -->
@@ -307,53 +304,26 @@ async function renderTesMovimientos() {
 
   const optsCuenta = tesCuentas.map(c => `<option value="${c.id}" ${c.id===cId?'selected':''}>${c.nombre}</option>`).join('');
 
-  // Topbar: selector de cuenta + botón nuevo movimiento
+  // Topbar limpio (filtros van dentro de la página como en Presupuestos)
   const tb = document.getElementById('topbarBtns');
-  if (tb) tb.innerHTML = `
-    <select class="input" style="font-size:12px;min-width:180px" onchange="_tesCuentaSel=this.value;renderTesMovimientos()">
-      <option value="">Todas las cuentas</option>
-      ${optsCuenta}
-    </select>
-    ${canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : ''}
-  `;
-  // Subtítulo con cuenta actual
-  const pgSub = document.getElementById('pgSub');
-  if (pgSub) pgSub.textContent = cuentaActual ? cuentaActual.nombre : 'Todas las cuentas';
+  if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary btn-sm" onclick="tesNuevoMovimiento()">+ Nuevo movimiento</button>' : '';
 
   page.innerHTML = `
-
-    <!-- KPIs período -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Ingresos</div>
-        <div style="font-size:18px;font-weight:800;color:var(--verde);margin-top:2px">+${_tesFmt(ingresos)} €</div>
-      </div>
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Gastos</div>
-        <div style="font-size:18px;font-weight:800;color:var(--rojo);margin-top:2px">-${_tesFmt(gastos)} €</div>
-      </div>
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Neto</div>
-        <div style="font-size:18px;font-weight:800;color:${(ingresos-gastos)>=0?'var(--verde)':'var(--rojo)'};margin-top:2px">${_tesFmt(ingresos-gastos)} €</div>
-      </div>
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Movimientos</div>
-        <div style="font-size:18px;font-weight:800;margin-top:2px">${tesMovimientos.length}</div>
-      </div>
-    </div>
-
-    <!-- Filtros -->
-    <div class="card" style="padding:10px 14px;margin-bottom:12px">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:11px;font-weight:700;color:var(--gris-400)">Filtros:</label>
-        <select class="input" style="font-size:11px;min-width:120px" onchange="_tesMovFiltros.estado=this.value;renderTesMovimientos()">
+    <!-- Barra filtros (patrón Presupuestos) -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none;min-width:180px" onchange="_tesCuentaSel=this.value;renderTesMovimientos()">
+          <option value="">Todas las cuentas</option>
+          ${optsCuenta}
+        </select>
+        <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" onchange="_tesMovFiltros.estado=this.value;renderTesMovimientos()">
           <option value="">Estado: Todos</option>
           <option value="pendiente" ${_tesMovFiltros.estado==='pendiente'?'selected':''}>Pendiente</option>
           <option value="parcial" ${_tesMovFiltros.estado==='parcial'?'selected':''}>Parcial</option>
           <option value="conciliado" ${_tesMovFiltros.estado==='conciliado'?'selected':''}>Conciliado</option>
           <option value="ignorado" ${_tesMovFiltros.estado==='ignorado'?'selected':''}>Ignorado</option>
         </select>
-        <select class="input" style="font-size:11px;min-width:120px" onchange="_tesMovFiltros.categoria=this.value;renderTesMovimientos()">
+        <select style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" onchange="_tesMovFiltros.categoria=this.value;renderTesMovimientos()">
           <option value="">Categoría: Todas</option>
           <option value="ventas" ${_tesMovFiltros.categoria==='ventas'?'selected':''}>Ventas</option>
           <option value="compras" ${_tesMovFiltros.categoria==='compras'?'selected':''}>Compras</option>
@@ -361,29 +331,40 @@ async function renderTesMovimientos() {
           <option value="impuestos" ${_tesMovFiltros.categoria==='impuestos'?'selected':''}>Impuestos</option>
           <option value="otros" ${_tesMovFiltros.categoria==='otros'?'selected':''}>Otros</option>
         </select>
-        <input type="date" class="input" style="font-size:11px" value="${_tesMovFiltros.desde}" onchange="_tesMovFiltros.desde=this.value;renderTesMovimientos()">
-        <span style="font-size:11px;color:var(--gris-400)">a</span>
-        <input type="date" class="input" style="font-size:11px" value="${_tesMovFiltros.hasta}" onchange="_tesMovFiltros.hasta=this.value;renderTesMovimientos()">
-        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="_tesMovFiltros={estado:'',categoria:'',desde:'',hasta:''};renderTesMovimientos()">Limpiar</button>
+        <input type="date" value="${_tesMovFiltros.desde}" onchange="_tesMovFiltros.desde=this.value;renderTesMovimientos()"
+          style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        <input type="date" value="${_tesMovFiltros.hasta}" onchange="_tesMovFiltros.hasta=this.value;renderTesMovimientos()"
+          style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none">
+        <button class="btn btn-ghost btn-sm" onclick="_tesMovFiltros={estado:'',categoria:'',desde:'',hasta:''};renderTesMovimientos()">Limpiar</button>
       </div>
     </div>
 
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+      <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💰</div><div class="sv">+${_tesFmt(ingresos)} €</div><div class="sl">Ingresos</div></div>
+      <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">💸</div><div class="sv">-${_tesFmt(gastos)} €</div><div class="sl">Gastos</div></div>
+      <div class="sc" style="--c:${(ingresos-gastos)>=0?'var(--verde)':'var(--rojo)'};--bg:${(ingresos-gastos)>=0?'var(--verde-light)':'var(--rojo-light)'}"><div class="si">📊</div><div class="sv">${_tesFmt(ingresos-gastos)} €</div><div class="sl">Neto</div></div>
+      <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📋</div><div class="sv">${tesMovimientos.length}</div><div class="sl">Movimientos</div></div>
+    </div>
+
     <!-- Tabla movimientos -->
-    <div class="card" style="padding:0;overflow:auto">
-      <table class="dt" style="width:100%">
-        <thead>
-          <tr>
-            <th style="width:90px">Fecha</th>
-            <th>Concepto</th>
-            <th style="width:90px">Categoría</th>
-            <th style="width:110px;text-align:right">Importe</th>
-            ${verSaldos ? '<th style="width:110px;text-align:right">Saldo</th>' : ''}
-            <th style="width:85px;text-align:center">Estado</th>
-            <th style="width:40px"></th>
-          </tr>
-        </thead>
-        <tbody id="tesMovTable">${_tesMovTablaHTML(verSaldos)}</tbody>
-      </table>
+    <div class="card">
+      <div class="tw">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th style="width:90px">Fecha</th>
+              <th>Concepto</th>
+              <th style="width:90px">Categoría</th>
+              <th style="width:110px;text-align:right">Importe</th>
+              ${verSaldos ? '<th style="width:110px;text-align:right">Saldo</th>' : ''}
+              <th style="width:85px;text-align:center">Estado</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="tesMovTable">${_tesMovTablaHTML(verSaldos)}</tbody>
+        </table>
+      </div>
     </div>
   `;
 }
@@ -639,24 +620,16 @@ async function renderTesConciliacion() {
 
   page.innerHTML = `
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Pendientes</div>
-        <div style="font-size:20px;font-weight:800;color:#F59E0B;margin-top:2px">${pendientes}</div>
-      </div>
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Importe pendiente</div>
-        <div style="font-size:20px;font-weight:800;margin-top:2px">${_tesFmt(totalPend)} €</div>
-      </div>
-      <div class="card" style="padding:14px;text-align:center">
-        <div style="font-size:10px;color:var(--gris-400);font-weight:700;text-transform:uppercase">Conciliados</div>
-        <div style="font-size:20px;font-weight:800;color:var(--verde);margin-top:2px">${tesConciliaciones.length}</div>
-      </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+      <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">⏳</div><div class="sv">${pendientes}</div><div class="sl">Pendientes</div></div>
+      <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">💶</div><div class="sv">${_tesFmt(totalPend)} €</div><div class="sl">Importe pendiente</div></div>
+      <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv">${tesConciliaciones.length}</div><div class="sl">Conciliados</div></div>
     </div>
 
     <!-- Lista de movimientos pendientes -->
-    <div class="card" style="padding:0;overflow:auto">
-      <table class="dt" style="width:100%">
+    <div class="card">
+      <div class="tw">
+        <table class="dt">
         <thead>
           <tr>
             <th style="width:85px">Fecha</th>
@@ -686,7 +659,8 @@ async function renderTesConciliacion() {
       <div style="font-size:36px;margin-bottom:8px">✅</div>
       <strong>Todo conciliado</strong><br><span style="font-size:12px">No hay movimientos pendientes de conciliar</span>
     </td></tr>`}</tbody>
-      </table>
+        </table>
+      </div>
     </div>`;
 }
 
