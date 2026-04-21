@@ -60,6 +60,16 @@ function _tesAutorellenoIBAN() {
   const codSucursal = iban.length >= 12 ? iban.substring(8, 12) : '';
   const entidad = _tesEntidadesIBAN[codEntidad];
 
+  // Nº cuenta: extraer de IBAN español (posiciones 4-23 = entidad+sucursal+DC+cuenta)
+  // Formato: EEEE SSSS DD CCCCCCCCCC
+  if (iban.length >= 24) {
+    const numCuentaEl = document.getElementById('tes_c_numcuenta');
+    if (numCuentaEl && !numCuentaEl.value.trim()) {
+      const ccc = iban.substring(4); // 20 dígitos: entidad(4)+sucursal(4)+dc(2)+cuenta(10)
+      numCuentaEl.value = ccc.substring(0,4) + ' ' + ccc.substring(4,8) + ' ' + ccc.substring(8,10) + ' ' + ccc.substring(10);
+    }
+  }
+
   if (entidad) {
     // Solo auto-rellenar si están vacíos
     const nombreEl = document.getElementById('tes_c_nombre');
