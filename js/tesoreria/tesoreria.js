@@ -180,6 +180,9 @@ async function renderTesCuentas() {
   const numConectadas = tesCuentas.filter(c=>c.nordigen_conectado).length;
 
   page.innerHTML = `
+    <!-- Alertas de sync -->
+    <div id="ob-alertas-sync">${_obGenerarAlertas()}</div>
+
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px">
       ${verSaldos ? `<div class="sc" style="--c:${saldoTotal>=0?'var(--verde)':'var(--rojo)'};--bg:${saldoTotal>=0?'var(--verde-light)':'var(--rojo-light)'}"><div class="si">💶</div><div class="sv">${_tesFmt(saldoTotal)} €</div><div class="sl">Saldo total</div></div>` : ''}
@@ -1286,6 +1289,7 @@ async function _impConfirmar() {
 
 let _obInstitutions = null; // cache de bancos disponibles
 let _obAutoSyncTimer = null;
+let _obSyncErrors = {};     // { cuentaId: { msg, fecha } } — últimos errores por cuenta
 
 // ── Auto-sync bancaria: 4 veces/día a las 06:00, 12:00, 18:00, 00:00 ──
 const _OB_SYNC_HOURS = [0, 6, 12, 18];
@@ -1326,11 +1330,87 @@ async function _obAutoSync() {
       try {
         await obSyncCuenta(cuenta.id, cuenta.nordigen_account_id);
         cuenta.nordigen_ultimo_sync = new Date().toISOString();
+        delete _obSyncErrors[cuenta.id]; // limpiar error si fue bien
       } catch (e) {
         console.warn('[AutoSync] Error:', e.message);
+        _obSyncErrors[cuenta.id] = { msg: e.message, fecha: new Date().toISOString() };
       }
     }
   }
+  // Mostrar alertas si estamos en la página de cuentas
+  _obMostrarAlertas();
+}
+
+/** Generar HTML de alertas de sync para cuentas con problemas */
+function _obGenerarAlertas() {
+  const conectadas = tesCuentas.filter(c => c.nordigen_conectado);
+  if (!conectadas.length) return '';
+  const ahora = new Date();
+  const alertas = [];
+
+  for (const c of conectadas) {
+    const nombre = c.nombre || c.iban || 'Cuenta';
+    const errInfo = _obSyncErrors[c.id];
+
+    if (!c.nordigen_ultimo_sync) {
+      alertas.push({ nivel: 'rojo', cuenta: nombre, texto: 'Nunca se ha sincronizado', detalle: errInfo?.msg || '' });
+      continue;
+    }
+
+    const ultimo = new Date(c.nordigen_ultimo_sync);
+    const horasSinSync = (ahora - ultimo) / (1000 * 60 * 60);
+
+    if (horasSinSync > 48) {
+      alertas.push({
+        nivel: 'rojo', cuenta: nombre,
+        texto: `Sin sincronizar desde hace ${Math.floor(horasSinSync)}h — puede que el consentimiento haya caducado`,
+        detalle: errInfo?.msg || '',
+        accion: `obDesconectar('${c.id}','${c.nordigen_requisition_id}')`
+      });
+    } else if (horasSinSync > 24) {
+      alertas.push({
+        nivel: 'amarillo', cuenta: nombre,
+        texto: `Sin sincronizar desde hace ${Math.floor(horasSinSync)}h`,
+        detalle: errInfo?.msg || ''
+      });
+    } else if (errInfo) {
+      alertas.push({
+        nivel: 'amarillo', cuenta: nombre,
+        texto: 'Último intento de sync falló',
+        detalle: errInfo.msg
+      });
+    }
+  }
+
+  if (!alertas.length) return '';
+
+  return alertas.map(a => {
+    const bg = a.nivel === 'rojo' ? '#FEF2F2' : '#FFFBEB';
+    const brd = a.nivel === 'rojo' ? '#FCA5A5' : '#FCD34D';
+    const ico = a.nivel === 'rojo' ? '🔴' : '🟡';
+    const btnReconectar = a.accion ? `<button class="btn btn-sm" style="font-size:10px;margin-left:8px;background:#dc2626;color:#fff;border:none" onclick="${a.accion}">Reconectar banco</button>` : '';
+    return `
+      <div style="background:${bg};border:1px solid ${brd};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span>${ico}</span>
+          <strong>${a.cuenta}</strong>: ${a.texto}${btnReconectar}
+        </div>
+        ${a.detalle ? `<div style="margin-top:4px;font-size:11px;color:#6B7280">Error: ${a.detalle}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/** Insertar/actualizar alertas en la página de cuentas */
+function _obMostrarAlertas() {
+  const page = document.getElementById('page-tesoreria-cuentas');
+  if (!page) return;
+  let contenedor = document.getElementById('ob-alertas-sync');
+  if (!contenedor) {
+    contenedor = document.createElement('div');
+    contenedor.id = 'ob-alertas-sync';
+    page.insertBefore(contenedor, page.firstChild);
+  }
+  contenedor.innerHTML = _obGenerarAlertas();
 }
 
 /** Programar timer para próxima ventana de sync */
