@@ -1120,10 +1120,10 @@ function _ficNuevoDiaCalendario() {
         <div class="fg-row">
           <div class="fg">
             <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha inicio</label>
-            <input type="date" id="cal_fecha">
+            <input type="date" id="cal_fecha" onchange="const f=document.getElementById('cal_fecha_fin');if(!f.value)f.value=this.value">
           </div>
           <div class="fg">
-            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha fin</label>
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha fin <span style="font-weight:400;color:var(--gris-400)">(mismo día si solo 1)</span></label>
             <input type="date" id="cal_fecha_fin">
           </div>
         </div>
@@ -1174,12 +1174,16 @@ async function _ficGuardarDiaCalendario() {
 
   if (fechas.length > 60) { toast('Máximo 60 días de una vez', 'error'); return; }
 
-  // Insertar todas las fechas (ignorar duplicados con onConflict)
-  const rows = fechas.map(f => ({ empresa_id: EMPRESA.id, fecha: f, tipo, descripcion: desc, created_by: CU.id }));
-  const { error } = await sb.from('calendario_laboral').upsert(rows, { onConflict: 'empresa_id,fecha' });
+  // Filtrar fechas que ya existen en BD para no duplicar
+  const existentes = new Set(_ficCalLaboral.map(d => d.fecha));
+  const nuevas = fechas.filter(f => !existentes.has(f));
+  if (nuevas.length === 0) { toast('Todos esos días ya están marcados', 'info'); closeModal('mFichaje'); return; }
+
+  const rows = nuevas.map(f => ({ empresa_id: EMPRESA.id, fecha: f, tipo, descripcion: desc, created_by: CU.id }));
+  const { error } = await sb.from('calendario_laboral').insert(rows);
 
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  toast(`${fechas.length} día${fechas.length > 1 ? 's' : ''} añadido${fechas.length > 1 ? 's' : ''} al calendario`, 'success');
+  toast(`${nuevas.length} día${nuevas.length > 1 ? 's' : ''} añadido${nuevas.length > 1 ? 's' : ''} al calendario`, 'success');
   closeModal('mFichaje');
   await _ficCargarCalendario();
   const cont = document.getElementById('page-calendario-laboral');
