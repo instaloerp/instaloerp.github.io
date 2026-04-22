@@ -330,7 +330,10 @@ function _tesMostrarModalCuenta(c) {
       </div>
     </div>
     <div class="modal-f" style="display:flex;justify-content:space-between">
-      ${!esNueva ? `<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="tesEliminarCuenta('${c.id}')">🗑️ Eliminar</button>` : '<div></div>'}
+      <div style="display:flex;gap:8px">
+        ${!esNueva ? `<button class="btn btn-ghost btn-sm" style="color:var(--rojo)" onclick="tesEliminarCuenta('${c.id}')">🗑️ Eliminar</button>` : ''}
+        ${esConectada ? `<button class="btn btn-ghost btn-sm" style="color:var(--gris-400);font-size:10px" onclick="event.stopPropagation();closeModal('mTesCuenta');obSyncCuenta('${c.id}','${c.nordigen_account_id}',false)" title="⚠️ Límite PSD2: máx 4 veces/día">🔄 Forzar sync</button>` : ''}
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary btn-sm" onclick="closeModal('mTesCuenta')">Cancelar</button>
         <button class="btn btn-primary btn-sm" onclick="tesGuardarCuenta('${c?.id||''}')">${esNueva?'Crear cuenta':'Guardar'}</button>
