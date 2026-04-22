@@ -680,19 +680,35 @@ async function _parsearNominasCombinadas(pdfBytes) {
   for (let i = 1; i <= totalPags; i++) {
     const page = await pdfDoc.getPage(i);
     const content = await page.getTextContent();
-    const texto = content.items.map(it => it.str).join(' ');
 
-    // Buscar NIF: patrón XX...X-L
-    const nifMatch = texto.match(/NIF:\s*(\d{7,8}-[A-Z])/i);
-    // Buscar periodo: del DD/MM/YYYY al DD/MM/YYYY
-    const perMatch = texto.match(/del\s+\d{2}\/(\d{2})\/(\d{4})\s+al/i);
+    // Agrupar items por posición Y para reconstruir filas
+    const rows = {};
+    content.items.forEach(it => {
+      if (!it.str || !it.str.trim()) return;
+      const yKey = Math.round((it.transform?.[5] || 0) / 5) * 5;
+      if (!rows[yKey]) rows[yKey] = [];
+      rows[yKey].push(it.str.trim());
+    });
+
+    // Unir cada fila y luego todo el texto
+    const texto = Object.values(rows).map(r => r.join(' ')).join(' ');
+
+    // Buscar NIF: patrón 7-8 dígitos + guión + letra
+    const nifMatch = texto.match(/(\d{7,8}-[A-Z])/i);
+    // Buscar periodo: DD/MM/YYYY
+    const fechas = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/g);
+    let mes = null, anio = null;
+    if (fechas && fechas.length >= 1) {
+      const parts = fechas[0].split('/');
+      mes = parts[1]; // MM
+      anio = parts[2]; // YYYY
+    }
 
     paginas.push({
       pagina: i,
       dni: nifMatch ? nifMatch[1].toUpperCase() : null,
-      mes: perMatch ? perMatch[1] : null,
-      anio: perMatch ? perMatch[2] : null,
-      // Extraer nombre (segunda línea típicamente: "EMPRESA TRABAJADOR" seguido de nombre)
+      mes: mes,
+      anio: anio,
       textoCorto: texto.substring(0, 200),
     });
   }
@@ -864,6 +880,23 @@ async function _procesarNominaCombinada(correoId, adj, empMap) {
 
 // ── Helpers compartidos ──
 async function _descargarAdjuntoBlob(correoId, nombre) {
+  // 1. Asegurar que el correo está cargado (IMAP necesita leer el email antes de servir adjuntos)
+  const correo = correos.find(x => x.id === correoId);
+  if (correo && !correo.cuerpo_cacheado) {
+    console.log('[descargarBlob] Cargando cuerpo del correo primero...');
+    const { data: bodyData } = await sb.functions.invoke('leer-correo', {
+      body: { empresa_id: EMPRESA.id, correo_id: correoId }
+    });
+    if (bodyData?.success) {
+      correo.cuerpo_html = bodyData.cuerpo_html || '';
+      correo.cuerpo_texto = bodyData.cuerpo_texto || '';
+      correo.cuerpo_cacheado = true;
+    }
+    // Pequeña espera para que IMAP procese
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // 2. Descargar el adjunto
   const { data, error } = await sb.functions.invoke('leer-correo', {
     body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: nombre }
   });
