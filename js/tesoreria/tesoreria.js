@@ -1324,21 +1324,24 @@ function _obNecesitaSync(ultimoSync) {
 async function _obAutoSync() {
   if (!EMPRESA?.id || !tesCuentas?.length) return;
   const conectadas = tesCuentas.filter(c => c.nordigen_conectado && c.nordigen_account_id);
+  let huboSync = false;
   for (const cuenta of conectadas) {
     if (_obNecesitaSync(cuenta.nordigen_ultimo_sync)) {
       console.log(`[AutoSync] Sincronizando cuenta ${cuenta.nombre || cuenta.id}...`);
       try {
-        await obSyncCuenta(cuenta.id, cuenta.nordigen_account_id);
+        await obSyncCuenta(cuenta.id, cuenta.nordigen_account_id, true);
         cuenta.nordigen_ultimo_sync = new Date().toISOString();
-        delete _obSyncErrors[cuenta.id]; // limpiar error si fue bien
+        delete _obSyncErrors[cuenta.id];
+        huboSync = true;
       } catch (e) {
         console.warn('[AutoSync] Error:', e.message);
         _obSyncErrors[cuenta.id] = { msg: e.message, fecha: new Date().toISOString() };
       }
     }
   }
-  // Mostrar alertas si estamos en la página de cuentas
+  // Mostrar alertas y refrescar vista si hubo cambios
   _obMostrarAlertas();
+  if (huboSync) renderTesCuentas();
 }
 
 /** Generar HTML de alertas de sync para cuentas con problemas */
@@ -1642,8 +1645,8 @@ async function obCheckStatus(cuentaId, requisitionId) {
   }
 }
 
-async function obSyncCuenta(cuentaId, nordigenAccountId) {
-  toast('🔄 Sincronizando movimientos...','info');
+async function obSyncCuenta(cuentaId, nordigenAccountId, silent) {
+  if (!silent) toast('🔄 Sincronizando movimientos...','info');
   try {
     const result = await _obCall({
       action: 'sync',
@@ -1651,10 +1654,11 @@ async function obSyncCuenta(cuentaId, nordigenAccountId) {
       cuenta_id: cuentaId,
       nordigen_account_id: nordigenAccountId
     });
-    toast(`✅ ${result.message}`, 'success');
-    renderTesCuentas();
+    if (!silent) toast(`✅ ${result.message}`, 'success');
+    if (!silent) renderTesCuentas();
   } catch (err) {
-    toast('Error sincronizando: ' + err.message, 'error');
+    if (!silent) toast('Error sincronizando: ' + err.message, 'error');
+    throw err; // re-lanzar para que _obAutoSync capture el error
   }
 }
 
