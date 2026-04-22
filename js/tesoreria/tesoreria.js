@@ -174,7 +174,11 @@ async function renderTesCuentas() {
   if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevaCuenta()">+ Nueva cuenta</button>' : '';
 
   // Calcular KPIs
-  const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => s + (parseFloat(c.saldo)||0), 0);
+  const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => {
+    const saldo = parseFloat(c.saldo)||0;
+    const limite = parseFloat(c.limite_poliza)||0;
+    return s + (limite ? limite + saldo : saldo);
+  }, 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
 
   const numConectadas = tesCuentas.filter(c=>c.nordigen_conectado).length;
@@ -211,7 +215,9 @@ function _tesCuentasHTML() {
 
   const verSaldos = canDo('tesoreria','ver_saldos');
   return tesCuentas.map(c => {
-    const saldo = parseFloat(c.saldo) || 0;
+    const saldoBruto = parseFloat(c.saldo) || 0;
+    const limitePoliza = parseFloat(c.limite_poliza) || 0;
+    const saldo = limitePoliza ? limitePoliza + saldoBruto : saldoBruto;
     const activa = c.activa !== false;
     const color = c.color || '#2563EB';
     const logo = _tesBancoLogo(c);
@@ -233,6 +239,7 @@ function _tesCuentasHTML() {
         </div>
         ${verSaldos ? `<div style="text-align:right;flex-shrink:0">
           <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
+          ${limitePoliza ? `<div style="font-size:10px;color:var(--gris-400)">Disponible · Póliza ${_tesFmt(limitePoliza)} €</div>` : ''}
           ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400)">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
         </div>` : ''}
         <button class="btn btn-secondary btn-sm" style="flex-shrink:0;font-size:11px" onclick="event.stopPropagation();_tesCuentaSel='${c.id}';goPage('tesoreria-movimientos')">
@@ -308,6 +315,7 @@ function _tesMostrarModalCuenta(c) {
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         ${verSaldos && !esConectada ? `<div class="fg"><label>Saldo actual</label><input id="tes_c_saldo" type="number" step="0.01" value="${c?.saldo||0}"></div>` : ''}
+        <div class="fg"><label>Límite póliza crédito</label><input id="tes_c_limite_poliza" type="number" step="0.01" value="${c?.limite_poliza||''}" placeholder="Ej: 33000 (vacío = sin póliza)"></div>
         <div class="fg"><label>Color</label><input id="tes_c_color" type="color" value="${c?.color||'#2563EB'}" style="width:100%;height:36px;border:1px solid var(--gris-200);border-radius:8px;cursor:pointer"></div>
         <div class="fg" style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px;padding-bottom:4px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
@@ -351,7 +359,8 @@ async function tesGuardarCuenta(id) {
     email_banco: document.getElementById('tes_c_emailbanco')?.value.trim() || null,
     color: document.getElementById('tes_c_color').value,
     activa: document.getElementById('tes_c_activo').checked,
-    notas: document.getElementById('tes_c_notas').value.trim() || null
+    notas: document.getElementById('tes_c_notas').value.trim() || null,
+    limite_poliza: parseFloat(document.getElementById('tes_c_limite_poliza')?.value) || null
   };
   // Solo incluir saldo si el usuario tiene permiso de ver_saldos y es cuenta manual
   if (saldoEl) {

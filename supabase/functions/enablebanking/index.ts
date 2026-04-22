@@ -146,6 +146,25 @@ async function getBalances(accountUid: string) {
   return await ebFetch(`/accounts/${accountUid}/balances`);
 }
 
+/** Borrar sesión en Enable Banking (revoca el consentimiento PSD2) */
+async function deleteSession(sessionId: string): Promise<boolean> {
+  try {
+    const jwt = await makeJWT();
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+    // 200/204 = borrada, 404 = ya no existe (ambos OK)
+    return res.ok || res.status === 404;
+  } catch (_) {
+    // Si falla, no bloquear la desconexión
+    return false;
+  }
+}
+
 // ─── Sync: descargar transacciones y guardar en movimientos_bancarios ───
 
 async function syncTransactions(
@@ -161,11 +180,17 @@ async function syncTransactions(
     .eq("id", cuentaBancariaId)
     .single();
 
-  // Calcular date_from: SIEMPRE como mínimo desde 1 de enero del año en curso
-  // Si hay lastSync anterior al 1-ene, usar esa fecha (más atrás aún)
-  // Si no hay lastSync, pedir 1 año completo hacia atrás
+  // Calcular date_from:
+  // - PSD2 limita a 90 días hacia atrás (algunos bancos como Santander lo aplican estricto)
+  // - Intentamos ir lo más atrás posible: 1-ene del año actual o lastSync-1, lo que sea más antiguo
+  // - Pero NUNCA más de 89 días atrás (para no exceder el límite PSD2)
   const lastSync = cuenta?.nordigen_ultimo_sync;
-  const ene1 = `${new Date().getFullYear()}-01-01`;  // 1 de enero año actual
+  const ene1 = `${new Date().getFullYear()}-01-01`;
+
+  // Límite PSD2: máximo 89 días atrás (margen de seguridad sobre los 90)
+  const maxBack = new Date();
+  maxBack.setDate(maxBack.getDate() - 89);
+  const limitePSD2 = maxBack.toISOString().slice(0, 10);
 
   let dateFrom: string;
   if (lastSync) {
@@ -175,12 +200,13 @@ async function syncTransactions(
     // Usar la fecha más antigua entre lastSync-1 y 1-ene
     dateFrom = fromSync < ene1 ? fromSync : ene1;
   } else {
-    // Primera sync: 1 año atrás (el banco limitará si no soporta tanto)
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 1);
-    const fromYear = d.toISOString().slice(0, 10);
-    // Usar la más antigua entre 1 año atrás y 1-ene
-    dateFrom = fromYear < ene1 ? fromYear : ene1;
+    // Primera sync: intentar desde 1-ene
+    dateFrom = ene1;
+  }
+
+  // Aplicar límite PSD2: nunca más de 89 días atrás
+  if (dateFrom < limitePSD2) {
+    dateFrom = limitePSD2;
   }
 
   // Obtener transacciones desde date_from
@@ -404,6 +430,8 @@ Deno.serve(async (req) => {
           const updateData: any = {
             nordigen_account_id: accUid,
             nordigen_conectado: true,
+            // Guardar session_id para poder revocar el consentimiento PSD2 al desconectar
+            nordigen_requisition_id: session.session_id || null,
           };
           if (iban) updateData.iban = iban;
 
@@ -499,8 +527,22 @@ Deno.serve(async (req) => {
       // ── Desconectar ──
       case "disconnect": {
         const { cuenta_id } = body;
-        // Enable Banking no tiene endpoint de borrado de sesiones,
-        // simplemente limpiamos la BD
+
+        // 1. Recuperar session_id almacenado para revocar en Enable Banking
+        const { data: cuentaDisc } = await sb
+          .from("cuentas_bancarias")
+          .select("nordigen_requisition_id")
+          .eq("id", cuenta_id)
+          .single();
+
+        let sessionDeleted = false;
+        const storedSessionId = cuentaDisc?.nordigen_requisition_id;
+        if (storedSessionId && !storedSessionId.startsWith("instaloerp_")) {
+          // Es un session_id real (no un state string del flujo auth)
+          sessionDeleted = await deleteSession(storedSessionId);
+        }
+
+        // 2. Limpiar BD (siempre, aunque falle el DELETE en EB)
         await sb
           .from("cuentas_bancarias")
           .update({
@@ -510,7 +552,17 @@ Deno.serve(async (req) => {
             nordigen_ultimo_sync: null,
           })
           .eq("id", cuenta_id);
-        result = { ok: true };
+
+        result = { ok: true, session_deleted: sessionDeleted };
+        break;
+      }
+
+      // ── Forzar borrado de sesión (para resolver sesiones expiradas) ──
+      case "delete_session": {
+        const { session_id: sessId } = body;
+        if (!sessId) throw new Error("Falta session_id");
+        const deleted = await deleteSession(sessId);
+        result = { ok: true, deleted };
         break;
       }
 
