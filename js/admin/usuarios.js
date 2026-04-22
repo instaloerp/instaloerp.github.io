@@ -40,7 +40,7 @@ async function loadUsuarios() {
   function renderUserCard(u) {
     const rolKey = u.es_superadmin ? 'admin' : (u.rol || 'operario');
     const ri = ROL_INFO[rolKey] || ROL_INFO.operario;
-    return `<div class="card" style="padding:18px;border-left:3px solid ${ri.color}">
+    return `<div class="card" style="padding:18px;border-left:3px solid ${ri.color};cursor:pointer;transition:transform .1s" onclick="_empAbrirFicha('${u.id}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <div style="width:52px;height:52px;border-radius:50%;background:${u.avatar_url ? 'transparent' : AVC2[(u.nombre||'').charCodeAt(0)%AVC2.length]};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid var(--gris-200)">
           ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">` : (u.nombre||'?')[0].toUpperCase()}
@@ -57,12 +57,13 @@ async function loadUsuarios() {
             </span>
           </div>
         </div>
+        <span style="color:var(--gris-300);font-size:20px">›</span>
       </div>
       <div style="font-size:11.5px;color:var(--gris-500);margin-bottom:12px">
         ${u.telefono ? '📱 '+u.telefono : ''}
       </div>
       <div style="display:flex;gap:7px;align-items:center">
-        <button class="btn btn-secondary btn-sm" onclick="editUsuario('${u.id}')">✏️ Editar</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editUsuario('${u.id}')">✏️ Editar</button>
         ${u.id === CU.id ? '<span style="font-size:11px;color:var(--azul);font-weight:700">· Eres tú</span>' : ''}
       </div>
     </div>`;

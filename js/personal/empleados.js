@@ -19,74 +19,19 @@ const _EMP_DOC_CATEGORIAS = [
   { clave: 'otro', nombre: 'Otro documento', emoji: '📎', color: '#6B7280' },
 ];
 
-// ═══════════════════════════════════════════════
-//  CARGAR LISTA DE EMPLEADOS
-// ═══════════════════════════════════════════════
-async function loadEmpleados() {
-  const container = document.getElementById('page-empleados');
-  if (!container) return;
-
-  const { data } = await sb.from('perfiles').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
-  const users = data || [];
-
-  const ROL_INFO = {
-    admin:     { label:'Administrador', ico:'⭐', color:'#D97706', bg:'#FFFBEB' },
-    oficina:   { label:'Oficina',       ico:'🖥️', color:'#2563EB', bg:'#EFF6FF' },
-    almacen:   { label:'Almacén',       ico:'📦', color:'#7C3AED', bg:'#F5F3FF' },
-    operario:  { label:'Operario',      ico:'👷', color:'#059669', bg:'#ECFDF5' },
-    comercial: { label:'Comercial',     ico:'💼', color:'#0891B2', bg:'#ECFEFF' },
-  };
-  const AVC = ['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2'];
-
-  let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div>
-        <h2 style="font-size:17px;font-weight:800">Equipo</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">${users.length} empleados</p>
-      </div>
-    </div>
-    <div id="empLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-  `;
-
-  users.forEach(u => {
-    const rk = u.es_superadmin ? 'admin' : (u.rol || 'operario');
-    const ri = ROL_INFO[rk] || ROL_INFO.operario;
-    const bgAvatar = u.avatar_url ? 'transparent' : AVC[(u.nombre||'').charCodeAt(0)%AVC.length];
-    html += `
-      <div class="card" style="padding:16px;cursor:pointer;border-left:3px solid ${ri.color};transition:transform .1s" onclick="_empAbrirFicha('${u.id}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:46px;height:46px;border-radius:50%;background:${bgAvatar};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid var(--gris-200)">
-            ${u.avatar_url ? '<img src="'+u.avatar_url+'" style="width:100%;height:100%;object-fit:cover">' : (u.nombre||'?')[0].toUpperCase()}
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.nombre || '—'} ${u.apellidos || ''}</div>
-            <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
-              <span style="background:${ri.bg};color:${ri.color};padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700">${ri.ico} ${ri.label}</span>
-              ${u.telefono ? '<span style="font-size:11px;color:var(--gris-400)">📱 '+u.telefono+'</span>' : ''}
-            </div>
-          </div>
-          <span style="color:var(--gris-300);font-size:18px">›</span>
-        </div>
-      </div>
-    `;
-  });
-
-  html += '</div>';
-
-  // Contenedor oculto para ficha
-  html += '<div id="empFicha" style="display:none"></div>';
-  container.innerHTML = html;
-}
+// La lista de usuarios se gestiona en usuarios.js (loadUsuarios)
+// Este módulo solo gestiona la vista ficha dentro de page-usuarios
 
 // ═══════════════════════════════════════════════
 //  ABRIR FICHA DE EMPLEADO
 // ═══════════════════════════════════════════════
 async function _empAbrirFicha(userId) {
-  const container = document.getElementById('page-empleados');
-  if (!container) return;
-
-  // Cargar perfil
-  const { data: perfil } = await sb.from('perfiles').select('*').eq('id', userId).single();
+  // Usar datos ya cargados de todosUsuarios si están disponibles
+  let perfil = (typeof todosUsuarios !== 'undefined') ? todosUsuarios.find(u => u.id === userId) : null;
+  if (!perfil) {
+    const { data } = await sb.from('perfiles').select('*').eq('id', userId).single();
+    perfil = data;
+  }
   if (!perfil) { toast('Empleado no encontrado', 'error'); return; }
   _empFichaUser = perfil;
 
@@ -102,17 +47,19 @@ async function _empAbrirFicha(userId) {
   _empAusencias = ausRes.data || [];
 
   // Ocultar lista, mostrar ficha
-  document.getElementById('empLista').style.display = 'none';
-  const fichaEl = document.getElementById('empFicha');
+  document.getElementById('usrVista-lista').style.display = 'none';
+  const fichaEl = document.getElementById('usrVista-ficha');
   fichaEl.style.display = '';
   _empTab = 'datos';
   _empRenderFicha();
 }
 
 function _empVolverLista() {
-  document.getElementById('empLista').style.display = '';
-  document.getElementById('empFicha').style.display = 'none';
+  document.getElementById('usrVista-lista').style.display = '';
+  document.getElementById('usrVista-ficha').style.display = 'none';
   _empFichaUser = null;
+  // Recargar lista por si se editó algo
+  if (typeof loadUsuarios === 'function') loadUsuarios();
 }
 
 // ═══════════════════════════════════════════════
@@ -121,7 +68,7 @@ function _empVolverLista() {
 function _empRenderFicha() {
   const u = _empFichaUser;
   if (!u) return;
-  const fichaEl = document.getElementById('empFicha');
+  const fichaEl = document.getElementById('usrVista-ficha');
   if (!fichaEl) return;
 
   const ROL_INFO = {
