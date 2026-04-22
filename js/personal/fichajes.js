@@ -114,6 +114,7 @@ function renderFichajes() {
 async function loadAusencias() {
   if (!EMPRESA || !EMPRESA.id) return;
   await _ficCargarAusencias();
+  if (_ficCalLaboral.length === 0) await _ficCargarCalendario();
   const container = document.getElementById('page-ausencias');
   if (!container) return;
   const esAdmin = CP.es_superadmin || CP.rol === 'admin';
@@ -663,6 +664,33 @@ function _ficRenderAusencias(container, esAdmin) {
   const aprobadas = _ficAusencias.filter(a => a.estado === 'aprobada');
   const rechazadas = _ficAusencias.filter(a => a.estado === 'rechazada');
 
+  // Calcular vacaciones: 22 totales = 11 empresa + 11 personales
+  const anio = new Date().getFullYear();
+  const totalVac = CP?.tempo_dias_vacaciones || 22;
+  const mitad = Math.floor(totalVac / 2); // 11
+  const diasEmpresa = mitad;
+  const diasPersonal = totalVac - mitad; // 11
+
+  // Días empresa usados = días del calendario laboral que consumen vacaciones
+  const tipos = _calGetTipos();
+  const tiposQueConsumen = new Set(tipos.filter(t => t.consume_vacaciones).map(t => t.clave));
+  const diasEmpresaUsados = _ficCalLaboral.filter(d => tiposQueConsumen.has(d.tipo)).length;
+
+  // Días personales usados = ausencias tipo vacaciones aprobadas/pendientes del año
+  const misVacaciones = _ficAusencias.filter(a =>
+    a.tipo === 'vacaciones' && (a.estado === 'aprobada' || a.estado === 'pendiente') &&
+    a.fecha_inicio?.startsWith(String(anio))
+  );
+  const diasPersonalUsados = misVacaciones.reduce((s, a) => s + (a.dias_totales || 0), 0);
+
+  const diasLibresPersonal = Math.max(0, diasPersonal - diasPersonalUsados);
+  const diasLibresEmpresa = Math.max(0, diasEmpresa - diasEmpresaUsados);
+
+  // Plazo solicitud vacaciones: antes del 1 de abril
+  const plazoVac = new Date(anio, 3, 1); // 1 abril
+  const hoyDate = new Date();
+  const fueraDePlazo = hoyDate >= plazoVac;
+
   const tipoLabel = { vacaciones: '🏖️ Vacaciones', baja_medica: '🏥 Baja médica', permiso: '📋 Permiso',
     asuntos_propios: '🙋 Asuntos propios', maternidad: '🤱 Maternidad', paternidad: '👨‍🍼 Paternidad', otro: '📝 Otro' };
   const estadoBadge = { pendiente: '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">⏳ Pendiente</span>',
@@ -678,7 +706,33 @@ function _ficRenderAusencias(container, esAdmin) {
       <button class="btn btn-primary btn-sm" onclick="_ficNuevaAusencia()">+ Nueva solicitud</button>
     </div>
 
-    <!-- KPIs Ausencias -->
+    <!-- VACACIONES -->
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--gris-600);margin-bottom:10px;letter-spacing:0.5px">Vacaciones ${anio}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div style="text-align:center">
+          <div style="font-size:24px;font-weight:800;color:var(--azul)">${totalVac}</div>
+          <div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:600">Total días</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:24px;font-weight:800;color:var(--verde)">${diasLibresPersonal}</div>
+          <div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:600">Libres personal</div>
+          <div style="font-size:10px;color:var(--gris-400)">${diasPersonalUsados} de ${diasPersonal} usados</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:24px;font-weight:800;color:var(--naranja)">${diasLibresEmpresa}</div>
+          <div style="font-size:10px;color:var(--gris-500);text-transform:uppercase;font-weight:600">Libres empresa</div>
+          <div style="font-size:10px;color:var(--gris-400)">${diasEmpresaUsados} de ${diasEmpresa} marcados</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:24px;font-weight:800;color:${fueraDePlazo ? 'var(--rojo)' : 'var(--verde)'}">${fueraDePlazo ? '⛔' : '✅'}</div>
+          <div style="font-size:10px;color:${fueraDePlazo ? 'var(--rojo)' : 'var(--gris-500)'};text-transform:uppercase;font-weight:600">${fueraDePlazo ? 'Fuera de plazo' : 'En plazo'}</div>
+          <div style="font-size:10px;color:var(--gris-400)">Límite: 1 abril</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs Solicitudes -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
       <div class="card" style="padding:14px;text-align:center">
         <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;text-transform:uppercase;font-weight:700">Pendientes</div>
@@ -798,6 +852,17 @@ async function _ficGuardarAusencia() {
 
   if (!inicio || !fin) { toast('Fechas obligatorias', 'error'); return; }
   if (fin < inicio) { toast('La fecha fin debe ser posterior a la de inicio', 'error'); return; }
+
+  // Validar plazo de vacaciones: antes del 1 de abril (solo para tipo vacaciones, no admin)
+  const esAdmin = CP.es_superadmin || CP.rol === 'admin';
+  if (tipo === 'vacaciones' && !esAdmin) {
+    const anioVac = new Date().getFullYear();
+    const plazo = new Date(anioVac, 3, 1); // 1 abril
+    if (new Date() >= plazo) {
+      toast('El plazo para solicitar vacaciones terminó el 1 de abril. Contacta con tu responsable.', 'error');
+      return;
+    }
+  }
 
   // Calcular días
   const d1 = new Date(inicio); const d2 = new Date(fin);
