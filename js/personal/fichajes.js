@@ -27,12 +27,13 @@ async function loadFichajes() {
   if (!EMPRESA || !EMPRESA.id) return;
   const ahora = new Date();
   const mesActual = ahora.toISOString().slice(0, 7);
+  const ultimoDia = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
 
   let query = sb.from('fichajes')
     .select('*')
     .eq('empresa_id', EMPRESA.id)
     .gte('fecha', mesActual + '-01')
-    .lte('fecha', mesActual + '-31')
+    .lte('fecha', mesActual + '-' + String(ultimoDia).padStart(2, '0'))
     .order('fecha', { ascending: false })
     .order('hora_entrada', { ascending: false });
 
@@ -1228,9 +1229,11 @@ async function filtrarFichajes() {
   }
 
   const mesFormat = mes || new Date().toISOString().slice(0, 7);
+  const [yy, mm] = mesFormat.split('-').map(Number);
+  const ultDia = new Date(yy, mm, 0).getDate();
   query = query
     .gte('fecha', mesFormat + '-01')
-    .lte('fecha', mesFormat + '-31');
+    .lte('fecha', mesFormat + '-' + String(ultDia).padStart(2, '0'));
 
   const { data } = await query.order('fecha', { ascending: false }).order('hora_entrada', { ascending: false });
   fichajes = data || [];
