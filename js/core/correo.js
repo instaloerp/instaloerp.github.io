@@ -840,7 +840,8 @@ async function _procesarNominaCombinada(correoId, adj, empMap) {
     const blob = await _descargarAdjuntoBlob(correoId, adj.nombre);
     const pdfBytes = await blob.arrayBuffer();
 
-    // 2. Parsear páginas para extraer DNI y periodo
+    // 2. Copiar bytes ANTES de parsear: pdf.js detacha el ArrayBuffer original
+    const pdfBytesCopia = pdfBytes.slice(0);
     const paginas = await _parsearNominasCombinadas(pdfBytes);
     if (!paginas.length) { toast('No se encontraron nóminas en el PDF', 'error'); return; }
 
@@ -856,8 +857,8 @@ async function _procesarNominaCombinada(correoId, adj, empMap) {
       if (!anio || !mes) { errores++; continue; }
 
       try {
-        // 3. Extraer página individual como PDF
-        const paginaPDF = await _extraerPaginaPDF(pdfBytes, pag.pagina - 1);
+        // 3. Extraer página individual como PDF (usar copia, el original está detachado)
+        const paginaPDF = await _extraerPaginaPDF(pdfBytesCopia, pag.pagina - 1);
         const pageBlob = new Blob([paginaPDF], { type: 'application/pdf' });
 
         // 4. Subir y registrar
@@ -972,9 +973,9 @@ async function procesarNominas(correoId) {
       toast('📄 Analizando PDF combinado...', 'info');
       const blob = await _descargarAdjuntoBlob(correoId, adj.nombre);
       const pdfBytes = await blob.arrayBuffer();
+      // Copiar bytes ANTES de parsear: pdf.js detacha el ArrayBuffer original
+      adj._pdfBytes = pdfBytes.slice(0);
       const paginas = await _parsearNominasCombinadas(pdfBytes);
-      // Guardar bytes para no re-descargar
-      adj._pdfBytes = pdfBytes;
       adj._paginas = paginas;
 
       paginas.forEach(pag => {
