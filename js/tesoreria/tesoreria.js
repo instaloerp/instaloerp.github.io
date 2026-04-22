@@ -192,6 +192,9 @@ async function renderTesCuentas() {
       <div id="tesCuentasLista" style="padding:12px">${_tesCuentasHTML()}</div>
     </div>
   `;
+
+  // Iniciar auto-sync bancaria (4x/día: 00:00, 06:00, 12:00, 18:00)
+  _obIniciarAutoSync();
 }
 
 function _tesCuentasHTML() {
@@ -1282,6 +1285,77 @@ async function _impConfirmar() {
 // ═══════════════════════════════════════════════
 
 let _obInstitutions = null; // cache de bancos disponibles
+let _obAutoSyncTimer = null;
+
+// ── Auto-sync bancaria: 4 veces/día a las 06:00, 12:00, 18:00, 00:00 ──
+const _OB_SYNC_HOURS = [0, 6, 12, 18];
+
+/** Calcular texto de próxima ventana de sync */
+function _obProximaSync(ultimoSync) {
+  const ahora = new Date();
+  const h = ahora.getHours();
+  let proxHora = _OB_SYNC_HOURS.find(sh => sh > h);
+  if (proxHora === undefined) proxHora = _OB_SYNC_HOURS[0]; // 00:00 del día siguiente
+  const proxDate = new Date(ahora);
+  proxDate.setHours(proxHora, 0, 0, 0);
+  if (proxHora <= h) proxDate.setDate(proxDate.getDate() + 1);
+  return proxDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Comprobar si la cuenta necesita sync en la ventana actual */
+function _obNecesitaSync(ultimoSync) {
+  if (!ultimoSync) return true;
+  const ahora = new Date();
+  const h = ahora.getHours();
+  // Ventana actual: la hora de sync <= h más alta
+  let ventanaActual = _OB_SYNC_HOURS.filter(sh => sh <= h).pop();
+  if (ventanaActual === undefined) ventanaActual = 0;
+  const inicioVentana = new Date(ahora);
+  inicioVentana.setHours(ventanaActual, 0, 0, 0);
+  // Si la última sync fue antes de esta ventana → necesita sync
+  return new Date(ultimoSync) < inicioVentana;
+}
+
+/** Auto-sync de todas las cuentas conectadas que lo necesiten */
+async function _obAutoSync() {
+  if (!EMPRESA?.id || !tesCuentas?.length) return;
+  const conectadas = tesCuentas.filter(c => c.nordigen_conectado && c.nordigen_account_id);
+  for (const cuenta of conectadas) {
+    if (_obNecesitaSync(cuenta.nordigen_ultimo_sync)) {
+      console.log(`[AutoSync] Sincronizando cuenta ${cuenta.nombre || cuenta.id}...`);
+      try {
+        await obSyncCuenta(cuenta.id, cuenta.nordigen_account_id);
+        cuenta.nordigen_ultimo_sync = new Date().toISOString();
+      } catch (e) {
+        console.warn('[AutoSync] Error:', e.message);
+      }
+    }
+  }
+}
+
+/** Programar timer para próxima ventana de sync */
+function _obProgramarAutoSync() {
+  if (_obAutoSyncTimer) clearTimeout(_obAutoSyncTimer);
+  const ahora = new Date();
+  const h = ahora.getHours();
+  let proxHora = _OB_SYNC_HOURS.find(sh => sh > h);
+  if (proxHora === undefined) proxHora = _OB_SYNC_HOURS[0];
+  const proxDate = new Date(ahora);
+  proxDate.setHours(proxHora, 0, 0, 0);
+  if (proxHora <= h) proxDate.setDate(proxDate.getDate() + 1);
+  const ms = proxDate - ahora + 60000; // +1min de margen
+  _obAutoSyncTimer = setTimeout(async () => {
+    await _obAutoSync();
+    _obProgramarAutoSync(); // re-programar siguiente
+  }, ms);
+  console.log(`[AutoSync] Próxima sync programada a las ${proxDate.toLocaleTimeString('es-ES')}`);
+}
+
+/** Iniciar auto-sync al cargar cuentas (se llama desde renderTesCuentas) */
+function _obIniciarAutoSync() {
+  _obAutoSync();         // sync inmediata si toca
+  _obProgramarAutoSync(); // programar la siguiente
+}
 
 async function _obCall(body) {
   const session = await sb.auth.getSession();
@@ -1305,11 +1379,12 @@ function _tesCuentaOpenBankingBtns(cuenta) {
   if (!cuenta) return '';
   if (cuenta.nordigen_conectado) {
     const lastSync = cuenta.nordigen_ultimo_sync ? _tesFecha(cuenta.nordigen_ultimo_sync) : 'Nunca';
+    const prox = _obProximaSync(cuenta.nordigen_ultimo_sync);
     return `
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#10B98115;color:#10B981">🔗 Conectado</span>
         <span style="font-size:10px;color:var(--gris-400)">Última sync: ${lastSync}</span>
-        <button class="btn btn-primary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obSyncCuenta('${cuenta.id}','${cuenta.nordigen_account_id}')">🔄 Sincronizar</button>
+        <span style="font-size:10px;color:var(--gris-400)">· Próxima: ${prox}</span>
         <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obDesconectar('${cuenta.id}','${cuenta.nordigen_requisition_id}')">Desconectar</button>
       </div>`;
   }
