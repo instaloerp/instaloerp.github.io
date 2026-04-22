@@ -293,24 +293,24 @@ function _ficMostrarModalFichar(esEntrada) {
     <div class="modal-h"><span>${esEntrada?'🟢':'🔴'}</span><h2>${titulo}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
       <input type="hidden" id="fic_tipo" value="${esEntrada ? 'entrada' : 'salida'}">
-      <div class="form-g">
-        <div class="form-r" style="grid-template-columns:1fr 1fr">
-          <div class="form-f">
-            <label class="label">Hora</label>
-            <input type="time" id="fic_hora_fichar" class="input" value="${horaActual}">
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Hora</label>
+            <input type="time" id="fic_hora_fichar" value="${horaActual}">
           </div>
-          <div class="form-f">
-            <label class="label">Trabajo / Obra</label>
-            <select id="fic_trabajo_id" class="input">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Trabajo / Obra</label>
+            <select id="fic_trabajo_id">
               <option value="">— Sin asignar —</option>
               ${optsTrabajo}
             </select>
           </div>
         </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label">Notas</label>
-            <input type="text" id="fic_notas_fichar" class="input" placeholder="Notas opcionales...">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Notas</label>
+            <input type="text" id="fic_notas_fichar" placeholder="Notas opcionales...">
           </div>
         </div>
         <div id="ficGeoInfo" style="font-size:11px;color:var(--gris-400);padding:8px 0">
@@ -717,11 +717,11 @@ function _ficNuevaAusencia() {
   inner.innerHTML = `
     <div class="modal-h"><span>📋</span><h2>Nueva Solicitud de Ausencia</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
-      <div class="form-g">
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label">Tipo de ausencia</label>
-            <select id="aus_tipo" class="input">
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo de ausencia</label>
+            <select id="aus_tipo">
               <option value="vacaciones">🏖️ Vacaciones</option>
               <option value="permiso">📋 Permiso</option>
               <option value="baja_medica">🏥 Baja médica</option>
@@ -732,26 +732,26 @@ function _ficNuevaAusencia() {
             </select>
           </div>
         </div>
-        <div class="form-r" style="grid-template-columns:1fr 1fr">
-          <div class="form-f">
-            <label class="label">Fecha inicio</label>
-            <input type="date" id="aus_inicio" class="input" value="${hoy}">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha inicio</label>
+            <input type="date" id="aus_inicio" value="${hoy}">
           </div>
-          <div class="form-f">
-            <label class="label">Fecha fin</label>
-            <input type="date" id="aus_fin" class="input" value="${hoy}">
-          </div>
-        </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label">Motivo / Descripción</label>
-            <textarea id="aus_motivo" class="input" rows="3" placeholder="Describe el motivo de la ausencia..."></textarea>
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha fin</label>
+            <input type="date" id="aus_fin" value="${hoy}">
           </div>
         </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label">Documento adjunto (justificante, etc.)</label>
-            <input type="file" id="aus_doc" class="input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Motivo / Descripción</label>
+            <textarea id="aus_motivo" rows="3" placeholder="Describe el motivo de la ausencia..."></textarea>
+          </div>
+        </div>
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Documento adjunto (justificante, etc.)</label>
+            <input type="file" id="aus_doc" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
           </div>
         </div>
       </div>
@@ -945,47 +945,150 @@ function _ficRenderTimeline(container) {
 // ═══════════════════════════════════════════════
 //  VISTA CALENDARIO LABORAL (admin)
 // ═══════════════════════════════════════════════
+// Festivos nacionales España (fijos + calculados)
+function _ficFestivosNacionales(anio) {
+  // Semana Santa (Pascua con algoritmo de Butcher)
+  const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mesPascua = Math.floor((h + l - 7 * m + 114) / 31);
+  const diaPascua = ((h + l - 7 * m + 114) % 31) + 1;
+  const pascua = new Date(anio, mesPascua - 1, diaPascua);
+  const viernesSanto = new Date(pascua); viernesSanto.setDate(pascua.getDate() - 2);
+
+  const fmt = d => d.toISOString().slice(0, 10);
+  return [
+    { fecha: `${anio}-01-01`, desc: 'Año Nuevo' },
+    { fecha: `${anio}-01-06`, desc: 'Reyes Magos' },
+    { fecha: fmt(viernesSanto), desc: 'Viernes Santo' },
+    { fecha: `${anio}-05-01`, desc: 'Día del Trabajador' },
+    { fecha: `${anio}-08-15`, desc: 'Asunción de la Virgen' },
+    { fecha: `${anio}-10-12`, desc: 'Fiesta Nacional' },
+    { fecha: `${anio}-11-01`, desc: 'Todos los Santos' },
+    { fecha: `${anio}-12-06`, desc: 'Día de la Constitución' },
+    { fecha: `${anio}-12-08`, desc: 'Inmaculada Concepción' },
+    { fecha: `${anio}-12-25`, desc: 'Navidad' },
+    // Galicia
+    { fecha: `${anio}-05-17`, desc: 'Día das Letras Galegas' },
+    { fecha: `${anio}-07-25`, desc: 'Día Nacional de Galicia' },
+  ];
+}
+
 function _ficRenderCalendario(container) {
   const ahora = new Date();
   const anio = ahora.getFullYear();
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const diasSemana = ['L','M','X','J','V','S','D'];
 
-  const tipoLabel = { festivo: '🔴 Festivo', cierre_empresa: '🏢 Cierre empresa', medio_dia: '🕐 Medio día' };
+  const festivos = _ficFestivosNacionales(anio);
+  const festivoMap = {};
+  festivos.forEach(f => { festivoMap[f.fecha] = f.desc; });
 
-  let html = `
+  // Merge con calendario laboral guardado en BD
+  const calMap = {};
+  _ficCalLaboral.forEach(d => { calMap[d.fecha] = d; });
+
+  const hoyStr = ahora.toISOString().split('T')[0];
+
+  // Generar meses
+  let mesesHtml = '';
+  for (let mes = 0; mes < 12; mes++) {
+    const primerDia = new Date(anio, mes, 1);
+    const ultimoDia = new Date(anio, mes + 1, 0).getDate();
+    let diaSemana = primerDia.getDay(); // 0=dom
+    diaSemana = diaSemana === 0 ? 6 : diaSemana - 1; // 0=lun
+
+    let celdas = '';
+    // Cabecera días semana
+    diasSemana.forEach((d, i) => {
+      const color = i >= 5 ? 'var(--gris-400)' : 'var(--gris-600)';
+      celdas += `<div style="text-align:center;font-size:10px;font-weight:700;color:${color};padding:2px 0">${d}</div>`;
+    });
+    // Celdas vacías antes del día 1
+    for (let i = 0; i < diaSemana; i++) celdas += '<div></div>';
+
+    for (let dia = 1; dia <= ultimoDia; dia++) {
+      const fechaStr = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const dSem = new Date(anio, mes, dia).getDay();
+      const esFinde = dSem === 0 || dSem === 6;
+      const esFestivo = !!festivoMap[fechaStr];
+      const enBD = !!calMap[fechaStr];
+      const esHoy = fechaStr === hoyStr;
+
+      let bg = 'transparent', color = 'var(--gris-700)', border = 'none', cursor = 'pointer', title = '';
+      if (esHoy) { bg = 'var(--azul)'; color = '#fff'; }
+      else if (enBD) { bg = '#FEE2E2'; color = '#DC2626'; title = calMap[fechaStr].descripcion || calMap[fechaStr].tipo; }
+      else if (esFestivo) { bg = '#FEF3C7'; color = '#D97706'; title = festivoMap[fechaStr]; }
+      else if (esFinde) { color = 'var(--gris-300)'; }
+
+      celdas += `<div onclick="_ficClickDiaCal('${fechaStr}','${(festivoMap[fechaStr]||'').replace(/'/g,"\\'")}')" title="${title}" style="text-align:center;font-size:12px;font-weight:${esHoy||esFestivo||enBD?'700':'500'};color:${color};background:${bg};border-radius:6px;padding:4px 2px;cursor:${cursor};line-height:1.4;border:${esHoy?'none':border}">${dia}</div>`;
+    }
+
+    mesesHtml += `
+      <div class="card" style="padding:12px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;color:var(--gris-700)">${meses[mes]}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">
+          ${celdas}
+        </div>
+      </div>
+    `;
+  }
+
+  // Lista de festivos/marcados
+  const todosFestivos = [...festivos.map(f => ({ ...f, tipo: 'nacional', enBD: !!calMap[f.fecha] }))];
+  _ficCalLaboral.forEach(d => {
+    if (!festivoMap[d.fecha]) todosFestivos.push({ fecha: d.fecha, desc: d.descripcion || d.tipo, tipo: d.tipo, enBD: true, id: d.id });
+  });
+  todosFestivos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  const html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div>
         <h2 style="font-size:17px;font-weight:800">Calendario Laboral ${anio}</h2>
-        <p style="font-size:11.5px;color:var(--gris-400)">${_ficCalLaboral.length} días marcados</p>
+        <p style="font-size:11.5px;color:var(--gris-400)">${_ficCalLaboral.length} días personalizados · ${festivos.length} festivos nacionales/autonómicos</p>
       </div>
       <button class="btn btn-primary btn-sm" onclick="_ficNuevoDiaCalendario()">+ Añadir día</button>
     </div>
 
-    <!-- Lista de días bloqueados -->
+    <!-- Leyenda -->
+    <div style="display:flex;gap:16px;margin-bottom:16px;font-size:11px;color:var(--gris-500);flex-wrap:wrap">
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--azul);border-radius:3px;vertical-align:middle;margin-right:4px"></span> Hoy</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#FEF3C7;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Festivo nacional/autonómico</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#FEE2E2;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Día marcado por empresa</span>
+    </div>
+
+    <!-- Calendario visual -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
+      ${mesesHtml}
+    </div>
+
+    <!-- Lista detallada -->
     <div class="card" style="padding:0;overflow:hidden">
       <table style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:var(--gris-50);border-bottom:1.5px solid var(--gris-200)">
-            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Fecha</th>
-            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Tipo</th>
-            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Descripción</th>
-            <th style="text-align:right;padding:12px 16px;font-size:12px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Acciones</th>
+            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Fecha</th>
+            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Tipo</th>
+            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Descripción</th>
+            <th style="text-align:right;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          ${_ficCalLaboral.length === 0 ? '<tr><td colspan="4" style="padding:40px;text-align:center;color:var(--gris-400)">Sin días festivos marcados</td></tr>' : ''}
-          ${_ficCalLaboral.map(d => {
-            const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-            return `
-              <tr style="border-bottom:1px solid var(--gris-100)">
-                <td style="padding:10px 16px;font-size:13px;font-weight:600">${fechaF}</td>
-                <td style="padding:10px 16px;font-size:12px">${tipoLabel[d.tipo] || d.tipo}</td>
-                <td style="padding:10px 16px;font-size:12px;color:var(--gris-500)">${d.descripcion || '—'}</td>
-                <td style="padding:10px 16px;text-align:right">
-                  <button class="btn btn-ghost btn-sm" onclick="_ficEliminarDiaCalendario(${d.id})">🗑️</button>
-                </td>
-              </tr>
-            `;
+          ${todosFestivos.map(d => {
+            const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+            const esNacional = d.tipo === 'nacional' && !d.enBD;
+            const badge = d.tipo === 'nacional' ? '<span style="background:#FEF3C7;color:#D97706;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Nacional/Auton.</span>'
+              : d.tipo === 'festivo' ? '<span style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Festivo</span>'
+              : d.tipo === 'cierre_empresa' ? '<span style="background:#DBEAFE;color:#2563EB;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Cierre empresa</span>'
+              : '<span style="background:#E0E7FF;color:#4F46E5;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">' + d.tipo + '</span>';
+            return `<tr style="border-bottom:1px solid var(--gris-100)">
+              <td style="padding:8px 16px;font-size:12px;font-weight:600">${fechaF}</td>
+              <td style="padding:8px 16px">${badge}</td>
+              <td style="padding:8px 16px;font-size:12px;color:var(--gris-500)">${d.desc || '—'}</td>
+              <td style="padding:8px 16px;text-align:right">${d.id ? `<button class="btn btn-ghost btn-sm" onclick="_ficEliminarDiaCalendario(${d.id})">🗑️</button>` : (esNacional ? '<span style="font-size:10px;color:var(--gris-300)">predefinido</span>' : '')}</td>
+            </tr>`;
           }).join('')}
         </tbody>
       </table>
@@ -995,6 +1098,27 @@ function _ficRenderCalendario(container) {
   container.innerHTML = html;
 }
 
+// Click en día del calendario → abrir modal de añadir si no es festivo ya guardado
+function _ficClickDiaCal(fecha, festivoDesc) {
+  const existente = _ficCalLaboral.find(d => d.fecha === fecha);
+  if (existente) {
+    if (confirm('¿Eliminar "' + (existente.descripcion || existente.tipo) + '" del ' + fecha + '?')) {
+      _ficEliminarDiaCalendario(existente.id);
+    }
+    return;
+  }
+  // Prellenar modal
+  _ficNuevoDiaCalendario();
+  setTimeout(() => {
+    const inputFecha = document.getElementById('cal_fecha');
+    if (inputFecha) inputFecha.value = fecha;
+    if (festivoDesc) {
+      const inputDesc = document.getElementById('cal_desc');
+      if (inputDesc) inputDesc.value = festivoDesc;
+    }
+  }, 100);
+}
+
 function _ficNuevoDiaCalendario() {
   const inner = document.getElementById('mFichaje')?.querySelector('.modal');
   if (!inner) return;
@@ -1002,25 +1126,25 @@ function _ficNuevoDiaCalendario() {
   inner.innerHTML = `
     <div class="modal-h"><span>📅</span><h2>Añadir Día al Calendario</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
-      <div class="form-g">
-        <div class="form-r" style="grid-template-columns:1fr 1fr">
-          <div class="form-f">
-            <label class="label">Fecha</label>
-            <input type="date" id="cal_fecha" class="input">
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha</label>
+            <input type="date" id="cal_fecha">
           </div>
-          <div class="form-f">
-            <label class="label">Tipo</label>
-            <select id="cal_tipo" class="input">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo</label>
+            <select id="cal_tipo">
               <option value="festivo">🔴 Festivo</option>
               <option value="cierre_empresa">🏢 Cierre empresa</option>
               <option value="medio_dia">🕐 Medio día</option>
             </select>
           </div>
         </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label">Descripción</label>
-            <input type="text" id="cal_desc" class="input" placeholder="Ej: Día de la Comunidad Autónoma">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Descripción</label>
+            <input type="text" id="cal_desc" placeholder="Ej: Día de la Comunidad Autónoma">
           </div>
         </div>
       </div>
@@ -1080,33 +1204,33 @@ function editFichaje(id) {
     <div class="modal-h"><span>⏱️</span><h2>Editar Fichaje</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
       <input type="hidden" id="fic_id" value="${f.id}">
-      <div class="form-g">
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label" for="fic_fecha">Fecha</label>
-            <input type="date" id="fic_fecha" class="input" value="${f.fecha}">
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px" for="fic_fecha">Fecha</label>
+            <input type="date" id="fic_fecha" value="${f.fecha}">
           </div>
         </div>
-        <div class="form-r" style="grid-template-columns:1fr 1fr">
-          <div class="form-f">
-            <label class="label" for="fic_entrada">Hora entrada</label>
-            <input type="time" id="fic_entrada" class="input" value="${f.hora_entrada ? f.hora_entrada.slice(0,5) : ''}">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px" for="fic_entrada">Hora entrada</label>
+            <input type="time" id="fic_entrada" value="${f.hora_entrada ? f.hora_entrada.slice(0,5) : ''}">
           </div>
-          <div class="form-f">
-            <label class="label" for="fic_salida">Hora salida</label>
-            <input type="time" id="fic_salida" class="input" value="${f.hora_salida ? f.hora_salida.slice(0,5) : ''}">
-          </div>
-        </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label" for="fic_motivo">Motivo de la corrección <span style="color:var(--rojo)">*</span></label>
-            <input type="text" id="fic_motivo" class="input" placeholder="Ej: Operario olvidó fichar entrada">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px" for="fic_salida">Hora salida</label>
+            <input type="time" id="fic_salida" value="${f.hora_salida ? f.hora_salida.slice(0,5) : ''}">
           </div>
         </div>
-        <div class="form-r">
-          <div class="form-f">
-            <label class="label" for="fic_observaciones">Observaciones</label>
-            <input type="text" id="fic_observaciones" class="input" placeholder="Notas adicionales (opcional)" value="${f.observaciones || f.notas || ''}">
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px" for="fic_motivo">Motivo de la corrección <span style="color:var(--rojo)">*</span></label>
+            <input type="text" id="fic_motivo" placeholder="Ej: Operario olvidó fichar entrada">
+          </div>
+        </div>
+        <div class="fg-row">
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px" for="fic_observaciones">Observaciones</label>
+            <input type="text" id="fic_observaciones" placeholder="Notas adicionales (opcional)" value="${f.observaciones || f.notas || ''}">
           </div>
         </div>
         ${f.latitud_entrada ? `<div style="font-size:11px;color:var(--gris-400);padding:4px 0">📍 Entrada: ${f.latitud_entrada?.toFixed(5)}, ${f.longitud_entrada?.toFixed(5)} | Origen: ${f.origen || 'manual'}</div>` : ''}
