@@ -81,38 +81,34 @@ async function _ficCargarCalendario() {
 function renderFichajes() {
   const container = document.getElementById('page-fichajes');
   if (!container) return;
-
   const esAdmin = CP.es_superadmin || CP.rol === 'admin';
-  const tb = document.getElementById('topbarBtns');
-
-  // Topbar: tabs de navegación
-  if (tb) {
-    tb.innerHTML = `
-      <div style="display:flex;gap:4px">
-        <button class="btn btn-sm ${_ficVista==='fichajes'?'btn-primary':'btn-secondary'}" onclick="_ficCambiarVista('fichajes')">⏱️ Fichajes</button>
-        <button class="btn btn-sm ${_ficVista==='ausencias'?'btn-primary':'btn-secondary'}" onclick="_ficCambiarVista('ausencias')">📋 Ausencias</button>
-        ${esAdmin ? `
-          <button class="btn btn-sm ${_ficVista==='timeline'?'btn-primary':'btn-secondary'}" onclick="_ficCambiarVista('timeline')">👥 Timeline</button>
-          <button class="btn btn-sm ${_ficVista==='calendario'?'btn-primary':'btn-secondary'}" onclick="_ficCambiarVista('calendario')">📅 Calendario</button>
-        ` : ''}
-      </div>
-    `;
-  }
-
-  switch (_ficVista) {
-    case 'fichajes':   _ficRenderFichajes(container, esAdmin); break;
-    case 'ausencias':  _ficRenderAusencias(container, esAdmin); break;
-    case 'timeline':   _ficRenderTimeline(container); break;
-    case 'calendario': _ficRenderCalendario(container); break;
-    default: _ficRenderFichajes(container, esAdmin);
-  }
+  _ficRenderFichajes(container, esAdmin);
 }
 
-function _ficCambiarVista(vista) {
-  _ficVista = vista;
-  if (vista === 'calendario') _ficCargarCalendario().then(() => renderFichajes());
-  else if (vista === 'timeline') _ficCargarTimelineData().then(() => renderFichajes());
-  else renderFichajes();
+// Funciones de carga para cada página independiente del sidebar
+async function loadAusencias() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  await _ficCargarAusencias();
+  const container = document.getElementById('page-ausencias');
+  if (!container) return;
+  const esAdmin = CP.es_superadmin || CP.rol === 'admin';
+  _ficRenderAusencias(container, esAdmin);
+}
+
+async function loadTimeline() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  await _ficCargarTimelineData();
+  const container = document.getElementById('page-timeline');
+  if (!container) return;
+  _ficRenderTimeline(container);
+}
+
+async function loadCalendarioLaboral() {
+  if (!EMPRESA || !EMPRESA.id) return;
+  await _ficCargarCalendario();
+  const container = document.getElementById('page-calendario-laboral');
+  if (!container) return;
+  _ficRenderCalendario(container);
 }
 
 // ═══════════════════════════════════════════════
