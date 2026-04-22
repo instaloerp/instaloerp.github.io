@@ -19,24 +19,12 @@ let _ficVista = 'fichajes';   // 'fichajes' | 'ausencias' | 'timeline' | 'calend
 
 // Tipos de calendario laboral (configurables por empresa)
 const _CAL_TIPOS_DEFAULT = [
-  // — Festivos —
   { clave: 'festivo', nombre: 'Festivo nacional/autonómico', emoji: '🔴', color: '#DC2626', bg: '#FEE2E2' },
   { clave: 'festivo_local', nombre: 'Festivo local', emoji: '📍', color: '#EA580C', bg: '#FFEDD5' },
-  // — Convenio siderometal Lugo —
   { clave: 'convenio', nombre: 'Día de convenio', emoji: '📋', color: '#7C3AED', bg: '#EDE9FE' },
-  // — Vacaciones y cierre —
   { clave: 'vacaciones_empresa', nombre: 'Vacaciones empresa (cierre)', emoji: '🏖️', color: '#10B981', bg: '#D1FAE5', consume_vacaciones: true },
   { clave: 'vacaciones_personal', nombre: 'Vacaciones personales', emoji: '🌴', color: '#059669', bg: '#ECFDF5', consume_vacaciones: true },
-  // — Jornada especial —
-  { clave: 'puente', nombre: 'Puente', emoji: '🌉', color: '#0891B2', bg: '#CFFAFE' },
-  { clave: 'medio_dia', nombre: 'Jornada reducida / Medio día', emoji: '🕐', color: '#D97706', bg: '#FEF3C7' },
-  { clave: 'inhabil', nombre: 'Inhábil', emoji: '⛔', color: '#4B5563', bg: '#F3F4F6' },
-  { clave: 'horas_cero', nombre: 'Horas cero', emoji: '0️⃣', color: '#374151', bg: '#F3F4F6' },
-  { clave: 'libre_disposicion', nombre: 'Libre disposición', emoji: '🙋', color: '#0D9488', bg: '#CCFBF1' },
-  // — Permisos retribuidos (Art.32 convenio siderometal Lugo) —
   { clave: 'permiso', nombre: 'Permiso retribuido', emoji: '📄', color: '#6D28D9', bg: '#F5F3FF', requiere_desc: true },
-  // — Otros —
-  { clave: 'otro', nombre: 'Otro', emoji: '📝', color: '#9CA3AF', bg: '#F9FAFB' },
 ];
 
 // Subtipos de permisos según Art.32 Convenio Siderometal Lugo
