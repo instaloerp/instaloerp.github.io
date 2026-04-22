@@ -728,6 +728,9 @@ async function _autoDetectarNominas() {
   const emailGestoria = EMPRESA.config?.email_gestoria;
   if (!emailGestoria) return;
 
+  // Esperar 5s a que la conexión IMAP se libere tras el sync
+  await new Promise(r => setTimeout(r, 5000));
+
   // Buscar correos de la gestoría con adjuntos nómina (individual o combinada)
   const candidatos = correos.filter(c =>
     c.tipo === 'recibido'
@@ -743,7 +746,16 @@ async function _autoDetectarNominas() {
   const empMap = {};
   (empleados || []).forEach(e => { if (e.dni) empMap[e.dni.toUpperCase().replace(/\s/g, '')] = e; });
 
+  if (!Object.keys(empMap).length) {
+    console.log('[autoNominas] No hay empleados con DNI configurado, omitiendo');
+    candidatos.forEach(c => _nominasProcesadas.add(c.id));
+    return;
+  }
+
   for (const c of candidatos) {
+    // SIEMPRE marcar como procesado antes de empezar (evita bucle de reintentos)
+    _nominasProcesadas.add(c.id);
+
     // Extraer periodo del primer adjunto para comprobar si ya existe
     const primerAdj = c.adjuntos_meta.find(a => _esNominaIndividual(a.nombre) || _esNominaCombinada(a.nombre));
     const perMatch = (primerAdj?.nombre || '').match(/^(\d{4})_(\d{2})/);
@@ -751,26 +763,28 @@ async function _autoDetectarNominas() {
       const periodo = perMatch[1] + '-' + perMatch[2];
       const { data: existentes } = await sb.from('documentos_empleado')
         .select('id').eq('empresa_id', EMPRESA.id).eq('categoria', 'nomina').eq('periodo', periodo).limit(1);
-      if (existentes?.length) { _nominasProcesadas.add(c.id); continue; }
+      if (existentes?.length) continue; // Ya procesadas
     }
 
-    // Procesar adjuntos
-    const individuales = c.adjuntos_meta.filter(a => _esNominaIndividual(a.nombre));
-    const combinados = c.adjuntos_meta.filter(a => _esNominaCombinada(a.nombre));
+    try {
+      // Procesar adjuntos
+      const individuales = c.adjuntos_meta.filter(a => _esNominaIndividual(a.nombre));
+      const combinados = c.adjuntos_meta.filter(a => _esNominaCombinada(a.nombre));
 
-    let totalProc = individuales.length + (combinados.length ? '(+PDF combinado)' : '');
-    toast('💰 Nóminas detectadas de la gestoría — procesando...', 'info');
+      toast('💰 Nóminas detectadas de la gestoría — procesando...', 'info');
 
-    if (individuales.length) {
-      await _procesarNominasIndividuales(c.id, individuales, empMap);
-    }
-    if (combinados.length) {
-      for (const adj of combinados) {
-        await _procesarNominaCombinada(c.id, adj, empMap);
+      if (individuales.length) {
+        await _procesarNominasIndividuales(c.id, individuales, empMap);
       }
+      if (combinados.length) {
+        for (const adj of combinados) {
+          await _procesarNominaCombinada(c.id, adj, empMap);
+        }
+      }
+    } catch (e) {
+      console.warn('[autoNominas] Error procesando correo ' + c.id + ':', e.message);
+      // Ya está marcado, no reintentará
     }
-
-    _nominasProcesadas.add(c.id);
   }
 }
 
@@ -853,9 +867,16 @@ async function _descargarAdjuntoBlob(correoId, nombre) {
   const { data, error } = await sb.functions.invoke('leer-correo', {
     body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: nombre }
   });
-  if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
+  if (error) {
+    console.error('[descargarBlob] Edge Function error:', error);
+    throw new Error('Error en Edge Function: ' + (error.message || JSON.stringify(error)));
+  }
+  if (!data?.success || !data?.adjunto?.url) {
+    console.error('[descargarBlob] Respuesta sin URL:', JSON.stringify(data));
+    throw new Error(data?.error || 'El adjunto no devolvió URL de descarga');
+  }
   const resp = await fetch(data.adjunto.url);
-  if (!resp.ok) throw new Error('Error descargando archivo');
+  if (!resp.ok) throw new Error('Error HTTP ' + resp.status + ' descargando archivo');
   return await resp.blob();
 }
 
