@@ -1059,39 +1059,27 @@ function _ficRenderCalendario(container) {
       <span><span style="display:inline-block;width:12px;height:12px;background:#FEE2E2;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Día marcado por empresa</span>
     </div>
 
-    <!-- Calendario visual -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
+    <!-- Calendario visual 6x2 -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px">
       ${mesesHtml}
     </div>
 
-    <!-- Lista detallada -->
-    <div class="card" style="padding:0;overflow:hidden">
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="background:var(--gris-50);border-bottom:1.5px solid var(--gris-200)">
-            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Fecha</th>
-            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Tipo</th>
-            <th style="text-align:left;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Descripción</th>
-            <th style="text-align:right;padding:10px 16px;font-size:11px;font-weight:700;color:var(--gris-600);text-transform:uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${todosFestivos.map(d => {
-            const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
-            const esNacional = d.tipo === 'nacional' && !d.enBD;
-            const badge = d.tipo === 'nacional' ? '<span style="background:#FEF3C7;color:#D97706;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Nacional/Auton.</span>'
-              : d.tipo === 'festivo' ? '<span style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Festivo</span>'
-              : d.tipo === 'cierre_empresa' ? '<span style="background:#DBEAFE;color:#2563EB;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">Cierre empresa</span>'
-              : '<span style="background:#E0E7FF;color:#4F46E5;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">' + d.tipo + '</span>';
-            return `<tr style="border-bottom:1px solid var(--gris-100)">
-              <td style="padding:8px 16px;font-size:12px;font-weight:600">${fechaF}</td>
-              <td style="padding:8px 16px">${badge}</td>
-              <td style="padding:8px 16px;font-size:12px;color:var(--gris-500)">${d.desc || '—'}</td>
-              <td style="padding:8px 16px;text-align:right">${d.id ? `<button class="btn btn-ghost btn-sm" onclick="_ficEliminarDiaCalendario(${d.id})">🗑️</button>` : (esNacional ? '<span style="font-size:10px;color:var(--gris-300)">predefinido</span>' : '')}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+    <!-- Lista detallada en columnas -->
+    <div class="card" style="padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--gris-600);text-transform:uppercase;margin-bottom:10px;letter-spacing:0.5px">Días festivos y marcados</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px">
+        ${todosFestivos.map(d => {
+          const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+          const esNacional = d.tipo === 'nacional';
+          const dotColor = esNacional ? '#D97706' : d.tipo === 'festivo' ? '#DC2626' : d.tipo === 'cierre_empresa' ? '#2563EB' : '#4F46E5';
+          return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11.5px;border-bottom:1px solid var(--gris-50)">
+            <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+            <span style="font-weight:600;color:var(--gris-600);min-width:50px">${fechaF}</span>
+            <span style="color:var(--gris-500);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.desc || d.tipo}</span>
+            ${d.id ? `<button class="btn btn-ghost" style="padding:0;font-size:10px;min-width:auto" onclick="_ficEliminarDiaCalendario(${d.id})">✕</button>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
     </div>
   `;
 
@@ -1111,7 +1099,9 @@ function _ficClickDiaCal(fecha, festivoDesc) {
   _ficNuevoDiaCalendario();
   setTimeout(() => {
     const inputFecha = document.getElementById('cal_fecha');
+    const inputFechaFin = document.getElementById('cal_fecha_fin');
     if (inputFecha) inputFecha.value = fecha;
+    if (inputFechaFin) inputFechaFin.value = fecha;
     if (festivoDesc) {
       const inputDesc = document.getElementById('cal_desc');
       if (inputDesc) inputDesc.value = festivoDesc;
@@ -1124,14 +1114,20 @@ function _ficNuevoDiaCalendario() {
   if (!inner) return;
 
   inner.innerHTML = `
-    <div class="modal-h"><span>📅</span><h2>Añadir Día al Calendario</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
+    <div class="modal-h"><span>📅</span><h2>Añadir días al Calendario</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
       <div style="display:flex;flex-direction:column;gap:11px">
         <div class="fg-row">
           <div class="fg">
-            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha</label>
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha inicio</label>
             <input type="date" id="cal_fecha">
           </div>
+          <div class="fg">
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Fecha fin</label>
+            <input type="date" id="cal_fecha_fin">
+          </div>
+        </div>
+        <div class="fg-row">
           <div class="fg">
             <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo</label>
             <select id="cal_tipo">
@@ -1140,11 +1136,9 @@ function _ficNuevoDiaCalendario() {
               <option value="medio_dia">🕐 Medio día</option>
             </select>
           </div>
-        </div>
-        <div class="fg-row">
           <div class="fg">
             <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Descripción</label>
-            <input type="text" id="cal_desc" placeholder="Ej: Día de la Comunidad Autónoma">
+            <input type="text" id="cal_desc" placeholder="Ej: Vacaciones empresa, festivo local...">
           </div>
         </div>
       </div>
@@ -1159,25 +1153,37 @@ function _ficNuevoDiaCalendario() {
 }
 
 async function _ficGuardarDiaCalendario() {
-  const fecha = document.getElementById('cal_fecha')?.value;
+  const fechaInicio = document.getElementById('cal_fecha')?.value;
+  const fechaFin = document.getElementById('cal_fecha_fin')?.value || fechaInicio;
   const tipo = document.getElementById('cal_tipo')?.value;
   const desc = document.getElementById('cal_desc')?.value || '';
 
-  if (!fecha) { toast('Fecha obligatoria', 'error'); return; }
+  if (!fechaInicio) { toast('Fecha inicio obligatoria', 'error'); return; }
 
-  const { error } = await sb.from('calendario_laboral').insert({
-    empresa_id: EMPRESA.id,
-    fecha,
-    tipo,
-    descripcion: desc,
-    created_by: CU.id
-  });
+  // Generar array de fechas en el rango
+  const fechas = [];
+  const inicio = new Date(fechaInicio + 'T00:00:00');
+  const fin = new Date((fechaFin || fechaInicio) + 'T00:00:00');
+  if (fin < inicio) { toast('La fecha fin debe ser igual o posterior a la de inicio', 'error'); return; }
+
+  const cursor = new Date(inicio);
+  while (cursor <= fin) {
+    fechas.push(cursor.toISOString().split('T')[0]);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  if (fechas.length > 60) { toast('Máximo 60 días de una vez', 'error'); return; }
+
+  // Insertar todas las fechas (ignorar duplicados con onConflict)
+  const rows = fechas.map(f => ({ empresa_id: EMPRESA.id, fecha: f, tipo, descripcion: desc, created_by: CU.id }));
+  const { error } = await sb.from('calendario_laboral').upsert(rows, { onConflict: 'empresa_id,fecha' });
 
   if (error) { toast('Error: ' + error.message, 'error'); return; }
-  toast('Día añadido al calendario ✓', 'success');
+  toast(`${fechas.length} día${fechas.length > 1 ? 's' : ''} añadido${fechas.length > 1 ? 's' : ''} al calendario`, 'success');
   closeModal('mFichaje');
   await _ficCargarCalendario();
-  renderFichajes();
+  const cont = document.getElementById('page-calendario-laboral');
+  if (cont) _ficRenderCalendario(cont);
 }
 
 async function _ficEliminarDiaCalendario(id) {
@@ -1187,7 +1193,8 @@ async function _ficEliminarDiaCalendario(id) {
   await sb.from('calendario_laboral').delete().eq('id', id);
   _ficCalLaboral = _ficCalLaboral.filter(d => d.id !== id);
   toast('Día eliminado', 'info');
-  renderFichajes();
+  const cont = document.getElementById('page-calendario-laboral');
+  if (cont) _ficRenderCalendario(cont);
 }
 
 // ═══════════════════════════════════════════════
