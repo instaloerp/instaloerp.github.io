@@ -682,6 +682,37 @@ function _ficObtenerGPS() {
 // ═══════════════════════════════════════════════
 //  VISTA AUSENCIAS
 // ═══════════════════════════════════════════════
+function _ficRenderPermisosKPI(anio) {
+  const permisosAnio = _ficAusencias.filter(a => a.tipo === 'permiso' && (a.estado === 'aprobada' || a.estado === 'pendiente') && a.fecha_inicio?.startsWith(String(anio)));
+  const fmUsados = permisosAnio.filter(a => a.subtipo_permiso === 'fuerza_mayor').reduce((s,a) => s + (a.dias_totales||0), 0);
+  const fmRest = Math.max(0, 4 - fmUsados);
+  const cmUsados = permisosAnio.filter(a => a.subtipo_permiso === 'consulta_medica').reduce((s,a) => s + (a.dias_totales||0), 0);
+  const otrosUsados = permisosAnio.filter(a => a.subtipo_permiso !== 'fuerza_mayor' && a.subtipo_permiso !== 'consulta_medica').reduce((s,a) => s + (a.dias_totales||0), 0);
+
+  const fmColor = fmRest > 0 ? '#6D28D9' : '#DC2626';
+  let otrosHtml = '';
+  if (otrosUsados > 0) {
+    otrosHtml = '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#F5F3FF;border-radius:8px;grid-column:span 2">'
+      + '<div style="font-size:22px;font-weight:800;color:#6D28D9">' + otrosUsados + 'd</div>'
+      + '<div><div style="font-size:11px;font-weight:700;color:#6D28D9">Otros permisos retribuidos</div>'
+      + '<div style="font-size:10px;color:var(--gris-500)">Fallecimiento, matrimonio, mudanza, etc.</div></div></div>';
+  }
+
+  return '<div class="card" style="padding:16px;margin-bottom:16px">'
+    + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--gris-600);margin-bottom:10px;letter-spacing:0.5px">Permisos retribuidos ' + anio + ' <span style="font-weight:400;color:var(--gris-400)">(Art.32 Convenio Siderometal)</span></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#F5F3FF;border-radius:8px">'
+    + '<div style="font-size:22px;font-weight:800;color:' + fmColor + '">' + fmRest + '</div>'
+    + '<div><div style="font-size:11px;font-weight:700;color:#6D28D9">Fuerza mayor familiar</div>'
+    + '<div style="font-size:10px;color:var(--gris-500)">' + fmUsados + ' de 4 días usados</div></div></div>'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#F5F3FF;border-radius:8px">'
+    + '<div style="font-size:22px;font-weight:800;color:#6D28D9">' + (cmUsados > 0 ? cmUsados+'d' : '20h') + '</div>'
+    + '<div><div style="font-size:11px;font-weight:700;color:#6D28D9">Consulta médica</div>'
+    + '<div style="font-size:10px;color:var(--gris-500)">' + (cmUsados > 0 ? cmUsados+' días solicitados' : '20h anuales disponibles') + '</div></div></div>'
+    + otrosHtml
+    + '</div></div>';
+}
+
 function _ficRenderAusencias(container, esAdmin) {
   const pendientes = _ficAusencias.filter(a => a.estado === 'pendiente');
   const aprobadas = _ficAusencias.filter(a => a.estado === 'aprobada');
@@ -714,8 +745,8 @@ function _ficRenderAusencias(container, esAdmin) {
   const hoyDate = new Date();
   const fueraDePlazo = hoyDate >= plazoVac;
 
-  const tipoLabel = { vacaciones: '🏖️ Vacaciones', baja_medica: '🏥 Baja médica', permiso: '📋 Permiso',
-    asuntos_propios: '🙋 Asuntos propios', maternidad: '🤱 Maternidad', paternidad: '👨‍🍼 Paternidad', otro: '📝 Otro' };
+  const tipoLabel = { vacaciones: '🏖️ Vacaciones', baja_medica: '🏥 Baja médica', permiso: '📄 Permiso retribuido',
+    maternidad: '🤱 Maternidad/Paternidad', otro: '📝 Otro' };
   const estadoBadge = { pendiente: '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">⏳ Pendiente</span>',
     aprobada: '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ Aprobada</span>',
     rechazada: '<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">❌ Rechazada</span>' };
@@ -754,6 +785,9 @@ function _ficRenderAusencias(container, esAdmin) {
         </div>
       </div>
     </div>
+
+    <!-- PERMISOS RETRIBUIDOS (Art.32 Convenio Siderometal Lugo) -->
+    ${_ficRenderPermisosKPI(anio)}
 
     <!-- KPIs Solicitudes -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
@@ -819,19 +853,24 @@ function _ficNuevaAusencia() {
     <div class="modal-h"><span>📋</span><h2>Nueva Solicitud de Ausencia</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
     <div class="modal-b">
       <div style="display:flex;flex-direction:column;gap:11px">
-        <div class="fg-row">
+        <div class="fg">
+          <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo de ausencia</label>
+          <select id="aus_tipo" onchange="_ausOnTipoChange()">
+            <option value="vacaciones">🏖️ Vacaciones personales</option>
+            <option value="permiso">📄 Permiso retribuido (convenio)</option>
+            <option value="baja_medica">🏥 Baja médica</option>
+            <option value="maternidad">🤱 Maternidad/Paternidad</option>
+            <option value="otro">📝 Otro</option>
+          </select>
+        </div>
+        <div id="aus_permiso_wrap" style="display:none">
           <div class="fg">
-            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo de ausencia</label>
-            <select id="aus_tipo">
-              <option value="vacaciones">🏖️ Vacaciones</option>
-              <option value="permiso">📋 Permiso</option>
-              <option value="baja_medica">🏥 Baja médica</option>
-              <option value="asuntos_propios">🙋 Asuntos propios</option>
-              <option value="maternidad">🤱 Maternidad</option>
-              <option value="paternidad">👨‍🍼 Paternidad</option>
-              <option value="otro">📝 Otro</option>
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo de permiso (Art.32 Convenio Siderometal)</label>
+            <select id="aus_subtipo_permiso" onchange="_ausOnSubtipoChange()">
+              ${_PERMISOS_CONVENIO.map(p => '<option value="'+p.clave+'" data-dias="'+p.dias+'">'+p.nombre+(p.dias?' — '+p.dias:'')+'</option>').join('')}
             </select>
           </div>
+          <div id="aus_permiso_info" style="background:#F5F3FF;border:1px solid #EDE9FE;border-radius:8px;padding:10px;font-size:11px;color:#6D28D9;margin-top:6px"></div>
         </div>
         <div class="fg-row">
           <div class="fg">
@@ -864,6 +903,42 @@ function _ficNuevaAusencia() {
   `;
 
   openModal('mFichaje', true);
+}
+
+function _ausOnTipoChange() {
+  const tipo = document.getElementById('aus_tipo')?.value;
+  const wrap = document.getElementById('aus_permiso_wrap');
+  if (wrap) wrap.style.display = (tipo === 'permiso') ? '' : 'none';
+  if (tipo === 'permiso') _ausOnSubtipoChange();
+}
+
+function _ausOnSubtipoChange() {
+  const sel = document.getElementById('aus_subtipo_permiso');
+  const info = document.getElementById('aus_permiso_info');
+  if (!sel || !info) return;
+  const opt = sel.options[sel.selectedIndex];
+  const clave = opt.value;
+  const dias = opt.dataset.dias || '';
+  // Calcular uso actual del año
+  const anio = new Date().getFullYear();
+  const usados = _ficAusencias.filter(a =>
+    a.tipo === 'permiso' && a.subtipo_permiso === clave &&
+    (a.estado === 'aprobada' || a.estado === 'pendiente') &&
+    a.fecha_inicio?.startsWith(String(anio))
+  );
+  const diasUsados = usados.reduce((s, a) => s + (a.dias_totales || 0), 0);
+  // Info específica para fuerza mayor (4 días/año)
+  if (clave === 'fuerza_mayor') {
+    const restantes = Math.max(0, 4 - diasUsados);
+    info.innerHTML = `<strong>Fuerza mayor familiar:</strong> ${diasUsados} días usados de 4 disponibles · <strong>${restantes} restantes</strong>`;
+  } else if (clave === 'consulta_medica') {
+    info.innerHTML = `<strong>Consulta médica:</strong> ${diasUsados} días usados · Límite: 20h anuales (cabecera SS)`;
+  } else {
+    info.innerHTML = `<strong>${opt.text.split('—')[0].trim()}:</strong> ${dias}${diasUsados > 0 ? ' · '+diasUsados+' días usados este año' : ''}`;
+  }
+  // Auto-fill motivo
+  const motivo = document.getElementById('aus_motivo');
+  if (motivo && !motivo.value) motivo.placeholder = opt.text.split('—')[0].trim();
 }
 
 async function _ficGuardarAusencia() {
@@ -902,7 +977,11 @@ async function _ficGuardarAusencia() {
     }
   }
 
-  const { error } = await sb.from('ausencias').insert({
+  // Si es permiso, guardar subtipo
+  const subtipo = (tipo === 'permiso') ? document.getElementById('aus_subtipo_permiso')?.value || null : null;
+  const subtipoNombre = (tipo === 'permiso') ? (document.getElementById('aus_subtipo_permiso')?.options[document.getElementById('aus_subtipo_permiso').selectedIndex]?.text?.split('—')[0]?.trim() || '') : '';
+
+  const row = {
     empresa_id: EMPRESA.id,
     usuario_id: CU.id,
     usuario_nombre: CP.nombre || '',
@@ -910,10 +989,14 @@ async function _ficGuardarAusencia() {
     fecha_inicio: inicio,
     fecha_fin: fin,
     dias_totales: dias,
-    motivo,
+    motivo: (subtipo && !motivo) ? subtipoNombre : motivo,
     documento_url: docUrl,
     estado: 'pendiente'
-  });
+  };
+  // Añadir subtipo si la columna existe (metadata JSONB)
+  if (subtipo) row.subtipo_permiso = subtipo;
+
+  const { error } = await sb.from('ausencias').insert(row);
 
   if (error) { toast('Error: ' + error.message, 'error'); return; }
 
