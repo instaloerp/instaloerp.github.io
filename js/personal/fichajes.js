@@ -83,7 +83,7 @@ function renderFichajes() {
   if (!container) return;
 
   const esAdmin = CP.es_superadmin || CP.rol === 'admin';
-  const tb = document.getElementById('topbar-actions');
+  const tb = document.getElementById('topbarBtns');
 
   // Topbar: tabs de navegación
   if (tb) {

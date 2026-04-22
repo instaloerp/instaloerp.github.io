@@ -161,19 +161,26 @@ async function syncTransactions(
     .eq("id", cuentaBancariaId)
     .single();
 
-  // Calcular date_from: última sync o 1 año atrás (máximo permitido por PSD2/banco)
+  // Calcular date_from: SIEMPRE como mínimo desde 1 de enero del año en curso
+  // Si hay lastSync anterior al 1-ene, usar esa fecha (más atrás aún)
+  // Si no hay lastSync, pedir 1 año completo hacia atrás
   const lastSync = cuenta?.nordigen_ultimo_sync;
+  const ene1 = `${new Date().getFullYear()}-01-01`;  // 1 de enero año actual
+
   let dateFrom: string;
   if (lastSync) {
-    // Desde la última sincronización (con 1 día de margen para no perder nada)
     const d = new Date(lastSync);
     d.setDate(d.getDate() - 1);
-    dateFrom = d.toISOString().slice(0, 10);
+    const fromSync = d.toISOString().slice(0, 10);
+    // Usar la fecha más antigua entre lastSync-1 y 1-ene
+    dateFrom = fromSync < ene1 ? fromSync : ene1;
   } else {
-    // Primera sync: pedir hasta 1 año atrás (el banco limitará si no soporta tanto)
+    // Primera sync: 1 año atrás (el banco limitará si no soporta tanto)
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);
-    dateFrom = d.toISOString().slice(0, 10);
+    const fromYear = d.toISOString().slice(0, 10);
+    // Usar la más antigua entre 1 año atrás y 1-ene
+    dateFrom = fromYear < ene1 ? fromYear : ene1;
   }
 
   // Obtener transacciones desde date_from
