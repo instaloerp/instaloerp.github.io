@@ -19,17 +19,45 @@ let _ficVista = 'fichajes';   // 'fichajes' | 'ausencias' | 'timeline' | 'calend
 
 // Tipos de calendario laboral (configurables por empresa)
 const _CAL_TIPOS_DEFAULT = [
+  // — Festivos —
   { clave: 'festivo', nombre: 'Festivo nacional/autonómico', emoji: '🔴', color: '#DC2626', bg: '#FEE2E2' },
   { clave: 'festivo_local', nombre: 'Festivo local', emoji: '📍', color: '#EA580C', bg: '#FFEDD5' },
+  // — Convenio siderometal Lugo —
   { clave: 'convenio', nombre: 'Día de convenio', emoji: '📋', color: '#7C3AED', bg: '#EDE9FE' },
-  { clave: 'cierre_empresa', nombre: 'Cierre empresa', emoji: '🏢', color: '#2563EB', bg: '#DBEAFE', consume_vacaciones: true },
+  // — Vacaciones y cierre —
+  { clave: 'vacaciones_empresa', nombre: 'Vacaciones empresa (cierre)', emoji: '🏖️', color: '#10B981', bg: '#D1FAE5', consume_vacaciones: true },
+  { clave: 'vacaciones_personal', nombre: 'Vacaciones personales', emoji: '🌴', color: '#059669', bg: '#ECFDF5', consume_vacaciones: true },
+  // — Jornada especial —
   { clave: 'puente', nombre: 'Puente', emoji: '🌉', color: '#0891B2', bg: '#CFFAFE' },
   { clave: 'medio_dia', nombre: 'Jornada reducida / Medio día', emoji: '🕐', color: '#D97706', bg: '#FEF3C7' },
-  { clave: 'libre_disposicion', nombre: 'Libre disposición', emoji: '🙋', color: '#059669', bg: '#D1FAE5' },
   { clave: 'inhabil', nombre: 'Inhábil', emoji: '⛔', color: '#4B5563', bg: '#F3F4F6' },
   { clave: 'horas_cero', nombre: 'Horas cero', emoji: '0️⃣', color: '#374151', bg: '#F3F4F6' },
-  { clave: 'vacaciones_empresa', nombre: 'Vacaciones empresa', emoji: '🏖️', color: '#10B981', bg: '#D1FAE5', consume_vacaciones: true },
+  { clave: 'libre_disposicion', nombre: 'Libre disposición', emoji: '🙋', color: '#0D9488', bg: '#CCFBF1' },
+  // — Permisos retribuidos (Art.32 convenio siderometal Lugo) —
+  { clave: 'permiso', nombre: 'Permiso retribuido', emoji: '📄', color: '#6D28D9', bg: '#F5F3FF', requiere_desc: true },
+  // — Otros —
   { clave: 'otro', nombre: 'Otro', emoji: '📝', color: '#9CA3AF', bg: '#F9FAFB' },
+];
+
+// Subtipos de permisos según Art.32 Convenio Siderometal Lugo
+const _PERMISOS_CONVENIO = [
+  { clave: 'fallecimiento_conyuge_hijos', nombre: 'Fallecimiento cónyuge/hijos', dias: '7 días naturales' },
+  { clave: 'fallecimiento_padres', nombre: 'Fallecimiento padres', dias: '4 días (5 con desplazamiento)' },
+  { clave: 'fallecimiento_otros', nombre: 'Fallecimiento abuelos/suegros/nietos/cuñados/hermanos', dias: '2 días (4 con desplazamiento)' },
+  { clave: 'fallecimiento_tios', nombre: 'Fallecimiento tíos (consanguinidad)', dias: '1 día' },
+  { clave: 'hospitalizacion', nombre: 'Hospitalización/enfermedad grave familiar', dias: '5 días naturales (RDL 5/2023)' },
+  { clave: 'matrimonio_propio', nombre: 'Matrimonio propio / Registro pareja de hecho', dias: '15 días naturales' },
+  { clave: 'matrimonio_familiar', nombre: 'Matrimonio hijos/hermanos', dias: '1 día (+1 con desplazamiento)' },
+  { clave: 'mudanza', nombre: 'Mudanza (cambio domicilio)', dias: '1 día laborable' },
+  { clave: 'consulta_medica', nombre: 'Consulta médica', dias: 'Tiempo necesario (máx 20h/año cabecera)' },
+  { clave: 'examen_prenatal', nombre: 'Exámenes prenatales', dias: 'Tiempo necesario' },
+  { clave: 'fuerza_mayor', nombre: 'Fuerza mayor familiar', dias: '4 días/año retribuidos' },
+  { clave: 'deber_publico', nombre: 'Deber público inescusable', dias: 'Tiempo indispensable' },
+  { clave: 'lactancia', nombre: 'Permiso lactancia', dias: '1h/día hasta 9 meses (acumulable)' },
+  { clave: 'nacimiento', nombre: 'Nacimiento/adopción (suspensión)', dias: '16 semanas' },
+  { clave: 'permiso_parental', nombre: 'Permiso parental (hasta 8 años)', dias: '8 semanas' },
+  { clave: 'formacion', nombre: 'Permiso individual formación (PIF)', dias: '20h/año acumulables 5 años' },
+  { clave: 'otro_permiso', nombre: 'Otro permiso', dias: '' },
 ];
 
 function _calGetTipos() {
@@ -39,6 +67,13 @@ function _calGetTipos() {
 function _calTipoInfo(clave) {
   const tipos = _calGetTipos();
   return tipos.find(t => t.clave === clave) || { clave, nombre: clave, emoji: '📝', color: '#9CA3AF', bg: '#F9FAFB' };
+}
+
+// Toggle subtipo permiso en modal calendario
+function _calTipoChange() {
+  const tipo = document.getElementById('cal_tipo')?.value;
+  const wrap = document.getElementById('cal_permiso_wrap');
+  if (wrap) wrap.style.display = (tipo === 'permiso') ? '' : 'none';
 }
 
 // Radio de geofence en metros
@@ -1047,21 +1082,24 @@ function _ficFestivosNacionales(anio) {
   const pascua = new Date(anio, mesPascua - 1, diaPascua);
   const viernesSanto = new Date(pascua); viernesSanto.setDate(pascua.getDate() - 2);
 
+  const juevesSanto = new Date(pascua); juevesSanto.setDate(pascua.getDate() - 3);
   const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   return [
-    { fecha: `${anio}-01-01`, desc: 'Año Nuevo' },
-    { fecha: `${anio}-01-06`, desc: 'Reyes Magos' },
-    { fecha: fmt(viernesSanto), desc: 'Viernes Santo' },
-    { fecha: `${anio}-05-01`, desc: 'Día del Trabajador' },
-    { fecha: `${anio}-08-15`, desc: 'Asunción de la Virgen' },
-    { fecha: `${anio}-10-12`, desc: 'Fiesta Nacional' },
-    { fecha: `${anio}-11-01`, desc: 'Todos los Santos' },
-    { fecha: `${anio}-12-06`, desc: 'Día de la Constitución' },
-    { fecha: `${anio}-12-08`, desc: 'Inmaculada Concepción' },
-    { fecha: `${anio}-12-25`, desc: 'Navidad' },
+    // Nacionales
+    { fecha: `${anio}-01-01`, desc: 'Año Nuevo', tipo: 'festivo' },
+    { fecha: `${anio}-01-06`, desc: 'Reyes Magos', tipo: 'festivo' },
+    { fecha: fmt(juevesSanto), desc: 'Jueves Santo', tipo: 'festivo' },
+    { fecha: fmt(viernesSanto), desc: 'Viernes Santo', tipo: 'festivo' },
+    { fecha: `${anio}-05-01`, desc: 'Fiesta del Trabajo', tipo: 'festivo' },
+    { fecha: `${anio}-08-15`, desc: 'Asunción de la Virgen', tipo: 'festivo' },
+    { fecha: `${anio}-10-12`, desc: 'Fiesta Nacional de España', tipo: 'festivo' },
+    { fecha: `${anio}-11-01`, desc: 'Todos los Santos', tipo: 'festivo' },
+    { fecha: `${anio}-12-06`, desc: 'Día de la Constitución', tipo: 'festivo' },
+    { fecha: `${anio}-12-08`, desc: 'Inmaculada Concepción', tipo: 'festivo' },
+    { fecha: `${anio}-12-25`, desc: 'Navidad', tipo: 'festivo' },
     // Galicia
-    { fecha: `${anio}-05-17`, desc: 'Día das Letras Galegas' },
-    { fecha: `${anio}-07-25`, desc: 'Día Nacional de Galicia' },
+    { fecha: `${anio}-05-17`, desc: 'Día das Letras Galegas', tipo: 'festivo' },
+    { fecha: `${anio}-07-25`, desc: 'Santiago — Día Nacional de Galicia', tipo: 'festivo' },
   ];
 }
 
@@ -1129,9 +1167,9 @@ function _ficRenderCalendario(container) {
   }
 
   // Lista de festivos/marcados
-  const todosFestivos = [...festivos.map(f => ({ ...f, tipo: 'nacional', enBD: !!calMap[f.fecha] }))];
+  const todosFestivos = [...festivos.map(f => ({ ...f, tipo_cal: 'festivo', enBD: !!calMap[f.fecha] }))];
   _ficCalLaboral.forEach(d => {
-    if (!festivoMap[d.fecha]) todosFestivos.push({ fecha: d.fecha, desc: d.descripcion || d.tipo, tipo: d.tipo, enBD: true, id: d.id });
+    if (!festivoMap[d.fecha]) todosFestivos.push({ fecha: d.fecha, desc: d.descripcion || _calTipoInfo(d.tipo).nombre, tipo_cal: d.tipo, enBD: true, id: d.id });
   });
   todosFestivos.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
@@ -1165,9 +1203,8 @@ function _ficRenderCalendario(container) {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px">
         ${todosFestivos.map(d => {
           const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-          const esNacional = d.tipo === 'nacional';
-          const _ti = _calTipoInfo(esNacional ? 'nacional_auto' : d.tipo);
-          const dotColor = esNacional ? '#D97706' : _ti.color;
+          const _ti = _calTipoInfo(d.tipo_cal);
+          const dotColor = _ti.color;
           return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11.5px;border-bottom:1px solid var(--gris-50)">
             <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
             <span style="font-weight:600;color:var(--gris-600);min-width:50px">${fechaF}</span>
@@ -1223,17 +1260,23 @@ function _ficNuevoDiaCalendario() {
             <input type="date" id="cal_fecha_fin">
           </div>
         </div>
-        <div class="fg-row">
+        <div class="fg">
+          <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo</label>
+          <select id="cal_tipo" onchange="_calTipoChange()">
+            ${_calGetTipos().map(t => `<option value="${t.clave}">${t.emoji} ${t.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div id="cal_permiso_wrap" style="display:none">
           <div class="fg">
-            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo</label>
-            <select id="cal_tipo">
-              ${_calGetTipos().map(t => `<option value="${t.clave}">${t.emoji} ${t.nombre}</option>`).join('')}
+            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo de permiso (Art.32 Convenio Siderometal)</label>
+            <select id="cal_subtipo_permiso" onchange="const o=this.options[this.selectedIndex];document.getElementById('cal_desc').value=o.text+(o.dataset.dias?' — '+o.dataset.dias:'')">
+              ${_PERMISOS_CONVENIO.map(p => `<option value="${p.clave}" data-dias="${p.dias}">${p.nombre}${p.dias ? ' ('+p.dias+')' : ''}</option>`).join('')}
             </select>
           </div>
-          <div class="fg">
-            <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Descripción</label>
-            <input type="text" id="cal_desc" placeholder="Ej: Vacaciones empresa, festivo local...">
-          </div>
+        </div>
+        <div class="fg">
+          <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Descripción</label>
+          <input type="text" id="cal_desc" placeholder="Ej: Vacaciones empresa, festivo local...">
         </div>
       </div>
     </div>
