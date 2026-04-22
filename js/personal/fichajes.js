@@ -17,6 +17,30 @@ let _ficGeoWatchId = null;
 let _ficGeoNotificado = false; // evitar notificar repetidas veces
 let _ficVista = 'fichajes';   // 'fichajes' | 'ausencias' | 'timeline' | 'calendario'
 
+// Tipos de calendario laboral (configurables por empresa)
+const _CAL_TIPOS_DEFAULT = [
+  { clave: 'festivo', nombre: 'Festivo nacional/autonómico', emoji: '🔴', color: '#DC2626', bg: '#FEE2E2' },
+  { clave: 'festivo_local', nombre: 'Festivo local', emoji: '📍', color: '#EA580C', bg: '#FFEDD5' },
+  { clave: 'convenio', nombre: 'Día de convenio', emoji: '📋', color: '#7C3AED', bg: '#EDE9FE' },
+  { clave: 'cierre_empresa', nombre: 'Cierre empresa', emoji: '🏢', color: '#2563EB', bg: '#DBEAFE', consume_vacaciones: true },
+  { clave: 'puente', nombre: 'Puente', emoji: '🌉', color: '#0891B2', bg: '#CFFAFE' },
+  { clave: 'medio_dia', nombre: 'Jornada reducida / Medio día', emoji: '🕐', color: '#D97706', bg: '#FEF3C7' },
+  { clave: 'libre_disposicion', nombre: 'Libre disposición', emoji: '🙋', color: '#059669', bg: '#D1FAE5' },
+  { clave: 'inhabil', nombre: 'Inhábil', emoji: '⛔', color: '#4B5563', bg: '#F3F4F6' },
+  { clave: 'horas_cero', nombre: 'Horas cero', emoji: '0️⃣', color: '#374151', bg: '#F3F4F6' },
+  { clave: 'vacaciones_empresa', nombre: 'Vacaciones empresa', emoji: '🏖️', color: '#10B981', bg: '#D1FAE5', consume_vacaciones: true },
+  { clave: 'otro', nombre: 'Otro', emoji: '📝', color: '#9CA3AF', bg: '#F9FAFB' },
+];
+
+function _calGetTipos() {
+  return (EMPRESA?.config?.tipos_calendario?.length > 0) ? EMPRESA.config.tipos_calendario : _CAL_TIPOS_DEFAULT;
+}
+
+function _calTipoInfo(clave) {
+  const tipos = _calGetTipos();
+  return tipos.find(t => t.clave === clave) || { clave, nombre: clave, emoji: '📝', color: '#9CA3AF', bg: '#F9FAFB' };
+}
+
 // Radio de geofence en metros
 const _FIC_GEOFENCE_RADIO = 500;
 
@@ -958,7 +982,7 @@ function _ficFestivosNacionales(anio) {
   const pascua = new Date(anio, mesPascua - 1, diaPascua);
   const viernesSanto = new Date(pascua); viernesSanto.setDate(pascua.getDate() - 2);
 
-  const fmt = d => d.toISOString().slice(0, 10);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   return [
     { fecha: `${anio}-01-01`, desc: 'Año Nuevo' },
     { fecha: `${anio}-01-06`, desc: 'Reyes Magos' },
@@ -1019,7 +1043,10 @@ function _ficRenderCalendario(container) {
 
       let bg = 'transparent', color = 'var(--gris-700)', border = 'none', cursor = 'pointer', title = '';
       if (esHoy) { bg = 'var(--azul)'; color = '#fff'; }
-      else if (enBD) { bg = '#FEE2E2'; color = '#DC2626'; title = calMap[fechaStr].descripcion || calMap[fechaStr].tipo; }
+      else if (enBD) {
+        const _ti = _calTipoInfo(calMap[fechaStr].tipo);
+        bg = _ti.bg; color = _ti.color; title = calMap[fechaStr].descripcion || _ti.nombre;
+      }
       else if (esFestivo) { bg = '#FEF3C7'; color = '#D97706'; title = festivoMap[fechaStr]; }
       else if (esFinde) { color = 'var(--gris-300)'; }
 
@@ -1049,14 +1076,17 @@ function _ficRenderCalendario(container) {
         <h2 style="font-size:17px;font-weight:800">Calendario Laboral ${anio}</h2>
         <p style="font-size:11.5px;color:var(--gris-400)">${_ficCalLaboral.length} días personalizados · ${festivos.length} festivos nacionales/autonómicos</p>
       </div>
+      <button class="btn btn-secondary btn-sm" onclick="_calConfigTipos()">⚙️ Tipos</button>
       <button class="btn btn-primary btn-sm" onclick="_ficNuevoDiaCalendario()">+ Añadir día</button>
     </div>
 
     <!-- Leyenda -->
-    <div style="display:flex;gap:16px;margin-bottom:16px;font-size:11px;color:var(--gris-500);flex-wrap:wrap">
-      <span><span style="display:inline-block;width:12px;height:12px;background:var(--azul);border-radius:3px;vertical-align:middle;margin-right:4px"></span> Hoy</span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#FEF3C7;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Festivo nacional/autonómico</span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#FEE2E2;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Día marcado por empresa</span>
+    <div style="display:flex;gap:12px;margin-bottom:16px;font-size:10.5px;color:var(--gris-500);flex-wrap:wrap">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--azul);border-radius:3px;vertical-align:middle;margin-right:3px"></span>Hoy</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#FEF3C7;border-radius:3px;vertical-align:middle;margin-right:3px"></span>Nacional/Auton.</span>
+      ${_calGetTipos().filter(t => t.clave !== 'otro').map(t =>
+        `<span><span style="display:inline-block;width:10px;height:10px;background:${t.bg};border-radius:3px;vertical-align:middle;margin-right:3px"></span>${t.nombre.split('/')[0].split('·')[0].trim().substring(0,15)}</span>`
+      ).join('')}
     </div>
 
     <!-- Calendario visual 6x2 -->
@@ -1071,7 +1101,8 @@ function _ficRenderCalendario(container) {
         ${todosFestivos.map(d => {
           const fechaF = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
           const esNacional = d.tipo === 'nacional';
-          const dotColor = esNacional ? '#D97706' : d.tipo === 'festivo' ? '#DC2626' : d.tipo === 'cierre_empresa' ? '#2563EB' : '#4F46E5';
+          const _ti = _calTipoInfo(esNacional ? 'nacional_auto' : d.tipo);
+          const dotColor = esNacional ? '#D97706' : _ti.color;
           return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11.5px;border-bottom:1px solid var(--gris-50)">
             <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
             <span style="font-weight:600;color:var(--gris-600);min-width:50px">${fechaF}</span>
@@ -1131,9 +1162,7 @@ function _ficNuevoDiaCalendario() {
           <div class="fg">
             <label style="font-size:12px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Tipo</label>
             <select id="cal_tipo">
-              <option value="festivo">🔴 Festivo</option>
-              <option value="cierre_empresa">🏢 Cierre empresa</option>
-              <option value="medio_dia">🕐 Medio día</option>
+              ${_calGetTipos().map(t => `<option value="${t.clave}">${t.emoji} ${t.nombre}</option>`).join('')}
             </select>
           </div>
           <div class="fg">
@@ -1197,6 +1226,91 @@ async function _ficEliminarDiaCalendario(id) {
   await sb.from('calendario_laboral').delete().eq('id', id);
   _ficCalLaboral = _ficCalLaboral.filter(d => d.id !== id);
   toast('Día eliminado', 'info');
+  const cont = document.getElementById('page-calendario-laboral');
+  if (cont) _ficRenderCalendario(cont);
+}
+
+// ═══════════════════════════════════════════════
+//  CONFIGURAR TIPOS DE CALENDARIO
+// ═══════════════════════════════════════════════
+function _calConfigTipos() {
+  const inner = document.getElementById('mFichaje')?.querySelector('.modal');
+  if (!inner) return;
+
+  const tipos = _calGetTipos();
+
+  inner.innerHTML = `
+    <div class="modal-h"><span>⚙️</span><h2>Tipos de Calendario Laboral</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mFichaje')">✕</button></div>
+    <div class="modal-b" style="max-height:60vh;overflow-y:auto">
+      <div id="_calTiposLista" style="display:flex;flex-direction:column;gap:6px">
+        ${tipos.map((t, i) => `
+          <div class="cfg-row" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gris-50);border-radius:8px">
+            <span style="font-size:18px">${t.emoji}</span>
+            <input value="${t.nombre}" onchange="_calTipoEditar(${i},'nombre',this.value)" style="flex:1;border:1px solid var(--gris-200);border-radius:6px;padding:6px 8px;font-size:12px">
+            <input type="color" value="${t.color}" onchange="_calTipoEditar(${i},'color',this.value)" style="width:30px;height:30px;border:none;cursor:pointer;border-radius:4px">
+            <label style="font-size:10px;color:var(--gris-400);white-space:nowrap" title="Descuenta vacaciones"><input type="checkbox" ${t.consume_vacaciones ? 'checked' : ''} onchange="_calTipoEditar(${i},'consume_vacaciones',this.checked)"> Desc. vac.</label>
+            <button class="btn btn-ghost btn-sm" onclick="_calTipoEliminar(${i})" title="Eliminar tipo" style="color:var(--rojo)">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gris-200)">
+        <div class="fg-row" style="align-items:end">
+          <div class="fg">
+            <label style="font-size:11px;font-weight:600;color:var(--gris-600);margin-bottom:4px">Nuevo tipo</label>
+            <input id="_calNuevoNombre" placeholder="Ej: Festivo local, Jornada intensiva..." style="font-size:12px">
+          </div>
+          <div class="fg" style="flex:0 0 auto">
+            <button class="btn btn-secondary btn-sm" onclick="_calTipoAnadir()">+ Añadir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mFichaje')">Cancelar</button>
+      <button class="btn btn-primary" onclick="_calGuardarTipos()">💾 Guardar tipos</button>
+    </div>
+  `;
+
+  openModal('mFichaje', true);
+}
+
+function _calTipoEditar(idx, campo, valor) {
+  const tipos = _calGetTipos();
+  if (tipos[idx]) tipos[idx][campo] = valor;
+  // Actualizar bg basado en color si se cambia el color
+  if (campo === 'color') {
+    const hex = valor;
+    tipos[idx].bg = hex + '20'; // color con transparencia
+  }
+}
+
+function _calTipoEliminar(idx) {
+  const tipos = [..._calGetTipos()];
+  tipos.splice(idx, 1);
+  if (!EMPRESA.config) EMPRESA.config = {};
+  EMPRESA.config.tipos_calendario = tipos;
+  _calConfigTipos(); // re-render
+}
+
+function _calTipoAnadir() {
+  const nombre = document.getElementById('_calNuevoNombre')?.value?.trim();
+  if (!nombre) { toast('Escribe un nombre', 'error'); return; }
+  const clave = nombre.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+  const tipos = [..._calGetTipos()];
+  if (tipos.find(t => t.clave === clave)) { toast('Ya existe un tipo similar', 'error'); return; }
+  tipos.push({ clave, nombre, emoji: '📌', color: '#6B7280', bg: '#F3F4F6', consume_vacaciones: false });
+  if (!EMPRESA.config) EMPRESA.config = {};
+  EMPRESA.config.tipos_calendario = tipos;
+  _calConfigTipos(); // re-render
+}
+
+async function _calGuardarTipos() {
+  const config = EMPRESA.config || {};
+  const { error } = await sb.from('empresas').update({ config }).eq('id', EMPRESA.id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  EMPRESA.config = config;
+  toast('Tipos de calendario guardados', 'success');
+  closeModal('mFichaje');
   const cont = document.getElementById('page-calendario-laboral');
   if (cont) _ficRenderCalendario(cont);
 }
