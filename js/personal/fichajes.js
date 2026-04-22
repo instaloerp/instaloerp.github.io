@@ -1079,7 +1079,7 @@ function _ficRenderCalendario(container) {
   const calMap = {};
   _ficCalLaboral.forEach(d => { calMap[d.fecha] = d; });
 
-  const hoyStr = ahora.toISOString().split('T')[0];
+  const hoyStr = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`;
 
   // Generar meses
   let mesesHtml = '';
@@ -1262,7 +1262,7 @@ async function _ficGuardarDiaCalendario() {
 
   const cursor = new Date(inicio);
   while (cursor <= fin) {
-    fechas.push(cursor.toISOString().split('T')[0]);
+    fechas.push(`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}-${String(cursor.getDate()).padStart(2,'0')}`);
     cursor.setDate(cursor.getDate() + 1);
   }
 
