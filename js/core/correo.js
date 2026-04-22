@@ -574,9 +574,8 @@ function _renderAdjuntosBar(c) {
     </div>`;
   }).join(' ');
 
-  // Detectar si hay nóminas (patrón: YYYY_MM-DNI.pdf)
-  const nominaRegex = /^\d{4}_\d{2}-[\w-]+\.pdf$/i;
-  const tieneNominas = adjuntos.some(a => nominaRegex.test(a.nombre || ''));
+  // Detectar si hay nóminas (individual o combinada)
+  const tieneNominas = adjuntos.some(a => _esNominaIndividual(a.nombre) || _esNominaCombinada(a.nombre));
   const btnNominas = tieneNominas
     ? ' <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();procesarNominas('+c.id+')" style="margin-left:auto;font-size:11px">💰 Procesar nóminas</button>'
     : '';
@@ -640,120 +639,247 @@ async function descargarAdjunto(correoId, nombre) {
 }
 
 // ═══════════════════════════════════════════════
+//  UTILIDADES PDF — Carga dinámica de librerías
+// ═══════════════════════════════════════════════
+let _pdfLibsLoaded = false;
+
+async function _cargarLibsPDF() {
+  if (_pdfLibsLoaded) return;
+  // pdf-lib para split de páginas
+  if (!window.PDFLib) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  // pdf.js para extracción de texto
+  if (!window.pdfjsLib) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  _pdfLibsLoaded = true;
+}
+
+// Extraer NIF y periodo de cada página de un PDF combinado
+async function _parsearNominasCombinadas(pdfBytes) {
+  await _cargarLibsPDF();
+  const uint8 = new Uint8Array(pdfBytes);
+
+  // Extraer texto con pdf.js
+  const pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+  const totalPags = pdfDoc.numPages;
+  const paginas = [];
+
+  for (let i = 1; i <= totalPags; i++) {
+    const page = await pdfDoc.getPage(i);
+    const content = await page.getTextContent();
+    const texto = content.items.map(it => it.str).join(' ');
+
+    // Buscar NIF: patrón XX...X-L
+    const nifMatch = texto.match(/NIF:\s*(\d{7,8}-[A-Z])/i);
+    // Buscar periodo: del DD/MM/YYYY al DD/MM/YYYY
+    const perMatch = texto.match(/del\s+\d{2}\/(\d{2})\/(\d{4})\s+al/i);
+
+    paginas.push({
+      pagina: i,
+      dni: nifMatch ? nifMatch[1].toUpperCase() : null,
+      mes: perMatch ? perMatch[1] : null,
+      anio: perMatch ? perMatch[2] : null,
+      // Extraer nombre (segunda línea típicamente: "EMPRESA TRABAJADOR" seguido de nombre)
+      textoCorto: texto.substring(0, 200),
+    });
+  }
+
+  return paginas;
+}
+
+// Extraer una página concreta como PDF independiente
+async function _extraerPaginaPDF(pdfBytes, pageIndex) {
+  const srcDoc = await PDFLib.PDFDocument.load(pdfBytes);
+  const newDoc = await PDFLib.PDFDocument.create();
+  const [copiedPage] = await newDoc.copyPages(srcDoc, [pageIndex]);
+  newDoc.addPage(copiedPage);
+  return await newDoc.save();
+}
+
+// Detectar si un adjunto es nómina combinada (YYYY_MM*NOMINAS*.pdf)
+function _esNominaCombinada(nombre) {
+  return /^\d{4}_\d{2}.*nominas?/i.test(nombre || '');
+}
+
+// Detectar si un adjunto es nómina individual (YYYY_MM-DNI.pdf)
+function _esNominaIndividual(nombre) {
+  return /^\d{4}_\d{2}-[\w-]+\.pdf$/i.test(nombre || '');
+}
+
+// ═══════════════════════════════════════════════
 //  AUTO-DETECTAR NÓMINAS TRAS SYNC
 // ═══════════════════════════════════════════════
 let _nominasProcesadas = new Set(); // IDs de correos ya procesados (evitar duplicados)
 
 async function _autoDetectarNominas() {
   const emailGestoria = EMPRESA.config?.email_gestoria;
-  if (!emailGestoria) return; // No configurado → nada que hacer
+  if (!emailGestoria) return;
 
-  const nominaRegex = /^\d{4}_\d{2}-[\w-]+\.pdf$/i;
-
-  // Buscar correos recientes de la gestoría con adjuntos nómina que no hayamos procesado
+  // Buscar correos de la gestoría con adjuntos nómina (individual o combinada)
   const candidatos = correos.filter(c =>
     c.tipo === 'recibido'
     && !_nominasProcesadas.has(c.id)
     && (c.de || '').toLowerCase().includes(emailGestoria.toLowerCase())
-    && c.adjuntos_meta?.some(a => nominaRegex.test(a.nombre || ''))
+    && c.adjuntos_meta?.some(a => _esNominaIndividual(a.nombre) || _esNominaCombinada(a.nombre))
   );
 
   if (!candidatos.length) return;
 
-  // Comprobar en BD cuáles ya fueron procesados (tienen documentos_empleado vinculados)
-  for (const c of candidatos) {
-    const adjNominas = c.adjuntos_meta.filter(a => nominaRegex.test(a.nombre || ''));
-    // Extraer periodos de los adjuntos para ver si ya existen
-    const periodos = adjNominas.map(a => {
-      const m = a.nombre.match(/^(\d{4})_(\d{2})/);
-      return m ? m[1] + '-' + m[2] : null;
-    }).filter(Boolean);
-
-    if (!periodos.length) { _nominasProcesadas.add(c.id); continue; }
-
-    // Comprobar si ya hay nóminas de alguno de estos periodos
-    const { data: existentes } = await sb.from('documentos_empleado')
-      .select('periodo')
-      .eq('empresa_id', EMPRESA.id)
-      .eq('categoria', 'nomina')
-      .in('periodo', periodos);
-
-    const periodosExistentes = new Set((existentes || []).map(d => d.periodo));
-    const sinProcesar = adjNominas.filter(a => {
-      const m = a.nombre.match(/^(\d{4})_(\d{2})/);
-      return m && !periodosExistentes.has(m[1] + '-' + m[2]);
-    });
-
-    if (!sinProcesar.length) {
-      _nominasProcesadas.add(c.id);
-      continue;
-    }
-
-    // Hay nóminas nuevas → procesar automáticamente
-    toast('💰 Nóminas detectadas de la gestoría — procesando ' + sinProcesar.length + ' archivo' + (sinProcesar.length > 1 ? 's' : '') + '...', 'info');
-    await _procesarNominasAuto(c.id, sinProcesar);
-    _nominasProcesadas.add(c.id);
-  }
-}
-
-async function _procesarNominasAuto(correoId, adjuntos) {
-  const nominaRegex = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
-
-  // Cargar empleados con DNI
+  // Cargar empleados con DNI (una sola vez)
   const { data: empleados } = await sb.from('perfiles').select('id, nombre, apellidos, dni').eq('empresa_id', EMPRESA.id).not('dni', 'is', null);
   const empMap = {};
   (empleados || []).forEach(e => { if (e.dni) empMap[e.dni.toUpperCase().replace(/\s/g, '')] = e; });
 
+  for (const c of candidatos) {
+    // Extraer periodo del primer adjunto para comprobar si ya existe
+    const primerAdj = c.adjuntos_meta.find(a => _esNominaIndividual(a.nombre) || _esNominaCombinada(a.nombre));
+    const perMatch = (primerAdj?.nombre || '').match(/^(\d{4})_(\d{2})/);
+    if (perMatch) {
+      const periodo = perMatch[1] + '-' + perMatch[2];
+      const { data: existentes } = await sb.from('documentos_empleado')
+        .select('id').eq('empresa_id', EMPRESA.id).eq('categoria', 'nomina').eq('periodo', periodo).limit(1);
+      if (existentes?.length) { _nominasProcesadas.add(c.id); continue; }
+    }
+
+    // Procesar adjuntos
+    const individuales = c.adjuntos_meta.filter(a => _esNominaIndividual(a.nombre));
+    const combinados = c.adjuntos_meta.filter(a => _esNominaCombinada(a.nombre));
+
+    let totalProc = individuales.length + (combinados.length ? '(+PDF combinado)' : '');
+    toast('💰 Nóminas detectadas de la gestoría — procesando...', 'info');
+
+    if (individuales.length) {
+      await _procesarNominasIndividuales(c.id, individuales, empMap);
+    }
+    if (combinados.length) {
+      for (const adj of combinados) {
+        await _procesarNominaCombinada(c.id, adj, empMap);
+      }
+    }
+
+    _nominasProcesadas.add(c.id);
+  }
+}
+
+// ── Procesar nóminas individuales (YYYY_MM-DNI.pdf) ──
+async function _procesarNominasIndividuales(correoId, adjuntos, empMap) {
+  const regex = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
   let exitos = 0, errores = 0, sinMatch = [];
 
   for (const adj of adjuntos) {
-    const m = adj.nombre.match(nominaRegex);
+    const m = adj.nombre.match(regex);
     if (!m) continue;
     const anio = m[1], mes = m[2], dni = m[3].toUpperCase();
     const emp = empMap[dni];
-
     if (!emp) { sinMatch.push(dni); continue; }
 
     try {
-      // 1. Descargar adjunto
-      const { data, error } = await sb.functions.invoke('leer-correo', {
-        body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: adj.nombre }
-      });
-      if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
-
-      // 2. Descargar blob
-      const resp = await fetch(data.adjunto.url);
-      if (!resp.ok) throw new Error('Error descargando PDF');
-      const blob = await resp.blob();
-
-      // 3. Subir al storage
-      const storagePath = 'empleados/' + EMPRESA.id + '/' + emp.id + '/nomina_' + anio + '_' + mes + '.pdf';
-      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: 'application/pdf', upsert: true });
-      if (upErr) throw upErr;
-      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
-
-      // 4. Crear registro
-      await sb.from('documentos_empleado').insert({
-        empresa_id: EMPRESA.id,
-        empleado_id: emp.id,
-        categoria: 'nomina',
-        nombre: 'Nómina ' + mes + '/' + anio,
-        filename: adj.nombre,
-        url: urlData?.publicUrl || null,
-        periodo: anio + '-' + mes,
-        created_by: CU.id,
-      });
-
+      const blob = await _descargarAdjuntoBlob(correoId, adj.nombre);
+      await _subirNominaEmpleado(emp, anio, mes, blob, adj.nombre);
       exitos++;
     } catch (e) {
-      console.error('[autoNominas] Error con', adj.nombre, e);
+      console.error('[nominasIndiv] Error:', adj.nombre, e);
       errores++;
     }
   }
 
-  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' archivada' + (exitos > 1 ? 's' : '') + ' automáticamente', 'success');
-  if (sinMatch.length) toast('⚠️ DNI sin empleado asociado: ' + sinMatch.join(', '), 'warning');
-  if (errores) toast('❌ ' + errores + ' nómina' + (errores > 1 ? 's' : '') + ' con error', 'error');
+  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' archivada' + (exitos > 1 ? 's' : ''), 'success');
+  if (sinMatch.length) toast('⚠️ DNI sin empleado: ' + sinMatch.join(', '), 'warning');
+  if (errores) toast('❌ ' + errores + ' con error', 'error');
+}
+
+// ── Procesar PDF combinado (YYYY_MM NOMINAS_MES.pdf) ──
+async function _procesarNominaCombinada(correoId, adj, empMap) {
+  try {
+    toast('📄 Descargando PDF combinado y separando nóminas...', 'info');
+
+    // 1. Descargar PDF completo
+    const blob = await _descargarAdjuntoBlob(correoId, adj.nombre);
+    const pdfBytes = await blob.arrayBuffer();
+
+    // 2. Parsear páginas para extraer DNI y periodo
+    const paginas = await _parsearNominasCombinadas(pdfBytes);
+    if (!paginas.length) { toast('No se encontraron nóminas en el PDF', 'error'); return; }
+
+    let exitos = 0, errores = 0, sinMatch = [];
+
+    for (const pag of paginas) {
+      if (!pag.dni) { errores++; continue; }
+      const emp = empMap[pag.dni];
+      if (!emp) { sinMatch.push(pag.dni); continue; }
+
+      const anio = pag.anio || adj.nombre.match(/^(\d{4})/)?.[1];
+      const mes = pag.mes || adj.nombre.match(/^\d{4}_(\d{2})/)?.[1];
+      if (!anio || !mes) { errores++; continue; }
+
+      try {
+        // 3. Extraer página individual como PDF
+        const paginaPDF = await _extraerPaginaPDF(pdfBytes, pag.pagina - 1);
+        const pageBlob = new Blob([paginaPDF], { type: 'application/pdf' });
+
+        // 4. Subir y registrar
+        await _subirNominaEmpleado(emp, anio, mes, pageBlob, 'nomina_' + anio + '_' + mes + '_' + pag.dni + '.pdf');
+        exitos++;
+      } catch (e) {
+        console.error('[nominasComb] Error pág ' + pag.pagina, e);
+        errores++;
+      }
+    }
+
+    if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' extraída' + (exitos > 1 ? 's' : '') + ' del PDF combinado', 'success');
+    if (sinMatch.length) toast('⚠️ DNI sin empleado: ' + sinMatch.join(', '), 'warning');
+    if (errores) toast('❌ ' + errores + ' con error', 'error');
+  } catch (e) {
+    console.error('[nominasComb] Error general:', e);
+    toast('❌ Error procesando PDF combinado: ' + (e.message || ''), 'error');
+  }
+}
+
+// ── Helpers compartidos ──
+async function _descargarAdjuntoBlob(correoId, nombre) {
+  const { data, error } = await sb.functions.invoke('leer-correo', {
+    body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: nombre }
+  });
+  if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
+  const resp = await fetch(data.adjunto.url);
+  if (!resp.ok) throw new Error('Error descargando archivo');
+  return await resp.blob();
+}
+
+async function _subirNominaEmpleado(emp, anio, mes, blob, filename) {
+  // Subir al storage
+  const storagePath = 'empleados/' + EMPRESA.id + '/' + emp.id + '/nomina_' + anio + '_' + mes + '.pdf';
+  const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: 'application/pdf', upsert: true });
+  if (upErr) throw upErr;
+  const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+
+  // Comprobar si ya existe
+  const periodo = anio + '-' + mes;
+  const { data: existente } = await sb.from('documentos_empleado')
+    .select('id').eq('empleado_id', emp.id).eq('empresa_id', EMPRESA.id).eq('categoria', 'nomina').eq('periodo', periodo).maybeSingle();
+
+  if (existente) {
+    await sb.from('documentos_empleado').update({ url: urlData?.publicUrl, filename, updated_at: new Date().toISOString() }).eq('id', existente.id);
+  } else {
+    await sb.from('documentos_empleado').insert({
+      empresa_id: EMPRESA.id, empleado_id: emp.id, categoria: 'nomina',
+      nombre: 'Nómina ' + mes + '/' + anio, filename,
+      url: urlData?.publicUrl || null, periodo, created_by: CU.id,
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -763,112 +889,98 @@ async function procesarNominas(correoId) {
   const c = correos.find(x => x.id === correoId);
   if (!c || !c.adjuntos_meta?.length) { toast('No hay adjuntos', 'error'); return; }
 
-  // Filtrar solo PDFs con patrón nómina: YYYY_MM-DNI.pdf
-  const nominaRegex = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
-  const nominas = c.adjuntos_meta
-    .map(a => { const m = (a.nombre || '').match(nominaRegex); return m ? { nombre: a.nombre, anio: m[1], mes: m[2], dni: m[3].toUpperCase(), original: a } : null; })
-    .filter(Boolean);
-
-  if (!nominas.length) { toast('No se encontraron adjuntos con patrón de nómina', 'error'); return; }
-
   // Cargar empleados con DNI
   const { data: empleados } = await sb.from('perfiles').select('id, nombre, apellidos, dni').eq('empresa_id', EMPRESA.id).not('dni', 'is', null);
   const empMap = {};
   (empleados || []).forEach(e => { if (e.dni) empMap[e.dni.toUpperCase().replace(/\s/g, '')] = e; });
 
-  // Preparar resumen
-  const resumen = nominas.map(n => {
-    const emp = empMap[n.dni];
-    return { ...n, empleado: emp || null, match: !!emp };
+  // Separar adjuntos por tipo
+  const individuales = c.adjuntos_meta.filter(a => _esNominaIndividual(a.nombre));
+  const combinados = c.adjuntos_meta.filter(a => _esNominaCombinada(a.nombre));
+
+  if (!individuales.length && !combinados.length) { toast('No se encontraron adjuntos con patrón de nómina', 'error'); return; }
+
+  // Preparar resumen para individuales
+  const regexInd = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
+  let resumenItems = [];
+
+  individuales.forEach(a => {
+    const m = a.nombre.match(regexInd);
+    if (!m) return;
+    const dni = m[3].toUpperCase();
+    const emp = empMap[dni];
+    resumenItems.push({ tipo: 'individual', nombre: a.nombre, anio: m[1], mes: m[2], dni, empleado: emp, match: !!emp });
   });
 
-  const sinMatch = resumen.filter(r => !r.match);
-  const conMatch = resumen.filter(r => r.match);
+  // Para combinados, intentar parsear antes de confirmar
+  for (const adj of combinados) {
+    try {
+      toast('📄 Analizando PDF combinado...', 'info');
+      const blob = await _descargarAdjuntoBlob(correoId, adj.nombre);
+      const pdfBytes = await blob.arrayBuffer();
+      const paginas = await _parsearNominasCombinadas(pdfBytes);
+      // Guardar bytes para no re-descargar
+      adj._pdfBytes = pdfBytes;
+      adj._paginas = paginas;
+
+      paginas.forEach(pag => {
+        if (!pag.dni) return;
+        const emp = empMap[pag.dni];
+        resumenItems.push({ tipo: 'combinado', adj, pagina: pag.pagina, anio: pag.anio, mes: pag.mes, dni: pag.dni, empleado: emp, match: !!emp });
+      });
+    } catch (e) {
+      toast('❌ Error analizando ' + adj.nombre + ': ' + e.message, 'error');
+    }
+  }
+
+  if (!resumenItems.length) { toast('No se encontraron nóminas válidas', 'error'); return; }
+
+  const conMatch = resumenItems.filter(r => r.match);
+  const sinMatch = resumenItems.filter(r => !r.match);
 
   // Mostrar confirmación
   let msg = '<b>' + conMatch.length + '</b> nóminas identificadas';
-  if (sinMatch.length) msg += ', <b style="color:var(--rojo)">' + sinMatch.length + '</b> sin empleado asociado';
+  if (sinMatch.length) msg += ', <b style="color:var(--rojo)">' + sinMatch.length + '</b> sin empleado';
   msg += ':<br><br>';
   conMatch.forEach(r => {
-    msg += '✅ <b>' + r.anio + '/' + r.mes + '</b> → ' + r.empleado.nombre + ' ' + (r.empleado.apellidos || '') + ' (' + r.dni + ')<br>';
+    msg += '✅ <b>' + r.anio + '/' + r.mes + '</b> → ' + r.empleado.nombre + ' ' + (r.empleado.apellidos || '') + ' (' + r.dni + ')' + (r.tipo === 'combinado' ? ' <span style="color:var(--gris-400)">[pág ' + r.pagina + ']</span>' : '') + '<br>';
   });
   sinMatch.forEach(r => {
-    msg += '❌ <b>' + r.anio + '/' + r.mes + '</b> → DNI ' + r.dni + ' <span style="color:var(--rojo)">no encontrado</span><br>';
+    msg += '❌ <b>' + (r.anio||'?') + '/' + (r.mes||'?') + '</b> → DNI ' + r.dni + ' <span style="color:var(--rojo)">no encontrado</span><br>';
   });
 
   if (!conMatch.length) { toast('Ningún DNI coincide con empleados registrados. Revisa que los DNI estén cargados en las fichas.', 'error'); return; }
 
-  const ok = await confirmModal({
-    titulo: '💰 Procesar nóminas',
-    mensaje: msg,
-    btnOk: 'Procesar ' + conMatch.length + ' nóminas',
-    colorOk: '#059669'
-  });
+  const ok = await confirmModal({ titulo: '💰 Procesar nóminas', mensaje: msg, btnOk: 'Procesar ' + conMatch.length + ' nóminas', colorOk: '#059669' });
   if (!ok) return;
 
-  // Procesar cada nómina con match
   let exitos = 0, errores = 0;
   for (const nom of conMatch) {
     try {
-      toast('⬇️ Descargando nómina de ' + nom.empleado.nombre + '...', 'info');
+      toast('⬇️ Procesando nómina de ' + nom.empleado.nombre + '...', 'info');
 
-      // 1. Descargar adjunto via Edge Function
-      const { data, error } = await sb.functions.invoke('leer-correo', {
-        body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: nom.nombre }
-      });
-      if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
-
-      // 2. Descargar el blob desde la URL firmada
-      const resp = await fetch(data.adjunto.url);
-      if (!resp.ok) throw new Error('Error descargando PDF');
-      const blob = await resp.blob();
-
-      // 3. Subir al storage de documentos de empleado
-      const storagePath = 'empleados/' + EMPRESA.id + '/' + nom.empleado.id + '/nomina_' + nom.anio + '_' + nom.mes + '.pdf';
-      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: 'application/pdf', upsert: true });
-      if (upErr) throw upErr;
-      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
-
-      // 4. Comprobar si ya existe esta nómina para no duplicar
-      const { data: existente } = await sb.from('documentos_empleado')
-        .select('id')
-        .eq('empleado_id', nom.empleado.id)
-        .eq('empresa_id', EMPRESA.id)
-        .eq('categoria', 'nomina')
-        .eq('periodo', nom.anio + '-' + nom.mes)
-        .maybeSingle();
-
-      if (existente) {
-        // Actualizar URL si ya existía
-        await sb.from('documentos_empleado').update({ url: urlData?.publicUrl, filename: nom.nombre, updated_at: new Date().toISOString() }).eq('id', existente.id);
+      if (nom.tipo === 'individual') {
+        const blob = await _descargarAdjuntoBlob(correoId, nom.nombre);
+        await _subirNominaEmpleado(nom.empleado, nom.anio, nom.mes, blob, nom.nombre);
       } else {
-        // Crear registro nuevo
-        await sb.from('documentos_empleado').insert({
-          empresa_id: EMPRESA.id,
-          empleado_id: nom.empleado.id,
-          categoria: 'nomina',
-          nombre: 'Nómina ' + nom.mes + '/' + nom.anio,
-          filename: nom.nombre,
-          url: urlData?.publicUrl || null,
-          periodo: nom.anio + '-' + nom.mes,
-          created_by: CU.id,
-        });
+        // Combinado: extraer página
+        const paginaPDF = await _extraerPaginaPDF(nom.adj._pdfBytes, nom.pagina - 1);
+        const pageBlob = new Blob([paginaPDF], { type: 'application/pdf' });
+        await _subirNominaEmpleado(nom.empleado, nom.anio, nom.mes, pageBlob, 'nomina_' + nom.anio + '_' + nom.mes + '_' + nom.dni + '.pdf');
       }
-
       exitos++;
     } catch (e) {
-      console.error('[procesarNominas] Error con', nom.nombre, e);
+      console.error('[procesarNominas]', e);
       errores++;
     }
   }
 
-  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' procesada' + (exitos > 1 ? 's' : '') + ' correctamente', 'success');
-  if (errores) toast('⚠️ ' + errores + ' nómina' + (errores > 1 ? 's' : '') + ' con error', 'error');
+  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' procesada' + (exitos > 1 ? 's' : ''), 'success');
+  if (errores) toast('⚠️ ' + errores + ' con error', 'error');
 
   // Marcar adjuntos como descargados
   if (c.adjuntos_meta) {
-    const nombresProc = new Set(conMatch.map(n => n.nombre));
-    c.adjuntos_meta = c.adjuntos_meta.map(a => nombresProc.has(a.nombre) ? { ...a, descargado: true } : a);
+    c.adjuntos_meta = c.adjuntos_meta.map(a => (_esNominaIndividual(a.nombre) || _esNominaCombinada(a.nombre)) ? { ...a, descargado: true } : a);
     if (correoActual?.id === correoId) abrirCorreo(correoId);
   }
 }
