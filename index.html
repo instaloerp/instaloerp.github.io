@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 35</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 36</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3533,6 +3533,7 @@ try {
         <div class="fg"><label>Teléfono</label><input id="usr_tel" type="tel"></div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>DNI / NIE</label><input id="usr_dni" placeholder="12345678-A"></div>
         <div class="fg"><label>Contraseña *</label><input id="usr_pass" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"><div class="hint">El usuario podrá cambiarla después</div></div>
         <div class="fg"><label>Rol</label>
           <select id="usr_rol" onchange="setPermisosByRol(this.value)">

@@ -98,7 +98,7 @@ function getTodosUsuariosActivos() {
 function nuevoUsuarioModal() {
   document.getElementById('usr_id').value = '';
   document.getElementById('mUsrTit').textContent = 'Nuevo Usuario';
-  ['usr_nombre','usr_apellidos','usr_email','usr_tel'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['usr_nombre','usr_apellidos','usr_email','usr_tel','usr_dni'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('usr_pass').value = '';
   document.getElementById('usr_pass').placeholder = 'Mínimo 8 caracteres';
   document.getElementById('usr_rol').value = 'operario';
@@ -142,13 +142,14 @@ async function saveUsuario() {
 
   // Leer permisos del editor granular
   const permisos = typeof readPermisosFromUI === 'function' ? readPermisosFromUI() : {};
+  const dni = document.getElementById('usr_dni')?.value?.trim() || null;
 
   let avatar_url = null;
 
   const disponible_partes = document.getElementById('up_disponible_partes')?.checked || false;
 
   if (id) {
-    const obj = { nombre, apellidos: v('usr_apellidos'), telefono: v('usr_tel'), rol: v('usr_rol'), permisos, disponible_partes };
+    const obj = { nombre, apellidos: v('usr_apellidos'), telefono: v('usr_tel'), rol: v('usr_rol'), permisos, disponible_partes, dni };
     if (usuariosFotoFile) {
       const { data: up } = await sb.storage.from('fotos-partes').upload(`avatars/${id}_${Date.now()}`, usuariosFotoFile);
       if (up) { const { data: url } = sb.storage.from('fotos-partes').getPublicUrl(up.path); obj.avatar_url = url.publicUrl; }
@@ -175,7 +176,7 @@ async function saveUsuario() {
       id: authData.user.id, nombre, apellidos: v('usr_apellidos'),
       email, telefono: v('usr_tel'), rol: v('usr_rol'),
       empresa_id: EMPRESA.id, es_superadmin: false,
-      activo: true, avatar_url, permisos, disponible_partes
+      activo: true, avatar_url, permisos, disponible_partes, dni
     });
     toast(`Usuario ${nombre} creado ✓ — recibirá email para confirmar acceso`, 'success');
   }
@@ -204,6 +205,8 @@ function editUsuario(uid) {
   if (elApellidos) elApellidos.value = u.apellidos || '';
   if (elEmail) elEmail.value = u.email || '';
   if (elTel) elTel.value = u.telefono || '';
+  const elDni = document.getElementById('usr_dni');
+  if (elDni) elDni.value = u.dni || '';
 
   const rol = u.es_superadmin ? 'admin' : (u.rol || 'operario');
   document.getElementById('usr_rol').value = rol;

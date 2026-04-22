@@ -569,9 +569,17 @@ function _renderAdjuntosBar(c) {
     </div>`;
   }).join(' ');
 
+  // Detectar si hay nóminas (patrón: YYYY_MM-DNI.pdf)
+  const nominaRegex = /^\d{4}_\d{2}-[\w-]+\.pdf$/i;
+  const tieneNominas = adjuntos.some(a => nominaRegex.test(a.nombre || ''));
+  const btnNominas = tieneNominas
+    ? ' <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();procesarNominas('+c.id+')" style="margin-left:auto;font-size:11px">💰 Procesar nóminas</button>'
+    : '';
+
   return `<div style="padding:10px 20px;border-top:1px solid var(--gris-200);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
     <span style="font-size:11px;color:var(--gris-500);font-weight:600">📎 ${adjuntos.length} adjunto${adjuntos.length > 1 ? 's' : ''}:</span>
     ${items}
+    ${btnNominas}
   </div>`;
 }
 
@@ -623,6 +631,123 @@ async function descargarAdjunto(correoId, nombre) {
     }
   } catch(e) {
     toast('❌ Error descargando adjunto: ' + (e.message || ''), 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  PROCESAR NÓMINAS DESDE ADJUNTOS
+// ═══════════════════════════════════════════════
+async function procesarNominas(correoId) {
+  const c = correos.find(x => x.id === correoId);
+  if (!c || !c.adjuntos_meta?.length) { toast('No hay adjuntos', 'error'); return; }
+
+  // Filtrar solo PDFs con patrón nómina: YYYY_MM-DNI.pdf
+  const nominaRegex = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
+  const nominas = c.adjuntos_meta
+    .map(a => { const m = (a.nombre || '').match(nominaRegex); return m ? { nombre: a.nombre, anio: m[1], mes: m[2], dni: m[3].toUpperCase(), original: a } : null; })
+    .filter(Boolean);
+
+  if (!nominas.length) { toast('No se encontraron adjuntos con patrón de nómina', 'error'); return; }
+
+  // Cargar empleados con DNI
+  const { data: empleados } = await sb.from('perfiles').select('id, nombre, apellidos, dni').eq('empresa_id', EMPRESA.id).not('dni', 'is', null);
+  const empMap = {};
+  (empleados || []).forEach(e => { if (e.dni) empMap[e.dni.toUpperCase().replace(/\s/g, '')] = e; });
+
+  // Preparar resumen
+  const resumen = nominas.map(n => {
+    const emp = empMap[n.dni];
+    return { ...n, empleado: emp || null, match: !!emp };
+  });
+
+  const sinMatch = resumen.filter(r => !r.match);
+  const conMatch = resumen.filter(r => r.match);
+
+  // Mostrar confirmación
+  let msg = '<b>' + conMatch.length + '</b> nóminas identificadas';
+  if (sinMatch.length) msg += ', <b style="color:var(--rojo)">' + sinMatch.length + '</b> sin empleado asociado';
+  msg += ':<br><br>';
+  conMatch.forEach(r => {
+    msg += '✅ <b>' + r.anio + '/' + r.mes + '</b> → ' + r.empleado.nombre + ' ' + (r.empleado.apellidos || '') + ' (' + r.dni + ')<br>';
+  });
+  sinMatch.forEach(r => {
+    msg += '❌ <b>' + r.anio + '/' + r.mes + '</b> → DNI ' + r.dni + ' <span style="color:var(--rojo)">no encontrado</span><br>';
+  });
+
+  if (!conMatch.length) { toast('Ningún DNI coincide con empleados registrados. Revisa que los DNI estén cargados en las fichas.', 'error'); return; }
+
+  const ok = await confirmModal({
+    titulo: '💰 Procesar nóminas',
+    mensaje: msg,
+    btnOk: 'Procesar ' + conMatch.length + ' nóminas',
+    colorOk: '#059669'
+  });
+  if (!ok) return;
+
+  // Procesar cada nómina con match
+  let exitos = 0, errores = 0;
+  for (const nom of conMatch) {
+    try {
+      toast('⬇️ Descargando nómina de ' + nom.empleado.nombre + '...', 'info');
+
+      // 1. Descargar adjunto via Edge Function
+      const { data, error } = await sb.functions.invoke('leer-correo', {
+        body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: nom.nombre }
+      });
+      if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
+
+      // 2. Descargar el blob desde la URL firmada
+      const resp = await fetch(data.adjunto.url);
+      if (!resp.ok) throw new Error('Error descargando PDF');
+      const blob = await resp.blob();
+
+      // 3. Subir al storage de documentos de empleado
+      const storagePath = 'empleados/' + EMPRESA.id + '/' + nom.empleado.id + '/nomina_' + nom.anio + '_' + nom.mes + '.pdf';
+      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: 'application/pdf', upsert: true });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+
+      // 4. Comprobar si ya existe esta nómina para no duplicar
+      const { data: existente } = await sb.from('documentos_empleado')
+        .select('id')
+        .eq('empleado_id', nom.empleado.id)
+        .eq('empresa_id', EMPRESA.id)
+        .eq('categoria', 'nomina')
+        .eq('periodo', nom.anio + '-' + nom.mes)
+        .maybeSingle();
+
+      if (existente) {
+        // Actualizar URL si ya existía
+        await sb.from('documentos_empleado').update({ url: urlData?.publicUrl, filename: nom.nombre, updated_at: new Date().toISOString() }).eq('id', existente.id);
+      } else {
+        // Crear registro nuevo
+        await sb.from('documentos_empleado').insert({
+          empresa_id: EMPRESA.id,
+          empleado_id: nom.empleado.id,
+          categoria: 'nomina',
+          nombre: 'Nómina ' + nom.mes + '/' + nom.anio,
+          filename: nom.nombre,
+          url: urlData?.publicUrl || null,
+          periodo: nom.anio + '-' + nom.mes,
+          created_by: CU.id,
+        });
+      }
+
+      exitos++;
+    } catch (e) {
+      console.error('[procesarNominas] Error con', nom.nombre, e);
+      errores++;
+    }
+  }
+
+  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' procesada' + (exitos > 1 ? 's' : '') + ' correctamente', 'success');
+  if (errores) toast('⚠️ ' + errores + ' nómina' + (errores > 1 ? 's' : '') + ' con error', 'error');
+
+  // Marcar adjuntos como descargados
+  if (c.adjuntos_meta) {
+    const nombresProc = new Set(conMatch.map(n => n.nombre));
+    c.adjuntos_meta = c.adjuntos_meta.map(a => nombresProc.has(a.nombre) ? { ...a, descargado: true } : a);
+    if (correoActual?.id === correoId) abrirCorreo(correoId);
   }
 }
 

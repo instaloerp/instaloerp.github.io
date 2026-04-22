@@ -167,7 +167,7 @@ function _empRenderDatos(c) {
         ${campo('Nombre completo', (u.nombre||'')+' '+(u.apellidos||''))}
         ${campo('Email', u.email)}
         ${campo('Teléfono', u.telefono)}
-        ${campo('DNI / NIE', u.dni || u.nif)}
+        ${campo('DNI / NIE', u.dni)}
         ${campo('Fecha alta', u.fecha_alta ? new Date(u.fecha_alta).toLocaleDateString('es-ES') : null)}
       </div>
       <div class="card" style="padding:16px">
