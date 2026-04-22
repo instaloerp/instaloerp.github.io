@@ -80,6 +80,12 @@ async function saveEmpresa() {
     }
     logoFile = null;
   }
+  // Guardar email gestoría en config
+  const emailGestoria = document.getElementById('cfg_email_gestoria')?.value?.trim() || '';
+  const config = EMPRESA.config || {};
+  config.email_gestoria = emailGestoria || null;
+  obj.config = config;
+
   await sb.from('empresas').update(obj).eq('id',EMPRESA.id);
   EMPRESA={...EMPRESA,...obj};
   const elEN=document.getElementById('sbEmpNombre'); if(elEN) elEN.textContent=EMPRESA.nombre;

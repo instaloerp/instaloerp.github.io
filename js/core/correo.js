@@ -204,6 +204,11 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
     filtrarCorreos();
     actualizarBadgeCorreo();
 
+    // Auto-procesar nóminas si hay correos nuevos y email de gestoría configurado
+    if (totalNuevos > 0) {
+      _autoDetectarNominas();
+    }
+
   } catch(e) {
     if (!silencioso) toast('⚠️ Error de sincronización: ' + (e.message || 'Error desconocido'), 'error');
     console.error('Error sync correo:', e);
@@ -635,7 +640,124 @@ async function descargarAdjunto(correoId, nombre) {
 }
 
 // ═══════════════════════════════════════════════
-//  PROCESAR NÓMINAS DESDE ADJUNTOS
+//  AUTO-DETECTAR NÓMINAS TRAS SYNC
+// ═══════════════════════════════════════════════
+let _nominasProcesadas = new Set(); // IDs de correos ya procesados (evitar duplicados)
+
+async function _autoDetectarNominas() {
+  const emailGestoria = EMPRESA.config?.email_gestoria;
+  if (!emailGestoria) return; // No configurado → nada que hacer
+
+  const nominaRegex = /^\d{4}_\d{2}-[\w-]+\.pdf$/i;
+
+  // Buscar correos recientes de la gestoría con adjuntos nómina que no hayamos procesado
+  const candidatos = correos.filter(c =>
+    c.tipo === 'recibido'
+    && !_nominasProcesadas.has(c.id)
+    && (c.de || '').toLowerCase().includes(emailGestoria.toLowerCase())
+    && c.adjuntos_meta?.some(a => nominaRegex.test(a.nombre || ''))
+  );
+
+  if (!candidatos.length) return;
+
+  // Comprobar en BD cuáles ya fueron procesados (tienen documentos_empleado vinculados)
+  for (const c of candidatos) {
+    const adjNominas = c.adjuntos_meta.filter(a => nominaRegex.test(a.nombre || ''));
+    // Extraer periodos de los adjuntos para ver si ya existen
+    const periodos = adjNominas.map(a => {
+      const m = a.nombre.match(/^(\d{4})_(\d{2})/);
+      return m ? m[1] + '-' + m[2] : null;
+    }).filter(Boolean);
+
+    if (!periodos.length) { _nominasProcesadas.add(c.id); continue; }
+
+    // Comprobar si ya hay nóminas de alguno de estos periodos
+    const { data: existentes } = await sb.from('documentos_empleado')
+      .select('periodo')
+      .eq('empresa_id', EMPRESA.id)
+      .eq('categoria', 'nomina')
+      .in('periodo', periodos);
+
+    const periodosExistentes = new Set((existentes || []).map(d => d.periodo));
+    const sinProcesar = adjNominas.filter(a => {
+      const m = a.nombre.match(/^(\d{4})_(\d{2})/);
+      return m && !periodosExistentes.has(m[1] + '-' + m[2]);
+    });
+
+    if (!sinProcesar.length) {
+      _nominasProcesadas.add(c.id);
+      continue;
+    }
+
+    // Hay nóminas nuevas → procesar automáticamente
+    toast('💰 Nóminas detectadas de la gestoría — procesando ' + sinProcesar.length + ' archivo' + (sinProcesar.length > 1 ? 's' : '') + '...', 'info');
+    await _procesarNominasAuto(c.id, sinProcesar);
+    _nominasProcesadas.add(c.id);
+  }
+}
+
+async function _procesarNominasAuto(correoId, adjuntos) {
+  const nominaRegex = /^(\d{4})_(\d{2})-([\w-]+)\.pdf$/i;
+
+  // Cargar empleados con DNI
+  const { data: empleados } = await sb.from('perfiles').select('id, nombre, apellidos, dni').eq('empresa_id', EMPRESA.id).not('dni', 'is', null);
+  const empMap = {};
+  (empleados || []).forEach(e => { if (e.dni) empMap[e.dni.toUpperCase().replace(/\s/g, '')] = e; });
+
+  let exitos = 0, errores = 0, sinMatch = [];
+
+  for (const adj of adjuntos) {
+    const m = adj.nombre.match(nominaRegex);
+    if (!m) continue;
+    const anio = m[1], mes = m[2], dni = m[3].toUpperCase();
+    const emp = empMap[dni];
+
+    if (!emp) { sinMatch.push(dni); continue; }
+
+    try {
+      // 1. Descargar adjunto
+      const { data, error } = await sb.functions.invoke('leer-correo', {
+        body: { empresa_id: EMPRESA.id, correo_id: correoId, descargar_adjunto: adj.nombre }
+      });
+      if (error || !data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo descargar');
+
+      // 2. Descargar blob
+      const resp = await fetch(data.adjunto.url);
+      if (!resp.ok) throw new Error('Error descargando PDF');
+      const blob = await resp.blob();
+
+      // 3. Subir al storage
+      const storagePath = 'empleados/' + EMPRESA.id + '/' + emp.id + '/nomina_' + anio + '_' + mes + '.pdf';
+      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, { contentType: 'application/pdf', upsert: true });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
+
+      // 4. Crear registro
+      await sb.from('documentos_empleado').insert({
+        empresa_id: EMPRESA.id,
+        empleado_id: emp.id,
+        categoria: 'nomina',
+        nombre: 'Nómina ' + mes + '/' + anio,
+        filename: adj.nombre,
+        url: urlData?.publicUrl || null,
+        periodo: anio + '-' + mes,
+        created_by: CU.id,
+      });
+
+      exitos++;
+    } catch (e) {
+      console.error('[autoNominas] Error con', adj.nombre, e);
+      errores++;
+    }
+  }
+
+  if (exitos) toast('✅ ' + exitos + ' nómina' + (exitos > 1 ? 's' : '') + ' archivada' + (exitos > 1 ? 's' : '') + ' automáticamente', 'success');
+  if (sinMatch.length) toast('⚠️ DNI sin empleado asociado: ' + sinMatch.join(', '), 'warning');
+  if (errores) toast('❌ ' + errores + ' nómina' + (errores > 1 ? 's' : '') + ' con error', 'error');
+}
+
+// ═══════════════════════════════════════════════
+//  PROCESAR NÓMINAS DESDE ADJUNTOS (MANUAL)
 // ═══════════════════════════════════════════════
 async function procesarNominas(correoId) {
   const c = correos.find(x => x.id === correoId);
