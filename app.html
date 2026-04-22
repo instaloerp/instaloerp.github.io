@@ -1791,6 +1791,10 @@ function navigateTo(tab) {
       case 'furgoneta':  renderMiFurgoneta(); break;
       case 'agenda':     renderOperarioAgenda(body); break;
       case 'mas':        renderOperarioMas(body); break;
+      case 'tempo':        renderTempoHome(body); break;
+      case 'tempo-historial': renderTempoHistorial(body); break;
+      case 'tempo-ausencias': renderTempoAusencias(body); break;
+      case 'tempo-nueva-ausencia': renderTempoNuevaAusencia(body); break;
     }
   }
 }
@@ -2411,30 +2415,69 @@ async function _fichajePromptEntrada() {
 
 function _getFichajeCardHtml() {
   const tieneEntrada = !!_fichajeEntradaHoy;
+  const estaPausado = tieneEntrada && _fichajeEntradaHoy.estado === 'pausado';
   const tiempoCorriendo = tieneEntrada ? _calcTiempoFichaje(_fichajeEntradaHoy.hora_entrada) : '';
   const entradaLabel = _fichajeEntradaHoy?.hora_entrada?.slice(0,5) || '';
 
+  // Calculate pause info
+  let pausaInfo = '';
+  if (tieneEntrada) {
+    const pausas = Array.isArray(_fichajeEntradaHoy.pausas) ? _fichajeEntradaHoy.pausas : [];
+    const numPausas = pausas.filter(p => p.inicio).length;
+    const minPausa = Math.round((_fichajeEntradaHoy.horas_pausa || 0) * 60);
+    if (numPausas > 0) {
+      pausaInfo = ` · ${numPausas} pausa${numPausas>1?'s':''} (${minPausa}m)`;
+    }
+    if (estaPausado) {
+      pausaInfo += ' · ⏸️ EN PAUSA';
+    }
+  }
+
+  const borderColor = estaPausado ? '#F59E0B' : (tieneEntrada ? '#2563EB' : '#E5E7EB');
+  const bgColor = estaPausado ? '#FFFBEB' : (tieneEntrada ? '#EFF6FF' : '#fff');
+  const iconBg = estaPausado ? '#F59E0B' : (tieneEntrada ? '#2563EB' : '#F3F4F6');
+
   return `
-    <div style="margin-bottom:16px;border-radius:14px;overflow:hidden;border:2px solid ${tieneEntrada ? '#2563EB' : '#E5E7EB'};background:${tieneEntrada ? '#EFF6FF' : '#fff'}">
+    <div style="margin-bottom:16px;border-radius:14px;overflow:hidden;border:2px solid ${borderColor};background:${bgColor}">
       <div style="padding:14px 16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div>
-            <div style="font-size:11px;font-weight:800;color:${tieneEntrada ? '#1D4ED8' : '#6B7280'};text-transform:uppercase;letter-spacing:.5px">⏱️ Fichaje de jornada</div>
+            <div style="font-size:11px;font-weight:800;color:${estaPausado ? '#B45309' : (tieneEntrada ? '#1D4ED8' : '#6B7280')};text-transform:uppercase;letter-spacing:.5px">⏱️ Fichaje de jornada</div>
             ${tieneEntrada
-              ? `<div style="font-size:13px;color:#374151;margin-top:2px">Entrada: <b>${entradaLabel}</b> · <span id="ficTiempoVivo">${tiempoCorriendo}</span></div>`
+              ? `<div style="font-size:13px;color:#374151;margin-top:2px">Entrada: <b>${entradaLabel}</b> · <span id="ficTiempoVivo">${tiempoCorriendo}</span>${pausaInfo}</div>`
               : `<div style="font-size:13px;color:#9CA3AF;margin-top:2px">Sin fichar hoy</div>`
             }
           </div>
-          <div style="width:44px;height:44px;border-radius:50%;background:${tieneEntrada ? '#2563EB' : '#F3F4F6'};display:flex;align-items:center;justify-content:center;font-size:20px">
-            ${tieneEntrada ? '🟢' : '⏸️'}
+          <div style="width:44px;height:44px;border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:20px">
+            ${estaPausado ? '⏸️' : (tieneEntrada ? '🟢' : '⏸️')}
           </div>
         </div>
-        <button onclick="${tieneEntrada ? 'appFichajeSalida()' : 'appFichajeEntrada()'}"
-          style="width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font);background:${tieneEntrada ? '#EF4444' : '#2563EB'};color:#fff;display:flex;align-items:center;justify-content:center;gap:8px">
-          ${tieneEntrada ? '🔴 Fichar salida' : '🟢 Fichar entrada'}
-        </button>
+        ${!tieneEntrada ? `
+          <button onclick="appFichajeEntrada()"
+            style="width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font);background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px">
+            🟢 Fichar entrada
+          </button>
+        ` : `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            ${estaPausado ? `
+              <button onclick="appFichajeReanudar()"
+                style="padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);background:#2563EB;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+                ▶️ Reanudar
+              </button>
+            ` : `
+              <button onclick="appFichajePausa()"
+                style="padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);background:#F59E0B;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+                ⏸️ Pausar
+              </button>
+            `}
+            <button onclick="appFichajeSalida()"
+              style="padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);background:#EF4444;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+              🔴 Salida
+            </button>
+          </div>
+        `}
         ${misFichajesHoy.length > 0 ? `
-          <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+          <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             ${misFichajesHoy.filter(f=>f.hora_salida).map(f=>`
               <span style="font-size:11px;color:#6B7280;background:#F3F4F6;padding:3px 8px;border-radius:8px">
                 ${f.hora_entrada?.slice(0,5)||'?'} → ${f.hora_salida?.slice(0,5)||'?'}
@@ -2477,7 +2520,8 @@ async function appFichajeEntrada() {
   const { data, error } = await sb.from('fichajes').insert({
     empresa_id: EMPRESA.id, usuario_id: CU.id,
     usuario_nombre: CP?.nombre || '',
-    fecha: hoy, hora_entrada: hora, tipo: 'entrada', latitud: lat, longitud: lng
+    fecha: hoy, hora_entrada: hora, tipo: 'entrada', latitud: lat, longitud: lng,
+    estado: 'activo'
   }).select().single();
 
   if (error) { toast('Error al fichar: ' + error.message, 'error'); if (btn) { btn.disabled = false; } return; }
@@ -2512,10 +2556,25 @@ async function appFichajeSalida() {
   const [hs, ms] = hora.split(':').map(Number);
   let mins = (hs * 60 + ms) - (hh * 60 + mm);
   if (mins < 0) mins += 24 * 60;
-  const horasTotal = +(mins / 60).toFixed(2);
+
+  // Cerrar pausa abierta si existe
+  let pausas = Array.isArray(_fichajeEntradaHoy.pausas) ? [..._fichajeEntradaHoy.pausas] : [];
+  const lastOpenPause = pausas.findLast(p => !p.fin);
+  if (lastOpenPause) lastOpenPause.fin = hora.slice(0,5);
+
+  let totalPausaMin = 0;
+  pausas.forEach(p => {
+    if (p.inicio && p.fin) {
+      const [hi2, mi2] = p.inicio.split(':').map(Number);
+      const [hf2, mf2] = p.fin.split(':').map(Number);
+      totalPausaMin += (hf2 * 60 + mf2) - (hi2 * 60 + mi2);
+    }
+  });
+  const horasTotal = +((mins - totalPausaMin) / 60).toFixed(2);
 
   const { error } = await sb.from('fichajes').update({
-    hora_salida: hora, horas_total: horasTotal, latitud: lat, longitud: lng
+    hora_salida: hora, horas_total: horasTotal, latitud: lat, longitud: lng,
+    pausas: pausas, horas_pausa: +(totalPausaMin / 60).toFixed(2), estado: 'finalizado'
   }).eq('id', _fichajeEntradaHoy.id);
 
   if (error) { toast('Error al fichar: ' + error.message, 'error'); if (btn) btn.disabled = false; return; }
@@ -2529,6 +2588,68 @@ async function appFichajeSalida() {
   toast(`⬛ Salida registrada · ${hora.slice(0,5)} · ${hDisplay}h ${mDisplay}m`, 'success');
   const body = document.getElementById('appBody');
   if (body) navigateTo('inicio');
+}
+
+async function appFichajePausa() {
+  if (!_fichajeEntradaHoy) return;
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Pausando…'; }
+
+  const ahora = new Date();
+  const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+
+  const pausas = Array.isArray(_fichajeEntradaHoy.pausas) ? [..._fichajeEntradaHoy.pausas] : [];
+  pausas.push({ inicio: hora, fin: null });
+
+  const { error } = await sb.from('fichajes').update({
+    pausas: pausas,
+    estado: 'pausado'
+  }).eq('id', _fichajeEntradaHoy.id);
+
+  if (error) { toast('Error: ' + error.message, 'error'); if (btn) btn.disabled = false; return; }
+
+  _fichajeEntradaHoy.pausas = pausas;
+  _fichajeEntradaHoy.estado = 'pausado';
+  toast('⏸️ Jornada pausada · ' + hora, 'info');
+  navigateTo('inicio');
+}
+
+async function appFichajeReanudar() {
+  if (!_fichajeEntradaHoy) return;
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Reanudando…'; }
+
+  const ahora = new Date();
+  const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+
+  const pausas = Array.isArray(_fichajeEntradaHoy.pausas) ? [..._fichajeEntradaHoy.pausas] : [];
+  // Close the last open pause
+  const lastPause = pausas.findLast(p => !p.fin);
+  if (lastPause) lastPause.fin = hora;
+
+  // Calculate total pause minutes
+  let totalPausaMin = 0;
+  pausas.forEach(p => {
+    if (p.inicio && p.fin) {
+      const [hi, mi] = p.inicio.split(':').map(Number);
+      const [hf, mf] = p.fin.split(':').map(Number);
+      totalPausaMin += (hf * 60 + mf) - (hi * 60 + mi);
+    }
+  });
+
+  const { error } = await sb.from('fichajes').update({
+    pausas: pausas,
+    estado: 'activo',
+    horas_pausa: +(totalPausaMin / 60).toFixed(2)
+  }).eq('id', _fichajeEntradaHoy.id);
+
+  if (error) { toast('Error: ' + error.message, 'error'); if (btn) btn.disabled = false; return; }
+
+  _fichajeEntradaHoy.pausas = pausas;
+  _fichajeEntradaHoy.estado = 'activo';
+  _fichajeEntradaHoy.horas_pausa = +(totalPausaMin / 60).toFixed(2);
+  toast('▶️ Jornada reanudada · ' + hora, 'success');
+  navigateTo('inicio');
 }
 
 function renderOperarioInicio(el) {
@@ -3247,6 +3368,13 @@ async function renderOperarioMas(el) {
       <div><div style="font-weight:700;font-size:14px">Borrar caché</div><div style="font-size:12px;color:var(--gris-400)">Borrar todos los datos offline y recargar</div></div>
     </div>
 
+    <div class="section-title" style="margin-top:16px">⏱️ Tempo</div>
+    <div class="card" onclick="navigateTo('tempo')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">⏱️</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px">Mi Tempo</div><div style="font-size:12px;color:var(--gris-400)">Fichajes, ausencias y vacaciones</div></div>
+      <span style="color:var(--gris-400);font-size:18px">›</span>
+    </div>
+
     <div class="section-title" style="margin-top:16px">🚐 Furgoneta</div>
     <div class="card" onclick="navigateTo('furgoneta')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🚐</span>
@@ -3271,7 +3399,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 15
+      instaloERP v1.0 · build 16
     </div>
   `;
 }
@@ -3621,7 +3749,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 15
+      instaloERP v1.0 · build 16
     </div>
   `;
 }
@@ -3997,7 +4125,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 15
+        instaloERP v1.0 · build 16
       </div>
     </div>`;
 }
@@ -11999,6 +12127,290 @@ function installApp() {
     });
   }
 }
+
+// ═══════════════════════════════════════════════
+// TEMPO — Módulo de control horario y ausencias
+// ═══════════════════════════════════════════════
+
+let _tempoTiposAusencia = [];
+let _tempoMisAusencias = [];
+
+async function _tempoCargarTipos() {
+  if (_tempoTiposAusencia.length > 0) return;
+  const { data } = await sb.from('tipos_ausencia')
+    .select('*').eq('empresa_id', EMPRESA.id).eq('activo', true).order('orden');
+  _tempoTiposAusencia = data || [];
+}
+
+function renderTempoHome(el) {
+  const diasVacaciones = CP?.tempo_dias_vacaciones || 22;
+  const diasUsados = CP?.tempo_dias_vacaciones_usados || 0;
+  const diasDisponibles = diasVacaciones - diasUsados;
+  const horasSemanales = CP?.tempo_horas_semanales || 40;
+
+  el.innerHTML = `
+    <div style="padding:0 16px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="navigateTo('mas')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px">\u2190</button>
+        <h2 style="font-size:18px;font-weight:800;margin:0">\u23F1\uFE0F Mi Tempo</h2>
+      </div>
+
+      <!-- Resumen rapido -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:#EFF6FF;border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:#2563EB">${diasDisponibles}</div>
+          <div style="font-size:11px;color:#6B7280">Dias vacaciones</div>
+          <div style="font-size:10px;color:#9CA3AF">${diasUsados} usados de ${diasVacaciones}</div>
+        </div>
+        <div style="background:#F0FDF4;border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:#16A34A">${horasSemanales}h</div>
+          <div style="font-size:11px;color:#6B7280">Horas/semana</div>
+          <div style="font-size:10px;color:#9CA3AF">${CP?.tempo_tipo_contrato === 'parcial' ? 'Parcial' : 'Completa'}</div>
+        </div>
+      </div>
+
+      <!-- Fichaje actual -->
+      ${_getFichajeCardHtml()}
+
+      <!-- Menu Tempo -->
+      <div class="card" onclick="navigateTo('tempo-historial')" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="font-size:20px">\uD83D\uDCCB</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Mis jornadas</div><div style="font-size:12px;color:var(--gris-400)">Historial de fichajes</div></div>
+        <span style="color:var(--gris-400)">\u203A</span>
+      </div>
+      <div class="card" onclick="navigateTo('tempo-ausencias')" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="font-size:20px">\uD83C\uDFD6\uFE0F</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Mis ausencias</div><div style="font-size:12px;color:var(--gris-400)">Vacaciones, bajas, permisos</div></div>
+        <span style="color:var(--gris-400)">\u203A</span>
+      </div>
+      <div class="card" onclick="navigateTo('tempo-nueva-ausencia')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+        <span style="font-size:20px">\uD83D\uDCDD</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Solicitar ausencia</div><div style="font-size:12px;color:var(--gris-400)">Pedir vacaciones, baja, permiso...</div></div>
+        <span style="color:var(--gris-400)">\u203A</span>
+      </div>
+    </div>`;
+}
+
+async function renderTempoHistorial(el) {
+  el.innerHTML = `<div style="padding:16px;text-align:center;color:#9CA3AF">Cargando jornadas...</div>`;
+
+  // Last 30 days
+  const desde = new Date();
+  desde.setDate(desde.getDate() - 30);
+  const desdeStr = desde.toISOString().split('T')[0];
+
+  const { data } = await sb.from('fichajes')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('usuario_id', CU.id)
+    .gte('fecha', desdeStr)
+    .order('fecha', { ascending: false })
+    .order('hora_entrada', { ascending: false });
+
+  const fichajes = data || [];
+
+  // Group by date
+  const porDia = {};
+  fichajes.forEach(f => {
+    if (!porDia[f.fecha]) porDia[f.fecha] = [];
+    porDia[f.fecha].push(f);
+  });
+
+  const dias = Object.keys(porDia).sort((a,b) => b.localeCompare(a));
+
+  el.innerHTML = `
+    <div style="padding:0 16px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="navigateTo('tempo')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px">\u2190</button>
+        <h2 style="font-size:18px;font-weight:800;margin:0">\uD83D\uDCCB Mis jornadas</h2>
+      </div>
+      ${dias.length === 0 ? '<div style="text-align:center;color:#9CA3AF;padding:40px">Sin fichajes en los ultimos 30 dias</div>' : ''}
+      ${dias.map(dia => {
+        const fics = porDia[dia];
+        const totalHoras = fics.reduce((s, f) => s + (parseFloat(f.horas_total) || 0), 0);
+        const totalPausas = fics.reduce((s, f) => s + (parseFloat(f.horas_pausa) || 0), 0);
+        const diaFmt = new Date(dia + 'T00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+        return `
+          <div style="background:#fff;border-radius:12px;border:1px solid #E5E7EB;padding:12px 14px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div style="font-weight:700;font-size:13px;text-transform:capitalize">${diaFmt}</div>
+              <div style="font-size:13px;font-weight:800;color:${totalHoras >= 8 ? '#16A34A' : '#F59E0B'}">${totalHoras.toFixed(1)}h</div>
+            </div>
+            ${fics.map(f => `
+              <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#6B7280">
+                <span>${f.hora_entrada?.slice(0,5) || '?'} \u2192 ${f.hora_salida?.slice(0,5) || '...'}</span>
+                ${f.horas_pausa > 0 ? `<span style="color:#F59E0B">\u23F8 ${(f.horas_pausa*60).toFixed(0)}m pausa</span>` : ''}
+                ${f.latitud ? '<span title="GPS">\uD83D\uDCCD</span>' : ''}
+              </div>
+            `).join('')}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function renderTempoAusencias(el) {
+  el.innerHTML = `<div style="padding:16px;text-align:center;color:#9CA3AF">Cargando ausencias...</div>`;
+
+  const { data } = await sb.from('ausencias')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .eq('usuario_id', CU.id)
+    .order('created_at', { ascending: false });
+
+  _tempoMisAusencias = data || [];
+
+  const estadoColor = { pendiente: '#F59E0B', aprobada: '#16A34A', rechazada: '#EF4444' };
+  const estadoIcon = { pendiente: '\u23F3', aprobada: '\u2705', rechazada: '\u274C' };
+
+  el.innerHTML = `
+    <div style="padding:0 16px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="navigateTo('tempo')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px">\u2190</button>
+        <h2 style="font-size:18px;font-weight:800;margin:0;flex:1">\uD83C\uDFD6\uFE0F Mis ausencias</h2>
+        <button onclick="navigateTo('tempo-nueva-ausencia')" style="background:#2563EB;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">+ Nueva</button>
+      </div>
+      ${_tempoMisAusencias.length === 0 ? '<div style="text-align:center;color:#9CA3AF;padding:40px">No tienes ausencias registradas</div>' : ''}
+      ${_tempoMisAusencias.map(a => {
+        const inicio = new Date(a.fecha_inicio + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        const fin = new Date(a.fecha_fin + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        const color = estadoColor[a.estado] || '#6B7280';
+        return `
+          <div style="background:#fff;border-radius:12px;border:1px solid #E5E7EB;padding:12px 14px;margin-bottom:8px;border-left:4px solid ${color}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="font-weight:700;font-size:13px">${a.tipo || 'Ausencia'}</div>
+              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:${color}15;color:${color}">${estadoIcon[a.estado]||''} ${a.estado}</span>
+            </div>
+            <div style="font-size:12px;color:#6B7280">${inicio} \u2192 ${fin}${a.dias_totales ? ' \u00B7 ' + a.dias_totales + ' dia(s)' : ''}</div>
+            ${a.motivo ? `<div style="font-size:12px;color:#9CA3AF;margin-top:4px">${a.motivo}</div>` : ''}
+            ${a.observaciones_admin ? `<div style="font-size:11px;color:#2563EB;margin-top:4px;font-style:italic">\uD83D\uDCAC ${a.observaciones_admin}</div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function renderTempoNuevaAusencia(el) {
+  await _tempoCargarTipos();
+
+  const hoy = new Date().toISOString().split('T')[0];
+  const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+  el.innerHTML = `
+    <div style="padding:0 16px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="navigateTo('tempo-ausencias')" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px">\u2190</button>
+        <h2 style="font-size:18px;font-weight:800;margin:0">\uD83D\uDCDD Solicitar ausencia</h2>
+      </div>
+
+      <div style="background:#fff;border-radius:12px;border:1px solid #E5E7EB;padding:16px">
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Tipo de ausencia *</label>
+          <select id="tempo_aus_tipo" style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:var(--font);background:#fff">
+            ${_tempoTiposAusencia.map(t => `<option value="${t.nombre}" data-consume="${t.consume_vacaciones}">${t.nombre}</option>`).join('')}
+            ${_tempoTiposAusencia.length === 0 ? '<option value="Vacaciones">Vacaciones</option><option value="Baja medica">Baja medica</option><option value="Permiso">Permiso</option><option value="Asuntos propios">Asuntos propios</option><option value="Otro">Otro</option>' : ''}
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Fecha inicio *</label>
+            <input type="date" id="tempo_aus_inicio" value="${manana}" style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:var(--font)">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Fecha fin *</label>
+            <input type="date" id="tempo_aus_fin" value="${manana}" style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:var(--font)">
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Motivo</label>
+          <textarea id="tempo_aus_motivo" rows="3" placeholder="Describe el motivo de la ausencia..." style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:var(--font);resize:vertical"></textarea>
+        </div>
+
+        <div id="tempo_aus_info" style="background:#FEF3C7;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#92400E;display:none"></div>
+
+        <button onclick="tempoEnviarAusencia()" style="width:100%;padding:14px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:var(--font)">
+          \uD83D\uDCE4 Enviar solicitud
+        </button>
+      </div>
+    </div>`;
+
+  // Show vacation info if type consumes vacations
+  document.getElementById('tempo_aus_tipo')?.addEventListener('change', _tempoActualizarInfoAusencia);
+  document.getElementById('tempo_aus_inicio')?.addEventListener('change', _tempoActualizarInfoAusencia);
+  document.getElementById('tempo_aus_fin')?.addEventListener('change', _tempoActualizarInfoAusencia);
+  _tempoActualizarInfoAusencia();
+}
+
+function _tempoActualizarInfoAusencia() {
+  const tipo = document.getElementById('tempo_aus_tipo')?.value;
+  const inicio = document.getElementById('tempo_aus_inicio')?.value;
+  const fin = document.getElementById('tempo_aus_fin')?.value;
+  const infoEl = document.getElementById('tempo_aus_info');
+  if (!infoEl) return;
+
+  if (inicio && fin) {
+    const d1 = new Date(inicio), d2 = new Date(fin);
+    let dias = 0;
+    const current = new Date(d1);
+    while (current <= d2) {
+      const dow = current.getDay();
+      if (dow !== 0 && dow !== 6) dias++; // skip weekends
+      current.setDate(current.getDate() + 1);
+    }
+
+    const tipoObj = _tempoTiposAusencia.find(t => t.nombre === tipo);
+    const consumeVac = tipoObj?.consume_vacaciones || tipo === 'Vacaciones';
+
+    if (consumeVac) {
+      const disponibles = (CP?.tempo_dias_vacaciones || 22) - (CP?.tempo_dias_vacaciones_usados || 0);
+      infoEl.style.display = 'block';
+      infoEl.innerHTML = `\uD83D\uDCC5 ${dias} dia(s) laborable(s)<br>\uD83C\uDFD6\uFE0F Consume vacaciones: ${disponibles} disponibles${dias > disponibles ? '<br><span style="color:#DC2626;font-weight:700">\u26A0\uFE0F No tienes suficientes dias</span>' : ''}`;
+    } else {
+      infoEl.style.display = 'block';
+      infoEl.innerHTML = `\uD83D\uDCC5 ${dias} dia(s) laborable(s)`;
+    }
+  } else {
+    infoEl.style.display = 'none';
+  }
+}
+
+async function tempoEnviarAusencia() {
+  const tipo = document.getElementById('tempo_aus_tipo')?.value;
+  const inicio = document.getElementById('tempo_aus_inicio')?.value;
+  const fin = document.getElementById('tempo_aus_fin')?.value;
+  const motivo = document.getElementById('tempo_aus_motivo')?.value?.trim();
+
+  if (!tipo || !inicio || !fin) { toast('Rellena tipo, fecha inicio y fecha fin', 'error'); return; }
+  if (fin < inicio) { toast('La fecha fin no puede ser anterior al inicio', 'error'); return; }
+
+  // Calculate working days
+  const d1 = new Date(inicio), d2 = new Date(fin);
+  let dias = 0;
+  const current = new Date(d1);
+  while (current <= d2) {
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) dias++;
+    current.setDate(current.getDate() + 1);
+  }
+
+  const { error } = await sb.from('ausencias').insert({
+    empresa_id: EMPRESA.id,
+    usuario_id: CU.id,
+    usuario_nombre: CP?.nombre || '',
+    tipo,
+    fecha_inicio: inicio,
+    fecha_fin: fin,
+    dias_totales: dias,
+    motivo: motivo || null,
+    estado: 'pendiente'
+  });
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  toast('\uD83D\uDCE4 Solicitud enviada \u00B7 Pendiente de aprobacion', 'success');
+  navigateTo('tempo-ausencias');
+}
+
 </script>
 </body>
 </html>
