@@ -410,7 +410,7 @@ function renderBandeja() {
     cont.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--gris-400)">
       <div style="font-size:48px;margin-bottom:12px">📥</div>
       <div style="font-size:14px;font-weight:600;margin-bottom:6px">${msgs[filtro] || msgs.todos}</div>
-      <div style="font-size:12px">Las automatizaciones crearán tareas aquí cuando detecten correos relevantes</div>
+      <div style="font-size:12px">Las reglas de automatización crearán tareas aquí al detectar correos, documentos o partes</div>
     </div>`;
     return;
   }
@@ -420,18 +420,10 @@ function renderBandeja() {
     const est = ESTADOS_BANDEJA[b.estado] || ESTADOS_BANDEJA.pendiente;
     const fecha = b.created_at ? new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
     const datos = b.datos_extraidos || {};
+    const adjuntos = b.adjuntos || [];
+    const nAdj = adjuntos.length;
 
-    let acciones = '';
-    if (b.estado === 'pendiente') {
-      acciones = `
-        <button onclick="ejecutarBandeja(${b.id})" class="btn btn-primary btn-sm" style="padding:5px 12px;font-size:11px">✅ Ejecutar</button>
-        <button onclick="rechazarBandeja(${b.id})" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px;color:#ef4444">✕</button>
-      `;
-    } else if (b.estado === 'completado' && b.resultado_id) {
-      acciones = `<button onclick="verResultadoBandeja(${b.id})" class="btn btn-secondary btn-sm" style="padding:5px 12px;font-size:11px">👁️ Ver</button>`;
-    }
-
-    return `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--gris-200);background:#fff;transition:all .15s">
+    return `<div onclick="previsualizarTarea(${b.id})" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--gris-200);background:#fff;transition:all .15s;cursor:pointer" onmouseenter="this.style.borderColor='var(--azul)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'" onmouseleave="this.style.borderColor='var(--gris-200)';this.style.boxShadow='none'">
       <div style="width:42px;height:42px;border-radius:10px;background:${acc.color}12;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${acc.ico}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
@@ -439,9 +431,9 @@ function renderBandeja() {
           <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:${est.color}15;color:${est.color};flex-shrink:0">${est.ico} ${est.label}</span>
         </div>
         ${b.descripcion ? `<div style="font-size:11px;color:var(--gris-500);margin-bottom:2px">${b.descripcion}</div>` : ''}
-        <div style="font-size:10px;color:var(--gris-400)">${fecha} · ${acc.label}</div>
+        <div style="font-size:10px;color:var(--gris-400)">${fecha} · ${acc.label}${nAdj ? ` · 📎 ${nAdj} adjunto${nAdj > 1 ? 's' : ''}` : ''}</div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">${acciones}</div>
+      <div style="flex-shrink:0;color:var(--gris-400);font-size:16px">›</div>
     </div>`;
   }).join('');
 }
@@ -540,11 +532,14 @@ async function _ejecutarAccionBandeja(item) {
       const obj = {
         empresa_id: EMPRESA.id,
         proveedor_id: datos.proveedor_id || null,
-        numero_factura: datos.numero || '',
+        proveedor_nombre: datos.remitente || 'Proveedor desde correo',
+        numero: datos.numero || '',
         fecha: datos.fecha || new Date().toISOString().split('T')[0],
         total: datos.total || 0,
-        estado: 'borrador',
-        notas: 'Creada automáticamente desde bandeja de entrada. Correo: ' + (datos.asunto || ''),
+        base_imponible: datos.base_imponible || 0,
+        total_iva: datos.total_iva || 0,
+        estado: 'pendiente',
+        observaciones: 'Creada desde tareas pendientes. Correo: ' + (datos.asunto || ''),
       };
       const { data, error } = await sb.from('facturas_proveedor').insert(obj).select().single();
       if (error) throw error;
@@ -557,7 +552,7 @@ async function _ejecutarAccionBandeja(item) {
         nombre: datos.nombre || 'Cliente desde correo',
         email: datos.email || '',
         telefono: datos.telefono || '',
-        notas: 'Creado automáticamente desde bandeja de entrada.',
+        notas: 'Creado automáticamente desde tareas pendientes.',
       };
       const { data, error } = await sb.from('clientes').insert(obj).select().single();
       if (error) throw error;
@@ -850,6 +845,10 @@ async function renderDashBandeja() {
     .limit(5);
 
   const items = data || [];
+  // Guardar en _bandejaItems para que previsualizarTarea funcione desde dashboard
+  if (!_bandejaItems.length) _bandejaItems = items;
+  else items.forEach(it => { if (!_bandejaItems.find(x => x.id === it.id)) _bandejaItems.push(it); });
+
   if (!items.length) {
     card.style.display = 'none';
     return;
@@ -861,7 +860,7 @@ async function renderDashBandeja() {
   cont.innerHTML = items.map(b => {
     const acc = ACCIONES_AUTO[b.tipo] || ACCIONES_AUTO.personalizada;
     const fecha = b.created_at ? new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:6px;cursor:pointer;transition:background .15s" onclick="goPage('bandeja')">
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--gris-200);margin-bottom:6px;cursor:pointer;transition:background .15s" onclick="previsualizarTarea(${b.id})">
       <span style="font-size:16px">${acc.ico}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.titulo}</div>
@@ -870,6 +869,145 @@ async function renderDashBandeja() {
       <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:#D9770615;color:#D97706">Pendiente</span>
     </div>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  PREVISUALIZACIÓN DE TAREA
+// ═══════════════════════════════════════════════
+let _previsTareaId = null;
+
+function previsualizarTarea(id) {
+  const item = _bandejaItems.find(x => x.id === id);
+  if (!item) return;
+  _previsTareaId = id;
+
+  const acc = ACCIONES_AUTO[item.tipo] || ACCIONES_AUTO.personalizada;
+  const est = ESTADOS_BANDEJA[item.estado] || ESTADOS_BANDEJA.pendiente;
+  const datos = item.datos_extraidos || {};
+  const adjuntos = item.adjuntos || [];
+
+  // Cabecera
+  document.getElementById('ptIco').textContent = acc.ico;
+  document.getElementById('ptTitulo').textContent = item.titulo || 'Tarea';
+  document.getElementById('ptAccionLabel').textContent = acc.label;
+  document.getElementById('ptEstadoBadge').textContent = est.ico + ' ' + est.label;
+  document.getElementById('ptEstadoBadge').style.background = est.color + '15';
+  document.getElementById('ptEstadoBadge').style.color = est.color;
+
+  // Info correo
+  document.getElementById('ptRemitente').textContent = datos.remitente || item.descripcion || '';
+  document.getElementById('ptAsunto').textContent = datos.asunto || '';
+  const fecha = item.created_at ? new Date(item.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  document.getElementById('ptFecha').textContent = fecha;
+
+  // Adjuntos
+  const adjCont = document.getElementById('ptAdjuntos');
+  const adjLista = document.getElementById('ptAdjuntosLista');
+  if (adjuntos.length) {
+    adjCont.style.display = 'block';
+    adjLista.innerHTML = adjuntos.map((a, i) => {
+      const nombre = a.nombre || 'adjunto';
+      const esPdf = nombre.toLowerCase().endsWith('.pdf');
+      const esImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(nombre);
+      const tamano = a.tamano > 1048576 ? (a.tamano / 1048576).toFixed(1) + ' MB' : a.tamano > 1024 ? Math.round(a.tamano / 1024) + ' KB' : (a.tamano || '?') + ' B';
+      const icono = esPdf ? '📄' : esImg ? '🖼️' : '📎';
+      return `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();previewAdjuntoTarea(${id},${i})" style="padding:5px 10px;font-size:11px;display:flex;align-items:center;gap:4px">
+        ${icono} ${nombre} <span style="color:var(--gris-400);font-size:9px">${tamano}</span>
+      </button>`;
+    }).join('');
+
+    // Auto-preview primer PDF si existe
+    const primerPdf = adjuntos.findIndex(a => (a.nombre || '').toLowerCase().endsWith('.pdf'));
+    if (primerPdf >= 0) {
+      setTimeout(() => previewAdjuntoTarea(id, primerPdf), 300);
+    }
+  } else {
+    adjCont.style.display = 'none';
+  }
+
+  // Reset preview
+  document.getElementById('ptPreviewFrame').style.display = 'none';
+  document.getElementById('ptPreviewFrame').src = '';
+  document.getElementById('ptPreviewImg').style.display = 'none';
+  document.getElementById('ptPreviewPlaceholder').style.display = adjuntos.length ? '' : 'block';
+  if (!adjuntos.length) {
+    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:12px">Esta tarea no tiene adjuntos</div>`;
+  } else {
+    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📄</div><div style="font-size:12px">Cargando previsualización...</div>`;
+  }
+
+  // Botones según estado
+  const esPendiente = item.estado === 'pendiente';
+  document.getElementById('ptBtnEjecutar').style.display = esPendiente ? '' : 'none';
+  document.getElementById('ptBtnDescartar').style.display = esPendiente ? '' : 'none';
+
+  openModal('mPrevisTarea');
+}
+
+async function previewAdjuntoTarea(tareaId, adjIdx) {
+  const item = _bandejaItems.find(x => x.id === tareaId);
+  if (!item) return;
+  const adjuntos = item.adjuntos || [];
+  const adj = adjuntos[adjIdx];
+  if (!adj) return;
+
+  const nombre = (adj.nombre || '').toLowerCase();
+  const esPdf = nombre.endsWith('.pdf');
+  const esImg = /\.(jpg|jpeg|png|gif|webp)$/.test(nombre);
+
+  const placeholder = document.getElementById('ptPreviewPlaceholder');
+  const frame = document.getElementById('ptPreviewFrame');
+  const img = document.getElementById('ptPreviewImg');
+
+  // Resetear
+  frame.style.display = 'none';
+  frame.src = '';
+  img.style.display = 'none';
+  placeholder.style.display = '';
+  placeholder.innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:12px">Descargando ${adj.nombre}...</div>`;
+
+  try {
+    // Obtener URL firmada del adjunto
+    const { data, error } = await sb.functions.invoke('leer-correo', {
+      body: {
+        empresa_id: EMPRESA.id,
+        correo_id: item.correo_id,
+        descargar_adjunto: adj.nombre
+      }
+    });
+    if (error) throw error;
+    if (!data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo obtener el adjunto');
+
+    const url = data.adjunto.url;
+
+    if (esPdf) {
+      frame.src = url;
+      frame.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else if (esImg) {
+      img.src = url;
+      img.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else {
+      placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">📎</div>
+        <div style="font-size:12px;margin-bottom:8px">${adj.nombre}</div>
+        <a href="${url}" target="_blank" class="btn btn-primary btn-sm" style="font-size:11px">⬇️ Descargar</a>`;
+    }
+  } catch (e) {
+    placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:12px;color:#ef4444">Error: ${e.message}</div>`;
+  }
+}
+
+async function ejecutarDesdePreview() {
+  if (!_previsTareaId) return;
+  closeModal('mPrevisTarea');
+  await ejecutarBandeja(_previsTareaId);
+}
+
+async function rechazarDesdePreview() {
+  if (!_previsTareaId) return;
+  closeModal('mPrevisTarea');
+  await rechazarBandeja(_previsTareaId);
 }
 
 // ═══════════════════════════════════════════════

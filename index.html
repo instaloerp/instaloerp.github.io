@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 48</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 49</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -185,9 +185,9 @@ try {
         <div id="sbFavList" class="sb-favoritos"></div>
       </div>
 
-      <!-- BANDEJA DE ENTRADA -->
+      <!-- TAREAS PENDIENTES -->
       <button class="sb-item" onclick="goPage('bandeja')" style="margin:4px 8px;border-radius:8px;font-weight:600;background:var(--azul-light);border:1px solid var(--azul);color:var(--azul)">
-        <span class="ico">📥</span> Bandeja de entrada
+        <span class="ico">⚡</span> Tareas pendientes
         <span id="bandeja-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span>
       </button>
 
@@ -342,7 +342,7 @@ try {
         <div class="dash-grid">
           <div class="dash-card dash-card--orange" id="dash-docs-ocr" style="display:none"></div>
           <div class="dash-card dash-card--purple" id="dash-bandeja" style="display:none">
-            <div class="card-h"><h3>📥 Bandeja de entrada</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
+            <div class="card-h"><h3>⚡ Tareas pendientes</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
             <div class="card-b" id="d-bandeja-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">📥</div><p>Sin tareas pendientes</p></div></div>
           </div>
           <div class="dash-card dash-card--green">
@@ -1678,7 +1678,7 @@ try {
       <!-- ═══ BANDEJA DE ENTRADA (AUTOMATIZACIONES) ═══ -->
       <div class="page" id="page-bandeja">
         <div class="page-header">
-          <h2>📥 Bandeja de entrada</h2>
+          <h2>⚡ Tareas pendientes</h2>
           <div style="display:flex;gap:8px;align-items:center">
             <select id="bandejaFiltroEstado" onchange="filtrarBandeja()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px">
               <option value="pendiente">Pendientes</option>
@@ -3679,6 +3679,44 @@ try {
     <div class="modal-f">
       <button class="btn btn-secondary" onclick="closeModal('mAutomatizacion')">Cancelar</button>
       <button class="btn btn-primary" id="btnGuardarAuto" onclick="guardarAutomatizacion()">💾 Crear regla</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Previsualización de Tarea -->
+<div class="overlay" id="mPrevisTarea">
+  <div class="modal" style="max-width:900px;height:85vh;display:flex;flex-direction:column">
+    <div class="modal-h"><span id="ptIco">📑</span><h2 id="ptTitulo">Tarea</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mPrevisTarea')">✕</button></div>
+    <div class="modal-b" style="flex:1;overflow:auto;padding:0;display:flex;flex-direction:column">
+      <!-- Info del correo -->
+      <div id="ptInfoCorreo" style="padding:14px 20px;border-bottom:1px solid var(--gris-200);background:var(--gris-50)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span id="ptEstadoBadge" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px"></span>
+          <span id="ptAccionLabel" style="font-size:11px;color:var(--gris-500)"></span>
+        </div>
+        <div id="ptRemitente" style="font-weight:600;font-size:13px;margin-bottom:2px"></div>
+        <div id="ptAsunto" style="font-size:12px;color:var(--gris-500);margin-bottom:4px"></div>
+        <div id="ptFecha" style="font-size:10px;color:var(--gris-400)"></div>
+      </div>
+      <!-- Adjuntos seleccionables -->
+      <div id="ptAdjuntos" style="padding:10px 20px;border-bottom:1px solid var(--gris-200);display:none">
+        <div style="font-size:11px;font-weight:600;color:var(--gris-500);margin-bottom:6px">📎 Adjuntos:</div>
+        <div id="ptAdjuntosLista" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <!-- Preview del adjunto -->
+      <div id="ptPreviewCont" style="flex:1;min-height:300px;display:flex;align-items:center;justify-content:center;background:#f8f9fa">
+        <div id="ptPreviewPlaceholder" style="text-align:center;color:var(--gris-400);padding:40px">
+          <div style="font-size:32px;margin-bottom:8px">📄</div>
+          <div style="font-size:12px">Pincha en un adjunto para previsualizarlo</div>
+        </div>
+        <iframe id="ptPreviewFrame" style="width:100%;height:100%;border:none;display:none"></iframe>
+        <img id="ptPreviewImg" style="max-width:100%;max-height:100%;display:none">
+      </div>
+    </div>
+    <div class="modal-f" id="ptFooter">
+      <button class="btn btn-secondary" onclick="closeModal('mPrevisTarea')">Cerrar</button>
+      <button class="btn btn-secondary" id="ptBtnDescartar" onclick="rechazarDesdePreview()" style="color:#ef4444;display:none">✕ Descartar</button>
+      <button class="btn btn-primary" id="ptBtnEjecutar" onclick="ejecutarDesdePreview()" style="display:none">✅ Ejecutar</button>
     </div>
   </div>
 </div>
