@@ -302,6 +302,7 @@ async function eliminarAutomatizacion(id) {
 // ═══════════════════════════════════════════════
 async function loadBandeja() {
   await cargarBandejaItems();
+  _poblarFiltroTipos();
   filtrarBandeja();
 }
 
@@ -314,13 +315,31 @@ async function cargarBandejaItems() {
   _bandejaItems = data || [];
 }
 
+function _poblarFiltroTipos() {
+  const sel = document.getElementById('bandejaFiltroTipo');
+  if (!sel) return;
+  const valorActual = sel.value;
+  // Recoger tipos únicos que existen en los items
+  const tiposEnUso = [...new Set(_bandejaItems.map(b => b.tipo).filter(Boolean))];
+  let html = '<option value="todos">Todos los tipos</option>';
+  tiposEnUso.forEach(tipo => {
+    const acc = ACCIONES_AUTO[tipo] || ACCIONES_AUTO.personalizada;
+    const n = _bandejaItems.filter(b => b.tipo === tipo).length;
+    html += `<option value="${tipo}">${acc.ico} ${acc.label} (${n})</option>`;
+  });
+  sel.innerHTML = html;
+  if (valorActual && tiposEnUso.includes(valorActual)) sel.value = valorActual;
+}
+
 function filtrarBandeja() {
-  const filtro = document.getElementById('bandejaFiltroEstado')?.value || 'pendiente';
-  if (filtro === 'todos') {
-    _bandejaFiltrados = [..._bandejaItems];
-  } else {
-    _bandejaFiltrados = _bandejaItems.filter(b => b.estado === filtro);
-  }
+  const filtroEstado = document.getElementById('bandejaFiltroEstado')?.value || 'pendiente';
+  const filtroTipo = document.getElementById('bandejaFiltroTipo')?.value || 'todos';
+
+  _bandejaFiltrados = _bandejaItems.filter(b => {
+    if (filtroEstado !== 'todos' && b.estado !== filtroEstado) return false;
+    if (filtroTipo !== 'todos' && b.tipo !== filtroTipo) return false;
+    return true;
+  });
   renderBandeja();
 }
 

@@ -187,7 +187,7 @@ try {
 
       <!-- TAREAS PENDIENTES -->
       <button class="sb-item" onclick="goPage('bandeja')" style="margin:4px 8px;border-radius:8px;font-weight:600;background:var(--azul-light);border:1px solid var(--azul);color:var(--azul)">
-        <span class="ico">⚡</span> Tareas pendientes
+        <span class="ico">⚡</span> Auto-proceso
         <span id="bandeja-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span>
       </button>
 
@@ -342,7 +342,7 @@ try {
         <div class="dash-grid">
           <div class="dash-card dash-card--orange" id="dash-docs-ocr" style="display:none"></div>
           <div class="dash-card dash-card--purple" id="dash-bandeja" style="display:none">
-            <div class="card-h"><h3>⚡ Tareas pendientes</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
+            <div class="card-h"><h3>⚡ Inbox</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
             <div class="card-b" id="d-bandeja-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">📥</div><p>Sin tareas pendientes</p></div></div>
           </div>
           <div class="dash-card dash-card--green">
@@ -1678,8 +1678,11 @@ try {
       <!-- ═══ BANDEJA DE ENTRADA (AUTOMATIZACIONES) ═══ -->
       <div class="page" id="page-bandeja">
         <div class="page-header">
-          <h2>⚡ Tareas pendientes</h2>
+          <h2>⚡ Inbox</h2>
           <div style="display:flex;gap:8px;align-items:center">
+            <select id="bandejaFiltroTipo" onchange="filtrarBandeja()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px">
+              <option value="todos">Todos los tipos</option>
+            </select>
             <select id="bandejaFiltroEstado" onchange="filtrarBandeja()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px">
               <option value="pendiente">Pendientes</option>
               <option value="todos">Todos</option>
