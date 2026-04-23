@@ -56,34 +56,57 @@ function renderAutomatizaciones() {
     return;
   }
 
-  cont.innerHTML = _automatizaciones.map(a => {
-    const acc = ACCIONES_AUTO[a.accion] || ACCIONES_AUTO.personalizada;
-    const modoLabel = a.modo === 'automatico' ? '⚡ Automático' : '👁️ Revisión manual';
-    const modoColor = a.modo === 'automatico' ? '#059669' : '#D97706';
-    const condiciones = [];
-    if (a.condicion_remitente) condiciones.push('De: ' + a.condicion_remitente);
-    if (a.condicion_asunto) condiciones.push('Asunto: ' + a.condicion_asunto);
-    if (a.condicion_adjunto) condiciones.push('Adjunto: ' + a.condicion_adjunto);
-    if (a.condicion_cuerpo) condiciones.push('Cuerpo: ' + a.condicion_cuerpo);
+  // Agrupar por tipo de acción
+  const grupos = {};
+  _automatizaciones.forEach(a => {
+    const key = a.accion || 'personalizada';
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(a);
+  });
 
-    return `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--gris-200);background:#fff;transition:all .15s">
-      <div style="width:42px;height:42px;border-radius:10px;background:${acc.color}12;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${acc.ico}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-          <span style="font-weight:700;font-size:14px">${a.nombre}</span>
-          <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:${modoColor}15;color:${modoColor}">${modoLabel}</span>
-          ${!a.activa ? '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:#ef444415;color:#ef4444">Desactivada</span>' : ''}
-        </div>
-        <div style="font-size:11px;color:var(--gris-500)">${acc.label}</div>
-        ${condiciones.length ? `<div style="font-size:10px;color:var(--gris-400);margin-top:4px">${condiciones.join(' · ')}</div>` : ''}
-      </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="editarAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px">✏️</button>
-        <button onclick="toggleAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px">${a.activa ? '⏸️' : '▶️'}</button>
-        <button onclick="eliminarAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px;color:#ef4444">🗑️</button>
-      </div>
+  let html = '';
+  Object.entries(grupos).forEach(([accionKey, reglas]) => {
+    const acc = ACCIONES_AUTO[accionKey] || ACCIONES_AUTO.personalizada;
+    // Cabecera de grupo
+    html += `<div style="margin-top:16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+      <div style="width:30px;height:30px;border-radius:8px;background:${acc.color}15;display:flex;align-items:center;justify-content:center;font-size:16px">${acc.ico}</div>
+      <span style="font-weight:700;font-size:13px;color:var(--gris-700)">${acc.label}</span>
+      <span style="font-size:11px;color:var(--gris-400);font-weight:500">${reglas.length} regla${reglas.length > 1 ? 's' : ''}</span>
+      <div style="flex:1;height:1px;background:var(--gris-200)"></div>
     </div>`;
-  }).join('');
+
+    // Reglas del grupo
+    html += `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">`;
+    reglas.forEach(a => {
+      const modoLabel = a.modo === 'automatico' ? '⚡ Auto' : '👁️ Manual';
+      const modoColor = a.modo === 'automatico' ? '#059669' : '#D97706';
+      const condiciones = [];
+      if (a.condicion_remitente) condiciones.push('De: ' + a.condicion_remitente);
+      if (a.condicion_asunto) condiciones.push('Asunto: ' + a.condicion_asunto);
+      if (a.condicion_adjunto) condiciones.push('Adj: ' + a.condicion_adjunto);
+      if (a.condicion_cuerpo) condiciones.push('Cuerpo: ' + a.condicion_cuerpo);
+
+      html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid var(--gris-200);background:#fff;margin-left:20px;transition:all .15s">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span style="font-weight:600;font-size:13px">${a.nombre}</span>
+            <span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;background:${modoColor}15;color:${modoColor}">${modoLabel}</span>
+            ${!a.activa ? '<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;background:#ef444415;color:#ef4444">Off</span>' : ''}
+          </div>
+          ${condiciones.length ? `<div style="font-size:10px;color:var(--gris-400)">${condiciones.join(' · ')}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="lanzarRetroactiva(${a.id})" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:10px" title="Ejecutar retroactiva">🔄</button>
+          <button onclick="editarAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:10px">✏️</button>
+          <button onclick="toggleAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:10px">${a.activa ? '⏸️' : '▶️'}</button>
+          <button onclick="eliminarAutomatizacion(${a.id})" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:10px;color:#ef4444">🗑️</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  cont.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════
@@ -145,21 +168,34 @@ function crearReglaDesdeCorreo(correoId) {
 
   if (activas.length) {
     destinoHtml += `<div style="font-size:11px;color:var(--gris-400);margin:10px 0 6px;font-weight:600">O añadir a una regla existente:</div>`;
+    // Agrupar por tipo de acción
+    const gruposActivas = {};
     activas.forEach(a => {
-      const acc = ACCIONES_AUTO[a.accion] || ACCIONES_AUTO.personalizada;
-      const condiciones = [];
-      if (a.condicion_remitente) condiciones.push(a.condicion_remitente);
-      if (a.condicion_asunto) condiciones.push(a.condicion_asunto);
-      if (a.condicion_adjunto) condiciones.push(a.condicion_adjunto);
-      destinoHtml += `
-        <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;transition:all .15s" onmouseenter="this.style.borderColor='var(--azul)'" onmouseleave="this.style.borderColor='var(--gris-200)'">
-          <input type="radio" name="rc_destino" value="${a.id}">
-          <span style="font-size:16px">${acc.ico}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600">${a.nombre}</div>
-            <div style="font-size:11px;color:var(--gris-400)">${condiciones.join(' · ') || 'Sin condiciones'}</div>
-          </div>
-        </label>`;
+      const key = a.accion || 'personalizada';
+      if (!gruposActivas[key]) gruposActivas[key] = [];
+      gruposActivas[key].push(a);
+    });
+    Object.entries(gruposActivas).forEach(([accionKey, reglas]) => {
+      const grpAcc = ACCIONES_AUTO[accionKey] || ACCIONES_AUTO.personalizada;
+      destinoHtml += `<div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
+        <span style="font-size:14px">${grpAcc.ico}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--gris-600)">${grpAcc.label}</span>
+        <div style="flex:1;height:1px;background:var(--gris-200)"></div>
+      </div>`;
+      reglas.forEach(a => {
+        const condiciones = [];
+        if (a.condicion_remitente) condiciones.push(a.condicion_remitente);
+        if (a.condicion_asunto) condiciones.push(a.condicion_asunto);
+        if (a.condicion_adjunto) condiciones.push(a.condicion_adjunto);
+        destinoHtml += `
+          <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:4px;margin-left:12px;cursor:pointer;font-size:12px;transition:all .15s" onmouseenter="this.style.borderColor='var(--azul)'" onmouseleave="this.style.borderColor='var(--gris-200)'">
+            <input type="radio" name="rc_destino" value="${a.id}">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600">${a.nombre}</div>
+              <div style="font-size:10px;color:var(--gris-400)">${condiciones.join(' · ') || 'Sin condiciones'}</div>
+            </div>
+          </label>`;
+      });
     });
   }
   document.getElementById('rcDestino').innerHTML = destinoHtml;
@@ -210,13 +246,29 @@ async function aplicarReglaDesdeCorreo() {
     const regla = _automatizaciones.find(x => x.id === reglaId);
     if (!regla) return;
 
+    // Acumular valores separados por coma (no duplicar)
     const updates = {};
-    if (usarRemitente && !regla.condicion_remitente) updates.condicion_remitente = usarRemitente;
-    else if (usarRemitente && regla.condicion_remitente && !regla.condicion_remitente.includes(usarRemitente)) {
-      updates.condicion_remitente = regla.condicion_remitente; // ya existe, no duplicar
+    if (usarRemitente) {
+      const actual = regla.condicion_remitente || '';
+      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (!existentes.includes(usarRemitente.toLowerCase())) {
+        updates.condicion_remitente = actual ? actual + ', ' + usarRemitente : usarRemitente;
+      }
     }
-    if (usarAsunto && !regla.condicion_asunto) updates.condicion_asunto = usarAsunto;
-    if (usarAdjunto && !regla.condicion_adjunto) updates.condicion_adjunto = usarAdjunto;
+    if (usarAsunto) {
+      const actual = regla.condicion_asunto || '';
+      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (!existentes.includes(usarAsunto.toLowerCase())) {
+        updates.condicion_asunto = actual ? actual + ', ' + usarAsunto : usarAsunto;
+      }
+    }
+    if (usarAdjunto) {
+      const actual = regla.condicion_adjunto || '';
+      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (!existentes.includes(usarAdjunto.toLowerCase())) {
+        updates.condicion_adjunto = actual ? actual + ', ' + usarAdjunto : usarAdjunto;
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       toast('La regla ya tiene esas condiciones configuradas', 'info');
@@ -564,25 +616,36 @@ async function evaluarAutomatizaciones(correosNuevos) {
   actualizarBadgeBandeja();
 }
 
+// Helper: comprobar si un texto coincide con alguno de los patrones separados por coma
+function _coincideAlguno(texto, patronesCsv) {
+  const patrones = patronesCsv.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+  const t = texto.toLowerCase();
+  return patrones.some(p => t.includes(p));
+}
+
 function _correoCoincideRegla(correo, regla) {
   // Todas las condiciones se evalúan con AND (las vacías se ignoran)
+  // Dentro de cada condición, múltiples valores separados por coma se evalúan con OR
   if (regla.condicion_remitente) {
-    const rem = (correo.de || correo.remitente || '').toLowerCase();
-    if (!rem.includes(regla.condicion_remitente.toLowerCase())) return false;
+    const rem = (correo.de || correo.remitente || '');
+    if (!_coincideAlguno(rem, regla.condicion_remitente)) return false;
   }
   if (regla.condicion_asunto) {
-    const asunto = (correo.asunto || '').toLowerCase();
-    if (!asunto.includes(regla.condicion_asunto.toLowerCase())) return false;
+    const asunto = (correo.asunto || '');
+    if (!_coincideAlguno(asunto, regla.condicion_asunto)) return false;
   }
   if (regla.condicion_adjunto) {
     const adjuntos = correo.adjuntos_meta || [];
-    const patron = regla.condicion_adjunto.toLowerCase();
-    const tieneAdj = adjuntos.some(a => (a.nombre || '').toLowerCase().includes(patron));
+    const patrones = regla.condicion_adjunto.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+    const tieneAdj = adjuntos.some(a => {
+      const nombre = (a.nombre || '').toLowerCase();
+      return patrones.some(p => nombre.includes(p));
+    });
     if (!tieneAdj) return false;
   }
   if (regla.condicion_cuerpo) {
-    const cuerpo = (correo.texto_plano || correo.cuerpo || '').toLowerCase();
-    if (!cuerpo.includes(regla.condicion_cuerpo.toLowerCase())) return false;
+    const cuerpo = (correo.texto_plano || correo.cuerpo || '');
+    if (!_coincideAlguno(cuerpo, regla.condicion_cuerpo)) return false;
   }
   return true;
 }
@@ -654,6 +717,120 @@ async function _crearEntradaBandeja(correo, regla) {
       estado: 'pendiente',
     });
   }
+}
+
+// ═══════════════════════════════════════════════
+//  EJECUCIÓN RETROACTIVA
+// ═══════════════════════════════════════════════
+let _retroReglaId = null;
+
+function lanzarRetroactiva(id) {
+  const regla = _automatizaciones.find(x => x.id === id);
+  if (!regla) return;
+  _retroReglaId = id;
+
+  document.getElementById('retroNombreRegla').textContent = regla.nombre;
+  // Defaults: desde hace 3 meses, hasta hoy
+  const hoy = new Date().toISOString().split('T')[0];
+  const hace3m = new Date();
+  hace3m.setMonth(hace3m.getMonth() - 3);
+  document.getElementById('retro_desde').value = hace3m.toISOString().split('T')[0];
+  document.getElementById('retro_hasta').value = hoy;
+  document.getElementById('retroResultado').style.display = 'none';
+  document.getElementById('btnEjecutarRetro').disabled = false;
+  document.getElementById('btnEjecutarRetro').textContent = '🔄 Ejecutar';
+  openModal('mRetroactiva');
+}
+
+async function ejecutarRetroactiva() {
+  const regla = _automatizaciones.find(x => x.id === _retroReglaId);
+  if (!regla) return;
+
+  const desde = document.getElementById('retro_desde').value;
+  const hasta = document.getElementById('retro_hasta').value;
+  if (!desde || !hasta) { toast('Selecciona ambas fechas', 'error'); return; }
+  if (desde > hasta) { toast('La fecha "desde" no puede ser posterior a "hasta"', 'error'); return; }
+
+  const btn = document.getElementById('btnEjecutarRetro');
+  const resDiv = document.getElementById('retroResultado');
+  btn.disabled = true;
+  btn.textContent = '⏳ Buscando correos...';
+  resDiv.style.display = 'none';
+
+  try {
+    // Consultar correos en el rango de fechas
+    const hastaFin = hasta + 'T23:59:59';
+    const { data: correosRango, error } = await sb.from('correos')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .gte('fecha', desde)
+      .lte('fecha', hastaFin)
+      .order('fecha', { ascending: false });
+
+    if (error) throw error;
+
+    if (!correosRango || !correosRango.length) {
+      resDiv.style.display = 'block';
+      resDiv.style.background = '#FEF3C7';
+      resDiv.style.color = '#92400E';
+      resDiv.innerHTML = 'No se encontraron correos en ese rango de fechas.';
+      btn.disabled = false;
+      btn.textContent = '🔄 Ejecutar';
+      return;
+    }
+
+    btn.textContent = `⏳ Evaluando ${correosRango.length} correos...`;
+
+    // Evaluar la regla contra cada correo
+    let coincidencias = 0;
+    let yaExistentes = 0;
+    let creados = 0;
+
+    for (const correo of correosRango) {
+      if (_correoCoincideRegla(correo, regla)) {
+        coincidencias++;
+        // Verificar que no exista ya entrada para este correo + regla
+        const { count } = await sb.from('bandeja_entrada')
+          .select('id', { count: 'exact', head: true })
+          .eq('correo_id', correo.id)
+          .eq('automatizacion_id', regla.id);
+        if (count > 0) {
+          yaExistentes++;
+          continue;
+        }
+        // Crear entrada en bandeja
+        await _crearEntradaBandeja(correo, regla);
+        creados++;
+      }
+    }
+
+    // Mostrar resultado
+    resDiv.style.display = 'block';
+    if (creados > 0) {
+      resDiv.style.background = '#D1FAE5';
+      resDiv.style.color = '#065F46';
+      resDiv.innerHTML = `<b>${correosRango.length}</b> correos analizados<br><b>${coincidencias}</b> coincidencias encontradas<br><b>${creados}</b> tareas creadas en la bandeja${yaExistentes ? `<br><span style="color:#92400E">${yaExistentes} ya existían</span>` : ''}`;
+      actualizarBadgeBandeja();
+      toast(`${creados} tarea${creados > 1 ? 's' : ''} creada${creados > 1 ? 's' : ''} en la bandeja`, 'success');
+    } else if (coincidencias > 0 && yaExistentes === coincidencias) {
+      resDiv.style.background = '#FEF3C7';
+      resDiv.style.color = '#92400E';
+      resDiv.innerHTML = `${coincidencias} correos coinciden pero ya tienen entradas en la bandeja.`;
+    } else {
+      resDiv.style.background = '#FEF3C7';
+      resDiv.style.color = '#92400E';
+      resDiv.innerHTML = `${correosRango.length} correos analizados, ninguno coincide con las condiciones de esta regla.`;
+    }
+  } catch (e) {
+    console.error('[ejecutarRetroactiva]', e);
+    resDiv.style.display = 'block';
+    resDiv.style.background = '#FEE2E2';
+    resDiv.style.color = '#991B1B';
+    resDiv.innerHTML = 'Error: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔄 Ejecutar';
 }
 
 // ═══════════════════════════════════════════════
