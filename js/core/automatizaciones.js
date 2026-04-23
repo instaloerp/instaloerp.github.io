@@ -186,31 +186,23 @@ async function aplicarReglaDesdeCorreo() {
   if (destino === 'nueva') {
     // Abrir modal de nueva automatización pre-rellenado
     _autoEditId = null;
-    document.getElementById('mAutoTit').textContent = 'Nueva automatización';
-    document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
-    ['auto_id','auto_desc','auto_asunto','auto_adjunto','auto_cuerpo','auto_remitente'].forEach(id => {
-      const el = document.getElementById(id); if (el) el.value = '';
-    });
-
     const dominio = usarRemitente || '';
-    setVal('auto_nombre', dominio ? 'Correos de ' + dominio : 'Nueva regla');
-    if (usarRemitente) setVal('auto_remitente', usarRemitente);
-    if (usarAsunto) setVal('auto_asunto', usarAsunto);
-    if (usarAdjunto) setVal('auto_adjunto', usarAdjunto);
-    document.getElementById('auto_accion').value = 'crear_factura_prov';
-    document.getElementById('auto_modo').value = 'manual';
 
     setTimeout(() => {
+      document.getElementById('mAutoTit').textContent = 'Nueva automatización';
+      document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
+      // Limpiar todos los campos
+      ['auto_id','auto_nombre','auto_desc','auto_remitente','auto_asunto','auto_adjunto','auto_cuerpo'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      // Pre-rellenar con datos seleccionados
+      document.getElementById('auto_nombre').value = dominio ? 'Correos de ' + dominio : 'Nueva regla';
+      if (usarRemitente) document.getElementById('auto_remitente').value = usarRemitente;
+      if (usarAsunto) document.getElementById('auto_asunto').value = usarAsunto;
+      if (usarAdjunto) document.getElementById('auto_adjunto').value = usarAdjunto;
+      document.getElementById('auto_accion').value = 'crear_factura_prov';
+      document.getElementById('auto_modo').value = 'manual';
       openModal('mAutomatizacion', true);
-      // Aplicar valores DESPUÉS de abrir para que no se borren
-      setTimeout(() => {
-        setVal('auto_nombre', dominio ? 'Correos de ' + dominio : 'Nueva regla');
-        if (usarRemitente) setVal('auto_remitente', usarRemitente);
-        if (usarAsunto) setVal('auto_asunto', usarAsunto);
-        if (usarAdjunto) setVal('auto_adjunto', usarAdjunto);
-        document.getElementById('auto_accion').value = 'crear_factura_prov';
-        document.getElementById('auto_modo').value = 'manual';
-      }, 50);
     }, 200);
   } else {
     // Añadir condiciones a regla existente
@@ -262,12 +254,12 @@ function editarAutomatizacion(id) {
   _autoEditId = a.id;
   document.getElementById('mAutoTit').textContent = 'Editar automatización';
   document.getElementById('btnGuardarAuto').textContent = '💾 Guardar cambios';
-  setVal('auto_nombre', a.nombre || '');
-  setVal('auto_desc', a.descripcion || '');
-  setVal('auto_remitente', a.condicion_remitente || '');
-  setVal('auto_asunto', a.condicion_asunto || '');
-  setVal('auto_adjunto', a.condicion_adjunto || '');
-  setVal('auto_cuerpo', a.condicion_cuerpo || '');
+  document.getElementById('auto_nombre').value = a.nombre || '';
+  document.getElementById('auto_desc').value = a.descripcion || '';
+  document.getElementById('auto_remitente').value = a.condicion_remitente || '';
+  document.getElementById('auto_asunto').value = a.condicion_asunto || '';
+  document.getElementById('auto_adjunto').value = a.condicion_adjunto || '';
+  document.getElementById('auto_cuerpo').value = a.condicion_cuerpo || '';
   document.getElementById('auto_accion').value = a.accion || 'crear_factura_prov';
   document.getElementById('auto_modo').value = a.modo || 'manual';
   openModal('mAutomatizacion', true);
