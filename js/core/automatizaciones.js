@@ -154,50 +154,23 @@ function crearReglaDesdeCorreo(correoId) {
   }
   document.getElementById('rcDatosCorreo').innerHTML = datosHtml;
 
-  // Renderizar destino: nueva regla + reglas existentes
-  const activas = _automatizaciones.filter(a => a.activa);
-  let destinoHtml = `
-    <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid var(--azul);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;background:var(--azul-light)">
-      <input type="radio" name="rc_destino" value="nueva" checked>
-      <span style="font-size:16px">➕</span>
-      <div>
-        <div style="font-weight:700">Crear regla nueva</div>
-        <div style="font-size:11px;color:var(--gris-500)">Se abrirá el formulario pre-rellenado</div>
-      </div>
-    </label>`;
-
-  if (activas.length) {
-    destinoHtml += `<div style="font-size:11px;color:var(--gris-400);margin:10px 0 6px;font-weight:600">O añadir a una regla existente:</div>`;
-    // Agrupar por tipo de acción
-    const gruposActivas = {};
-    activas.forEach(a => {
-      const key = a.accion || 'personalizada';
-      if (!gruposActivas[key]) gruposActivas[key] = [];
-      gruposActivas[key].push(a);
-    });
-    Object.entries(gruposActivas).forEach(([accionKey, reglas]) => {
-      const grpAcc = ACCIONES_AUTO[accionKey] || ACCIONES_AUTO.personalizada;
-      destinoHtml += `<div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px">
-        <span style="font-size:14px">${grpAcc.ico}</span>
-        <span style="font-size:11px;font-weight:700;color:var(--gris-600)">${grpAcc.label}</span>
-        <div style="flex:1;height:1px;background:var(--gris-200)"></div>
-      </div>`;
-      reglas.forEach(a => {
-        const condiciones = [];
-        if (a.condicion_remitente) condiciones.push(a.condicion_remitente);
-        if (a.condicion_asunto) condiciones.push(a.condicion_asunto);
-        if (a.condicion_adjunto) condiciones.push(a.condicion_adjunto);
-        destinoHtml += `
-          <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:4px;margin-left:12px;cursor:pointer;font-size:12px;transition:all .15s" onmouseenter="this.style.borderColor='var(--azul)'" onmouseleave="this.style.borderColor='var(--gris-200)'">
-            <input type="radio" name="rc_destino" value="${a.id}">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600">${a.nombre}</div>
-              <div style="font-size:10px;color:var(--gris-400)">${condiciones.join(' · ') || 'Sin condiciones'}</div>
-            </div>
-          </label>`;
-      });
-    });
-  }
+  // Renderizar destino: elegir tipo de acción (siempre crea regla nueva)
+  let destinoHtml = `<div style="font-size:11px;color:var(--gris-400);margin-bottom:8px;font-weight:600">Tipo de automatización:</div>`;
+  Object.entries(ACCIONES_AUTO).forEach(([key, acc], i) => {
+    const checked = i === 0 ? 'checked' : '';
+    // Contar reglas existentes de este tipo
+    const nReglas = _automatizaciones.filter(a => a.accion === key).length;
+    const badge = nReglas ? `<span style="font-size:9px;color:var(--gris-400);font-weight:500">${nReglas} regla${nReglas > 1 ? 's' : ''}</span>` : '';
+    destinoHtml += `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:4px;cursor:pointer;font-size:12px;transition:all .15s" onmouseenter="this.style.borderColor='var(--azul)'" onmouseleave="this.style.borderColor='var(--gris-200)'">
+        <input type="radio" name="rc_destino" value="${key}" ${checked}>
+        <span style="font-size:16px">${acc.ico}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600">${acc.label}</div>
+        </div>
+        ${badge}
+      </label>`;
+  });
   document.getElementById('rcDestino').innerHTML = destinoHtml;
 
   openModal('mReglaCorreo');
@@ -214,73 +187,30 @@ async function aplicarReglaDesdeCorreo() {
     return;
   }
 
-  const destino = document.querySelector('input[name="rc_destino"]:checked')?.value;
-  if (!destino) return;
+  const tipoAccion = document.querySelector('input[name="rc_destino"]:checked')?.value;
+  if (!tipoAccion) return;
 
   closeModal('mReglaCorreo');
 
-  if (destino === 'nueva') {
-    // Abrir modal de nueva automatización pre-rellenado
-    _autoEditId = null;
-    const dominio = usarRemitente || '';
+  // Siempre crear regla nueva con el tipo de acción seleccionado
+  _autoEditId = null;
+  const dominio = usarRemitente || '';
+  const accLabel = (ACCIONES_AUTO[tipoAccion] || {}).label || 'Regla';
 
-    setTimeout(() => {
-      document.getElementById('mAutoTit').textContent = 'Nueva automatización';
-      document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
-      // Limpiar todos los campos
-      ['auto_id','auto_nombre','auto_desc','auto_remitente','auto_asunto','auto_adjunto','auto_cuerpo'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.value = '';
-      });
-      // Pre-rellenar con datos seleccionados
-      document.getElementById('auto_nombre').value = dominio ? 'Correos de ' + dominio : 'Nueva regla';
-      if (usarRemitente) document.getElementById('auto_remitente').value = usarRemitente;
-      if (usarAsunto) document.getElementById('auto_asunto').value = usarAsunto;
-      if (usarAdjunto) document.getElementById('auto_adjunto').value = usarAdjunto;
-      document.getElementById('auto_accion').value = 'crear_factura_prov';
-      document.getElementById('auto_modo').value = 'manual';
-      openModal('mAutomatizacion', true);
-    }, 200);
-  } else {
-    // Añadir condiciones a regla existente
-    const reglaId = parseInt(destino);
-    const regla = _automatizaciones.find(x => x.id === reglaId);
-    if (!regla) return;
-
-    // Acumular valores separados por coma (no duplicar)
-    const updates = {};
-    if (usarRemitente) {
-      const actual = regla.condicion_remitente || '';
-      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (!existentes.includes(usarRemitente.toLowerCase())) {
-        updates.condicion_remitente = actual ? actual + ', ' + usarRemitente : usarRemitente;
-      }
-    }
-    if (usarAsunto) {
-      const actual = regla.condicion_asunto || '';
-      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (!existentes.includes(usarAsunto.toLowerCase())) {
-        updates.condicion_asunto = actual ? actual + ', ' + usarAsunto : usarAsunto;
-      }
-    }
-    if (usarAdjunto) {
-      const actual = regla.condicion_adjunto || '';
-      const existentes = actual.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (!existentes.includes(usarAdjunto.toLowerCase())) {
-        updates.condicion_adjunto = actual ? actual + ', ' + usarAdjunto : usarAdjunto;
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      toast('La regla ya tiene esas condiciones configuradas', 'info');
-      return;
-    }
-
-    const { error } = await sb.from('automatizaciones').update(updates).eq('id', reglaId);
-    if (error) { toast('Error: ' + error.message, 'error'); return; }
-
-    toast('Condiciones añadidas a "' + regla.nombre + '" ✓', 'success');
-    await cargarAutomatizaciones();
-  }
+  setTimeout(() => {
+    document.getElementById('mAutoTit').textContent = 'Nueva regla · ' + accLabel;
+    document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
+    ['auto_id','auto_nombre','auto_desc','auto_remitente','auto_asunto','auto_adjunto','auto_cuerpo'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('auto_nombre').value = dominio ? dominio : 'Nueva regla';
+    if (usarRemitente) document.getElementById('auto_remitente').value = usarRemitente;
+    if (usarAsunto) document.getElementById('auto_asunto').value = usarAsunto;
+    if (usarAdjunto) document.getElementById('auto_adjunto').value = usarAdjunto;
+    document.getElementById('auto_accion').value = tipoAccion;
+    document.getElementById('auto_modo').value = 'manual';
+    openModal('mAutomatizacion', true);
+  }, 200);
 }
 
 // ═══════════════════════════════════════════════
@@ -432,6 +362,7 @@ function renderBandeja() {
         </div>
         ${b.descripcion ? `<div style="font-size:11px;color:var(--gris-500);margin-bottom:2px">${b.descripcion}</div>` : ''}
         <div style="font-size:10px;color:var(--gris-400)">${fecha} · ${acc.label}${nAdj ? ` · 📎 ${nAdj} adjunto${nAdj > 1 ? 's' : ''}` : ''}</div>
+        ${b.estado === 'error' && b.resultado_error ? `<div style="font-size:10px;color:#ef4444;margin-top:2px">⚠️ ${b.resultado_error}</div>` : ''}
       </div>
       <div style="flex-shrink:0;color:var(--gris-400);font-size:16px">›</div>
     </div>`;
@@ -445,19 +376,22 @@ async function ejecutarBandeja(id) {
   const item = _bandejaItems.find(x => x.id === id);
   if (!item) return;
 
+  const esReintento = item.estado === 'error';
   const acc = ACCIONES_AUTO[item.tipo] || ACCIONES_AUTO.personalizada;
+  const errorPrevio = esReintento && item.resultado_error ? `<div style="font-size:11px;color:#ef4444;margin-top:6px;padding:6px 8px;background:#fef2f2;border-radius:4px">Error anterior: ${item.resultado_error}</div>` : '';
   const ok = await confirmModal({
-    titulo: `${acc.ico} ${acc.label}`,
-    mensaje: `<b>${item.titulo}</b><br><br>¿Ejecutar esta acción?<br><br><div style="font-size:11px;color:var(--gris-500)">Se creará el registro correspondiente en el ERP.</div>`,
-    btnOk: 'Ejecutar',
+    titulo: `${acc.ico} ${esReintento ? 'Reintentar' : acc.label}`,
+    mensaje: `<b>${item.titulo}</b><br><br>¿${esReintento ? 'Reintentar' : 'Ejecutar'} esta acción?${errorPrevio}<br><div style="font-size:11px;color:var(--gris-500)">Se creará el registro correspondiente en el ERP.</div>`,
+    btnOk: esReintento ? '🔄 Reintentar' : 'Ejecutar',
     colorOk: '#059669',
   });
   if (!ok) return;
 
   try {
-    // Marcar como aprobado
+    // Marcar como aprobado (limpiar error anterior si es reintento)
     await sb.from('bandeja_entrada').update({
       estado: 'aprobado',
+      resultado_error: null,
       ejecutado_por: CU.id,
       ejecutado_at: new Date().toISOString(),
     }).eq('id', id);
@@ -528,10 +462,23 @@ async function _ejecutarAccionBandeja(item) {
 
   switch (item.tipo) {
     case 'crear_factura_prov': {
-      // Crear factura de proveedor con los datos extraídos
+      // Intentar asociar proveedor por dominio del remitente
+      let provId = datos.proveedor_id || null;
+      if (!provId && datos.remitente) {
+        const dominio = datos.remitente.match(/@([\w.-]+)/)?.[1] || datos.remitente;
+        const { data: provs } = await sb.from('proveedores')
+          .select('id,nombre')
+          .eq('empresa_id', EMPRESA.id)
+          .ilike('email', '%' + dominio + '%')
+          .limit(1);
+        if (provs?.length) provId = provs[0].id;
+      }
+      if (!provId) {
+        throw new Error('No se encontró un proveedor vinculado a "' + (datos.remitente || '?') + '". Crea el proveedor primero o vincúlalo manualmente.');
+      }
       const obj = {
         empresa_id: EMPRESA.id,
-        proveedor_id: datos.proveedor_id || null,
+        proveedor_id: provId,
         proveedor_nombre: datos.remitente || 'Proveedor desde correo',
         numero: datos.numero || '',
         fecha: datos.fecha || new Date().toISOString().split('T')[0],
@@ -611,36 +558,26 @@ async function evaluarAutomatizaciones(correosNuevos) {
   actualizarBadgeBandeja();
 }
 
-// Helper: comprobar si un texto coincide con alguno de los patrones separados por coma
-function _coincideAlguno(texto, patronesCsv) {
-  const patrones = patronesCsv.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
-  const t = texto.toLowerCase();
-  return patrones.some(p => t.includes(p));
-}
-
 function _correoCoincideRegla(correo, regla) {
-  // Todas las condiciones se evalúan con AND (las vacías se ignoran)
-  // Dentro de cada condición, múltiples valores separados por coma se evalúan con OR
+  // Cada condición se evalúa con AND (las vacías se ignoran)
+  // Cada regla es específica: un remitente, un patrón de asunto, etc.
   if (regla.condicion_remitente) {
-    const rem = (correo.de || correo.remitente || '');
-    if (!_coincideAlguno(rem, regla.condicion_remitente)) return false;
+    const rem = (correo.de || correo.remitente || '').toLowerCase();
+    if (!rem.includes(regla.condicion_remitente.trim().toLowerCase())) return false;
   }
   if (regla.condicion_asunto) {
-    const asunto = (correo.asunto || '');
-    if (!_coincideAlguno(asunto, regla.condicion_asunto)) return false;
+    const asunto = (correo.asunto || '').toLowerCase();
+    if (!asunto.includes(regla.condicion_asunto.trim().toLowerCase())) return false;
   }
   if (regla.condicion_adjunto) {
     const adjuntos = correo.adjuntos_meta || [];
-    const patrones = regla.condicion_adjunto.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
-    const tieneAdj = adjuntos.some(a => {
-      const nombre = (a.nombre || '').toLowerCase();
-      return patrones.some(p => nombre.includes(p));
-    });
+    const patron = regla.condicion_adjunto.trim().toLowerCase();
+    const tieneAdj = adjuntos.some(a => (a.nombre || '').toLowerCase().includes(patron));
     if (!tieneAdj) return false;
   }
   if (regla.condicion_cuerpo) {
-    const cuerpo = (correo.texto_plano || correo.cuerpo || '');
-    if (!_coincideAlguno(cuerpo, regla.condicion_cuerpo)) return false;
+    const cuerpo = (correo.texto_plano || correo.cuerpo || '').toLowerCase();
+    if (!cuerpo.includes(regla.condicion_cuerpo.trim().toLowerCase())) return false;
   }
   return true;
 }
@@ -937,9 +874,10 @@ function previsualizarTarea(id) {
   }
 
   // Botones según estado
-  const esPendiente = item.estado === 'pendiente';
-  document.getElementById('ptBtnEjecutar').style.display = esPendiente ? '' : 'none';
-  document.getElementById('ptBtnDescartar').style.display = esPendiente ? '' : 'none';
+  const puedeEjecutar = item.estado === 'pendiente' || item.estado === 'error';
+  document.getElementById('ptBtnEjecutar').style.display = puedeEjecutar ? '' : 'none';
+  document.getElementById('ptBtnEjecutar').textContent = item.estado === 'error' ? '🔄 Reintentar' : '✅ Ejecutar';
+  document.getElementById('ptBtnDescartar').style.display = puedeEjecutar ? '' : 'none';
 
   openModal('mPrevisTarea');
 }
