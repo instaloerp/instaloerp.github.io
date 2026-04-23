@@ -87,6 +87,148 @@ function renderAutomatizaciones() {
 }
 
 // ═══════════════════════════════════════════════
+//  CREAR REGLA DESDE CORREO
+// ═══════════════════════════════════════════════
+let _rcCorreoId = null;
+
+function crearReglaDesdeCorreo(correoId) {
+  const c = correos.find(x => x.id === correoId);
+  if (!c) return;
+  _rcCorreoId = correoId;
+
+  // Extraer datos del correo
+  const remitente = c.de || c.remitente || '';
+  const dominio = remitente.match(/@([\w.-]+)/)?.[1] || '';
+  const asunto = c.asunto || '';
+  const adjuntos = c.adjuntos_meta || [];
+  const extensiones = [...new Set(adjuntos.map(a => {
+    const ext = (a.nombre || '').split('.').pop()?.toLowerCase();
+    return ext ? '.' + ext : null;
+  }).filter(Boolean))];
+
+  // Renderizar datos detectados con checkboxes
+  let datosHtml = '';
+  if (dominio) {
+    datosHtml += `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="rc_usar_remitente" checked value="${dominio}">
+      <span style="color:var(--gris-500);font-size:11px;min-width:70px">Remitente:</span>
+      <span style="font-weight:600">${dominio}</span>
+    </label>`;
+  }
+  if (asunto) {
+    datosHtml += `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="rc_usar_asunto" value="${asunto.replace(/"/g, '&quot;')}">
+      <span style="color:var(--gris-500);font-size:11px;min-width:70px">Asunto:</span>
+      <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${asunto}</span>
+    </label>`;
+  }
+  if (extensiones.length) {
+    datosHtml += `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px">
+      <input type="checkbox" id="rc_usar_adjunto" checked value="${extensiones.join(', ')}">
+      <span style="color:var(--gris-500);font-size:11px;min-width:70px">Adjuntos:</span>
+      <span style="font-weight:600">${extensiones.join(', ')} (${adjuntos.length} archivo${adjuntos.length > 1 ? 's' : ''})</span>
+    </label>`;
+  }
+  document.getElementById('rcDatosCorreo').innerHTML = datosHtml;
+
+  // Renderizar destino: nueva regla + reglas existentes
+  const activas = _automatizaciones.filter(a => a.activa);
+  let destinoHtml = `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid var(--azul);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;background:var(--azul-light)">
+      <input type="radio" name="rc_destino" value="nueva" checked>
+      <span style="font-size:16px">➕</span>
+      <div>
+        <div style="font-weight:700">Crear regla nueva</div>
+        <div style="font-size:11px;color:var(--gris-500)">Se abrirá el formulario pre-rellenado</div>
+      </div>
+    </label>`;
+
+  if (activas.length) {
+    destinoHtml += `<div style="font-size:11px;color:var(--gris-400);margin:10px 0 6px;font-weight:600">O añadir a una regla existente:</div>`;
+    activas.forEach(a => {
+      const acc = ACCIONES_AUTO[a.accion] || ACCIONES_AUTO.personalizada;
+      const condiciones = [];
+      if (a.condicion_remitente) condiciones.push(a.condicion_remitente);
+      if (a.condicion_asunto) condiciones.push(a.condicion_asunto);
+      if (a.condicion_adjunto) condiciones.push(a.condicion_adjunto);
+      destinoHtml += `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--gris-200);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;transition:all .15s" onmouseenter="this.style.borderColor='var(--azul)'" onmouseleave="this.style.borderColor='var(--gris-200)'">
+          <input type="radio" name="rc_destino" value="${a.id}">
+          <span style="font-size:16px">${acc.ico}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">${a.nombre}</div>
+            <div style="font-size:11px;color:var(--gris-400)">${condiciones.join(' · ') || 'Sin condiciones'}</div>
+          </div>
+        </label>`;
+    });
+  }
+  document.getElementById('rcDestino').innerHTML = destinoHtml;
+
+  openModal('mReglaCorreo');
+}
+
+async function aplicarReglaDesdeCorreo() {
+  // Recoger datos seleccionados
+  const usarRemitente = document.getElementById('rc_usar_remitente')?.checked ? document.getElementById('rc_usar_remitente').value : null;
+  const usarAsunto = document.getElementById('rc_usar_asunto')?.checked ? document.getElementById('rc_usar_asunto').value : null;
+  const usarAdjunto = document.getElementById('rc_usar_adjunto')?.checked ? document.getElementById('rc_usar_adjunto').value : null;
+
+  if (!usarRemitente && !usarAsunto && !usarAdjunto) {
+    toast('Selecciona al menos un dato del correo', 'error');
+    return;
+  }
+
+  const destino = document.querySelector('input[name="rc_destino"]:checked')?.value;
+  if (!destino) return;
+
+  closeModal('mReglaCorreo');
+
+  if (destino === 'nueva') {
+    // Abrir modal de nueva automatización pre-rellenado
+    _autoEditId = null;
+    document.getElementById('mAutoTit').textContent = 'Nueva automatización';
+    document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
+    ['auto_id','auto_desc','auto_asunto','auto_adjunto','auto_cuerpo','auto_remitente'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+
+    const dominio = usarRemitente || '';
+    setVal('auto_nombre', dominio ? 'Correos de ' + dominio : 'Nueva regla');
+    if (usarRemitente) setVal('auto_remitente', usarRemitente);
+    if (usarAsunto) setVal('auto_asunto', usarAsunto);
+    if (usarAdjunto) setVal('auto_adjunto', usarAdjunto);
+    document.getElementById('auto_accion').value = 'crear_factura_prov';
+    document.getElementById('auto_modo').value = 'manual';
+
+    setTimeout(() => openModal('mAutomatizacion'), 200);
+  } else {
+    // Añadir condiciones a regla existente
+    const reglaId = parseInt(destino);
+    const regla = _automatizaciones.find(x => x.id === reglaId);
+    if (!regla) return;
+
+    const updates = {};
+    if (usarRemitente && !regla.condicion_remitente) updates.condicion_remitente = usarRemitente;
+    else if (usarRemitente && regla.condicion_remitente && !regla.condicion_remitente.includes(usarRemitente)) {
+      updates.condicion_remitente = regla.condicion_remitente; // ya existe, no duplicar
+    }
+    if (usarAsunto && !regla.condicion_asunto) updates.condicion_asunto = usarAsunto;
+    if (usarAdjunto && !regla.condicion_adjunto) updates.condicion_adjunto = usarAdjunto;
+
+    if (Object.keys(updates).length === 0) {
+      toast('La regla ya tiene esas condiciones configuradas', 'info');
+      return;
+    }
+
+    const { error } = await sb.from('automatizaciones').update(updates).eq('id', reglaId);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+    toast('Condiciones añadidas a "' + regla.nombre + '" ✓', 'success');
+    await cargarAutomatizaciones();
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CRUD AUTOMATIZACIONES
 // ═══════════════════════════════════════════════
 let _autoEditId = null;

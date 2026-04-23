@@ -519,6 +519,7 @@ async function abrirCorreo(id) {
       <div style="display:flex;gap:6px;flex-shrink:0">
         ${c.tipo === 'recibido' ? `<button class="btn btn-secondary btn-sm" onclick="responderCorreo(${c.id})">↩️ Responder</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="reenviarCorreo(${c.id})">↪️ Reenviar</button>
+        ${c.tipo === 'recibido' ? `<button class="btn btn-ghost btn-sm" onclick="crearReglaDesdeCorreo(${c.id})" title="Crear automatización desde este correo">⚡</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="vincularCorreo(${c.id})" title="Vincular a obra/cliente">🔗</button>
         <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo)">🗑️</button>
       </div>
