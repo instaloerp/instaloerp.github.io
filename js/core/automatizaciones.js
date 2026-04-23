@@ -474,70 +474,95 @@ function verResultadoBandeja(id) {
 }
 
 // ═══════════════════════════════════════════════
-//  EJECUTOR DE ACCIONES
+//  EJECUTOR DE ACCIONES — Envía al flujo OCR
 // ═══════════════════════════════════════════════
+
+// Tipos que se procesan vía OCR (documentos con adjunto PDF)
+const _TIPOS_OCR = ['crear_factura_prov', 'crear_albaran_prov', 'crear_pedido_compra', 'archivar_documento'];
+
 async function _ejecutarAccionBandeja(item) {
   const datos = item.datos_extraidos || {};
+  const adjuntos = item.adjuntos || [];
 
-  switch (item.tipo) {
-    case 'crear_factura_prov': {
-      // Intentar asociar proveedor por dominio del remitente
-      let provId = datos.proveedor_id || null;
-      if (!provId && datos.remitente) {
-        const dominio = datos.remitente.match(/@([\w.-]+)/)?.[1] || datos.remitente;
-        const { data: provs } = await sb.from('proveedores')
-          .select('id,nombre')
-          .eq('empresa_id', EMPRESA.id)
-          .ilike('email', '%' + dominio + '%')
-          .limit(1);
-        if (provs?.length) provId = provs[0].id;
-      }
-      if (!provId) {
-        throw new Error('No se encontró un proveedor vinculado a "' + (datos.remitente || '?') + '". Crea el proveedor primero o vincúlalo manualmente.');
-      }
-      const obj = {
-        empresa_id: EMPRESA.id,
-        proveedor_id: provId,
-        proveedor_nombre: datos.remitente || 'Proveedor desde correo',
-        numero: datos.numero || '',
-        fecha: datos.fecha || new Date().toISOString().split('T')[0],
-        total: datos.total || 0,
-        base_imponible: datos.base_imponible || 0,
-        total_iva: datos.total_iva || 0,
-        estado: 'pendiente',
-        observaciones: 'Creada desde tareas pendientes. Correo: ' + (datos.asunto || ''),
-      };
-      const { data, error } = await sb.from('facturas_proveedor').insert(obj).select().single();
-      if (error) throw error;
-      return { tipo: 'factura_proveedor', id: String(data.id) };
-    }
-
-    case 'crear_cliente': {
-      const obj = {
-        empresa_id: EMPRESA.id,
-        nombre: datos.nombre || 'Cliente desde correo',
-        email: datos.email || '',
-        telefono: datos.telefono || '',
-        notas: 'Creado automáticamente desde tareas pendientes.',
-      };
-      const { data, error } = await sb.from('clientes').insert(obj).select().single();
-      if (error) throw error;
-      return { tipo: 'cliente', id: String(data.id) };
-    }
-
-    case 'crear_tarea': {
-      // Si existe módulo de tareas
-      if (typeof crearTareaDesdeCorreo === 'function') {
-        const tareaId = await crearTareaDesdeCorreo(datos);
-        return { tipo: 'tarea', id: String(tareaId) };
-      }
-      throw new Error('Módulo de tareas no disponible');
-    }
-
-    default:
-      // Para acciones no implementadas aún, simplemente marcar como completado
-      return { tipo: item.tipo, id: 'manual' };
+  // ── Documentos → Flujo OCR ──
+  if (_TIPOS_OCR.includes(item.tipo)) {
+    return await _enviarAdjuntoAOCR(item, adjuntos, datos);
   }
+
+  // ── Nóminas → Procesador de nóminas existente ──
+  if (item.tipo === 'procesar_nominas') {
+    if (item.correo_id && typeof procesarNominas === 'function') {
+      await procesarNominas(item.correo_id);
+      return { tipo: 'nominas', id: String(item.correo_id) };
+    }
+    throw new Error('No se pudo lanzar el procesador de nóminas');
+  }
+
+  // ── Otros tipos: marcar como completado manualmente ──
+  return { tipo: item.tipo, id: 'manual' };
+}
+
+/**
+ * Descarga el primer adjunto PDF del correo, lo sube a storage
+ * y crea un registro en documentos_ocr para procesarlo con IA.
+ */
+async function _enviarAdjuntoAOCR(item, adjuntos, datos) {
+  // Buscar primer PDF entre los adjuntos
+  const adjPdf = adjuntos.find(a => (a.nombre || '').toLowerCase().endsWith('.pdf'));
+  if (!adjPdf) {
+    throw new Error('No se encontró adjunto PDF en esta tarea. Sube el documento manualmente desde la Bandeja OCR.');
+  }
+
+  // 1. Descargar el adjunto vía Edge Function
+  toast('⬇️ Descargando adjunto...', 'info');
+  const { data: dlData, error: dlErr } = await sb.functions.invoke('leer-correo', {
+    body: {
+      empresa_id: EMPRESA.id,
+      correo_id: item.correo_id,
+      descargar_adjunto: adjPdf.nombre
+    }
+  });
+  if (dlErr || !dlData?.success || !dlData?.adjunto?.url) {
+    throw new Error('No se pudo descargar el adjunto: ' + (dlData?.error || dlErr?.message || 'Error desconocido'));
+  }
+
+  // 2. Descargar el blob desde la URL firmada
+  toast('📤 Subiendo a OCR...', 'info');
+  const response = await fetch(dlData.adjunto.url);
+  if (!response.ok) throw new Error('Error descargando PDF (HTTP ' + response.status + ')');
+  const blob = await response.blob();
+
+  // 3. Subir a storage
+  const eid = EMPRESA.id;
+  const ts = Date.now();
+  const storagePath = `${eid}/ocr/inbox_${ts}_${Math.random().toString(36).substr(2, 6)}.pdf`;
+  const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, blob, {
+    contentType: 'application/pdf'
+  });
+  if (upErr) throw new Error('Error subiendo a storage: ' + upErr.message);
+
+  // 4. Crear registro en documentos_ocr
+  const tipoDoc = item.tipo === 'crear_albaran_prov' ? 'albaran' : 'factura';
+  const { data: docData, error: insErr } = await sb.from('documentos_ocr').insert({
+    empresa_id: eid,
+    usuario_id: CU?.id || null,
+    archivo_path: storagePath,
+    archivo_nombre: adjPdf.nombre,
+    estado: 'pendiente',
+    tipo_documento: tipoDoc,
+    datos_extraidos: null,
+    created_at: new Date().toISOString()
+  }).select().single();
+  if (insErr || !docData) throw new Error('Error creando documento OCR: ' + (insErr?.message || ''));
+
+  // 5. Navegar a la Bandeja OCR y abrir el procesado IA
+  toast('🤖 Abriendo en OCR...', 'info');
+  goPage('ocr');
+  setTimeout(() => {
+    if (typeof ocrGestionar === 'function') ocrGestionar(docData.id);
+  }, 500);
+
+  return { tipo: 'documento_ocr', id: String(docData.id) };
 }
 
 // ═══════════════════════════════════════════════
