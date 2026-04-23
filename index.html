@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 42</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 43</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -3613,6 +3613,56 @@ try {
   </div>
 </div>
 
+
+<!-- Modal Automatización -->
+<div class="overlay" id="mAutomatizacion">
+  <div class="modal modal-md">
+    <div class="modal-h"><span>⚡</span><h2 id="mAutoTit">Nueva automatización</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mAutomatizacion')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="auto_id">
+      <div class="fg" style="margin-bottom:11px"><label>Nombre de la regla *</label><input id="auto_nombre" placeholder="Ej: Facturas de Proveedor X"></div>
+      <div class="fg" style="margin-bottom:11px"><label>Descripción</label><input id="auto_desc" placeholder="Ej: Detecta facturas enviadas por email"></div>
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 11px;padding-top:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:8px">📧 Condiciones del correo (opcionales, se combinan con AND)</div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Remitente contiene</label><input id="auto_remitente" placeholder="Ej: @proveedor.com"></div>
+        <div class="fg"><label>Asunto contiene</label><input id="auto_asunto" placeholder="Ej: factura, presupuesto"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Adjunto contiene</label><input id="auto_adjunto" placeholder="Ej: .pdf, factura"></div>
+        <div class="fg"><label>Cuerpo contiene</label><input id="auto_cuerpo" placeholder="Ej: formulario contacto"></div>
+      </div>
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 11px;padding-top:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:8px">⚙️ Acción y modo</div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Acción a realizar *</label>
+          <select id="auto_accion">
+            <option value="crear_factura_prov">📑 Crear factura de proveedor</option>
+            <option value="crear_albaran_prov">📥 Crear albarán de proveedor</option>
+            <option value="crear_pedido_compra">🛒 Crear pedido de compra</option>
+            <option value="procesar_nominas">💰 Procesar nóminas</option>
+            <option value="crear_cliente">👤 Crear cliente</option>
+            <option value="crear_tarea">✅ Crear tarea</option>
+            <option value="archivar_documento">📂 Archivar documento</option>
+            <option value="personalizada">⚙️ Acción personalizada</option>
+          </select>
+        </div>
+        <div class="fg"><label>Modo de ejecución *</label>
+          <select id="auto_modo">
+            <option value="manual">👁️ Revisión manual (recomendado)</option>
+            <option value="automatico">⚡ Automático</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mAutomatizacion')">Cancelar</button>
+      <button class="btn btn-primary" id="btnGuardarAuto" onclick="guardarAutomatizacion()">💾 Crear regla</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Dirección -->
 <div class="overlay" id="mDireccion">

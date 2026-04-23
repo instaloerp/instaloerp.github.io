@@ -89,108 +89,67 @@ function renderAutomatizaciones() {
 // ═══════════════════════════════════════════════
 //  CRUD AUTOMATIZACIONES
 // ═══════════════════════════════════════════════
+let _autoEditId = null;
+
 function nuevaAutomatizacion() {
-  _mostrarModalAutomatizacion(null);
+  _autoEditId = null;
+  document.getElementById('mAutoTit').textContent = 'Nueva automatización';
+  document.getElementById('btnGuardarAuto').textContent = '💾 Crear regla';
+  ['auto_id','auto_nombre','auto_desc','auto_remitente','auto_asunto','auto_adjunto','auto_cuerpo'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('auto_accion').value = 'crear_factura_prov';
+  document.getElementById('auto_modo').value = 'manual';
+  openModal('mAutomatizacion');
 }
 
 function editarAutomatizacion(id) {
   const a = _automatizaciones.find(x => x.id === id);
   if (!a) return;
-  _mostrarModalAutomatizacion(a);
+  _autoEditId = a.id;
+  document.getElementById('mAutoTit').textContent = 'Editar automatización';
+  document.getElementById('btnGuardarAuto').textContent = '💾 Guardar cambios';
+  setVal('auto_nombre', a.nombre || '');
+  setVal('auto_desc', a.descripcion || '');
+  setVal('auto_remitente', a.condicion_remitente || '');
+  setVal('auto_asunto', a.condicion_asunto || '');
+  setVal('auto_adjunto', a.condicion_adjunto || '');
+  setVal('auto_cuerpo', a.condicion_cuerpo || '');
+  document.getElementById('auto_accion').value = a.accion || 'crear_factura_prov';
+  document.getElementById('auto_modo').value = a.modo || 'manual';
+  openModal('mAutomatizacion', true);
 }
 
-function _mostrarModalAutomatizacion(auto) {
-  const isEdit = !!auto;
-  const accionesOpts = Object.entries(ACCIONES_AUTO).map(([k, v]) =>
-    `<option value="${k}" ${auto?.accion === k ? 'selected' : ''}>${v.ico} ${v.label}</option>`
-  ).join('');
+async function guardarAutomatizacion() {
+  const nombre = v('auto_nombre');
+  if (!nombre) { toast('Introduce un nombre para la regla', 'error'); return; }
 
-  const html = `
-    <div style="display:flex;flex-direction:column;gap:14px">
-      <div>
-        <label style="font-size:12px;font-weight:600;color:var(--gris-600);display:block;margin-bottom:4px">Nombre de la regla</label>
-        <input id="auto_nombre" class="input" value="${auto?.nombre || ''}" placeholder="Ej: Facturas de Proveedor X">
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:600;color:var(--gris-600);display:block;margin-bottom:4px">Descripción (opcional)</label>
-        <input id="auto_desc" class="input" value="${auto?.descripcion || ''}" placeholder="Ej: Detecta facturas enviadas por email">
-      </div>
+  const obj = {
+    empresa_id: EMPRESA.id,
+    nombre,
+    descripcion: v('auto_desc') || null,
+    condicion_remitente: v('auto_remitente') || null,
+    condicion_asunto: v('auto_asunto') || null,
+    condicion_adjunto: v('auto_adjunto') || null,
+    condicion_cuerpo: v('auto_cuerpo') || null,
+    accion: v('auto_accion'),
+    modo: v('auto_modo'),
+  };
 
-      <div style="background:var(--gris-50);border-radius:8px;padding:14px;border:1px solid var(--gris-200)">
-        <div style="font-size:12px;font-weight:700;color:var(--gris-700);margin-bottom:10px">📧 Condiciones del correo (todas opcionales, se combinan con AND)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <label style="font-size:11px;color:var(--gris-500)">Remitente contiene</label>
-            <input id="auto_remitente" class="input" value="${auto?.condicion_remitente || ''}" placeholder="Ej: @proveedor.com" style="font-size:12px">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--gris-500)">Asunto contiene</label>
-            <input id="auto_asunto" class="input" value="${auto?.condicion_asunto || ''}" placeholder="Ej: factura, presupuesto" style="font-size:12px">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--gris-500)">Adjunto contiene</label>
-            <input id="auto_adjunto" class="input" value="${auto?.condicion_adjunto || ''}" placeholder="Ej: .pdf, factura" style="font-size:12px">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--gris-500)">Cuerpo contiene</label>
-            <input id="auto_cuerpo" class="input" value="${auto?.condicion_cuerpo || ''}" placeholder="Ej: formulario contacto" style="font-size:12px">
-          </div>
-        </div>
-      </div>
+  if (_autoEditId) {
+    const { error } = await sb.from('automatizaciones').update(obj).eq('id', _autoEditId);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    toast('Automatización actualizada ✓', 'success');
+  } else {
+    obj.creado_por = CU.id;
+    const { error } = await sb.from('automatizaciones').insert(obj);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    toast('Automatización creada ✓', 'success');
+  }
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--gris-600);display:block;margin-bottom:4px">Acción a realizar</label>
-          <select id="auto_accion" class="input" style="font-size:12px">${accionesOpts}</select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--gris-600);display:block;margin-bottom:4px">Modo de ejecución</label>
-          <select id="auto_modo" class="input" style="font-size:12px">
-            <option value="manual" ${auto?.modo !== 'automatico' ? 'selected' : ''}>👁️ Revisión manual (recomendado)</option>
-            <option value="automatico" ${auto?.modo === 'automatico' ? 'selected' : ''}>⚡ Automático</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  `;
-
-  confirmModal({
-    titulo: isEdit ? '✏️ Editar automatización' : '➕ Nueva automatización',
-    mensaje: html,
-    btnOk: isEdit ? 'Guardar cambios' : 'Crear regla',
-    colorOk: '#2563EB',
-    ancho: '560px',
-  }).then(async ok => {
-    if (!ok) return;
-    const nombre = v('auto_nombre');
-    if (!nombre) { toast('Introduce un nombre para la regla', 'error'); return; }
-
-    const obj = {
-      empresa_id: EMPRESA.id,
-      nombre,
-      descripcion: v('auto_desc') || null,
-      condicion_remitente: v('auto_remitente') || null,
-      condicion_asunto: v('auto_asunto') || null,
-      condicion_adjunto: v('auto_adjunto') || null,
-      condicion_cuerpo: v('auto_cuerpo') || null,
-      accion: v('auto_accion'),
-      modo: v('auto_modo'),
-    };
-
-    if (isEdit) {
-      const { error } = await sb.from('automatizaciones').update(obj).eq('id', auto.id);
-      if (error) { toast('Error: ' + error.message, 'error'); return; }
-      toast('Automatización actualizada ✓', 'success');
-    } else {
-      obj.creado_por = CU.id;
-      const { error } = await sb.from('automatizaciones').insert(obj);
-      if (error) { toast('Error: ' + error.message, 'error'); return; }
-      toast('Automatización creada ✓', 'success');
-    }
-
-    await cargarAutomatizaciones();
-    renderAutomatizaciones();
-  });
+  closeModal('mAutomatizacion');
+  await cargarAutomatizaciones();
+  renderAutomatizaciones();
 }
 
 async function toggleAutomatizacion(id) {
