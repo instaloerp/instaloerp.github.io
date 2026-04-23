@@ -1144,6 +1144,8 @@ async function cargarTodos() {
   // Usuarios disponibles globalmente
   todosUsuarios=usr.data||[];
   renderAll();
+  // Iniciar sync de correo en background (detección automática de nóminas, etc.)
+  if (typeof iniciarCorreoBackground === 'function') iniciarCorreoBackground();
 }
 
 function renderAll() {

@@ -21,6 +21,18 @@ const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
 // ═══════════════════════════════════════════════
 //  CARGA INICIAL
 // ═══════════════════════════════════════════════
+
+// Boot: iniciar auto-sync de correo en background (llamar desde cargarTodos)
+// No carga la UI de correo, solo arranca el timer de sincronización + detección de nóminas
+async function iniciarCorreoBackground() {
+  await cargarCuentaCorreoActiva();
+  if (_correoCuentaActiva && _correoCuentaActiva.sync_habilitada) {
+    console.log('[Correo] Auto-sync background iniciado');
+    sincronizarCorreo(true);
+    iniciarAutoSyncCorreo();
+  }
+}
+
 // Cargar cuenta SMTP predeterminada (puede llamarse al boot o lazy desde nuevoCorreo)
 async function cargarCuentaCorreoActiva() {
   try {
