@@ -200,7 +200,18 @@ async function aplicarReglaDesdeCorreo() {
     document.getElementById('auto_accion').value = 'crear_factura_prov';
     document.getElementById('auto_modo').value = 'manual';
 
-    setTimeout(() => openModal('mAutomatizacion'), 200);
+    setTimeout(() => {
+      openModal('mAutomatizacion', true);
+      // Aplicar valores DESPUÉS de abrir para que no se borren
+      setTimeout(() => {
+        setVal('auto_nombre', dominio ? 'Correos de ' + dominio : 'Nueva regla');
+        if (usarRemitente) setVal('auto_remitente', usarRemitente);
+        if (usarAsunto) setVal('auto_asunto', usarAsunto);
+        if (usarAdjunto) setVal('auto_adjunto', usarAdjunto);
+        document.getElementById('auto_accion').value = 'crear_factura_prov';
+        document.getElementById('auto_modo').value = 'manual';
+      }, 50);
+    }, 200);
   } else {
     // Añadir condiciones a regla existente
     const reglaId = parseInt(destino);
