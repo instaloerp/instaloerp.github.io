@@ -219,6 +219,11 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
     // Auto-procesar nóminas si hay correos nuevos y email de gestoría configurado
     if (totalNuevos > 0) {
       _autoDetectarNominas();
+      // Evaluar automatizaciones contra correos nuevos
+      if (typeof evaluarAutomatizaciones === 'function') {
+        const nuevos = correos.filter(c => c.tipo === 'recibido' && !c.leido);
+        evaluarAutomatizaciones(nuevos);
+      }
     }
 
   } catch(e) {

@@ -1146,6 +1146,8 @@ async function cargarTodos() {
   renderAll();
   // Iniciar sync de correo en background (detección automática de nóminas, etc.)
   if (typeof iniciarCorreoBackground === 'function') iniciarCorreoBackground();
+  // Cargar automatizaciones y badge de bandeja
+  if (typeof iniciarAutomatizacionesBackground === 'function') iniciarAutomatizacionesBackground();
 }
 
 function renderAll() {

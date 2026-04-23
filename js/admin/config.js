@@ -246,6 +246,7 @@ function cfgTab(id,el){
   if (id === 'facturacion') cargarCfgFacturacion();
   if (id === 'certificado') { cargarCertificados(); cargarCfgFirmaDocumentos(); }
   if (id === 'correo') cargarCuentasCorreoConfig();
+  if (id === 'automatizaciones') { cargarAutomatizaciones().then(() => renderAutomatizaciones()); }
   if (id === 'ia') loadConfigIA();
   if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); cargarCalculadoraKm(); }
   if (id === 'sistema') verificarInstalacion();

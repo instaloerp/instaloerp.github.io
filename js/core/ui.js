@@ -253,6 +253,7 @@ const PAGE_PRONTO_INFO = {
   'traspasos':           {ico:'🔄', titulo:'Traspasos', desc:'Movimientos de material entre almacenes con trazabilidad completa.', features:['Transferencia entre almacenes','Trazabilidad de cada movimiento','Aprobación de traspasos','Historial completo']},
   'activos':             {ico:'🔧', titulo:'Activos', desc:'Registro de herramientas, vehículos y equipos con mantenimiento y asignación.', features:['Inventario de herramientas y equipos','Control de mantenimiento preventivo','Asignación a operarios y obras','Alertas de caducidad y revisiones']},
   'mantenimientos':      {ico:'🔧', titulo:'Mantenimientos', desc:'Contratos de mantenimiento recurrente: planificación y seguimiento.', features:['Contratos con periodicidad configurable','Generación automática de partes','Historial de intervenciones','Facturación recurrente']},
+  'bandeja':             {ico:'📥', titulo:'Bandeja de entrada', desc:'Tareas automáticas detectadas por las reglas de automatización: facturas, albaranes, nóminas y más.', features:['Detección automática de correos','Revisión y aprobación manual','Importación con un clic','Historial de acciones']},
   'correo':              {ico:'📧', titulo:'Correo', desc:'Envía y recibe correos directamente desde el ERP, vinculados a obras y clientes.', features:['Bandeja de entrada integrada','Envío de presupuestos y facturas','Respuestas vinculadas a obras','Plantillas personalizables']},
   'fichajes':            {ico:'⏱️', titulo:'Fichajes', desc:'Control de entradas y salidas de empleados, horarios y horas trabajadas.', features:['Fichaje por app y QR','Horarios y turnos','Informes de horas','Integración con partes de trabajo']},
   'etiquetas-qr':        {ico:'🏷️', titulo:'Etiquetas QR', desc:'Genera etiquetas QR para artículos, almacenes y activos.', features:['Generación masiva de QR','Etiquetas personalizables','Escaneo desde móvil','Acceso rápido a fichas']},
@@ -427,6 +428,7 @@ function goPage(id, opts){
   if(id==='facturas-proveedor') loadFacturasProv();
   if(id==='calendario-pagos') loadCalendarioPagos();
   if(id==='ocr') loadOCRInbox();
+  if(id==='bandeja') loadBandeja();
   if(id==='correo') loadCorreos();
   if(id==='trabajos'){
     // Solo cerrar ficha si NO es navegación "atrás" (goBack restaurará la ficha)
@@ -902,7 +904,7 @@ function confirmModal(opts = {}) {
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10010;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s';
     const colorOk = opts.colorOk || '#059669';
     ov.innerHTML = `
-      <div style="background:white;border-radius:16px;padding:32px 36px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+      <div style="background:white;border-radius:16px;padding:32px 36px;max-width:${opts.ancho || '440px'};width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
         <div style="font-size:48px;margin-bottom:12px">${opts.icono || '⚠️'}</div>
         <h2 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#111">${opts.titulo || 'Confirmar'}</h2>
         <div style="color:#555;font-size:14px;line-height:1.6;margin:0 0 8px;text-align:left">${opts.mensaje || ''}</div>

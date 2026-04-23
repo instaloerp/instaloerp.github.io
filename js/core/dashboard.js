@@ -122,6 +122,9 @@ async function loadDashboard() {
   // ── DOCUMENTOS OCR PENDIENTES ──
   await loadDashboardDocsOcr();
 
+  // ── BANDEJA DE ENTRADA (AUTOMATIZACIONES) ──
+  if (typeof renderDashBandeja === 'function') renderDashBandeja();
+
   // ── BADGE CORREO NO LEÍDO ──
   if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
 

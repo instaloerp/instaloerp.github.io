@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 41</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 42</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -184,6 +184,12 @@ try {
         <div class="sb-fav-titulo">⭐ Favoritos <button onclick="toggleFavEdit()" title="Editar favoritos" id="btnFavEdit">✏️</button></div>
         <div id="sbFavList" class="sb-favoritos"></div>
       </div>
+
+      <!-- BANDEJA DE ENTRADA -->
+      <button class="sb-item" onclick="goPage('bandeja')" style="margin:4px 8px;border-radius:8px;font-weight:600;background:var(--azul-light);border:1px solid var(--azul);color:var(--azul)">
+        <span class="ico">📥</span> Bandeja de entrada
+        <span id="bandeja-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span>
+      </button>
 
       <!-- VENTAS -->
       <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)"><span class="sb-sec-ico">💼</span><span class="sb-sec-label">Ventas</span></div>
@@ -335,6 +341,10 @@ try {
         <!-- TARJETAS con pestaña de color y resize -->
         <div class="dash-grid">
           <div class="dash-card dash-card--orange" id="dash-docs-ocr" style="display:none"></div>
+          <div class="dash-card dash-card--purple" id="dash-bandeja" style="display:none">
+            <div class="card-h"><h3>📥 Bandeja de entrada</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
+            <div class="card-b" id="d-bandeja-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">📥</div><p>Sin tareas pendientes</p></div></div>
+          </div>
           <div class="dash-card dash-card--green">
             <div class="card-h"><h3>✅ Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
             <div class="card-b" id="d-tareas-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
@@ -1665,6 +1675,25 @@ try {
         </div>
       </div>
 
+      <!-- ═══ BANDEJA DE ENTRADA (AUTOMATIZACIONES) ═══ -->
+      <div class="page" id="page-bandeja">
+        <div class="page-header">
+          <h2>📥 Bandeja de entrada</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="bandejaFiltroEstado" onchange="filtrarBandeja()" style="padding:6px 10px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px">
+              <option value="pendiente">Pendientes</option>
+              <option value="todos">Todos</option>
+              <option value="completado">Completados</option>
+              <option value="rechazado">Rechazados</option>
+              <option value="error">Con error</option>
+            </select>
+          </div>
+        </div>
+        <div id="bandejaLista" style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
+          <div style="text-align:center;color:var(--gris-400);padding:40px;font-size:13px">Cargando...</div>
+        </div>
+      </div>
+
       <!-- ═══ PAPELERA (DOCS ELIMINADOS) ═══ -->
       <div class="page" id="page-correo">
         <div style="display:flex;height:calc(100vh - 120px);gap:0;border:1px solid var(--gris-200);border-radius:10px;overflow:hidden;background:#fff">
@@ -1991,6 +2020,7 @@ try {
             <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
             <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
             <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
+            <button class="cfg-menu-item" onclick="cfgTab('automatizaciones',this)"><span class="ico">⚡</span> Automatizaciones</button>
             <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
             <button class="cfg-menu-item" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
             <button class="cfg-menu-item" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
@@ -2357,6 +2387,22 @@ try {
                   📧 Outlook/Office365: smtp.office365.com, puerto 587, TLS<br>
                   📧 Hosting propio: consulta con tu proveedor los datos SMTP
                 </div>
+              </div>
+            </div>
+
+            <!-- AUTOMATIZACIONES -->
+            <div class="cfg-panel card" id="cfg-automatizaciones">
+              <div class="card-h">
+                <h3>⚡ Automatizaciones</h3>
+                <div class="card-ha">
+                  <button class="btn btn-primary btn-sm" onclick="nuevaAutomatizacion()">➕ Nueva regla</button>
+                </div>
+              </div>
+              <p style="color:var(--gris-500);font-size:13px;margin-bottom:16px">
+                Crea reglas para procesar automáticamente correos entrantes: facturas, albaranes, nóminas, formularios de contacto, etc.
+              </p>
+              <div id="listaAutomatizaciones" style="display:flex;flex-direction:column;gap:10px">
+                <div style="text-align:center;color:var(--gris-400);padding:30px;font-size:13px">Cargando...</div>
               </div>
             </div>
 
@@ -4905,6 +4951,7 @@ try {
     'js/compras/calendario_pagos.js',
     // Comunicación
     'js/core/correo.js',
+    'js/core/automatizaciones.js',
     'js/core/firma.js',
     // Almacén
     'js/almacen/articulos.js',
