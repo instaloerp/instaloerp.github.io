@@ -897,10 +897,10 @@ function previsualizarTarea(id) {
       </button>`;
     }).join('');
 
-    // Auto-preview primer PDF si existe
+    // Auto-preview primer PDF si existe (sin delay)
     const primerPdf = adjuntos.findIndex(a => (a.nombre || '').toLowerCase().endsWith('.pdf'));
     if (primerPdf >= 0) {
-      setTimeout(() => previewAdjuntoTarea(id, primerPdf), 300);
+      previewAdjuntoTarea(id, primerPdf);
     }
   } else {
     adjCont.style.display = 'none';
@@ -926,6 +926,9 @@ function previsualizarTarea(id) {
   openModal('mPrevisTarea');
 }
 
+// Cache de URLs de adjuntos ya descargados (en memoria)
+const _adjuntoCache = {};
+
 async function previewAdjuntoTarea(tareaId, adjIdx) {
   const item = _bandejaItems.find(x => x.id === tareaId);
   if (!item) return;
@@ -946,22 +949,55 @@ async function previewAdjuntoTarea(tareaId, adjIdx) {
   frame.src = '';
   img.style.display = 'none';
   placeholder.style.display = '';
-  placeholder.innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:12px">Descargando ${adj.nombre}...</div>`;
+
+  // Clave de cache: tarea + adjunto
+  const cacheKey = tareaId + '_' + adjIdx;
 
   try {
-    // Obtener URL firmada del adjunto
-    const { data, error } = await sb.functions.invoke('leer-correo', {
-      body: {
-        empresa_id: EMPRESA.id,
-        correo_id: item.correo_id,
-        descargar_adjunto: adj.nombre
+    let url;
+
+    // 1. Comprobar cache en memoria (instantáneo)
+    if (_adjuntoCache[cacheKey]) {
+      url = _adjuntoCache[cacheKey];
+    } else {
+      // 2. Comprobar si ya está en Storage (rápido, sin edge function)
+      const storagePath = `${EMPRESA.id}/inbox/adj_${tareaId}_${adjIdx}_${adj.nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { data: urlStored } = sb.storage.from('documentos').getPublicUrl(storagePath);
+
+      if (urlStored?.publicUrl) {
+        // Verificar que existe (HEAD rápido)
+        try {
+          const head = await fetch(urlStored.publicUrl, { method: 'HEAD' });
+          if (head.ok) {
+            url = urlStored.publicUrl;
+            _adjuntoCache[cacheKey] = url;
+          }
+        } catch(_) {}
       }
-    });
-    if (error) throw error;
-    if (!data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo obtener el adjunto');
 
-    const url = data.adjunto.url;
+      // 3. Si no está en cache ni Storage, descargar desde correo
+      if (!url) {
+        placeholder.innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:12px">Descargando ${adj.nombre}...</div>`;
 
+        const { data, error } = await sb.functions.invoke('leer-correo', {
+          body: {
+            empresa_id: EMPRESA.id,
+            correo_id: item.correo_id,
+            descargar_adjunto: adj.nombre
+          }
+        });
+        if (error) throw error;
+        if (!data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo obtener el adjunto');
+
+        url = data.adjunto.url;
+        _adjuntoCache[cacheKey] = url;
+
+        // 4. Guardar en Storage para próximas veces (en background, no bloquea)
+        _guardarAdjuntoEnStorage(url, storagePath).catch(e => console.warn('[cache adj]', e));
+      }
+    }
+
+    // Mostrar
     if (esPdf) {
       frame.src = url;
       frame.style.display = 'block';
@@ -978,6 +1014,18 @@ async function previewAdjuntoTarea(tareaId, adjIdx) {
   } catch (e) {
     placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:12px;color:#ef4444">Error: ${e.message}</div>`;
   }
+}
+
+async function _guardarAdjuntoEnStorage(url, storagePath) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    await sb.storage.from('documentos').upload(storagePath, blob, {
+      contentType: blob.type || 'application/octet-stream',
+      upsert: true
+    });
+  } catch(e) { console.warn('[guardarAdj]', e); }
 }
 
 async function ejecutarDesdePreview() {
