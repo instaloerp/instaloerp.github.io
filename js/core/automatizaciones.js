@@ -660,6 +660,7 @@ async function evaluarAutomatizaciones(correosNuevos) {
     console.log(`[Automatizaciones] ${creados} nuevas entradas creadas`);
     toast(`📬 ${creados} nuevo${creados > 1 ? 's' : ''} en bandeja de entrada`, 'success');
     _sonarNotificacion();
+    window._ultimaNotifBandeja = Date.now(); // evitar duplicar con Realtime
     actualizarBadgeBandeja();
     // Si estamos viendo la bandeja, recargar items para mostrar los nuevos
     if (document.getElementById('page-bandeja')?.style.display !== 'none') {
@@ -1211,4 +1212,37 @@ async function inboxSubirDocumento(files) {
 async function iniciarAutomatizacionesBackground() {
   await cargarAutomatizaciones();
   await actualizarBadgeBandeja();
+  // Suscripción Realtime a bandeja_entrada — actualiza badge, widget y bandeja en vivo
+  _suscribirBandejaRealtime();
+}
+
+function _suscribirBandejaRealtime() {
+  sb.channel('bandeja-realtime')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'bandeja_entrada', filter: `empresa_id=eq.${EMPRESA.id}` },
+      async (payload) => {
+        console.log('[Bandeja RT]', payload.eventType, payload.new?.titulo || '');
+        // Actualizar badge siempre
+        actualizarBadgeBandeja();
+        // Actualizar widget del dashboard si está visible
+        if (document.getElementById('page-dashboard')?.style.display !== 'none') {
+          renderDashBandeja();
+        }
+        // Actualizar lista de bandeja si está visible
+        if (document.getElementById('page-bandeja')?.style.display !== 'none') {
+          await cargarBandejaItems();
+          filtrarBandeja();
+        }
+        // Sonar + toast en INSERTs (si no lo hizo ya evaluarAutomatizaciones)
+        if (payload.eventType === 'INSERT') {
+          // Evitar duplicar: si evaluarAutomatizaciones acaba de notificar (<3s), skip
+          const ahora = Date.now();
+          if (!window._ultimaNotifBandeja || ahora - window._ultimaNotifBandeja > 3000) {
+            toast(`📬 Nuevo en bandeja: ${payload.new?.titulo || 'Tarea'}`, 'success');
+            _sonarNotificacion();
+          }
+        }
+      }
+    )
+    .subscribe();
 }
