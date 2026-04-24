@@ -23,10 +23,28 @@ const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
 // ═══════════════════════════════════════════════
 
 // Boot: iniciar auto-sync de correo en background (llamar desde cargarTodos)
-// No carga la UI de correo, solo arranca el timer de sincronización + detección de nóminas
+// Carga correos desde BD + arranca sync IMAP + evalúa automatizaciones + timer
 async function iniciarCorreoBackground() {
   await cargarCuentaCorreoActiva();
-  if (_correoCuentaActiva && _correoCuentaActiva.sync_habilitada) {
+  if (!_correoCuentaActiva) return;
+
+  // 1. Cargar correos ya existentes en BD (sin esperar a IMAP)
+  try {
+    const { data } = await sb.from('correos')
+      .select('*')
+      .eq('empresa_id', EMPRESA.id)
+      .order('fecha', { ascending: false });
+    correos = data || [];
+  } catch(_) { correos = []; }
+
+  // 2. Evaluar automatizaciones contra correos pendientes YA en BD
+  if (typeof evaluarAutomatizaciones === 'function') {
+    const recibidos = correos.filter(c => c.tipo === 'recibido' && !c.leido);
+    if (recibidos.length) evaluarAutomatizaciones(recibidos);
+  }
+
+  // 3. Arrancar sync IMAP + timer (si sync habilitada)
+  if (_correoCuentaActiva.sync_habilitada) {
     console.log('[Correo] Auto-sync background iniciado');
     sincronizarCorreo(true);
     iniciarAutoSyncCorreo();
