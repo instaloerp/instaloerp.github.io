@@ -334,6 +334,8 @@ async function chatAddParticipante(convId, userId) {
 // ═══════════════════════════════════════════════
 function chatIniciarRealtime() {
   if (_chatRealtimeChannel) return;
+  // Pedir permiso de notificaciones nativas
+  chatPedirPermisoNotificaciones();
   _chatRealtimeChannel = sb.channel('chat-global')
     .on('postgres_changes', {
       event: '*',
@@ -414,25 +416,94 @@ function _chatNotificar(msg) {
   else if (msg.tipo === 'gps') texto = '📍 Ubicación compartida';
   else if (msg.tipo === 'documento') texto = '📄 ' + (msg.archivo_nombre || 'Documento');
 
+  // 1. Toast dentro de la app
   if (typeof toast === 'function') {
     toast(`💬 ${titulo}: ${texto}`, 'info');
   }
+
+  // 2. Sonido de notificación (doble tono tipo WhatsApp)
   _chatSonarNotificacion();
+
+  // 3. Notificación nativa del navegador (aparece en el sistema operativo)
+  _chatNotificacionNativa(titulo, texto, msg.conversacion_id);
+
   _chatActualizarBadge();
+}
+
+// Pedir permiso de notificaciones al iniciar el chat
+function chatPedirPermisoNotificaciones() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function _chatNotificacionNativa(titulo, texto, convId) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') {
+    // Pedir permiso si aún no se ha pedido
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    return;
+  }
+  // No mostrar notificación nativa si la pestaña está visible
+  if (document.visibilityState === 'visible') return;
+
+  try {
+    const n = new Notification('💬 ' + titulo, {
+      body: texto,
+      icon: 'assets/icon-180.png',
+      badge: 'assets/icon-180.png',
+      tag: 'chat-' + convId, // Agrupa por conversación (evita spam)
+      renotify: true,
+      vibrate: [200, 100, 200]
+    });
+    n.onclick = () => {
+      window.focus();
+      // Navegar a la conversación
+      if (typeof goPage === 'function') {
+        goPage('mensajes');
+        setTimeout(() => {
+          if (typeof chatAbrirConversacion === 'function') chatAbrirConversacion(convId);
+        }, 300);
+      } else if (typeof navigateTo === 'function') {
+        navigateTo('chat');
+        setTimeout(() => {
+          if (typeof _chatMobileAbrir === 'function') _chatMobileAbrir(convId);
+        }, 300);
+      }
+      n.close();
+    };
+    // Auto-cerrar a los 8 segundos
+    setTimeout(() => n.close(), 8000);
+  } catch (e) {}
 }
 
 function _chatSonarNotificacion() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator();
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
     const g = ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    o.type = 'sine';
-    o.frequency.setValueAtTime(800, ctx.currentTime);
-    o.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
-    g.gain.setValueAtTime(0.15, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-    o.start(); o.stop(ctx.currentTime + 0.3);
+    o1.connect(g); o2.connect(g); g.connect(ctx.destination);
+
+    // Primer tono
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(880, ctx.currentTime);
+    o1.frequency.setValueAtTime(0, ctx.currentTime + 0.12);
+    o1.start(ctx.currentTime);
+    o1.stop(ctx.currentTime + 0.12);
+
+    // Segundo tono (más agudo, tipo WhatsApp)
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(1320, ctx.currentTime + 0.15);
+    o2.start(ctx.currentTime + 0.15);
+    o2.stop(ctx.currentTime + 0.3);
+
+    // Volumen
+    g.gain.setValueAtTime(0.2, ctx.currentTime);
+    g.gain.setValueAtTime(0.2, ctx.currentTime + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
   } catch (e) {}
 }
 
