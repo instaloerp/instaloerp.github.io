@@ -478,6 +478,18 @@ function nuevaFacturaProvDesdeProveedor() {
   }
 }
 
+async function abrirArticuloDesdeProveedor(artId) {
+  // Navegar a artículos si no estamos allí
+  goPage('articulos');
+  // Esperar a que el array articulos esté cargado (máx 3s)
+  let intentos = 0;
+  while ((!articulos || !articulos.length) && intentos < 30) {
+    await new Promise(r => setTimeout(r, 100));
+    intentos++;
+  }
+  if (typeof editArticulo === 'function') editArticulo(artId);
+}
+
 // ═══════════════════════════════════════════════
 //  PESTAÑA ARTÍCULOS — Ficha Proveedor
 //  Muestra artículos vinculados con datos de compra
@@ -585,7 +597,7 @@ function renderFichaProvArticulos() {
     html += `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gris-400);font-size:12px">Sin resultados</td></tr>`;
   } else {
     pagina.forEach(d => {
-      html += `<tr style="cursor:pointer" onclick="if(typeof openArticulo==='function')openArticulo(${d.articulo_id})">
+      html += `<tr style="cursor:pointer" onclick="abrirArticuloDesdeProveedor(${d.articulo_id})">
         <td style="padding:3px 2px;text-align:center;font-size:10px">${d.es_principal ? '<span style="color:var(--verde)">⭐</span>' : ''}</td>
         <td style="padding:3px 6px"><div style="font-weight:700;font-size:11.5px;line-height:1.3">${d.art.nombre || '—'}</div><div style="font-size:9.5px;color:var(--gris-400)">${d.codArt}${d.fam ? ' · ' + d.fam.nombre : ''}${d.art.activo === false ? ' <span style="color:var(--rojo)">inactivo</span>' : ''}</div></td>
         <td style="padding:3px 6px;font-family:monospace;font-size:10.5px">${d.ref_proveedor || '—'}</td>
