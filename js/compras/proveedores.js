@@ -496,7 +496,7 @@ async function loadFichaProvArticulos(provId) {
   try {
     // 1. Cargar vinculaciones artículo-proveedor con datos del artículo
     const { data: vinculos, error } = await sb.from('articulos_proveedores')
-      .select('*, articulos(id, nombre, codigo, familia_id, precio_compra, precio_venta, unidad_medida, activo)')
+      .select('*, articulos(*)')
       .eq('proveedor_id', provId)
       .eq('empresa_id', EMPRESA.id)
       .order('es_principal', { ascending: false });
@@ -576,13 +576,14 @@ async function loadFichaProvArticulos(provId) {
       const fam = familias.find(f => f.id === art.familia_id);
       const uc = ultimaCompra[vn.articulo_id];
       const tc = totalComprado[vn.articulo_id] || 0;
-      const unidad = art.unidad_medida || 'ud';
+      const unidad = art.unidad_medida || art.unidad || 'ud';
+      const codArt = art.codigo || art.referencia || '';
 
       html += `<tr class="fp-art-row" data-nombre="${(art.nombre || '').toLowerCase()}" data-ref="${(vn.ref_proveedor || '').toLowerCase()}" style="cursor:pointer" onclick="if(typeof openArticulo==='function')openArticulo(${vn.articulo_id})">
         <td style="width:28px;text-align:center">${vn.es_principal ? '<span title="Proveedor principal" style="color:var(--verde)">⭐</span>' : ''}</td>
         <td>
           <div style="font-weight:700;font-size:12px">${art.nombre || '—'}</div>
-          <div style="font-size:10px;color:var(--gris-400)">${art.codigo || ''} ${fam ? '· ' + fam.nombre : ''} ${art.activo === false ? '<span style="color:var(--rojo)">· Inactivo</span>' : ''}</div>
+          <div style="font-size:10px;color:var(--gris-400)">${codArt} ${fam ? '· ' + fam.nombre : ''} ${art.activo === false ? '<span style="color:var(--rojo)">· Inactivo</span>' : ''}</div>
         </td>
         <td style="font-family:monospace;font-size:11.5px">${vn.ref_proveedor || '—'}</td>
         <td style="text-align:right;font-weight:700">${vn.precio_proveedor ? fmtE(vn.precio_proveedor) : '—'}</td>
