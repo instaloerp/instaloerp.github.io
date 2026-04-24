@@ -416,10 +416,8 @@ function _chatNotificar(msg) {
   else if (msg.tipo === 'gps') texto = '📍 Ubicación compartida';
   else if (msg.tipo === 'documento') texto = '📄 ' + (msg.archivo_nombre || 'Documento');
 
-  // 1. Toast dentro de la app
-  if (typeof toast === 'function') {
-    toast(`💬 ${titulo}: ${texto}`, 'info');
-  }
+  // 1. Toast grande dentro de la app (estilo partes)
+  _chatMostrarToastGrande(titulo, texto, msg.conversacion_id);
 
   // 2. Sonido de notificación (doble tono tipo WhatsApp)
   _chatSonarNotificacion();
@@ -428,6 +426,73 @@ function _chatNotificar(msg) {
   _chatNotificacionNativa(titulo, texto, msg.conversacion_id);
 
   _chatActualizarBadge();
+}
+
+// Toast grande estilo notificación de partes (showRealtimeNotif)
+function _chatMostrarToastGrande(titulo, texto, convId) {
+  // Inyectar CSS de animación si no existe (necesario en app.html)
+  if (!document.getElementById('chat-toast-anim-css')) {
+    const st = document.createElement('style');
+    st.id = 'chat-toast-anim-css';
+    st.textContent = `
+      @keyframes rtSlideIn { from { transform:translateX(120%);opacity:0 } to { transform:translateX(0);opacity:1 } }
+      @keyframes rtSlideOut { from { transform:translateX(0);opacity:1 } to { transform:translateX(120%);opacity:0 } }
+    `;
+    document.head.appendChild(st);
+  }
+
+  let container = document.getElementById('rt-notifs');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'rt-notifs';
+    container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:400px;pointer-events:none';
+    document.body.appendChild(container);
+  }
+
+  const notif = document.createElement('div');
+  notif.style.cssText = `
+    pointer-events:auto;cursor:pointer;
+    background:#fff;border-radius:12px;padding:14px 18px;
+    box-shadow:0 8px 30px rgba(0,0,0,.15),0 0 0 1px rgba(0,0,0,.05);
+    display:flex;align-items:flex-start;gap:12px;
+    animation:rtSlideIn .4s ease;
+    border-left:4px solid var(--acento);
+    max-width:400px;
+  `;
+  notif.innerHTML = `
+    <span style="font-size:28px;line-height:1;flex-shrink:0">💬</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800;font-size:14px;color:var(--gris-900);margin-bottom:2px">${titulo}</div>
+      <div style="font-size:12.5px;color:var(--gris-500);line-height:1.4">${texto}</div>
+      <div style="font-size:10px;color:var(--gris-300);margin-top:4px">${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <button onclick="event.stopPropagation();this.parentElement.remove()" style="background:none;border:none;font-size:16px;color:var(--gris-300);cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>
+  `;
+
+  // Click abre la conversación
+  notif.addEventListener('click', (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    notif.remove();
+    if (convId) {
+      if (typeof goPage === 'function') {
+        goPage('mensajes');
+        setTimeout(() => { if (typeof chatAbrirConversacion === 'function') chatAbrirConversacion(convId); }, 300);
+      } else if (typeof navigateTo === 'function') {
+        navigateTo('chat');
+        setTimeout(() => { if (typeof _chatMobileAbrir === 'function') _chatMobileAbrir(convId); }, 300);
+      }
+    }
+  });
+
+  container.appendChild(notif);
+
+  // Auto-remove después de 8 segundos
+  setTimeout(() => {
+    if (notif.parentElement) {
+      notif.style.animation = 'rtSlideOut .3s ease forwards';
+      setTimeout(() => notif.remove(), 300);
+    }
+  }, 8000);
 }
 
 // Pedir permiso de notificaciones al iniciar el chat
