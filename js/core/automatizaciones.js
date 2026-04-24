@@ -993,6 +993,54 @@ async function rechazarDesdePreview() {
 }
 
 // ═══════════════════════════════════════════════
+//  SUBIDA MANUAL DE DOCUMENTOS DESDE INBOX
+// ═══════════════════════════════════════════════
+async function inboxSubirDocumento(files) {
+  if (!files || !files.length) return;
+  const input = document.getElementById('inboxFileUpload');
+
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf','jpg','jpeg','png','webp'].includes(ext)) {
+      toast('⚠️ Formato no soportado: ' + file.name, 'error');
+      continue;
+    }
+    try {
+      toast('📤 Subiendo ' + file.name + '...', 'info');
+      const eid = EMPRESA?.id;
+      const ts = Date.now();
+      const storagePath = `${eid}/ocr/inbox_${ts}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+
+      const { error: upErr } = await sb.storage.from('documentos').upload(storagePath, file, {
+        contentType: file.type || 'application/octet-stream'
+      });
+      if (upErr) { toast('❌ Error subiendo ' + file.name + ': ' + upErr.message, 'error'); continue; }
+
+      const { data: docData, error: insErr } = await sb.from('documentos_ocr').insert({
+        empresa_id: eid,
+        usuario_id: CP?.id || CU?.id || null,
+        archivo_path: storagePath,
+        archivo_nombre: file.name,
+        estado: 'pendiente',
+        tipo_documento: 'auto',
+        datos_extraidos: null,
+        created_at: new Date().toISOString()
+      }).select().single();
+
+      if (insErr || !docData) { toast('❌ Error registrando ' + file.name + ': ' + (insErr?.message || ''), 'error'); continue; }
+
+      toast('🤖 Procesando ' + file.name + ' con IA...', 'info');
+      goPage('ocr');
+      ocrGestionar(docData.id);
+    } catch(e) {
+      toast('❌ ' + file.name + ': ' + e.message, 'error');
+    }
+  }
+
+  if (input) input.value = '';
+}
+
+// ═══════════════════════════════════════════════
 //  INICIALIZACIÓN AL BOOT
 // ═══════════════════════════════════════════════
 async function iniciarAutomatizacionesBackground() {
