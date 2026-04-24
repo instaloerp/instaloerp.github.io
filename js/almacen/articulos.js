@@ -755,13 +755,49 @@ async function delArtProveedor(id) {
 // ═══════════════════════════════════════════════
 
 async function loadArtHistorial(articuloId) {
-  const { data } = await sb.from('articulos_historial')
+  // 1. Registros manuales de articulos_historial
+  const { data: manuales } = await sb.from('articulos_historial')
     .select('*')
     .eq('articulo_id', articuloId)
     .eq('empresa_id', EMPRESA.id)
     .order('fecha', { ascending: false });
 
-  artHistorial = data || [];
+  // 2. Registros automáticos desde recepciones (albaranes de proveedor)
+  const { data: recs } = await sb.from('recepciones')
+    .select('id, numero, fecha, proveedor_id, lineas')
+    .eq('empresa_id', EMPRESA.id)
+    .order('fecha', { ascending: false })
+    .limit(500);
+
+  const autoRegs = [];
+  (recs || []).forEach(rec => {
+    const lineas = Array.isArray(rec.lineas) ? rec.lineas : [];
+    lineas.forEach(lin => {
+      const aid = lin.articulo_id || lin.articuloId;
+      if (String(aid) !== String(articuloId)) return;
+      const cant = parseFloat(lin.cantidad || lin.qty || 0);
+      const precio = parseFloat(lin.precio || lin.price || lin.precio_unitario || 0);
+      autoRegs.push({
+        id: 'auto_' + rec.id + '_' + aid,
+        empresa_id: EMPRESA.id,
+        articulo_id: articuloId,
+        proveedor_id: rec.proveedor_id,
+        fecha: rec.fecha,
+        tipo: cant < 0 ? 'devolucion' : 'compra',
+        cantidad: Math.abs(cant),
+        precio_unitario: precio,
+        total: Math.abs(cant) * precio,
+        documento_ref: rec.numero || '',
+        lote: lin.lote || null,
+        _auto: true
+      });
+    });
+  });
+
+  // 3. Combinar y ordenar por fecha descendente
+  artHistorial = [...(manuales || []), ...autoRegs]
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+
   renderArtHistorial();
   updateArtHistKPIs();
 }
@@ -795,7 +831,7 @@ function renderArtHistorial() {
         <td style="font-weight:700">${fmtE(h.total)}</td>
         <td style="font-size:11px;font-family:monospace">${h.documento_ref || '—'}</td>
         <td style="font-size:11px">${h.lote || '—'}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="delArtHistorial('${h.id}')" title="Eliminar">🗑️</button></td>
+        <td>${h._auto ? '<span style="font-size:9px;color:var(--gris-400)" title="Registro automático desde albarán">auto</span>' : `<button class="btn btn-ghost btn-sm" onclick="delArtHistorial('${h.id}')" title="Eliminar">🗑️</button>`}</td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
