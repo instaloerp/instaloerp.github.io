@@ -300,12 +300,27 @@ async function eliminarAutomatizacion(id) {
 // ═══════════════════════════════════════════════
 //  BANDEJA DE ENTRADA
 // ═══════════════════════════════════════════════
+let _bandejaAutoRefresh = null;
+
 async function loadBandeja() {
   await cargarBandejaItems();
   _poblarFiltroTipos();
   filtrarBandeja();
   // Pre-cargar adjuntos de los primeros items pendientes en background
   _precacheAdjuntosBandeja();
+  // Auto-refresh de la bandeja cada 2 min mientras esté visible
+  _iniciarBandejaAutoRefresh();
+}
+
+function _iniciarBandejaAutoRefresh() {
+  if (_bandejaAutoRefresh) clearInterval(_bandejaAutoRefresh);
+  _bandejaAutoRefresh = setInterval(async () => {
+    // Solo refrescar si la bandeja está visible
+    if (document.getElementById('page-bandeja')?.style.display === 'none') return;
+    await cargarBandejaItems();
+    filtrarBandeja();
+    actualizarBadgeBandeja();
+  }, 2 * 60 * 1000); // cada 2 minutos
 }
 
 async function cargarBandejaItems() {
@@ -602,6 +617,11 @@ async function evaluarAutomatizaciones(correosNuevos) {
   }
 
   actualizarBadgeBandeja();
+  // Si estamos viendo la bandeja, recargar items para mostrar los nuevos
+  if (document.getElementById('page-bandeja')?.style.display !== 'none') {
+    await cargarBandejaItems();
+    renderBandeja();
+  }
 }
 
 function _correoCoincideRegla(correo, regla) {
