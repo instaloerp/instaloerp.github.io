@@ -570,11 +570,11 @@ async function guardarFacturaProv(estado) {
           const nomDoc = _iaFileName || ('factura.' + ext);
           await sb.from('documentos_factura_prov').insert({
             empresa_id: EMPRESA.id,
-            factura_prov_id: String(facturaId),
+            factura_prov_id: facturaId,
             nombre: nomDoc,
             nombre_archivo: nomDoc,
             storage_path: storagePath,
-            url: urlData?.publicUrl || null,
+            url: urlData?.publicUrl || '',
             mime_type: _iaFileMime || 'application/octet-stream',
             tamano: blob.size
           });
