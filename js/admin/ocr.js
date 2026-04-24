@@ -1122,25 +1122,84 @@ async function _ocrConfirmarValidacion() {
           }
           m.articulo_id = articuloId; // actualizar para las líneas del documento
         } else {
-          // Artículo ya existe — actualizar campos si es nuevo (no catálogo)
+          // Artículo ya existe — comprobar cambios de precio
           const updateFields = {};
           if (ed.nombre && ed.nombre !== (m.nombre || '')) updateFields.nombre = ed.nombre;
           if (ed.codigo) updateFields.referencia_fabricante = ed.codigo;
-          if (ed.precio > 0) updateFields.precio_coste = ed.precio;
           if (proveedorId && !m.en_catalogo) updateFields.proveedor_id = proveedorId;
-          // es_activo NO se toca automáticamente — solo se marca manualmente
+
+          if (ed.precio > 0) {
+            const _ud1 = (ed.dto1_pct || 0) / 100, _ud2 = (ed.dto2_pct || 0) / 100;
+            const nuevoCoste = Math.round(ed.precio * (1 - _ud1) * (1 - _ud2) * 100) / 100;
+            const nuevoPvp = ed.precio;
+
+            // Cargar datos actuales del artículo para comparar
+            const { data: artActual } = await sb.from('articulos').select('precio_venta,precio_coste')
+              .eq('id', articuloId).single();
+            const pvpAnterior = artActual?.precio_venta || 0;
+            const costeAnterior = artActual?.precio_coste || 0;
+
+            const pvpCambio = Math.abs(nuevoPvp - pvpAnterior) > 0.001;
+            const dtoCambio = _ud1 > 0 && Math.abs(nuevoCoste - costeAnterior) > 0.001;
+            const hayCambio = pvpAnterior > 0 && (pvpCambio || dtoCambio);
+
+            if (hayCambio) {
+              // Preguntar al usuario si quiere actualizar
+              const detalles = [];
+              if (pvpCambio) detalles.push(`PVP: ${fmtE(pvpAnterior)} → ${fmtE(nuevoPvp)}`);
+              if (dtoCambio) detalles.push(`Coste neto: ${fmtE(costeAnterior)} → ${fmtE(nuevoCoste)}`);
+              const dtoInfo = ed.dto1_pct ? ` (dto. ${ed.dto1_pct}%)` : '';
+
+              const okPrecio = await confirmModal({
+                titulo: '💰 Cambio de precio detectado',
+                mensaje: `${ed.nombre || m.nombre}\n\n${detalles.join('\n')}${dtoInfo}`,
+                aviso: 'Se actualizará el precio en la ficha del artículo y se guardará un registro del cambio.',
+                btnOk: 'Actualizar precio', colorOk: '#2563EB'
+              });
+
+              if (okPrecio) {
+                updateFields.precio_coste = nuevoCoste;
+                updateFields.precio_venta = nuevoPvp;
+                // Guardar registro de cambio de precio en historial
+                await sb.from('articulos_historial').insert({
+                  empresa_id: EMPRESA.id, articulo_id: articuloId,
+                  proveedor_id: proveedorId || null,
+                  fecha: new Date().toISOString().split('T')[0],
+                  tipo: 'cambio_precio',
+                  cantidad: 0, precio_unitario: nuevoPvp,
+                  total: 0,
+                  documento_ref: numDocEdit || ('doc-' + doc.id),
+                  observaciones: `Precio anterior: PVP ${fmtE(pvpAnterior)}, Coste ${fmtE(costeAnterior)} → Nuevo: PVP ${fmtE(nuevoPvp)}, Coste ${fmtE(nuevoCoste)}${dtoInfo}`,
+                  usuario_id: CU?.id || null
+                });
+                toast('💰 Precio actualizado: ' + (ed.nombre || m.nombre), 'success');
+              }
+            } else {
+              // Sin cambio o primer precio — actualizar silenciosamente
+              updateFields.precio_coste = nuevoCoste;
+              updateFields.precio_venta = nuevoPvp;
+            }
+          }
+
           if (Object.keys(updateFields).length) await sb.from('articulos').update(updateFields).eq('id', articuloId);
         }
 
         // Vincular proveedor
         if (proveedorId && articuloId) {
           const { data: existeVinc } = await sb.from('articulos_proveedores')
-            .select('id').eq('articulo_id', articuloId).eq('proveedor_id', proveedorId).eq('empresa_id', EMPRESA.id).limit(1);
+            .select('id, precio_proveedor, descuento').eq('articulo_id', articuloId).eq('proveedor_id', proveedorId).eq('empresa_id', EMPRESA.id).limit(1);
           if (!existeVinc?.length) {
             await sb.from('articulos_proveedores').insert({
               empresa_id: EMPRESA.id, articulo_id: articuloId, proveedor_id: proveedorId,
-              ref_proveedor: ed.codigo || m.codigo || null, precio_proveedor: ed.precio || 0, es_principal: !m.en_catalogo
+              ref_proveedor: ed.codigo || m.codigo || null, precio_proveedor: ed.precio || 0,
+              descuento: ed.dto1_pct || 0, es_principal: !m.en_catalogo
             });
+          } else {
+            // Actualizar precio y descuento del proveedor
+            await sb.from('articulos_proveedores').update({
+              precio_proveedor: ed.precio || 0, descuento: ed.dto1_pct || 0,
+              ref_proveedor: ed.codigo || m.codigo || null
+            }).eq('id', existeVinc[0].id);
           }
         }
 

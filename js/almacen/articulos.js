@@ -819,8 +819,8 @@ function renderArtHistorial() {
     </tr></thead>
     <tbody>${artHistorial.map(h => {
       const prov = proveedores.find(p => p.id === h.proveedor_id);
-      const tipoColor = h.tipo === 'compra' ? 'var(--verde)' : h.tipo === 'devolucion' ? 'var(--rojo)' : 'var(--amarillo)';
-      const tipoLabel = h.tipo === 'compra' ? 'Compra' : h.tipo === 'devolucion' ? 'Devolución' : 'Ajuste';
+      const tipoColor = h.tipo === 'compra' ? 'var(--verde)' : h.tipo === 'devolucion' ? 'var(--rojo)' : h.tipo === 'cambio_precio' ? 'var(--azul)' : 'var(--amarillo)';
+      const tipoLabel = h.tipo === 'compra' ? 'Compra' : h.tipo === 'devolucion' ? 'Devolución' : h.tipo === 'cambio_precio' ? '💰 Precio' : 'Ajuste';
       const fecha = h.fecha ? new Date(h.fecha).toLocaleDateString('es-ES') : '—';
       return `<tr>
         <td>${fecha}</td>
