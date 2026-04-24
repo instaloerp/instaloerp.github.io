@@ -148,7 +148,7 @@ try {
       <p style="font-size:13px;margin-bottom:8px"><strong>Email:</strong> jordi@jordiinstalacions.es</p>
       <p style="font-size:13px"><strong>Teléfono:</strong> Contactar para activación</p>
     </div>
-    <button class="auth-btn" style="background:#6B7280" onclick="doLogout()">Cerrar sesión</button>
+    <button class="auth-btn" style="background:#6B7280" onclick="doLogout(true)">Cerrar sesión</button>
   </div>
 </div>
 
@@ -172,132 +172,62 @@ try {
 <div id="s-app" class="screen">
   <!-- SIDEBAR -->
   <nav id="sidebar">
-    <div class="sb-logo" onclick="goPage('dashboard')">
-      <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 62</span></div>
-    </div>
-
-    <div class="sb-nav" id="sbNav">
-
-      <!-- FAVORITOS -->
-      <div id="sbFavSection">
-        <div class="sb-fav-titulo">⭐ Favoritos <button onclick="toggleFavEdit()" title="Editar favoritos" id="btnFavEdit">✏️</button></div>
-        <div id="sbFavList" class="sb-favoritos"></div>
+    <!-- Icon Bar -->
+    <div class="sb-iconbar" id="sbIconbar">
+      <div class="ib-logo" onclick="goPage('dashboard')">
+        <img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px" id="ibLogoImg">
       </div>
 
-      <!-- INBOX -->
-      <button class="sb-item" onclick="goPage('bandeja')">
-        <span class="ico">⚡</span> Inbox
-        <span id="bandeja-badge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span>
-      </button>
-
-      <!-- VENTAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comercial',this)"><span class="sb-sec-ico">💼</span><span class="sb-sec-label">Ventas</span></div>
-      <div class="sb-section-items" id="sec-comercial">
-        <button class="sb-item" onclick="goPage('clientes')"><span class="ico">👥</span> Clientes</button>
-        <button class="sb-item" onclick="goPage('presupuestos')"><span class="ico">📋</span> Presupuestos</button>
-        <button class="sb-item" onclick="goPage('albaranes')"><span class="ico">📄</span> Albaranes</button>
-        <button class="sb-item" onclick="goPage('facturas')"><span class="ico">🧾</span> Facturas</button>
-        <button class="sb-item" onclick="goPage('rectificativas')"><span class="ico">📝</span> Rectificativas</button>
+      <div class="ib-item" data-flyout="favoritos" data-tip="Favoritos">⭐</div>
+      <div class="ib-item" onclick="goPage('bandeja')" data-tip="Inbox">⚡
+        <span id="bandeja-badge" class="ib-badge" style="display:none"></span>
       </div>
 
-      <!-- COMPRAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-compras',this)"><span class="sb-sec-ico">🛒</span><span class="sb-sec-label">Compras</span></div>
-      <div class="sb-section-items" id="sec-compras">
-        <button class="sb-item" onclick="goPage('proveedores')"><span class="ico">🏭</span> Proveedores<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('presupuestos-compra')"><span class="ico">📋</span> Presupuestos<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('pedidos-compra')"><span class="ico">🛒</span> Pedidos<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('albaranes-proveedor')"><span class="ico">📥</span> Albaranes<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('facturas-proveedor')"><span class="ico">📑</span> Facturas prov.<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('calendario-pagos')"><span class="ico">📅</span> Calendario pagos<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('ocr')"><span class="ico">🤖</span> Bandeja OCR<span id="ocrBadge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center"></span><span class="sb-beta">beta</span></button>
-      </div>
+      <div class="ib-sep"></div>
 
-      <!-- ALMACÉN -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-almacen',this)"><span class="sb-sec-ico">📦</span><span class="sb-sec-label">Almacén</span></div>
-      <div class="sb-section-items" id="sec-almacen">
-        <button class="sb-item" onclick="goPage('articulos')"><span class="ico">📦</span> Artículos</button>
-        <button class="sb-item" onclick="goPage('servicios')"><span class="ico">🛠️</span> Servicios</button>
-        <button class="sb-item" onclick="goPage('almacenes')"><span class="ico">🏪</span> Almacenes</button>
-        <button class="sb-item" onclick="goPage('stock')"><span class="ico">📊</span> Stock</button>
-        <button class="sb-item" onclick="goPage('consumos')"><span class="ico">🔧</span> Consumos</button>
-        <button class="sb-item" onclick="goPage('incidencias-stock')"><span class="ico">⚠️</span> Incidencias</button>
-        <button class="sb-item" onclick="goPage('traspasos')"><span class="ico">🔄</span> Traspasos<span class="sb-beta">pronto</span></button>
-        <button class="sb-item" onclick="goPage('activos')"><span class="ico">🔧</span> Activos<span class="sb-beta">pronto</span></button>
-      </div>
+      <div class="ib-item" data-flyout="ventas" data-tip="Ventas">💼</div>
+      <div class="ib-item" data-flyout="compras" data-tip="Compras">🛒</div>
+      <div class="ib-item" data-flyout="almacen" data-tip="Almacén">📦</div>
+      <div class="ib-item" data-flyout="obras" data-tip="Gestión de obras">🏗️</div>
+      <div class="ib-item" data-flyout="flota" data-tip="Flota">🚐</div>
+      <div class="ib-item" data-flyout="tesoreria" data-tip="Tesorería">🏦</div>
 
-      <!-- GESTIÓN DE OBRAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-obras',this)"><span class="sb-sec-ico">🏗️</span><span class="sb-sec-label">Gestión de obras</span></div>
-      <div class="sb-section-items" id="sec-obras">
-        <button class="sb-item" onclick="goPage('trabajos')"><span class="ico">🏗️</span> Obras</button>
-        <button class="sb-item" onclick="goPage('mantenimientos')"><span class="ico">🔧</span> Mantenimientos<span class="sb-beta">pronto</span></button>
-        <button class="sb-item" onclick="goPage('partes')"><span class="ico">📝</span> Partes<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('planificador')"><span class="ico">⏱️</span> Planificador Semanal<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('calendario')"><span class="ico">📅</span> Calendario<span class="sb-beta">beta</span></button>
-        <button class="sb-item" onclick="goPage('mistareas')" id="sb-mistareas"><span class="ico">✅</span> Tareas<span id="sbBadgeTareas" style="display:none;margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 5px;align-items:center;justify-content:center"></span><span class="sb-beta">beta</span></button>
-      </div>
+      <div class="ib-sep"></div>
 
-      <!-- FLOTA -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-flota',this)"><span class="sb-sec-ico">🚐</span><span class="sb-sec-label">Flota</span></div>
-      <div class="sb-section-items" id="sec-flota">
-        <button class="sb-item" onclick="goPage('flota')"><span class="ico">🚐</span> Vehículos</button>
-        <button class="sb-item" onclick="goPage('flota-gastos')"><span class="ico">💰</span> Gastos</button>
-      </div>
+      <div class="ib-item" data-flyout="companias" data-tip="Compañías">🏢</div>
+      <div class="ib-item" data-flyout="comunicacion" data-tip="Comunicaciones">💬</div>
+      <div class="ib-item" data-flyout="personal" data-tip="Personal">👷</div>
 
-      <!-- TESORERÍA -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-tesoreria',this)"><span class="sb-sec-ico">🏦</span><span class="sb-sec-label">Tesorería</span></div>
-      <div class="sb-section-items" id="sec-tesoreria">
-        <button class="sb-item" onclick="goPage('tesoreria-cuentas')"><span class="ico">🏦</span> Cuentas bancarias</button>
-        <button class="sb-item" onclick="goPage('tesoreria-movimientos')"><span class="ico">📊</span> Movimientos</button>
-        <button class="sb-item" onclick="goPage('tesoreria-conciliacion')"><span class="ico">🔗</span> Conciliación</button>
-        <button class="sb-item" onclick="goPage('tesoreria-importar')"><span class="ico">📥</span> Importar extractos</button>
-      </div>
+      <div class="ib-sep"></div>
 
-      <!-- COMPAÑÍAS -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-companias',this)"><span class="sb-sec-ico">🏢</span><span class="sb-sec-label">Compañías</span></div>
-      <div class="sb-section-items" id="sec-companias">
-        <button class="sb-item" onclick="goPage('asitur')"><span class="ico">🛡️</span> Asitur</button>
-      </div>
+      <div class="ib-item" data-flyout="config" data-tip="Configuración" id="ibAdminItem" style="display:none">⚙️</div>
 
-      <!-- COMUNICACIONES -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-comunicacion',this)"><span class="sb-sec-ico">💬</span><span class="sb-sec-label">Comunicaciones</span></div>
-      <div class="sb-section-items" id="sec-comunicacion">
-        <button class="sb-item" onclick="goPage('correo')"><span class="ico">📧</span> Correo<span id="correo-badge" style="display:none;background:var(--rojo);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px"></span></button>
-      </div>
-
-      <!-- PERSONAL -->
-      <div class="sb-sec" onclick="toggleSbSection('sec-personal',this)"><span class="sb-sec-ico">👷</span><span class="sb-sec-label">Personal</span></div>
-      <div class="sb-section-items" id="sec-personal">
-        <button class="sb-item" onclick="goPage('fichajes')"><span class="ico">⏱️</span> Fichajes</button>
-        <button class="sb-item" onclick="goPage('ausencias')"><span class="ico">📋</span> Ausencias</button>
-        <button class="sb-item" onclick="goPage('timeline')"><span class="ico">👥</span> Timeline</button>
-        <button class="sb-item" onclick="goPage('calendario-laboral')"><span class="ico">📅</span> Calendario laboral</button>
-      </div>
-
-      <!-- ADMINISTRACIÓN -->
-      <div id="adminSection" style="display:none">
-        <div class="sb-sec" onclick="toggleSbSection('sec-admin',this)"><span class="sb-sec-ico">⚙️</span><span class="sb-sec-label">Configuración</span></div>
-        <div class="sb-section-items" id="sec-admin">
-          <button class="sb-item" data-perm="configuracion:empresa" onclick="openModal('mEmpresas')"><span class="ico">🏢</span> Empresas</button>
-          <button class="sb-item" id="btnUsuarios" onclick="goPage('usuarios')" style="display:none"><span class="ico">👷</span> Usuarios<span class="sb-beta">beta</span></button>
-          <button class="sb-item" onclick="goPage('etiquetas-qr')"><span class="ico">🏷️</span> Etiquetas QR<span class="sb-beta">pronto</span></button>
-          <button class="sb-item" onclick="goPage('audit-log')"><span class="ico">📜</span> Registro actividad<span class="sb-beta">beta</span></button>
-          <button class="sb-item" onclick="goPage('papelera')"><span class="ico">🗑️</span> Papelera<span class="sb-beta">beta</span></button>
-          <button class="sb-item" id="btnLaboratorio" onclick="goPage('laboratorio')" style="display:none"><span class="ico">🧪</span> Laboratorio<span class="sb-beta" style="background:#7C3AED;color:#fff">dev</span></button>
-        <button class="sb-item" id="btnConfig" onclick="goPage('configuracion')" style="display:none"><span class="ico">⚙️</span> Configuración<span class="sb-beta">beta</span></button>
-        </div>
+      <div class="ib-bottom">
+        <div class="ib-item" onclick="toggleClaude()" data-tip="Claude IA">🤖</div>
+        <div class="ib-avatar" id="sbAv" style="background:var(--azul)" data-flyout="user">J</div>
       </div>
     </div>
 
-    <button class="sb-claude" onclick="toggleClaude()">
-      <span style="font-size:18px">🤖</span>
-      <div><strong>Hablar con Claude</strong><small>Asistente IA</small></div>
-    </button>
+    <!-- Flyout menu (positioned by JS) -->
+    <div id="sbFlyout" class="sb-flyout"></div>
+    <div id="sbTooltip" class="sb-tooltip"></div>
 
-    <div class="sb-user">
-      <div class="av av-sm" id="sbAv" style="background:var(--azul)">J</div>
-      <div class="sb-user-info"><strong id="sbNombre">...</strong><small id="sbRol">...</small></div>
-      <button class="logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    <!-- Hidden elements: preserve IDs referenced by existing JS -->
+    <div style="display:none" id="sbHiddenRefs">
+      <span id="ocrBadge"></span>
+      <span id="correo-badge"></span>
+      <span id="sbBadgeTareas"></span>
+      <span id="sb-mistareas"></span>
+      <span id="adminSection"></span>
+      <span id="btnUsuarios"></span>
+      <span id="btnLaboratorio"></span>
+      <span id="btnConfig"></span>
+      <span id="sbNombre">...</span>
+      <span id="sbRol">...</span>
+      <span id="erpBuildVersion">v1.1 · build 63</span>
+      <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
+      <button id="btnFavEdit"></button>
+      <div id="sbNav"></div>
     </div>
   </nav>
 
@@ -5065,6 +4995,7 @@ try {
     'js/core/ui.js',
     'js/core/dashboard.js',
     'js/core/sidebar.js',
+    'js/core/flyout.js',
     'js/core/permisos.js',
     'js/core/preview_doc.js',
     'js/core/smart_close.js',

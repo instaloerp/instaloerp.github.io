@@ -64,7 +64,7 @@ function resetSessionTimer() {
     sessionTimer = setTimeout(() => {
       _closeSessionWarning();
       toast('Sesión cerrada por inactividad', 'warning');
-      setTimeout(() => doLogout(), 1500);
+      setTimeout(() => doLogout(true), 1500);
     }, SESSION_TIMEOUT_MS);
   }
 }
@@ -596,7 +596,10 @@ async function forceCacheClear() {
   window.location.reload(true);
 }
 
-async function doLogout() {
+async function doLogout(skipConfirm) {
+  if (!skipConfirm && !confirm('¿Seguro que quieres cerrar sesión?')) return;
+  // Desactivar beforeunload para que no pregunte al recargar
+  window._erpLogoutInProgress = true;
   if (sessionTimer) clearTimeout(sessionTimer);
   if (sessionWarningTimer) clearTimeout(sessionWarningTimer);
   if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
@@ -610,6 +613,16 @@ async function doLogout() {
   // Recargar limpio
   window.location.reload(true);
 }
+
+// Confirmación al cerrar pestaña/navegador
+window.addEventListener('beforeunload', (e) => {
+  // No preguntar si estamos cerrando sesión intencionalmente o si no hay sesión activa
+  if (window._erpLogoutInProgress) return;
+  if (!CU) return;
+  e.preventDefault();
+  // Nota: los navegadores modernos ignoran el texto personalizado y muestran su propio mensaje
+  e.returnValue = '¿Seguro que quieres salir del ERP?';
+});
 
 // ═══════════════════════════════════════════════
 //  SHOW APP
@@ -637,14 +650,13 @@ async function mostrarApp() {
   }
   // Mostrar logo si existe
   if (EMPRESA?.logo_url) {
-    const sbMark = document.querySelector('.sb-logo .mark');
-    if (sbMark) {
-      sbMark.style.background = '#fff';
-      sbMark.innerHTML = `<img src="${EMPRESA.logo_url}" style="width:100%;height:100%;object-fit:contain;padding:3px">`;
-    }
+    const ibLogo = document.getElementById('ibLogoImg');
+    if (ibLogo) ibLogo.src = EMPRESA.logo_url;
     const prev = document.getElementById('logoPreview');
     if (prev) prev.innerHTML = `<img src="${EMPRESA.logo_url}" style="width:100%;height:100%;object-fit:contain;padding:4px">`;
   }
+  // Sincronizar icono admin en icon-bar
+  if (typeof _syncAdminIcon === 'function') _syncAdminIcon();
   // Fecha
   applySbCollapsed();
   // Set default favorites if first time
