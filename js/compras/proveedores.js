@@ -482,19 +482,19 @@ function nuevaFacturaProvDesdeProveedor() {
 //  PESTAÑA ARTÍCULOS — Ficha Proveedor
 //  Muestra artículos vinculados con datos de compra
 // ═══════════════════════════════════════════════
-let _fichaProvArtsCargados = null; // cache para evitar recargas innecesarias
+let _fichaProvArtsCargados = null;
+let _fichaProvArtsData = [];       // datos completos
+let _fichaProvArtsPag = 0;         // página actual
+const _FPART_POR_PAG = 50;        // artículos por página
 
 async function loadFichaProvArticulos(provId) {
   const container = document.getElementById('ficha-prov-articulos');
   if (!container) return;
-
-  // Evitar recarga si ya está cargado para este proveedor
   if (_fichaProvArtsCargados === provId) return;
 
-  container.innerHTML = '<div style="text-align:center;padding:30px 0;color:var(--gris-400)"><div style="font-size:20px;margin-bottom:6px">⏳</div><p style="font-size:12px">Cargando artículos...</p></div>';
+  container.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--gris-400)"><p style="font-size:12px">⏳ Cargando artículos...</p></div>';
 
   try {
-    // 1. Cargar vinculaciones artículo-proveedor con datos del artículo
     const { data: vinculos, error } = await sb.from('articulos_proveedores')
       .select('*, articulos(*)')
       .eq('proveedor_id', provId)
@@ -504,110 +504,115 @@ async function loadFichaProvArticulos(provId) {
     if (error) { container.innerHTML = `<div style="color:var(--rojo);padding:20px;font-size:12px">Error: ${error.message}</div>`; return; }
 
     if (!vinculos || !vinculos.length) {
-      container.innerHTML = `<div class="empty" style="padding:30px 0">
-        <div class="ei">📦</div>
-        <h3>Sin artículos vinculados</h3>
-        <p>Los artículos se vinculan automáticamente al procesar albaranes o desde la ficha de cada artículo.</p>
+      container.innerHTML = `<div class="empty" style="padding:20px 0">
+        <div class="ei">📦</div><h3>Sin artículos vinculados</h3>
+        <p>Se vinculan automáticamente al procesar albaranes o desde la ficha del artículo.</p>
       </div>`;
       _fichaProvArtsCargados = provId;
       return;
     }
 
-    // 2. Buscar últimas compras de estos artículos a este proveedor (desde líneas de recepciones)
+    // Últimas compras desde recepciones
     const artIds = vinculos.map(v => v.articulo_id);
     const { data: recsData } = await sb.from('recepciones')
       .select('id, numero, fecha, lineas')
-      .eq('proveedor_id', provId)
-      .eq('empresa_id', EMPRESA.id)
-      .order('fecha', { ascending: false })
-      .limit(100);
+      .eq('proveedor_id', provId).eq('empresa_id', EMPRESA.id)
+      .order('fecha', { ascending: false }).limit(200);
 
-    // Mapear última compra y total comprado por artículo
-    const ultimaCompra = {}; // artId → { fecha, numero, cantidad, precio }
-    const totalComprado = {}; // artId → cantidad total
+    const ultimaCompra = {}, totalComprado = {};
     (recsData || []).forEach(rec => {
-      const lineas = Array.isArray(rec.lineas) ? rec.lineas : [];
-      lineas.forEach(lin => {
+      (Array.isArray(rec.lineas) ? rec.lineas : []).forEach(lin => {
         const aid = lin.articulo_id || lin.articuloId;
         if (!aid || !artIds.includes(aid)) return;
         const cant = parseFloat(lin.cantidad || lin.qty || 0);
         totalComprado[aid] = (totalComprado[aid] || 0) + cant;
-        if (!ultimaCompra[aid] || rec.fecha > ultimaCompra[aid].fecha) {
-          ultimaCompra[aid] = { fecha: rec.fecha, numero: rec.numero, cantidad: cant, precio: parseFloat(lin.precio || lin.price || 0) };
-        }
+        if (!ultimaCompra[aid] || rec.fecha > ultimaCompra[aid].fecha)
+          ultimaCompra[aid] = { fecha: rec.fecha, numero: rec.numero };
       });
     });
 
-    // 3. Familias para mostrar nombre
+    // Preparar datos enriquecidos
     const familias = typeof familiasArticulos !== 'undefined' ? familiasArticulos : [];
-
-    // 4. Barra resumen
-    const totalArts = vinculos.length;
-    const principales = vinculos.filter(v => v.es_principal).length;
-    const activos = vinculos.filter(v => v.articulos?.activo !== false).length;
-
-    let html = `<div style="display:flex;gap:12px;padding:8px 10px;margin-bottom:10px;background:var(--gris-50);border-radius:8px;font-size:11.5px;flex-wrap:wrap">
-      <div><span style="color:var(--gris-400)">Total:</span> <strong>${totalArts}</strong></div>
-      <div><span style="color:var(--gris-400)">Principal en:</span> <strong style="color:var(--verde)">${principales}</strong></div>
-      <div><span style="color:var(--gris-400)">Activos:</span> <strong>${activos}</strong></div>
-    </div>`;
-
-    // 5. Buscador inline
-    html += `<div style="margin-bottom:8px">
-      <input type="text" id="fpArtBuscar" placeholder="Buscar artículo..." oninput="filtrarFichaProvArticulos()" style="width:100%;padding:6px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px">
-    </div>`;
-
-    // 6. Tabla de artículos
-    html += `<div class="tw"><table class="dt" style="font-size:12px" id="fpArtTabla">
-      <thead><tr>
-        <th></th>
-        <th>Artículo</th>
-        <th>Ref. proveedor</th>
-        <th style="text-align:right">Precio prov.</th>
-        <th style="text-align:right">Dto.</th>
-        <th style="text-align:center">Plazo</th>
-        <th style="text-align:right">Total comprado</th>
-        <th>Última compra</th>
-      </tr></thead>
-      <tbody>`;
-
-    vinculos.forEach(vn => {
+    _fichaProvArtsData = vinculos.map(vn => {
       const art = vn.articulos || {};
-      const fam = familias.find(f => f.id === art.familia_id);
-      const uc = ultimaCompra[vn.articulo_id];
-      const tc = totalComprado[vn.articulo_id] || 0;
-      const unidad = art.unidad_medida || art.unidad || 'ud';
-      const codArt = art.codigo || art.referencia || '';
-
-      html += `<tr class="fp-art-row" data-nombre="${(art.nombre || '').toLowerCase()}" data-ref="${(vn.ref_proveedor || '').toLowerCase()}" style="cursor:pointer" onclick="if(typeof openArticulo==='function')openArticulo(${vn.articulo_id})">
-        <td style="width:28px;text-align:center">${vn.es_principal ? '<span title="Proveedor principal" style="color:var(--verde)">⭐</span>' : ''}</td>
-        <td>
-          <div style="font-weight:700;font-size:12px">${art.nombre || '—'}</div>
-          <div style="font-size:10px;color:var(--gris-400)">${codArt} ${fam ? '· ' + fam.nombre : ''} ${art.activo === false ? '<span style="color:var(--rojo)">· Inactivo</span>' : ''}</div>
-        </td>
-        <td style="font-family:monospace;font-size:11.5px">${vn.ref_proveedor || '—'}</td>
-        <td style="text-align:right;font-weight:700">${vn.precio_proveedor ? fmtE(vn.precio_proveedor) : '—'}</td>
-        <td style="text-align:right">${vn.descuento ? vn.descuento + '%' : '—'}</td>
-        <td style="text-align:center">${vn.plazo_entrega_dias ? vn.plazo_entrega_dias + 'd' : '—'}</td>
-        <td style="text-align:right;font-weight:600">${tc > 0 ? tc + ' ' + unidad : '—'}</td>
-        <td>${uc ? `<div style="font-size:11px">${new Date(uc.fecha).toLocaleDateString('es-ES')}</div><div style="font-size:10px;color:var(--gris-400)">${uc.numero || ''}</div>` : '<span style="color:var(--gris-300)">—</span>'}</td>
-      </tr>`;
+      return { ...vn, art, fam: familias.find(f => f.id === art.familia_id),
+        uc: ultimaCompra[vn.articulo_id] || null,
+        tc: totalComprado[vn.articulo_id] || 0,
+        unidad: art.unidad_medida || art.unidad || 'ud',
+        codArt: art.codigo || art.referencia || '',
+        _nombre: (art.nombre || '').toLowerCase(),
+        _ref: (vn.ref_proveedor || '').toLowerCase()
+      };
     });
-
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
+    _fichaProvArtsPag = 0;
     _fichaProvArtsCargados = provId;
-
+    renderFichaProvArticulos();
   } catch (e) {
     container.innerHTML = `<div style="color:var(--rojo);padding:20px;font-size:12px">Error: ${e.message}</div>`;
   }
 }
 
-function filtrarFichaProvArticulos() {
+function renderFichaProvArticulos() {
+  const container = document.getElementById('ficha-prov-articulos');
+  if (!container) return;
   const q = (document.getElementById('fpArtBuscar')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('.fp-art-row').forEach(row => {
-    const nombre = row.dataset.nombre || '';
-    const ref = row.dataset.ref || '';
-    row.style.display = (!q || nombre.includes(q) || ref.includes(q)) ? '' : 'none';
-  });
+  const filtered = q ? _fichaProvArtsData.filter(d => d._nombre.includes(q) || d._ref.includes(q)) : _fichaProvArtsData;
+  const totalPags = Math.max(1, Math.ceil(filtered.length / _FPART_POR_PAG));
+  if (_fichaProvArtsPag >= totalPags) _fichaProvArtsPag = totalPags - 1;
+  const desde = _fichaProvArtsPag * _FPART_POR_PAG;
+  const pagina = filtered.slice(desde, desde + _FPART_POR_PAG);
+
+  const total = _fichaProvArtsData.length;
+  const principales = _fichaProvArtsData.filter(d => d.es_principal).length;
+  const activos = _fichaProvArtsData.filter(d => d.art.activo !== false).length;
+
+  let html = `<div style="display:flex;align-items:center;gap:8px;padding:6px 0 8px;flex-wrap:wrap">
+    <input type="text" id="fpArtBuscar" placeholder="🔍 Buscar artículo o ref..." oninput="fpArtBuscarInput()" value="${q ? q.replace(/"/g,'&quot;') : ''}" style="flex:1;min-width:140px;padding:5px 10px;border:1px solid var(--gris-200);border-radius:7px;font-size:11.5px">
+    <span style="font-size:10.5px;color:var(--gris-400)">${total} total · <span style="color:var(--verde)">${principales} principal</span> · ${activos} activos</span>
+  </div>`;
+
+  html += `<div class="tw" style="max-height:420px;overflow-y:auto"><table class="dt" style="font-size:11.5px">
+    <thead><tr style="position:sticky;top:0;background:var(--blanco);z-index:1">
+      <th style="width:22px;padding:4px 2px"></th>
+      <th style="padding:4px 6px">Artículo</th>
+      <th style="padding:4px 6px">Ref. prov.</th>
+      <th style="padding:4px 6px;text-align:right">Precio</th>
+      <th style="padding:4px 6px;text-align:right">Comprado</th>
+      <th style="padding:4px 6px;text-align:right">Últ. compra</th>
+    </tr></thead><tbody>`;
+
+  if (!pagina.length) {
+    html += `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--gris-400);font-size:12px">Sin resultados</td></tr>`;
+  } else {
+    pagina.forEach(d => {
+      html += `<tr style="cursor:pointer" onclick="if(typeof openArticulo==='function')openArticulo(${d.articulo_id})">
+        <td style="padding:3px 2px;text-align:center;font-size:10px">${d.es_principal ? '<span style="color:var(--verde)">⭐</span>' : ''}</td>
+        <td style="padding:3px 6px"><div style="font-weight:700;font-size:11.5px;line-height:1.3">${d.art.nombre || '—'}</div><div style="font-size:9.5px;color:var(--gris-400)">${d.codArt}${d.fam ? ' · ' + d.fam.nombre : ''}${d.art.activo === false ? ' <span style="color:var(--rojo)">inactivo</span>' : ''}</div></td>
+        <td style="padding:3px 6px;font-family:monospace;font-size:10.5px">${d.ref_proveedor || '—'}</td>
+        <td style="padding:3px 6px;text-align:right;font-weight:700">${d.precio_proveedor ? fmtE(d.precio_proveedor) : '—'}</td>
+        <td style="padding:3px 6px;text-align:right">${d.tc > 0 ? d.tc + ' ' + d.unidad : '—'}</td>
+        <td style="padding:3px 6px;text-align:right;font-size:10.5px;color:var(--gris-500)">${d.uc ? new Date(d.uc.fecha).toLocaleDateString('es-ES') : '—'}</td>
+      </tr>`;
+    });
+  }
+  html += '</tbody></table></div>';
+
+  // Paginación
+  if (filtered.length > _FPART_POR_PAG) {
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:10.5px;color:var(--gris-400)">
+      <span>Pág. ${_fichaProvArtsPag + 1} de ${totalPags} (${filtered.length} artículos)</span>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" ${_fichaProvArtsPag === 0 ? 'disabled' : ''} onclick="_fichaProvArtsPag--;renderFichaProvArticulos()" style="padding:2px 8px;font-size:10.5px">← Anterior</button>
+        <button class="btn btn-ghost btn-sm" ${_fichaProvArtsPag >= totalPags - 1 ? 'disabled' : ''} onclick="_fichaProvArtsPag++;renderFichaProvArticulos()" style="padding:2px 8px;font-size:10.5px">Siguiente →</button>
+      </div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+let _fpArtBuscarTimer = null;
+function fpArtBuscarInput() {
+  clearTimeout(_fpArtBuscarTimer);
+  _fpArtBuscarTimer = setTimeout(() => { _fichaProvArtsPag = 0; renderFichaProvArticulos(); }, 200);
 }
