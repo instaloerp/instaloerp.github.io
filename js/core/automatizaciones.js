@@ -886,6 +886,17 @@ function previsualizarTarea(id) {
   // Adjuntos
   const adjCont = document.getElementById('ptAdjuntos');
   const adjLista = document.getElementById('ptAdjuntosLista');
+
+  // Reset preview ANTES de auto-preview (evitar ocultar iframe tras cache hit)
+  document.getElementById('ptPreviewFrame').style.display = 'none';
+  document.getElementById('ptPreviewImg').style.display = 'none';
+  document.getElementById('ptPreviewPlaceholder').style.display = adjuntos.length ? '' : 'block';
+  if (!adjuntos.length) {
+    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:12px">Esta tarea no tiene adjuntos</div>`;
+  } else {
+    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📄</div><div style="font-size:12px">Cargando previsualización...</div>`;
+  }
+
   if (adjuntos.length) {
     adjCont.style.display = 'block';
     adjLista.innerHTML = adjuntos.map((a, i) => {
@@ -899,23 +910,13 @@ function previsualizarTarea(id) {
       </button>`;
     }).join('');
 
-    // Auto-preview primer PDF si existe (sin delay)
+    // Auto-preview primer PDF (DESPUÉS del reset para que no se oculte)
     const primerPdf = adjuntos.findIndex(a => (a.nombre || '').toLowerCase().endsWith('.pdf'));
     if (primerPdf >= 0) {
       previewAdjuntoTarea(id, primerPdf);
     }
   } else {
     adjCont.style.display = 'none';
-  }
-
-  // Reset preview (no vaciar iframe — mantener cache visual)
-  document.getElementById('ptPreviewFrame').style.display = 'none';
-  document.getElementById('ptPreviewImg').style.display = 'none';
-  document.getElementById('ptPreviewPlaceholder').style.display = adjuntos.length ? '' : 'block';
-  if (!adjuntos.length) {
-    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:12px">Esta tarea no tiene adjuntos</div>`;
-  } else {
-    document.getElementById('ptPreviewPlaceholder').innerHTML = `<div style="font-size:32px;margin-bottom:8px">📄</div><div style="font-size:12px">Cargando previsualización...</div>`;
   }
 
   // Botones según estado
@@ -1007,12 +1008,15 @@ async function previewAdjuntoTarea(tareaId, adjIdx) {
   try {
     let url;
 
-    // 1. Comprobar si ya está en Storage (rápido, sin edge function)
+    // 1. Comprobar si ya está en Storage (timeout corto para no bloquear)
     const storagePath = `${EMPRESA.id}/inbox/adj_${tareaId}_${adjIdx}_${adj.nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const { data: urlStored } = sb.storage.from('documentos').getPublicUrl(storagePath);
     if (urlStored?.publicUrl) {
       try {
-        const head = await fetch(urlStored.publicUrl, { method: 'HEAD' });
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 3000); // 3s max
+        const head = await fetch(urlStored.publicUrl, { method: 'HEAD', signal: ctrl.signal });
+        clearTimeout(tid);
         if (head.ok) url = urlStored.publicUrl;
       } catch(_) {}
     }
@@ -1038,8 +1042,9 @@ async function previewAdjuntoTarea(tareaId, adjIdx) {
 
 function _mostrarAdjunto(url, esPdf, esImg, nombre, frame, img, placeholder) {
   if (esPdf) {
-    // No recargar iframe si ya tiene la misma URL
-    if (_previewActualUrl !== url) {
+    // Recargar si URL cambió O si iframe estaba oculto (pudo perder contenido)
+    const estabaOculto = frame.style.display === 'none';
+    if (_previewActualUrl !== url || estabaOculto) {
       frame.src = url;
       _previewActualUrl = url;
     }
