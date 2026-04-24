@@ -379,13 +379,21 @@ function goPage(id, opts){
   // Colapsar sidebar al navegar
   if (typeof _sbCollapse === 'function') _sbCollapse();
 
-  // ── Limpieza DOM: vaciar tbody de páginas pesadas al salir ──
+  // ── Limpieza DOM: vaciar contenido pesado de páginas ocultas ──
   // Evita acumulación de nodos que ralentizan los inputs
-  document.querySelectorAll('.page.active').forEach(p => {
-    if (p.id !== 'page-' + id) {
-      const tbodies = p.querySelectorAll('tbody');
-      tbodies.forEach(tb => { if (tb.children.length > 50) tb.innerHTML = ''; });
+  document.querySelectorAll('.page').forEach(p => {
+    if (p.id === 'page-' + id) return;
+    // Limpiar tbody con muchas filas
+    p.querySelectorAll('tbody').forEach(tb => { if (tb.children.length > 30) tb.innerHTML = ''; });
+    // Limpiar listas de correo
+    if (p.id === 'page-correo') {
+      const ml = p.querySelector('#mailList');
+      if (ml && ml.children.length > 30) ml.innerHTML = '';
     }
+    // Limpiar grids de tarjetas y listas dinámicas con muchos hijos
+    p.querySelectorAll('.cards-grid, .list-container, [id$="GridTarjetas"], [id$="Tarjetas"]').forEach(c => {
+      if (c.children.length > 30) c.innerHTML = '';
+    });
   });
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
