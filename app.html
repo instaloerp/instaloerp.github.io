@@ -1685,6 +1685,14 @@ async function showApp() {
 
   // ── Auto-refresh cada 10 min + al abrir la app ──
   initAutoRefresh();
+
+  // ── Mensajería: cargar conversaciones + Realtime para notificaciones ──
+  if (typeof chatCargarConversaciones === 'function') {
+    chatCargarConversaciones().then(() => {
+      if (typeof chatIniciarRealtime === 'function') chatIniciarRealtime();
+      _chatMobileUpdateBadge();
+    });
+  }
 }
 
 function renderBottomNav() {

@@ -677,6 +677,13 @@ async function mostrarApp() {
   if (typeof applyPermButtons === 'function') applyPermButtons();
   // Suscripción Realtime — notificaciones de partes
   initRealtimePartes();
+  // Mensajería: cargar conversaciones + iniciar Realtime para notificaciones globales
+  if (typeof chatCargarConversaciones === 'function') {
+    chatCargarConversaciones().then(() => {
+      if (typeof chatIniciarRealtime === 'function') chatIniciarRealtime();
+      if (typeof _chatDesktopActualizarBadge === 'function') _chatDesktopActualizarBadge();
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════

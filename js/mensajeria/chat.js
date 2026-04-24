@@ -440,14 +440,9 @@ function chatPedirPermisoNotificaciones() {
 function _chatNotificacionNativa(titulo, texto, convId) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') {
-    // Pedir permiso si aún no se ha pedido
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    if (Notification.permission === 'default') Notification.requestPermission();
     return;
   }
-  // No mostrar notificación nativa si la pestaña está visible
-  if (document.visibilityState === 'visible') return;
 
   try {
     const n = new Notification('💬 ' + titulo, {
@@ -479,9 +474,38 @@ function _chatNotificacionNativa(titulo, texto, convId) {
   } catch (e) {}
 }
 
+// AudioContext persistente — se reutiliza y se desbloquea con interacción del usuario
+let _chatAudioCtx = null;
+
+function _chatGetAudioCtx() {
+  if (!_chatAudioCtx) {
+    _chatAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Resumir si está suspendido (política de autoplay del navegador)
+  if (_chatAudioCtx.state === 'suspended') {
+    _chatAudioCtx.resume();
+  }
+  return _chatAudioCtx;
+}
+
+// Desbloquear AudioContext con cualquier interacción del usuario
+(function() {
+  const _unlock = () => {
+    _chatGetAudioCtx();
+    document.removeEventListener('click', _unlock);
+    document.removeEventListener('touchstart', _unlock);
+    document.removeEventListener('keydown', _unlock);
+  };
+  document.addEventListener('click', _unlock, { once: false });
+  document.addEventListener('touchstart', _unlock, { once: false });
+  document.addEventListener('keydown', _unlock, { once: false });
+})();
+
 function _chatSonarNotificacion() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _chatGetAudioCtx();
+    if (ctx.state === 'suspended') return; // No se puede reproducir aún
+
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
     const g = ctx.createGain();
@@ -490,7 +514,6 @@ function _chatSonarNotificacion() {
     // Primer tono
     o1.type = 'sine';
     o1.frequency.setValueAtTime(880, ctx.currentTime);
-    o1.frequency.setValueAtTime(0, ctx.currentTime + 0.12);
     o1.start(ctx.currentTime);
     o1.stop(ctx.currentTime + 0.12);
 
@@ -501,10 +524,10 @@ function _chatSonarNotificacion() {
     o2.stop(ctx.currentTime + 0.3);
 
     // Volumen
-    g.gain.setValueAtTime(0.2, ctx.currentTime);
-    g.gain.setValueAtTime(0.2, ctx.currentTime + 0.25);
+    g.gain.setValueAtTime(0.25, ctx.currentTime);
+    g.gain.setValueAtTime(0.25, ctx.currentTime + 0.25);
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-  } catch (e) {}
+  } catch (e) { console.warn('Chat sound error:', e); }
 }
 
 function _chatActualizarBadge() {
