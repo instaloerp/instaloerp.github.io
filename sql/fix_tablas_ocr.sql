@@ -24,9 +24,11 @@ ALTER TABLE tareas_pendientes ADD COLUMN IF NOT EXISTS usuario_creador_id UUID;
 ALTER TABLE tareas_pendientes ADD COLUMN IF NOT EXISTS fecha_completada TIMESTAMPTZ;
 
 
--- ─── 3. documentos_factura_prov: columnas con nombres distintos ───
--- El código usa factura_prov_id, nombre_archivo, storage_path, mime_type, tamano
-ALTER TABLE documentos_factura_prov ADD COLUMN IF NOT EXISTS factura_prov_id BIGINT REFERENCES facturas_proveedor(id) ON DELETE CASCADE;
+-- ─── 3. documentos_factura_prov: fix columnas ───
+-- factura_prov_id existía como UUID pero facturas_proveedor.id es BIGINT → recrear
+ALTER TABLE documentos_factura_prov DROP COLUMN IF EXISTS factura_prov_id;
+ALTER TABLE documentos_factura_prov ADD COLUMN factura_prov_id BIGINT;
+-- Columnas extra que usa el código
 ALTER TABLE documentos_factura_prov ADD COLUMN IF NOT EXISTS nombre_archivo TEXT;
 ALTER TABLE documentos_factura_prov ADD COLUMN IF NOT EXISTS storage_path TEXT;
 ALTER TABLE documentos_factura_prov ADD COLUMN IF NOT EXISTS mime_type TEXT;

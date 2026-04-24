@@ -567,10 +567,12 @@ async function guardarFacturaProv(estado) {
           const { data: urlData } = sb.storage.from('documentos').getPublicUrl(storagePath);
 
           // Insertar registro en tabla documentos_factura_prov
+          const nomDoc = _iaFileName || ('factura.' + ext);
           await sb.from('documentos_factura_prov').insert({
             empresa_id: EMPRESA.id,
-            factura_prov_id: facturaId,
-            nombre_archivo: _iaFileName || ('factura.' + ext),
+            factura_prov_id: String(facturaId),
+            nombre: nomDoc,
+            nombre_archivo: nomDoc,
             storage_path: storagePath,
             url: urlData?.publicUrl || null,
             mime_type: _iaFileMime || 'application/octet-stream',
