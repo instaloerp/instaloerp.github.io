@@ -379,6 +379,15 @@ function goPage(id, opts){
   // Colapsar sidebar al navegar
   if (typeof _sbCollapse === 'function') _sbCollapse();
 
+  // ── Limpieza DOM: vaciar tbody de páginas pesadas al salir ──
+  // Evita acumulación de nodos que ralentizan los inputs
+  document.querySelectorAll('.page.active').forEach(p => {
+    if (p.id !== 'page-' + id) {
+      const tbodies = p.querySelectorAll('tbody');
+      tbodies.forEach(tb => { if (tb.children.length > 50) tb.innerHTML = ''; });
+    }
+  });
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
