@@ -304,6 +304,8 @@ async function loadBandeja() {
   await cargarBandejaItems();
   _poblarFiltroTipos();
   filtrarBandeja();
+  // Pre-cargar adjuntos de los primeros items pendientes en background
+  _precacheAdjuntosBandeja();
 }
 
 async function cargarBandejaItems() {
@@ -906,9 +908,8 @@ function previsualizarTarea(id) {
     adjCont.style.display = 'none';
   }
 
-  // Reset preview
+  // Reset preview (no vaciar iframe — mantener cache visual)
   document.getElementById('ptPreviewFrame').style.display = 'none';
-  document.getElementById('ptPreviewFrame').src = '';
   document.getElementById('ptPreviewImg').style.display = 'none';
   document.getElementById('ptPreviewPlaceholder').style.display = adjuntos.length ? '' : 'block';
   if (!adjuntos.length) {
@@ -928,6 +929,52 @@ function previsualizarTarea(id) {
 
 // Cache de URLs de adjuntos ya descargados (en memoria)
 const _adjuntoCache = {};
+let _precacheEnCurso = false;
+
+async function _precacheAdjuntosBandeja() {
+  if (_precacheEnCurso) return;
+  _precacheEnCurso = true;
+  try {
+    // Coger los items pendientes que tengan adjuntos
+    const pendientes = _bandejaItems
+      .filter(b => b.estado === 'pendiente' && b.adjuntos?.length && b.correo_id)
+      .slice(0, 10); // máx 10 para no saturar
+
+    for (const item of pendientes) {
+      const adjuntos = item.adjuntos || [];
+      for (let i = 0; i < adjuntos.length; i++) {
+        const cacheKey = item.id + '_' + i;
+        if (_adjuntoCache[cacheKey]) continue; // ya cacheado
+
+        const adj = adjuntos[i];
+        const storagePath = `${EMPRESA.id}/inbox/adj_${item.id}_${i}_${adj.nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+        // Comprobar si ya está en Storage
+        const { data: urlStored } = sb.storage.from('documentos').getPublicUrl(storagePath);
+        if (urlStored?.publicUrl) {
+          try {
+            const head = await fetch(urlStored.publicUrl, { method: 'HEAD' });
+            if (head.ok) { _adjuntoCache[cacheKey] = urlStored.publicUrl; continue; }
+          } catch(_) {}
+        }
+
+        // No está en Storage → descargar y guardar (en serie para no saturar)
+        try {
+          const { data, error } = await sb.functions.invoke('leer-correo', {
+            body: { empresa_id: EMPRESA.id, correo_id: item.correo_id, descargar_adjunto: adj.nombre }
+          });
+          if (!error && data?.success && data?.adjunto?.url) {
+            _adjuntoCache[cacheKey] = data.adjunto.url;
+            _guardarAdjuntoEnStorage(data.adjunto.url, storagePath).catch(() => {});
+          }
+        } catch(_) {}
+      }
+    }
+  } catch(e) { console.warn('[precache]', e); }
+  _precacheEnCurso = false;
+}
+
+let _previewActualUrl = ''; // URL actualmente cargada en el iframe
 
 async function previewAdjuntoTarea(tareaId, adjIdx) {
   const item = _bandejaItems.find(x => x.id === tareaId);
@@ -943,76 +990,74 @@ async function previewAdjuntoTarea(tareaId, adjIdx) {
   const placeholder = document.getElementById('ptPreviewPlaceholder');
   const frame = document.getElementById('ptPreviewFrame');
   const img = document.getElementById('ptPreviewImg');
+  const cacheKey = tareaId + '_' + adjIdx;
 
-  // Resetear
+  // Si ya tenemos la URL cacheada, mostrar directamente sin resetear
+  if (_adjuntoCache[cacheKey]) {
+    _mostrarAdjunto(_adjuntoCache[cacheKey], esPdf, esImg, adj.nombre, frame, img, placeholder);
+    return;
+  }
+
+  // Resetear solo si no hay cache
   frame.style.display = 'none';
-  frame.src = '';
   img.style.display = 'none';
   placeholder.style.display = '';
-
-  // Clave de cache: tarea + adjunto
-  const cacheKey = tareaId + '_' + adjIdx;
+  placeholder.innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:12px">Descargando ${adj.nombre}...</div>`;
 
   try {
     let url;
 
-    // 1. Comprobar cache en memoria (instantáneo)
-    if (_adjuntoCache[cacheKey]) {
-      url = _adjuntoCache[cacheKey];
-    } else {
-      // 2. Comprobar si ya está en Storage (rápido, sin edge function)
-      const storagePath = `${EMPRESA.id}/inbox/adj_${tareaId}_${adjIdx}_${adj.nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const { data: urlStored } = sb.storage.from('documentos').getPublicUrl(storagePath);
-
-      if (urlStored?.publicUrl) {
-        // Verificar que existe (HEAD rápido)
-        try {
-          const head = await fetch(urlStored.publicUrl, { method: 'HEAD' });
-          if (head.ok) {
-            url = urlStored.publicUrl;
-            _adjuntoCache[cacheKey] = url;
-          }
-        } catch(_) {}
-      }
-
-      // 3. Si no está en cache ni Storage, descargar desde correo
-      if (!url) {
-        placeholder.innerHTML = `<div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:12px">Descargando ${adj.nombre}...</div>`;
-
-        const { data, error } = await sb.functions.invoke('leer-correo', {
-          body: {
-            empresa_id: EMPRESA.id,
-            correo_id: item.correo_id,
-            descargar_adjunto: adj.nombre
-          }
-        });
-        if (error) throw error;
-        if (!data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo obtener el adjunto');
-
-        url = data.adjunto.url;
-        _adjuntoCache[cacheKey] = url;
-
-        // 4. Guardar en Storage para próximas veces (en background, no bloquea)
-        _guardarAdjuntoEnStorage(url, storagePath).catch(e => console.warn('[cache adj]', e));
-      }
+    // 1. Comprobar si ya está en Storage (rápido, sin edge function)
+    const storagePath = `${EMPRESA.id}/inbox/adj_${tareaId}_${adjIdx}_${adj.nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const { data: urlStored } = sb.storage.from('documentos').getPublicUrl(storagePath);
+    if (urlStored?.publicUrl) {
+      try {
+        const head = await fetch(urlStored.publicUrl, { method: 'HEAD' });
+        if (head.ok) url = urlStored.publicUrl;
+      } catch(_) {}
     }
 
-    // Mostrar
-    if (esPdf) {
-      frame.src = url;
-      frame.style.display = 'block';
-      placeholder.style.display = 'none';
-    } else if (esImg) {
-      img.src = url;
-      img.style.display = 'block';
-      placeholder.style.display = 'none';
-    } else {
-      placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">📎</div>
-        <div style="font-size:12px;margin-bottom:8px">${adj.nombre}</div>
-        <a href="${url}" target="_blank" class="btn btn-primary btn-sm" style="font-size:11px">⬇️ Descargar</a>`;
+    // 2. Si no está en Storage, descargar desde correo
+    if (!url) {
+      const { data, error } = await sb.functions.invoke('leer-correo', {
+        body: { empresa_id: EMPRESA.id, correo_id: item.correo_id, descargar_adjunto: adj.nombre }
+      });
+      if (error) throw error;
+      if (!data?.success || !data?.adjunto?.url) throw new Error(data?.error || 'No se pudo obtener el adjunto');
+      url = data.adjunto.url;
+      // Guardar en Storage en background
+      _guardarAdjuntoEnStorage(url, storagePath).catch(() => {});
     }
+
+    _adjuntoCache[cacheKey] = url;
+    _mostrarAdjunto(url, esPdf, esImg, adj.nombre, frame, img, placeholder);
   } catch (e) {
     placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:12px;color:#ef4444">Error: ${e.message}</div>`;
+  }
+}
+
+function _mostrarAdjunto(url, esPdf, esImg, nombre, frame, img, placeholder) {
+  if (esPdf) {
+    // No recargar iframe si ya tiene la misma URL
+    if (_previewActualUrl !== url) {
+      frame.src = url;
+      _previewActualUrl = url;
+    }
+    frame.style.display = 'block';
+    img.style.display = 'none';
+    placeholder.style.display = 'none';
+  } else if (esImg) {
+    if (img.src !== url) img.src = url;
+    img.style.display = 'block';
+    frame.style.display = 'none';
+    placeholder.style.display = 'none';
+  } else {
+    frame.style.display = 'none';
+    img.style.display = 'none';
+    placeholder.style.display = '';
+    placeholder.innerHTML = `<div style="font-size:32px;margin-bottom:8px">📎</div>
+      <div style="font-size:12px;margin-bottom:8px">${nombre}</div>
+      <a href="${url}" target="_blank" class="btn btn-primary btn-sm" style="font-size:11px">⬇️ Descargar</a>`;
   }
 }
 
