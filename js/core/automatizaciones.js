@@ -8,6 +8,35 @@
 //  VARIABLES GLOBALES
 // ═══════════════════════════════════════════════
 let _automatizaciones = [];
+
+// Sonido de notificación (Web Audio API — sin archivos externos)
+function _sonarNotificacion() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Tono 1: nota aguda corta
+    const o1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    o1.type = 'sine';
+    o1.frequency.value = 880; // La5
+    g1.gain.setValueAtTime(0.3, ctx.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+    o1.connect(g1); g1.connect(ctx.destination);
+    o1.start(ctx.currentTime);
+    o1.stop(ctx.currentTime + 0.15);
+    // Tono 2: nota más aguda (intervalo de quinta)
+    const o2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    o2.type = 'sine';
+    o2.frequency.value = 1318; // Mi6
+    g2.gain.setValueAtTime(0.3, ctx.currentTime + 0.18);
+    g2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(ctx.currentTime + 0.18);
+    o2.stop(ctx.currentTime + 0.4);
+    // Limpiar
+    setTimeout(() => ctx.close(), 500);
+  } catch(_) {}
+}
 let _bandejaItems = [];
 let _bandejaFiltrados = [];
 
@@ -629,6 +658,8 @@ async function evaluarAutomatizaciones(correosNuevos) {
 
   if (creados > 0) {
     console.log(`[Automatizaciones] ${creados} nuevas entradas creadas`);
+    toast(`📬 ${creados} nuevo${creados > 1 ? 's' : ''} en bandeja de entrada`, 'success');
+    _sonarNotificacion();
     actualizarBadgeBandeja();
     // Si estamos viendo la bandeja, recargar items para mostrar los nuevos
     if (document.getElementById('page-bandeja')?.style.display !== 'none') {
