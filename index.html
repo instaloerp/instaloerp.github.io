@@ -174,7 +174,7 @@ try {
   <nav id="sidebar">
     <div class="sb-logo" onclick="goPage('dashboard')">
       <div class="mark" style="background:transparent;padding:2px"><img src="assets/icon.svg" style="width:100%;height:100%;border-radius:8px"></div>
-      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 53</span></div>
+      <div class="brand"><strong>Instalo ERP</strong><span id="erpBuildVersion">v1.1 · build 54</span></div>
     </div>
 
     <div class="sb-nav" id="sbNav">
@@ -506,7 +506,7 @@ try {
             </div>
           </div>
           <!-- KPIs clicables: pestañas -->
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px" id="fichaProvKpiBar">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px" id="fichaProvKpiBar">
             <div class="sc ficha-prov-kpi ficha-prov-kpi-active" onclick="fichaProvTab('pedidos')" id="fpkpi-pedidos" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">🛒</span><div><div class="sv" id="fpk-pedidos" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Pedidos</div></div></div>
             </div>
@@ -518,6 +518,9 @@ try {
             </div>
             <div class="sc ficha-prov-kpi" onclick="fichaProvTab('calendario')" id="fpkpi-calendario" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📅</span><div><div class="sv" id="fpk-pagospend" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Pagos pend.</div></div></div>
+            </div>
+            <div class="sc ficha-prov-kpi" onclick="fichaProvTab('articulos')" id="fpkpi-articulos" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
+              <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📦</span><div><div class="sv" id="fpk-articulos" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Artículos</div></div></div>
             </div>
             <div class="sc ficha-prov-kpi" onclick="fichaProvTab('notas')" id="fpkpi-notas" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:7px 8px;transition:opacity .15s,box-shadow .15s,border-color .15s">
               <div style="display:flex;align-items:center;gap:5px"><span style="font-size:14px">📝</span><div><div class="sv" id="fpk-notas" style="font-size:15px">—</div><div class="sl" style="font-size:10px">Notas</div></div></div>
@@ -546,6 +549,7 @@ try {
                 <div id="ficha-prov-albaranes" style="display:none"></div>
                 <div id="ficha-prov-facturas" style="display:none"></div>
                 <div id="ficha-prov-calendario" style="display:none"></div>
+                <div id="ficha-prov-articulos" style="display:none"></div>
                 <div id="ficha-prov-notas" style="display:none"></div>
               </div>
             </div>
