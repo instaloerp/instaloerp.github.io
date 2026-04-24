@@ -216,14 +216,16 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
     filtrarCorreos();
     actualizarBadgeCorreo();
 
-    // Auto-procesar nóminas si hay correos nuevos y email de gestoría configurado
+    // Auto-procesar nóminas si hay correos nuevos
     if (totalNuevos > 0) {
       _autoDetectarNominas();
-      // Evaluar automatizaciones contra correos nuevos
-      if (typeof evaluarAutomatizaciones === 'function') {
-        const nuevos = correos.filter(c => c.tipo === 'recibido' && !c.leido);
-        evaluarAutomatizaciones(nuevos);
-      }
+    }
+
+    // Evaluar automatizaciones SIEMPRE (no solo con nuevos)
+    // _crearEntradaBandeja ya comprueba duplicados, así que es seguro re-evaluar
+    if (typeof evaluarAutomatizaciones === 'function') {
+      const recibidos = correos.filter(c => c.tipo === 'recibido' && !c.leido);
+      if (recibidos.length) evaluarAutomatizaciones(recibidos);
     }
 
   } catch(e) {

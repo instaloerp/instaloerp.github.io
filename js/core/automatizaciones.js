@@ -606,21 +606,35 @@ async function actualizarBadgeBandeja() {
 async function evaluarAutomatizaciones(correosNuevos) {
   if (!_automatizaciones.length) await cargarAutomatizaciones();
   const activas = _automatizaciones.filter(a => a.activa);
-  if (!activas.length) return;
+  if (!activas.length || !correosNuevos.length) return;
 
+  // Pre-cargar entradas existentes para evitar N queries de duplicados
+  const { data: existentes } = await sb.from('bandeja_entrada')
+    .select('correo_id, automatizacion_id')
+    .eq('empresa_id', EMPRESA.id);
+  const yaExiste = new Set((existentes || []).map(e => e.correo_id + '_' + e.automatizacion_id));
+
+  let creados = 0;
   for (const correo of correosNuevos) {
     for (const regla of activas) {
+      const key = correo.id + '_' + regla.id;
+      if (yaExiste.has(key)) continue; // ya procesado, skip sin query
       if (_correoCoincideRegla(correo, regla)) {
-        await _crearEntradaBandeja(correo, regla);
+        await _crearEntradaBandeja(correo, regla, true); // skipCheck=true
+        yaExiste.add(key);
+        creados++;
       }
     }
   }
 
-  actualizarBadgeBandeja();
-  // Si estamos viendo la bandeja, recargar items para mostrar los nuevos
-  if (document.getElementById('page-bandeja')?.style.display !== 'none') {
-    await cargarBandejaItems();
-    renderBandeja();
+  if (creados > 0) {
+    console.log(`[Automatizaciones] ${creados} nuevas entradas creadas`);
+    actualizarBadgeBandeja();
+    // Si estamos viendo la bandeja, recargar items para mostrar los nuevos
+    if (document.getElementById('page-bandeja')?.style.display !== 'none') {
+      await cargarBandejaItems();
+      filtrarBandeja();
+    }
   }
 }
 
@@ -648,13 +662,15 @@ function _correoCoincideRegla(correo, regla) {
   return true;
 }
 
-async function _crearEntradaBandeja(correo, regla) {
+async function _crearEntradaBandeja(correo, regla, skipCheck = false) {
   // Verificar que no existe ya una entrada para este correo + regla
-  const { count } = await sb.from('bandeja_entrada')
-    .select('id', { count: 'exact', head: true })
-    .eq('correo_id', correo.id)
-    .eq('automatizacion_id', regla.id);
-  if (count > 0) return; // Ya procesado
+  if (!skipCheck) {
+    const { count } = await sb.from('bandeja_entrada')
+      .select('id', { count: 'exact', head: true })
+      .eq('correo_id', correo.id)
+      .eq('automatizacion_id', regla.id);
+    if (count > 0) return; // Ya procesado
+  }
 
   const acc = ACCIONES_AUTO[regla.accion] || ACCIONES_AUTO.personalizada;
   const adjuntos = correo.adjuntos_meta || [];
