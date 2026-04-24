@@ -216,6 +216,7 @@ try {
     <div style="display:none" id="sbHiddenRefs">
       <span id="ocrBadge"></span>
       <span id="correo-badge"></span>
+      <span id="chat-badge" style="display:none"></span>
       <span id="sbBadgeTareas"></span>
       <span id="sb-mistareas"></span>
       <span id="adminSection"></span>
@@ -1683,6 +1684,44 @@ try {
                 <div style="font-size:48px;margin-bottom:12px">✉️</div>
                 <p>Selecciona un correo para leerlo</p>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MENSAJERÍA INTERNA ═══ -->
+      <div class="page" id="page-mensajes">
+        <div class="chat-desktop-wrap">
+          <!-- Panel izquierdo: lista conversaciones -->
+          <div class="chat-panel-left">
+            <div class="chat-panel-header">
+              <h3 style="font-size:15px;font-weight:700;margin:0">💬 Mensajes</h3>
+              <button class="btn btn-primary btn-sm" onclick="chatNuevoDesktop()" style="font-size:12px;padding:5px 12px">+ Nuevo</button>
+            </div>
+            <div style="padding:0 10px 8px">
+              <input type="text" id="chatSearchConv" placeholder="🔍 Buscar conversación..." oninput="_chatFiltrarConvs()" style="width:100%;padding:7px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none;font-family:var(--font)">
+            </div>
+            <div id="chatConvList" class="chat-conv-list">
+              <div style="padding:40px 20px;text-align:center;color:var(--gris-400);font-size:13px">
+                <div style="font-size:36px;margin-bottom:8px">💬</div>
+                Cargando conversaciones...
+              </div>
+            </div>
+          </div>
+          <!-- Panel derecho: conversación activa -->
+          <div class="chat-panel-right" id="chatPanelRight">
+            <div id="chatEmptyState" class="chat-empty-state">
+              <div style="font-size:56px;margin-bottom:16px">💬</div>
+              <h3 style="font-size:16px;font-weight:700;margin-bottom:6px">Mensajería interna</h3>
+              <p style="color:var(--gris-400);font-size:13px;max-width:320px;margin:0 auto;line-height:1.5">Selecciona una conversación o crea una nueva para empezar a chatear con tu equipo</p>
+            </div>
+            <div id="chatConvView" style="display:none;flex-direction:column;height:100%">
+              <!-- Header conversación -->
+              <div id="chatConvHeader" class="chat-conv-header"></div>
+              <!-- Mensajes -->
+              <div id="chatMsgArea" class="chat-msg-area"></div>
+              <!-- Input bar -->
+              <div id="chatInputArea"></div>
             </div>
           </div>
         </div>
@@ -5051,6 +5090,9 @@ try {
     'js/admin/papelera.js',
     'js/admin/ocr.js',
     'js/admin/demo.js',
+    // Mensajería
+    'js/mensajeria/chat.js',
+    'js/mensajeria/chat-desktop.js',
     // IA / Utilidades
     'js/claude.js',
     // Laboratorio (auto-instalable, solo superadmin)

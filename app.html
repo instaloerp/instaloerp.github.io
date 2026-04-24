@@ -17,6 +17,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="js/mensajeria/chat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -1714,6 +1715,7 @@ function renderBottomNav() {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="equipo" onclick="navigateTo('equipo')"><span class="ico">👥</span><span class="lbl">Equipo</span></button>
+      <button class="nav-item" data-tab="chat" onclick="navigateTo('chat')"><span class="ico" style="position:relative">💬<span id="chatNavBadgeJefe" style="display:none;position:absolute;top:-4px;right:-8px;background:var(--rojo);color:#fff;font-size:8px;font-weight:800;padding:1px 4px;border-radius:8px;min-width:14px;text-align:center"></span></span><span class="lbl">Chat</span></button>
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Agenda</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">⚙️</span><span class="lbl">Más</span></button>
     `;
@@ -1733,6 +1735,7 @@ function renderBottomNav() {
     nav.innerHTML = `
       <button class="nav-item active" data-tab="inicio" onclick="navigateTo('inicio')"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
       <button class="nav-item" data-tab="tareas" onclick="navigateTo('tareas')"><span class="ico">✅</span><span class="lbl">Tareas</span></button>
+      <button class="nav-item" data-tab="chat" onclick="navigateTo('chat')"><span class="ico" style="position:relative">💬<span id="chatNavBadge" style="display:none;position:absolute;top:-4px;right:-8px;background:var(--rojo);color:#fff;font-size:8px;font-weight:800;padding:1px 4px;border-radius:8px;min-width:14px;text-align:center"></span></span><span class="lbl">Chat</span></button>
       <button class="nav-item" data-tab="agenda" onclick="navigateTo('agenda')"><span class="ico">📅</span><span class="lbl">Calendario</span></button>
       <button class="nav-item" data-tab="mas" onclick="navigateTo('mas')"><span class="ico">≡</span><span class="lbl">Más</span></button>
     `;
@@ -1781,6 +1784,7 @@ function navigateTo(tab) {
       case 'equipo':     renderJefeEquipo(body); break;
       case 'furgoneta':  renderMiFurgoneta(); break;
       case 'agenda':     renderJefeAgenda(body); break;
+      case 'chat':       renderChatMobile(body); break;
       case 'mas':        renderJefeMas(body); break;
     }
   } else {
@@ -1790,6 +1794,7 @@ function navigateTo(tab) {
       case 'tareas':     renderOperarioTareas(body); break;
       case 'furgoneta':  renderMiFurgoneta(); break;
       case 'agenda':     renderOperarioAgenda(body); break;
+      case 'chat':       renderChatMobile(body); break;
       case 'mas':        renderOperarioMas(body); break;
       case 'tempo':        renderTempoHome(body); break;
       case 'tempo-historial': renderTempoHistorial(body); break;
@@ -3548,6 +3553,234 @@ function _testResetFichajeLocal() {
   toast('Estado local reseteado · Vuelve a Inicio para ver los cambios', 'info');
   // Refrescar el panel de pruebas
   navigateTo('mas');
+}
+
+// ═══════════════════════════════════════════════
+// CHAT MOBILE — Mensajería interna
+// ═══════════════════════════════════════════════
+
+let _chatMobileConvAbierta = null;
+
+async function renderChatMobile(el) {
+  // Registrar callbacks
+  _chatOnConvUpdate = _chatMobileRefreshList;
+  _chatOnNewMessage = _chatMobileOnNew;
+  _chatOnMsgInConv  = _chatMobileOnMsgInConv;
+
+  el.innerHTML = `<div id="chatMobileRoot" style="padding:0">
+    <div id="chatMobileList">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px">
+        <h2 style="font-size:18px;font-weight:800;margin:0">💬 Mensajes</h2>
+        <button onclick="_chatMobileNuevo()" class="btn btn-primary btn-sm" style="font-size:12px;padding:5px 14px">+ Nuevo</button>
+      </div>
+      <div style="padding:0 12px 10px">
+        <input type="text" id="chatMobileSearch" placeholder="🔍 Buscar..." oninput="_chatMobileFiltrar()" style="width:100%;padding:8px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;outline:none;font-family:var(--font)">
+      </div>
+      <div id="chatMobileConvs" style="padding:0 4px">
+        <div style="padding:30px;text-align:center;color:var(--gris-400);font-size:13px">Cargando...</div>
+      </div>
+    </div>
+    <div id="chatMobileConv" style="display:none;position:fixed;inset:0;z-index:200;background:#fff;display:none;flex-direction:column">
+      <div id="chatMobileConvHeader" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--gris-200);background:#fff;padding-top:calc(12px + var(--safe-top))"></div>
+      <div id="chatMobileConvMsgs" style="flex:1;overflow-y:auto;padding:8px 0;background:var(--gris-50)"></div>
+      <div id="chatMobileConvInput" style="padding-bottom:var(--safe-bottom)"></div>
+    </div>
+  </div>`;
+
+  const convs = await chatCargarConversaciones();
+  _chatMobileRenderList(convs);
+  chatIniciarRealtime();
+  _chatMobileUpdateBadge();
+}
+
+function _chatMobileRenderList(convs) {
+  const container = document.getElementById('chatMobileConvs');
+  if (!container) return;
+  if (!convs || !convs.length) {
+    container.innerHTML = `<div style="padding:30px;text-align:center;color:var(--gris-400);font-size:13px">
+      <div style="font-size:36px;margin-bottom:8px">💬</div>
+      No tienes conversaciones.<br>Pulsa <b>+ Nuevo</b> para empezar.
+    </div>`;
+    return;
+  }
+  let html = '';
+  for (const conv of convs) {
+    const unread = _chatUnread[conv.id] || 0;
+    const titulo = conv.titulo || conv._nombreOtro || 'Sin título';
+    const ico = conv.tipo === 'obra' ? '🏗️' : '👤';
+    const preview = conv.ultimo_mensaje_texto || 'Sin mensajes';
+    const fecha = chatFormatFechaCorta(conv.ultimo_mensaje_at);
+    const iniciales = chatIniciales(titulo);
+    const bgColor = conv.tipo === 'obra' ? 'var(--verde)' : 'var(--azul)';
+    html += `<div onclick="_chatMobileAbrir(${conv.id})" style="display:flex;align-items:center;gap:10px;padding:14px 12px;cursor:pointer;border-bottom:1px solid var(--gris-100)${unread ? ';background:var(--azul-light)' : ''}">
+      <div style="width:44px;height:44px;border-radius:50%;background:${bgColor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0">${iniciales}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:${unread ? '700' : '500'};font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ico} ${_chatEscapeHtml(titulo)}</span>
+          <span style="font-size:11px;color:var(--gris-400);flex-shrink:0;margin-left:6px">${fecha}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${_chatEscapeHtml(preview)}</div>
+      </div>
+      ${unread ? `<div style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:20px;height:20px;border-radius:10px;display:flex;align-items:center;justify-content:center;padding:0 5px">${unread}</div>` : ''}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+async function _chatMobileAbrir(convId) {
+  _chatMobileConvAbierta = convId;
+  const convPanel = document.getElementById('chatMobileConv');
+  if (convPanel) { convPanel.style.display = 'flex'; }
+
+  const conv = _chatConversaciones.find(c => c.id === convId);
+  const titulo = conv?.titulo || conv?._nombreOtro || 'Chat';
+  const ico = conv?.tipo === 'obra' ? '🏗️' : '👤';
+  const iniciales = chatIniciales(titulo);
+  const bgColor = conv?.tipo === 'obra' ? 'var(--verde)' : 'var(--azul)';
+
+  // Header
+  const header = document.getElementById('chatMobileConvHeader');
+  if (header) {
+    header.innerHTML = `
+      <button onclick="_chatMobileCerrar()" style="background:none;border:none;cursor:pointer;font-size:22px;padding:4px">←</button>
+      <div style="width:36px;height:36px;border-radius:50%;background:${bgColor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${iniciales}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ico} ${_chatEscapeHtml(titulo)}</div>
+        <div style="font-size:11px;color:var(--gris-400)">${conv?.tipo === 'obra' ? 'Chat de obra' : 'Directo'}</div>
+      </div>`;
+  }
+
+  // Cargar mensajes
+  const msgs = await chatCargarMensajes(convId);
+  const area = document.getElementById('chatMobileConvMsgs');
+  if (area) {
+    if (!msgs || !msgs.length) {
+      area.innerHTML = '<div style="padding:30px;text-align:center;color:var(--gris-400);font-size:13px"><div style="font-size:36px;margin-bottom:8px">✨</div>¡Envía el primer mensaje!</div>';
+    } else {
+      let html = '';
+      let lastDate = '';
+      for (const msg of msgs) {
+        if (msg.eliminado) continue;
+        const msgDate = new Date(msg.created_at).toLocaleDateString('es-ES', {day:'numeric',month:'long',year:'numeric'});
+        if (msgDate !== lastDate) { html += `<div class="chat-date-sep" style="text-align:center;padding:8px 0;margin:4px 0"><span style="background:var(--gris-100);color:var(--gris-500);font-size:11px;padding:3px 10px;border-radius:10px">${msgDate}</span></div>`; lastDate = msgDate; }
+        html += chatRenderMensaje(msg, msg.autor_id === CU.id);
+      }
+      area.innerHTML = html;
+    }
+    setTimeout(() => { area.scrollTop = area.scrollHeight; }, 80);
+  }
+
+  // Input bar
+  const inputArea = document.getElementById('chatMobileConvInput');
+  if (inputArea) {
+    inputArea.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--gris-200);background:#fff">
+      <button onclick="_chatAdjuntarFoto(${convId})" style="background:none;border:none;cursor:pointer;font-size:20px;padding:4px">📷</button>
+      <button onclick="_chatAdjuntarDoc(${convId})" style="background:none;border:none;cursor:pointer;font-size:20px;padding:4px">📎</button>
+      <button onclick="_chatEnviarGps(${convId})" style="background:none;border:none;cursor:pointer;font-size:20px;padding:4px">📍</button>
+      <input type="text" id="chatInput" placeholder="Mensaje..." style="flex:1;padding:8px 14px;border:1px solid var(--gris-200);border-radius:20px;font-size:14px;font-family:var(--font);outline:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_chatEnviarDesdeInput(${convId})}">
+      <button onclick="_chatEnviarDesdeInput(${convId})" style="background:var(--azul);color:#fff;border:none;cursor:pointer;width:36px;height:36px;border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center">➤</button>
+    </div>`;
+  }
+
+  // Marcar leído + realtime
+  chatMarcarLeido(convId);
+  _chatUnread[convId] = 0;
+  chatSuscribirConversacion(convId);
+  _chatMobileUpdateBadge();
+}
+
+function _chatMobileCerrar() {
+  _chatMobileConvAbierta = null;
+  chatDesuscribirConversacion();
+  const convPanel = document.getElementById('chatMobileConv');
+  if (convPanel) convPanel.style.display = 'none';
+  // Refresh list
+  _chatMobileRenderList(_chatConversaciones);
+  _chatMobileUpdateBadge();
+}
+
+async function _chatMobileNuevo() {
+  const { data: usuarios } = await sb.from('perfiles')
+    .select('id, nombre, rol')
+    .eq('empresa_id', EMPRESA.id)
+    .neq('id', CU.id)
+    .order('nombre');
+
+  let html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:flex;align-items:flex-end;justify-content:center" id="chatMobileNuevoModal" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:70vh;overflow-y:auto;padding-bottom:var(--safe-bottom)">';
+  html += '<div style="padding:16px 20px;border-bottom:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:16px;font-weight:700;margin:0">Nueva conversación</h3><button onclick="this.closest(\'#chatMobileNuevoModal\').remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--gris-400)">✕</button></div>';
+  html += '<div style="padding:12px 20px">';
+
+  if (usuarios && usuarios.length) {
+    for (const u of usuarios) {
+      const ini = chatIniciales(u.nombre || '?');
+      html += `<div onclick="_chatMobileIniciarDirecto('${u.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--gris-100);cursor:pointer">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${ini}</div>
+        <div><div style="font-size:14px;font-weight:600">${_chatEscapeHtml(u.nombre || 'Sin nombre')}</div><div style="font-size:11px;color:var(--gris-400)">${_chatEscapeHtml(u.rol || '')}</div></div>
+      </div>`;
+    }
+  } else {
+    html += '<div style="padding:20px;text-align:center;color:var(--gris-400);font-size:13px">No hay otros usuarios</div>';
+  }
+
+  html += '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function _chatMobileIniciarDirecto(userId) {
+  document.getElementById('chatMobileNuevoModal')?.remove();
+
+  const existente = _chatConversaciones.find(c => c.tipo === 'directo' && c._otroUserId === userId);
+  if (existente) { _chatMobileAbrir(existente.id); return; }
+
+  toast('Creando conversación...', 'info');
+  const convId = await chatCrearDirecto(userId);
+  if (convId) {
+    await chatCargarConversaciones();
+    _chatMobileRenderList(_chatConversaciones);
+    _chatMobileAbrir(convId);
+  } else {
+    toast('Error al crear conversación', 'error');
+  }
+}
+
+function _chatMobileFiltrar() {
+  const q = (document.getElementById('chatMobileSearch')?.value || '').toLowerCase().trim();
+  if (!q) { _chatMobileRenderList(_chatConversaciones); return; }
+  const filtered = _chatConversaciones.filter(c => {
+    const t = (c.titulo || c._nombreOtro || '').toLowerCase();
+    return t.includes(q) || (c.ultimo_mensaje_texto || '').toLowerCase().includes(q);
+  });
+  _chatMobileRenderList(filtered);
+}
+
+// Realtime callbacks
+function _chatMobileRefreshList() {
+  _chatMobileRenderList(_chatConversaciones);
+}
+
+function _chatMobileOnNew(msg) {
+  _chatMobileRenderList(_chatConversaciones);
+  _chatMobileUpdateBadge();
+}
+
+function _chatMobileOnMsgInConv(msg) {
+  const area = document.getElementById('chatMobileConvMsgs');
+  if (!area) return;
+  const esMio = msg.autor_id === CU.id;
+  area.insertAdjacentHTML('beforeend', chatRenderMensaje(msg, esMio));
+  setTimeout(() => { area.scrollTop = area.scrollHeight; }, 50);
+  _chatMobileRenderList(_chatConversaciones);
+}
+
+function _chatMobileUpdateBadge() {
+  const total = chatGetTotalUnread();
+  // Operario badge
+  const b1 = document.getElementById('chatNavBadge');
+  if (b1) { b1.textContent = total || ''; b1.style.display = total > 0 ? '' : 'none'; }
+  // Jefe badge
+  const b2 = document.getElementById('chatNavBadgeJefe');
+  if (b2) { b2.textContent = total || ''; b2.style.display = total > 0 ? '' : 'none'; }
 }
 
 // ═══════════════════════════════════════════════

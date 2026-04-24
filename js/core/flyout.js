@@ -52,7 +52,8 @@ const FLYOUT_SECTIONS = {
     { id:'asitur', ico:'🛡️', name:'Asitur' }
   ]},
   comunicacion: { label: 'Comunicaciones', items: [
-    { id:'correo', ico:'📧', name:'Correo', badgeId:'correo-badge' }
+    { id:'correo', ico:'📧', name:'Correo', badgeId:'correo-badge' },
+    { id:'mensajes', ico:'💬', name:'Mensajes', badgeId:'chat-badge' }
   ]},
   personal: { label: 'Personal', items: [
     { id:'fichajes', ico:'⏱️', name:'Fichajes' },

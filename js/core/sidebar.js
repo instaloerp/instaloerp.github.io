@@ -32,6 +32,7 @@ const ALL_PAGES = [
   {id:'calendario',ico:'📅',label:'Calendario'},
   {id:'mistareas',ico:'✅',label:'Tareas'},
   {id:'correo',ico:'📧',label:'Correo'},
+  {id:'mensajes',ico:'💬',label:'Mensajes'},
   {id:'fichajes',ico:'⏱️',label:'Fichajes'},
   {id:'usuarios',ico:'👷',label:'Usuarios'},
   {id:'etiquetas-qr',ico:'🏷️',label:'Etiquetas QR'},
