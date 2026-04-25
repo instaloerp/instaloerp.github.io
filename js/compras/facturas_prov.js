@@ -87,11 +87,11 @@ function renderFacturasProv(list) {
 }
 
 function actualizarKpisFacturas() {
-  const total = facturasProveedor.reduce((s,f) => s + (f.total||0), 0);
+  const total = facturasProveedor.reduce((s,f) => s + (f.base_imponible||0), 0);
   const pendientes = facturasProveedor.filter(f => _fpEstadoEfectivo(f) === 'pendiente').length;
   const vencidas   = facturasProveedor.filter(f => _fpEstadoEfectivo(f) === 'vencida').length;
   const pagadas    = facturasProveedor.filter(f => f.estado === 'pagada').length;
-  const saldoPend  = facturasProveedor.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.total||0), 0);
+  const saldoPend  = facturasProveedor.filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.base_imponible||0), 0);
   const pagadasMes = facturasProveedor.filter(f => {
     const fm = new Date(f.fecha), hoy = new Date();
     return f.estado === 'pagada' && fm.getMonth() === hoy.getMonth() && fm.getFullYear() === hoy.getFullYear();

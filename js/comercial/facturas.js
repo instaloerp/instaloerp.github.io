@@ -216,13 +216,16 @@ function renderFacturas(list) {
     }
   });
 
-  // KPIs — SIEMPRE sobre TODOS los datos (sin filtrar), excluyendo solo las rectificativas (van a su pestaña)
+  // KPIs — SIEMPRE sobre TODOS los datos (sin filtrar), excluyendo solo las rectificativas de conteo (van a su pestaña)
   const _kpiBase = facLocalData.filter(f => !f.rectificativa_de);
   const borradores = _kpiBase.filter(f => f.estado === 'borrador');
   const pends    = _kpiBase.filter(f => f.estado === 'pendiente');
   const vencidas = _kpiBase.filter(f => f.estado === 'vencida');
   const cobradas = _kpiBase.filter(f => f.estado === 'cobrada' || f.estado === 'pagada');
   const anuladas = _kpiBase.filter(f => f.estado === 'anulada' || f.estado === 'rectificada');
+  // Rectificativas pendientes/vencidas (para restar en importes)
+  const rectsPend = facLocalData.filter(f => f.rectificativa_de && (f.estado === 'pendiente' || f.estado === 'vencida'));
+  const rectsCobr = facLocalData.filter(f => f.rectificativa_de && (f.estado === 'cobrada' || f.estado === 'pagada'));
 
   const kTotal    = document.getElementById('fk-total');
   const kBorr     = document.getElementById('fk-borradores');
@@ -238,8 +241,9 @@ function renderFacturas(list) {
   if (kVenc)    kVenc.textContent    = vencidas.length;
   if (kCobr)    kCobr.textContent    = cobradas.length;
   if (kAnul)    kAnul.textContent    = anuladas.length;
-  if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas).reduce((s, f) => s + (f.total || 0), 0));
-  if (kImpCobr) kImpCobr.textContent = fmtE(cobradas.reduce((s, f) => s + (f.total || 0), 0));
+  // Importes SIN IVA (base_imponible) e INCLUYENDO rectificativas (restan)
+  if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas, rectsPend).reduce((s, f) => s + (f.base_imponible || 0), 0));
+  if (kImpCobr) kImpCobr.textContent = fmtE(cobradas.concat(rectsCobr).reduce((s, f) => s + (f.base_imponible || 0), 0));
 
   // Resaltar KPI activo
   const estActivo = document.getElementById('fEstado')?.value || '_todas';
@@ -2175,7 +2179,7 @@ function renderRectificativas() {
   const kTotal = document.getElementById('rk-total');
   const kImporte = document.getElementById('rk-importe');
   if (kTotal) kTotal.textContent = rects.length;
-  if (kImporte) kImporte.textContent = fmtE(rects.reduce((s, f) => s + Math.abs(f.total || 0), 0));
+  if (kImporte) kImporte.textContent = fmtE(rects.reduce((s, f) => s + Math.abs(f.base_imponible || 0), 0));
 
   tbody.innerHTML = rects.length ? rects.map(f => {
     const origFac = facLocalData.find(x => x.id === f.rectificativa_de);
