@@ -18,10 +18,12 @@ async function loadDashboard() {
   const todasFacturas = facts.data || [];
   const todosPresups = presups.data || [];
 
-  // KPIs facturación — excluir anuladas, rectificadas Y rectificativas (abonos) de los totales
-  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && !f.rectificativa_de);
+  // KPIs facturación — excluir anuladas, rectificadas, borradores Y rectificativas (abonos)
+  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && f.estado !== 'borrador' && !f.rectificativa_de);
   const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.total||0), 0);
   const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.total||0), 0);
+  // Borradores pendientes de emitir
+  const factBorrador = todasFacturas.filter(f => f.estado === 'borrador').reduce((s,f) => s + (f.total||0), 0);
   const pendCobro = todasFacturas.filter(f => (f.estado === 'pendiente' || f.estado === 'vencida') && !f.rectificativa_de).reduce((s,f) => s + (f.total||0), 0);
   const vencidas = todasFacturas.filter(f => f.estado === 'vencida' && !f.rectificativa_de).length;
   const presupPend = todosPresups.filter(p => p.estado === 'pendiente' || p.estado === 'enviado').length;
@@ -35,9 +37,10 @@ async function loadDashboard() {
 
   // Actualizar KPIs (usar ?. por si falta algún elemento en el HTML)
   const _d = id => document.getElementById(id);
-  if (_d('d-fact-mes'))    _d('d-fact-mes').textContent = fmtE(factMes);
-  if (_d('d-fact-ano'))    _d('d-fact-ano').textContent = fmtE(factAno);
-  if (_d('d-pend-cobro'))  _d('d-pend-cobro').textContent = fmtE(pendCobro);
+  if (_d('d-fact-mes'))      _d('d-fact-mes').textContent = fmtE(factMes);
+  if (_d('d-fact-borrador')) _d('d-fact-borrador').textContent = fmtE(factBorrador);
+  if (_d('d-fact-ano'))      _d('d-fact-ano').textContent = fmtE(factAno);
+  if (_d('d-pend-cobro'))    _d('d-pend-cobro').textContent = fmtE(pendCobro);
   if (_d('d-pend-pago'))   _d('d-pend-pago').textContent = fmtE(pendPago);
   if (_d('d-presup-mes'))  _d('d-presup-mes').textContent = presupPend;
   if (_d('d-presup-acep')) _d('d-presup-acep').textContent = numAceptados;
