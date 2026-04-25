@@ -364,8 +364,8 @@ async function abrirFichaProveedor(id) {
   document.getElementById('fpk-articulos').textContent = (artProv.data || []).length;
   document.getElementById('fpk-notas').textContent = '0';
 
-  const totalFact = (fps.data || []).reduce((s, f) => s + (f.total || 0), 0);
-  const pendientePago = pagosPend.reduce((s, f) => s + (f.total || 0), 0);
+  const totalFact = (fps.data || []).reduce((s, f) => s + (f.base_imponible || 0), 0);
+  const pendientePago = pagosPend.reduce((s, f) => s + (f.base_imponible || 0), 0);
 
   function resumenBar(items) {
     return `<div style="display:flex;gap:12px;padding:8px 10px;margin-bottom:10px;background:var(--gris-50);border-radius:8px;font-size:11.5px;flex-wrap:wrap">${items.join('')}</div>`;

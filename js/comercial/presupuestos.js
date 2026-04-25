@@ -170,8 +170,8 @@ function renderPresupuestos(list) {
   if (kAcep)    kAcep.textContent    = aceps.length;
   if (kCad)     kCad.textContent     = presupuestos.filter(p=>p.estado==='caducado').length;
   if (kBorr)    kBorr.textContent    = borrs.length;
-  if (kImpPend) kImpPend.textContent = fmtE(pends.reduce((s,p)=>s+(p.total||0),0));
-  if (kImpAcep) kImpAcep.textContent = fmtE(aceps.reduce((s,p)=>s+(p.total||0),0));
+  if (kImpPend) kImpPend.textContent = fmtE(pends.reduce((s,p)=>s+(p.base_imponible||0),0));
+  if (kImpAcep) kImpAcep.textContent = fmtE(aceps.reduce((s,p)=>s+(p.base_imponible||0),0));
 
   const tbody = document.getElementById('presTable');
   if (!tbody) return;

@@ -523,10 +523,10 @@ async function abrirFichaObra(id, _esAccesoDirecto) {
   renderBtnCerrarObra(t, presupData, albData, factData, partesData);
 
   // Totales para resumen económico
-  const totalPresup = presupData.reduce((s,p)=>s+(p.total||0),0);
-  const totalAlb = albData.reduce((s,a)=>s+(a.total||0),0);
-  const totalFact = factData.reduce((s,f)=>s+(f.total||0),0);
-  const pendienteCobro = factData.filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+(f.total||0),0);
+  const totalPresup = presupData.reduce((s,p)=>s+(p.base_imponible||0),0);
+  const totalAlb = albData.reduce((s,a)=>s+(a.base_imponible||0),0);
+  const totalFact = factData.reduce((s,f)=>s+(f.base_imponible||0),0);
+  const pendienteCobro = factData.filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+(f.base_imponible||0),0);
   const horasPartes = partesData.reduce((s,p)=>s+(parseFloat(p.horas)||0),0);
   const costePartes = partesData.reduce((s,p)=>s+(parseFloat(p.coste_total)||0),0);
 

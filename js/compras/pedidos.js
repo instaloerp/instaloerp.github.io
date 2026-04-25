@@ -169,8 +169,8 @@ function actualizarKpisPedidos() {
   if (el('pcKpiPend'))    el('pcKpiPend').textContent = pedidosCompra.filter(p => ['borrador','pendiente','enviado'].includes(p.estado)).length;
   if (el('pcKpiParc'))    el('pcKpiParc').textContent = pedidosCompra.filter(p => p.estado === 'recibido_parcial').length;
   if (el('pcKpiRecib'))   el('pcKpiRecib').textContent = pedidosCompra.filter(p => p.estado === 'recibido').length;
-  if (el('pcKpiImpPend')) el('pcKpiImpPend').textContent = fmtE(pedidosCompra.filter(p => ['borrador','pendiente','enviado','recibido_parcial'].includes(p.estado)).reduce((s,p) => s + parseFloat(p.total||0), 0));
-  if (el('pcKpiImpRecib'))el('pcKpiImpRecib').textContent = fmtE(pedidosCompra.filter(p => p.estado === 'recibido').reduce((s,p) => s + parseFloat(p.total||0), 0));
+  if (el('pcKpiImpPend')) el('pcKpiImpPend').textContent = fmtE(pedidosCompra.filter(p => ['borrador','pendiente','enviado','recibido_parcial'].includes(p.estado)).reduce((s,p) => s + parseFloat(p.base_imponible||0), 0));
+  if (el('pcKpiImpRecib'))el('pcKpiImpRecib').textContent = fmtE(pedidosCompra.filter(p => p.estado === 'recibido').reduce((s,p) => s + parseFloat(p.base_imponible||0), 0));
 }
 
 function pcFiltrarPorKpi(estado) {

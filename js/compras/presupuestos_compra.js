@@ -263,8 +263,8 @@ function actualizarKpisPrc() {
   if (el('prcKpiPend'))     el('prcKpiPend').textContent = presupuestosCompra.filter(p => p.estado === 'pendiente').length;
   if (el('prcKpiCad'))      el('prcKpiCad').textContent = presupuestosCompra.filter(p => p.estado === 'caducado').length;
   if (el('prcKpiBorr'))     el('prcKpiBorr').textContent = presupuestosCompra.filter(p => p.estado === 'borrador').length;
-  if (el('prcKpiImpPend'))  el('prcKpiImpPend').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='borrador'||p.estado==='pendiente').reduce((s,p) => s+parseFloat(p.total||0),0));
-  if (el('prcKpiImpAcep'))  el('prcKpiImpAcep').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='aceptado').reduce((s,p) => s+parseFloat(p.total||0),0));
+  if (el('prcKpiImpPend'))  el('prcKpiImpPend').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='borrador'||p.estado==='pendiente').reduce((s,p) => s+parseFloat(p.base_imponible||0),0));
+  if (el('prcKpiImpAcep'))  el('prcKpiImpAcep').textContent = fmtE(presupuestosCompra.filter(p => p.estado==='aceptado').reduce((s,p) => s+parseFloat(p.base_imponible||0),0));
 }
 
 // ═══════════════════════════════════════════════

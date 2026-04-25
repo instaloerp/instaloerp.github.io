@@ -49,7 +49,7 @@ function renderAlbaranes(list) {
   if (kPend)    kPend.textContent    = albaranesData.filter(a=>a.estado==='pendiente').length;
   if (kEntr)    kEntr.textContent    = albaranesData.filter(a=>a.estado==='entregado').length;
   if (kFact)    kFact.textContent    = albaranesData.filter(a=>a.estado==='facturado').length;
-  if (kImporte) kImporte.textContent = fmtE(albaranesData.reduce((s,a)=>s+(a.total||0),0));
+  if (kImporte) kImporte.textContent = fmtE(albaranesData.reduce((s,a)=>s+(a.base_imponible||0),0));
 
   const tbody = document.getElementById('abTable');
   if (!tbody) return;

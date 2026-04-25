@@ -247,10 +247,10 @@ async function abrirFicha(id, tabActiva) {
   document.getElementById('fk-notas').textContent = (notas.data||[]).length;
 
   // Totales para resúmenes dentro de cada panel
-  const totalPresup = (presups.data||[]).reduce((s,p)=>s+(p.total||0),0);
-  const totalAlb = (albs.data||[]).reduce((s,a)=>s+(a.total||0),0);
-  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.total||0),0);
-  const pendienteCobro = (facts.data||[]).filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+(f.total||0),0);
+  const totalPresup = (presups.data||[]).reduce((s,p)=>s+(p.base_imponible||0),0);
+  const totalAlb = (albs.data||[]).reduce((s,a)=>s+(a.base_imponible||0),0);
+  const totalFact = (facts.data||[]).reduce((s,f)=>s+(f.base_imponible||0),0);
+  const pendienteCobro = (facts.data||[]).filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+(f.base_imponible||0),0);
   const vencidas = (facts.data||[]).filter(f=>f.estado==='vencida').length;
 
   // Helper: barra resumen de importes
