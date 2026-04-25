@@ -54,9 +54,19 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
+  const formatJson = url.searchParams.get('format') === 'json';
 
   if (!token) {
     return jsonErr('No se ha proporcionado un token de documento.', 400);
+  }
+
+  // Si NO es petición JSON (es un navegador abriendo el enlace), redirigir a visor.html
+  if (!formatJson) {
+    const visorUrl = `https://instaloerp.github.io/visor.html?token=${encodeURIComponent(token)}`;
+    return new Response(null, {
+      status: 302,
+      headers: { 'Location': visorUrl, 'Cache-Control': 'no-cache' },
+    });
   }
 
   // Admin client (bypasses RLS)
