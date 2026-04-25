@@ -1167,6 +1167,8 @@ async function cargarTodos() {
   if (typeof iniciarCorreoBackground === 'function') iniciarCorreoBackground();
   // Cargar automatizaciones y badge de bandeja
   if (typeof iniciarAutomatizacionesBackground === 'function') iniciarAutomatizacionesBackground();
+  // Tracking de documentos compartidos (realtime)
+  if (typeof initDocTracking === 'function') initDocTracking();
 }
 
 function renderAll() {

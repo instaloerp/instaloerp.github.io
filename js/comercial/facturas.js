@@ -191,6 +191,10 @@ async function loadFacturas() {
   const hEl = document.getElementById('fHasta');
   if (dEl) dEl.value = '';
   if (hEl) hEl.value = '';
+  // Cargar estados de tracking (compartido/visto) para badges en listado
+  if (typeof cargarTrackingBatch === 'function') {
+    _trackingMap = await cargarTrackingBatch('factura');
+  }
   facFiltrados = [...facLocalData];
   filtrarFacturas();
 }
@@ -286,6 +290,7 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
+          ${typeof _trackingMap!=='undefined' && _trackingMap.get?.(f.id) ? badgeTracking(_trackingMap.get(f.id)) : ''}
           ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
           ${f.face_estado ? (f.face_estado === 'pagada' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="FACe: Pagada">🏛️✅</span>` : f.face_estado === 'rechazada' || f.face_estado === 'anulada' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}">🏛️❌</span>` : `<span style="padding:3px 8px;border-radius:6px;background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}${f.face_numero_registro ? ' · Reg: '+f.face_numero_registro : ''}">🏛️</span>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
@@ -729,7 +734,38 @@ async function verDetalleFactura(id) {
     }
   }
 
+  // Badge de tracking (visto/enviado)
+  const trackBadgeEl = document.getElementById('facDetTrackingBadge');
+  if (trackBadgeEl && typeof getEstadoTracking === 'function') {
+    getEstadoTracking('factura', f.id).then(estado => {
+      trackBadgeEl.innerHTML = estado.compartido
+        ? `<span onclick="mostrarDetalleTracking('factura','${f.id}','${(f.numero||'').replace(/'/g,'')}')" style="cursor:pointer">${badgeTracking(estado)}</span>`
+        : '';
+    });
+  }
+
   openModal('mFacturaDetalle', true);
+}
+
+// Compartir factura por WhatsApp/SMS/enlace (modal genérico)
+function _compartirFacturaModal() {
+  const id = parseInt(document.getElementById('facDetId').value);
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) return;
+  const c = clientes.find(x => x.id === f.cliente_id);
+  if (typeof modalCompartirDocumento === 'function') {
+    closeModal('mFacturaDetalle');
+    modalCompartirDocumento({
+      tipo_documento: 'factura',
+      documento_id: f.id,
+      documento_numero: f.numero,
+      destinatario_nombre: f.cliente_nombre || c?.nombre,
+      destinatario_email: c?.email || '',
+      destinatario_telefono: c?.telefono || c?.movil || ''
+    });
+  } else {
+    toast('Módulo de tracking no disponible', 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -2032,7 +2068,18 @@ async function _enviarFacturaEmail(f) {
     const { error: tokErr } = await sb.from('facturas').update({ acceso_token: token }).eq('id', f.id);
     if (!tokErr) f.acceso_token = token; else token = null;
   }
-  const enlace = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+  const enlaceDoc = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+
+  // 1b) Tracking: registrar compartición para saber si lo abren
+  let enlace = enlaceDoc;
+  if (typeof compartirDocumento === 'function') {
+    const track = await compartirDocumento({
+      tipo_documento: 'factura', documento_id: f.id,
+      documento_numero: f.numero, destinatario_nombre: f.cliente_nombre,
+      destinatario_email: email, canal: 'email'
+    });
+    if (track?.url) enlace = track.url;
+  }
 
   // 2) Generar PDF en memoria (base64)
   let adjuntos = [];

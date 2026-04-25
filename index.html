@@ -233,7 +233,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 74</span>
+      <span id="erpBuildVersion">v1.1 · build 75</span>
       <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -4750,6 +4750,8 @@ try {
         <button class="btn btn-secondary btn-sm" onclick="generarPdfFactura(parseInt(document.getElementById('facDetId').value))" title="Descargar PDF">📥 PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="imprimirFactura(parseInt(document.getElementById('facDetId').value))" title="Imprimir">🖨️ Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="enviarFacturaEmail(parseInt(document.getElementById('facDetId').value));closeModal('mFacturaDetalle')" title="Enviar por email">📧 Enviar</button>
+        <button class="btn btn-secondary btn-sm" onclick="_compartirFacturaModal()" title="Compartir por WhatsApp, SMS o enlace" style="background:#e8f5e9;border-color:#a5d6a7;color:#2e7d32">🔗 Compartir</button>
+        <span id="facDetTrackingBadge"></span>
         <span id="facDetBtnEditar"></span>
         <span id="facDetBtnEliminar"></span>
       </div>
@@ -5139,6 +5141,7 @@ try {
     'js/core/permisos.js',
     'js/core/preview_doc.js',
     'js/core/smart_close.js',
+    'js/core/doc_tracking.js',
     // Comercial
     'js/comercial/autocomplete.js',
     'js/comercial/clientes.js',

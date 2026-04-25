@@ -716,7 +716,7 @@ async function imprimirPedidoCompra(id) {
   }
 }
 
-function enviarPedidoCompraEmail(id) {
+async function enviarPedidoCompraEmail(id) {
   const p = pedidosCompra.find(x=>x.id===id);
   if (!p) return;
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
@@ -725,6 +725,7 @@ function enviarPedidoCompraEmail(id) {
   const asuntoTxt = `Pedido ${p.numero||''} — ${EMPRESA?.nombre||''}`;
   const cuerpoTxt = `Estimados,\n\nLes confirmamos el pedido ${p.numero||''} por importe de ${totalFmt}.\n\nFecha: ${p.fecha||''}\n${p.observaciones?'Obs: '+p.observaciones+'\n':''}\nRogamos confirmación de plazo de entrega.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
   if (typeof nuevoCorreo === 'function') {
+    if (typeof compartirDocumento === 'function') { await compartirDocumento({ tipo_documento: 'pedido_compra', documento_id: p.id, documento_numero: p.numero, destinatario_nombre: p.proveedor_nombre, destinatario_email: email, canal: 'email' }); }
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'pedido_compra', id: p.id, ref: p.numero || '' });
     if (typeof goPage === 'function') goPage('correo');
   } else {

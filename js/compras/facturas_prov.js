@@ -768,7 +768,7 @@ function imprimirFacturaProv(id) {
   win.document.close();
 }
 
-function enviarFacturaProvEmail(id) {
+async function enviarFacturaProvEmail(id) {
   const f = facturasProveedor.find(x => x.id === id);
   if (!f) return toast('Factura no encontrada', 'error');
   const prov = proveedores.find(x => x.id === f.proveedor_id);
@@ -777,6 +777,7 @@ function enviarFacturaProvEmail(id) {
   const asuntoTxt = `Factura proveedor ${f.numero_factura||f.numero||''} — ${EMPRESA.nombre}`;
   const cuerpoTxt = `Estimado proveedor,\n\nEn relación a la factura:\n\nNº Factura: ${f.numero_factura||f.numero||'—'}\nFecha: ${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}\nTotal: ${total} €\n\nAtentamente,\n${EMPRESA.nombre}\nTel: ${EMPRESA.telefono||''}`;
   if (typeof nuevoCorreo === 'function') {
+    if (typeof compartirDocumento === 'function') { await compartirDocumento({ tipo_documento: 'factura_proveedor', documento_id: f.id, documento_numero: f.numero, destinatario_nombre: f.proveedor_nombre, destinatario_email: email, canal: 'email' }); }
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura_proveedor', id: f.id, ref: f.numero_factura || f.numero || '' });
     if (typeof goPage === 'function') goPage('correo');
   } else {

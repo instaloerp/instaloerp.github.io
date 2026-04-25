@@ -620,6 +620,15 @@ ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
 ${EMPRESA?.email || ''}`;
 
+  // Tracking: registrar compartición
+  if (typeof compartirDocumento === 'function') {
+    await compartirDocumento({
+      tipo_documento: 'albaran', documento_id: a.id,
+      documento_numero: a.numero, destinatario_nombre: a.cliente_nombre,
+      destinatario_email: email, canal: 'email'
+    });
+  }
+
   if (typeof nuevoCorreo === 'function') {
     closeModal('mAbDetalle');
     await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' }, adjuntos);

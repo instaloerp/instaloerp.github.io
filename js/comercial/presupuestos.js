@@ -1268,6 +1268,15 @@ ${EMPRESA?.web||''}`;
     if (b64) adjuntos.push({ nombre: `Presupuesto_${(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
   } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
 
+  // Tracking: registrar compartición
+  if (typeof compartirDocumento === 'function') {
+    await compartirDocumento({
+      tipo_documento: 'presupuesto', documento_id: p.id,
+      documento_numero: p.numero, destinatario_nombre: p.cliente_nombre,
+      destinatario_email: email, canal: 'email'
+    });
+  }
+
   if (typeof nuevoCorreo === 'function') {
     closeModal('mPresDetalle');
     await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' }, adjuntos);

@@ -856,7 +856,7 @@ async function imprimirPresupuestoCompra(id) {
   }
 }
 
-function enviarPresupuestoCompraEmail(id) {
+async function enviarPresupuestoCompraEmail(id) {
   const p = presupuestosCompra.find(x=>x.id===id);
   if (!p) return;
   const prov = (proveedores||[]).find(x=>x.id===p.proveedor_id);
@@ -864,6 +864,7 @@ function enviarPresupuestoCompraEmail(id) {
   const asuntoTxt = `Solicitud presupuesto ${p.numero||''} — ${EMPRESA?.nombre||''}`;
   const cuerpoTxt = `Estimados,\n\nLes solicitamos presupuesto para los siguientes artículos/servicios:\n\nReferencia: ${p.numero||''}\nFecha: ${p.fecha||''}\n\nQuedamos a la espera de su oferta.\n\nUn saludo,\n${EMPRESA?.nombre||''}\n${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}`;
   if (typeof nuevoCorreo === 'function') {
+    if (typeof compartirDocumento === 'function') { await compartirDocumento({ tipo_documento: 'presupuesto_compra', documento_id: p.id, documento_numero: p.numero, destinatario_nombre: p.proveedor_nombre, destinatario_email: email, canal: 'email' }); }
     nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto_compra', id: p.id, ref: p.numero || '' });
     if (typeof goPage === 'function') goPage('correo');
   } else {
