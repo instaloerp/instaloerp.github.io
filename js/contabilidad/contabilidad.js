@@ -785,6 +785,88 @@ function _contBuscarCuenta(codigo) {
   return _contCuentas.find(c => c.codigo === codigo && c.es_hoja);
 }
 
+// ── Subcuentas individualizadas por NIF (430XXXX / 400XXXX) ──
+// Patrón gestoría: prefijo (430/400) + últimos 4 dígitos numéricos del NIF
+// Si hay colisión (otro tercero con mismos 4 dígitos), incrementa hasta encontrar libre
+const _contSubcuentaCache = {}; // { 'venta_B12345678': '4305678', ... }
+
+function _contExtraerDigitosNif(nif) {
+  if (!nif) return null;
+  const soloDigitos = nif.replace(/[^0-9]/g, '');
+  if (soloDigitos.length < 4) return null;
+  return soloDigitos.slice(-4);
+}
+
+async function _contObtenerSubcuenta(tipo, nif, nombre) {
+  // tipo: 'venta' (→430) o 'compra' (→400)
+  // Devuelve el código de subcuenta (ej: '4309726')
+  // Si no hay NIF, usa la cuenta genérica 430 o 400
+  const prefijo = tipo === 'venta' ? '430' : '400';
+  if (!nif) return prefijo;
+
+  // Cache para no repetir queries
+  const cacheKey = tipo + '_' + nif.toUpperCase().trim();
+  if (_contSubcuentaCache[cacheKey]) return _contSubcuentaCache[cacheKey];
+
+  const digitos = _contExtraerDigitosNif(nif);
+  if (!digitos) return prefijo;
+
+  let candidato = prefijo + digitos; // ej: '4309726'
+
+  // Buscar si ya existe esta subcuenta en cuentas_contables
+  const { data: existentes } = await sb.from('cuentas_contables')
+    .select('codigo,nombre')
+    .eq('empresa_id', EMPRESA.id)
+    .like('codigo', prefijo + '%')
+    .gt('codigo', prefijo)  // excluir la cuenta padre '430'/'400'
+    .order('codigo');
+
+  // Buscar si este NIF ya tiene subcuenta asignada (por nombre)
+  const nombreUpper = (nombre || '').toUpperCase().trim();
+  const yaAsignada = (existentes || []).find(c =>
+    c.nombre && c.nombre.toUpperCase().trim() === nombreUpper
+  );
+  if (yaAsignada) {
+    _contSubcuentaCache[cacheKey] = yaAsignada.codigo;
+    return yaAsignada.codigo;
+  }
+
+  // Verificar colisión: ¿el candidato ya existe para otro tercero?
+  const codigosUsados = new Set((existentes || []).map(c => c.codigo));
+  while (codigosUsados.has(candidato)) {
+    // Incrementar último dígito
+    let num = parseInt(candidato.slice(prefijo.length), 10);
+    num++;
+    candidato = prefijo + String(num).padStart(4, '0');
+    // Seguridad: no pasar de 9999
+    if (candidato.length > 7) { candidato = prefijo; break; }
+  }
+
+  // Si encontramos código libre, crear la subcuenta en BD
+  if (candidato !== prefijo) {
+    const tipoCuenta = tipo === 'venta' ? 'activo' : 'pasivo';
+    const grupo = 4;
+    const { error } = await sb.from('cuentas_contables').insert({
+      empresa_id: EMPRESA.id,
+      codigo: candidato,
+      nombre: nombre || ('Tercero ' + nif),
+      tipo: tipoCuenta,
+      grupo: grupo,
+      es_hoja: true,
+      padre_codigo: prefijo
+    }).select();
+    if (error && !error.message.includes('duplicate')) {
+      console.warn('[Contab] Error creando subcuenta ' + candidato + ':', error.message);
+      return prefijo; // fallback a cuenta genérica
+    }
+    // Recargar cuentas para que _contBuscarCuenta la encuentre
+    await _contCargarCuentas();
+    _contSubcuentaCache[cacheKey] = candidato;
+  }
+
+  return candidato;
+}
+
 async function _contCrearAsientoAuto(obj) {
   // obj = { fecha, descripcion, origen, origen_ref, origen_id, lineas:[{cuenta_codigo, descripcion, debe, haber}] }
   const { data: ultimoArr } = await sb.from('asientos').select('numero')
@@ -827,8 +909,8 @@ async function _contCrearAsientoAuto(obj) {
   return data;
 }
 
-function _contGenerarLineasFacturaVenta(f) {
-  // Factura emitida → Debe 430 / Haber 705 + 477
+async function _contGenerarLineasFacturaVenta(f) {
+  // Factura emitida → Debe 430XXXX / Haber 705 + 477
   const lineas = [];
   const base = parseFloat(f.base_imponible) || 0;
   const iva = parseFloat(f.total_iva) || 0;
@@ -836,8 +918,11 @@ function _contGenerarLineasFacturaVenta(f) {
   const total = parseFloat(f.total) || 0;
   const desc = (f.numero || '') + ' ' + (f.cliente_nombre || '');
 
-  // Debe: 430 Clientes
-  lineas.push({ cuenta_codigo: '430', descripcion: desc.trim(), debe: total, haber: 0 });
+  // Subcuenta individualizada del cliente (430 + 4 últimos dígitos NIF)
+  const subcuenta = await _contObtenerSubcuenta('venta', f.cliente_nif, f.cliente_nombre);
+
+  // Debe: 430XXXX Cliente
+  lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: total, haber: 0 });
 
   // Haber: 705 Prestaciones de servicios
   lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: 0, haber: base });
@@ -856,8 +941,8 @@ function _contGenerarLineasFacturaVenta(f) {
   return lineas;
 }
 
-function _contGenerarLineasFacturaCompra(f) {
-  // Factura recibida → Debe 600 + 472 / Haber 400
+async function _contGenerarLineasFacturaCompra(f) {
+  // Factura recibida → Debe 600 + 472 / Haber 400XXXX
   const lineas = [];
   const base = parseFloat(f.base_imponible) || 0;
   const iva = parseFloat(f.total_iva) || 0;
@@ -865,22 +950,27 @@ function _contGenerarLineasFacturaCompra(f) {
   const total = parseFloat(f.total) || 0;
   const desc = (f.numero || '') + ' ' + (f.proveedor_nombre || '');
 
-  // Debe: 600 Compras de mercaderías
-  lineas.push({ cuenta_codigo: '600', descripcion: desc.trim(), debe: base, haber: 0 });
+  // Subcuenta individualizada del proveedor (400 + 4 últimos dígitos CIF)
+  const nifProv = f._proveedor_cif || null;
+  const subcuenta = await _contObtenerSubcuenta('compra', nifProv, f.proveedor_nombre);
+
+  // Debe: cuenta de gasto (600 por defecto, configurable por factura)
+  const cuentaGasto = f.cuenta_gasto || '600';
+  lineas.push({ cuenta_codigo: cuentaGasto, descripcion: desc.trim(), debe: base, haber: 0 });
 
   // Debe: 472 IVA soportado
   if (iva > 0) {
     lineas.push({ cuenta_codigo: '472', descripcion: 'IVA sop. ' + (f.numero || ''), debe: iva, haber: 0 });
   }
 
-  // Haber: 400 Proveedores
-  lineas.push({ cuenta_codigo: '400', descripcion: desc.trim(), debe: 0, haber: total });
+  // Haber: 400XXXX Proveedor
+  lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: 0, haber: total });
 
   // Si hay retención IRPF
   if (retencion > 0) {
     lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: retencion, haber: 0 });
     // Ajustar haber proveedor
-    const idxProv = lineas.findIndex(l => l.cuenta_codigo === '400');
+    const idxProv = lineas.findIndex(l => l.cuenta_codigo === subcuenta);
     lineas[idxProv].haber = total - retencion;
   }
 
@@ -891,8 +981,8 @@ async function _contContabilizarFacturas() {
   if (!_contEjercicioSel) { showToast('Primero selecciona un ejercicio fiscal', 'error'); return; }
   await _contCargarCuentas();
 
-  // Verificar cuentas necesarias
-  const cuentasReq = ['430','705','477','472','600','400'];
+  // Verificar cuentas fijas (subcuentas 430XXXX/400XXXX se crean automáticamente)
+  const cuentasReq = ['705','477','472','600'];
   const faltan = cuentasReq.filter(c => !_contBuscarCuenta(c));
   if (faltan.length) {
     showToast('Faltan cuentas en el plan contable: ' + faltan.join(', '), 'error');
@@ -910,18 +1000,28 @@ async function _contContabilizarFacturas() {
     .neq('estado', 'anulado');
   const yaContab = new Set((existentes || []).map(a => a.origen + '_' + a.origen_id));
 
-  // Facturas de venta del ejercicio
+  // Facturas de venta del ejercicio (incluye cliente_nif para subcuentas)
   const { data: fVentas } = await sb.from('facturas')
-    .select('id,numero,serie,cliente_nombre,fecha,base_imponible,total_iva,retencion,total,estado')
+    .select('id,numero,serie,cliente_nombre,cliente_nif,fecha,base_imponible,total_iva,retencion,total,estado')
     .eq('empresa_id', EMPRESA.id)
     .gte('fecha', fechaDesde).lte('fecha', fechaHasta)
     .in('estado', ['emitida','cobrada','enviada','aceptada','pendiente']);
 
-  // Facturas de compra del ejercicio
+  // Facturas de compra del ejercicio (incluye proveedor_id para obtener CIF)
   const { data: fCompras } = await sb.from('facturas_proveedor')
-    .select('id,numero,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total,estado')
+    .select('id,numero,proveedor_id,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total,estado,cuenta_gasto')
     .eq('empresa_id', EMPRESA.id)
     .gte('fecha', fechaDesde).lte('fecha', fechaHasta);
+
+  // Obtener CIFs de proveedores para subcuentas
+  const provIds = [...new Set((fCompras || []).map(f => f.proveedor_id).filter(Boolean))];
+  let provCifMap = {};
+  if (provIds.length) {
+    const { data: provs } = await sb.from('proveedores').select('id,cif').in('id', provIds);
+    (provs || []).forEach(p => { provCifMap[p.id] = p.cif; });
+  }
+  // Inyectar CIF en cada factura de compra
+  (fCompras || []).forEach(f => { f._proveedor_cif = provCifMap[f.proveedor_id] || null; });
 
   const ventasPend = (fVentas || []).filter(f => !yaContab.has('factura_emitida_' + f.id));
   const comprasPend = (fCompras || []).filter(f => !yaContab.has('factura_recibida_' + f.id));
@@ -947,7 +1047,7 @@ async function _contContabilizarFacturas() {
         origen: 'factura_emitida',
         origen_ref: f.numero || String(f.id),
         origen_id: f.id,
-        lineas: _contGenerarLineasFacturaVenta(f)
+        lineas: await _contGenerarLineasFacturaVenta(f)
       });
       ok++;
     } catch (e) { console.error('Error fact. venta ' + f.id, e); errores++; }
@@ -961,7 +1061,7 @@ async function _contContabilizarFacturas() {
         origen: 'factura_recibida',
         origen_ref: f.numero || String(f.id),
         origen_id: f.id,
-        lineas: _contGenerarLineasFacturaCompra(f)
+        lineas: await _contGenerarLineasFacturaCompra(f)
       });
       ok++;
     } catch (e) { console.error('Error fact. compra ' + f.id, e); errores++; }
@@ -985,7 +1085,8 @@ async function _contAutoContabilizar(tipo, facturaId) {
     if (!_contCuentas.length) await _contCargarCuentas();
     if (!_contEjercicios.length) await _contCargarEjercicios();
 
-    const cuentasReq = tipo === 'venta' ? ['430','705','477'] : ['600','472','400'];
+    // Solo verificar cuentas fijas (las subcuentas 430XXXX/400XXXX se crean automáticamente)
+    const cuentasReq = tipo === 'venta' ? ['705','477'] : ['600','472'];
     const faltan = cuentasReq.filter(c => !_contBuscarCuenta(c));
     if (faltan.length) { console.warn('[Contab] Faltan cuentas:', faltan); return; }
 
@@ -997,18 +1098,23 @@ async function _contAutoContabilizar(tipo, facturaId) {
       .neq('estado', 'anulado').limit(1);
     if (existe?.length) return;
 
-    // Obtener factura
+    // Obtener factura (incluye NIF para subcuentas)
     let f;
     if (tipo === 'venta') {
       const { data } = await sb.from('facturas')
-        .select('id,numero,cliente_nombre,fecha,base_imponible,total_iva,retencion,total')
+        .select('id,numero,cliente_nombre,cliente_nif,fecha,base_imponible,total_iva,retencion,total')
         .eq('id', facturaId).single();
       f = data;
     } else {
       const { data } = await sb.from('facturas_proveedor')
-        .select('id,numero,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total')
+        .select('id,numero,proveedor_id,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total,cuenta_gasto')
         .eq('id', facturaId).single();
       f = data;
+      // Obtener CIF del proveedor
+      if (f && f.proveedor_id) {
+        const { data: prov } = await sb.from('proveedores').select('cif').eq('id', f.proveedor_id).single();
+        f._proveedor_cif = prov?.cif || null;
+      }
     }
     if (!f) return;
 
@@ -1018,8 +1124,8 @@ async function _contAutoContabilizar(tipo, facturaId) {
     _contEjercicioSel = ej;
 
     const lineas = tipo === 'venta'
-      ? _contGenerarLineasFacturaVenta(f)
-      : _contGenerarLineasFacturaCompra(f);
+      ? await _contGenerarLineasFacturaVenta(f)
+      : await _contGenerarLineasFacturaCompra(f);
     const descLabel = tipo === 'venta' ? 'Fact. emitida' : 'Fact. recibida';
     const nombre = tipo === 'venta' ? (f.cliente_nombre || '') : (f.proveedor_nombre || '');
 

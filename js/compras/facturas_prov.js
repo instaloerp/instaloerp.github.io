@@ -254,6 +254,9 @@ async function nuevaFacturaProv() {
   document.getElementById('fp_vencimiento').value = v1.toISOString().split('T')[0];
   document.getElementById('fp_observaciones').value = '';
   document.getElementById('mFPTit').textContent = 'Nueva Factura de Proveedor';
+  // Cuenta de gasto por defecto
+  const selCG = document.getElementById('fp_cuenta_gasto');
+  if (selCG) selCG.value = '600';
   poblarSelectorObra('fp_obra', null);
 
   fp_addLinea();
@@ -300,6 +303,12 @@ function fp_aplicarReglaProveedor(provId) {
   if (prov.banco_predeterminado_id) {
     fp_poblarBancos(prov.banco_predeterminado_id);
   }
+
+  // Auto-rellenar tipo de gasto si el proveedor ya lo tiene configurado
+  const selCG = document.getElementById('fp_cuenta_gasto');
+  if (selCG && prov.cuenta_gasto_default) {
+    selCG.value = prov.cuenta_gasto_default;
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -309,7 +318,7 @@ function fp_aplicarReglaProveedor(provId) {
 function _fpAplicarBloqueo(bloqueado) {
   const modal = document.getElementById('mFacturaProv');
   if (!modal) return;
-  const ids = ['fp_proveedor','fp_numero','fp_fecha','fp_vencimiento','fp_formapago','fp_banco_pago','fp_obra','fp_observaciones'];
+  const ids = ['fp_proveedor','fp_numero','fp_fecha','fp_vencimiento','fp_formapago','fp_banco_pago','fp_obra','fp_cuenta_gasto','fp_observaciones'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -359,6 +368,9 @@ async function editarFacturaProv(id) {
   });
 
   document.getElementById('mFPTit').textContent = 'Editar Factura de Proveedor';
+  // Cuenta de gasto
+  const selCG = document.getElementById('fp_cuenta_gasto');
+  if (selCG) selCG.value = fp.cuenta_gasto || '600';
   poblarSelectorObra('fp_obra', fp.trabajo_id);
   fp_renderLineas();
   openModal('mFacturaProv');
@@ -523,7 +535,8 @@ async function guardarFacturaProv(estado) {
       estado,
       lineas: fpLineas,
       observaciones: v('fp_observaciones'),
-      trabajo_id: parseInt(document.getElementById('fp_obra')?.value) || null
+      trabajo_id: parseInt(document.getElementById('fp_obra')?.value) || null,
+      cuenta_gasto: document.getElementById('fp_cuenta_gasto')?.value || '600'
     };
 
     let facturaId = fpEditId;
@@ -543,6 +556,15 @@ async function guardarFacturaProv(estado) {
       const { data: inserted, error: insErr } = await sb.from('facturas_proveedor').insert(obj).select().single();
       if (insErr) throw new Error(insErr.message);
       facturaId = inserted.id;
+    }
+
+    // Recordar tipo de gasto para este proveedor (auto-rellenar próximas facturas)
+    if (obj.cuenta_gasto && provId) {
+      const prov = (proveedores||[]).find(p => p.id === provId);
+      if (prov && !prov.cuenta_gasto_default) {
+        await sb.from('proveedores').update({ cuenta_gasto_default: obj.cuenta_gasto }).eq('id', provId);
+        prov.cuenta_gasto_default = obj.cuenta_gasto;
+      }
     }
 
     // --- Guardar documento adjunto en Supabase Storage ---

@@ -318,6 +318,7 @@ async function abrirFichaProveedor(id) {
   document.getElementById('fichaProvDatos').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFichaProv('CIF/NIF', p.cif || '—')}
+      ${p.cif ? datoFichaProv('Código contable', '<span style="font-family:monospace;background:var(--gris-50);padding:2px 6px;border-radius:4px">400' + (p.cif.replace(/[^0-9]/g,'').slice(-4) || '????') + '</span> <span style="font-size:10px;color:var(--gris-400)">automático</span>') : ''}
       ${datoFichaProv('Teléfono', p.telefono || '—')}
       ${datoFichaProv('Email pedidos', p.email_pedidos || '—')}
       ${datoFichaProv('Email facturación', p.email || '—')}
@@ -327,6 +328,10 @@ async function abrirFichaProveedor(id) {
       ${datoFichaProv('CP / Provincia', (p.cp || '') + ' ' + (p.provincia || ''))}
       ${datoFichaProv('Forma de pago', fpName)}
       ${datoFichaProv('Días de pago', p.dias_pago || 30)}
+      ${datoFichaProv('Tipo de gasto', (() => {
+        const map = {'600':'🛒 Material','602':'🧱 Otros materiales','621':'🏠 Alquiler','622':'🔧 Reparación','623':'👔 Serv. profesional','624':'🚚 Transporte','625':'🛡️ Seguro','626':'🏦 Banco','627':'📢 Publicidad','628':'💡 Suministro','629':'📦 Otros servicios'};
+        return p.cuenta_gasto_default ? map[p.cuenta_gasto_default] || p.cuenta_gasto_default : '<span style="color:var(--gris-400)">Se asignará en la 1ª factura</span>';
+      })())}
       ${p.observaciones ? `<div style="margin-top:6px;padding:8px;background:var(--gris-50);border-radius:7px;font-size:11.5px;color:var(--gris-600)">${p.observaciones}</div>` : ''}
     </div>
     <div id="fichaProvBanco"></div>`;

@@ -180,6 +180,7 @@ async function abrirFicha(id, tabActiva) {
     <div style="display:flex;flex-direction:column;gap:2px">
       ${datoFicha('Tipo',c.tipo||'Particular')}
       ${datoFicha('NIF/CIF',c.nif||'—')}
+      ${c.nif ? datoFicha('Código contable', '<span style="font-family:monospace;background:var(--gris-50);padding:2px 6px;border-radius:4px">430' + (c.nif.replace(/[^0-9]/g,'').slice(-4) || '????') + '</span> <span style="font-size:10px;color:var(--gris-400)">automático</span>') : ''}
       ${datoFicha('Teléfono',c.telefono||'—')}
       ${datoFicha('Móvil',c.movil||'—')}
       ${datoFicha('Email',c.email||'—')}
