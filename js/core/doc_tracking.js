@@ -12,7 +12,9 @@
 // ═══════════════════════════════════════════════
 //  URL BASE DEL VISOR
 // ═══════════════════════════════════════════════
-const DOC_VIEWER_URL = SUPA_URL + '/functions/v1/doc-viewer';
+// El visor HTML se sirve desde GitHub Pages (Supabase no permite HTML en Edge Functions)
+// La Edge Function doc-viewer solo devuelve JSON con los datos
+const DOC_VIEWER_URL = 'https://instaloerp.github.io/visor.html';
 
 // Cache local de estados de tracking (evita queries repetidas)
 const _trackingCache = new Map();

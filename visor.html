@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documento — instaloERP</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+    /* ── Loading ── */
+    .loading {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; gap: 16px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #e0e0e0; border-top-color: #1a1a2e;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading p { color: #666; font-size: 14px; }
+
+    /* ── Error ── */
+    .error-box {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .error-box .box {
+      background: white; border-radius: 16px; padding: 40px;
+      text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,.08);
+      max-width: 400px;
+    }
+    .error-box .icon { font-size: 48px; margin-bottom: 16px; }
+    .error-box h1 { font-size: 20px; color: #333; margin-bottom: 8px; }
+    .error-box p { font-size: 14px; color: #666; }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white; padding: 24px 20px; text-align: center;
+    }
+    .header img { max-height: 50px; margin-bottom: 12px; }
+    .header h1 { font-size: 14px; font-weight: 400; opacity: .8; margin-bottom: 4px; }
+    .header .doc-num { font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+    .header .empresa { font-size: 12px; opacity: .6; margin-top: 8px; }
+
+    /* ── Content ── */
+    .container { max-width: 680px; margin: -20px auto 40px; padding: 0 16px; }
+    .card {
+      background: white; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      overflow: hidden; margin-bottom: 16px;
+    }
+    .doc-info { padding: 20px; }
+    .info-row {
+      display: flex; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .label { color: #666; font-weight: 500; }
+    .info-row .value { color: #1a1a2e; font-weight: 600; text-align: right; }
+    .badge-estado {
+      display: inline-block; background: #e3f2fd; color: #1565c0;
+      padding: 2px 10px; border-radius: 12px; font-size: 12px; text-transform: capitalize;
+    }
+    .doc-totals { background: #fafbfc; padding: 16px 20px; border-top: 1px solid #eee; }
+    .total-row {
+      display: flex; justify-content: space-between;
+      padding: 4px 0; font-size: 14px; color: #555;
+    }
+    .total-final {
+      font-size: 18px; font-weight: 700; color: #1a1a2e;
+      padding-top: 8px; border-top: 2px solid #eee; margin-top: 4px;
+    }
+    .doc-lines { padding: 0 20px 20px; }
+    .doc-lines table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .doc-lines th {
+      text-align: left; padding: 8px 4px; border-bottom: 2px solid #eee;
+      color: #666; font-weight: 600; font-size: 11px; text-transform: uppercase;
+    }
+    .doc-lines td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; }
+    .doc-obs {
+      padding: 16px 20px; background: #fffde7;
+      font-size: 13px; color: #555; border-top: 1px solid #fff9c4;
+    }
+    .footer { text-align: center; padding: 20px; font-size: 11px; color: #999; }
+    .footer a { color: #1565c0; text-decoration: none; }
+    @media (max-width: 600px) {
+      .header .doc-num { font-size: 20px; }
+      .doc-lines { overflow-x: auto; }
+    }
+
+    /* Hide sections until loaded */
+    #visor { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Loading -->
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Cargando documento...</p>
+  </div>
+
+  <!-- Error -->
+  <div id="error" class="error-box" style="display:none">
+    <div class="box">
+      <div class="icon">📄</div>
+      <h1 id="err-title">Error</h1>
+      <p id="err-msg"></p>
+    </div>
+  </div>
+
+  <!-- Visor -->
+  <div id="visor">
+    <div class="header">
+      <img id="v-logo" src="" alt="" style="display:none">
+      <h1 id="v-tipo"></h1>
+      <div class="doc-num" id="v-numero"></div>
+      <div class="empresa" id="v-empresa"></div>
+    </div>
+    <div class="container">
+      <div class="card">
+        <div class="doc-info" id="v-info"></div>
+        <div class="doc-totals" id="v-totals" style="display:none"></div>
+        <div class="doc-lines" id="v-lines" style="display:none"></div>
+        <div class="doc-obs" id="v-obs" style="display:none"></div>
+      </div>
+    </div>
+    <div class="footer" id="v-footer"></div>
+  </div>
+
+<script>
+const SUPA_URL = 'https://gskkqqhbpnycvuioqetj.supabase.co';
+const API = SUPA_URL + '/functions/v1/doc-viewer';
+
+const TIPO_LABEL = {
+  factura: 'Factura', presupuesto: 'Presupuesto', albaran: 'Albarán',
+  parte_trabajo: 'Parte de trabajo', factura_proveedor: 'Factura de proveedor',
+  pedido_compra: 'Pedido de compra', presupuesto_compra: 'Presupuesto de compra'
+};
+
+const eur = v => v != null
+  ? Number(v).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
+  : '';
+const eur2 = v => v != null
+  ? Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €'
+  : '';
+const fmtDate = d => d
+  ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+  : '';
+
+function showError(title, msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error').style.display = 'flex';
+  document.getElementById('err-title').textContent = title;
+  document.getElementById('err-msg').textContent = msg;
+}
+
+function infoRow(label, value) {
+  if (!value) return '';
+  return '<div class="info-row"><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
+}
+
+function render(data) {
+  const emp = data.empresa || {};
+  const sh  = data.share || {};
+  const doc = data.documento;
+  const tipo = TIPO_LABEL[sh.tipo_documento] || sh.tipo_documento || '';
+
+  document.title = tipo + ' ' + (sh.documento_numero || '') + ' — ' + (emp.nombre || 'instaloERP');
+
+  // Header
+  if (emp.logo_url) {
+    var logo = document.getElementById('v-logo');
+    logo.src = emp.logo_url; logo.alt = emp.nombre || ''; logo.style.display = '';
+  }
+  document.getElementById('v-tipo').textContent = tipo;
+  document.getElementById('v-numero').textContent = sh.documento_numero || '';
+  document.getElementById('v-empresa').textContent = emp.nombre || '';
+
+  // Info rows
+  var info = '';
+  if (doc) {
+    info += infoRow('Fecha', fmtDate(doc.fecha));
+    info += infoRow('Cliente', doc.cliente_nombre);
+    info += infoRow('Proveedor', doc.proveedor_nombre);
+    info += infoRow('Concepto', doc.titulo);
+    info += infoRow('Descripción', doc.descripcion);
+    if (doc.estado) {
+      info += '<div class="info-row"><span class="label">Estado</span>' +
+              '<span class="value badge-estado">' + doc.estado + '</span></div>';
+    }
+  } else {
+    info = '<p style="color:#999;text-align:center;padding:40px">Los datos del documento no están disponibles.</p>';
+  }
+  document.getElementById('v-info').innerHTML = info;
+
+  // Totals
+  if (doc && (doc.base_imponible != null || doc.total != null)) {
+    var html = '';
+    if (doc.base_imponible != null) html += '<div class="total-row"><span>Base imponible</span><span>' + eur(doc.base_imponible) + '</span></div>';
+    if (doc.iva != null) html += '<div class="total-row"><span>IVA</span><span>' + eur(doc.iva) + '</span></div>';
+    if (doc.total != null) html += '<div class="total-row total-final"><span>Total</span><span>' + eur(doc.total) + '</span></div>';
+    var el = document.getElementById('v-totals');
+    el.innerHTML = html; el.style.display = '';
+  }
+
+  // Lines
+  if (doc && doc.lineas && Array.isArray(doc.lineas) && doc.lineas.length) {
+    var rows = doc.lineas.map(function(l) {
+      return '<tr><td>' + (l.descripcion || l.concepto || '') + '</td>' +
+        '<td style="text-align:center">' + (l.cantidad || '') + '</td>' +
+        '<td style="text-align:right">' + eur2(l.precio) + '</td>' +
+        '<td style="text-align:right">' + eur2(l.importe) + '</td></tr>';
+    }).join('');
+    var el2 = document.getElementById('v-lines');
+    el2.innerHTML = '<table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    el2.style.display = '';
+  }
+
+  // Observations
+  if (doc && doc.observaciones) {
+    var el3 = document.getElementById('v-obs');
+    el3.innerHTML = '<strong>Observaciones:</strong><br>' + doc.observaciones;
+    el3.style.display = '';
+  }
+
+  // Footer
+  var f = '<p>' + (emp.nombre || '') +
+    (emp.nif ? ' &middot; ' + emp.nif : '') +
+    (emp.direccion ? '<br>' + emp.direccion : '') + '</p>';
+  if (emp.telefono) f += '<p>' + emp.telefono + '</p>';
+  if (emp.email) f += '<p><a href="mailto:' + emp.email + '">' + emp.email + '</a></p>';
+  f += '<p style="margin-top:12px;opacity:.5">Documento generado por instaloERP</p>';
+  document.getElementById('v-footer').innerHTML = f;
+
+  // Show
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('visor').style.display = '';
+}
+
+// ── Init ──
+(async function() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('token');
+  if (!token) { showError('Enlace no válido', 'No se ha proporcionado un token de documento.'); return; }
+
+  try {
+    var resp = await fetch(API + '?token=' + encodeURIComponent(token));
+    var data = await resp.json();
+    if (!resp.ok || data.error) {
+      showError('Documento no encontrado', data.error || 'Este enlace no es válido o ha expirado.');
+      return;
+    }
+    render(data);
+  } catch (e) {
+    showError('Error de conexión', 'No se pudo cargar el documento. Inténtalo de nuevo.');
+  }
+})();
+</script>
+</body>
+</html>
