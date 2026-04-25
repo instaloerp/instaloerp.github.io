@@ -18,6 +18,8 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/mensajeria/chat.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -334,6 +336,21 @@ input[type=number]{-moz-appearance:textfield}
 .quick-form .field select:focus,
 .quick-form .field textarea:focus{border-color:var(--azul)}
 .quick-form .field textarea{resize:vertical;min-height:60px}
+
+/* ── GPS Mobile ── */
+#gpsMapMobile{width:100%;height:45vh;border-radius:12px;z-index:0;border:1.5px solid var(--gris-200)}
+.gps-mob-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.gps-mob-toolbar select{flex:1;padding:8px 10px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;font-family:var(--font);outline:none}
+.gps-mob-toolbar button{padding:8px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:var(--azul);color:#fff}
+.gps-veh-card{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:6px;background:#fff;border-radius:10px;border:1px solid var(--gris-100);cursor:pointer;transition:border .2s}
+.gps-veh-card:active{border-color:var(--azul)}
+.gps-veh-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.gps-veh-info{flex:1;min-width:0}
+.gps-veh-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gps-veh-meta{font-size:11px;color:var(--gris-400)}
+.gps-veh-speed{font-weight:800;font-size:14px;flex-shrink:0}
+@keyframes gpsPulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}70%{box-shadow:0 0 0 8px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+.gps-veh-dot.moving{animation:gpsPulse 1.5s infinite}
 </style>
 </head>
 <body>
@@ -1791,6 +1808,7 @@ function navigateTo(tab) {
       case 'inicio':     renderJefeInicio(body); break;
       case 'equipo':     renderJefeEquipo(body); break;
       case 'furgoneta':  renderMiFurgoneta(); break;
+      case 'gps':        renderJefeGPS(body); break;
       case 'agenda':     renderJefeAgenda(body); break;
       case 'chat':       renderChatMobile(body); break;
       case 'mas':        renderJefeMas(body); break;
@@ -3412,7 +3430,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 16
+      instaloERP v1.0 · build 17
     </div>
   `;
 }
@@ -3839,6 +3857,12 @@ function renderJefeInicio(el) {
       </div>
     </div>
 
+    <div class="card" onclick="navigateTo('gps')" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:12px;background:linear-gradient(135deg,#EEF3FF,#E0F2FE);border:1.5px solid var(--azul);border-radius:12px">
+      <span style="font-size:24px">📡</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px;color:var(--azul)">GPS Flota en vivo</div><div style="font-size:12px;color:var(--gris-500)">Ver dónde están las furgonetas</div></div>
+      <span style="color:var(--azul);font-size:18px">›</span>
+    </div>
+
     ${misPartesHoy.length ? `
       <div class="section-title">📋 Mi agenda hoy</div>
       ${misPartesHoy.map(p => renderParteCard(p, true)).join('')}
@@ -3931,6 +3955,254 @@ function renderJefeEquipo(el) {
   `;
 }
 
+// ═══════════════════════════════════════════════
+// JEFE: GPS FLOTA EN VIVO (Mobile)
+// ═══════════════════════════════════════════════
+let _gpsMobMap = null;
+let _gpsMobMarkers = [];
+let _gpsMobVehiculos = [];
+let _gpsMobAutoTimer = null;
+let _gpsMobFilterOp = '';
+
+function _gpsMobRumbo(deg) {
+  if (deg == null) return '—';
+  const dirs = ['N','NE','E','SE','S','SO','O','NO'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function _gpsMobTimeAgo(secs) {
+  if (!secs || secs < 0) return '—';
+  if (secs < 60) return 'Ahora';
+  if (secs < 3600) return Math.floor(secs / 60) + ' min';
+  if (secs < 86400) return Math.floor(secs / 3600) + 'h';
+  return Math.floor(secs / 86400) + 'd';
+}
+
+async function _gpsMobFetchVehicles() {
+  // Intentar via Edge Function proxy
+  const proxyUrl = (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : (sb?.supabaseUrl || '')) + '/functions/v1/movertis';
+  try {
+    const resp = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (typeof SUPABASE_ANON !== 'undefined' ? SUPABASE_ANON : sb?.supabaseKey || '')
+      },
+      body: JSON.stringify({ action: 'vehicles', params: {} })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch (e) {
+    // Fallback directo (temporal, se eliminará cuando el proxy esté desplegado)
+    console.warn('GPS proxy no disponible, usando fallback directo:', e.message);
+    const resp = await fetch('https://devapi.hellomovertis.com/vehicle/showvehicles', {
+      method: 'POST',
+      headers: {
+        'Authorization': '4667eb0dd9987b7c1b896a0496f084d80463FD8EF5C2AD3BEEA95773C1C59C709539D93A',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: [], flags: { basicData: true, lastMessagePosition: true } })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  }
+}
+
+function _gpsMobInitMap() {
+  const container = document.getElementById('gpsMapMobile');
+  if (!container || typeof L === 'undefined') {
+    if (container) container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando mapa...</div>';
+    return;
+  }
+  if (_gpsMobMap) { _gpsMobMap.remove(); _gpsMobMap = null; }
+  _gpsMobMap = L.map(container, { zoomControl: false, attributionControl: false }).setView([43.35, -7.5], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_gpsMobMap);
+  L.control.zoom({ position: 'topright' }).addTo(_gpsMobMap);
+  setTimeout(() => _gpsMobMap?.invalidateSize(), 300);
+}
+
+function _gpsMobUpdateMarkers() {
+  if (!_gpsMobMap) return;
+  _gpsMobMarkers.forEach(m => _gpsMobMap.removeLayer(m));
+  _gpsMobMarkers = [];
+  const bounds = [];
+  const now = Math.floor(Date.now() / 1000);
+
+  // Filtrar por operario si aplica
+  let vehs = _gpsMobVehiculos;
+  if (_gpsMobFilterOp) {
+    vehs = vehs.filter(v => {
+      // Asociar vehículo a operario por nombre (simplificado)
+      const vName = (v.name || '').toLowerCase();
+      return vName.includes(_gpsMobFilterOp.toLowerCase());
+    });
+  }
+
+  vehs.forEach(v => {
+    if (!v.lastPosition) return;
+    const { lat, lon, speed, course } = v.lastPosition;
+    if (!lat || !lon) return;
+    const age = now - (v.lastPosition.date || 0);
+    const isActive = age < 7200;
+    const isMoving = speed > 3;
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        background:${isMoving ? 'var(--verde)' : isActive ? 'var(--azul)' : 'var(--gris-400)'};
+        color:#fff;font-size:10px;font-weight:800;
+        padding:3px 7px;border-radius:12px;
+        white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3);
+        border:2px solid #fff;
+        display:flex;align-items:center;gap:3px;
+        ${isMoving ? 'animation:gpsPulse 2s infinite' : ''}
+      ">${isMoving ? '🚐' : '🅿️'} ${v.name}${isMoving ? ' · ' + Math.round(speed) + 'km/h' : ''}</div>`,
+      iconSize: null, iconAnchor: [50, 15]
+    });
+
+    const marker = L.marker([lat, lon], { icon }).addTo(_gpsMobMap);
+    marker.bindPopup(`<div style="min-width:160px;font-size:12px;line-height:1.6">
+      <div style="font-weight:800;font-size:13px;margin-bottom:2px">${isMoving ? '🚐' : '🅿️'} ${v.name}</div>
+      <div><b>Vel:</b> ${Math.round(speed || 0)} km/h · <b>Rumbo:</b> ${_gpsMobRumbo(course)}</div>
+      <div><b>Señal:</b> ${_gpsMobTimeAgo(age)}</div>
+      <div style="margin-top:4px"><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" style="color:var(--azul)">📍 Google Maps</a></div>
+    </div>`);
+    _gpsMobMarkers.push(marker);
+    bounds.push([lat, lon]);
+  });
+
+  if (bounds.length > 1) _gpsMobMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+  else if (bounds.length === 1) _gpsMobMap.setView(bounds[0], 14);
+}
+
+function _gpsMobRenderList() {
+  const el = document.getElementById('gpsMobList');
+  if (!el) return;
+  const now = Math.floor(Date.now() / 1000);
+
+  let vehs = _gpsMobVehiculos;
+  if (_gpsMobFilterOp) {
+    vehs = vehs.filter(v => (v.name || '').toLowerCase().includes(_gpsMobFilterOp.toLowerCase()));
+  }
+
+  if (!vehs.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gris-400);font-size:13px">Sin vehículos</div>';
+    return;
+  }
+
+  el.innerHTML = vehs.map(v => {
+    const p = v.lastPosition || {};
+    const age = now - (p.date || 0);
+    const isActive = age < 7200;
+    const isMoving = (p.speed || 0) > 3;
+    const dotColor = isMoving ? 'var(--verde)' : isActive ? 'var(--azul)' : 'var(--gris-300)';
+    const dotClass = isMoving ? 'gps-veh-dot moving' : 'gps-veh-dot';
+
+    return `<div class="gps-veh-card" onclick="_gpsMobCentrar(${p.lat},${p.lon})">
+      <div class="${dotClass}" style="background:${dotColor}"></div>
+      <div class="gps-veh-info">
+        <div class="gps-veh-name">${v.name}</div>
+        <div class="gps-veh-meta">${isMoving ? '🟢 Moviendo' : isActive ? '🔵 Parado' : '⚫ Sin señal'} · ${_gpsMobTimeAgo(age)}</div>
+      </div>
+      <div class="gps-veh-speed" style="color:${isMoving ? 'var(--verde)' : 'var(--gris-400)'}">${Math.round(p.speed || 0)}<span style="font-size:10px;font-weight:400"> km/h</span></div>
+    </div>`;
+  }).join('');
+
+  // Update counter
+  const countEl = document.getElementById('gpsMobCount');
+  const moviendo = vehs.filter(v => v.lastPosition && v.lastPosition.speed > 3).length;
+  if (countEl) countEl.textContent = `${vehs.length} vehículos · ${moviendo} en movimiento`;
+}
+
+function _gpsMobCentrar(lat, lon) {
+  if (_gpsMobMap && lat && lon) {
+    _gpsMobMap.setView([lat, lon], 16);
+    // Abrir popup del marker más cercano
+    _gpsMobMarkers.forEach(m => {
+      const ll = m.getLatLng();
+      if (Math.abs(ll.lat - lat) < 0.0001 && Math.abs(ll.lng - lon) < 0.0001) m.openPopup();
+    });
+  }
+}
+
+async function _gpsMobRefresh() {
+  const btn = document.getElementById('gpsMobRefreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const data = await _gpsMobFetchVehicles();
+    if (Array.isArray(data)) {
+      _gpsMobVehiculos = data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      _gpsMobUpdateMarkers();
+      _gpsMobRenderList();
+      const ts = document.getElementById('gpsMobTimestamp');
+      if (ts) ts.textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
+  } catch (e) {
+    console.error('GPS mobile error:', e);
+    toast('Error GPS: ' + e.message, 'error');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
+}
+
+function _gpsMobStartAuto() {
+  _gpsMobStopAuto();
+  _gpsMobAutoTimer = setInterval(() => {
+    if (currentTab === 'gps') _gpsMobRefresh();
+    else _gpsMobStopAuto();
+  }, 30000);
+}
+
+function _gpsMobStopAuto() {
+  if (_gpsMobAutoTimer) { clearInterval(_gpsMobAutoTimer); _gpsMobAutoTimer = null; }
+}
+
+function _gpsMobFilterChange(val) {
+  _gpsMobFilterOp = val;
+  _gpsMobUpdateMarkers();
+  _gpsMobRenderList();
+}
+
+async function renderJefeGPS(el) {
+  // Construir opciones de filtro a partir de vehículos conocidos
+  let filterOpts = '<option value="">Todos los vehículos</option>';
+  if (_gpsMobVehiculos.length) {
+    _gpsMobVehiculos.forEach(v => {
+      filterOpts += `<option value="${v.name}">${v.name}</option>`;
+    });
+  }
+
+  el.innerHTML = `
+    ${subHeader('📡 GPS Flota en vivo', 'inicio')}
+    <div class="gps-mob-toolbar">
+      <select id="gpsMobFilter" onchange="_gpsMobFilterChange(this.value)">${filterOpts}</select>
+      <button id="gpsMobRefreshBtn" onclick="_gpsMobRefresh()">🔄</button>
+    </div>
+    <div id="gpsMapMobile"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
+      <span id="gpsMobCount" style="font-size:12px;font-weight:700;color:var(--gris-600)">Cargando...</span>
+      <span style="font-size:11px;color:var(--gris-400)">🔄 auto 30s · <span id="gpsMobTimestamp">—</span></span>
+    </div>
+    <div id="gpsMobList"></div>
+  `;
+
+  _gpsMobInitMap();
+  await _gpsMobRefresh();
+  _gpsMobStartAuto();
+
+  // Actualizar filtro con nombres de vehículos reales
+  if (_gpsMobVehiculos.length) {
+    const sel = document.getElementById('gpsMobFilter');
+    if (sel && sel.options.length <= 1) {
+      _gpsMobVehiculos.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = v.name;
+        sel.appendChild(opt);
+      });
+    }
+  }
+}
+
 async function renderJefeMas(el) {
   const lastCache = localStorage.getItem('instalo_last_cache');
   const cacheInfo = lastCache
@@ -3946,6 +4218,12 @@ async function renderJefeMas(el) {
     <div class="card" onclick="window.open(location.href.replace('app.html','index.html'),'_blank')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🖥️</span>
       <div><div style="font-weight:700;font-size:14px">Abrir ERP completo</div><div style="font-size:12px;color:var(--gris-400)">Versión de escritorio con todas las funciones</div></div>
+    </div>
+
+    <div class="card" onclick="navigateTo('gps')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">📡</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px">GPS Flota en vivo</div><div style="font-size:12px;color:var(--gris-400)">Localizar furgonetas en tiempo real</div></div>
+      <span style="color:var(--gris-400);font-size:18px">›</span>
     </div>
 
     <div class="section-title" style="margin-top:16px">📡 Conexión y datos</div>
@@ -3990,7 +4268,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 16
+      instaloERP v1.0 · build 17
     </div>
   `;
 }
@@ -4366,7 +4644,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 16
+        instaloERP v1.0 · build 17
       </div>
     </div>`;
 }

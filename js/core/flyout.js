@@ -40,7 +40,8 @@ const FLYOUT_SECTIONS = {
   ]},
   flota: { label: 'Flota', items: [
     { id:'flota', ico:'🚐', name:'Vehículos' },
-    { id:'flota-gastos', ico:'💰', name:'Gastos' }
+    { id:'flota-gastos', ico:'💰', name:'Gastos' },
+    { id:'flota-gps', ico:'📡', name:'GPS en vivo' }
   ]},
   tesoreria: { label: 'Tesorería', items: [
     { id:'tesoreria-cuentas', ico:'🏦', name:'Cuentas bancarias' },

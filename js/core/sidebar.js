@@ -18,6 +18,7 @@ const ALL_PAGES = [
   {id:'ocr',ico:'🤖',label:'Bandeja OCR'},
   {id:'flota',ico:'🚐',label:'Vehículos'},
   {id:'flota-gastos',ico:'💰',label:'Gastos flota'},
+  {id:'flota-gps',ico:'📡',label:'GPS en vivo'},
   {id:'articulos',ico:'📦',label:'Artículos'},
   {id:'almacenes',ico:'🏪',label:'Almacenes'},
   {id:'stock',ico:'📊',label:'Stock'},

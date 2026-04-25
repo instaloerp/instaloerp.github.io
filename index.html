@@ -20,8 +20,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
+<style>
+.gps-marker{background:none!important;border:none!important}
+@keyframes gps-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+</style>
 </head>
 <body>
 
@@ -226,7 +232,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 68</span>
+      <span id="erpBuildVersion">v1.1 · build 69</span>
       <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1523,6 +1529,9 @@ try {
         </div>
         <div class="card" style="padding:0;overflow:hidden"><div id="mtLista" style="padding:12px"></div></div>
       </div>
+
+      <!-- FLOTA: GPS EN TIEMPO REAL -->
+      <div class="page" id="page-flota-gps"></div>
 
       <!-- PERSONAL -->
       <div class="page" id="page-fichajes"></div>
@@ -5158,6 +5167,7 @@ try {
     'js/almacen/traspasos.js',
     // Flota
     'js/flota/flota.js',
+    'js/flota/flota-gps.js',
     // Tesorería
     'js/tesoreria/tesoreria.js',
     // Contabilidad
