@@ -18,17 +18,17 @@ async function loadDashboard() {
   const todasFacturas = facts.data || [];
   const todosPresups = presups.data || [];
 
-  // KPIs facturación — neto real: excluir anuladas, rectificadas y borradores; INCLUIR rectificativas (abonos restan)
+  // KPIs facturación — neto real SIN IVA: excluir anuladas, rectificadas y borradores; INCLUIR rectificativas (abonos restan)
   const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && f.estado !== 'borrador');
-  const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.total||0), 0);
-  const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.total||0), 0);
-  const pendCobro = todasFacturas.filter(f => (f.estado === 'pendiente' || f.estado === 'vencida') && !f.rectificativa_de).reduce((s,f) => s + (f.total||0), 0);
-  const vencidas = todasFacturas.filter(f => f.estado === 'vencida' && !f.rectificativa_de).length;
+  const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const pendCobro = todasFacturas.filter(f => (f.estado === 'pendiente' || f.estado === 'vencida')).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const vencidas = todasFacturas.filter(f => f.estado === 'vencida').length;
   const presupPend = todosPresups.filter(p => p.estado === 'pendiente' || p.estado === 'enviado').length;
 
-  // KPIs facturas proveedor pendientes pago
-  const { data: factsProv } = await sb.from('facturas_proveedor').select('total,estado').eq('empresa_id', eid).eq('estado','pendiente');
-  const pendPago = (factsProv||[]).reduce((s,f) => s + (f.total||0), 0);
+  // KPIs facturas proveedor pendientes pago (sin IVA)
+  const { data: factsProv } = await sb.from('facturas_proveedor').select('base_imponible,estado').eq('empresa_id', eid).eq('estado','pendiente');
+  const pendPago = (factsProv||[]).reduce((s,f) => s + (f.base_imponible||0), 0);
 
   // KPI presupuestos aceptados (count)
   const numAceptados = presupAcep.count || 0;
@@ -56,18 +56,18 @@ async function loadDashboard() {
       </div>`).join('') :
     '<div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div>';
 
-  // Facturas pendientes cobro — excluir rectificativas (abonos)
-  const factPend = todasFacturas.filter(f=>(f.estado==='pendiente'||f.estado==='vencida') && !f.rectificativa_de).slice(0,5);
+  // Facturas pendientes cobro — incluir rectificativas (abonos restan)
+  const factPend = todasFacturas.filter(f=>(f.estado==='pendiente'||f.estado==='vencida')).slice(0,5);
   document.getElementById('d-fact-list').innerHTML = factPend.length ?
     factPend.map(f=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100)">
         <div>
-          <div style="font-weight:700;font-size:12.5px">${f.numero}</div>
+          <div style="font-weight:700;font-size:12.5px">${f.numero}${f.rectificativa_de?' (abono)':''}</div>
           <div style="font-size:11px;color:var(--gris-400)">${f.cliente_nombre||'—'} · Vence: ${f.fecha_vencimiento||'—'}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-weight:800;font-size:13px;color:${f.estado==='vencida'?'var(--rojo)':'var(--gris-800)'}">${fmtE(f.total)}</div>
-          ${f.estado==='vencida'?'<span class="badge bg-red">Vencida</span>':'<span class="badge bg-yellow">Pendiente</span>'}
+          <div style="font-weight:800;font-size:13px;color:${f.rectificativa_de?'var(--violeta)':f.estado==='vencida'?'var(--rojo)':'var(--gris-800)'}">${fmtE(f.base_imponible)}</div>
+          ${f.rectificativa_de?'<span class="badge bg-purple">Abono</span>':f.estado==='vencida'?'<span class="badge bg-red">Vencida</span>':'<span class="badge bg-yellow">Pendiente</span>'}
         </div>
       </div>`).join('') :
     '<div class="empty"><div class="ei">✅</div><p>Todo cobrado</p></div>';
