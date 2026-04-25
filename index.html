@@ -225,7 +225,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 64</span>
+      <span id="erpBuildVersion">v1.1 · build 66</span>
       <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -5239,6 +5239,13 @@ try {
 
 <!-- Inicialización -->
 <script>init();</script>
+
+<!-- Service Worker — necesario para Push Notifications en escritorio -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW:', e));
+}
+</script>
 
 </body>
 </html>

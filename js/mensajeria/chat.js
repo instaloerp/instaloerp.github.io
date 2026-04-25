@@ -333,7 +333,13 @@ async function chatAddParticipante(convId, userId) {
 //  REALTIME
 // ═══════════════════════════════════════════════
 function chatIniciarRealtime() {
-  if (_chatRealtimeChannel) return;
+  if (_chatRealtimeChannel) {
+    // Si ya existe, verificar que está conectado
+    if (_chatRealtimeChannel.state === 'joined') return;
+    // Si no está connected, limpiar y reconectar
+    try { sb.removeChannel(_chatRealtimeChannel); } catch(e) {}
+    _chatRealtimeChannel = null;
+  }
   // Pedir permiso de notificaciones nativas
   chatPedirPermisoNotificaciones();
   _chatRealtimeChannel = sb.channel('chat-global')
@@ -372,7 +378,34 @@ function chatIniciarRealtime() {
       }
       if (typeof _chatOnNewMessage === 'function') _chatOnNewMessage(msg);
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('[Chat Realtime] Estado:', status);
+    });
+
+  // Reconectar automáticamente cuando la app vuelve a primer plano
+  if (!window._chatVisibilityHandlerSet) {
+    window._chatVisibilityHandlerSet = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _chatRealtimeChannel) {
+        // Forzar reconexión si el canal se desconectó
+        if (_chatRealtimeChannel.state !== 'joined') {
+          console.log('[Chat Realtime] Reconectando tras volver a primer plano...');
+          try { sb.removeChannel(_chatRealtimeChannel); } catch(e) {}
+          _chatRealtimeChannel = null;
+          chatIniciarRealtime();
+        }
+      }
+    });
+    // También reconectar cuando vuelve la conexión a internet
+    window.addEventListener('online', () => {
+      console.log('[Chat Realtime] Conexión restaurada, reconectando...');
+      if (_chatRealtimeChannel) {
+        try { sb.removeChannel(_chatRealtimeChannel); } catch(e) {}
+        _chatRealtimeChannel = null;
+      }
+      setTimeout(() => chatIniciarRealtime(), 1000);
+    });
+  }
 }
 
 function chatSuscribirConversacion(convId) {
@@ -495,11 +528,64 @@ function _chatMostrarToastGrande(titulo, texto, convId) {
   }, 8000);
 }
 
-// Pedir permiso de notificaciones al iniciar el chat
+// Pedir permiso de notificaciones al iniciar el chat + suscribir a push
+const VAPID_PUBLIC_KEY = 'BFHj20aaMoMIzV7AeZ1N5K9P57gi9z7s_t4mwhF8P9odHF4s0ARZetdDYNYLkOvb8_RTQZ0u7LdCq0ZQa0cRGPU';
+
 function chatPedirPermisoNotificaciones() {
   if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') _chatSuscribirPush();
+    });
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    _chatSuscribirPush();
   }
+}
+
+async function _chatSuscribirPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    // Comprobar si ya hay una suscripción activa
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const applicationServerKey = _chatUrlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+    }
+    // Guardar la suscripción en Supabase
+    const subJson = sub.toJSON();
+    const endpoint = subJson.endpoint;
+    const p256dh = subJson.keys?.p256dh || '';
+    const auth = subJson.keys?.auth || '';
+
+    if (!endpoint || !p256dh || !auth) return;
+
+    const userId = CU?.id;
+    const empresaId = EMPRESA?.id;
+    if (!userId || !empresaId) return;
+
+    // Upsert (ON CONFLICT usuario_id, endpoint)
+    await sb.from('push_suscripciones').upsert({
+      usuario_id: userId,
+      empresa_id: empresaId,
+      endpoint,
+      p256dh,
+      auth
+    }, { onConflict: 'usuario_id,endpoint' });
+
+    console.log('[Chat Push] Suscripción push registrada');
+  } catch (e) {
+    console.warn('[Chat Push] Error suscribiendo push:', e);
+  }
+}
+
+function _chatUrlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
 }
 
 function _chatNotificacionNativa(titulo, texto, convId) {
@@ -539,60 +625,128 @@ function _chatNotificacionNativa(titulo, texto, convId) {
   } catch (e) {}
 }
 
-// AudioContext persistente — se reutiliza y se desbloquea con interacción del usuario
+// ── Sonido de notificación robusto (compatible iOS Safari) ──
+// Usa AudioContext + AudioBuffer pre-decodificado.
+// Una vez que el AudioContext se desbloquea con un gesto del usuario,
+// puede reproducir sonidos ILIMITADAMENTE desde callbacks de Realtime
+// sin necesitar más gestos. Esto es lo que hace WhatsApp Web.
 let _chatAudioCtx = null;
+let _chatAudioBuffer = null;
+let _chatAudioReady = false;
 
-function _chatGetAudioCtx() {
-  if (!_chatAudioCtx) {
-    _chatAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Generar el buffer de audio WAV (doble tono 880Hz + 1320Hz)
+function _chatGenerarWavBuffer() {
+  const sr = 22050, dur = 0.35;
+  const samples = Math.floor(sr * dur);
+  const buf = new ArrayBuffer(44 + samples * 2);
+  const view = new DataView(buf);
+  const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sr, true);
+  view.setUint32(28, sr * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples * 2, true);
+  for (let i = 0; i < samples; i++) {
+    const t = i / sr;
+    let val = 0;
+    if (t < 0.12) {
+      const env = t < 0.01 ? t / 0.01 : (0.12 - t) < 0.02 ? (0.12 - t) / 0.02 : 1;
+      val = Math.sin(2 * Math.PI * 880 * t) * 0.3 * env;
+    } else if (t >= 0.15 && t < 0.30) {
+      const tt = t - 0.15;
+      const env = tt < 0.01 ? tt / 0.01 : (0.30 - t) < 0.03 ? (0.30 - t) / 0.03 : 1;
+      val = Math.sin(2 * Math.PI * 1320 * t) * 0.3 * env;
+    }
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, val * 32767)), true);
   }
-  // Resumir si está suspendido (política de autoplay del navegador)
-  if (_chatAudioCtx.state === 'suspended') {
-    _chatAudioCtx.resume();
-  }
-  return _chatAudioCtx;
+  return buf;
 }
 
-// Desbloquear AudioContext con cualquier interacción del usuario
+// Inicializar AudioContext y decodificar el buffer (se llama en cada gesto)
+async function _chatInitAudio() {
+  try {
+    if (!_chatAudioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      _chatAudioCtx = new AC();
+    }
+    // Siempre intentar resumir (iOS lo suspende agresivamente)
+    if (_chatAudioCtx.state === 'suspended') {
+      await _chatAudioCtx.resume();
+    }
+    // Decodificar el WAV en un AudioBuffer (una sola vez)
+    if (!_chatAudioBuffer) {
+      const wavBuf = _chatGenerarWavBuffer();
+      _chatAudioBuffer = await _chatAudioCtx.decodeAudioData(wavBuf);
+    }
+    // Reproducir un sonido silencioso para "calentar" el pipeline en iOS
+    if (!_chatAudioReady) {
+      const src = _chatAudioCtx.createBufferSource();
+      const g = _chatAudioCtx.createGain();
+      g.gain.value = 0.001; // prácticamente inaudible
+      src.buffer = _chatAudioBuffer;
+      src.connect(g);
+      g.connect(_chatAudioCtx.destination);
+      src.start(0);
+      _chatAudioReady = true;
+      console.log('[Chat] AudioContext desbloqueado y buffer listo');
+    }
+  } catch (e) {
+    console.warn('[Chat] Error init audio:', e);
+  }
+}
+
+// Desbloquear con CADA interacción — iOS re-suspende el AudioContext tras inactividad
 (function() {
-  const _unlock = () => {
-    _chatGetAudioCtx();
-    document.removeEventListener('click', _unlock);
-    document.removeEventListener('touchstart', _unlock);
-    document.removeEventListener('keydown', _unlock);
-  };
-  document.addEventListener('click', _unlock, { once: false });
-  document.addEventListener('touchstart', _unlock, { once: false });
-  document.addEventListener('keydown', _unlock, { once: false });
+  const _unlock = () => { _chatInitAudio(); };
+  document.addEventListener('click', _unlock);
+  document.addEventListener('touchstart', _unlock);
+  document.addEventListener('touchend', _unlock);
+  // Cuando la app vuelve a primer plano, forzar re-desbloqueo en próxima interacción
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      _chatAudioReady = false;
+      // Intentar resumir inmediatamente (funciona a veces sin gesto)
+      if (_chatAudioCtx && _chatAudioCtx.state === 'suspended') {
+        _chatAudioCtx.resume().catch(() => {});
+      }
+    }
+  });
 })();
 
+// Reproducir sonido de notificación — funciona desde callbacks de Realtime
+// porque el AudioContext ya fue desbloqueado en un gesto anterior.
+// Cada llamada crea un nuevo BufferSource (es ligero y se descarta solo).
 function _chatSonarNotificacion() {
   try {
-    const ctx = _chatGetAudioCtx();
-    if (ctx.state === 'suspended') return; // No se puede reproducir aún
-
-    const o1 = ctx.createOscillator();
-    const o2 = ctx.createOscillator();
-    const g = ctx.createGain();
-    o1.connect(g); o2.connect(g); g.connect(ctx.destination);
-
-    // Primer tono
-    o1.type = 'sine';
-    o1.frequency.setValueAtTime(880, ctx.currentTime);
-    o1.start(ctx.currentTime);
-    o1.stop(ctx.currentTime + 0.12);
-
-    // Segundo tono (más agudo, tipo WhatsApp)
-    o2.type = 'sine';
-    o2.frequency.setValueAtTime(1320, ctx.currentTime + 0.15);
-    o2.start(ctx.currentTime + 0.15);
-    o2.stop(ctx.currentTime + 0.3);
-
-    // Volumen
-    g.gain.setValueAtTime(0.25, ctx.currentTime);
-    g.gain.setValueAtTime(0.25, ctx.currentTime + 0.25);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-  } catch (e) { console.warn('Chat sound error:', e); }
+    if (!_chatAudioCtx || !_chatAudioBuffer) {
+      console.warn('[Chat] Audio no inicializado aún');
+      return;
+    }
+    // Resumir si se suspendió (no necesita gesto si ya fue desbloqueado)
+    if (_chatAudioCtx.state === 'suspended') {
+      _chatAudioCtx.resume();
+    }
+    // Crear un nuevo BufferSource cada vez (son desechables, no reutilizables)
+    const source = _chatAudioCtx.createBufferSource();
+    const gainNode = _chatAudioCtx.createGain();
+    gainNode.gain.value = 0.5;
+    source.buffer = _chatAudioBuffer;
+    source.connect(gainNode);
+    gainNode.connect(_chatAudioCtx.destination);
+    source.start(0);
+    console.log('[Chat] Sonido reproducido');
+  } catch (e) {
+    console.warn('[Chat] Error reproduciendo sonido:', e);
+  }
 }
 
 function _chatActualizarBadge() {

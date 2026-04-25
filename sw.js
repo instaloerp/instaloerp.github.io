@@ -2,7 +2,7 @@
 // CACHE_NAME debe coincidir con el "build" mostrado en el footer de app.html.
 // Subir SIEMPRE este número cuando se modifique app.html o sw.js — si no, los
 // móviles no detectarán cambio y seguirán sirviendo la versión vieja desde caché.
-const CACHE_NAME = 'instalo-app-v86';
+const CACHE_NAME = 'instalo-app-v91';
 const STATIC_ASSETS = [
   '/app.html',
   '/assets/icon.svg',
@@ -69,6 +69,49 @@ self.addEventListener('fetch', event => {
       if (event.request.mode === 'navigate') {
         return caches.match('/app.html');
       }
+    })
+  );
+});
+
+// ── Web Push: recibir notificaciones con la app cerrada ──
+self.addEventListener('push', event => {
+  let data = { title: '💬 Nuevo mensaje', body: '' };
+  try {
+    if (event.data) data = event.data.json();
+  } catch (e) {}
+
+  const options = {
+    body: data.body || '',
+    icon: '/assets/icon-180.png',
+    badge: '/assets/icon-180.png',
+    vibrate: [200, 100, 200],
+    tag: 'chat-' + (data.data?.conversacion_id || 'general'),
+    renotify: true,
+    data: data.data || {}
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Click en la notificación push → abrir la app
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/app.html';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Si la app ya está abierta, enfocarla
+      for (const client of windowClients) {
+        if (client.url.includes('app.html') || client.url.includes('instaloerp')) {
+          client.focus();
+          client.postMessage({ type: 'chat-push-click', conversacion_id: event.notification.data?.conversacion_id });
+          return;
+        }
+      }
+      // Si no está abierta, abrir nueva ventana
+      return clients.openWindow(url);
     })
   );
 });
