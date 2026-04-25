@@ -687,15 +687,8 @@ async function _chatInitAudio() {
       const wavBuf = _chatGenerarWavBuffer();
       _chatAudioBuffer = await _chatAudioCtx.decodeAudioData(wavBuf);
     }
-    // Reproducir un sonido silencioso para "calentar" el pipeline en iOS
+    // Marcar como listo (el AudioContext ya está resumed y el buffer decodificado)
     if (!_chatAudioReady) {
-      const src = _chatAudioCtx.createBufferSource();
-      const g = _chatAudioCtx.createGain();
-      g.gain.value = 0.001; // prácticamente inaudible
-      src.buffer = _chatAudioBuffer;
-      src.connect(g);
-      g.connect(_chatAudioCtx.destination);
-      src.start(0);
       _chatAudioReady = true;
       console.log('[Chat] AudioContext desbloqueado y buffer listo');
     }
