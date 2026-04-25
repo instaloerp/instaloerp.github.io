@@ -43,7 +43,7 @@ async function compartirDocumento(opts) {
     const { data, error } = await sb.from('documentos_compartidos').insert({
       empresa_id: EMPRESA.id,
       tipo_documento: opts.tipo_documento,
-      documento_id: opts.documento_id,
+      documento_id: String(opts.documento_id),
       documento_numero: opts.documento_numero || '',
       destinatario_nombre: opts.destinatario_nombre || null,
       destinatario_email: opts.destinatario_email || null,
@@ -93,7 +93,7 @@ async function getEstadoTracking(tipo_documento, documento_id) {
       .select('id, token, destinatario_nombre, destinatario_email, canal, first_viewed_at, last_viewed_at, view_count, created_at')
       .eq('empresa_id', EMPRESA.id)
       .eq('tipo_documento', tipo_documento)
-      .eq('documento_id', documento_id)
+      .eq('documento_id', String(documento_id))
       .order('created_at', { ascending: false });
 
     if (error) throw error;
