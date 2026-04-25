@@ -1119,6 +1119,11 @@ async function emitirFacturaDefinitiva(id, opts = {}) {
 
     await _registrarCambioEstado('factura', id, 'borrador', 'pendiente');
 
+    // Auto-contabilizar: crear asiento contable automáticamente
+    if (typeof _contAutoContabilizar === 'function') {
+      _contAutoContabilizar('venta', id).catch(e => console.warn('[Contab] auto-venta:', e));
+    }
+
     if (f.estado_cobro === 'cobrado' || f._cobrado) {
       await sb.from('facturas').update({ estado: 'cobrada' }).eq('id', id);
       await _registrarCambioEstado('factura', id, 'pendiente', 'cobrada');
@@ -1700,6 +1705,12 @@ async function _ejecutarRectificativa() {
       insertOk = true;
     } else { _stepperDone(error.message, false); return; }
   } else { insertOk = true; }
+
+  // Auto-contabilizar la rectificativa
+  const rectId = data?.id || (insertOk ? null : null);
+  if (typeof _contAutoContabilizar === 'function' && rectId) {
+    _contAutoContabilizar('venta', rectId).catch(e => console.warn('[Contab] rect:', e));
+  }
 
   // Marcar original como rectificada
   _updateStep(2, 'Actualizando ' + orig.numero + '...');

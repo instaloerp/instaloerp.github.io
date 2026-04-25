@@ -762,7 +762,7 @@ async function prcToFacturaProv(id) {
     const okFact = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear factura de proveedor desde ${p.numero}?`,btnOk:'Crear factura'}); if (!okFact) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const venc = new Date(); venc.setDate(venc.getDate() + 30);
-    const { error } = await sb.from('facturas_proveedor').insert({
+    const { data: fpPrc, error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: p.proveedor_id, proveedor_nombre: p.proveedor_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -775,8 +775,11 @@ async function prcToFacturaProv(id) {
       lineas: p.lineas,
       presupuesto_compra_id: p.id,
       trabajo_id: p.trabajo_id || null,
-    });
+    }).select().single();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
+    if (typeof _contAutoContabilizar === 'function' && fpPrc?.id) {
+      _contAutoContabilizar('compra', fpPrc.id).catch(e => console.warn('[Contab]', e));
+    }
     await sb.from('presupuestos_compra').update({ estado: 'aceptado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
     const pp = presupuestosCompra.find(x => x.id === id); if (pp) { pp.estado = 'aceptado'; pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }
     filtrarPresupuestosCompra(); actualizarKpisPrc();

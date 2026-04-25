@@ -924,7 +924,7 @@ async function recepcionToFacturaProv(id) {
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
     const total = r.lineas ? r.lineas.reduce((s, l) => {const bruto=(l.cantidad_recibida||l.cant||0)*(l.precio||0);return s+bruto*(1-(l.dto1||l.dto1_pct||0)/100)*(1-(l.dto2||l.dto2_pct||0)/100)*(1-(l.dto3||l.dto3_pct||0)/100);}, 0) : (r.total || 0);
-    const { error } = await sb.from('facturas_proveedor').insert({
+    const { data: fpInserted, error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: r.proveedor_id, proveedor_nombre: r.proveedor_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -938,8 +938,12 @@ async function recepcionToFacturaProv(id) {
       recepcion_id: r.id,
       pedido_compra_id: r.pedido_compra_id || null,
       trabajo_id: r.trabajo_id || null,
-    });
+    }).select().single();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
+    // Auto-contabilizar
+    if (typeof _contAutoContabilizar === 'function' && fpInserted?.id) {
+      _contAutoContabilizar('compra', fpInserted.id).catch(e => console.warn('[Contab]', e));
+    }
     await sb.from('recepciones').update({ estado: 'facturado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
     const rr = recepciones.find(x=>x.id===id); if(rr) { rr.estado='facturado'; rr.exportado_a='factura_proveedor'; rr.exportado_bloqueado=true; }
     toast('🧾 Factura proveedor creada — albarán facturado', 'success');
@@ -979,7 +983,7 @@ async function facturarRecepcionesMulti() {
 
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-    const { error } = await sb.from('facturas_proveedor').insert({
+    const { data: fpIns2, error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: recs[0].proveedor_id, proveedor_nombre: recs[0].proveedor_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -992,8 +996,12 @@ async function facturarRecepcionesMulti() {
       lineas: lineasTodas,
       recepcion_ids: ids,
       trabajo_id: recs[0].trabajo_id || null,
-    });
+    }).select().single();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
+    // Auto-contabilizar
+    if (typeof _contAutoContabilizar === 'function' && fpIns2?.id) {
+      _contAutoContabilizar('compra', fpIns2.id).catch(e => console.warn('[Contab]', e));
+    }
     // Marcar todos como bloqueados
     for (const r of recs) {
       await sb.from('recepciones').update({ estado: 'facturado', exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', r.id);

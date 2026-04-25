@@ -637,7 +637,7 @@ async function pedidoToFacturaProv(id) {
     const okFact = await confirmModal({titulo:'Crear factura',mensaje:`¿Crear factura de proveedor desde el pedido ${pc.numero}?`,btnOk:'Crear factura'}); if (!okFact) return;
     const numero = await generarNumeroDoc('factura_proveedor');
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
-    const { error } = await sb.from('facturas_proveedor').insert({
+    const { data: fpPed, error } = await sb.from('facturas_proveedor').insert({
       empresa_id: EMPRESA.id, numero,
       proveedor_id: pc.proveedor_id, proveedor_nombre: pc.proveedor_nombre,
       fecha: hoy.toISOString().split('T')[0],
@@ -650,8 +650,11 @@ async function pedidoToFacturaProv(id) {
       lineas: pc.lineas,
       pedido_compra_id: pc.id,
       trabajo_id: pc.trabajo_id || null,
-    });
+    }).select().single();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
+    if (typeof _contAutoContabilizar === 'function' && fpPed?.id) {
+      _contAutoContabilizar('compra', fpPed.id).catch(e => console.warn('[Contab]', e));
+    }
     await sb.from('pedidos_compra').update({ exportado_a:'factura_proveedor', exportado_bloqueado:true }).eq('id', id);
     await cambiarEstadoPC(id, 'recibido');
     const pp = pedidosCompra.find(x=>x.id===id); if(pp) { pp.exportado_a='factura_proveedor'; pp.exportado_bloqueado=true; }

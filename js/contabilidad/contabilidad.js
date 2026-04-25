@@ -291,6 +291,7 @@ async function renderContLibroDiario() {
     '<input type="date" id="contFiltroHasta" value="' + _contFiltros.hasta + '" onchange="_contRefreshDiario()" style="padding:7px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
     '<div style="flex:1"></div>' +
     '<button class="btn btn-secondary" onclick="_contCrearEjercicio()">📅 + Ejercicio</button>' +
+    '<button class="btn btn-warning" onclick="_contContabilizarFacturas()" style="background:var(--amarillo);color:#fff;border:none">⚡ Contabilizar facturas</button>' +
     '<button class="btn btn-primary" onclick="_contNuevoAsiento()">+ Nuevo Asiento</button>' +
   '</div></div>';
 
@@ -773,4 +774,265 @@ async function renderContResultados() {
     '<td style="text-align:right;padding:8px;color:var(--amarillo)">' + _contFmt(totalGastos) + '</td></tr></tfoot></table></div>';
 
   page.innerHTML = html;
+}
+
+
+// ═══════════════════════════════════════════════
+//  CONTABILIZACIÓN AUTOMÁTICA DE FACTURAS
+// ═══════════════════════════════════════════════
+
+function _contBuscarCuenta(codigo) {
+  return _contCuentas.find(c => c.codigo === codigo && c.es_hoja);
+}
+
+async function _contCrearAsientoAuto(obj) {
+  // obj = { fecha, descripcion, origen, origen_ref, origen_id, lineas:[{cuenta_codigo, descripcion, debe, haber}] }
+  const { data: ultimoArr } = await sb.from('asientos').select('numero')
+    .eq('empresa_id', EMPRESA.id).order('numero', { ascending: false }).limit(1);
+  const maxNum = ultimoArr?.[0]?.numero || 0;
+
+  const asientoObj = {
+    empresa_id: EMPRESA.id,
+    fecha: obj.fecha,
+    descripcion: obj.descripcion,
+    origen: obj.origen,
+    origen_ref: obj.origen_ref || null,
+    origen_id: obj.origen_id || null,
+    ejercicio_id: _contEjercicioSel?.id || null,
+    estado: 'contabilizado',
+    numero: maxNum + 1,
+    usuario_id: (typeof CU !== 'undefined' && CU?.id) ? CU.id : null
+  };
+
+  const { data, error } = await sb.from('asientos').insert(asientoObj).select().single();
+  if (error) throw new Error('Error creando asiento: ' + error.message);
+
+  const lineasInsert = obj.lineas.map((l, i) => {
+    const cuenta = _contBuscarCuenta(l.cuenta_codigo);
+    if (!cuenta) throw new Error('Cuenta ' + l.cuenta_codigo + ' no encontrada en el plan contable');
+    return {
+      asiento_id: data.id,
+      cuenta_id: cuenta.id,
+      cuenta_codigo: l.cuenta_codigo,
+      descripcion: l.descripcion || null,
+      debe: parseFloat(l.debe) || 0,
+      haber: parseFloat(l.haber) || 0,
+      orden: i
+    };
+  });
+
+  const { error: lineError } = await sb.from('lineas_asiento').insert(lineasInsert);
+  if (lineError) throw new Error('Error creando líneas: ' + lineError.message);
+
+  return data;
+}
+
+function _contGenerarLineasFacturaVenta(f) {
+  // Factura emitida → Debe 430 / Haber 705 + 477
+  const lineas = [];
+  const base = parseFloat(f.base_imponible) || 0;
+  const iva = parseFloat(f.total_iva) || 0;
+  const retencion = parseFloat(f.retencion) || 0;
+  const total = parseFloat(f.total) || 0;
+  const desc = (f.numero || '') + ' ' + (f.cliente_nombre || '');
+
+  // Debe: 430 Clientes
+  lineas.push({ cuenta_codigo: '430', descripcion: desc.trim(), debe: total, haber: 0 });
+
+  // Haber: 705 Prestaciones de servicios
+  lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: 0, haber: base });
+
+  // Haber: 477 IVA repercutido
+  if (iva > 0) {
+    lineas.push({ cuenta_codigo: '477', descripcion: 'IVA rep. ' + (f.numero || ''), debe: 0, haber: iva });
+  }
+
+  // Si hay retención IRPF
+  if (retencion > 0) {
+    lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: 0, haber: retencion });
+    lineas[0].debe = total - retencion;
+  }
+
+  return lineas;
+}
+
+function _contGenerarLineasFacturaCompra(f) {
+  // Factura recibida → Debe 600 + 472 / Haber 400
+  const lineas = [];
+  const base = parseFloat(f.base_imponible) || 0;
+  const iva = parseFloat(f.total_iva) || 0;
+  const retencion = parseFloat(f.retencion) || 0;
+  const total = parseFloat(f.total) || 0;
+  const desc = (f.numero || '') + ' ' + (f.proveedor_nombre || '');
+
+  // Debe: 600 Compras de mercaderías
+  lineas.push({ cuenta_codigo: '600', descripcion: desc.trim(), debe: base, haber: 0 });
+
+  // Debe: 472 IVA soportado
+  if (iva > 0) {
+    lineas.push({ cuenta_codigo: '472', descripcion: 'IVA sop. ' + (f.numero || ''), debe: iva, haber: 0 });
+  }
+
+  // Haber: 400 Proveedores
+  lineas.push({ cuenta_codigo: '400', descripcion: desc.trim(), debe: 0, haber: total });
+
+  // Si hay retención IRPF
+  if (retencion > 0) {
+    lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: retencion, haber: 0 });
+    // Ajustar haber proveedor
+    const idxProv = lineas.findIndex(l => l.cuenta_codigo === '400');
+    lineas[idxProv].haber = total - retencion;
+  }
+
+  return lineas;
+}
+
+async function _contContabilizarFacturas() {
+  if (!_contEjercicioSel) { showToast('Primero selecciona un ejercicio fiscal', 'error'); return; }
+  await _contCargarCuentas();
+
+  // Verificar cuentas necesarias
+  const cuentasReq = ['430','705','477','472','600','400'];
+  const faltan = cuentasReq.filter(c => !_contBuscarCuenta(c));
+  if (faltan.length) {
+    showToast('Faltan cuentas en el plan contable: ' + faltan.join(', '), 'error');
+    return;
+  }
+
+  const fechaDesde = _contEjercicioSel.fecha_inicio;
+  const fechaHasta = _contEjercicioSel.fecha_fin;
+
+  // Obtener asientos que ya referencian facturas (evitar duplicados)
+  const { data: existentes } = await sb.from('asientos')
+    .select('origen,origen_id')
+    .eq('empresa_id', EMPRESA.id)
+    .in('origen', ['factura_emitida','factura_recibida'])
+    .neq('estado', 'anulado');
+  const yaContab = new Set((existentes || []).map(a => a.origen + '_' + a.origen_id));
+
+  // Facturas de venta del ejercicio
+  const { data: fVentas } = await sb.from('facturas')
+    .select('id,numero,serie,cliente_nombre,fecha,base_imponible,total_iva,retencion,total,estado')
+    .eq('empresa_id', EMPRESA.id)
+    .gte('fecha', fechaDesde).lte('fecha', fechaHasta)
+    .in('estado', ['emitida','cobrada','enviada','aceptada','pendiente']);
+
+  // Facturas de compra del ejercicio
+  const { data: fCompras } = await sb.from('facturas_proveedor')
+    .select('id,numero,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total,estado')
+    .eq('empresa_id', EMPRESA.id)
+    .gte('fecha', fechaDesde).lte('fecha', fechaHasta);
+
+  const ventasPend = (fVentas || []).filter(f => !yaContab.has('factura_emitida_' + f.id));
+  const comprasPend = (fCompras || []).filter(f => !yaContab.has('factura_recibida_' + f.id));
+  const totalPend = ventasPend.length + comprasPend.length;
+
+  if (!totalPend) {
+    showToast('Todas las facturas del ejercicio ya están contabilizadas', 'ok');
+    return;
+  }
+
+  if (!confirm('Se van a contabilizar ' + totalPend + ' facturas:\n' +
+    '• ' + ventasPend.length + ' facturas de venta\n' +
+    '• ' + comprasPend.length + ' facturas de compra\n\n' +
+    '¿Continuar?')) return;
+
+  let ok = 0, errores = 0;
+
+  for (const f of ventasPend) {
+    try {
+      await _contCrearAsientoAuto({
+        fecha: f.fecha,
+        descripcion: 'Fact. emitida ' + (f.numero || f.id) + ' — ' + (f.cliente_nombre || ''),
+        origen: 'factura_emitida',
+        origen_ref: f.numero || String(f.id),
+        origen_id: f.id,
+        lineas: _contGenerarLineasFacturaVenta(f)
+      });
+      ok++;
+    } catch (e) { console.error('Error fact. venta ' + f.id, e); errores++; }
+  }
+
+  for (const f of comprasPend) {
+    try {
+      await _contCrearAsientoAuto({
+        fecha: f.fecha,
+        descripcion: 'Fact. recibida ' + (f.numero || f.id) + ' — ' + (f.proveedor_nombre || ''),
+        origen: 'factura_recibida',
+        origen_ref: f.numero || String(f.id),
+        origen_id: f.id,
+        lineas: _contGenerarLineasFacturaCompra(f)
+      });
+      ok++;
+    } catch (e) { console.error('Error fact. compra ' + f.id, e); errores++; }
+  }
+
+  if (errores) {
+    showToast(ok + ' contabilizadas, ' + errores + ' errores — ver consola', 'error');
+  } else {
+    showToast('✅ ' + ok + ' facturas contabilizadas', 'ok');
+  }
+
+  renderContLibroDiario();
+}
+
+
+// ── Auto-contabilizar factura individual ──────
+// Llamar desde facturas.js / facturas_prov.js / recepciones.js etc.
+// tipo: 'venta' | 'compra'   facturaId: id de la factura
+async function _contAutoContabilizar(tipo, facturaId) {
+  try {
+    if (!_contCuentas.length) await _contCargarCuentas();
+    if (!_contEjercicios.length) await _contCargarEjercicios();
+
+    const cuentasReq = tipo === 'venta' ? ['430','705','477'] : ['600','472','400'];
+    const faltan = cuentasReq.filter(c => !_contBuscarCuenta(c));
+    if (faltan.length) { console.warn('[Contab] Faltan cuentas:', faltan); return; }
+
+    // No duplicar
+    const origenTipo = tipo === 'venta' ? 'factura_emitida' : 'factura_recibida';
+    const { data: existe } = await sb.from('asientos')
+      .select('id').eq('empresa_id', EMPRESA.id)
+      .eq('origen', origenTipo).eq('origen_id', facturaId)
+      .neq('estado', 'anulado').limit(1);
+    if (existe?.length) return;
+
+    // Obtener factura
+    let f;
+    if (tipo === 'venta') {
+      const { data } = await sb.from('facturas')
+        .select('id,numero,cliente_nombre,fecha,base_imponible,total_iva,retencion,total')
+        .eq('id', facturaId).single();
+      f = data;
+    } else {
+      const { data } = await sb.from('facturas_proveedor')
+        .select('id,numero,proveedor_nombre,fecha,base_imponible,total_iva,retencion,total')
+        .eq('id', facturaId).single();
+      f = data;
+    }
+    if (!f) return;
+
+    // Ejercicio para la fecha
+    const ej = _contEjercicios.find(e => e.estado === 'abierto' && f.fecha >= e.fecha_inicio && f.fecha <= e.fecha_fin);
+    if (!ej) { console.warn('[Contab] Sin ejercicio abierto para', f.fecha); return; }
+    _contEjercicioSel = ej;
+
+    const lineas = tipo === 'venta'
+      ? _contGenerarLineasFacturaVenta(f)
+      : _contGenerarLineasFacturaCompra(f);
+    const descLabel = tipo === 'venta' ? 'Fact. emitida' : 'Fact. recibida';
+    const nombre = tipo === 'venta' ? (f.cliente_nombre || '') : (f.proveedor_nombre || '');
+
+    await _contCrearAsientoAuto({
+      fecha: f.fecha,
+      descripcion: descLabel + ' ' + (f.numero || f.id) + ' — ' + nombre,
+      origen: origenTipo,
+      origen_ref: f.numero || String(f.id),
+      origen_id: f.id,
+      lineas
+    });
+    console.log('[Contab] ✅ Asiento auto:', origenTipo, f.numero || f.id);
+  } catch (e) {
+    console.error('[Contab] Error auto-contabilizar:', e);
+  }
 }

@@ -650,6 +650,11 @@ async function guardarFacturaProv(estado) {
       }
     }
 
+    // Auto-contabilizar: crear asiento contable automáticamente
+    if (typeof _contAutoContabilizar === 'function' && facturaId) {
+      _contAutoContabilizar('compra', facturaId).catch(e => console.warn('[Contab] auto-compra:', e));
+    }
+
     closeModal('mFacturaProv');
     loadFacturasProv();
     toast('Factura guardada ✓', 'success');
