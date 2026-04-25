@@ -48,6 +48,13 @@ const FLYOUT_SECTIONS = {
     { id:'tesoreria-conciliacion', ico:'🔗', name:'Conciliación' },
     { id:'tesoreria-importar', ico:'📥', name:'Importar extractos' }
   ]},
+  contabilidad: { label: 'Contabilidad', items: [
+    { id:'plan-contable', ico:'📊', name:'Plan Contable' },
+    { id:'libro-diario', ico:'📖', name:'Libro Diario' },
+    { id:'libro-mayor', ico:'📒', name:'Libro Mayor' },
+    { id:'balance-sumas', ico:'📊', name:'Balance Sumas y Saldos' },
+    { id:'cuenta-resultados', ico:'📈', name:'Cuenta de Resultados' }
+  ]},
   companias: { label: 'Compañías', items: [
     { id:'asitur', ico:'🛡️', name:'Asitur' }
   ]},

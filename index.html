@@ -191,6 +191,7 @@ try {
       <div class="ib-item" data-flyout="obras" data-tip="Gestión de obras">🏗️</div>
       <div class="ib-item" data-flyout="flota" data-tip="Flota">🚐</div>
       <div class="ib-item" data-flyout="tesoreria" data-tip="Tesorería">🏦</div>
+      <div class="ib-item" data-flyout="contabilidad" data-tip="Contabilidad">📊</div>
 
       <div class="ib-sep"></div>
 
@@ -225,7 +226,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 67</span>
+      <span id="erpBuildVersion">v1.1 · build 68</span>
       <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1534,6 +1535,13 @@ try {
       <div class="page" id="page-tesoreria-movimientos"></div>
       <div class="page" id="page-tesoreria-conciliacion"></div>
       <div class="page" id="page-tesoreria-importar"></div>
+
+      <!-- CONTABILIDAD -->
+      <div class="page" id="page-plan-contable"></div>
+      <div class="page" id="page-libro-diario"></div>
+      <div class="page" id="page-libro-mayor"></div>
+      <div class="page" id="page-balance-sumas"></div>
+      <div class="page" id="page-cuenta-resultados"></div>
 
       <!-- LABORATORIO DE PRUEBAS -->
       <div class="page" id="page-laboratorio"></div>
@@ -3765,6 +3773,87 @@ try {
   </div>
 </div>
 
+<!-- ═══ CONTABILIDAD: Cuenta contable ═══ -->
+<div class="overlay" id="mContCuenta">
+  <div class="modal modal-sm">
+    <div class="modal-h"><span>📊</span><h2 id="mContCuentaTit">Nueva Cuenta Contable</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mContCuenta')">✕</button></div>
+    <div class="modal-b">
+      <input type="hidden" id="contCuentaId">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Código *</label><input id="contCuentaCodigo" placeholder="Ej: 4300" maxlength="10" style="font-family:monospace;font-weight:700"></div>
+        <div class="fg"><label>Grupo PGC *</label>
+          <select id="contCuentaGrupo">
+            <option value="1">1 — Financiación básica</option>
+            <option value="2">2 — Inmovilizado</option>
+            <option value="3">3 — Existencias</option>
+            <option value="4">4 — Acreedores/Deudores</option>
+            <option value="5">5 — Cuentas financieras</option>
+            <option value="6" selected>6 — Gastos</option>
+            <option value="7">7 — Ingresos</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:11px"><label>Nombre *</label><input id="contCuentaNombre" placeholder="Ej: Clientes nacionales"></div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Tipo *</label>
+          <select id="contCuentaTipo">
+            <option value="activo">Activo</option>
+            <option value="pasivo">Pasivo</option>
+            <option value="patrimonio">Patrimonio</option>
+            <option value="ingreso">Ingreso</option>
+            <option value="gasto" selected>Gasto</option>
+          </select>
+        </div>
+        <div class="fg"><label>Cuenta padre</label><input id="contCuentaPadre" placeholder="Ej: 43" style="font-family:monospace"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding-top:8px">
+          <label style="text-transform:none;font-size:13px;font-weight:600;color:var(--gris-700)">Cuenta operativa (hoja)</label>
+          <label class="toggle"><input type="checkbox" id="contCuentaHoja" checked><span class="toggle-sl"></span></label>
+        </div>
+        <div class="fg" style="flex-direction:row;align-items:center;gap:10px;padding-top:8px">
+          <label style="text-transform:none;font-size:13px;font-weight:600;color:var(--gris-700)">Activa</label>
+          <label class="toggle"><input type="checkbox" id="contCuentaActiva" checked><span class="toggle-sl"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mContCuenta')">Cancelar</button><button class="btn btn-primary" onclick="_contGuardarCuenta()">💾 Guardar</button></div>
+  </div>
+</div>
+
+<!-- ═══ CONTABILIDAD: Asiento contable ═══ -->
+<div class="overlay" id="mContAsiento">
+  <div class="modal modal-lg">
+    <div class="modal-h"><span>📖</span><h2 id="mContAsientoTit">Nuevo Asiento Contable</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mContAsiento')">✕</button></div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Fecha *</label><input type="date" id="contAsientoFecha"></div>
+        <div class="fg"><label>Descripción</label><input id="contAsientoDesc" placeholder="Concepto del asiento"></div>
+      </div>
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg"><label>Origen</label>
+          <select id="contAsientoOrigen">
+            <option value="manual">✍️ Manual</option>
+            <option value="factura_emitida">🧾 Factura emitida</option>
+            <option value="factura_recibida">📥 Factura recibida</option>
+            <option value="cobro">💰 Cobro</option>
+            <option value="pago">💳 Pago</option>
+            <option value="nomina">👷 Nómina</option>
+            <option value="cierre">🔒 Cierre</option>
+            <option value="apertura">📖 Apertura</option>
+          </select>
+        </div>
+        <div class="fg"><label>Referencia origen</label><input id="contAsientoRef" placeholder="Ej: F-V1-0001"></div>
+      </div>
+      <div style="border-top:1px solid var(--gris-100);margin:14px 0 11px;padding-top:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:8px">📝 Líneas del asiento (Debe / Haber)</div>
+      </div>
+      <div id="contAsientoLineas"></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal('mContAsiento')">Cancelar</button><button class="btn btn-primary" onclick="_contGuardarAsiento()">💾 Guardar</button></div>
+  </div>
+</div>
+
 <!-- ═══ MODAL IMPORTAR CLIENTES ═══ -->
 <div class="overlay" id="mImportarClientes">
   <div class="modal modal-lg">
@@ -5071,6 +5160,8 @@ try {
     'js/flota/flota.js',
     // Tesorería
     'js/tesoreria/tesoreria.js',
+    // Contabilidad
+    'js/contabilidad/contabilidad.js',
     // Gestión de Obras
     'js/obras/trabajos.js',
     'js/obras/mantenimientos.js',
