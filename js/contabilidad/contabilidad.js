@@ -927,13 +927,13 @@ async function _contGenerarLineasFacturaVenta(f) {
   // Haber: 705 Prestaciones de servicios
   lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: 0, haber: base });
 
-  // Haber: 477 IVA repercutido
-  if (iva > 0) {
+  // Haber: 477 IVA repercutido (también en rectificativas con IVA negativo)
+  if (iva !== 0) {
     lineas.push({ cuenta_codigo: '477', descripcion: 'IVA rep. ' + (f.numero || ''), debe: 0, haber: iva });
   }
 
   // Si hay retención IRPF
-  if (retencion > 0) {
+  if (retencion !== 0) {
     lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: 0, haber: retencion });
     lineas[0].debe = total - retencion;
   }
@@ -958,8 +958,8 @@ async function _contGenerarLineasFacturaCompra(f) {
   const cuentaGasto = f.cuenta_gasto || '600';
   lineas.push({ cuenta_codigo: cuentaGasto, descripcion: desc.trim(), debe: base, haber: 0 });
 
-  // Debe: 472 IVA soportado
-  if (iva > 0) {
+  // Debe: 472 IVA soportado (también en rectificativas con IVA negativo)
+  if (iva !== 0) {
     lineas.push({ cuenta_codigo: '472', descripcion: 'IVA sop. ' + (f.numero || ''), debe: iva, haber: 0 });
   }
 
@@ -967,7 +967,7 @@ async function _contGenerarLineasFacturaCompra(f) {
   lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: 0, haber: total });
 
   // Si hay retención IRPF
-  if (retencion > 0) {
+  if (retencion !== 0) {
     lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: retencion, haber: 0 });
     // Ajustar haber proveedor
     const idxProv = lineas.findIndex(l => l.cuenta_codigo === subcuenta);
