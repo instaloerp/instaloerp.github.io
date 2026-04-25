@@ -7,10 +7,10 @@ let _contCuentas = [];
 let _contAsientos = [];
 let _contLineas = [];
 let _contEjercicios = [];
-let _contEjercicioSel = null;   // ejercicio fiscal activo
+let _contEjercicioSel = null;
 let _contFiltros = { desde: '', hasta: '', cuenta: '' };
-let _contAsientoEditId = null;  // null = nuevo, id = editando
-let _contLineasTemp = [];       // líneas temporales del asiento en edición
+let _contAsientoEditId = null;
+let _contLineasTemp = [];
 
 // ── Helpers ──────────────────────────────────
 const _contFmt = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
@@ -48,7 +48,6 @@ async function _contCargarEjercicios() {
     .select('*').eq('empresa_id', EMPRESA.id)
     .order('fecha_inicio', { ascending: false });
   _contEjercicios = data || [];
-  // Seleccionar el ejercicio abierto actual si no hay selección
   if (!_contEjercicioSel && _contEjercicios.length) {
     _contEjercicioSel = _contEjercicios.find(e => e.estado === 'abierto') || _contEjercicios[0];
   }
@@ -71,23 +70,23 @@ async function _contCargarLineasAsiento(asientoId) {
   return data || [];
 }
 
-// Cargar TODAS las líneas para reportes (mayor, balance)
-async function _contCargarTodasLineas(opts = {}) {
-  // Obtener IDs de asientos contabilizados en el rango
+async function _contCargarTodasLineas() {
   const asientoIds = _contAsientos
     .filter(a => a.estado === 'contabilizado')
     .map(a => a.id);
   if (!asientoIds.length) { _contLineas = []; return; }
-  const { data } = await sb.from('lineas_asiento')
-    .select('*, asientos!inner(fecha, numero, descripcion, estado)')
-    .in('asiento_id', asientoIds)
-    .order('asiento_id');
-  _contLineas = data || [];
+  _contLineas = [];
+  for (let i = 0; i < asientoIds.length; i += 50) {
+    const batch = asientoIds.slice(i, i + 50);
+    const { data } = await sb.from('lineas_asiento')
+      .select('*').in('asiento_id', batch).order('orden');
+    if (data) _contLineas.push(...data);
+  }
 }
 
 
 // ═══════════════════════════════════════════════
-//  PLAN CONTABLE — Página
+//  PLAN CONTABLE
 // ═══════════════════════════════════════════════
 
 async function renderContPlanContable() {
@@ -97,7 +96,6 @@ async function renderContPlanContable() {
 
   await _contCargarCuentas();
 
-  // Si no hay cuentas, ofrecer crear plan base
   if (!_contCuentas.length) {
     page.innerHTML = `
       <div style="padding:60px;text-align:center">
@@ -109,33 +107,27 @@ async function renderContPlanContable() {
     return;
   }
 
-  // KPIs
   const hojas = _contCuentas.filter(c => c.es_hoja && c.activa);
   const grupos = [...new Set(_contCuentas.map(c => c.grupo))];
 
-  let html = '';
-
-  // KPI cards
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px">
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px">
     <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📊</div><div class="sv">${_contCuentas.length}</div><div class="sl">Cuentas totales</div></div>
     <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">📝</div><div class="sv">${hojas.length}</div><div class="sl">Cuentas operativas</div></div>
     <div class="sc" style="--c:var(--violeta);--bg:var(--violeta-light)"><div class="si">📂</div><div class="sv">${grupos.length}</div><div class="sl">Grupos PGC</div></div>
   </div>`;
 
-  // Toolbar
   html += `<div class="card" style="margin-bottom:14px">
     <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <input type="text" id="contCuentaSearch" placeholder="🔍 Buscar cuenta..." oninput="_contFiltrarPlan()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;width:250px">
       <select id="contGrupoFilter" onchange="_contFiltrarPlan()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">
         <option value="">Todos los grupos</option>
-        ${[1,2,3,4,5,6,7].map(g => `<option value="${g}">${g} — ${_contGrupoNombre(g)}</option>`).join('')}
+        ${[1,2,3,4,5,6,7].map(g => '<option value="'+g+'">'+g+' — '+_contGrupoNombre(g)+'</option>').join('')}
       </select>
       <div style="flex:1"></div>
       <button class="btn btn-primary" onclick="_contNuevaCuenta()">+ Nueva cuenta</button>
     </div>
   </div>`;
 
-  // Tabla
   html += `<div class="card" style="padding:0;overflow:hidden">
     <table class="dt">
       <thead><tr>
@@ -168,19 +160,21 @@ function _contFiltrarPlan() {
 
   tbody.innerHTML = filtered.map(c => {
     const indent = c.es_hoja ? 'padding-left:' + (c.codigo.length * 8) + 'px' : 'font-weight:700';
-    return `<tr style="${!c.activa ? 'opacity:0.4' : ''}">
-      <td><code style="font-size:13px;font-weight:700;color:${_contTipoColor(c.tipo)}">${c.codigo}</code></td>
-      <td style="${indent}">${c.es_hoja ? '' : '📂 '}${c.nombre}</td>
-      <td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${_contTipoBg(c.tipo)};color:${_contTipoColor(c.tipo)};font-weight:600">${c.tipo}</span></td>
-      <td style="text-align:center">${c.grupo}</td>
-      <td style="text-align:center">${c.es_hoja ? '✅' : '—'}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="_contEditarCuenta(${c.id})" title="Editar">✏️</button>
-        ${c.es_hoja ? '' : ''}
-      </td>
-    </tr>`;
+    return '<tr style="' + (!c.activa ? 'opacity:.5' : '') + '">' +
+      '<td style="font-family:monospace;font-weight:700;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</td>' +
+      '<td style="' + indent + '">' + c.nombre + '</td>' +
+      '<td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + _contTipoBg(c.tipo) + ';color:' + _contTipoColor(c.tipo) + ';font-weight:600">' + c.tipo + '</span></td>' +
+      '<td style="text-align:center">' + c.grupo + '</td>' +
+      '<td style="text-align:center">' + (c.es_hoja ? '✅' : '📂') + '</td>' +
+      '<td>' +
+        '<button class="btn btn-ghost btn-sm" onclick="_contEditarCuenta(' + c.id + ')" title="Editar">✏️</button>' +
+        (c.es_hoja ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarCuenta(' + c.id + ')" title="Eliminar">🗑️</button>' : '') +
+      '</td></tr>';
   }).join('');
 }
+
+
+// ── CRUD Cuentas ──────────────────────────────
 
 async function _contCrearPlanBase() {
   if (!confirm('¿Cargar el Plan General Contable simplificado? Se crearán ~65 cuentas base.')) return;
@@ -234,27 +228,32 @@ async function _contGuardarCuenta() {
     es_hoja: document.getElementById('contCuentaHoja').checked,
     activa: document.getElementById('contCuentaActiva').checked
   };
-  if (!obj.codigo || !obj.nombre) return showToast('Código y nombre son obligatorios', 'error');
+  if (!obj.codigo || !obj.nombre) { showToast('Código y nombre obligatorios', 'error'); return; }
 
-  try {
-    if (id) {
-      const { error } = await sb.from('cuentas_contables').update(obj).eq('id', id);
-      if (error) throw error;
-    } else {
-      const { error } = await sb.from('cuentas_contables').insert(obj);
-      if (error) throw error;
-    }
-    closeModal('mContCuenta');
-    showToast('Cuenta guardada', 'ok');
-    renderContPlanContable();
-  } catch (e) {
-    showToast('Error: ' + e.message, 'error');
+  let error;
+  if (id) {
+    ({ error } = await sb.from('cuentas_contables').update(obj).eq('id', id));
+  } else {
+    ({ error } = await sb.from('cuentas_contables').insert(obj));
   }
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Cuenta guardada', 'ok');
+  closeModal('mContCuenta');
+  renderContPlanContable();
+}
+
+async function _contEliminarCuenta(id) {
+  const c = _contCuentas.find(x => x.id === id);
+  if (!c || !confirm('¿Eliminar la cuenta ' + c.codigo + ' — ' + c.nombre + '?')) return;
+  const { error } = await sb.from('cuentas_contables').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Cuenta eliminada', 'ok');
+  renderContPlanContable();
 }
 
 
 // ═══════════════════════════════════════════════
-//  LIBRO DIARIO — Página (lista de asientos)
+//  LIBRO DIARIO
 // ═══════════════════════════════════════════════
 
 async function renderContLibroDiario() {
@@ -263,343 +262,310 @@ async function renderContLibroDiario() {
   page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando libro diario...</div>';
 
   await _contCargarEjercicios();
-  await _contCargarAsientos(_contFiltros);
+  await _contCargarCuentas();
+  await _contCargarAsientos();
 
-  // KPIs
-  const contabilizados = _contAsientos.filter(a => a.estado === 'contabilizado');
-  const borradores = _contAsientos.filter(a => a.estado === 'borrador');
-
-  let html = '';
-
-  // KPI cards
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:16px">
-    <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📖</div><div class="sv">${_contAsientos.length}</div><div class="sl">Asientos totales</div></div>
-    <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv">${contabilizados.length}</div><div class="sl">Contabilizados</div></div>
-    <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">📝</div><div class="sv">${borradores.length}</div><div class="sl">Borradores</div></div>
-  </div>`;
-
-  // Toolbar
-  html += `<div class="card" style="margin-bottom:14px">
-    <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <div class="fg" style="margin:0"><label style="font-size:10px">Desde</label><input type="date" id="contDiarioDesde" value="${_contFiltros.desde}" onchange="_contFiltrarDiario()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px"></div>
-      <div class="fg" style="margin:0"><label style="font-size:10px">Hasta</label><input type="date" id="contDiarioHasta" value="${_contFiltros.hasta}" onchange="_contFiltrarDiario()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px"></div>
-      <select id="contEjercicioSel" onchange="_contCambiarEjercicio()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">
-        ${_contEjercicios.map(e => `<option value="${e.id}" ${_contEjercicioSel?.id === e.id ? 'selected' : ''}>${e.nombre} (${e.estado})</option>`).join('')}
-      </select>
-      <div style="flex:1"></div>
-      <button class="btn btn-primary" onclick="_contNuevoAsiento()">+ Nuevo asiento</button>
-    </div>
-  </div>`;
-
-  // Tabla de asientos
-  html += `<div class="card" style="padding:0;overflow:hidden">
-    <table class="dt">
-      <thead><tr>
-        <th style="width:50px">Nº</th>
-        <th style="width:90px">Fecha</th>
-        <th>Descripción</th>
-        <th style="width:100px">Origen</th>
-        <th style="width:100px;text-align:right">Debe</th>
-        <th style="width:100px;text-align:right">Haber</th>
-        <th style="width:90px">Estado</th>
-        <th style="width:80px">Acciones</th>
-      </tr></thead>
-      <tbody id="contDiarioTable"></tbody>
-    </table>
-  </div>`;
-
-  page.innerHTML = html;
-  await _contRenderDiarioRows();
-}
-
-async function _contRenderDiarioRows() {
-  const tbody = document.getElementById('contDiarioTable');
-  if (!tbody) return;
-
-  if (!_contAsientos.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--gris-400)">No hay asientos en este periodo</td></tr>';
+  if (!_contEjercicios.length) {
+    page.innerHTML = '<div style="padding:60px;text-align:center">' +
+      '<div style="font-size:48px;margin-bottom:16px">📅</div>' +
+      '<h2 style="color:var(--gris-700);margin-bottom:8px">Libro Diario</h2>' +
+      '<p style="color:var(--gris-400);margin-bottom:20px">Primero necesitas crear un ejercicio fiscal.</p>' +
+      '<button class="btn btn-primary" onclick="_contCrearEjercicio()">📅 Crear Ejercicio ' + new Date().getFullYear() + '</button></div>';
     return;
   }
 
-  // Cargar líneas de todos los asientos para mostrar totales
-  const ids = _contAsientos.map(a => a.id);
-  const { data: lineas } = await sb.from('lineas_asiento')
-    .select('asiento_id, debe, haber')
-    .in('asiento_id', ids);
+  const borradores = _contAsientos.filter(a => a.estado === 'borrador').length;
+  const contabilizados = _contAsientos.filter(a => a.estado === 'contabilizado').length;
 
-  const totalesPorAsiento = {};
-  (lineas || []).forEach(l => {
-    if (!totalesPorAsiento[l.asiento_id]) totalesPorAsiento[l.asiento_id] = { debe: 0, haber: 0 };
-    totalesPorAsiento[l.asiento_id].debe += parseFloat(l.debe || 0);
-    totalesPorAsiento[l.asiento_id].haber += parseFloat(l.haber || 0);
-  });
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px">' +
+    '<div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📖</div><div class="sv">' + _contAsientos.length + '</div><div class="sl">Asientos</div></div>' +
+    '<div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv">' + contabilizados + '</div><div class="sl">Contabilizados</div></div>' +
+    '<div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">✏️</div><div class="sv">' + borradores + '</div><div class="sl">Borradores</div></div>' +
+  '</div>';
 
-  const estadoBadge = e => ({
-    borrador: '<span class="badge bg-gray">📝 Borrador</span>',
-    contabilizado: '<span class="badge bg-green">✅ Contabilizado</span>',
-    anulado: '<span class="badge bg-red">❌ Anulado</span>'
-  }[e] || e);
+  html += '<div class="card" style="margin-bottom:14px"><div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+    '<select id="contEjercicioSelect" onchange="_contCambiarEjercicio()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+      _contEjercicios.map(e => '<option value="' + e.id + '"' + (_contEjercicioSel?.id === e.id ? ' selected' : '') + '>' + e.nombre + ' (' + e.estado + ')</option>').join('') +
+    '</select>' +
+    '<input type="date" id="contFiltroDesde" value="' + _contFiltros.desde + '" onchange="_contRefreshDiario()" style="padding:7px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+    '<input type="date" id="contFiltroHasta" value="' + _contFiltros.hasta + '" onchange="_contRefreshDiario()" style="padding:7px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+    '<div style="flex:1"></div>' +
+    '<button class="btn btn-secondary" onclick="_contCrearEjercicio()">📅 + Ejercicio</button>' +
+    '<button class="btn btn-primary" onclick="_contNuevoAsiento()">+ Nuevo Asiento</button>' +
+  '</div></div>';
 
-  const origenBadge = o => ({
-    manual: '✍️ Manual',
-    factura_emitida: '🧾 Fac. emitida',
-    factura_recibida: '📥 Fac. recibida',
-    cobro: '💰 Cobro',
-    pago: '💳 Pago',
-    nomina: '👷 Nómina',
-    cierre: '🔒 Cierre',
-    apertura: '📖 Apertura'
-  }[o] || o);
+  html += '<div class="card" style="padding:0;overflow:hidden"><table class="dt">' +
+    '<thead><tr><th style="width:50px">Nº</th><th style="width:100px">Fecha</th><th>Descripción</th><th style="width:100px">Origen</th><th style="width:80px">Estado</th><th style="width:120px">Acciones</th></tr></thead>' +
+    '<tbody id="contDiarioTable"></tbody></table></div>';
 
-  tbody.innerHTML = _contAsientos.map(a => {
-    const t = totalesPorAsiento[a.id] || { debe: 0, haber: 0 };
-    const descuadre = Math.abs(t.debe - t.haber) > 0.01;
-    return `<tr style="cursor:pointer" onclick="_contVerAsiento(${a.id})">
-      <td style="font-weight:700;color:var(--azul)">${a.numero || '—'}</td>
-      <td>${_contFecha(a.fecha)}</td>
-      <td>${a.descripcion || ''}${a.origen_ref ? ' <span style="font-size:11px;color:var(--gris-400)">(${a.origen_ref})</span>' : ''}</td>
-      <td style="font-size:11px">${origenBadge(a.origen)}</td>
-      <td style="text-align:right;font-weight:600">${_contFmt(t.debe)} €</td>
-      <td style="text-align:right;font-weight:600">${_contFmt(t.haber)} €</td>
-      <td>${estadoBadge(a.estado)}${descuadre ? ' <span style="color:var(--rojo);font-size:11px" title="Descuadrado">⚠️</span>' : ''}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();_contEditarAsiento(${a.id})" title="Editar">✏️</button>
-        ${a.estado === 'borrador' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();_contContabilizarAsiento(${a.id})" title="Contabilizar">✅</button>` : ''}
-      </td>
-    </tr>`;
-  }).join('');
+  page.innerHTML = html;
+  _contRenderDiarioTable();
 }
 
-function _contFiltrarDiario() {
-  _contFiltros.desde = document.getElementById('contDiarioDesde')?.value || '';
-  _contFiltros.hasta = document.getElementById('contDiarioHasta')?.value || '';
-  renderContLibroDiario();
+function _contRenderDiarioTable() {
+  const tbody = document.getElementById('contDiarioTable');
+  if (!tbody) return;
+
+  const origenIco = { manual:'✍️', factura_emitida:'🧾', factura_recibida:'📥', cobro:'💰', pago:'💳', nomina:'👷', cierre:'🔒', apertura:'📖' };
+  const estadoHtml = e => {
+    if (e === 'contabilizado') return '<span style="color:var(--verde);font-weight:600">✅ Cont.</span>';
+    if (e === 'anulado') return '<span style="color:var(--rojo);font-weight:600">❌ Anulado</span>';
+    return '<span style="color:var(--amarillo);font-weight:600">✏️ Borrador</span>';
+  };
+
+  tbody.innerHTML = _contAsientos.map(a => '<tr>' +
+    '<td style="font-weight:700;color:var(--gris-500)">' + (a.numero || '—') + '</td>' +
+    '<td>' + _contFecha(a.fecha) + '</td>' +
+    '<td>' + (a.descripcion || '<span style="color:var(--gris-300)">Sin descripción</span>') + '</td>' +
+    '<td>' + (origenIco[a.origen] || '') + ' ' + (a.origen_ref || '') + '</td>' +
+    '<td>' + estadoHtml(a.estado) + '</td>' +
+    '<td>' +
+      '<button class="btn btn-ghost btn-sm" onclick="_contVerAsiento(' + a.id + ')" title="Ver">👁️</button>' +
+      (a.estado === 'borrador' ? '<button class="btn btn-ghost btn-sm" onclick="_contEditarAsiento(' + a.id + ')" title="Editar">✏️</button>' : '') +
+      (a.estado === 'borrador' ? '<button class="btn btn-ghost btn-sm" onclick="_contContabilizar(' + a.id + ')" title="Contabilizar">✅</button>' : '') +
+      (a.estado === 'borrador' ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarAsiento(' + a.id + ')" title="Eliminar">🗑️</button>' : '') +
+    '</td></tr>'
+  ).join('');
+
+  if (!_contAsientos.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gris-400)">No hay asientos en este ejercicio</td></tr>';
+  }
 }
 
 async function _contCambiarEjercicio() {
-  const id = parseInt(document.getElementById('contEjercicioSel')?.value);
+  const id = parseInt(document.getElementById('contEjercicioSelect')?.value);
   _contEjercicioSel = _contEjercicios.find(e => e.id === id) || null;
+  await _contRefreshDiario();
+}
+
+async function _contRefreshDiario() {
+  _contFiltros.desde = document.getElementById('contFiltroDesde')?.value || '';
+  _contFiltros.hasta = document.getElementById('contFiltroHasta')?.value || '';
+  await _contCargarAsientos({ desde: _contFiltros.desde, hasta: _contFiltros.hasta });
+  _contRenderDiarioTable();
+}
+
+
+// ── Ejercicios ────────────────────────────────
+
+async function _contCrearEjercicio() {
+  const year = parseInt(prompt('Año del ejercicio fiscal:', new Date().getFullYear()));
+  if (!year || isNaN(year)) return;
+  const obj = {
+    empresa_id: EMPRESA.id,
+    nombre: String(year),
+    fecha_inicio: year + '-01-01',
+    fecha_fin: year + '-12-31',
+    estado: 'abierto'
+  };
+  const { data, error } = await sb.from('ejercicios_fiscales').insert(obj).select().single();
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Ejercicio ' + year + ' creado', 'ok');
+  _contEjercicioSel = data;
   renderContLibroDiario();
 }
 
 
-// ═══════════════════════════════════════════════
-//  ASIENTOS — Modal de creación/edición
-// ═══════════════════════════════════════════════
+// ── CRUD Asientos ─────────────────────────────
 
 function _contNuevoAsiento() {
   _contAsientoEditId = null;
   _contLineasTemp = [
-    { cuenta_id: '', cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 },
-    { cuenta_id: '', cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 }
+    { cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 },
+    { cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 }
   ];
   document.getElementById('contAsientoFecha').value = new Date().toISOString().slice(0, 10);
   document.getElementById('contAsientoDesc').value = '';
   document.getElementById('contAsientoOrigen').value = 'manual';
   document.getElementById('contAsientoRef').value = '';
   document.getElementById('mContAsientoTit').textContent = 'Nuevo Asiento Contable';
-  _contRenderLineasModal();
+  _contRenderLineasEditor();
   openModal('mContAsiento');
 }
 
 async function _contEditarAsiento(id) {
+  _contAsientoEditId = id;
   const a = _contAsientos.find(x => x.id === id);
   if (!a) return;
-  _contAsientoEditId = id;
   document.getElementById('contAsientoFecha').value = a.fecha;
   document.getElementById('contAsientoDesc').value = a.descripcion || '';
-  document.getElementById('contAsientoOrigen').value = a.origen || 'manual';
+  document.getElementById('contAsientoOrigen').value = a.origen;
   document.getElementById('contAsientoRef').value = a.origen_ref || '';
-  document.getElementById('mContAsientoTit').textContent = 'Asiento #' + (a.numero || id);
+  document.getElementById('mContAsientoTit').textContent = 'Editar Asiento #' + (a.numero || id);
 
-  // Cargar líneas
   const lineas = await _contCargarLineasAsiento(id);
   _contLineasTemp = lineas.map(l => ({
-    id: l.id,
-    cuenta_id: l.cuenta_id,
-    cuenta_codigo: l.cuenta_codigo,
-    descripcion: l.descripcion || '',
-    debe: parseFloat(l.debe || 0),
-    haber: parseFloat(l.haber || 0)
+    id: l.id, cuenta_codigo: l.cuenta_codigo,
+    descripcion: l.descripcion || '', debe: l.debe || 0, haber: l.haber || 0
   }));
   if (_contLineasTemp.length < 2) {
-    while (_contLineasTemp.length < 2) {
-      _contLineasTemp.push({ cuenta_id: '', cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 });
-    }
+    while (_contLineasTemp.length < 2) _contLineasTemp.push({ cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 });
   }
-
-  _contRenderLineasModal();
+  _contRenderLineasEditor();
   openModal('mContAsiento');
 }
 
-async function _contVerAsiento(id) {
-  await _contEditarAsiento(id);
-}
-
-function _contRenderLineasModal() {
+function _contRenderLineasEditor() {
   const container = document.getElementById('contAsientoLineas');
   if (!container) return;
 
-  // Preparar opciones de cuentas (solo hojas)
-  const cuentasHoja = _contCuentas.filter(c => c.es_hoja && c.activa);
-
-  let html = `<table style="width:100%;border-collapse:collapse">
-    <thead style="background:var(--gris-50)">
-      <tr>
-        <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left;width:200px">Cuenta</th>
-        <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);text-align:left">Descripción</th>
-        <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:110px;text-align:right">Debe</th>
-        <th style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--gris-500);width:110px;text-align:right">Haber</th>
-        <th style="width:32px"></th>
-      </tr>
-    </thead>
-    <tbody>`;
-
-  _contLineasTemp.forEach((l, i) => {
-    html += `<tr>
-      <td style="padding:4px 6px">
-        <select onchange="_contLineaCuenta(${i}, this.value)" style="width:100%;padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px">
-          <option value="">— Cuenta —</option>
-          ${cuentasHoja.map(c => `<option value="${c.id}" ${l.cuenta_id == c.id ? 'selected' : ''}>${c.codigo} ${c.nombre}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding:4px 6px"><input value="${l.descripcion}" onchange="_contLineasTemp[${i}].descripcion=this.value" style="width:100%;padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px" placeholder="Concepto"></td>
-      <td style="padding:4px 6px"><input type="number" step="0.01" value="${l.debe || ''}" onchange="_contLineaDebe(${i}, this.value)" style="width:100%;padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:right" placeholder="0,00"></td>
-      <td style="padding:4px 6px"><input type="number" step="0.01" value="${l.haber || ''}" onchange="_contLineaHaber(${i}, this.value)" style="width:100%;padding:6px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:right" placeholder="0,00"></td>
-      <td style="padding:4px"><button class="btn btn-ghost btn-sm" onclick="_contEliminarLinea(${i})" title="Eliminar" style="color:var(--rojo)">✕</button></td>
-    </tr>`;
-  });
-
-  html += `</tbody></table>`;
-
-  // Totales
   const totalDebe = _contLineasTemp.reduce((s, l) => s + (parseFloat(l.debe) || 0), 0);
   const totalHaber = _contLineasTemp.reduce((s, l) => s + (parseFloat(l.haber) || 0), 0);
-  const descuadre = Math.abs(totalDebe - totalHaber);
+  const diff = Math.abs(totalDebe - totalHaber);
+  const cuadra = diff < 0.01;
 
-  html += `<div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding:8px 10px;background:var(--gris-50);border-radius:8px">
-    <button class="btn btn-ghost btn-sm" onclick="_contAgregarLinea()">+ Añadir línea</button>
-    <div style="flex:1"></div>
-    <span style="font-size:12px;font-weight:700;color:var(--gris-600)">Debe: ${_contFmt(totalDebe)} €</span>
-    <span style="font-size:12px;font-weight:700;color:var(--gris-600)">Haber: ${_contFmt(totalHaber)} €</span>
-    ${descuadre > 0.01 ? `<span style="font-size:12px;font-weight:700;color:var(--rojo)">⚠️ Descuadre: ${_contFmt(descuadre)} €</span>` : '<span style="font-size:12px;font-weight:700;color:var(--verde)">✅ Cuadrado</span>'}
-  </div>`;
+  let html = '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+    '<thead><tr style="background:var(--gris-50)">' +
+    '<th style="padding:6px;text-align:left;width:120px">Cuenta</th>' +
+    '<th style="padding:6px;text-align:left">Concepto</th>' +
+    '<th style="padding:6px;text-align:right;width:110px">Debe</th>' +
+    '<th style="padding:6px;text-align:right;width:110px">Haber</th>' +
+    '<th style="padding:6px;width:40px"></th>' +
+    '</tr></thead><tbody>';
+
+  _contLineasTemp.forEach((l, i) => {
+    html += '<tr>' +
+      '<td style="padding:4px"><input value="' + l.cuenta_codigo + '" onchange="_contLineasTemp[' + i + '].cuenta_codigo=this.value" placeholder="4300" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:6px;font-family:monospace;font-size:13px"></td>' +
+      '<td style="padding:4px"><input value="' + l.descripcion + '" onchange="_contLineasTemp[' + i + '].descripcion=this.value" placeholder="Concepto" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px"></td>' +
+      '<td style="padding:4px"><input type="number" step="0.01" value="' + (l.debe || '') + '" onchange="_contLineasTemp[' + i + '].debe=parseFloat(this.value)||0;_contRenderLineasEditor()" placeholder="0.00" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:right"></td>' +
+      '<td style="padding:4px"><input type="number" step="0.01" value="' + (l.haber || '') + '" onchange="_contLineasTemp[' + i + '].haber=parseFloat(this.value)||0;_contRenderLineasEditor()" placeholder="0.00" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:right"></td>' +
+      '<td style="padding:4px;text-align:center"><button onclick="_contLineasTemp.splice(' + i + ',1);_contRenderLineasEditor()" style="border:none;background:none;cursor:pointer;font-size:14px;color:var(--rojo)">✕</button></td>' +
+    '</tr>';
+  });
+
+  html += '</tbody><tfoot><tr style="border-top:2px solid var(--gris-300);font-weight:800">' +
+    '<td colspan="2" style="padding:8px"><button onclick="_contLineasTemp.push({cuenta_codigo:\'\',descripcion:\'\',debe:0,haber:0});_contRenderLineasEditor()" class="btn btn-ghost btn-sm">+ Línea</button></td>' +
+    '<td style="padding:8px;text-align:right">' + _contFmt(totalDebe) + '</td>' +
+    '<td style="padding:8px;text-align:right">' + _contFmt(totalHaber) + '</td>' +
+    '<td></td></tr>' +
+    '<tr><td colspan="5" style="padding:4px 8px;font-size:12px;text-align:right;color:' + (cuadra ? 'var(--verde)' : 'var(--rojo)') + '">' +
+      (cuadra ? '✅ Asiento cuadrado' : '⚠️ Descuadre: ' + _contFmt(diff)) +
+    '</td></tr></tfoot></table>';
 
   container.innerHTML = html;
 }
 
-function _contLineaCuenta(idx, val) {
-  const c = _contCuentas.find(x => x.id == val);
-  _contLineasTemp[idx].cuenta_id = val ? parseInt(val) : '';
-  _contLineasTemp[idx].cuenta_codigo = c ? c.codigo : '';
-}
-
-function _contLineaDebe(idx, val) {
-  _contLineasTemp[idx].debe = parseFloat(val) || 0;
-  if (_contLineasTemp[idx].debe > 0) _contLineasTemp[idx].haber = 0;
-  _contRenderLineasModal();
-}
-
-function _contLineaHaber(idx, val) {
-  _contLineasTemp[idx].haber = parseFloat(val) || 0;
-  if (_contLineasTemp[idx].haber > 0) _contLineasTemp[idx].debe = 0;
-  _contRenderLineasModal();
-}
-
-function _contAgregarLinea() {
-  _contLineasTemp.push({ cuenta_id: '', cuenta_codigo: '', descripcion: '', debe: 0, haber: 0 });
-  _contRenderLineasModal();
-}
-
-function _contEliminarLinea(idx) {
-  if (_contLineasTemp.length <= 2) return showToast('Mínimo 2 líneas', 'error');
-  _contLineasTemp.splice(idx, 1);
-  _contRenderLineasModal();
-}
-
 async function _contGuardarAsiento() {
   const fecha = document.getElementById('contAsientoFecha').value;
-  const descripcion = document.getElementById('contAsientoDesc').value.trim();
-  const origen = document.getElementById('contAsientoOrigen').value;
-  const origen_ref = document.getElementById('contAsientoRef').value.trim();
+  if (!fecha) { showToast('Fecha obligatoria', 'error'); return; }
 
-  if (!fecha) return showToast('La fecha es obligatoria', 'error');
+  const lineasValidas = _contLineasTemp.filter(l => l.cuenta_codigo.trim());
+  if (lineasValidas.length < 2) { showToast('Mínimo 2 líneas con cuenta', 'error'); return; }
 
-  // Validar líneas
-  const lineasValidas = _contLineasTemp.filter(l => l.cuenta_id && (l.debe > 0 || l.haber > 0));
-  if (lineasValidas.length < 2) return showToast('Mínimo 2 líneas con cuenta y monto', 'error');
+  for (const l of lineasValidas) {
+    const cuenta = _contCuentas.find(c => c.codigo === l.cuenta_codigo.trim());
+    if (!cuenta) { showToast('Cuenta ' + l.cuenta_codigo + ' no existe en el plan contable', 'error'); return; }
+    if (!cuenta.es_hoja) { showToast('Cuenta ' + l.cuenta_codigo + ' no es operativa (es grupo)', 'error'); return; }
+  }
+
+  const asientoObj = {
+    empresa_id: EMPRESA.id, fecha,
+    descripcion: document.getElementById('contAsientoDesc').value.trim() || null,
+    origen: document.getElementById('contAsientoOrigen').value,
+    origen_ref: document.getElementById('contAsientoRef').value.trim() || null,
+    ejercicio_id: _contEjercicioSel?.id || null,
+    estado: 'borrador'
+  };
 
   try {
-    let asientoId = _contAsientoEditId;
-
-    if (asientoId) {
-      // Actualizar cabecera
-      const { error } = await sb.from('asientos').update({
-        fecha, descripcion, origen, origen_ref: origen_ref || null
-      }).eq('id', asientoId);
+    let asientoId;
+    if (_contAsientoEditId) {
+      const { error } = await sb.from('asientos').update(asientoObj).eq('id', _contAsientoEditId);
       if (error) throw error;
-
-      // Borrar líneas existentes y reinsertar
+      asientoId = _contAsientoEditId;
       await sb.from('lineas_asiento').delete().eq('asiento_id', asientoId);
     } else {
-      // Calcular número de asiento
       const maxNum = _contAsientos.reduce((m, a) => Math.max(m, a.numero || 0), 0);
-      const { data, error } = await sb.from('asientos').insert({
-        empresa_id: EMPRESA.id,
-        numero: maxNum + 1,
-        fecha, descripcion, origen,
-        origen_ref: origen_ref || null,
-        ejercicio_id: _contEjercicioSel?.id || null,
-        usuario_id: CU.id,
-        estado: 'borrador'
-      }).select().single();
+      asientoObj.numero = maxNum + 1;
+      asientoObj.usuario_id = (typeof CU !== 'undefined' && CU?.id) ? CU.id : null;
+      const { data, error } = await sb.from('asientos').insert(asientoObj).select().single();
       if (error) throw error;
       asientoId = data.id;
     }
 
-    // Insertar líneas
-    const lineasInsert = lineasValidas.map((l, i) => ({
-      asiento_id: asientoId,
-      cuenta_id: parseInt(l.cuenta_id),
-      cuenta_codigo: l.cuenta_codigo,
-      descripcion: l.descripcion || null,
-      debe: l.debe || 0,
-      haber: l.haber || 0,
-      orden: i
-    }));
-    const { error: errLineas } = await sb.from('lineas_asiento').insert(lineasInsert);
-    if (errLineas) throw errLineas;
+    const lineasInsert = lineasValidas.map((l, i) => {
+      const cuenta = _contCuentas.find(c => c.codigo === l.cuenta_codigo.trim());
+      return {
+        asiento_id: asientoId, cuenta_id: cuenta.id, cuenta_codigo: l.cuenta_codigo.trim(),
+        descripcion: l.descripcion || null, debe: parseFloat(l.debe) || 0, haber: parseFloat(l.haber) || 0, orden: i
+      };
+    });
+    const { error: lineError } = await sb.from('lineas_asiento').insert(lineasInsert);
+    if (lineError) throw lineError;
 
-    closeModal('mContAsiento');
     showToast('Asiento guardado', 'ok');
+    closeModal('mContAsiento');
     renderContLibroDiario();
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
 }
 
-async function _contContabilizarAsiento(id) {
-  // Verificar que cuadra
-  const lineas = await _contCargarLineasAsiento(id);
-  const totalD = lineas.reduce((s, l) => s + parseFloat(l.debe || 0), 0);
-  const totalH = lineas.reduce((s, l) => s + parseFloat(l.haber || 0), 0);
-  if (Math.abs(totalD - totalH) > 0.01) {
-    return showToast('El asiento está descuadrado. Debe = Haber para contabilizar.', 'error');
-  }
+async function _contContabilizar(id) {
   if (!confirm('¿Contabilizar este asiento? No se podrá editar después.')) return;
-  try {
-    const { error } = await sb.from('asientos').update({ estado: 'contabilizado' }).eq('id', id);
-    if (error) throw error;
-    showToast('Asiento contabilizado', 'ok');
-    renderContLibroDiario();
-  } catch (e) {
-    showToast('Error: ' + e.message, 'error');
+  const lineas = await _contCargarLineasAsiento(id);
+  const totalD = lineas.reduce((s, l) => s + (l.debe || 0), 0);
+  const totalH = lineas.reduce((s, l) => s + (l.haber || 0), 0);
+  if (Math.abs(totalD - totalH) >= 0.01) { showToast('El asiento no cuadra (Debe ≠ Haber)', 'error'); return; }
+
+  const { error } = await sb.from('asientos').update({ estado: 'contabilizado' }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Asiento contabilizado', 'ok');
+  renderContLibroDiario();
+}
+
+async function _contEliminarAsiento(id) {
+  if (!confirm('¿Eliminar este asiento?')) return;
+  const { error } = await sb.from('asientos').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Asiento eliminado', 'ok');
+  renderContLibroDiario();
+}
+
+async function _contVerAsiento(id) {
+  const a = _contAsientos.find(x => x.id === id);
+  if (!a) return;
+  const lineas = await _contCargarLineasAsiento(id);
+  const totalD = lineas.reduce((s, l) => s + (l.debe || 0), 0);
+  const totalH = lineas.reduce((s, l) => s + (l.haber || 0), 0);
+
+  let html = '<div style="padding:20px">' +
+    '<h3 style="margin-bottom:12px">📖 Asiento #' + (a.numero || a.id) + ' — ' + _contFecha(a.fecha) + '</h3>' +
+    '<p style="color:var(--gris-500);margin-bottom:16px">' + (a.descripcion || 'Sin descripción') + ' · ' + a.origen + (a.origen_ref ? ' · Ref: ' + a.origen_ref : '') + '</p>' +
+    '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+    '<thead><tr style="background:var(--gris-50);font-weight:700"><th style="padding:8px;text-align:left">Cuenta</th><th style="padding:8px;text-align:left">Concepto</th><th style="padding:8px;text-align:right">Debe</th><th style="padding:8px;text-align:right">Haber</th></tr></thead><tbody>';
+
+  lineas.forEach(l => {
+    const cta = _contCuentas.find(c => c.id === l.cuenta_id);
+    html += '<tr style="border-bottom:1px solid var(--gris-100)">' +
+      '<td style="padding:6px;font-family:monospace;font-weight:700">' + l.cuenta_codigo + ' <span style="font-weight:400;font-family:var(--font);color:var(--gris-500)">' + (cta?.nombre || '') + '</span></td>' +
+      '<td style="padding:6px">' + (l.descripcion || '') + '</td>' +
+      '<td style="padding:6px;text-align:right;' + (l.debe ? 'font-weight:700' : 'color:var(--gris-300)') + '">' + _contFmt(l.debe) + '</td>' +
+      '<td style="padding:6px;text-align:right;' + (l.haber ? 'font-weight:700' : 'color:var(--gris-300)') + '">' + _contFmt(l.haber) + '</td></tr>';
+  });
+
+  html += '</tbody><tfoot><tr style="border-top:2px solid var(--gris-300);font-weight:800">' +
+    '<td colspan="2" style="padding:8px">Totales</td>' +
+    '<td style="padding:8px;text-align:right">' + _contFmt(totalD) + '</td>' +
+    '<td style="padding:8px;text-align:right">' + _contFmt(totalH) + '</td>' +
+    '</tr></tfoot></table>' +
+    '<div style="text-align:right;margin-top:12px"><button class="btn btn-secondary" onclick="closeModal(\'mContVerAsiento\')">Cerrar</button></div></div>';
+
+  let overlay = document.getElementById('mContVerAsiento');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'mContVerAsiento';
+    overlay.innerHTML = '<div class="modal modal-lg"><div id="mContVerAsientoBody"></div></div>';
+    document.body.appendChild(overlay);
   }
+  document.getElementById('mContVerAsientoBody').innerHTML = html;
+  openModal('mContVerAsiento');
 }
 
 
 // ═══════════════════════════════════════════════
-//  LIBRO MAYOR — Página (movimientos por cuenta)
+//  LIBRO MAYOR
 // ═══════════════════════════════════════════════
 
 async function renderContLibroMayor() {
@@ -607,349 +573,204 @@ async function renderContLibroMayor() {
   if (!page) return;
   page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando libro mayor...</div>';
 
-  await _contCargarCuentas();
   await _contCargarEjercicios();
+  await _contCargarCuentas();
   await _contCargarAsientos();
+  await _contCargarTodasLineas();
 
-  const cuentasHoja = _contCuentas.filter(c => c.es_hoja && c.activa);
+  if (!_contCuentas.length) {
+    page.innerHTML = '<div style="padding:60px;text-align:center;color:var(--gris-400)"><div style="font-size:48px;margin-bottom:12px">📒</div><p>Primero configura el plan contable.</p></div>';
+    return;
+  }
 
-  let html = '';
+  const porCuenta = {};
+  _contLineas.forEach(l => {
+    if (!porCuenta[l.cuenta_codigo]) porCuenta[l.cuenta_codigo] = { debe: 0, haber: 0, lineas: [] };
+    porCuenta[l.cuenta_codigo].debe += l.debe || 0;
+    porCuenta[l.cuenta_codigo].haber += l.haber || 0;
+    porCuenta[l.cuenta_codigo].lineas.push(l);
+  });
 
-  // Toolbar
-  html += `<div class="card" style="margin-bottom:14px">
-    <div class="card-b" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <div class="fg" style="margin:0;min-width:250px">
-        <label style="font-size:10px">Cuenta</label>
-        <select id="contMayorCuenta" onchange="_contRenderMayor()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">
-          <option value="">— Seleccionar cuenta —</option>
-          ${cuentasHoja.map(c => `<option value="${c.id}">${c.codigo} — ${c.nombre}</option>`).join('')}
-        </select>
-      </div>
-      <div class="fg" style="margin:0"><label style="font-size:10px">Desde</label><input type="date" id="contMayorDesde" onchange="_contRenderMayor()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px"></div>
-      <div class="fg" style="margin:0"><label style="font-size:10px">Hasta</label><input type="date" id="contMayorHasta" onchange="_contRenderMayor()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px"></div>
-    </div>
-  </div>`;
+  let html = '<div class="card" style="margin-bottom:14px"><div class="card-b" style="padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+    '<select id="contMayorEjercicio" onchange="_contCambiarEjercicioMayor()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+      _contEjercicios.map(e => '<option value="' + e.id + '"' + (_contEjercicioSel?.id === e.id ? ' selected' : '') + '>' + e.nombre + '</option>').join('') +
+    '</select>' +
+    '<input type="text" id="contMayorSearch" placeholder="🔍 Buscar cuenta..." oninput="_contFiltrarMayor()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;width:200px">' +
+    '<span style="flex:1"></span>' +
+    '<span style="font-size:12px;color:var(--gris-400)">' + Object.keys(porCuenta).length + ' cuentas con movimientos</span>' +
+  '</div></div>';
 
-  // Contenido (se rellena dinámicamente)
-  html += `<div id="contMayorContent"></div>`;
+  const cuentasConMov = _contCuentas.filter(c => porCuenta[c.codigo]);
+  html += '<div id="contMayorCards">';
+  cuentasConMov.forEach(c => {
+    const info = porCuenta[c.codigo];
+    const saldo = info.debe - info.haber;
+    html += '<div class="card" style="margin-bottom:10px" data-codigo="' + c.codigo + '" data-nombre="' + c.nombre.toLowerCase() + '">' +
+      '<div class="card-b" style="padding:12px 16px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<div><span style="font-family:monospace;font-weight:800;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</span>' +
+          '<span style="font-weight:600;margin-left:8px">' + c.nombre + '</span></div>' +
+          '<div style="font-weight:800;font-size:15px;color:' + (saldo >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldo)) + ' ' + (saldo >= 0 ? 'D' : 'H') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:20px;font-size:12px;color:var(--gris-500)">' +
+          '<span>Debe: <b style="color:var(--gris-700)">' + _contFmt(info.debe) + '</b></span>' +
+          '<span>Haber: <b style="color:var(--gris-700)">' + _contFmt(info.haber) + '</b></span>' +
+          '<span>' + info.lineas.length + ' apuntes</span>' +
+        '</div></div></div>';
+  });
+  html += '</div>';
+
+  if (!cuentasConMov.length) {
+    html += '<div style="padding:40px;text-align:center;color:var(--gris-400)">No hay movimientos contabilizados en este ejercicio</div>';
+  }
 
   page.innerHTML = html;
 }
 
-async function _contRenderMayor() {
-  const container = document.getElementById('contMayorContent');
-  if (!container) return;
-  const cuentaId = document.getElementById('contMayorCuenta')?.value;
-  if (!cuentaId) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Selecciona una cuenta para ver sus movimientos</div>';
-    return;
-  }
-
-  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gris-400)">Cargando...</div>';
-
-  const cuenta = _contCuentas.find(c => c.id == cuentaId);
-  const desde = document.getElementById('contMayorDesde')?.value || '';
-  const hasta = document.getElementById('contMayorHasta')?.value || '';
-
-  // Obtener líneas de esta cuenta
-  let q = sb.from('lineas_asiento')
-    .select('*, asientos!inner(fecha, numero, descripcion, estado)')
-    .eq('cuenta_id', cuentaId)
-    .eq('asientos.estado', 'contabilizado');
-  if (desde) q = q.gte('asientos.fecha', desde);
-  if (hasta) q = q.lte('asientos.fecha', hasta);
-  const { data: lineas } = await q;
-
-  // Ordenar por fecha
-  const sorted = (lineas || []).sort((a, b) => {
-    const fa = a.asientos?.fecha || '';
-    const fb = b.asientos?.fecha || '';
-    return fa.localeCompare(fb) || (a.asientos?.numero || 0) - (b.asientos?.numero || 0);
+function _contFiltrarMayor() {
+  const search = (document.getElementById('contMayorSearch')?.value || '').toLowerCase();
+  document.querySelectorAll('#contMayorCards .card').forEach(card => {
+    const codigo = card.dataset.codigo || '';
+    const nombre = card.dataset.nombre || '';
+    card.style.display = (!search || codigo.includes(search) || nombre.includes(search)) ? '' : 'none';
   });
+}
 
-  // Calcular saldos
-  let saldoAcum = 0;
-  const rows = sorted.map(l => {
-    const debe = parseFloat(l.debe || 0);
-    const haber = parseFloat(l.haber || 0);
-    saldoAcum += debe - haber;
-    return { ...l, saldoAcum };
-  });
-
-  const totalDebe = rows.reduce((s, r) => s + parseFloat(r.debe || 0), 0);
-  const totalHaber = rows.reduce((s, r) => s + parseFloat(r.haber || 0), 0);
-
-  let html = '';
-
-  // Cabecera de cuenta
-  html += `<div class="card" style="margin-bottom:14px">
-    <div class="card-h">
-      <h3 style="flex:1"><code style="color:${_contTipoColor(cuenta.tipo)};font-weight:800">${cuenta.codigo}</code> — ${cuenta.nombre}</h3>
-      <span style="font-size:12px;padding:3px 10px;border-radius:6px;background:${_contTipoBg(cuenta.tipo)};color:${_contTipoColor(cuenta.tipo)};font-weight:600">${cuenta.tipo}</span>
-    </div>
-  </div>`;
-
-  // KPIs de la cuenta
-  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-    <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📥</div><div class="sv">${_contFmt(totalDebe)} €</div><div class="sl">Total Debe</div></div>
-    <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">📤</div><div class="sv">${_contFmt(totalHaber)} €</div><div class="sl">Total Haber</div></div>
-    <div class="sc" style="--c:${saldoAcum >= 0 ? 'var(--verde)' : 'var(--rojo)'};--bg:${saldoAcum >= 0 ? 'var(--verde-light)' : 'var(--rojo-light)'}"><div class="si">💰</div><div class="sv">${_contFmt(saldoAcum)} €</div><div class="sl">Saldo</div></div>
-  </div>`;
-
-  // Tabla de movimientos
-  html += `<div class="card" style="padding:0;overflow:hidden">
-    <table class="dt">
-      <thead><tr>
-        <th style="width:50px">Nº</th>
-        <th style="width:90px">Fecha</th>
-        <th>Concepto</th>
-        <th style="width:110px;text-align:right">Debe</th>
-        <th style="width:110px;text-align:right">Haber</th>
-        <th style="width:110px;text-align:right">Saldo</th>
-      </tr></thead>
-      <tbody>`;
-
-  if (!rows.length) {
-    html += '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gris-400)">Sin movimientos en este periodo</td></tr>';
-  } else {
-    rows.forEach(r => {
-      html += `<tr>
-        <td style="font-weight:700;color:var(--azul)">${r.asientos?.numero || '—'}</td>
-        <td>${_contFecha(r.asientos?.fecha)}</td>
-        <td>${r.descripcion || r.asientos?.descripcion || ''}</td>
-        <td style="text-align:right;${parseFloat(r.debe) > 0 ? 'font-weight:600' : 'color:var(--gris-300)'}">${parseFloat(r.debe) > 0 ? _contFmt(r.debe) + ' €' : '—'}</td>
-        <td style="text-align:right;${parseFloat(r.haber) > 0 ? 'font-weight:600' : 'color:var(--gris-300)'}">${parseFloat(r.haber) > 0 ? _contFmt(r.haber) + ' €' : '—'}</td>
-        <td style="text-align:right;font-weight:700;color:${r.saldoAcum >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${_contFmt(r.saldoAcum)} €</td>
-      </tr>`;
-    });
-    // Totales
-    html += `<tr style="background:var(--gris-50);font-weight:700">
-      <td colspan="3" style="text-align:right;padding:10px 12px">TOTALES</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totalDebe)} €</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totalHaber)} €</td>
-      <td style="text-align:right;padding:10px 12px;color:${saldoAcum >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${_contFmt(saldoAcum)} €</td>
-    </tr>`;
-  }
-
-  html += '</tbody></table></div>';
-  container.innerHTML = html;
+async function _contCambiarEjercicioMayor() {
+  const id = parseInt(document.getElementById('contMayorEjercicio')?.value);
+  _contEjercicioSel = _contEjercicios.find(e => e.id === id) || null;
+  renderContLibroMayor();
 }
 
 
 // ═══════════════════════════════════════════════
-//  BALANCE DE SUMAS Y SALDOS — Página
+//  BALANCE DE SUMAS Y SALDOS
 // ═══════════════════════════════════════════════
 
 async function renderContBalance() {
   const page = document.getElementById('page-balance-sumas');
   if (!page) return;
-  page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Calculando balance...</div>';
+  page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando balance...</div>';
 
-  await _contCargarCuentas();
   await _contCargarEjercicios();
+  await _contCargarCuentas();
   await _contCargarAsientos();
   await _contCargarTodasLineas();
 
-  // Agrupar por cuenta: totales debe/haber y saldo
-  const saldos = {};
+  const porCuenta = {};
   _contLineas.forEach(l => {
-    const cod = l.cuenta_codigo;
-    if (!saldos[cod]) saldos[cod] = { debe: 0, haber: 0 };
-    saldos[cod].debe += parseFloat(l.debe || 0);
-    saldos[cod].haber += parseFloat(l.haber || 0);
+    if (!porCuenta[l.cuenta_codigo]) porCuenta[l.cuenta_codigo] = { debe: 0, haber: 0 };
+    porCuenta[l.cuenta_codigo].debe += l.debe || 0;
+    porCuenta[l.cuenta_codigo].haber += l.haber || 0;
   });
 
-  // Enriquecer con datos de la cuenta
-  const filas = Object.entries(saldos).map(([codigo, s]) => {
-    const cuenta = _contCuentas.find(c => c.codigo === codigo);
-    const saldo = s.debe - s.haber;
-    return {
-      codigo,
-      nombre: cuenta?.nombre || codigo,
-      tipo: cuenta?.tipo || '',
-      grupo: cuenta?.grupo || 0,
-      debe: s.debe,
-      haber: s.haber,
-      saldoDeudor: saldo > 0 ? saldo : 0,
-      saldoAcreedor: saldo < 0 ? Math.abs(saldo) : 0
-    };
-  }).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  let totalDebe = 0, totalHaber = 0, totalSaldoD = 0, totalSaldoH = 0;
+  let rows = '';
+  _contCuentas.filter(c => porCuenta[c.codigo]).forEach(c => {
+    const info = porCuenta[c.codigo];
+    const saldo = info.debe - info.haber;
+    const saldoD = saldo > 0 ? saldo : 0;
+    const saldoH = saldo < 0 ? Math.abs(saldo) : 0;
+    totalDebe += info.debe; totalHaber += info.haber;
+    totalSaldoD += saldoD; totalSaldoH += saldoH;
 
-  // Totales generales
-  const totDebe = filas.reduce((s, f) => s + f.debe, 0);
-  const totHaber = filas.reduce((s, f) => s + f.haber, 0);
-  const totSD = filas.reduce((s, f) => s + f.saldoDeudor, 0);
-  const totSA = filas.reduce((s, f) => s + f.saldoAcreedor, 0);
+    rows += '<tr>' +
+      '<td style="font-family:monospace;font-weight:700;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</td>' +
+      '<td>' + c.nombre + '</td>' +
+      '<td style="text-align:right">' + _contFmt(info.debe) + '</td>' +
+      '<td style="text-align:right">' + _contFmt(info.haber) + '</td>' +
+      '<td style="text-align:right;font-weight:700;color:' + (saldoD ? 'var(--azul)' : 'var(--gris-300)') + '">' + _contFmt(saldoD) + '</td>' +
+      '<td style="text-align:right;font-weight:700;color:' + (saldoH ? 'var(--rojo)' : 'var(--gris-300)') + '">' + _contFmt(saldoH) + '</td></tr>';
+  });
 
-  let html = '';
+  let html = '<div class="card" style="margin-bottom:14px"><div class="card-b" style="padding:12px 16px;display:flex;gap:10px;align-items:center">' +
+    '<select onchange="_contEjercicioSel=_contEjercicios.find(e=>e.id===parseInt(this.value));renderContBalance()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+      _contEjercicios.map(e => '<option value="' + e.id + '"' + (_contEjercicioSel?.id === e.id ? ' selected' : '') + '>' + e.nombre + '</option>').join('') +
+    '</select></div></div>' +
+    '<div class="card" style="padding:0;overflow:hidden"><table class="dt">' +
+    '<thead><tr><th style="width:80px">Cuenta</th><th>Nombre</th>' +
+    '<th style="width:110px;text-align:right">Sumas Debe</th><th style="width:110px;text-align:right">Sumas Haber</th>' +
+    '<th style="width:110px;text-align:right">Saldo Deudor</th><th style="width:110px;text-align:right">Saldo Acreedor</th></tr></thead>' +
+    '<tbody>' + (rows || '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gris-400)">Sin movimientos contabilizados</td></tr>') + '</tbody>' +
+    '<tfoot><tr style="font-weight:800;border-top:2px solid var(--gris-300)">' +
+    '<td colspan="2" style="padding:8px">TOTALES</td>' +
+    '<td style="text-align:right;padding:8px">' + _contFmt(totalDebe) + '</td>' +
+    '<td style="text-align:right;padding:8px">' + _contFmt(totalHaber) + '</td>' +
+    '<td style="text-align:right;padding:8px;color:var(--azul)">' + _contFmt(totalSaldoD) + '</td>' +
+    '<td style="text-align:right;padding:8px;color:var(--rojo)">' + _contFmt(totalSaldoH) + '</td>' +
+    '</tr></tfoot></table></div>';
 
-  // KPIs
-  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
-    <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📥</div><div class="sv">${_contFmt(totDebe)} €</div><div class="sl">Total Debe</div></div>
-    <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">📤</div><div class="sv">${_contFmt(totHaber)} €</div><div class="sl">Total Haber</div></div>
-    <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">📊</div><div class="sv">${_contFmt(totSD)} €</div><div class="sl">Saldos Deudores</div></div>
-    <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">📊</div><div class="sv">${_contFmt(totSA)} €</div><div class="sl">Saldos Acreedores</div></div>
-  </div>`;
-
-  // Tabla
-  html += `<div class="card" style="padding:0;overflow:hidden">
-    <table class="dt">
-      <thead><tr>
-        <th style="width:80px">Cuenta</th>
-        <th>Nombre</th>
-        <th style="width:110px;text-align:right">Sumas Debe</th>
-        <th style="width:110px;text-align:right">Sumas Haber</th>
-        <th style="width:110px;text-align:right">Saldo Deudor</th>
-        <th style="width:110px;text-align:right">Saldo Acreedor</th>
-      </tr></thead>
-      <tbody>`;
-
-  if (!filas.length) {
-    html += '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gris-400)">No hay asientos contabilizados</td></tr>';
-  } else {
-    // Agrupar por grupo PGC
-    let grupoActual = 0;
-    filas.forEach(f => {
-      if (f.grupo !== grupoActual) {
-        grupoActual = f.grupo;
-        html += `<tr style="background:var(--gris-50)"><td colspan="6" style="padding:8px 12px;font-weight:700;font-size:12px;color:var(--gris-600)">Grupo ${grupoActual} — ${_contGrupoNombre(grupoActual)}</td></tr>`;
-      }
-      html += `<tr>
-        <td><code style="font-weight:700;color:${_contTipoColor(f.tipo)}">${f.codigo}</code></td>
-        <td>${f.nombre}</td>
-        <td style="text-align:right">${_contFmt(f.debe)} €</td>
-        <td style="text-align:right">${_contFmt(f.haber)} €</td>
-        <td style="text-align:right;${f.saldoDeudor > 0 ? 'font-weight:600;color:var(--azul)' : 'color:var(--gris-300)'}">${f.saldoDeudor > 0 ? _contFmt(f.saldoDeudor) + ' €' : '—'}</td>
-        <td style="text-align:right;${f.saldoAcreedor > 0 ? 'font-weight:600;color:var(--rojo)' : 'color:var(--gris-300)'}">${f.saldoAcreedor > 0 ? _contFmt(f.saldoAcreedor) + ' €' : '—'}</td>
-      </tr>`;
-    });
-
-    // Totales
-    html += `<tr style="background:var(--gris-100);font-weight:800">
-      <td colspan="2" style="text-align:right;padding:10px 12px">TOTALES</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totDebe)} €</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totHaber)} €</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totSD)} €</td>
-      <td style="text-align:right;padding:10px 12px">${_contFmt(totSA)} €</td>
-    </tr>`;
-  }
-
-  html += '</tbody></table></div>';
   page.innerHTML = html;
 }
 
 
 // ═══════════════════════════════════════════════
-//  CUENTA DE RESULTADOS (PyG simplificada)
+//  CUENTA DE RESULTADOS
 // ═══════════════════════════════════════════════
 
 async function renderContResultados() {
   const page = document.getElementById('page-cuenta-resultados');
   if (!page) return;
-  page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Calculando cuenta de resultados...</div>';
+  page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando cuenta de resultados...</div>';
 
-  await _contCargarCuentas();
   await _contCargarEjercicios();
+  await _contCargarCuentas();
   await _contCargarAsientos();
   await _contCargarTodasLineas();
 
-  // Agrupar por cuenta: saldos
-  const saldos = {};
+  const porCuenta = {};
   _contLineas.forEach(l => {
-    const cod = l.cuenta_codigo;
-    if (!saldos[cod]) saldos[cod] = 0;
-    saldos[cod] += parseFloat(l.debe || 0) - parseFloat(l.haber || 0);
+    if (!porCuenta[l.cuenta_codigo]) porCuenta[l.cuenta_codigo] = { debe: 0, haber: 0 };
+    porCuenta[l.cuenta_codigo].debe += l.debe || 0;
+    porCuenta[l.cuenta_codigo].haber += l.haber || 0;
   });
 
-  // Ingresos (grupo 7): saldo acreedor = ingreso positivo
-  const ingresos = _contCuentas
-    .filter(c => c.grupo === 7 && c.es_hoja && saldos[c.codigo])
-    .map(c => ({ ...c, importe: -(saldos[c.codigo] || 0) })) // negamos porque en G7 el haber es mayor
-    .filter(c => c.importe !== 0);
+  let totalIngresos = 0, ingresosRows = '';
+  _contCuentas.filter(c => c.grupo === 7 && c.es_hoja && porCuenta[c.codigo]).forEach(c => {
+    const info = porCuenta[c.codigo];
+    const saldo = info.haber - info.debe;
+    totalIngresos += saldo;
+    ingresosRows += '<tr><td style="font-family:monospace;font-weight:600;color:var(--verde)">' + c.codigo + '</td>' +
+      '<td>' + c.nombre + '</td>' +
+      '<td style="text-align:right;font-weight:600;color:var(--verde)">' + _contFmt(saldo) + '</td></tr>';
+  });
 
-  // Gastos (grupo 6): saldo deudor = gasto positivo
-  const gastos = _contCuentas
-    .filter(c => c.grupo === 6 && c.es_hoja && saldos[c.codigo])
-    .map(c => ({ ...c, importe: saldos[c.codigo] || 0 }))
-    .filter(c => c.importe !== 0);
+  let totalGastos = 0, gastosRows = '';
+  _contCuentas.filter(c => c.grupo === 6 && c.es_hoja && porCuenta[c.codigo]).forEach(c => {
+    const info = porCuenta[c.codigo];
+    const saldo = info.debe - info.haber;
+    totalGastos += saldo;
+    gastosRows += '<tr><td style="font-family:monospace;font-weight:600;color:var(--amarillo)">' + c.codigo + '</td>' +
+      '<td>' + c.nombre + '</td>' +
+      '<td style="text-align:right;font-weight:600;color:var(--amarillo)">' + _contFmt(saldo) + '</td></tr>';
+  });
 
-  const totalIngresos = ingresos.reduce((s, c) => s + c.importe, 0);
-  const totalGastos = gastos.reduce((s, c) => s + c.importe, 0);
   const resultado = totalIngresos - totalGastos;
 
-  let html = '';
+  let html = '<div class="card" style="margin-bottom:14px"><div class="card-b" style="padding:12px 16px;display:flex;gap:10px;align-items:center">' +
+    '<select onchange="_contEjercicioSel=_contEjercicios.find(e=>e.id===parseInt(this.value));renderContResultados()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px">' +
+      _contEjercicios.map(e => '<option value="' + e.id + '"' + (_contEjercicioSel?.id === e.id ? ' selected' : '') + '>' + e.nombre + '</option>').join('') +
+    '</select></div></div>' +
 
-  // KPIs
-  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-    <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">📈</div><div class="sv">${_contFmt(totalIngresos)} €</div><div class="sl">Total Ingresos</div></div>
-    <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">📉</div><div class="sv">${_contFmt(totalGastos)} €</div><div class="sl">Total Gastos</div></div>
-    <div class="sc" style="--c:${resultado >= 0 ? 'var(--verde)' : 'var(--rojo)'};--bg:${resultado >= 0 ? 'var(--verde-light)' : 'var(--rojo-light)'}"><div class="si">${resultado >= 0 ? '🟢' : '🔴'}</div><div class="sv">${_contFmt(resultado)} €</div><div class="sl">${resultado >= 0 ? 'Beneficio' : 'Pérdida'}</div></div>
-  </div>`;
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">' +
+    '<div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">📈</div><div class="sv">' + _contFmt(totalIngresos) + '</div><div class="sl">Total Ingresos</div></div>' +
+    '<div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">📉</div><div class="sv">' + _contFmt(totalGastos) + '</div><div class="sl">Total Gastos</div></div>' +
+    '<div class="sc" style="--c:' + (resultado >= 0 ? 'var(--verde)' : 'var(--rojo)') + ';--bg:' + (resultado >= 0 ? 'var(--verde-light)' : 'var(--rojo-light)') + '"><div class="si">' + (resultado >= 0 ? '🟢' : '🔴') + '</div><div class="sv">' + _contFmt(resultado) + '</div><div class="sl">Resultado</div></div>' +
+    '</div>' +
 
-  // Ingresos
-  html += `<div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
-    <div class="card-h"><h3>📈 Ingresos</h3></div>
-    <table class="dt">
-      <thead><tr><th style="width:80px">Cuenta</th><th>Concepto</th><th style="width:120px;text-align:right">Importe</th></tr></thead>
-      <tbody>`;
-  if (!ingresos.length) {
-    html += '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gris-400)">Sin ingresos registrados</td></tr>';
-  } else {
-    ingresos.forEach(c => {
-      html += `<tr><td><code style="color:var(--verde);font-weight:700">${c.codigo}</code></td><td>${c.nombre}</td><td style="text-align:right;font-weight:600;color:var(--verde)">${_contFmt(c.importe)} €</td></tr>`;
-    });
-    html += `<tr style="background:var(--verde-light);font-weight:800"><td colspan="2" style="text-align:right;padding:10px 12px">TOTAL INGRESOS</td><td style="text-align:right;padding:10px 12px;color:var(--verde)">${_contFmt(totalIngresos)} €</td></tr>`;
-  }
-  html += '</tbody></table></div>';
+    '<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">' +
+    '<div style="padding:12px 16px;font-weight:700;background:var(--verde-light);color:var(--verde);border-bottom:1px solid var(--gris-100)">📈 Ingresos (Grupo 7)</div>' +
+    '<table class="dt"><thead><tr><th style="width:80px">Cuenta</th><th>Concepto</th><th style="width:120px;text-align:right">Importe</th></tr></thead>' +
+    '<tbody>' + (ingresosRows || '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gris-400)">Sin ingresos</td></tr>') + '</tbody>' +
+    '<tfoot><tr style="font-weight:800;border-top:2px solid var(--gris-300)"><td colspan="2" style="padding:8px">Total Ingresos</td>' +
+    '<td style="text-align:right;padding:8px;color:var(--verde)">' + _contFmt(totalIngresos) + '</td></tr></tfoot></table></div>' +
 
-  // Gastos
-  html += `<div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
-    <div class="card-h"><h3>📉 Gastos</h3></div>
-    <table class="dt">
-      <thead><tr><th style="width:80px">Cuenta</th><th>Concepto</th><th style="width:120px;text-align:right">Importe</th></tr></thead>
-      <tbody>`;
-  if (!gastos.length) {
-    html += '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gris-400)">Sin gastos registrados</td></tr>';
-  } else {
-    gastos.forEach(c => {
-      html += `<tr><td><code style="color:var(--rojo);font-weight:700">${c.codigo}</code></td><td>${c.nombre}</td><td style="text-align:right;font-weight:600;color:var(--rojo)">${_contFmt(c.importe)} €</td></tr>`;
-    });
-    html += `<tr style="background:var(--rojo-light);font-weight:800"><td colspan="2" style="text-align:right;padding:10px 12px">TOTAL GASTOS</td><td style="text-align:right;padding:10px 12px;color:var(--rojo)">${_contFmt(totalGastos)} €</td></tr>`;
-  }
-  html += '</tbody></table></div>';
-
-  // Resultado
-  html += `<div class="card" style="padding:0;overflow:hidden">
-    <table class="dt">
-      <tbody><tr style="background:${resultado >= 0 ? 'var(--verde-light)' : 'var(--rojo-light)'};font-weight:800;font-size:15px">
-        <td style="padding:14px 16px">${resultado >= 0 ? '🟢 BENEFICIO DEL EJERCICIO' : '🔴 PÉRDIDA DEL EJERCICIO'}</td>
-        <td style="text-align:right;padding:14px 16px;color:${resultado >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${_contFmt(resultado)} €</td>
-      </tr></tbody>
-    </table>
-  </div>`;
+    '<div class="card" style="padding:0;overflow:hidden">' +
+    '<div style="padding:12px 16px;font-weight:700;background:var(--amarillo-light);color:var(--amarillo);border-bottom:1px solid var(--gris-100)">📉 Gastos (Grupo 6)</div>' +
+    '<table class="dt"><thead><tr><th style="width:80px">Cuenta</th><th>Concepto</th><th style="width:120px;text-align:right">Importe</th></tr></thead>' +
+    '<tbody>' + (gastosRows || '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gris-400)">Sin gastos</td></tr>') + '</tbody>' +
+    '<tfoot><tr style="font-weight:800;border-top:2px solid var(--gris-300)"><td colspan="2" style="padding:8px">Total Gastos</td>' +
+    '<td style="text-align:right;padding:8px;color:var(--amarillo)">' + _contFmt(totalGastos) + '</td></tr></tfoot></table></div>';
 
   page.innerHTML = html;
-}
-
-
-// ═══════════════════════════════════════════════
-//  EJERCICIOS FISCALES
-// ═══════════════════════════════════════════════
-
-async function _contCrearEjercicioActual() {
-  const year = new Date().getFullYear();
-  try {
-    const { error } = await sb.from('ejercicios_fiscales').insert({
-      empresa_id: EMPRESA.id,
-      nombre: String(year),
-      fecha_inicio: `${year}-01-01`,
-      fecha_fin: `${year}-12-31`,
-      estado: 'abierto'
-    });
-    if (error) throw error;
-    showToast('Ejercicio ' + year + ' creado', 'ok');
-    await _contCargarEjercicios();
-  } catch (e) {
-    showToast('Error: ' + e.message, 'error');
-  }
 }
