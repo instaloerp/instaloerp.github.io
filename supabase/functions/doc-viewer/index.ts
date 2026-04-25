@@ -28,22 +28,33 @@ try {
   }
 } catch(_) { /* push no disponible */ }
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*',
-  'Content-Type': 'text/html; charset=utf-8'
-};
+function htmlResponse(html: string, status = 200): Response {
+  return new Response(html, {
+    status,
+    headers: new Headers({
+      'Content-Type': 'text/html; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    }),
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: { ...CORS, 'Content-Type': 'text/plain' } });
+    return new Response(null, {
+      headers: new Headers({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      }),
+    });
   }
 
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
 
   if (!token) {
-    return new Response(renderError('Enlace no válido', 'No se ha proporcionado un token de documento.'), { headers: CORS });
+    return htmlResponse(renderError('Enlace no válido', 'No se ha proporcionado un token de documento.'));
   }
 
   // Admin client (bypasses RLS)
@@ -60,7 +71,7 @@ Deno.serve(async (req) => {
     .single();
 
   if (error || !share) {
-    return new Response(renderError('Documento no encontrado', 'Este enlace no es válido o ha expirado.'), { headers: CORS });
+    return htmlResponse(renderError('Documento no encontrado', 'Este enlace no es válido o ha expirado.'));
   }
 
   // 2. Cargar datos de la empresa
@@ -96,7 +107,7 @@ Deno.serve(async (req) => {
 
   // 6. Servir página HTML
   const html = renderVisor(empresa, share, docData);
-  return new Response(html, { headers: CORS });
+  return htmlResponse(html);
 });
 
 
