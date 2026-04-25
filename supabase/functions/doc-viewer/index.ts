@@ -87,11 +87,21 @@ Deno.serve(async (req) => {
   }
 
   // 2. Cargar datos de la empresa
-  const { data: empresa } = await sb
+  let empresa: any = null;
+  const { data: empData, error: empErr } = await sb
     .from('empresas')
-    .select('nombre, logo_url, email, telefono, direccion, nif')
+    .select('*')
     .eq('id', share.empresa_id)
     .single();
+
+  if (empData) {
+    empresa = empData;
+  } else {
+    console.log('[doc-viewer] empresa no encontrada por id:', share.empresa_id, empErr?.message);
+    // Fallback: cargar la primera empresa disponible
+    const { data: empFirst } = await sb.from('empresas').select('*').limit(1).single();
+    empresa = empFirst;
+  }
 
   // 3. Cargar datos del documento según tipo
   const docData = await cargarDocumento(sb, share.tipo_documento, share.documento_id);
