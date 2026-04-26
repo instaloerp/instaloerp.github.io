@@ -366,6 +366,17 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       <div class="info">Fecha y firma:</div>
       <div class="linea">Conforme</div>
     </div>`;
+    // Sello de firma digital de la empresa (si hay certificado configurado)
+    const cert = (typeof _certActual !== 'undefined') ? _certActual : null;
+    const selloEmpresa = cert ? `
+      <div style="margin-top:6px;border:2px solid #1e40af;border-radius:6px;padding:6px 8px;background:rgba(30,64,175,0.04);font-size:7.5px;line-height:1.5;color:#1e40af;max-width:200px">
+        <div style="font-weight:700;font-size:8px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Firmado digitalmente</div>
+        <div>${_esc(cert.titular || E.nombre || '')}</div>
+        ${cert.nif_titular ? '<div>NIF: '+_esc(cert.nif_titular)+'</div>' : ''}
+        ${cert.emisor ? '<div>Emisor: '+_esc(cert.emisor)+'</div>' : ''}
+        <div>Fecha: ${new Date().toLocaleDateString('es-ES')}</div>
+      </div>` : '<div class="linea">Firma y sello</div>';
+
     return `
 <div class="firma">
   <div class="firma-bloque">
@@ -374,7 +385,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       <b>${_esc(E.nombre||'')}</b>
       ${E.responsable ? '<br>'+_esc(E.responsable) : ''}
     </div>
-    <div class="linea">Firma y sello</div>
+    ${selloEmpresa}
   </div>
   ${bloqueCli}
 </div>`;

@@ -614,14 +614,14 @@ async function doLogout(skipConfirm) {
   window.location.reload(true);
 }
 
-// Confirmación al cerrar pestaña/navegador
+// Confirmación al cerrar pestaña/navegador — solo si hay cambios sin guardar
+// Para activar: window._erpUnsavedChanges = true; Para desactivar: window._erpUnsavedChanges = false;
 window.addEventListener('beforeunload', (e) => {
-  // No preguntar si estamos cerrando sesión intencionalmente o si no hay sesión activa
   if (window._erpLogoutInProgress) return;
   if (!CU) return;
+  if (!window._erpUnsavedChanges) return; // Solo preguntar si hay cambios sin guardar
   e.preventDefault();
-  // Nota: los navegadores modernos ignoran el texto personalizado y muestran su propio mensaje
-  e.returnValue = '¿Seguro que quieres salir del ERP?';
+  e.returnValue = '';
 });
 
 // ═══════════════════════════════════════════════
@@ -1169,6 +1169,11 @@ async function cargarTodos() {
   if (typeof iniciarAutomatizacionesBackground === 'function') iniciarAutomatizacionesBackground();
   // Tracking de documentos compartidos (realtime)
   if (typeof initDocTracking === 'function') initDocTracking();
+  // Cargar certificado digital predeterminado (para sello en documentos)
+  if (typeof _certActual !== 'undefined' && !_certActual) {
+    sb.from('certificados_digitales').select('*').eq('empresa_id', eid).eq('activo', true).eq('predeterminado', true).maybeSingle()
+      .then(r => { if (r.data) _certActual = r.data; });
+  }
 }
 
 function renderAll() {

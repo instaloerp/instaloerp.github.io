@@ -350,7 +350,28 @@
       doc.text('Fecha y firma:', fx2, y);
       y += 4;
       if (E.titular) doc.text(E.titular, fx1, y);
-      y += 18;
+
+      // Sello de firma digital de la empresa
+      const cert = (typeof _certActual !== 'undefined') ? _certActual : null;
+      if (cert) {
+        y += 4;
+        const sy = y;
+        doc.setDrawColor(30, 64, 175);
+        doc.setLineWidth(0.4);
+        doc.roundedRect(fx1, sy, fcolW - 4, 18, 1.5, 1.5, 'S');
+        doc.setFontSize(7);
+        doc.setTextColor(30, 64, 175);
+        doc.setFont(undefined,'bold');
+        doc.text('FIRMADO DIGITALMENTE', fx1 + 3, sy + 4);
+        doc.setFont(undefined,'normal');
+        doc.setFontSize(6.5);
+        doc.text(cert.titular || E.nombre || '', fx1 + 3, sy + 8);
+        if (cert.nif_titular) doc.text('NIF: ' + cert.nif_titular, fx1 + 3, sy + 11.5);
+        doc.text('Fecha: ' + new Date().toLocaleDateString('es-ES'), fx1 + 3, sy + 15);
+        y = sy + 20;
+      } else {
+        y += 18;
+      }
 
       // Si está aceptado, mostrar bloque verde con datos firma
       if (cfg.firma_aceptada) {
