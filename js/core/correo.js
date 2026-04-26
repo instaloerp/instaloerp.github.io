@@ -323,6 +323,7 @@ function cambiarCarpeta(folder) {
     el.style.background = isActive ? 'var(--azul-light)' : 'transparent';
     el.style.color = isActive ? 'var(--azul)' : 'var(--gris-600)';
     el.style.fontWeight = isActive ? '600' : '400';
+    el.classList.toggle('active', isActive);
   });
   filtrarCorreos();
 }
@@ -388,6 +389,60 @@ function filtrarCorreos() {
   }
 }
 
+// ── Spark-style: generar color consistente por email ──
+function _avatarColor(email) {
+  const colors = [
+    '#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6',
+    '#ec4899','#06b6d4','#f97316','#6366f1','#14b8a6',
+    '#e11d48','#0ea5e9','#84cc16','#d946ef','#f43f5e'
+  ];
+  let hash = 0;
+  const str = (email || '').toLowerCase();
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function _avatarInitials(nombre, email) {
+  if (nombre && nombre !== '—') {
+    const parts = nombre.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  if (email) return email[0].toUpperCase();
+  return '?';
+}
+
+// ── Agrupar correos por fecha estilo Spark ──
+function _agruparPorFecha(list) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
+  const inicioSemana = new Date(hoy); inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay() + (inicioSemana.getDay() === 0 ? -6 : 1));
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+  const grupos = [];
+  let currentGroup = null;
+
+  list.forEach(c => {
+    const fecha = c.fecha ? new Date(c.fecha) : null;
+    let label;
+    if (!fecha) { label = 'Sin fecha'; }
+    else {
+      const d = new Date(fecha); d.setHours(0,0,0,0);
+      if (d >= hoy) label = 'Hoy';
+      else if (d >= ayer) label = 'Ayer';
+      else if (d >= inicioSemana) label = 'Esta semana';
+      else if (d >= inicioMes) label = 'Este mes';
+      else label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+    if (!currentGroup || currentGroup.label !== label) {
+      currentGroup = { label, items: [] };
+      grupos.push(currentGroup);
+    }
+    currentGroup.items.push(c);
+  });
+  return grupos;
+}
+
 function renderListaCorreos(list) {
   const container = document.getElementById('mailList');
   if (!container) return;
@@ -408,55 +463,82 @@ function renderListaCorreos(list) {
     return;
   }
 
-  // Barra de acciones masivas
-  const barraSeleccion = `<div id="mailSelBar" style="display:none;padding:6px 10px;background:var(--azul-light);border-radius:8px;margin-bottom:6px;align-items:center;gap:8px;font-size:12px">
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--gris-600)"><input type="checkbox" onchange="_toggleSelectAll(this.checked)" style="cursor:pointer"> Todos</label>
-    <span id="mailSelCount" style="color:var(--azul);font-weight:600">0 seleccionados</span>
+  // ── Barra de acciones masivas mejorada (Spark-style) ──
+  const barraSeleccion = `<div id="mailSelBar" style="display:none;padding:8px 12px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;margin:4px 2px 8px;align-items:center;gap:6px;font-size:12px;box-shadow:0 1px 3px rgba(59,130,246,.12)">
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--gris-600)"><input type="checkbox" onchange="_toggleSelectAll(this.checked)" style="cursor:pointer;accent-color:var(--azul)"> <span style="font-size:11px">Todos</span></label>
+    <span id="mailSelCount" style="color:var(--azul);font-weight:700;font-size:12px">0</span>
     <span style="flex:1"></span>
-    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(true)" title="Marcar como leídos">✉️ Leídos</button>
-    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(false)" title="Marcar como no leídos">📩 No leídos</button>
-    <button class="btn btn-ghost btn-sm" onclick="_limpiarSeleccion()" style="color:var(--gris-500)">✕</button>
+    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(true)" title="Marcar como leídos" style="padding:4px 8px;font-size:11px;border-radius:6px">✓ Leídos</button>
+    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(false)" title="Marcar como no leídos" style="padding:4px 8px;font-size:11px;border-radius:6px">● No leídos</button>
+    <button class="btn btn-secondary btn-sm" onclick="_eliminarSeleccionados()" title="Eliminar seleccionados" style="padding:4px 8px;font-size:11px;border-radius:6px;color:var(--rojo)">🗑 Eliminar</button>
+    <button class="btn btn-ghost btn-sm" onclick="_limpiarSeleccion()" style="color:var(--gris-400);padding:4px 6px;font-size:14px;line-height:1">✕</button>
   </div>`;
 
-  container.innerHTML = barraSeleccion + list.map(c => {
-    const esNoLeido = c.tipo === 'recibido' && !c.leido;
-    const esActivo = correoActual && correoActual.id === c.id;
-    const esSel = _correosSeleccionados.has(c.id);
-    const fecha = c.fecha ? new Date(c.fecha) : null;
-    const fechaStr = fecha ? (
-      fecha.toDateString() === new Date().toDateString()
-        ? fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-        : fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
-    ) : '';
-    const remitente = c.tipo === 'enviado'
-      ? 'Para: ' + (c.para || '—').split(',')[0].split('<')[0].trim()
-      : (c.de_nombre || c.de || '—');
+  // ── Agrupar y renderizar con separadores de fecha (Spark-style) ──
+  const grupos = _agruparPorFecha(list);
+  let html = barraSeleccion;
 
-    return `<div style="display:flex;align-items:stretch;margin-bottom:2px;border-radius:8px;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'};background:${esSel ? 'var(--azul-light)' : esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'};transition:background .12s" onmouseenter="if(!${esActivo}&&!${esSel})this.style.background='var(--gris-50)'" onmouseleave="this.style.background='${esSel ? 'var(--azul-light)' : esActivo ? 'var(--azul-light)' : esNoLeido ? 'rgba(59,130,246,.04)' : 'transparent'}'">
-      <label style="display:flex;align-items:center;padding:0 4px 0 8px;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="cursor:pointer;accent-color:var(--azul)"></label>
-      <div onclick="abrirCorreo(${c.id})" style="flex:1;padding:10px 12px 10px 6px;cursor:pointer;min-width:0">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
-          <span style="font-size:12.5px;font-weight:${esNoLeido ? '700' : '500'};color:var(--gris-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${remitente}</span>
-          <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:8px">${fechaStr}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          ${esNoLeido ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--azul);flex-shrink:0" title="No leído"></span>' : ''}
-          ${c.tiene_adjuntos ? '<span style="font-size:11px" title="Tiene adjuntos">📎</span>' : ''}
-          <span style="font-size:12px;font-weight:${esNoLeido ? '600' : '400'};color:var(--gris-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
-        </div>
-        <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${(c.cuerpo_texto || '').substring(0, 80)}</div>
-        ${c.vinculado_tipo ? `<span style="font-size:9px;background:var(--azul-light);color:var(--azul);padding:1px 5px;border-radius:3px;margin-top:3px;display:inline-block">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
-      </div>
-    </div>`;
-  }).join('');
+  grupos.forEach(grupo => {
+    // Separador de fecha
+    html += `<div style="padding:6px 12px 4px;font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.8px;margin-top:4px">${grupo.label}</div>`;
 
-  // Botón "Cargar más antiguos" al final de la lista (siempre visible si hay cuenta)
+    grupo.items.forEach(c => {
+      const esNoLeido = c.tipo === 'recibido' && !c.leido;
+      const esActivo = correoActual && correoActual.id === c.id;
+      const esSel = _correosSeleccionados.has(c.id);
+      const fecha = c.fecha ? new Date(c.fecha) : null;
+      const fechaStr = fecha ? (
+        fecha.toDateString() === new Date().toDateString()
+          ? fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+          : fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+      ) : '';
+
+      // Remitente y avatar
+      const emailKey = c.tipo === 'enviado' ? (c.para || '') : (c.de || '');
+      const nombreDisplay = c.tipo === 'enviado'
+        ? (c.para || '—').split(',')[0].split('<')[0].trim()
+        : (c.de_nombre || c.de || '—');
+      const initials = _avatarInitials(nombreDisplay, emailKey);
+      const avatarBg = _avatarColor(emailKey);
+      const preview = (c.cuerpo_texto || '').replace(/\s+/g, ' ').substring(0, 90);
+
+      // Background según estado
+      const bg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : esNoLeido ? '#fafbff' : 'transparent';
+      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f8fafc';
+
+      html += `<div class="spark-mail-item" data-id="${c.id}" style="display:flex;align-items:center;gap:10px;padding:10px 10px;margin:1px 4px;border-radius:10px;cursor:pointer;background:${bg};transition:all .15s ease;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'}" onclick="abrirCorreo(${c.id})" onmouseenter="if(!this.classList.contains('sel'))this.style.background='${hoverBg}'" onmouseleave="this.style.background='${bg}'">
+        <!-- Checkbox (hover reveal) -->
+        <div style="position:relative;width:36px;height:36px;flex-shrink:0" onclick="event.stopPropagation()">
+          <div class="spark-avatar" style="width:36px;height:36px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;letter-spacing:0.5px;pointer-events:none">${initials}</div>
+          <input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;accent-color:var(--azul)">
+          ${esSel ? `<div style="position:absolute;inset:0;border-radius:50%;background:var(--azul);display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 8 6.5 11 12.5 5"></polyline></svg></div>` : ''}
+        </div>
+        <!-- Contenido -->
+        <div style="flex:1;min-width:0;line-height:1.35">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+            <span style="font-size:13px;font-weight:${esNoLeido ? '700' : '500'};color:${esNoLeido ? 'var(--gris-900)' : 'var(--gris-700)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${c.tipo === 'enviado' ? '<span style="color:var(--gris-400);font-weight:400;font-size:11px">Para: </span>' : ''}${nombreDisplay}</span>
+            <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:6px;font-weight:500">${fechaStr}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
+            ${esNoLeido ? '<span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' : ''}
+            ${c.tiene_adjuntos ? '<span style="font-size:10px;color:var(--gris-400)">📎</span>' : ''}
+            <span style="font-size:12.5px;font-weight:${esNoLeido ? '600' : '400'};color:${esNoLeido ? 'var(--gris-800)' : 'var(--gris-600)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>
+          ${c.vinculado_tipo ? `<span style="font-size:9px;background:#eff6ff;color:#3b82f6;padding:1px 6px;border-radius:4px;margin-top:3px;display:inline-block;font-weight:600">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
+        </div>
+      </div>`;
+    });
+  });
+
+  // Botón "Cargar más antiguos" al final de la lista
   if (_correoCuentaActiva && (carpetaActual === 'inbox' || carpetaActual === 'sent')) {
-    container.innerHTML += `<div style="text-align:center;padding:12px">
-      <button id="btnCargarAntiguos" class="btn btn-ghost btn-sm" onclick="cargarCorreosAntiguos()" style="font-size:11px;color:var(--gris-500)">📥 Cargar más antiguos</button>
+    html += `<div style="text-align:center;padding:16px 12px">
+      <button id="btnCargarAntiguos" class="btn btn-ghost btn-sm" onclick="cargarCorreosAntiguos()" style="font-size:11px;color:var(--gris-400);border:1px dashed var(--gris-200);border-radius:8px;padding:8px 16px">↓ Cargar más antiguos</button>
     </div>`;
   }
 
+  container.innerHTML = html;
   _actualizarBarraSeleccion();
 }
 
@@ -526,24 +608,38 @@ async function abrirCorreo(id) {
 
   const fecha = c.fecha ? new Date(c.fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  // Mostrar cabecera inmediatamente
+  // Spark-style: avatar en cabecera
+  const emailKey = c.tipo === 'enviado' ? (c.para || '') : (c.de || '');
+  const nombreDisplay = c.tipo === 'enviado' ? (c.para || '—').split(',')[0].split('<')[0].trim() : (c.de_nombre || c.de || '—');
+  const avatarBg = _avatarColor(emailKey);
+  const initials = _avatarInitials(nombreDisplay, emailKey);
+
+  // Mostrar cabecera inmediatamente (Spark-style)
   view.innerHTML = `
-    <div style="padding:16px 20px;border-bottom:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:flex-start">
-      <div style="flex:1;min-width:0">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">${c.asunto || '(sin asunto)'}</h3>
-        <div style="font-size:12px;color:var(--gris-500)">
-          ${c.tipo === 'enviado' ? '<b>Para:</b> ' + (c.para || '—') : '<b>De:</b> ' + (c.de_nombre ? c.de_nombre + ' &lt;' + c.de + '&gt;' : c.de || '—')}
-          <span style="margin-left:12px">${fecha}</span>
+    <div style="padding:18px 24px 14px;border-bottom:1px solid var(--gris-100)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+        <h3 style="font-size:17px;font-weight:700;color:var(--gris-900);flex:1;line-height:1.3">${c.asunto || '(sin asunto)'}</h3>
+        <div style="display:flex;gap:4px;flex-shrink:0;margin-left:12px">
+          ${c.tipo === 'recibido' ? `<button class="btn btn-secondary btn-sm" onclick="responderCorreo(${c.id})" style="border-radius:8px;padding:6px 12px;font-size:12px">↩️ Responder</button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="reenviarCorreo(${c.id})" style="border-radius:8px;padding:6px 12px;font-size:12px">↪️ Reenviar</button>
+          <button class="btn btn-ghost btn-sm" onclick="vincularCorreo(${c.id})" title="Vincular" style="padding:6px 8px;border-radius:8px">🔗</button>
+          ${c.tipo === 'recibido' ? `<button class="btn btn-ghost btn-sm" onclick="crearReglaDesdeCorreo(${c.id})" title="Automatizar" style="padding:6px 8px;border-radius:8px">⚡</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo);padding:6px 8px;border-radius:8px">🗑️</button>
         </div>
-        ${c.para && c.tipo !== 'enviado' ? `<div style="font-size:12px;color:var(--gris-400)"><b>Para:</b> ${c.para}</div>` : ''}
-        ${c.cc ? `<div style="font-size:12px;color:var(--gris-400)"><b>CC:</b> ${c.cc}</div>` : ''}
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        ${c.tipo === 'recibido' ? `<button class="btn btn-secondary btn-sm" onclick="responderCorreo(${c.id})">↩️ Responder</button>` : ''}
-        <button class="btn btn-secondary btn-sm" onclick="reenviarCorreo(${c.id})">↪️ Reenviar</button>
-        ${c.tipo === 'recibido' ? `<button class="btn btn-ghost btn-sm" onclick="crearReglaDesdeCorreo(${c.id})" title="Crear automatización desde este correo">⚡</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="vincularCorreo(${c.id})" title="Vincular a obra/cliente">🔗</button>
-        <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo)">🗑️</button>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;flex-shrink:0;letter-spacing:0.5px">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:1px">
+            <span style="font-size:13.5px;font-weight:700;color:var(--gris-800)">${nombreDisplay}</span>
+            ${c.tipo === 'enviado' ? '' : `<span style="font-size:11px;color:var(--gris-400)">&lt;${c.de || ''}&gt;</span>`}
+          </div>
+          <div style="font-size:11.5px;color:var(--gris-400);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${c.tipo === 'enviado' ? '<span>Para: ' + (c.para || '—') + '</span>' : c.para ? '<span>Para: ' + c.para + '</span>' : ''}
+            ${c.cc ? '<span>· CC: ' + c.cc + '</span>' : ''}
+            <span style="margin-left:auto;font-size:11px;color:var(--gris-400)">${fecha}</span>
+          </div>
+        </div>
       </div>
     </div>
     <div id="mailBody" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
@@ -1798,6 +1894,22 @@ function _actualizarBarraSeleccion() {
   const n = _correosSeleccionados.size;
   bar.style.display = n > 0 ? 'flex' : 'none';
   if (cnt) cnt.textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+
+async function _eliminarSeleccionados() {
+  if (_correosSeleccionados.size === 0) return;
+  const n = _correosSeleccionados.size;
+  const ok = await confirmModal({titulo:'Eliminar correos',mensaje:`¿Eliminar ${n} correo${n>1?'s':''}?`,aviso:'Esta acción no se puede deshacer',btnOk:`Eliminar ${n}`,colorOk:'#dc2626'});
+  if (!ok) return;
+  const ids = [..._correosSeleccionados];
+  const { error } = await sb.from('correos').delete().in('id', ids);
+  if (error) { toast('❌ Error eliminando correos', 'error'); return; }
+  correos = correos.filter(c => !ids.includes(c.id));
+  _correosSeleccionados.clear();
+  correoActual = null;
+  cancelarCorreo(true);
+  filtrarCorreos();
+  toast(`🗑 ${n} correo${n>1?'s':''} eliminado${n>1?'s':''}`, 'info');
 }
 
 async function _marcarSeleccionados(comoLeido) {

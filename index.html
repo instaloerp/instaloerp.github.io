@@ -233,7 +233,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 91</span>
+      <span id="erpBuildVersion">v1.1 · build 92</span>
       <div id="sbFavSection"><div id="sbFavList" class="sb-favoritos"></div></div>
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1673,53 +1673,61 @@ try {
 
       <!-- ═══ PAPELERA (DOCS ELIMINADOS) ═══ -->
       <div class="page" id="page-correo">
-        <div style="display:flex;height:calc(100vh - 120px);gap:0;border:1px solid var(--gris-200);border-radius:10px;overflow:hidden;background:#fff">
-          <!-- Panel izquierdo: carpetas + lista -->
-          <div style="width:320px;border-right:1px solid var(--gris-200);display:flex;flex-direction:column;flex-shrink:0">
+        <div style="display:flex;height:calc(100vh - 120px);gap:0;border:1px solid var(--gris-200);border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+          <!-- Panel izquierdo: carpetas + lista (Spark-style) -->
+          <div style="width:340px;border-right:1px solid var(--gris-200);display:flex;flex-direction:column;flex-shrink:0;background:#fafbfc">
             <!-- Botón nuevo correo + sync -->
-            <div style="padding:12px;display:flex;gap:6px">
-              <button class="btn btn-primary" onclick="nuevoCorreo()" style="flex:1">✉️ Nuevo correo</button>
-              <button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" id="mailSyncBtn" title="Sincronizar bandeja de entrada" style="padding:6px 10px">🔄</button>
+            <div style="padding:14px 14px 10px;display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="nuevoCorreo()" style="flex:1;border-radius:10px;font-weight:700;font-size:13px;padding:9px 16px;box-shadow:0 2px 8px rgba(59,130,246,.25)">✏️ Redactar</button>
+              <button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" id="mailSyncBtn" title="Sincronizar" style="padding:8px 10px;border-radius:10px;font-size:14px">🔄</button>
             </div>
-            <!-- Carpetas -->
-            <div style="padding:0 12px 8px;display:flex;flex-direction:column;gap:2px">
-              <div class="mail-folder active" data-folder="inbox" onclick="cambiarCarpeta('inbox')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;background:var(--azul-light);color:var(--azul)">
-                <span>📥</span> Entrada <span id="mailBadgeUnread" style="margin-left:auto;background:var(--rojo);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;display:none"></span><span class="mail-count" id="mailCntInbox" style="margin-left:4px;font-size:11px;color:var(--gris-400)"></span>
+            <!-- Carpetas (Spark-style) -->
+            <div style="padding:0 10px 6px;display:flex;flex-direction:column;gap:1px">
+              <div class="mail-folder active" data-folder="inbox" onclick="cambiarCarpeta('inbox')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;background:var(--azul-light);color:var(--azul);transition:all .12s">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                Entrada <span id="mailBadgeUnread" style="margin-left:auto;background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:800;display:none;min-width:18px;text-align:center"></span><span class="mail-count" id="mailCntInbox" style="margin-left:auto;font-size:11px;color:var(--gris-400);font-weight:500"></span>
               </div>
-              <div class="mail-folder" data-folder="drafts" onclick="cambiarCarpeta('drafts')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>📝</span> Borradores <span class="mail-count" id="mailCntDrafts" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              <div class="mail-folder" data-folder="sent" onclick="cambiarCarpeta('sent')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--gris-600);transition:all .12s">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Enviados <span class="mail-count" id="mailCntSent" style="margin-left:auto;font-size:11px;color:var(--gris-400);font-weight:500"></span>
               </div>
-              <div class="mail-folder" data-folder="sent" onclick="cambiarCarpeta('sent')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>📤</span> Enviados <span class="mail-count" id="mailCntSent" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              <div class="mail-folder" data-folder="drafts" onclick="cambiarCarpeta('drafts')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--gris-600);transition:all .12s">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Borradores <span class="mail-count" id="mailCntDrafts" style="margin-left:auto;font-size:11px;color:var(--gris-400);font-weight:500"></span>
               </div>
-              <div class="mail-folder" data-folder="spam" onclick="cambiarCarpeta('spam')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>⚠️</span> SPAM <span class="mail-count" id="mailCntSpam" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              <div class="mail-folder" data-folder="spam" onclick="cambiarCarpeta('spam')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--gris-600);transition:all .12s">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Spam <span class="mail-count" id="mailCntSpam" style="margin-left:auto;font-size:11px;color:var(--gris-400);font-weight:500"></span>
               </div>
-              <div class="mail-folder" data-folder="trash" onclick="cambiarCarpeta('trash')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--gris-600)">
-                <span>🗑️</span> Papelera <span class="mail-count" id="mailCntTrash" style="margin-left:auto;font-size:11px;color:var(--gris-400)"></span>
+              <div class="mail-folder" data-folder="trash" onclick="cambiarCarpeta('trash')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--gris-600);transition:all .12s">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                Papelera <span class="mail-count" id="mailCntTrash" style="margin-left:auto;font-size:11px;color:var(--gris-400);font-weight:500"></span>
               </div>
             </div>
-            <div style="border-top:1px solid var(--gris-200)"></div>
-            <!-- Búsqueda -->
+            <div style="border-top:1px solid var(--gris-100);margin:2px 12px"></div>
+            <!-- Búsqueda (Spark-style) -->
             <div style="padding:8px 12px">
-              <input type="text" id="mailSearch" placeholder="🔍 Buscar correo..." oninput="filtrarCorreos()" style="width:100%;padding:6px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12px;outline:none">
+              <div style="position:relative">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="mailSearch" placeholder="Buscar correos..." oninput="filtrarCorreos()" style="width:100%;padding:8px 10px 8px 32px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:12.5px;outline:none;background:#fff;transition:border-color .15s" onfocus="this.style.borderColor='var(--azul)'" onblur="this.style.borderColor='var(--gris-200)'">
+              </div>
             </div>
             <!-- Lista de correos -->
-            <div id="mailList" style="flex:1;overflow-y:auto;padding:0 6px">
+            <div id="mailList" style="flex:1;overflow-y:auto;padding:0 4px">
               <div style="padding:30px 20px;text-align:center;color:var(--gris-400);font-size:13px">
                 <div style="font-size:32px;margin-bottom:8px">📧</div>
                 Configura tu cuenta de correo en<br>Configuración → Correo
               </div>
             </div>
             <!-- Barra de estado -->
-            <div id="mailStatusBar" style="padding:5px 12px;border-top:1px solid var(--gris-200);font-size:11px;color:var(--gris-400);text-align:center;flex-shrink:0"></div>
+            <div id="mailStatusBar" style="padding:6px 12px;border-top:1px solid var(--gris-100);font-size:10.5px;color:var(--gris-400);text-align:center;flex-shrink:0;background:#fafbfc"></div>
           </div>
           <!-- Panel derecho: vista del correo -->
-          <div id="mailView" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+          <div id="mailView" style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff">
             <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--gris-400);font-size:14px">
               <div style="text-align:center">
-                <div style="font-size:48px;margin-bottom:12px">✉️</div>
-                <p>Selecciona un correo para leerlo</p>
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <p style="font-size:14px;color:var(--gris-500);font-weight:500">Selecciona un correo para leerlo</p>
               </div>
             </div>
           </div>
