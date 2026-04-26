@@ -69,21 +69,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 2. Registrar la vista
+  // 2. Registrar la vista (un solo update para evitar doble evento realtime)
   const esNueva = !share.first_viewed_at;
   const ahora = new Date().toISOString();
 
-  await sb.from('documentos_compartidos').update({
+  const updateData: any = {
     first_viewed_at: share.first_viewed_at || ahora,
     last_viewed_at: ahora,
     view_count: (share.view_count || 0) + 1
-  }).eq('id', share.id);
+  };
+  if (esNueva) updateData.notificado = true;
 
-  // 3. Push notification solo en primera vista (best-effort)
-  if (esNueva) {
-    await sb.from('documentos_compartidos').update({ notificado: true }).eq('id', share.id);
-    // Push notification deshabilitada por ahora (requiere web-push config)
-  }
+  await sb.from('documentos_compartidos').update(updateData).eq('id', share.id);
 
   // 4a. Si es petición JSON, devolver datos
   if (formatJson) {

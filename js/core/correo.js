@@ -1610,11 +1610,11 @@ async function enviarCorreo() {
           }
         }
 
-        // Popup de confirmación si el correo va vinculado a una factura
+        // Confirmación de envío
         if (vinculacion?.tipo === 'factura') {
-          _mostrarPopupEnvioFactura(vinculacion.ref || '', para);
+          toast(`Factura enviada\n${vinculacion.ref || ''} · ${para}`, 'success', 6000);
         } else {
-          toast('📤 Correo enviado correctamente', 'success');
+          toast(`Correo enviado\n${para}`, 'success', 5000);
         }
         return;
       } else {

@@ -889,7 +889,142 @@ function estadoBadgeA(e){const m={borrador:'<span class="badge bg-gray">✏️ B
 
 function prioBadge(p){const m={Urgente:'<span class="badge bg-red">🔴</span>',Alta:'<span class="badge" style="background:#FFF4ED;color:var(--acento)">🟠</span>',Normal:'<span class="badge bg-gray">⚪</span>',Baja:'<span class="badge bg-gray">🔵</span>'};return m[p]||'';}
 
-function toast(msg,type='info'){const c=document.getElementById('toast');const t=document.createElement('div');t.className=`ti ${type}`;t.innerHTML=`<span>${{success:'✅',error:'❌',info:'ℹ️'}[type]}</span> ${msg}`;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3800);}
+function toast(msg, type='info', duracion=4500) {
+  const c = document.getElementById('toast');
+  if (!c) return;
+  const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
+  const iconColors = { success: '#10B981', error: '#EF4444', info: '#3B82F6', warning: '#F59E0B' };
+
+  // Separar título y subtítulo si msg contiene '\n' o es un objeto
+  let titulo = msg, sub = '';
+  if (typeof msg === 'string' && msg.includes('\n')) {
+    const parts = msg.split('\n');
+    titulo = parts[0];
+    sub = parts.slice(1).join(' ');
+  }
+
+  const t = document.createElement('div');
+  t.className = `ti ${type}`;
+  t.innerHTML = `
+    <span class="ti-icon" style="width:28px;height:28px;border-radius:50%;background:${iconColors[type]||iconColors.info};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">${icons[type]||icons.info}</span>
+    <div class="ti-text">
+      <div class="ti-title">${titulo}</div>
+      ${sub ? `<div class="ti-sub">${sub}</div>` : ''}
+    </div>
+    <button class="ti-close" onclick="this.parentElement.classList.remove('show');setTimeout(()=>this.parentElement.remove(),300)">✕</button>`;
+  c.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, duracion);
+
+  // Guardar en el centro de notificaciones (excepto las puramente informativas efímeras)
+  _guardarNotificacion(titulo, sub, type);
+}
+
+
+// ═══════════════════════════════════════════════
+//  CENTRO DE NOTIFICACIONES
+// ═══════════════════════════════════════════════
+
+const _notificaciones = [];
+const _MAX_NOTIF = 50;
+
+function _guardarNotificacion(titulo, sub, type) {
+  _notificaciones.unshift({
+    id: Date.now() + Math.random(),
+    titulo, sub, type,
+    timestamp: new Date(),
+    leida: false
+  });
+  if (_notificaciones.length > _MAX_NOTIF) _notificaciones.length = _MAX_NOTIF;
+  _actualizarBadgeNotif();
+}
+
+function _actualizarBadgeNotif() {
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  const sinLeer = _notificaciones.filter(n => !n.leida).length;
+  if (sinLeer > 0) {
+    badge.textContent = sinLeer > 9 ? '9+' : sinLeer;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  const visible = panel.style.display !== 'none';
+  if (visible) {
+    panel.style.display = 'none';
+  } else {
+    // Marcar todas como leídas al abrir
+    _notificaciones.forEach(n => n.leida = true);
+    _actualizarBadgeNotif();
+    _renderNotifList();
+    panel.style.display = '';
+  }
+}
+
+function _renderNotifList() {
+  const list = document.getElementById('notifList');
+  const empty = document.getElementById('notifEmpty');
+  if (!list) return;
+
+  if (!_notificaciones.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  list.innerHTML = _notificaciones.map(n => {
+    const hace = _tiempoRelativo(n.timestamp);
+    return `<div class="notif-item ${n.leida ? '' : 'unread'}" data-notif-id="${n.id}">
+      <span class="notif-dot ${n.type}"></span>
+      <div class="notif-body">
+        <div class="notif-title ${n.type}">${n.titulo}</div>
+        ${n.sub ? `<div class="notif-sub">${n.sub}</div>` : ''}
+        <div class="notif-time">${hace}</div>
+      </div>
+      <button class="notif-close" onclick="event.stopPropagation();descartarNotificacion(${n.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function descartarNotificacion(id) {
+  const idx = _notificaciones.findIndex(n => n.id === id);
+  if (idx !== -1) {
+    _notificaciones.splice(idx, 1);
+    _actualizarBadgeNotif();
+    _renderNotifList();
+  }
+}
+
+function limpiarNotificaciones() {
+  _notificaciones.length = 0;
+  _actualizarBadgeNotif();
+  _renderNotifList();
+}
+
+function _tiempoRelativo(fecha) {
+  const ahora = new Date();
+  const diff = Math.floor((ahora - fecha) / 1000);
+  if (diff < 60) return 'ahora';
+  if (diff < 3600) return `hace ${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `hace ${Math.floor(diff/3600)} h`;
+  return fecha.toLocaleDateString('es-ES', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+// Cerrar panel al hacer clic fuera
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notifPanel');
+  const center = document.getElementById('notifCenter');
+  if (panel && center && panel.style.display !== 'none' && !center.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
 
 /**
  * Modal de confirmación bonito — reemplaza confirm() nativo.

@@ -402,7 +402,7 @@ function iniciarTrackingRealtime() {
       if (nuevo.first_viewed_at && !viejo.first_viewed_at) {
         const dest = nuevo.destinatario_nombre || nuevo.destinatario_email || 'Alguien';
         const doc = nuevo.documento_numero || nuevo.tipo_documento;
-        toast(`👁️ ${dest} ha visto el documento ${doc}`, 'success', 5000);
+        toast(`Documento visto\n${dest} ha abierto ${doc}`, 'success', 6000);
 
         // Invalidar cache
         const cacheKey = nuevo.tipo_documento + ':' + nuevo.documento_id;
