@@ -282,7 +282,7 @@ function renderFacturas(list) {
       <td style="text-align:right;font-size:12.5px">${fmtE(f.base_imponible || 0)}</td>
       <td style="text-align:right;font-size:12.5px">${fmtE(f.total_iva || 0)}</td>
       <td style="text-align:right;font-weight:700">${fmtE(f.total || 0)}</td>
-      <td onclick="event.stopPropagation()">
+      <td onclick="event.stopPropagation()" data-tracking-cell="${f.id}">
         <span onclick="cambiarEstadoFacMenu(event,${f.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
       </td>
       <td onclick="event.stopPropagation()">
@@ -290,7 +290,6 @@ function renderFacturas(list) {
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${typeof _trackingMap!=='undefined' && _trackingMap.get?.(String(f.id)) ? badgeTracking(_trackingMap.get(String(f.id)), f.id) : ''}
           ${_isVfActivo() && f.estado !== 'borrador' && !(f.numero||'').startsWith('BORR-') ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : `<button onclick="event.stopPropagation();enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT (VeriFactu)">📡 AEAT</button>`) : ''}
           ${f.face_estado ? (f.face_estado === 'pagada' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="FACe: Pagada">🏛️✅</span>` : f.face_estado === 'rechazada' || f.face_estado === 'anulada' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}">🏛️❌</span>` : `<span style="padding:3px 8px;border-radius:6px;background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700" title="FACe: ${f.face_estado}${f.face_numero_registro ? ' · Reg: '+f.face_numero_registro : ''}">🏛️</span>`) : ''}
           ${!bloqueada && !esRect && f.estado !== 'cobrada' && f.estado !== 'pagada' && f.estado !== 'anulada' && f.estado !== 'rectificada' ? `<button onclick="marcarCobrada(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #D97706;background:#FEF3C7;cursor:pointer;font-size:11px;font-weight:700;color:#92400E" title="Registrar cobro de esta factura">💰 Cobrar</button>` : ''}
@@ -311,6 +310,9 @@ function renderFacturas(list) {
     </tr>`;
   }).join('') :
   '<tr><td colspan="9"><div class="empty"><div class="ei">🧾</div><h3>Sin facturas</h3><p>Crea la primera con el botón "+ Nueva factura"</p></div></td></tr>';
+
+  // Inyectar badges de tracking (enviado/visto) de forma asíncrona
+  _inyectarBadgesTracking(list, 'factura');
 }
 
 // ═══════════════════════════════════════════════
@@ -2249,18 +2251,20 @@ function renderRectificativas() {
       </td>
       <td style="text-align:right;font-weight:700;color:#991B1B">${fmtE(f.total || 0)}</td>
       <td style="font-size:12px;color:var(--gris-400)">${f.observaciones || ''}</td>
-      <td onclick="event.stopPropagation()">
+      <td onclick="event.stopPropagation()" data-tracking-cell="${f.id}">
         <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
           <button onclick="imprimirFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="Imprimir">🖨️</button>
           <button onclick="generarPdfFactura(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px" title="PDF">📥</button>
           <button onclick="enviarFacturaEmail(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid var(--gris-200);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--gris-600)" title="Enviar email">📧</button>
-          ${typeof _trackingMap!=='undefined' && _trackingMap.get?.(String(f.id)) ? badgeTracking(_trackingMap.get(String(f.id)), f.id) : ''}
           ${_isVfActivo() ? (f.verifactu_estado === 'correcto' || f.verifactu_estado === 'simulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#D1FAE5;color:#065F46;font-size:10px;font-weight:700" title="Registrada en AEAT · CSV: ${f.verifactu_csv||''}">✅ AEAT</span>` : f.verifactu_estado === 'aceptado_errores' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="AEAT con avisos · CSV: ${f.verifactu_csv||''}">⚠️ AEAT</span>` : f.verifactu_estado === 'anulado' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700" title="Anulada en AEAT">🗑️</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reenviar a AEAT">📡</button>` : f.verifactu_estado === 'incorrecto' ? `<span style="padding:3px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:10px;font-weight:700" title="Error al enviar">❌</span><button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Reintentar envío">🔄</button>` : `<button onclick="enviarFacturaAEAT(${f.id})" style="padding:4px 8px;border-radius:6px;border:1px solid #1D4ED8;background:#EFF6FF;cursor:pointer;font-size:11px;font-weight:700;color:#1D4ED8" title="Enviar a AEAT">📡 AEAT</button>`) : ''}
         </div>
       </td>
     </tr>`;
   }).join('') :
   '<tr><td colspan="7"><div class="empty"><div class="ei">📝</div><h3>Sin rectificativas</h3><p>Las facturas rectificativas aparecerán aquí al crearlas desde una factura original</p></div></td></tr>';
+
+  // Inyectar badges de tracking (enviado/visto) de forma asíncrona
+  _inyectarBadgesTracking(rects, 'factura');
 }
 
 // ═══════════════════════════════════════════════

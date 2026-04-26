@@ -70,7 +70,7 @@ function renderAlbaranes(list) {
       <td style="color:var(--gris-600);font-size:12.5px">${a.referencia||'—'}</td>
       <td style="font-size:12px">${a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-weight:700">${fmtE(a.total||0)}</td>
-      <td>
+      <td data-tracking-cell="${a.id}">
         <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg}">${est.ico} ${est.label}</span>
       </td>
       <td>
@@ -108,6 +108,9 @@ function renderAlbaranes(list) {
     </tr>`;
   }).join('') :
   '<tr><td colspan="8"><div class="empty"><div class="ei">📄</div><h3>Sin albaranes</h3><p>Crea el primero con el botón "+ Nuevo albarán"</p></div></td></tr>';
+
+  // Inyectar badges de tracking (enviado/visto) de forma asíncrona
+  _inyectarBadgesTracking(list, 'albaran');
 }
 
 // ═══════════════════════════════════════════════

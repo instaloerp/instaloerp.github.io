@@ -549,3 +549,48 @@ function _actualizarBadgeEnLista(tipo_documento, documento_id, view_count) {
     view_count: view_count || 1
   });
 }
+
+
+// ═══════════════════════════════════════════════
+//  INYECCIÓN MASIVA DE BADGES EN LISTAS
+// ═══════════════════════════════════════════════
+
+/**
+ * Carga batch de tracking para un tipo y renderiza badges en celdas con data-tracking-cell.
+ * Llamar después de inyectar el HTML de la tabla.
+ * @param {Array} list - array de documentos (cada uno con .id)
+ * @param {string} tipo_documento - 'presupuesto'|'albaran'|'factura'|etc.
+ */
+async function _inyectarBadgesTracking(list, tipo_documento) {
+  if (!list || !list.length) return;
+  try {
+    const mapa = await cargarTrackingBatch(tipo_documento);
+    if (!mapa.size) return;
+
+    // Guardar en el mapa global para realtime updates
+    mapa.forEach((v, k) => _trackingMap.set(k, v));
+
+    // Buscar celdas con data-tracking-cell e inyectar badge
+    const cells = document.querySelectorAll('[data-tracking-cell]');
+    cells.forEach(cell => {
+      const docId = cell.getAttribute('data-tracking-cell');
+      const estado = mapa.get(docId) || mapa.get(String(docId));
+      if (!estado || !estado.compartido) return;
+
+      // Insertar badge después del primer span (el badge de estado)
+      const badge = badgeTracking(estado, docId);
+      if (!badge) return;
+
+      const badgeHtml = `<div style="margin-top:2px;cursor:pointer" onclick="event.stopPropagation();mostrarDetalleTracking('${tipo_documento}','${docId}','')">${badge}</div>`;
+      const estadoSpan = cell.querySelector('span[onclick*="cambiarEstado"]');
+      if (estadoSpan) {
+        estadoSpan.insertAdjacentHTML('afterend', badgeHtml);
+      } else {
+        // Fallback: insertar al inicio de la celda (rectificativas, etc.)
+        cell.insertAdjacentHTML('afterbegin', badgeHtml);
+      }
+    });
+  } catch(e) {
+    console.error('[DocTracking] Error inyectando badges:', e);
+  }
+}

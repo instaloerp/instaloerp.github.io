@@ -265,7 +265,7 @@ function renderPresupuestos(list) {
       <td style="font-size:12px">${p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-size:12px">${p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-weight:700">${fmtE(p.total||0)}</td>
-      <td onclick="event.stopPropagation()">
+      <td onclick="event.stopPropagation()" data-tracking-cell="${p.id}">
         <span onclick="cambiarEstadoPresMenu(event,${p.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:${est.color};background:${est.bg};cursor:pointer" title="Cambiar estado">${est.ico} ${est.label}</span>
         ${(()=>{
           if (p.estado!=='aceptado') return '';
@@ -331,6 +331,9 @@ function renderPresupuestos(list) {
     </tr>`;
   }).join('') :
   '<tr><td colspan="8"><div class="empty"><div class="ei">📋</div><h3>Sin presupuestos</h3><p>Crea el primero con el botón "+ Nuevo presupuesto"</p></div></td></tr>';
+
+  // Inyectar badges de tracking (enviado/visto) de forma asíncrona
+  _inyectarBadgesTracking(list, 'presupuesto');
 }
 
 // ═══════════════════════════════════════════════
