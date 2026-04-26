@@ -97,8 +97,12 @@ async function loadCorreos() {
 
   // Auto-sincronizar si tiene sync habilitada
   if (_correoCuentaActiva.sync_habilitada) {
-    // Primera vez (0 correos en BD): descarga completa del buzón
+    // Si hay 0 correos en BD: resetear sync_state y hacer descarga completa
     const esPrimeraCarga = correos.length === 0;
+    if (esPrimeraCarga) {
+      // Resetear estado de sync para forzar descarga desde cero
+      await sb.from('correo_sync_state').delete().eq('cuenta_correo_id', _correoCuentaActiva.id);
+    }
     sincronizarCorreo(true, esPrimeraCarga); // silencioso, full si es primera vez
   }
 
@@ -397,7 +401,9 @@ function renderListaCorreos(list) {
     container.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--gris-400);font-size:13px">
       <div style="font-size:32px;margin-bottom:8px">${carpetaActual === 'inbox' ? '📥' : carpetaActual === 'sent' ? '📤' : '📝'}</div>
       ${msgs[carpetaActual] || 'Sin correos'}
-      ${carpetaActual === 'inbox' && _correoCuentaActiva ? '<br><button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" style="margin-top:10px">🔄 Sincronizar ahora</button>' : ''}
+      ${_correoCuentaActiva ? `<br>
+        <button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" style="margin-top:10px">🔄 Sincronizar ahora</button>
+        <button id="btnCargarAntiguos" class="btn btn-ghost btn-sm" onclick="sincronizarCorreo(false, true)" style="margin-top:6px;font-size:11px;color:var(--gris-500)">📥 Descargar todo el buzón</button>` : ''}
     </div>`;
     return;
   }
@@ -444,8 +450,8 @@ function renderListaCorreos(list) {
     </div>`;
   }).join('');
 
-  // Botón "Cargar más antiguos" al final de la lista
-  if (carpetaActual === 'inbox' && _correoCuentaActiva && list.length > 0) {
+  // Botón "Cargar más antiguos" al final de la lista (siempre visible si hay cuenta)
+  if (_correoCuentaActiva && (carpetaActual === 'inbox' || carpetaActual === 'sent')) {
     container.innerHTML += `<div style="text-align:center;padding:12px">
       <button id="btnCargarAntiguos" class="btn btn-ghost btn-sm" onclick="cargarCorreosAntiguos()" style="font-size:11px;color:var(--gris-500)">📥 Cargar más antiguos</button>
     </div>`;
