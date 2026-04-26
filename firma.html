@@ -70,8 +70,20 @@ async function init() {
     empresaData = emp;
     const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
     clienteData = cli;
-    // Simular EMPRESA global para html-documento.js
-    window.EMPRESA = emp;
+    // Simular EMPRESA global para html-documento.js (mapear nombres de columnas BD → renderer)
+    window.EMPRESA = {
+      id:           emp.id,
+      nombre:       emp.nombre || '',
+      razon_social: emp.razon_social || '',
+      cif:          emp.cif || '',
+      direccion:    emp.direccion || '',
+      cp:           emp.codigo_postal || emp.cp || '',
+      municipio:    emp.ciudad || emp.municipio || '',
+      provincia:    emp.provincia || '',
+      telefono:     emp.telefono || '',
+      email:        emp.email || '',
+      logo_url:     emp.logo_url || ''
+    };
     document.title = 'Firma de presupuesto';
     renderPresupuesto(pres, emp, cli);
     return;
@@ -376,7 +388,8 @@ async function enviarFirma() {
         firma_zona: true,
         firma_aceptada: {
           nombre: nombre, fecha: firmaFecha, ip: dispositivo.ip || '—',
-          dispositivo: dispositivo, url: firmaUrl
+          dispositivo: dispositivo,
+          url: 'data:image/png;base64,' + firmaBase64   // data URI para evitar CORS en html2pdf
         }
       };
 
