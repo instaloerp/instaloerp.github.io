@@ -87,7 +87,25 @@ function buildCfg(tipo, d) {
   if (tipo === 'FACTURA' && d.fecha_vencimiento) {
     cfg.datos_extra.push(['Vencimiento', fmtD(d.fecha_vencimiento)]);
   }
+  if (d.forma_pago) cfg.datos_extra.push(['Forma de pago', d.forma_pago]);
   if (d.retencion) cfg.datos_extra.push(['Retención', d.retencion + ' €']);
+
+  // Condiciones (forma de pago, vencimiento, IVA)
+  if (tipo === 'FACTURA') {
+    cfg.condiciones = [
+      ['Forma de pago', d.forma_pago || 'Transferencia bancaria.'],
+      ['Vencimiento', d.fecha_vencimiento ? new Date(d.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
+      ['IVA', 'IVA al 21 % incluido en el total final.']
+    ];
+  }
+  if (tipo === 'PRESUPUESTO') {
+    cfg.condiciones = [
+      d.validez ? ['Validez', d.validez] : null,
+      d.plazo_ejecucion ? ['Plazo de ejecución', d.plazo_ejecucion] : null,
+      d.forma_pago ? ['Forma de pago', d.forma_pago] : null,
+      d.garantia ? ['Garantía', d.garantia] : null
+    ].filter(Boolean);
+  }
 
   // VeriFactu
   if (d.verifactu_qr_url) cfg.verifactu_qr_url = d.verifactu_qr_url;

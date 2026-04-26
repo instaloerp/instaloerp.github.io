@@ -52,6 +52,7 @@ async function compartirDocumento(opts) {
       destinatario_email: opts.destinatario_email || null,
       destinatario_telefono: opts.destinatario_telefono || null,
       canal: opts.canal || 'email',
+      acceso_token: opts.acceso_token || null,
       created_by: sb.auth.getUser ? (await sb.auth.getUser())?.data?.user?.id : null
     }).select('id, token').single();
 

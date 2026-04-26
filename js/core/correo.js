@@ -1414,6 +1414,78 @@ async function cancelarCorreo(forzar) {
 }
 
 // ═══════════════════════════════════════════════
+//  CONSTRUIR HTML DEL CUERPO DEL EMAIL
+// ═══════════════════════════════════════════════
+
+/**
+ * Convierte texto plano en HTML con tarjeta profesional para enlaces de documentos.
+ * Si el cuerpo contiene un enlace a doc-viewer o doc.html, lo reemplaza por
+ * un botón/tarjeta visual en vez de un link suelto.
+ */
+function _buildCuerpoHtml(cuerpo, vinculacion) {
+  if (!cuerpo) return '';
+
+  // Detectar URLs de documentos (doc-viewer Edge Function o doc.html directo)
+  const urlRegex = /(https?:\/\/[^\s]+(?:doc-viewer\?token=[^\s]+|doc\.html\?t=[^\s]+))/gi;
+  const match = cuerpo.match(urlRegex);
+
+  let html = cuerpo;
+
+  if (match && match[0]) {
+    const docUrl = match[0];
+    // Extraer datos del contexto para la tarjeta
+    const tipo = vinculacion?.tipo || 'documento';
+    const ref = vinculacion?.ref || '';
+    const tipoLabel = { factura: 'Factura', presupuesto: 'Presupuesto', albaran: 'Albarán', parte_trabajo: 'Parte de trabajo' }[tipo] || 'Documento';
+    const logoUrl = (typeof EMPRESA !== 'undefined' && EMPRESA?.logo_url) ? EMPRESA.logo_url : '';
+
+    // Reemplazar la línea del enlace (y la línea anterior "Pulse el siguiente...") por la tarjeta
+    html = html.replace(/Pulse el siguiente enlace[^\n]*\n[^\n]*(?:doc-viewer\?token=|doc\.html\?t=)[^\s]*/i, '__TARJETA_DOC__');
+    // Si no coincidió el patrón anterior, reemplazar solo la URL
+    if (!html.includes('__TARJETA_DOC__')) {
+      html = html.replace(docUrl, '__TARJETA_DOC__');
+    }
+
+    // Convertir saltos de línea a <br> ANTES de insertar la tarjeta HTML
+    html = html.replace(/\n/g, '<br>');
+
+    // Construir tarjeta HTML
+    const tarjeta = `
+      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0">
+        <tr><td align="center">
+          <table cellpadding="0" cellspacing="0" border="0" width="480" style="max-width:480px;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;font-family:Arial,sans-serif">
+            <tr>
+              <td style="background:#f8f9fa;padding:20px 24px;text-align:center">
+                ${logoUrl ? `<img src="${logoUrl}" alt="" style="max-height:40px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto">` : ''}
+                <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tipoLabel}</div>
+                <div style="font-size:22px;font-weight:700;color:#1a1a1a">${ref || ''}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 24px;text-align:center">
+                <a href="${docUrl}" target="_blank" style="display:inline-block;background:#1a73e8;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.3px">
+                  Ver y descargar ${tipoLabel.toLowerCase()}
+                </a>
+                <div style="margin-top:12px;font-size:11px;color:#999">
+                  Puede ver, descargar e imprimir el documento desde este enlace
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>`;
+
+    html = html.replace('__TARJETA_DOC__', tarjeta);
+  } else {
+    // Sin enlace de documento: conversión simple
+    html = html.replace(/\n/g, '<br>');
+  }
+
+  return '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#333">' + html + '</div>';
+}
+
+
+// ═══════════════════════════════════════════════
 //  ENVIAR CORREO (vía Edge Function SMTP)
 // ═══════════════════════════════════════════════
 async function enviarCorreo() {
@@ -1446,7 +1518,7 @@ async function enviarCorreo() {
           cc: cc || undefined,
           asunto,
           cuerpo_texto: cuerpo,
-          cuerpo_html: '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">' + (cuerpo || '').replace(/\n/g, '<br>') + '</div>',
+          cuerpo_html: _buildCuerpoHtml(cuerpo, vinculacion),
           vinculado_tipo: vinculacion?.tipo || undefined,
           vinculado_id: vinculacion?.id || undefined,
           vinculado_ref: vinculacion?.ref || undefined,
