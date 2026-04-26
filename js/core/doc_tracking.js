@@ -63,7 +63,7 @@ async function compartirDocumento(opts) {
     const cacheKey = opts.tipo_documento + ':' + opts.documento_id;
     _trackingCache.delete(cacheKey);
 
-    console.log('[DocTracking] Enlace generado:', url);
+    console.log('[DocTracking] Enlace generado:', url, pdfUrl ? '(con PDF)' : '(sin PDF)');
     return { url, token: data.token, id: data.id };
 
   } catch (e) {

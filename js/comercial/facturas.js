@@ -2070,23 +2070,22 @@ async function _enviarFacturaEmail(f) {
   }
   const enlaceDoc = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
 
-  // 1b) Tracking: registrar compartición para saber si lo abren
-  let enlace = enlaceDoc;
-  if (typeof compartirDocumento === 'function') {
-    const track = await compartirDocumento({
-      tipo_documento: 'factura', documento_id: f.id,
-      documento_numero: f.numero, destinatario_nombre: f.cliente_nombre,
-      destinatario_email: email, canal: 'email'
-    });
-    if (track?.url) enlace = track.url;
-  }
-
-  // 2) Generar PDF en memoria (base64)
+  // 1b) Generar PDF en memoria (base64)
   let adjuntos = [];
   try {
     const b64 = await _pdfFacturaBase64(f);
     if (b64) adjuntos.push({ nombre: `Factura_${(f.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
   } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+
+  // 1c) Tracking: registrar compartición (solo para saber si se envió, NO cambia el enlace)
+  const enlace = enlaceDoc;
+  if (typeof compartirDocumento === 'function') {
+    compartirDocumento({
+      tipo_documento: 'factura', documento_id: f.id,
+      documento_numero: f.numero, destinatario_nombre: f.cliente_nombre,
+      destinatario_email: email, canal: 'email'
+    }).catch(e => console.warn('[Tracking]', e));
+  }
 
   const cuerpoTxt =
 `Estimado/a ${f.cliente_nombre||'cliente'},

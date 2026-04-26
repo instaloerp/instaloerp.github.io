@@ -116,6 +116,24 @@
     }
 
     #visor { display: none; }
+
+    /* PDF embebido */
+    #pdf-viewer { display: none; }
+    #pdf-viewer iframe {
+      width: 100%; height: calc(100vh - 60px); border: none;
+    }
+    .pdf-bar {
+      background: #1a1a2e; color: #fff; padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 14px;
+    }
+    .pdf-bar .title { font-weight: 600; }
+    .pdf-bar a {
+      color: #fff; background: rgba(255,255,255,.15);
+      padding: 6px 16px; border-radius: 6px; text-decoration: none;
+      font-size: 13px;
+    }
+    .pdf-bar a:hover { background: rgba(255,255,255,.25); }
   </style>
 </head>
 <body>
@@ -131,6 +149,15 @@
       <h1 id="err-title">Error</h1>
       <p id="err-msg"></p>
     </div>
+  </div>
+
+  <!-- PDF embebido (cuando hay pdf_url) -->
+  <div id="pdf-viewer">
+    <div class="pdf-bar">
+      <span class="title" id="pdf-title"></span>
+      <a id="pdf-download" href="#" target="_blank">Descargar PDF</a>
+    </div>
+    <iframe id="pdf-frame" src=""></iframe>
   </div>
 
   <div id="visor">
@@ -306,6 +333,21 @@ function render(data) {
   document.getElementById('visor').style.display = 'block';
 }
 
+function renderPdf(data) {
+  var sh  = data.share || {};
+  var tipo = TIPO_LABEL[sh.tipo_documento] || sh.tipo_documento || 'Documento';
+  var numero = sh.documento_numero || '';
+  var title = tipo + ' ' + numero;
+
+  document.title = title + ' — instaloERP';
+  document.getElementById('pdf-title').textContent = title;
+  document.getElementById('pdf-download').href = data.pdf_url;
+  document.getElementById('pdf-frame').src = data.pdf_url;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('pdf-viewer').style.display = 'block';
+}
+
 // ── Init ──
 (async function() {
   var params = new URLSearchParams(window.location.search);
@@ -318,7 +360,12 @@ function render(data) {
       showError('Documento no encontrado', data.error || 'Este enlace no es válido o ha expirado.');
       return;
     }
-    render(data);
+    // Si hay PDF real → mostrarlo embebido; si no → fallback HTML
+    if (data.pdf_url) {
+      renderPdf(data);
+    } else {
+      render(data);
+    }
   } catch (e) {
     showError('Error de conexión', 'No se pudo cargar el documento. Inténtalo de nuevo.');
   }

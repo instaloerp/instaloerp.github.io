@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     await sb.from('documentos_compartidos').update({ notificado: true }).eq('id', share.id);
   }
 
-  // 6. Devolver JSON
+  // 6. Devolver JSON (incluye pdf_url si existe)
   return jsonOk({
     empresa: empresa || {},
     share: {
@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
       destinatario_nombre: share.destinatario_nombre,
     },
     documento: docData || null,
+    pdf_url: share.pdf_url || null,
   });
 });
 
