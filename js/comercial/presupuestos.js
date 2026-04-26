@@ -1368,8 +1368,8 @@ ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
 ${EMPRESA?.web||''}`;
 
-  // tipo_vinculacion: si ya está aceptado → 'factura' (para que la tarjeta diga "Ver y descargar")
-  const tipoVinc = yaAceptado ? 'albaran' : 'presupuesto';
+  // tipo_vinculacion: si ya está aceptado → 'presupuesto_aceptado' (para que la tarjeta diga "Ver y descargar" pero con label PRESUPUESTO)
+  const tipoVinc = yaAceptado ? 'presupuesto_aceptado' : 'presupuesto';
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mPresDetalle');

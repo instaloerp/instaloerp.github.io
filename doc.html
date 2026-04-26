@@ -134,7 +134,35 @@ async function init() {
     return;
   }
 
-  // 3) Presupuesto → redirige a firma.html
+  // 3) Presupuesto aceptado (por acceso_token → visor)
+  const { data: presAcc } = await sb.from('presupuestos').select('*').eq('acceso_token', token).maybeSingle();
+  if (presAcc) {
+    // Cargar empresa y cliente para armar el mismo formato que las vistas
+    const [empRes, cliRes] = await Promise.all([
+      sb.from('empresas').select('*').eq('id', presAcc.empresa_id).single(),
+      presAcc.cliente_id ? sb.from('clientes').select('*').eq('id', presAcc.cliente_id).single() : { data: null }
+    ]);
+    const emp = empRes.data || {};
+    const cli = cliRes.data || {};
+    const d = {
+      ...presAcc,
+      emp_nombre: emp.nombre, emp_razon: emp.razon_social, emp_cif: emp.cif,
+      emp_direccion: emp.direccion, emp_cp: emp.codigo_postal,
+      emp_municipio: emp.ciudad, emp_provincia: emp.provincia,
+      emp_telefono: emp.telefono, emp_email: emp.email, emp_logo: emp.logo_url,
+      cli_nombre: cli.nombre || presAcc.cliente_nombre || '',
+      cli_nif: cli.nif || '', cli_direccion: cli.direccion || '',
+      validez: presAcc.valido_hasta ? 'Hasta el ' + fmtD(presAcc.valido_hasta) : '',
+      forma_pago: presAcc.forma_pago || presAcc.condiciones_pago || '',
+      plazo_ejecucion: presAcc.plazo_ejecucion || '',
+      garantia: presAcc.garantia || ''
+    };
+    document.title = 'Presupuesto ' + (presAcc.numero || '');
+    renderDoc('PRESUPUESTO', d);
+    return;
+  }
+
+  // 4) Presupuesto pendiente (por firma_token → redirige a firma.html)
   const { data: pres } = await sb.from('presupuestos').select('id').eq('firma_token', token).maybeSingle();
   if (pres) { location.replace('firma.html?token=' + token); return; }
 

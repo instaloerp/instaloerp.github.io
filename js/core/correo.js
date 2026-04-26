@@ -1435,7 +1435,7 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
     const docUrl = match[0];
     const tipo = vinculacion?.tipo || 'documento';
     const ref = vinculacion?.ref || '';
-    const tipoLabel = { factura: 'Factura', presupuesto: 'Presupuesto', albaran: 'Albarán', parte_trabajo: 'Parte de trabajo' }[tipo] || 'Documento';
+    const tipoLabel = { factura: 'Factura', presupuesto: 'Presupuesto', presupuesto_aceptado: 'Presupuesto', albaran: 'Albarán', parte_trabajo: 'Parte de trabajo' }[tipo] || 'Documento';
     const logoUrl = (typeof EMPRESA !== 'undefined' && EMPRESA?.logo_url) ? EMPRESA.logo_url : '';
     const empresaNombre = (typeof EMPRESA !== 'undefined' && EMPRESA?.nombre) ? EMPRESA.nombre : '';
 

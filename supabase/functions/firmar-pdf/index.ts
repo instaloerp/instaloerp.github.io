@@ -388,10 +388,11 @@ serve(async (req) => {
     // ENVIAR COPIA POR EMAIL AL CLIENTE
     // ══════════════════════════════════════════════
     let emailEnviado = false
-    if (enviar_copia_email && firma_email && pdfUrl) {
+    console.log('[firmar-pdf] enviar_copia_email:', enviar_copia_email, 'firma_email:', firma_email, 'pdfUrl:', !!pdfUrl)
+    if (enviar_copia_email && firma_email) {
       try {
         // Buscar cuenta de correo predeterminada de la empresa
-        const { data: cuentaCorreo } = await sb.from('cuentas_correo')
+        const { data: cuentaCorreo, error: cuentaErr } = await sb.from('cuentas_correo')
           .select('id')
           .eq('empresa_id', empresa_id)
           .eq('activa', true)
@@ -399,11 +400,42 @@ serve(async (req) => {
           .limit(1)
           .single()
 
+        console.log('[firmar-pdf] cuentaCorreo:', cuentaCorreo?.id, 'error:', cuentaErr?.message)
+
         if (!cuentaCorreo) {
           console.error('No hay cuenta de correo activa para la empresa', empresa_id)
         }
 
-        const pdfBase64 = btoa(uint8ToBinaryString(pdfBytes))
+        const asuntoEmail = `Presupuesto ${pres.numero} firmado — ${empresa.nombre}`
+        const cuerpoTexto = `Estimado/a ${firma_nombre},\n\nAdjunto encontrará una copia del presupuesto ${pres.numero}${pres.titulo ? ' — ' + pres.titulo : ''} firmado el ${new Date(firma_fecha).toLocaleDateString('es-ES')}.\n\nImporte total: ${fmtE(pres.total || 0)}\nFirmado por: ${firma_nombre} (${firma_dni})\n\nEste documento tiene validez legal como aceptación del presupuesto.\n\n— ${empresa.nombre}\n${empresa.telefono || ''}\n${empresa.email || ''}`
+        const cuerpoHtml = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2 style="color:#1e40af">Presupuesto firmado correctamente</h2><p>Estimado/a ${firma_nombre},</p><p>Adjunto encontrará una copia del presupuesto <strong>${pres.numero}</strong>${pres.titulo ? ' — ' + pres.titulo : ''} firmado el ${new Date(firma_fecha).toLocaleDateString('es-ES')}.</p><table style="margin:16px 0;border-collapse:collapse"><tr><td style="padding:4px 12px;color:#64748b">Importe total:</td><td style="padding:4px 12px;font-weight:bold">${fmtE(pres.total || 0)}</td></tr><tr><td style="padding:4px 12px;color:#64748b">Firmado por:</td><td style="padding:4px 12px">${firma_nombre} (${firma_dni})</td></tr></table><p>Este documento tiene validez legal como aceptación del presupuesto.</p><p style="color:#94a3b8;font-size:12px;margin-top:24px">— ${empresa.nombre}<br>${empresa.telefono || ''}<br>${empresa.email || ''}</p></div>`
+
+        // Preparar adjunto PDF solo si tenemos los bytes
+        const adjuntosEmail: any[] = []
+        if (pdfBytes && pdfBytes.length > 0) {
+          try {
+            const pdfBase64 = btoa(uint8ToBinaryString(pdfBytes))
+            adjuntosEmail.push({
+              nombre: `${pres.numero}_firmado.pdf`,
+              base64: pdfBase64,
+              tipo_mime: 'application/pdf',
+            })
+          } catch(b64Err) {
+            console.error('[firmar-pdf] Error convirtiendo PDF a base64:', b64Err)
+          }
+        }
+
+        const emailBody: any = {
+          empresa_id,
+          cuenta_correo_id: cuentaCorreo?.id || null,
+          para: firma_email,
+          asunto: asuntoEmail,
+          cuerpo_texto: cuerpoTexto,
+          cuerpo_html: cuerpoHtml,
+        }
+        if (adjuntosEmail.length) emailBody.adjuntos = adjuntosEmail
+
+        console.log('[firmar-pdf] Enviando email a', firma_email, 'con cuenta', cuentaCorreo?.id, 'adjuntos:', adjuntosEmail.length)
 
         const emailResp = await fetch(`${supabaseUrl}/functions/v1/enviar-correo`, {
           method: 'POST',
@@ -411,39 +443,19 @@ serve(async (req) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseKey}`,
           },
-          body: JSON.stringify({
-            empresa_id,
-            cuenta_correo_id: cuentaCorreo?.id || null,
-            para: firma_email,
-            asunto: `Presupuesto ${pres.numero} firmado — ${empresa.nombre}`,
-            cuerpo_html: `
-              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-                <h2 style="color:#1e40af">Presupuesto firmado correctamente</h2>
-                <p>Estimado/a ${firma_nombre},</p>
-                <p>Adjunto encontrará una copia del presupuesto <strong>${pres.numero}</strong>${pres.titulo ? ' — ' + pres.titulo : ''} firmado el ${new Date(firma_fecha).toLocaleDateString('es-ES')}.</p>
-                <table style="margin:16px 0;border-collapse:collapse">
-                  <tr><td style="padding:4px 12px;color:#64748b">Importe total:</td><td style="padding:4px 12px;font-weight:bold">${fmtE(pres.total || 0)}</td></tr>
-                  <tr><td style="padding:4px 12px;color:#64748b">Firmado por:</td><td style="padding:4px 12px">${firma_nombre} (${firma_dni})</td></tr>
-                </table>
-                <p>Este documento tiene validez legal como aceptación del presupuesto.</p>
-                <p style="color:#94a3b8;font-size:12px;margin-top:24px">— ${empresa.nombre}<br>${empresa.telefono || ''}<br>${empresa.email || ''}</p>
-              </div>
-            `,
-            adjuntos: [{
-              nombre: `${pres.numero}_firmado.pdf`,
-              base64: pdfBase64,
-              tipo_mime: 'application/pdf',
-            }],
-          })
+          body: JSON.stringify(emailBody)
         })
+
+        const emailRespText = await emailResp.text()
+        console.log('[firmar-pdf] enviar-correo response:', emailResp.status, emailRespText)
 
         if (emailResp.ok) {
           emailEnviado = true
         } else {
-          console.error('enviar-correo respondió con error:', emailResp.status, await emailResp.text())
+          console.error('enviar-correo respondió con error:', emailResp.status, emailRespText)
         }
       } catch (emailErr) {
-        console.error('Error enviando email:', emailErr)
+        console.error('Error enviando email copia:', emailErr)
       }
     }
 
