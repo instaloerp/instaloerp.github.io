@@ -1391,6 +1391,10 @@ async function cancelarCorreo(forzar) {
 
   correoActual = null;
   if (view) {
+    // Capturar página de retorno ANTES de limpiar dataset
+    const _retPage = view.dataset.returnPage || null;
+    const _retObra = view.dataset.returnObraId ? parseInt(view.dataset.returnObraId) : null;
+
     delete view.dataset.vinculacion;
     delete view.dataset.adjuntos;
     delete view.dataset.returnPage;
@@ -1398,6 +1402,14 @@ async function cancelarCorreo(forzar) {
     view.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--gris-400);font-size:14px">
       <div style="text-align:center"><div style="font-size:48px;margin-bottom:12px">✉️</div><p>Selecciona un correo para leerlo</p></div>
     </div>`;
+
+    // Volver a la página de origen si el correo se abrió desde otro módulo
+    if (_retPage && typeof goPage === 'function') {
+      goPage(_retPage);
+      if (_retObra && typeof abrirFichaObra === 'function') {
+        setTimeout(() => abrirFichaObra(_retObra), 250);
+      }
+    }
   }
 }
 
