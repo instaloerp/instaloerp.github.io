@@ -617,27 +617,29 @@ async function enviarAlbaranEmail(id) {
     } catch(e) { console.warn('[Tracking]', e); }
   }
 
-  const cuerpoTxt =
-`Estimado/a ${a.cliente_nombre||'cliente'},
-
-Le enviamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
-
-Importe total: ${totalFmt}
-${a.referencia ? 'Referencia: '+a.referencia : ''}
-
-Pulse el siguiente enlace para ver, descargar o imprimir su albarán:
-${enlaceTracking}
-
-Para cualquier consulta, no dude en contactarnos.
-
-Un saludo,
-${EMPRESA?.nombre||''}
-${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
-${EMPRESA?.email || ''}`;
+  const cuerpoLines = [
+    `Estimado/a ${a.cliente_nombre||'cliente'},`,
+    '',
+    `Le enviamos el albarán ${a.numero||''} con fecha ${fechaFmt}.`,
+  ];
+  if (a.referencia) cuerpoLines.push('', 'Referencia: ' + a.referencia);
+  cuerpoLines.push(
+    '',
+    'Pulse el siguiente enlace para ver, descargar o imprimir su albarán:',
+    enlaceTracking,
+    '',
+    'Para cualquier consulta, no dude en contactarnos.',
+    '',
+    'Un saludo,',
+    EMPRESA?.nombre || '',
+    EMPRESA?.telefono ? 'Tel: ' + EMPRESA.telefono : '',
+    EMPRESA?.email || ''
+  );
+  const cuerpoTxt = cuerpoLines.filter((l,i) => !(l === '' && i > 0 && cuerpoLines[i-1] === '')).join('\n');
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mAbDetalle');
-    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '' }, adjuntos);
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'albaran', id: a.id, ref: a.numero || '', total: totalFmt, fecha: fechaFmt }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');
