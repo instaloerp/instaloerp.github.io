@@ -205,12 +205,13 @@ function renderPresupuestos(list) {
           let _h = '';
           if (p.firma_fecha) _h += '<div style="font-size:9px;color:var(--gris-400);margin-top:2px;text-align:center">'+new Date(p.firma_fecha).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>';
           if (p.firma_nombre || p.firma_ip || p.firma_fecha) {
-            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+'">🖊️ Firma digital</span></div>';
-          }
-          if (p.pdf_firmado_url) {
-            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="#" onclick="event.preventDefault();event.stopPropagation();verPdfFirmado(\''+p.pdf_firmado_url+'\',\''+(p.numero||'')+' — PDF Firmado\')" style="color:var(--azul);text-decoration:none;cursor:pointer" title="Ver PDF firmado">📄 PDF firmado</a></div>';
-          } else if (p.firma_url) {
-            _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--azul);text-decoration:none" title="Ver firma">📎 Ver firma</a></div>';
+            if (p.pdf_firmado_url) {
+              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="#" onclick="event.preventDefault();event.stopPropagation();verPdfFirmado(\''+p.pdf_firmado_url+'\',\''+(p.numero||'')+' — PDF Firmado\')" style="color:#059669;text-decoration:none;cursor:pointer" title="Clic para ver PDF firmado">🖊️ Firma digital</a></div>';
+            } else if (p.firma_url) {
+              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:#059669;text-decoration:none;cursor:pointer" title="Clic para ver firma">🖊️ Firma digital</a></div>';
+            } else {
+              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+'">🖊️ Firma digital</span></div>';
+            }
           }
           if (!p.firma_nombre && !p.firma_ip && !p.firma_fecha && !p.firma_url && !p.pdf_firmado_url) {
             _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:var(--gris-400)" title="Sin datos de aprobación">— sin datos —</span></div>';
@@ -443,12 +444,15 @@ async function verDetallePresupuesto(id) {
     if (p.estado === 'aceptado') {
       const _fd = (typeof p.firma_dispositivo === 'string' ? JSON.parse(p.firma_dispositivo) : p.firma_dispositivo) || {};
       if (p.firma_nombre || p.firma_ip || p.firma_fecha) {
-        refs += `<span style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}">🖊️ Firma digital — ${p.firma_nombre||'—'}</span> `;
-      }
-      if (p.pdf_firmado_url) {
-        refs += `<a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${p.numero||''} — PDF Firmado')" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;cursor:pointer" title="Ver PDF firmado">📄 PDF firmado</a> `;
-      } else if (p.firma_url) {
-        refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE">📎 Ver firma</a> `;
+        // Badge de firma: abre PDF firmado si existe, si no la imagen de firma, si no solo muestra info
+        const _firmaLink = p.pdf_firmado_url || p.firma_url;
+        if (_firmaLink && p.pdf_firmado_url) {
+          refs += `<a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${p.numero||''} — PDF Firmado')" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}\nClic para ver PDF firmado">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
+        } else if (_firmaLink) {
+          refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}\nClic para ver firma">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
+        } else {
+          refs += `<span style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}">🖊️ Firma digital — ${p.firma_nombre||'—'}</span> `;
+        }
       }
       if (!p.firma_nombre && !p.firma_ip && !p.firma_fecha && !p.firma_url && !p.pdf_firmado_url) {
         refs += `<span style="${_refStyle};background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB">— Sin datos de aprobación —</span> `;
