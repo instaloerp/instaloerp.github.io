@@ -80,21 +80,34 @@ serve(async (req) => {
 
     if (cert && cert.archivo_path && cert.password_cifrada) {
       try {
-        // 1. Descargar PFX
+        // 1. Descargar PFX — probar varias combinaciones de bucket/path
         let pfxData: Uint8Array | null = null
-        for (const bucket of ['certificados', 'documentos']) {
-          const { data: pfxBlob, error: dlErr } = await sb.storage.from(bucket).download(cert.archivo_path)
-          if (!dlErr && pfxBlob) {
-            pfxData = new Uint8Array(await pfxBlob.arrayBuffer())
-            break
+        const archivoPath = cert.archivo_path
+        // Generar variantes: path completo y sin prefijo de bucket
+        const pathVariantes = [archivoPath]
+        for (const prefix of ['certificados/', 'documentos/']) {
+          if (archivoPath.startsWith(prefix)) {
+            pathVariantes.push(archivoPath.substring(prefix.length))
           }
+        }
+        for (const bucket of ['certificados', 'documentos']) {
+          for (const p of pathVariantes) {
+            const { data: pfxBlob, error: dlErr } = await sb.storage.from(bucket).download(p)
+            if (!dlErr && pfxBlob) {
+              pfxData = new Uint8Array(await pfxBlob.arrayBuffer())
+              break
+            }
+          }
+          if (pfxData) break
         }
 
         if (pfxData) {
           // 2. Extraer certificado y clave privada del PFX
           const p12Der = forge.util.decode64(btoa(String.fromCharCode(...pfxData)))
           const p12Asn1 = forge.asn1.fromDer(p12Der)
-          const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, cert.password_cifrada)
+          // Decodificar contraseña (guardada como btoa(unescape(encodeURIComponent(pass))))
+          const passDecoded = decodeURIComponent(escape(atob(cert.password_cifrada)))
+          const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, passDecoded)
 
           const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })
           const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })

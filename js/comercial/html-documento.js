@@ -568,13 +568,23 @@ ${_renderPie(E)}
     }
   }
 
+  // Convierte Uint8Array a base64 sin desbordar la pila (chunks de 8 KB)
+  function _uint8ToBase64(u8){
+    let bin = '';
+    const chunk = 8192;
+    for (let i = 0; i < u8.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+
   async function _descargarPdfDocumento(cfg, filename){
     try {
       const pdf = await _renderToPdf(cfg);
       const fname = filename || `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`;
 
       // Intentar firma digital con certificado de empresa
-      const pdfB64 = btoa(String.fromCharCode(...new Uint8Array(pdf.output('arraybuffer'))));
+      const pdfB64 = _uint8ToBase64(new Uint8Array(pdf.output('arraybuffer')));
       const firmadoB64 = await _firmarPdfConCertificado(pdfB64, cfg);
 
       if (firmadoB64) {
@@ -599,7 +609,7 @@ ${_renderPie(E)}
 
   async function _documentoPdfBase64(cfg){
     const pdf = await _renderToPdf(cfg);
-    const rawB64 = btoa(String.fromCharCode(...new Uint8Array(pdf.output('arraybuffer'))));
+    const rawB64 = _uint8ToBase64(new Uint8Array(pdf.output('arraybuffer')));
 
     // Intentar firma digital
     const firmadoB64 = await _firmarPdfConCertificado(rawB64, cfg);
