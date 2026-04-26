@@ -384,10 +384,12 @@ async function enviarDocConTracking(opts) {
 // ═══════════════════════════════════════════════
 
 let _trackingChannel = null;
+let _firmaChannel = null;
 
 function iniciarTrackingRealtime() {
   if (_trackingChannel) return; // Ya suscrito
 
+  // ── 1. Tracking de documentos compartidos (visto por destinatario) ──
   _trackingChannel = sb.channel('doc-tracking-' + EMPRESA.id)
     .on('postgres_changes', {
       event: 'UPDATE',
@@ -400,30 +402,60 @@ function iniciarTrackingRealtime() {
 
       // Solo notificar en la primera vista (first_viewed_at pasa de null a valor)
       if (nuevo.first_viewed_at && !viejo.first_viewed_at) {
-        const dest = nuevo.destinatario_nombre || nuevo.destinatario_email || 'Alguien';
-        const doc = nuevo.documento_numero || nuevo.tipo_documento;
-        toast(`Documento visto\n${dest} ha abierto ${doc}`, 'success', 6000);
-
-        // Invalidar cache
+        // Invalidar cache y actualizar badge siempre (para todos los usuarios de la empresa)
         const cacheKey = nuevo.tipo_documento + ':' + nuevo.documento_id;
         _trackingCache.delete(cacheKey);
-
-        // Actualizar badge en la lista sin recargar (busca el badge por documento_id)
         _actualizarBadgeEnLista(nuevo.tipo_documento, nuevo.documento_id, nuevo.view_count || 1);
 
-        // Vibrar en móvil si está disponible
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        // Toast + campana solo para el usuario que envió el documento
+        const miId = (typeof CU !== 'undefined' && CU) ? CU.id : null;
+        if (miId && nuevo.created_by === miId) {
+          const dest = nuevo.destinatario_nombre || nuevo.destinatario_email || 'Alguien';
+          const doc = nuevo.documento_numero || nuevo.tipo_documento;
+          toast(`Documento visto\n${dest} ha abierto ${doc}`, 'success', 6000, true);
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
       }
     })
     .subscribe();
 
-  console.log('[DocTracking] Realtime suscrito');
+  // ── 2. Firma de presupuestos (cliente acepta y firma) ──
+  _firmaChannel = sb.channel('firma-pres-' + EMPRESA.id)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'presupuestos',
+      filter: 'empresa_id=eq.' + EMPRESA.id
+    }, (payload) => {
+      const nuevo = payload.new;
+      const viejo = payload.old;
+
+      // Solo cuando el estado pasa a 'aceptado' (firma nueva)
+      if (nuevo.estado === 'aceptado' && viejo.estado !== 'aceptado' && nuevo.firma_fecha) {
+        const miId = (typeof CU !== 'undefined' && CU) ? CU.id : null;
+
+        // Notificar solo al usuario que envió el presupuesto a firmar
+        if (miId && nuevo.firma_enviado_por === miId) {
+          const cliente = nuevo.firma_nombre || nuevo.cliente_nombre || 'El cliente';
+          const num = nuevo.numero || '';
+          toast(`Presupuesto firmado\n${cliente} ha aceptado ${num}`, 'success', 8000, true);
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+        }
+      }
+    })
+    .subscribe();
+
+  console.log('[DocTracking] Realtime suscrito (tracking + firmas)');
 }
 
 function detenerTrackingRealtime() {
   if (_trackingChannel) {
     sb.removeChannel(_trackingChannel);
     _trackingChannel = null;
+  }
+  if (_firmaChannel) {
+    sb.removeChannel(_firmaChannel);
+    _firmaChannel = null;
   }
 }
 

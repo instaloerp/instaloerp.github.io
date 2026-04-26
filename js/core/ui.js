@@ -889,13 +889,15 @@ function estadoBadgeA(e){const m={borrador:'<span class="badge bg-gray">✏️ B
 
 function prioBadge(p){const m={Urgente:'<span class="badge bg-red">🔴</span>',Alta:'<span class="badge" style="background:#FFF4ED;color:var(--acento)">🟠</span>',Normal:'<span class="badge bg-gray">⚪</span>',Baja:'<span class="badge bg-gray">🔵</span>'};return m[p]||'';}
 
-function toast(msg, type='info', duracion=4500) {
+// persist: true  → se guarda en la campana (eventos externos, errores)
+//          false → solo toast efímero (acciones propias del usuario)
+function toast(msg, type='info', duracion=4500, persist=false) {
   const c = document.getElementById('toast');
   if (!c) return;
   const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
   const iconColors = { success: '#10B981', error: '#EF4444', info: '#3B82F6', warning: '#F59E0B' };
 
-  // Separar título y subtítulo si msg contiene '\n' o es un objeto
+  // Separar título y subtítulo si msg contiene '\n'
   let titulo = msg, sub = '';
   if (typeof msg === 'string' && msg.includes('\n')) {
     const parts = msg.split('\n');
@@ -916,8 +918,8 @@ function toast(msg, type='info', duracion=4500) {
   setTimeout(() => t.classList.add('show'), 10);
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, duracion);
 
-  // Guardar en el centro de notificaciones (excepto las puramente informativas efímeras)
-  _guardarNotificacion(titulo, sub, type);
+  // Guardar en la campana: eventos externos (persist=true) o errores siempre
+  if (persist || type === 'error') _guardarNotificacion(titulo, sub, type);
 }
 
 
