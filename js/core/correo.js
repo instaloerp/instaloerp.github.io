@@ -136,6 +136,8 @@ function iniciarAutoSyncCorreo() {
   if (!_correoCuentaActiva || !_correoCuentaActiva.sync_habilitada) return;
   _correoAutoSyncInterval = setInterval(() => {
     sincronizarCorreo(true); // silencioso en background
+    _procesarSnooze(); // despertar snoozed
+    _ejecutarEnviosProgramados(); // enviar programados
   }, CORREO_SYNC_INTERVALO_MS);
 }
 
@@ -376,6 +378,8 @@ function filtrarCorreos() {
 
   correosFiltrados = correos.filter(c => {
     if (_carpetaLocal(c) !== carpetaActual) return false;
+    // Ocultar correos pospuestos que aún no han vencido
+    if (c.snooze_hasta && new Date(c.snooze_hasta) > new Date()) return false;
     if (q) {
       const txt = [c.asunto, c.de, c.de_nombre, c.para, c.cuerpo_texto].filter(Boolean).join(' ').toLowerCase();
       if (!txt.includes(q)) return false;
@@ -554,8 +558,12 @@ function renderListaCorreos(list) {
             ${esNoLeido ? '<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' : ''}
             ${c.tiene_adjuntos ? '<span style="font-size:9px;color:#94a3b8">📎</span>' : ''}
             <span style="font-size:11.5px;font-weight:${esNoLeido ? '600' : '400'};color:${esNoLeido ? '#334155' : '#64748b'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
+            <span onclick="toggleDestacar(${c.id},event)" style="flex-shrink:0;cursor:pointer;font-size:12px;opacity:${c.destacado ? '1' : '0.25'};transition:opacity .15s" title="Destacar">${c.destacado ? '⭐' : '☆'}</span>
           </div>
-          <div style="font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${preview}</span>
+            ${c.etiqueta ? _badgeEtiqueta(c.etiqueta) : ''}
+          </div>
         </div>
       </div>`;
     });
@@ -649,9 +657,12 @@ async function abrirCorreo(id) {
     <div style="padding:18px 24px 14px;border-bottom:1px solid var(--gris-100)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
         <h3 style="font-size:17px;font-weight:700;color:var(--gris-900);flex:1;line-height:1.3">${c.asunto || '(sin asunto)'}</h3>
-        <div style="display:flex;gap:4px;flex-shrink:0;margin-left:12px">
+        <div style="display:flex;gap:4px;flex-shrink:0;margin-left:12px;align-items:center">
           ${c.tipo === 'recibido' ? `<button class="btn btn-secondary btn-sm" onclick="responderCorreo(${c.id})" style="border-radius:8px;padding:6px 12px;font-size:12px">↩️ Responder</button>` : ''}
           <button class="btn btn-secondary btn-sm" onclick="reenviarCorreo(${c.id})" style="border-radius:8px;padding:6px 12px;font-size:12px">↪️ Reenviar</button>
+          <button onclick="toggleDestacar(${c.id},event)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px 6px" title="Destacar">${c.destacado ? '⭐' : '☆'}</button>
+          <button onclick="mostrarMenuEtiquetas(${c.id},event)" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px 6px;border-radius:6px;border:1px solid var(--gris-200)" title="Etiquetar">🏷️</button>
+          <button onclick="snoozeCorreo(${c.id},event)" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px 6px;border-radius:6px;border:1px solid var(--gris-200)" title="Posponer">😴</button>
           <button class="btn btn-ghost btn-sm" onclick="vincularCorreo(${c.id})" title="Vincular" style="padding:6px 8px;border-radius:8px">🔗</button>
           ${c.tipo === 'recibido' ? `<button class="btn btn-ghost btn-sm" onclick="crearReglaDesdeCorreo(${c.id})" title="Automatizar" style="padding:6px 8px;border-radius:8px">⚡</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="eliminarCorreo(${c.id})" style="color:var(--rojo);padding:6px 8px;border-radius:8px">🗑️</button>
@@ -1389,16 +1400,22 @@ async function nuevoCorreo(para, asunto, cuerpo, vinculacion, adjuntos) {
         <input id="mail_asunto" value="${asunto || ''}" placeholder="Asunto del correo" style="flex:1;padding:6px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none">
       </div>
     </div>
-    <div style="flex:1;padding:12px 20px;overflow-y:auto">
-      <textarea id="mail_cuerpo" placeholder="Escribe tu mensaje..." style="width:100%;height:100%;min-height:200px;border:none;outline:none;font-size:13.5px;line-height:1.7;resize:none;font-family:var(--font)">${cuerpo || ''}</textarea>
+    <div id="mailComposerBody" style="flex:1;padding:12px 20px;overflow-y:auto;position:relative" ondragover="_dragOverComposer(event)" ondragleave="_dragLeaveComposer(event)" ondrop="_dropComposer(event)">
+      <textarea id="mail_cuerpo" placeholder="Escribe tu mensaje..." style="width:100%;height:100%;min-height:200px;border:none;outline:none;font-size:13.5px;line-height:1.7;resize:none;font-family:var(--font)">${cuerpo || ''}${!cuerpo ? _firmaTextoPlano() : ''}</textarea>
+      <div id="mailDropOverlay" style="display:none;position:absolute;inset:0;background:rgba(59,130,246,.08);border:2px dashed #3b82f6;border-radius:10px;z-index:10;pointer-events:none;align-items:center;justify-content:center">
+        <div style="text-align:center;color:#3b82f6;font-weight:700;font-size:14px"><div style="font-size:32px;margin-bottom:6px">📎</div>Soltar archivo para adjuntar</div>
+      </div>
     </div>
-    <div style="padding:12px 20px;border-top:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center">
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="guardarBorradorCorreo()">💾 Borrador</button>
+    <div style="padding:10px 20px;border-top:1px solid var(--gris-200);display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="guardarBorradorCorreo()" title="Guardar borrador" style="padding:5px 8px">💾</button>
+        <label style="cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;color:var(--gris-500)" title="Adjuntar archivo">📎<input type="file" multiple onchange="_adjuntarArchivosComposer(this.files)" style="display:none"></label>
+        <button class="btn btn-ghost btn-sm" onclick="_insertarPlantilla()" title="Plantillas" style="padding:5px 8px;font-size:12px">📝</button>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="cancelarCorreo()">Cancelar</button>
-        <button class="btn btn-primary" onclick="enviarCorreo()" id="btnEnviarCorreo">📤 Enviar</button>
+        <button class="btn btn-secondary" onclick="cancelarCorreo()" style="font-size:12px">Cancelar</button>
+        <button class="btn btn-secondary btn-sm" onclick="_programarEnvio()" title="Programar envío" style="font-size:11px;border-radius:8px;padding:6px 8px">🕐</button>
+        <button class="btn btn-primary" onclick="enviarCorreo()" id="btnEnviarCorreo" style="font-size:12px;border-radius:8px">📤 Enviar</button>
       </div>
     </div>`;
 
@@ -1440,6 +1457,39 @@ function _renderAdjuntosComposer() {
       <button onclick="_quitarAdjuntoComposer(${i})" style="background:none;border:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
     </div>
   `).join('');
+}
+
+// ── Drag & Drop adjuntos ──
+function _dragOverComposer(e) { e.preventDefault(); e.stopPropagation(); const ov = document.getElementById('mailDropOverlay'); if (ov) ov.style.display = 'flex'; }
+function _dragLeaveComposer(e) { e.preventDefault(); e.stopPropagation(); const ov = document.getElementById('mailDropOverlay'); if (ov) ov.style.display = 'none'; }
+async function _dropComposer(e) {
+  e.preventDefault(); e.stopPropagation();
+  const ov = document.getElementById('mailDropOverlay'); if (ov) ov.style.display = 'none';
+  if (e.dataTransfer?.files?.length) await _adjuntarArchivosComposer(e.dataTransfer.files);
+}
+
+async function _adjuntarArchivosComposer(files) {
+  const view = document.getElementById('mailView');
+  if (!view) return;
+  let adj = [];
+  try { adj = view.dataset.adjuntos ? JSON.parse(view.dataset.adjuntos) : []; } catch(e) {}
+
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) { toast('⚠️ ' + file.name + ' es demasiado grande (máx 10 MB)', 'error'); continue; }
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result.split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      adj.push({ nombre: file.name, base64, tipo_mime: file.type || 'application/octet-stream' });
+    } catch(e) { toast('❌ Error leyendo ' + file.name, 'error'); }
+  }
+
+  view.dataset.adjuntos = JSON.stringify(adj);
+  _renderAdjuntosComposer();
+  toast('📎 ' + files.length + ' archivo' + (files.length > 1 ? 's' : '') + ' adjuntado' + (files.length > 1 ? 's' : ''), 'success');
 }
 
 function _quitarAdjuntoComposer(idx) {
@@ -1656,13 +1706,25 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
     html = html.replace(/\n/g, '<br>');
   }
 
-  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#374151">' + html + '</div>';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#374151">' + html + '</div>' + _generarFirmaHTML();
 }
 
 
 // ═══════════════════════════════════════════════
-//  ENVIAR CORREO (vía Edge Function SMTP)
+//  ENVIAR CORREO (vía Edge Function SMTP) — con deshacer 5s
 // ═══════════════════════════════════════════════
+let _undoSendTimer = null;
+let _undoSendCancelled = false;
+
+function _cancelarEnvio() {
+  _undoSendCancelled = true;
+  if (_undoSendTimer) { clearInterval(_undoSendTimer); _undoSendTimer = null; }
+  const toastEl = document.getElementById('_undoSendToast');
+  if (toastEl) toastEl.remove();
+  if (window._undoSendResolve) { window._undoSendResolve(false); window._undoSendResolve = null; }
+  toast('✅ Envío cancelado', 'info');
+}
+
 async function enviarCorreo() {
   const para = document.getElementById('mail_para')?.value?.trim();
   const cc = document.getElementById('mail_cc')?.value?.trim();
@@ -1674,6 +1736,38 @@ async function enviarCorreo() {
 
   const btn = document.getElementById('btnEnviarCorreo');
   if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Enviando...'; }
+
+  // ── Deshacer envío: 5 segundos de gracia ──
+  _undoSendCancelled = false;
+  const canUndo = await new Promise(resolve => {
+    // Toast con cuenta atrás y botón deshacer
+    const toastEl = document.createElement('div');
+    toastEl.id = '_undoSendToast';
+    toastEl.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.25);font-family:var(--font);animation:fadeIn .15s ease-out';
+    let sec = 5;
+    toastEl.innerHTML = `<span>Enviando a <b>${para.split(',')[0].split('<')[0].trim()}</b>...</span><span id="_undoSec" style="font-weight:800;font-size:15px;color:#60a5fa;min-width:18px;text-align:center">${sec}</span><button onclick="_cancelarEnvio()" style="background:#3b82f6;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;font-family:var(--font)">Deshacer</button>`;
+    document.body.appendChild(toastEl);
+
+    _undoSendTimer = setInterval(() => {
+      sec--;
+      const el = document.getElementById('_undoSec');
+      if (el) el.textContent = sec;
+      if (sec <= 0) {
+        clearInterval(_undoSendTimer);
+        _undoSendTimer = null;
+        toastEl.remove();
+        resolve(true); // enviar
+      }
+    }, 1000);
+
+    // Guardar resolve para cancelar
+    window._undoSendResolve = resolve;
+  });
+
+  if (!canUndo || _undoSendCancelled) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📤 Enviar'; }
+    return; // Envío cancelado
+  }
 
   // Obtener vinculación pendiente si existe
   const view = document.getElementById('mailView');
@@ -2122,4 +2216,367 @@ function _mostrarPopupEnvioFactura(ref, destinatario) {
   document.body.appendChild(popup);
   // Cierre automático a los 6 segundos
   setTimeout(() => { popup.style.transition = 'opacity .4s'; popup.style.opacity = '0'; setTimeout(() => popup.remove(), 400); }, 6000);
+}
+
+// ═══════════════════════════════════════════════
+//  DESTACAR / FIJAR CORREO (estrella)
+// ═══════════════════════════════════════════════
+async function toggleDestacar(id, event) {
+  if (event) event.stopPropagation();
+  const c = correos.find(x => x.id === id);
+  if (!c) return;
+  c.destacado = !c.destacado;
+  await sb.from('correos').update({ destacado: c.destacado }).eq('id', id);
+  filtrarCorreos();
+  if (correoActual?.id === id) abrirCorreo(id); // refrescar detalle
+}
+
+// ═══════════════════════════════════════════════
+//  ETIQUETAS DE COLOR
+// ═══════════════════════════════════════════════
+const CORREO_ETIQUETAS = [
+  { id: 'urgente', label: 'Urgente', color: '#ef4444', bg: '#fef2f2' },
+  { id: 'pendiente', label: 'Pendiente', color: '#f59e0b', bg: '#fffbeb' },
+  { id: 'obra', label: 'Obra', color: '#3b82f6', bg: '#eff6ff' },
+  { id: 'proveedor', label: 'Proveedor', color: '#8b5cf6', bg: '#f5f3ff' },
+  { id: 'personal', label: 'Personal', color: '#10b981', bg: '#ecfdf5' },
+];
+
+function mostrarMenuEtiquetas(id, event) {
+  if (event) event.stopPropagation();
+  // Cerrar menú existente
+  document.getElementById('_menuEtiquetas')?.remove();
+
+  const c = correos.find(x => x.id === id);
+  if (!c) return;
+
+  const menu = document.createElement('div');
+  menu.id = '_menuEtiquetas';
+  menu.style.cssText = 'position:fixed;z-index:99999;background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:6px;min-width:140px;font-family:var(--font)';
+
+  // Posicionar cerca del cursor
+  const rect = event?.target?.getBoundingClientRect?.();
+  if (rect) { menu.style.top = (rect.bottom + 4) + 'px'; menu.style.left = rect.left + 'px'; }
+  else { menu.style.top = '50%'; menu.style.left = '50%'; }
+
+  menu.innerHTML = CORREO_ETIQUETAS.map(et =>
+    `<div onclick="setEtiqueta(${id},'${et.id}')" style="padding:6px 10px;cursor:pointer;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:8px;transition:background .1s" onmouseenter="this.style.background='${et.bg}'" onmouseleave="this.style.background=''">
+      <span style="width:10px;height:10px;border-radius:50%;background:${et.color};flex-shrink:0${c.etiqueta === et.id ? ';box-shadow:0 0 0 2px #fff, 0 0 0 3.5px ' + et.color : ''}"></span>
+      <span style="font-weight:${c.etiqueta === et.id ? '700' : '400'};color:${et.color}">${et.label}</span>
+    </div>`
+  ).join('') + `<div style="border-top:1px solid #f1f5f9;margin:4px 0"></div>
+    <div onclick="setEtiqueta(${id},null)" style="padding:6px 10px;cursor:pointer;border-radius:6px;font-size:12px;color:#94a3b8;transition:background .1s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">✕ Quitar etiqueta</div>`;
+
+  document.body.appendChild(menu);
+
+  // Cerrar al clic fuera
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 50);
+}
+
+async function setEtiqueta(id, etiqueta) {
+  document.getElementById('_menuEtiquetas')?.remove();
+  const c = correos.find(x => x.id === id);
+  if (!c) return;
+  c.etiqueta = etiqueta;
+  await sb.from('correos').update({ etiqueta }).eq('id', id);
+  filtrarCorreos();
+  if (correoActual?.id === id) abrirCorreo(id);
+}
+
+// Helper: renderizar badge de etiqueta
+function _badgeEtiqueta(etiquetaId) {
+  const et = CORREO_ETIQUETAS.find(e => e.id === etiquetaId);
+  if (!et) return '';
+  return `<span style="font-size:9px;background:${et.bg};color:${et.color};padding:1px 5px;border-radius:4px;font-weight:600;white-space:nowrap">${et.label}</span>`;
+}
+
+// ═══════════════════════════════════════════════
+//  PLANTILLAS DE RESPUESTA RÁPIDA
+// ═══════════════════════════════════════════════
+let _correoPlantillas = null;
+
+async function _cargarPlantillas() {
+  if (_correoPlantillas) return _correoPlantillas;
+  try {
+    const { data } = await sb.from('correo_plantillas')
+      .select('*').eq('empresa_id', EMPRESA.id).order('orden');
+    _correoPlantillas = data || [];
+  } catch(e) { _correoPlantillas = []; }
+  return _correoPlantillas;
+}
+
+async function _insertarPlantilla() {
+  const plantillas = await _cargarPlantillas();
+  if (!plantillas.length) {
+    toast('No hay plantillas configuradas. Ejecuta el SQL de mejoras o crea plantillas en la BD.', 'info');
+    return;
+  }
+
+  // Cerrar menú existente
+  document.getElementById('_menuPlantillas')?.remove();
+
+  const menu = document.createElement('div');
+  menu.id = '_menuPlantillas';
+  menu.style.cssText = 'position:fixed;bottom:60px;left:80px;z-index:99999;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:8px;min-width:220px;max-height:300px;overflow-y:auto;font-family:var(--font)';
+
+  menu.innerHTML = `<div style="padding:6px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Plantillas</div>` +
+    plantillas.map(p =>
+      `<div onclick="_usarPlantilla(${p.id})" style="padding:8px 12px;cursor:pointer;border-radius:8px;font-size:12px;transition:background .1s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
+        <div style="font-weight:600;color:#334155;margin-bottom:2px">${p.nombre}</div>
+        <div style="font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(p.contenido || '').substring(0, 60)}...</div>
+      </div>`
+    ).join('');
+
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 50);
+}
+
+function _usarPlantilla(id) {
+  document.getElementById('_menuPlantillas')?.remove();
+  const p = (_correoPlantillas || []).find(x => x.id === id);
+  if (!p) return;
+  const ta = document.getElementById('mail_cuerpo');
+  if (ta) {
+    // Insertar en la posición del cursor o al final
+    const start = ta.selectionStart || ta.value.length;
+    ta.value = ta.value.substring(0, start) + p.contenido + ta.value.substring(ta.selectionEnd || start);
+    ta.focus();
+    toast('📝 Plantilla insertada: ' + p.nombre, 'success');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  FIRMA HTML PROFESIONAL
+// ═══════════════════════════════════════════════
+function _generarFirmaHTML() {
+  if (!EMPRESA) return '';
+  const nombre = EMPRESA.nombre || '';
+  const cif = EMPRESA.cif || '';
+  const direccion = [EMPRESA.direccion, EMPRESA.cp, EMPRESA.ciudad, EMPRESA.provincia].filter(Boolean).join(', ');
+  const tel = EMPRESA.telefono || '';
+  const email = _correoCuentaActiva?.email || EMPRESA.email || '';
+  const web = EMPRESA.web || '';
+  const logo = EMPRESA.logo_url || '';
+
+  return `
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;line-height:1.5">
+  <table cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      ${logo ? `<td style="padding-right:16px;vertical-align:top"><img src="${logo}" alt="${nombre}" style="max-height:48px;max-width:120px"></td>` : ''}
+      <td style="vertical-align:top">
+        <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:2px">${nombre}</div>
+        ${cif ? `<div style="font-size:11px;color:#94a3b8">CIF: ${cif}</div>` : ''}
+        ${direccion ? `<div style="font-size:11px;margin-top:4px">${direccion}</div>` : ''}
+        <div style="margin-top:4px;font-size:11px">
+          ${tel ? `📞 ${tel}` : ''}
+          ${tel && email ? ' · ' : ''}
+          ${email ? `✉️ ${email}` : ''}
+        </div>
+        ${web ? `<div style="margin-top:2px;font-size:11px"><a href="${web.startsWith('http') ? web : 'https://' + web}" style="color:#3b82f6;text-decoration:none">${web}</a></div>` : ''}
+      </td>
+    </tr>
+  </table>
+</div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  ENVÍO PROGRAMADO
+// ═══════════════════════════════════════════════
+async function _programarEnvio() {
+  const para = document.getElementById('mail_para')?.value?.trim();
+  const asunto = document.getElementById('mail_asunto')?.value?.trim();
+  const cuerpo = document.getElementById('mail_cuerpo')?.value?.trim();
+  if (!para) { toast('Introduce un destinatario', 'error'); return; }
+
+  // Opciones rápidas de programación
+  const ahora = new Date();
+  const manana9 = new Date(ahora); manana9.setDate(manana9.getDate() + 1); manana9.setHours(9, 0, 0, 0);
+  const lunes9 = new Date(ahora); lunes9.setDate(lunes9.getDate() + ((8 - lunes9.getDay()) % 7 || 7)); lunes9.setHours(9, 0, 0, 0);
+  const en1h = new Date(ahora.getTime() + 60 * 60 * 1000);
+  const en3h = new Date(ahora.getTime() + 3 * 60 * 60 * 1000);
+
+  const fmt = d => d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:99999';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:var(--font)">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 14px">🕐 Programar envío</h3>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+        <button data-t="${en1h.toISOString()}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px;font-family:var(--font)">En 1 hora <span style="color:#94a3b8;float:right;font-size:11px">${fmt(en1h)}</span></button>
+        <button data-t="${en3h.toISOString()}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px;font-family:var(--font)">En 3 horas <span style="color:#94a3b8;float:right;font-size:11px">${fmt(en3h)}</span></button>
+        <button data-t="${manana9.toISOString()}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px;font-family:var(--font)">Mañana a las 9:00 <span style="color:#94a3b8;float:right;font-size:11px">${fmt(manana9)}</span></button>
+        <button data-t="${lunes9.toISOString()}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px;font-family:var(--font)">Próximo lunes 9:00 <span style="color:#94a3b8;float:right;font-size:11px">${fmt(lunes9)}</span></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <label style="font-size:12px;color:#64748b;flex-shrink:0">Fecha/hora:</label>
+        <input type="datetime-local" id="_progFecha" style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:var(--font)">
+        <button onclick="_confirmarProgramado()" style="background:#3b82f6;color:#fff;border:none;padding:6px 14px;border-radius:7px;font-weight:700;cursor:pointer;font-size:12px;font-family:var(--font)">OK</button>
+      </div>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;color:#64748b;font-family:var(--font)">Cancelar</button>
+    </div>`;
+  document.body.appendChild(ov);
+
+  // Click en opción rápida
+  ov.querySelectorAll('button[data-t]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ov.remove();
+      _guardarEnvioProgramado(btn.dataset.t);
+    });
+  });
+}
+
+function _confirmarProgramado() {
+  const input = document.getElementById('_progFecha');
+  if (!input?.value) { toast('Selecciona fecha y hora', 'error'); return; }
+  const fecha = new Date(input.value);
+  if (fecha <= new Date()) { toast('La fecha debe ser futura', 'error'); return; }
+  document.querySelector('div[style*="position:fixed"][style*="z-index:99999"]')?.remove();
+  _guardarEnvioProgramado(fecha.toISOString());
+}
+
+async function _guardarEnvioProgramado(isoDate) {
+  const para = document.getElementById('mail_para')?.value?.trim();
+  const cc = document.getElementById('mail_cc')?.value?.trim();
+  const asunto = document.getElementById('mail_asunto')?.value?.trim();
+  const cuerpo = document.getElementById('mail_cuerpo')?.value?.trim();
+  const view = document.getElementById('mailView');
+  let vinculacion = null, adjuntos = [];
+  try { vinculacion = view?.dataset?.vinculacion ? JSON.parse(view.dataset.vinculacion) : null; } catch(e) {}
+  try { adjuntos = view?.dataset?.adjuntos ? JSON.parse(view.dataset.adjuntos) : []; } catch(e) {}
+
+  try {
+    await sb.from('correos').insert({
+      empresa_id: EMPRESA.id, tipo: 'borrador', carpeta: 'drafts',
+      de: _correoCuentaActiva?.email || EMPRESA.email || '',
+      para, cc: cc || null, asunto,
+      cuerpo_texto: cuerpo, cuerpo_html: _buildCuerpoHtml(cuerpo, vinculacion),
+      cuerpo_cacheado: true, fecha: new Date().toISOString(), leido: true,
+      usuario_id: CU.id, envio_programado: isoDate,
+      vinculado_tipo: vinculacion?.tipo || null,
+      vinculado_id: vinculacion?.id || null,
+      vinculado_ref: vinculacion?.ref || null,
+    });
+    const f = new Date(isoDate);
+    toast(`🕐 Correo programado para ${f.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} ${f.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`, 'success');
+    cancelarCorreo(true);
+    await loadCorreos();
+  } catch(e) {
+    toast('❌ Error programando envío: ' + (e.message || ''), 'error');
+  }
+}
+
+// Ejecutar envíos programados pendientes (llamar desde auto-sync)
+async function _ejecutarEnviosProgramados() {
+  if (!_correoCuentaActiva) return;
+  try {
+    const { data: pendientes } = await sb.from('correos')
+      .select('*').eq('empresa_id', EMPRESA.id)
+      .eq('tipo', 'borrador').not('envio_programado', 'is', null)
+      .lte('envio_programado', new Date().toISOString());
+    if (!pendientes?.length) return;
+
+    for (const c of pendientes) {
+      try {
+        const { data, error } = await sb.functions.invoke('enviar-correo', {
+          body: {
+            empresa_id: EMPRESA.id, cuenta_correo_id: _correoCuentaActiva.id,
+            para: c.para, cc: c.cc || undefined, asunto: c.asunto,
+            cuerpo_texto: c.cuerpo_texto, cuerpo_html: c.cuerpo_html || undefined,
+            vinculado_tipo: c.vinculado_tipo || undefined,
+            vinculado_id: c.vinculado_id || undefined,
+            vinculado_ref: c.vinculado_ref || undefined
+          }
+        });
+        if (error) throw error;
+        // Actualizar en BD: marcar como enviado
+        await sb.from('correos').update({ tipo: 'enviado', carpeta: 'sent', envio_programado: null }).eq('id', c.id);
+        toast('📤 Correo programado enviado: ' + (c.asunto || ''), 'success');
+      } catch(e) {
+        console.error('[envío programado] Error:', c.id, e);
+      }
+    }
+    await loadCorreos();
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════
+//  SNOOZE (POSPONER)
+// ═══════════════════════════════════════════════
+async function snoozeCorreo(id, event) {
+  if (event) event.stopPropagation();
+  const c = correos.find(x => x.id === id);
+  if (!c) return;
+
+  const ahora = new Date();
+  const en1h = new Date(ahora.getTime() + 60 * 60 * 1000);
+  const en3h = new Date(ahora.getTime() + 3 * 60 * 60 * 1000);
+  const manana9 = new Date(ahora); manana9.setDate(manana9.getDate() + 1); manana9.setHours(9, 0, 0, 0);
+  const lunes9 = new Date(ahora); lunes9.setDate(lunes9.getDate() + ((8 - lunes9.getDay()) % 7 || 7)); lunes9.setHours(9, 0, 0, 0);
+  const fmt = d => d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:center;justify-content:center;z-index:99999';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:20px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:var(--font)">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">😴 Posponer correo</h3>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px">El correo se ocultará y reaparecerá como no leído a la hora elegida.</p>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <button data-t="${en1h.toISOString()}" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:12px;font-family:var(--font)">En 1 hora · <span style="color:#94a3b8">${fmt(en1h)}</span></button>
+        <button data-t="${en3h.toISOString()}" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:12px;font-family:var(--font)">En 3 horas · <span style="color:#94a3b8">${fmt(en3h)}</span></button>
+        <button data-t="${manana9.toISOString()}" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:12px;font-family:var(--font)">Mañana 9:00 · <span style="color:#94a3b8">${fmt(manana9)}</span></button>
+        <button data-t="${lunes9.toISOString()}" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:12px;font-family:var(--font)">Lunes 9:00 · <span style="color:#94a3b8">${fmt(lunes9)}</span></button>
+      </div>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;margin-top:10px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;color:#64748b;font-family:var(--font)">Cancelar</button>
+    </div>`;
+  document.body.appendChild(ov);
+
+  ov.querySelectorAll('button[data-t]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      ov.remove();
+      await sb.from('correos').update({ snooze_hasta: btn.dataset.t, leido: true }).eq('id', id);
+      c.snooze_hasta = btn.dataset.t;
+      c.leido = true;
+      filtrarCorreos();
+      correoActual = null;
+      cancelarCorreo(true);
+      const f = new Date(btn.dataset.t);
+      toast(`😴 Pospuesto hasta ${fmt(f)}`, 'success');
+    });
+  });
+}
+
+// Despertados de snooze: marcar como no leídos los que ya pasaron
+async function _procesarSnooze() {
+  if (!_correoCuentaActiva) return;
+  try {
+    const { data } = await sb.from('correos')
+      .select('id').eq('empresa_id', EMPRESA.id)
+      .not('snooze_hasta', 'is', null)
+      .lte('snooze_hasta', new Date().toISOString());
+    if (!data?.length) return;
+    for (const c of data) {
+      await sb.from('correos').update({ snooze_hasta: null, leido: false }).eq('id', c.id);
+    }
+    // Refrescar
+    const { data: todos } = await sb.from('correos').select('*').eq('empresa_id', EMPRESA.id).order('fecha', { ascending: false });
+    correos = todos || [];
+    filtrarCorreos();
+    actualizarBadgeCorreo();
+    if (data.length) toast(`🔔 ${data.length} correo${data.length > 1 ? 's' : ''} pospuesto${data.length > 1 ? 's' : ''} de vuelta`, 'info');
+  } catch(e) {}
+}
+
+// Firma en texto plano para el composer
+function _firmaTextoPlano() {
+  if (!EMPRESA) return '';
+  const parts = [
+    '--',
+    EMPRESA.nombre || '',
+    EMPRESA.cif ? 'CIF: ' + EMPRESA.cif : '',
+    [EMPRESA.direccion, EMPRESA.cp, EMPRESA.ciudad].filter(Boolean).join(', '),
+    [EMPRESA.telefono ? 'Tel: ' + EMPRESA.telefono : '', _correoCuentaActiva?.email || EMPRESA.email || ''].filter(Boolean).join(' · '),
+    EMPRESA.web || ''
+  ].filter(Boolean);
+  return '\n\n' + parts.join('\n');
 }
