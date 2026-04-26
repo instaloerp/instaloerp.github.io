@@ -523,11 +523,74 @@ ${_renderPie(E)}
     }
   }
 
+  // ─── Firma digital con certificado de empresa ──────────────
+  async function _firmarPdfConCertificado(pdfBase64, cfg){
+    try {
+      const cert = (typeof _certActual !== 'undefined') ? _certActual : null;
+      if (!cert) return null; // sin certificado activo → no firmar
+      const E = _empresa();
+      if (!E.id) return null;
+
+      const resp = await fetch(SUPA_URL + '/functions/v1/firmar-documento', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (typeof SUPA_KEY !== 'undefined' ? SUPA_KEY : sb.supabaseKey),
+        },
+        body: JSON.stringify({
+          pdf_base64: pdfBase64,
+          empresa_id: E.id,
+          documento_info: {
+            tipo_documento: (cfg.tipo || 'documento').toLowerCase(),
+            documento_id: cfg.documento_id || cfg.id || null,
+            numero: cfg.numero || null,
+            entidad_tipo: cfg.cliente ? 'cliente' : null,
+            entidad_id: cfg.cliente?.id || null,
+            entidad_nombre: cfg.cliente?.nombre || null,
+            usuario_id: (typeof CU !== 'undefined' && CU) ? CU.id : null,
+          }
+        })
+      });
+
+      if (!resp.ok) {
+        console.warn('Firma digital no aplicada:', resp.status);
+        return null;
+      }
+      const data = await resp.json();
+      if (data.success && data.pdf_base64) {
+        console.log('✅ PDF firmado digitalmente con certificado:', data.certificado?.titular);
+        return data.pdf_base64;
+      }
+      return null;
+    } catch (err) {
+      console.warn('Error al firmar PDF:', err);
+      return null;
+    }
+  }
+
   async function _descargarPdfDocumento(cfg, filename){
     try {
       const pdf = await _renderToPdf(cfg);
-      pdf.save(filename || `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`);
-      if (window.toast) toast('📄 PDF descargado ✓','success');
+      const fname = filename || `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`;
+
+      // Intentar firma digital con certificado de empresa
+      const pdfB64 = btoa(String.fromCharCode(...new Uint8Array(pdf.output('arraybuffer'))));
+      const firmadoB64 = await _firmarPdfConCertificado(pdfB64, cfg);
+
+      if (firmadoB64) {
+        // Descargar versión firmada
+        const bytes = Uint8Array.from(atob(firmadoB64), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fname; a.click();
+        URL.revokeObjectURL(url);
+        if (window.toast) toast('📄 PDF firmado digitalmente y descargado ✓','success');
+      } else {
+        // Sin certificado → descargar sin firma
+        pdf.save(fname);
+        if (window.toast) toast('📄 PDF descargado ✓','success');
+      }
     } catch (e) {
       console.error('Error generando PDF:', e);
       if (window.toast) toast('⚠️ Error al generar PDF: '+e.message,'error');
@@ -536,8 +599,11 @@ ${_renderPie(E)}
 
   async function _documentoPdfBase64(cfg){
     const pdf = await _renderToPdf(cfg);
-    const dataUri = pdf.output('datauristring');
-    return (dataUri||'').split(',')[1] || null;
+    const rawB64 = btoa(String.fromCharCode(...new Uint8Array(pdf.output('arraybuffer'))));
+
+    // Intentar firma digital
+    const firmadoB64 = await _firmarPdfConCertificado(rawB64, cfg);
+    return firmadoB64 || rawB64;
   }
 
   // ─── Exponer en window ─────────────────────────────────────
