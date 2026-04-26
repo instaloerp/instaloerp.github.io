@@ -573,8 +573,9 @@ async function verDetalleFactura(id) {
   const lineas = f.lineas || [];
   let base = 0, ivaTotal = 0;
   document.getElementById('facDetLineas').innerHTML = lineas.map(l => {
-    if (l._separator) {
-      return `<tr><td colspan="6" style="padding:6px 10px;background:var(--gris-50);font-weight:700;font-size:11px;color:var(--gris-500);border-bottom:1px solid var(--gris-100)">${l.desc || ''}</td></tr>`;
+    if (l._separator || l.tipo === 'capitulo' || l.tipo === 'subcapitulo') {
+      const indent = l.tipo === 'subcapitulo' ? 'padding-left:24px;' : '';
+      return `<tr><td colspan="6" style="padding:6px 10px;${indent}background:var(--gris-50);font-weight:700;font-size:11px;color:var(--gris-500);border-bottom:1px solid var(--gris-100)">${l.titulo || l.desc || ''}</td></tr>`;
     }
     const dto = l.dto || 0;
     const sub = (l.cant || 0) * (l.precio || 0) * (1 - dto / 100);
@@ -931,6 +932,9 @@ async function _verVersionBorrador(versionId) {
       </thead>
       <tbody>` +
       lineas.map(l => {
+        if (l._separator || l.tipo === 'capitulo' || l.tipo === 'subcapitulo') {
+          return `<tr><td colspan="5" style="padding:6px 8px;background:var(--gris-50);font-weight:700;font-size:11px;color:var(--gris-500)">${l.titulo || l.desc || ''}</td></tr>`;
+        }
         const sub = (l.cant||1) * (l.precio||0) * (1 - (l.dto||0)/100);
         const tot = sub * (1 + (l.iva||21)/100);
         return `<tr style="border-bottom:1px solid var(--gris-100)">
