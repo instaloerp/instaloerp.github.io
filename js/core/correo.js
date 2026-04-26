@@ -45,7 +45,11 @@ async function iniciarCorreoBackground() {
     if (recibidos.length) evaluarAutomatizaciones(recibidos);
   }
 
-  // 3. Arrancar sync IMAP + timer (si sync habilitada)
+  // 3. Ejecutar inmediatamente envíos programados y snooze pendientes
+  _ejecutarEnviosProgramados();
+  _procesarSnooze();
+
+  // 4. Arrancar sync IMAP + timer (si sync habilitada)
   if (_correoCuentaActiva.sync_habilitada) {
     console.log('[Correo] Auto-sync background iniciado');
     sincronizarCorreo(true);

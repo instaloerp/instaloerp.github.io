@@ -18,7 +18,7 @@ ALTER TABLE correos ADD COLUMN IF NOT EXISTS envio_programado timestamptz;
 -- 5. Tabla de plantillas de respuesta rápida
 CREATE TABLE IF NOT EXISTS correo_plantillas (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  empresa_id bigint REFERENCES empresas(id) ON DELETE CASCADE,
+  empresa_id uuid REFERENCES empresas(id) ON DELETE CASCADE,
   nombre text NOT NULL,
   contenido text NOT NULL,
   categoria text DEFAULT 'general',
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS correo_plantillas (
 ALTER TABLE correo_plantillas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "correo_plantillas_empresa" ON correo_plantillas;
 CREATE POLICY "correo_plantillas_empresa" ON correo_plantillas
-  FOR ALL USING (empresa_id = (SELECT empresa_id FROM perfiles WHERE user_id = auth.uid()));
+  FOR ALL USING (empresa_id = (SELECT empresa_id FROM perfiles WHERE id = auth.uid()));
 
 -- Insertar plantillas de ejemplo
 INSERT INTO correo_plantillas (empresa_id, nombre, contenido, categoria, orden)
