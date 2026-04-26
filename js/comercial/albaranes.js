@@ -599,38 +599,41 @@ async function enviarAlbaranEmail(id) {
     const { error: tokErr } = await sb.from('albaranes').update({ acceso_token: token }).eq('id', a.id);
     if (!tokErr) a.acceso_token = token; else token = null;
   }
-  const enlace = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+  const enlaceDoc = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
 
-  // 2) PDF base64
-  let adjuntos = [];
-  try {
-    const b64 = await generarPdfAlbaran(a, { soloBase64: true });
-    if (b64) adjuntos.push({ nombre: `Albaran_${(a.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
-  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
+  // 2) Tracking: registrar compartición y obtener enlace con tracking
+  let enlaceTracking = enlaceDoc; // fallback al enlace directo
+  const adjuntos = []; // sin PDF adjunto — el cliente descarga desde el enlace
+
+  if (typeof compartirDocumento === 'function') {
+    try {
+      const track = await compartirDocumento({
+        tipo_documento: 'albaran', documento_id: a.id,
+        documento_numero: a.numero, destinatario_nombre: a.cliente_nombre,
+        destinatario_email: email, canal: 'email',
+        acceso_token: token
+      });
+      if (track?.url) enlaceTracking = track.url;
+    } catch(e) { console.warn('[Tracking]', e); }
+  }
 
   const cuerpoTxt =
 `Estimado/a ${a.cliente_nombre||'cliente'},
 
-Le adjuntamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
+Le enviamos el albarán ${a.numero||''} con fecha ${fechaFmt}.
 
 Importe total: ${totalFmt}
 ${a.referencia ? 'Referencia: '+a.referencia : ''}
-${enlace ? '\n👉 Ver, descargar o imprimir online:\n'+enlace+'\n' : ''}
-Quedamos a su disposición para cualquier consulta.
+
+Pulse el siguiente enlace para ver, descargar o imprimir su albarán:
+${enlaceTracking}
+
+Para cualquier consulta, no dude en contactarnos.
 
 Un saludo,
 ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono ? 'Tel: '+EMPRESA.telefono : ''}
 ${EMPRESA?.email || ''}`;
-
-  // Tracking: registrar compartición
-  if (typeof compartirDocumento === 'function') {
-    await compartirDocumento({
-      tipo_documento: 'albaran', documento_id: a.id,
-      documento_numero: a.numero, destinatario_nombre: a.cliente_nombre,
-      destinatario_email: email, canal: 'email'
-    });
-  }
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mAbDetalle');

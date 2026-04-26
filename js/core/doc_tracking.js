@@ -400,20 +400,27 @@ function iniciarTrackingRealtime() {
       const nuevo = payload.new;
       const viejo = payload.old;
 
-      // Solo notificar en la primera vista (first_viewed_at pasa de null a valor)
-      if (nuevo.first_viewed_at && !viejo.first_viewed_at) {
-        // Invalidar cache y actualizar badge siempre (para todos los usuarios de la empresa)
+      // Detectar vista: first_viewed_at tiene valor
+      // payload.old puede no tener first_viewed_at sin REPLICA IDENTITY FULL,
+      // así que comprobamos contra el cache local en vez de payload.old
+      if (nuevo.first_viewed_at) {
         const cacheKey = nuevo.tipo_documento + ':' + nuevo.documento_id;
+        const cached = _trackingCache.get(cacheKey);
+        const esPrimeraVista = !cached || !cached.visto;
+
+        // Invalidar cache y actualizar badge siempre
         _trackingCache.delete(cacheKey);
         _actualizarBadgeEnLista(nuevo.tipo_documento, nuevo.documento_id, nuevo.view_count || 1);
 
-        // Toast + campana solo para el usuario que envió el documento
-        const miId = (typeof CU !== 'undefined' && CU) ? CU.id : null;
-        if (miId && nuevo.created_by === miId) {
-          const dest = nuevo.destinatario_nombre || nuevo.destinatario_email || 'Alguien';
-          const doc = nuevo.documento_numero || nuevo.tipo_documento;
-          toast(`Documento visto\n${dest} ha abierto ${doc}`, 'success', 6000, true);
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        // Toast + campana solo en la primera vista y solo para quien envió
+        if (esPrimeraVista) {
+          const miId = (typeof CU !== 'undefined' && CU) ? CU.id : null;
+          if (miId && nuevo.created_by === miId) {
+            const dest = nuevo.destinatario_nombre || nuevo.destinatario_email || 'Alguien';
+            const doc = nuevo.documento_numero || nuevo.tipo_documento;
+            toast(`Documento visto\n${dest} ha abierto ${doc}`, 'success', 6000, true);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          }
         }
       }
     })
@@ -526,12 +533,8 @@ let _trackingMap = new Map();
  * y lo actualiza a "Visto" cuando llega el evento realtime.
  */
 function _actualizarBadgeEnLista(tipo_documento, documento_id, view_count) {
-  // Buscar todos los badges con data-tracking-id
-  const badges = document.querySelectorAll(`[data-tracking-id="${documento_id}"]`);
-  if (!badges.length) return;
-
   const views = (view_count || 1) > 1 ? ` (${view_count}x)` : '';
-  const nuevoHtml = `<span class="badge-tracking badge-visto" title="Visto${views}" style="
+  const vistoHtml = `<span class="badge-tracking badge-visto" data-tracking-id="${documento_id}" title="Visto${views}" style="
     display:inline-flex;align-items:center;gap:3px;
     background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;
     border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600;
@@ -540,7 +543,23 @@ function _actualizarBadgeEnLista(tipo_documento, documento_id, view_count) {
     Visto${views}
   </span>`;
 
-  badges.forEach(el => { el.outerHTML = nuevoHtml; });
+  // 1. Buscar badges existentes con data-tracking-id (los reemplaza in-place)
+  const badges = document.querySelectorAll(`[data-tracking-id="${documento_id}"]`);
+  badges.forEach(el => { el.outerHTML = vistoHtml; });
+
+  // 2. Si no había badges, buscar la celda data-tracking-cell e inyectar
+  if (!badges.length) {
+    const cell = document.querySelector(`[data-tracking-cell="${documento_id}"]`);
+    if (cell) {
+      const estadoSpan = cell.querySelector('span[onclick*="cambiarEstado"]');
+      const badgeDiv = `<div style="margin-top:2px;cursor:pointer" onclick="event.stopPropagation();mostrarDetalleTracking('${tipo_documento}','${documento_id}','')">${vistoHtml}</div>`;
+      if (estadoSpan) {
+        estadoSpan.insertAdjacentHTML('afterend', badgeDiv);
+      } else {
+        cell.insertAdjacentHTML('afterbegin', badgeDiv);
+      }
+    }
+  }
 
   // Actualizar también el mapa local
   _trackingMap.set(String(documento_id), {
