@@ -63,12 +63,11 @@ async function compartirDocumento(opts) {
     const cacheKey = opts.tipo_documento + ':' + opts.documento_id;
     _trackingCache.delete(cacheKey);
 
-    console.log('[DocTracking] Enlace generado:', url, pdfUrl ? '(con PDF)' : '(sin PDF)');
+    console.log('[DocTracking] Enlace generado:', url);
     return { url, token: data.token, id: data.id };
 
   } catch (e) {
-    console.error('[DocTracking] Error creando enlace:', e);
-    toast('Error generando enlace de seguimiento', 'error');
+    console.warn('[DocTracking] Error creando enlace (no crítico):', e.message || e);
     return null;
   }
 }
