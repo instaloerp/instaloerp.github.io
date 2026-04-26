@@ -353,13 +353,13 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     const firmado = cfg.firma_aceptada;
     const bloqueCli = firmado ? `
     <div class="firma-bloque firmado">
-      <div class="label">✓ Aceptado por el cliente</div>
+      <div class="label">✓ ACEPTADO POR EL CLIENTE</div>
       <div class="info">
         <b>${_esc(firmado.nombre||'—')}</b><br>
         Fecha: ${_fmtFecha(firmado.fecha)}<br>
         ${firmado.ip ? `IP: ${_esc(firmado.ip)}` : ''}
       </div>
-      ${firmado.url ? `<div class="linea">Firma digital registrada</div>` : `<div class="linea">Aceptación digital</div>`}
+      ${firmado.url ? `<img src="${firmado.url}" style="max-width:160px;max-height:60px;margin-top:4px;display:block">` : `<div class="linea">Aceptación digital</div>`}
     </div>` : `
     <div class="firma-bloque">
       <div class="label">Aceptación del cliente</div>

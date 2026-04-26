@@ -373,15 +373,14 @@
         doc.text('Firmado por: '+(fa.nombre||'—'), ML+4, fy); fy+=4;
         doc.text('Fecha: '+(fa.fecha?new Date(fa.fecha).toLocaleString('es-ES'):'—'), ML+4, fy); fy+=4;
         if (fa.ip) { doc.text('IP: '+fa.ip, ML+4, fy); fy+=4; }
-        // imagen firma
+        // imagen firma (fetch como blob para evitar CORS)
         if (fa.url) {
           try {
-            const img = new Image(); img.crossOrigin = 'anonymous';
-            await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=fa.url;});
-            const cnv = document.createElement('canvas'); cnv.width=img.width; cnv.height=img.height;
-            cnv.getContext('2d').drawImage(img,0,0);
-            doc.addImage(cnv.toDataURL('image/png'),'PNG', W-MR-55, y+4, 50, 18);
-          } catch(e){}
+            const resp = await fetch(fa.url);
+            const blob = await resp.blob();
+            const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+            doc.addImage(dataUrl, 'PNG', W-MR-55, y+4, 50, 18);
+          } catch(e){ console.warn('No se pudo insertar firma en PDF:', e); }
         }
         y += 30;
       }
