@@ -105,6 +105,25 @@ function buildCfg(tipo, d) {
       d.forma_pago ? ['Forma de pago', d.forma_pago] : null,
       d.garantia ? ['Garantía', d.garantia] : null
     ].filter(Boolean);
+
+    // Firma: mostrar zona de firma si el presupuesto está aceptado/firmado
+    if (d.estado === 'aceptado' && d.firmado_por_nombre) {
+      cfg.firma_zona = true;
+      cfg.firma_aceptada = {
+        nombre: d.firmado_por_nombre || '',
+        fecha:  d.firmado_en || d.fecha,
+        ip:     d.firma_ip || '',
+        url:    d.firma_cliente || ''
+      };
+      // Sello digital de empresa (simular _certActual para el renderer)
+      if (typeof _certActual === 'undefined') {
+        window._certActual = {
+          titular:     d.emp_razon || d.emp_nombre || '',
+          nif_titular: d.emp_cif || '',
+          emisor:      'Certificado digital'
+        };
+      }
+    }
   }
 
   // VeriFactu
