@@ -496,15 +496,19 @@ ${_renderPie(E)}
 
     try {
       await _esperarImagenes(wrapper);
+      // Forzar layout y obtener la altura real del contenido
+      const docEl = wrapper.querySelector('.doc');
+      const fullHeight = docEl.scrollHeight || docEl.offsetHeight;
       const opt = {
         margin:       [0, 0, 14, 0],   // mm — margen top en el padding del clon
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
-        html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff' },
+        html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff',
+                        scrollY: 0, height: fullHeight, windowHeight: fullHeight + 200 },
         jsPDF:        { unit:'mm', format:'a4', orientation:'portrait' },
         pagebreak:    { mode:['css','legacy'], avoid:['.capitulo','.resumen-bloque','.firma','.firma-bloque'] }
       };
-      const worker = window.html2pdf().set(opt).from(wrapper.querySelector('.doc'));
+      const worker = window.html2pdf().set(opt).from(docEl);
       const pdf = await worker.toPdf().get('pdf');
       // Stamp pie con numeración
       const totalPag = pdf.internal.getNumberOfPages();

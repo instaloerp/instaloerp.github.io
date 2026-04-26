@@ -76,6 +76,12 @@ serve(async (req) => {
       ? await sb.from('clientes').select('*').eq('id', pres.cliente_id).single()
       : { data: null }
 
+    // Helper formato moneda (usado también en el email)
+    const fmtE = (n: number) => {
+      const num = Number(n) || 0
+      return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €'
+    }
+
     // ══════════════════════════════════════════════
     // PDF: usar pre-generado o generar con pdf-lib (fallback)
     // ══════════════════════════════════════════════
@@ -107,11 +113,6 @@ serve(async (req) => {
         font: options.bold ? fontBold : font,
         color: options.color || rgb(0.1, 0.1, 0.15),
       })
-    }
-
-    const fmtE = (n: number) => {
-      const num = Number(n) || 0
-      return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €'
     }
 
     const checkNewPage = (needed: number) => {
