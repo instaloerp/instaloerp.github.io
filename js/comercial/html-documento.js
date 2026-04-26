@@ -87,7 +87,7 @@
   const CSS = `
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:#fff;line-height:1.45}
-.doc{max-width:210mm;margin:0 auto;padding:10mm 16mm 22mm;position:relative}
+.doc{max-width:210mm;margin:0 auto;padding:8mm 14mm 16mm;position:relative}
 .cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:70px;margin-bottom:18px}
 .cab-logo{position:absolute;top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0}
 .cab-logo img,.cab-logo-center img{height:110px;width:auto;max-width:280px;object-fit:contain;display:block}
@@ -98,10 +98,10 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .cab-qr .qr-veri{font-size:7px;font-weight:700;color:#1e40af;margin-top:2px}
 .cab-empresa-info{text-align:right;font-size:9px;color:#64748b;line-height:1.5;margin-left:auto}
 .cab-empresa-info .nombre-corp{font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
-.titulo-doc{margin:6px 0 14px;padding-bottom:10px;border-bottom:3px solid #1e40af}
-.titulo-doc .tipo{font-size:26px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:1.5px;line-height:1}
-.titulo-doc .ref{font-size:13px;color:#64748b;font-weight:500;margin-top:6px}
-.bloque-doble{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;margin-bottom:20px}
+.titulo-doc{margin:4px 0 10px;padding-bottom:8px;border-bottom:3px solid #1e40af}
+.titulo-doc .tipo{font-size:24px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:1.5px;line-height:1}
+.titulo-doc .ref{font-size:12px;color:#64748b;font-weight:500;margin-top:4px}
+.bloque-doble{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;margin-bottom:14px}
 .tarjeta{background:#f8fafc;border-radius:10px;padding:14px 16px;border-left:4px solid #1e40af}
 .tarjeta .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1e40af;margin-bottom:6px}
 .tarjeta .nombre{font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px}
@@ -132,9 +132,9 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .tabla tbody tr:last-child td{border-bottom:none}
 .tabla tbody tr:nth-child(even){background:#f8fafc}
 
-.seccion-titulo{font-size:13px;font-weight:700;color:#1e40af;margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid #1e40af;display:inline-block;padding-right:30px}
+.seccion-titulo{font-size:12px;font-weight:700;color:#1e40af;margin:12px 0 6px;padding-bottom:4px;border-bottom:2px solid #1e40af;display:inline-block;padding-right:30px}
 .resumen-bloque{page-break-inside:avoid;break-inside:avoid;page-break-before:auto}
-.resumen{background:#f8fafc;border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.resumen{background:#f8fafc;border-radius:10px;padding:10px 16px;margin-bottom:10px}
 .resumen-cap{padding:6px 0;display:flex;justify-content:space-between;font-size:10.5px;color:#475569;border-bottom:1px dashed #e2e8f0}
 .resumen-cap .num{display:inline-block;background:#1e40af;color:#fff;font-weight:700;font-size:9px;padding:2px 7px;border-radius:4px;margin-right:8px;letter-spacing:.4px}
 .resumen-cap b{color:#1e293b;font-weight:700;font-variant-numeric:tabular-nums}
@@ -142,20 +142,20 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .resumen-fila.subtotal{padding-top:10px;border-top:2px solid #cbd5e1;margin-top:6px;font-weight:700;color:#1e293b}
 .resumen-fila:last-child{border-bottom:none}
 .resumen-fila b{color:#1e293b;font-weight:700;font-variant-numeric:tabular-nums}
-.resumen-total{margin-top:8px;display:flex;justify-content:space-between;align-items:center;background:#1e40af;color:#fff;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px}
+.resumen-total{margin-top:6px;display:flex;justify-content:space-between;align-items:center;background:#1e40af;color:#fff;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px}
 
 .observaciones{margin:14px 0;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8}
 .observaciones .label{font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px}
 .observaciones .texto{font-size:11px;color:#475569;white-space:pre-wrap}
 
-.condiciones{margin-bottom:18px}
-.cond-fila{display:grid;grid-template-columns:160px 1fr;gap:14px;padding:9px 14px;border-radius:6px;font-size:10.5px;margin-bottom:4px}
+.condiciones{margin-bottom:8px}
+.cond-fila{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:6px 12px;border-radius:6px;font-size:9.5px;margin-bottom:2px}
 .cond-fila:nth-child(odd){background:#f8fafc}
 .cond-fila .k{font-weight:700;color:#1e293b}
 .cond-fila .v{color:#64748b}
 
-.firma{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px;page-break-inside:avoid;break-inside:avoid}
-.firma-bloque{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:16px;min-height:90px}
+.firma{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;page-break-inside:avoid;break-inside:avoid}
+.firma-bloque{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;min-height:70px}
 .firma-bloque .label{font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .firma-bloque .info{font-size:10.5px;color:#475569;line-height:1.6}
 .firma-bloque .info b{color:#1e293b}
@@ -163,7 +163,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .firma-bloque.firmado{background:#ecfdf5;border:1px solid #6ee7b7}
 .firma-bloque.firmado .label{color:#059669}
 
-.pie{position:fixed;bottom:8mm;left:16mm;right:16mm;border-top:1px solid #e2e8f0;padding-top:6px;font-size:8.5px;color:#94a3b8;display:flex;justify-content:space-between}
+.pie{position:fixed;bottom:5mm;left:14mm;right:14mm;border-top:1px solid #e2e8f0;padding-top:4px;font-size:8px;color:#94a3b8;display:flex;justify-content:space-between}
 
 @page{size:A4;margin:0}
 @media print{

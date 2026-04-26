@@ -25,12 +25,28 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
+// pdf-lib ya no se usa para sello visual (lo genera la plantilla HTML del frontend)
+// import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
 import forge from 'https://esm.sh/node-forge@1.3.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Convierte Uint8Array a string binario sin desbordar la pila (chunks de 8 KB)
+function uint8ToBinaryString(u8: Uint8Array): string {
+  let bin = ''
+  const chunk = 8192
+  for (let i = 0; i < u8.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunk)))
+  }
+  return bin
+}
+
+// Sanitiza texto para que solo contenga caracteres WinAnsi (pdf-lib)
+function sanitizeWinAnsi(text: string): string {
+  return text.replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
 }
 
 serve(async (req) => {
@@ -103,7 +119,7 @@ serve(async (req) => {
 
         if (pfxData) {
           // 2. Extraer certificado y clave privada del PFX
-          const p12Der = forge.util.decode64(btoa(String.fromCharCode(...pfxData)))
+          const p12Der = forge.util.decode64(btoa(uint8ToBinaryString(pfxData)))
           const p12Asn1 = forge.asn1.fromDer(p12Der)
           // Decodificar contraseña (guardada como btoa(unescape(encodeURIComponent(pass))))
           const passDecoded = decodeURIComponent(escape(atob(cert.password_cifrada)))
@@ -120,63 +136,12 @@ serve(async (req) => {
             certEmisor = cert.emisor || certObj.issuer.getField('CN')?.value || ''
             const fechaFirma = new Date()
 
-            // 3. Añadir sello visual al PDF con pdf-lib
-            const pdfDoc = await PDFDocument.load(pdfBytesOriginal)
-            const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-            const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-            const pages = pdfDoc.getPages()
-            const lastPage = pages[pages.length - 1]
-            const { width } = lastPage.getSize()
+            // 3. Sello visual NO se añade aquí — ya lo incluye la plantilla HTML del frontend.
+            //    Solo generamos la firma PKCS#7 criptográfica sobre el PDF tal cual llega.
 
-            // Sello de firma digital — esquina inferior izquierda de última página
-            const selloX = 30
-            const selloY = 22
-            const selloW = 220
-            const selloH = 52
-
-            // Fondo blanco + borde azul
-            lastPage.drawRectangle({
-              x: selloX, y: selloY, width: selloW, height: selloH,
-              color: rgb(1, 1, 1), opacity: 0.95,
-              borderColor: rgb(0.12, 0.25, 0.69), borderWidth: 1.5,
-            })
-
-            // Textos del sello
-            const fechaStr = fechaFirma.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
-            lastPage.drawText('FIRMADO DIGITALMENTE', {
-              x: selloX + 8, y: selloY + selloH - 13,
-              size: 7.5, font: helveticaBold, color: rgb(0.12, 0.25, 0.69),
-            })
-            lastPage.drawText(certTitular, {
-              x: selloX + 8, y: selloY + selloH - 24,
-              size: 7, font: helvetica, color: rgb(0.2, 0.2, 0.2),
-              maxWidth: selloW - 16,
-            })
-            if (certNif) {
-              lastPage.drawText(`NIF: ${certNif}`, {
-                x: selloX + 8, y: selloY + selloH - 34,
-                size: 6.5, font: helvetica, color: rgb(0.35, 0.35, 0.35),
-              })
-            }
-            lastPage.drawText(`Fecha: ${fechaStr}`, {
-              x: selloX + 8, y: selloY + 6,
-              size: 6, font: helvetica, color: rgb(0.45, 0.45, 0.45),
-            })
-            if (certEmisor) {
-              lastPage.drawText(`Emisor: ${certEmisor.substring(0, 40)}`, {
-                x: selloX + 8, y: selloY + selloH - 44,
-                size: 5.5, font: helvetica, color: rgb(0.5, 0.5, 0.5),
-                maxWidth: selloW - 16,
-              })
-            }
-
-            // Guardar PDF con sello visual
-            const pdfConSello = await pdfDoc.save()
-            pdfBytesFinal = new Uint8Array(pdfConSello)
-
-            // 4. Generar firma PKCS#7 detached del PDF completo (con sello)
+            // 4. Generar firma PKCS#7 detached del PDF completo
             const p7 = forge.pkcs7.createSignedData()
-            p7.content = forge.util.createBuffer(String.fromCharCode(...pdfBytesFinal))
+            p7.content = forge.util.createBuffer(uint8ToBinaryString(pdfBytesFinal))
             p7.addCertificate(certObj)
             p7.addSigner({
               key: keyObj,
@@ -209,7 +174,8 @@ serve(async (req) => {
     // ══════════════════════════════════════════════
     const docInfo = documento_info || {}
     const tipo = docInfo.tipo_documento || 'documento'
-    const num = docInfo.numero || docInfo.documento_id || Date.now()
+    const numRaw = String(docInfo.numero || docInfo.documento_id || Date.now())
+    const num = numRaw.replace(/[^a-zA-Z0-9._-]/g, '_')  // sanitizar para Storage keys
     const ts = Date.now()
     const basePath = `documentos-firmados/${empresa_id}/${tipo}`
     const pdfPath = `${basePath}/${num}_${ts}.pdf`
@@ -264,7 +230,7 @@ serve(async (req) => {
     }
 
     // Devolver PDF firmado como base64 para descarga inmediata
-    const pdfFirmadoBase64 = btoa(String.fromCharCode(...pdfBytesFinal))
+    const pdfFirmadoBase64 = btoa(uint8ToBinaryString(pdfBytesFinal))
 
     return new Response(JSON.stringify({
       success: true,

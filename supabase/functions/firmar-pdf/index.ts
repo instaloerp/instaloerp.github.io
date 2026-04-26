@@ -18,6 +18,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Convierte Uint8Array a string binario sin desbordar la pila (chunks de 8 KB)
+function uint8ToBinaryString(u8: Uint8Array): string {
+  let bin = ''
+  const chunk = 8192
+  for (let i = 0; i < u8.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunk)))
+  }
+  return bin
+}
+
+// Sanitiza texto para que solo contenga caracteres WinAnsi (pdf-lib)
+function sanitizeWinAnsi(text: string): string {
+  return text.replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -289,7 +304,7 @@ serve(async (req) => {
         }
 
         if (pfxData && cert.password_cifrada) {
-          const p12Der = forge.util.decode64(btoa(String.fromCharCode(...pfxData)))
+          const p12Der = forge.util.decode64(btoa(uint8ToBinaryString(pfxData)))
           const p12Asn1 = forge.asn1.fromDer(p12Der)
           // Decodificar contraseña (guardada como btoa(unescape(encodeURIComponent(pass))))
           const passDecoded = decodeURIComponent(escape(atob(cert.password_cifrada)))
@@ -302,7 +317,7 @@ serve(async (req) => {
 
           if (certObj && keyObj) {
             const p7 = forge.pkcs7.createSignedData()
-            p7.content = forge.util.createBuffer(String.fromCharCode(...pdfBytes))
+            p7.content = forge.util.createBuffer(uint8ToBinaryString(pdfBytes))
             p7.addCertificate(certObj)
             p7.addSigner({
               key: keyObj,
@@ -375,7 +390,7 @@ serve(async (req) => {
     let emailEnviado = false
     if (enviar_copia_email && firma_email && pdfUrl) {
       try {
-        const pdfBase64 = btoa(String.fromCharCode(...pdfBytes))
+        const pdfBase64 = btoa(uint8ToBinaryString(pdfBytes))
 
         const emailResp = await fetch(`${supabaseUrl}/functions/v1/enviar-correo`, {
           method: 'POST',
