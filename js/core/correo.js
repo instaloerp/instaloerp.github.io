@@ -370,6 +370,7 @@ function cambiarCarpeta(folder) {
 // Mapeo de carpeta IMAP a carpeta local del sidebar
 function _carpetaLocal(c) {
   const folder = (c.carpeta || '').toLowerCase();
+  if (c.tipo === 'programado' || folder === 'programados') return 'programados';
   if (c.tipo === 'enviado' || folder === 'sent' || folder === 'enviados') return 'sent';
   if (c.tipo === 'borrador' || folder === 'drafts' || folder === 'borradores') return 'drafts';
   if (folder === 'spam' || folder === 'junk') return 'spam';
@@ -394,9 +395,9 @@ function filtrarCorreos() {
   renderListaCorreos(correosFiltrados);
 
   // Contadores por carpeta
-  const conteos = { inbox: 0, drafts: 0, sent: 0, spam: 0, trash: 0 };
+  const conteos = { inbox: 0, programados: 0, drafts: 0, sent: 0, spam: 0, trash: 0 };
   correos.forEach(c => { const f = _carpetaLocal(c); if (conteos[f] !== undefined) conteos[f]++; });
-  const mapIds = { inbox: 'mailCntInbox', drafts: 'mailCntDrafts', sent: 'mailCntSent', spam: 'mailCntSpam', trash: 'mailCntTrash' };
+  const mapIds = { inbox: 'mailCntInbox', programados: 'mailCntProgramados', drafts: 'mailCntDrafts', sent: 'mailCntSent', spam: 'mailCntSpam', trash: 'mailCntTrash' };
   Object.keys(mapIds).forEach(k => {
     const el = document.getElementById(mapIds[k]);
     if (el) el.textContent = conteos[k] > 0 ? conteos[k] : '';
@@ -420,7 +421,7 @@ function filtrarCorreos() {
   const statusBar = document.getElementById('mailStatusBar');
   if (statusBar) {
     const total = correosFiltrados.length;
-    const nombres = { inbox: 'Entrada', drafts: 'Borradores', sent: 'Enviados', spam: 'SPAM', trash: 'Papelera' };
+    const nombres = { inbox: 'Entrada', programados: 'Programados', drafts: 'Borradores', sent: 'Enviados', spam: 'SPAM', trash: 'Papelera' };
     statusBar.textContent = total > 0
       ? `${nombres[carpetaActual] || carpetaActual} — ${total} mensaje${total !== 1 ? 's' : ''}`
       : `${nombres[carpetaActual] || carpetaActual} — Buzón vacío`;
@@ -489,10 +490,12 @@ function renderListaCorreos(list) {
     const msgs = {
       inbox: 'No hay correos en la bandeja de entrada',
       sent: 'No hay correos enviados',
+      programados: 'No hay envíos programados',
       drafts: 'No hay borradores'
     };
+    const emojis = { inbox: '📥', sent: '📤', programados: '🕐', drafts: '📝', spam: '🚫', trash: '🗑️' };
     container.innerHTML = `<div style="padding:30px 20px;text-align:center;color:var(--gris-400);font-size:13px">
-      <div style="font-size:32px;margin-bottom:8px">${carpetaActual === 'inbox' ? '📥' : carpetaActual === 'sent' ? '📤' : '📝'}</div>
+      <div style="font-size:32px;margin-bottom:8px">${emojis[carpetaActual] || '📋'}</div>
       ${msgs[carpetaActual] || 'Sin correos'}
       ${_correoCuentaActiva ? `<br>
         <button class="btn btn-secondary btn-sm" onclick="sincronizarCorreo()" style="margin-top:10px">🔄 Sincronizar ahora</button>
@@ -2402,6 +2405,7 @@ async function _programarEnvio() {
   const fmt = d => d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
   const ov = document.createElement('div');
+  ov.id = '_programarEnvioModal';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:99999';
   ov.innerHTML = `
     <div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:var(--font)">
@@ -2417,7 +2421,7 @@ async function _programarEnvio() {
         <input type="datetime-local" id="_progFecha" style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:var(--font)">
         <button onclick="_confirmarProgramado()" style="background:#3b82f6;color:#fff;border:none;padding:6px 14px;border-radius:7px;font-weight:700;cursor:pointer;font-size:12px;font-family:var(--font)">OK</button>
       </div>
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;color:#64748b;font-family:var(--font)">Cancelar</button>
+      <button onclick="document.getElementById('_programarEnvioModal')?.remove()" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;color:#64748b;font-family:var(--font)">Cancelar</button>
     </div>`;
   document.body.appendChild(ov);
 
@@ -2435,7 +2439,7 @@ function _confirmarProgramado() {
   if (!input?.value) { toast('Selecciona fecha y hora', 'error'); return; }
   const fecha = new Date(input.value);
   if (fecha <= new Date()) { toast('La fecha debe ser futura', 'error'); return; }
-  document.querySelector('div[style*="position:fixed"][style*="z-index:99999"]')?.remove();
+  document.getElementById('_programarEnvioModal')?.remove();
   _guardarEnvioProgramado(fecha.toISOString());
 }
 
@@ -2451,7 +2455,7 @@ async function _guardarEnvioProgramado(isoDate) {
 
   try {
     await sb.from('correos').insert({
-      empresa_id: EMPRESA.id, tipo: 'borrador', carpeta: 'drafts',
+      empresa_id: EMPRESA.id, tipo: 'programado', carpeta: 'programados',
       de: _correoCuentaActiva?.email || EMPRESA.email || '',
       para, cc: cc || null, asunto,
       cuerpo_texto: cuerpo, cuerpo_html: _buildCuerpoHtml(cuerpo, vinculacion),
@@ -2476,7 +2480,7 @@ async function _ejecutarEnviosProgramados() {
   try {
     const { data: pendientes } = await sb.from('correos')
       .select('*').eq('empresa_id', EMPRESA.id)
-      .eq('tipo', 'borrador').not('envio_programado', 'is', null)
+      .eq('tipo', 'programado').not('envio_programado', 'is', null)
       .lte('envio_programado', new Date().toISOString());
     if (!pendientes?.length) return;
 
