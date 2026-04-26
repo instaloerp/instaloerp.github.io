@@ -134,15 +134,16 @@ async function getEstadoTracking(tipo_documento, documento_id) {
  * @param {object} estado - resultado de getEstadoTracking
  * @returns {string} HTML del badge
  */
-function badgeTracking(estado) {
+function badgeTracking(estado, docId) {
   if (!estado || !estado.compartido) return '';
+  const dataAttr = docId ? ` data-tracking-id="${docId}"` : '';
 
   if (estado.visto) {
     const fecha = estado.first_viewed_at
       ? new Date(estado.first_viewed_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
       : '';
     const views = estado.view_count > 1 ? ` (${estado.view_count}x)` : '';
-    return `<span class="badge-tracking badge-visto" title="Visto: ${fecha}${views}" style="
+    return `<span class="badge-tracking badge-visto"${dataAttr} title="Visto: ${fecha}${views}" style="
       display:inline-flex;align-items:center;gap:3px;
       background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;
       border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600;
@@ -153,7 +154,7 @@ function badgeTracking(estado) {
   }
 
   // Compartido pero no visto
-  return `<span class="badge-tracking badge-enviado" title="Enviado, pendiente de abrir" style="
+  return `<span class="badge-tracking badge-enviado"${dataAttr} title="Enviado, pendiente de abrir" style="
     display:inline-flex;align-items:center;gap:3px;
     background:#fff3e0;color:#e65100;border:1px solid #ffcc80;
     border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600;
@@ -407,6 +408,9 @@ function iniciarTrackingRealtime() {
         const cacheKey = nuevo.tipo_documento + ':' + nuevo.documento_id;
         _trackingCache.delete(cacheKey);
 
+        // Actualizar badge en la lista sin recargar (busca el badge por documento_id)
+        _actualizarBadgeEnLista(nuevo.tipo_documento, nuevo.documento_id, nuevo.view_count || 1);
+
         // Vibrar en móvil si está disponible
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
       }
@@ -479,3 +483,37 @@ async function cargarTrackingBatch(tipo_documento) {
 
 // Variable global para el mapa de tracking activo (se rellena al cargar cada sección)
 let _trackingMap = new Map();
+
+
+// ═══════════════════════════════════════════════
+//  ACTUALIZAR BADGE EN VIVO (sin recargar lista)
+// ═══════════════════════════════════════════════
+
+/**
+ * Busca en el DOM el badge de tracking para un documento concreto
+ * y lo actualiza a "Visto" cuando llega el evento realtime.
+ */
+function _actualizarBadgeEnLista(tipo_documento, documento_id, view_count) {
+  // Buscar todos los badges con data-tracking-id
+  const badges = document.querySelectorAll(`[data-tracking-id="${documento_id}"]`);
+  if (!badges.length) return;
+
+  const views = (view_count || 1) > 1 ? ` (${view_count}x)` : '';
+  const nuevoHtml = `<span class="badge-tracking badge-visto" title="Visto${views}" style="
+    display:inline-flex;align-items:center;gap:3px;
+    background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;
+    border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600;
+    cursor:default;white-space:nowrap">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    Visto${views}
+  </span>`;
+
+  badges.forEach(el => { el.outerHTML = nuevoHtml; });
+
+  // Actualizar también el mapa local
+  _trackingMap.set(String(documento_id), {
+    compartido: true, visto: true,
+    first_viewed_at: new Date().toISOString(),
+    view_count: view_count || 1
+  });
+}
