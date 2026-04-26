@@ -445,7 +445,7 @@ function marcarCobrada(id) {
       </label>
 
       <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('mCobroFac')">Cancelar</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('mCobroFac')?.remove()">Cancelar</button>
         <button class="btn btn-primary" onclick="_confirmarCobro(${id})" style="background:var(--verde)">✅ Confirmar cobro</button>
       </div>
     </div>`;
