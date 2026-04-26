@@ -84,6 +84,16 @@ async function init() {
       email:        emp.email || '',
       logo_url:     emp.logo_url || ''
     };
+    // Cargar certificado digital para el sello "Firmado digitalmente"
+    try {
+      const { data: cert } = await sb.from('vista_certificado_publico')
+        .select('titular,nif_titular,emisor')
+        .eq('empresa_id', emp.id)
+        .maybeSingle();
+      window._certActual = cert || { titular: emp.razon_social || emp.nombre, nif_titular: emp.cif, emisor: 'Certificado digital' };
+    } catch(e) {
+      window._certActual = { titular: emp.razon_social || emp.nombre, nif_titular: emp.cif, emisor: 'Certificado digital' };
+    }
     document.title = 'Firma de presupuesto';
     renderPresupuesto(pres, emp, cli);
     return;

@@ -115,14 +115,7 @@ function buildCfg(tipo, d) {
         ip:     d.firma_ip || '',
         url:    d.firma_cliente || ''
       };
-      // Sello digital de empresa (simular _certActual para el renderer)
-      if (typeof _certActual === 'undefined') {
-        window._certActual = {
-          titular:     d.emp_razon || d.emp_nombre || '',
-          nif_titular: d.emp_cif || '',
-          emisor:      'Certificado digital'
-        };
-      }
+      // _certActual se carga en init() antes de renderDoc()
     }
   }
 
@@ -156,6 +149,18 @@ async function init() {
   // 3) Presupuesto aceptado (por acceso_token → visor público)
   const { data: presAcc } = await sb.from('vista_presupuesto_publico').select('*').eq('acceso_token', token).maybeSingle();
   if (presAcc) {
+    // Cargar certificado digital para el sello "Firmado digitalmente"
+    if (presAcc.estado === 'aceptado' && presAcc.empresa_id) {
+      try {
+        const { data: cert } = await sb.from('vista_certificado_publico')
+          .select('titular,nif_titular,emisor')
+          .eq('empresa_id', presAcc.empresa_id)
+          .maybeSingle();
+        window._certActual = cert || { titular: presAcc.emp_razon || presAcc.emp_nombre || '', nif_titular: presAcc.emp_cif || '', emisor: 'Certificado digital' };
+      } catch(e) {
+        window._certActual = { titular: presAcc.emp_razon || presAcc.emp_nombre || '', nif_titular: presAcc.emp_cif || '', emisor: 'Certificado digital' };
+      }
+    }
     const d = {
       ...presAcc,
       validez: presAcc.fecha_validez ? 'Hasta el ' + fmtD(presAcc.fecha_validez) : '',
