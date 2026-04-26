@@ -19,6 +19,73 @@ document.addEventListener('click', function(e) {
 });
 
 // ═══════════════════════════════════════════════
+// MODAL DETALLE DE FIRMA (cuando no hay PDF firmado)
+// ═══════════════════════════════════════════════
+
+function verFirmaDetalle(presId) {
+  const p = presupuestos.find(x => x.id === presId);
+  if (!p) return;
+  const _fd = (typeof p.firma_dispositivo === 'string' ? JSON.parse(p.firma_dispositivo) : p.firma_dispositivo) || {};
+  const _fFecha = p.firma_fecha ? new Date(p.firma_fecha).toLocaleString('es-ES') : '—';
+
+  let modal = document.getElementById('modalFirmaDetalle');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'modalFirmaDetalle';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#f0fdf4">
+        <div style="font-weight:700;font-size:15px;color:#059669">🖊️ Firma digital — ${p.numero || ''}</div>
+        <button onclick="this.closest('#modalFirmaDetalle').remove()" style="border:none;background:none;font-size:18px;cursor:pointer;color:#64748b;padding:4px">✕</button>
+      </div>
+      <div style="padding:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">Firmado por</div>
+            <div style="font-size:14px;font-weight:700;color:#1e293b">${p.firma_nombre || '—'}</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">DNI / NIF</div>
+            <div style="font-size:14px;font-weight:700;color:#1e293b">${_fd.dni || 'N/A'}</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">Fecha</div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b">${_fFecha}</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">IP</div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b">${p.firma_ip || '—'}</div>
+          </div>
+          ${_fd.ubicacion && _fd.ubicacion !== 'No disponible' ? `
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">Ubicación</div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b">${_fd.ubicacion}</div>
+          </div>` : ''}
+          ${_fd.tipo ? `
+          <div style="background:#f8fafc;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:2px">Dispositivo</div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b">${_fd.tipo} — ${_fd.browser || ''}</div>
+          </div>` : ''}
+        </div>
+        ${p.firma_url ? `
+        <div style="text-align:center;margin-top:8px">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:6px">Firma del cliente</div>
+          <img src="${p.firma_url}" style="max-width:280px;max-height:120px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px">
+        </div>` : ''}
+        <div style="text-align:center;margin-top:16px;font-size:11px;color:#94a3b8">
+          Este presupuesto fue aceptado electrónicamente con plena validez legal.
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════
 // VISOR PDF INTEGRADO + ACCIONES
 // ═══════════════════════════════════════════════
 
@@ -207,10 +274,8 @@ function renderPresupuestos(list) {
           if (p.firma_nombre || p.firma_ip || p.firma_fecha) {
             if (p.pdf_firmado_url) {
               _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="#" onclick="event.preventDefault();event.stopPropagation();verPdfFirmado(\''+p.pdf_firmado_url+'\',\''+(p.numero||'')+' — PDF Firmado\')" style="color:#059669;text-decoration:none;cursor:pointer" title="Clic para ver PDF firmado">🖊️ Firma digital</a></div>';
-            } else if (p.firma_url) {
-              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="'+p.firma_url+'" target="_blank" onclick="event.stopPropagation()" style="color:#059669;text-decoration:none;cursor:pointer" title="Clic para ver firma">🖊️ Firma digital</a></div>';
             } else {
-              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><span style="color:#059669" title="Firmado por '+((p.firma_nombre||''))+' — IP: '+(p.firma_ip||'')+'">🖊️ Firma digital</span></div>';
+              _h += '<div style="font-size:8px;margin-top:1px;text-align:center"><a href="#" onclick="event.preventDefault();event.stopPropagation();verFirmaDetalle('+p.id+')" style="color:#059669;text-decoration:none;cursor:pointer" title="Ver datos de firma">🖊️ Firma digital</a></div>';
             }
           }
           if (!p.firma_nombre && !p.firma_ip && !p.firma_fecha && !p.firma_url && !p.pdf_firmado_url) {
@@ -444,14 +509,10 @@ async function verDetallePresupuesto(id) {
     if (p.estado === 'aceptado') {
       const _fd = (typeof p.firma_dispositivo === 'string' ? JSON.parse(p.firma_dispositivo) : p.firma_dispositivo) || {};
       if (p.firma_nombre || p.firma_ip || p.firma_fecha) {
-        // Badge de firma: abre PDF firmado si existe, si no la imagen de firma, si no solo muestra info
-        const _firmaLink = p.pdf_firmado_url || p.firma_url;
-        if (_firmaLink && p.pdf_firmado_url) {
-          refs += `<a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${p.numero||''} — PDF Firmado')" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}\nClic para ver PDF firmado">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
-        } else if (_firmaLink) {
-          refs += `<a href="${p.firma_url}" target="_blank" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}\nClic para ver firma">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
+        if (p.pdf_firmado_url) {
+          refs += `<a href="#" onclick="event.preventDefault();verPdfFirmado('${p.pdf_firmado_url}','${p.numero||''} — PDF Firmado')" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="Clic para ver PDF firmado">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
         } else {
-          refs += `<span style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0" title="IP: ${p.firma_ip||'—'} · DNI: ${_fd.dni||'N/A'} · ${_fd.ubicacion||''}">🖊️ Firma digital — ${p.firma_nombre||'—'}</span> `;
+          refs += `<a href="#" onclick="event.preventDefault();verFirmaDetalle(${p.id})" style="${_refStyle};background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;cursor:pointer;text-decoration:none" title="Clic para ver datos de firma">🖊️ Firma digital — ${p.firma_nombre||'—'}</a> `;
         }
       }
       if (!p.firma_nombre && !p.firma_ip && !p.firma_fecha && !p.firma_url && !p.pdf_firmado_url) {
