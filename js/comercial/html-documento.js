@@ -88,9 +88,9 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:#fff;line-height:1.45}
 .doc{max-width:210mm;margin:0 auto;padding:8mm 14mm 16mm;position:relative}
-.cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:70px;margin-bottom:18px}
+.cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:60px;margin-bottom:10px}
 .cab-logo{position:absolute;top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0}
-.cab-logo img,.cab-logo-center img{height:110px;width:auto;max-width:280px;object-fit:contain;display:block}
+.cab-logo img,.cab-logo-center img{height:80px;width:auto;max-width:220px;object-fit:contain;display:block}
 .cab-logo-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cab-qr{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
 .cab-qr .qr-lbl{font-size:7px;font-weight:700;color:#1e293b;margin-bottom:2px}
@@ -102,27 +102,27 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .titulo-doc .tipo{font-size:24px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:1.5px;line-height:1}
 .titulo-doc .ref{font-size:12px;color:#64748b;font-weight:500;margin-top:4px}
 .bloque-doble{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;margin-bottom:14px}
-.tarjeta{background:#f8fafc;border-radius:10px;padding:14px 16px;border-left:4px solid #1e40af}
-.tarjeta .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1e40af;margin-bottom:6px}
-.tarjeta .nombre{font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px}
-.tarjeta .datos{font-size:10.5px;color:#475569;line-height:1.55}
-.tarjeta-datos .fila{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #e2e8f0;font-size:10.5px}
+.tarjeta{background:#f8fafc;border-radius:8px;padding:10px 14px;border-left:4px solid #1e40af}
+.tarjeta .label{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1e40af;margin-bottom:4px}
+.tarjeta .nombre{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:3px}
+.tarjeta .datos{font-size:10px;color:#475569;line-height:1.45}
+.tarjeta-datos .fila{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #e2e8f0;font-size:10px}
 .tarjeta-datos .fila:last-child{border-bottom:none}
 .tarjeta-datos .fila .k{color:#64748b;font-weight:500}
 .tarjeta-datos .fila .v{color:#1e293b;font-weight:700;text-align:right}
 
-.capitulo{margin-bottom:18px;page-break-inside:avoid;break-inside:avoid}
-.cap-banda{display:flex;align-items:stretch;border-radius:8px;overflow:hidden;margin-bottom:10px}
-.cap-num{background:#1e40af;color:#fff;font-weight:800;font-size:16px;padding:9px 0;width:50px;text-align:center;display:flex;align-items:center;justify-content:center}
-.cap-titulo{background:#dbeafe;color:#1e40af;font-weight:700;font-size:11.5px;padding:9px 14px;flex:1;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center}
-.cap-lineas{width:100%;border-collapse:separate;border-spacing:0;margin-top:6px;font-size:10px}
-.cap-lineas thead th{background:#f1f5f9;color:#475569;padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:1px solid #cbd5e1}
+.capitulo{margin-bottom:10px;page-break-inside:avoid;break-inside:avoid}
+.cap-banda{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;margin-bottom:6px}
+.cap-num{background:#1e40af;color:#fff;font-weight:800;font-size:14px;padding:7px 0;width:42px;text-align:center;display:flex;align-items:center;justify-content:center}
+.cap-titulo{background:#dbeafe;color:#1e40af;font-weight:700;font-size:10.5px;padding:7px 12px;flex:1;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center}
+.cap-lineas{width:100%;border-collapse:separate;border-spacing:0;margin-top:4px;font-size:9.5px}
+.cap-lineas thead th{background:#f1f5f9;color:#475569;padding:5px 8px;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:1px solid #cbd5e1}
 .cap-lineas thead th.r{text-align:right}
-.cap-lineas tbody td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:top}
+.cap-lineas tbody td{padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:top}
 .cap-lineas tbody td.r{text-align:right;font-variant-numeric:tabular-nums}
 .cap-lineas tbody tr:last-child td{border-bottom:none}
-.cap-importe{margin-top:8px;background:#dbeafe;border-radius:6px;padding:9px 14px;color:#1e40af;font-weight:700;font-size:11.5px;letter-spacing:.4px;display:flex;justify-content:space-between;align-items:center}
-.cap-importe .lbl{font-size:10px;letter-spacing:1px;text-transform:uppercase;opacity:.85}
+.cap-importe{margin-top:4px;background:#dbeafe;border-radius:6px;padding:7px 12px;color:#1e40af;font-weight:700;font-size:10.5px;letter-spacing:.4px;display:flex;justify-content:space-between;align-items:center}
+.cap-importe .lbl{font-size:9px;letter-spacing:1px;text-transform:uppercase;opacity:.85}
 
 .tabla{width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
 .tabla thead th{background:#1e40af;color:#fff;padding:9px 12px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
@@ -132,19 +132,19 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .tabla tbody tr:last-child td{border-bottom:none}
 .tabla tbody tr:nth-child(even){background:#f8fafc}
 
-.seccion-titulo{font-size:12px;font-weight:700;color:#1e40af;margin:12px 0 6px;padding-bottom:4px;border-bottom:2px solid #1e40af;display:inline-block;padding-right:30px}
+.seccion-titulo{font-size:11px;font-weight:700;color:#1e40af;margin:8px 0 4px;padding-bottom:3px;border-bottom:2px solid #1e40af;display:inline-block;padding-right:20px}
 .resumen-bloque{page-break-inside:avoid;break-inside:avoid;page-break-before:auto}
-.resumen{background:#f8fafc;border-radius:10px;padding:10px 16px;margin-bottom:10px}
-.resumen-cap{padding:6px 0;display:flex;justify-content:space-between;font-size:10.5px;color:#475569;border-bottom:1px dashed #e2e8f0}
-.resumen-cap .num{display:inline-block;background:#1e40af;color:#fff;font-weight:700;font-size:9px;padding:2px 7px;border-radius:4px;margin-right:8px;letter-spacing:.4px}
+.resumen{background:#f8fafc;border-radius:8px;padding:8px 14px;margin-bottom:6px}
+.resumen-cap{padding:4px 0;display:flex;justify-content:space-between;font-size:10px;color:#475569;border-bottom:1px dashed #e2e8f0}
+.resumen-cap .num{display:inline-block;background:#1e40af;color:#fff;font-weight:700;font-size:8px;padding:2px 6px;border-radius:4px;margin-right:6px;letter-spacing:.4px}
 .resumen-cap b{color:#1e293b;font-weight:700;font-variant-numeric:tabular-nums}
-.resumen-fila{display:flex;justify-content:space-between;padding:6px 0;font-size:11px;color:#475569;border-bottom:1px dashed #e2e8f0}
-.resumen-fila.subtotal{padding-top:10px;border-top:2px solid #cbd5e1;margin-top:6px;font-weight:700;color:#1e293b}
+.resumen-fila{display:flex;justify-content:space-between;padding:4px 0;font-size:10px;color:#475569;border-bottom:1px dashed #e2e8f0}
+.resumen-fila.subtotal{padding-top:6px;border-top:2px solid #cbd5e1;margin-top:4px;font-weight:700;color:#1e293b}
 .resumen-fila:last-child{border-bottom:none}
 .resumen-fila b{color:#1e293b;font-weight:700;font-variant-numeric:tabular-nums}
-.resumen-total{margin-top:6px;display:flex;justify-content:space-between;align-items:center;background:#1e40af;color:#fff;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px}
+.resumen-total{margin-top:4px;display:flex;justify-content:space-between;align-items:center;background:#1e40af;color:#fff;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:800;letter-spacing:.5px}
 
-.observaciones{margin:14px 0;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8}
+.observaciones{margin:8px 0;padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid #94a3b8}
 .observaciones .label{font-size:9px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px}
 .observaciones .texto{font-size:11px;color:#475569;white-space:pre-wrap}
 
@@ -154,12 +154,12 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .cond-fila .k{font-weight:700;color:#1e293b}
 .cond-fila .v{color:#64748b}
 
-.firma{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;page-break-inside:avoid;break-inside:avoid}
-.firma-bloque{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;min-height:70px}
-.firma-bloque .label{font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
-.firma-bloque .info{font-size:10.5px;color:#475569;line-height:1.6}
+.firma{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.firma-bloque{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:60px}
+.firma-bloque .label{font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.firma-bloque .info{font-size:9.5px;color:#475569;line-height:1.5}
 .firma-bloque .info b{color:#1e293b}
-.firma-bloque .linea{margin-top:18px;border-top:1px solid #94a3b8;padding-top:6px;font-size:9.5px;color:#94a3b8;text-align:center}
+.firma-bloque .linea{margin-top:12px;border-top:1px solid #94a3b8;padding-top:4px;font-size:9px;color:#94a3b8;text-align:center}
 .firma-bloque.firmado{background:#ecfdf5;border:1px solid #6ee7b7}
 .firma-bloque.firmado .label{color:#059669}
 
@@ -369,8 +369,8 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     // Sello de firma digital de la empresa (si hay certificado configurado)
     const cert = (typeof _certActual !== 'undefined') ? _certActual : null;
     const selloEmpresa = cert ? `
-      <div style="margin-top:6px;border:2px solid #1e40af;border-radius:6px;padding:6px 8px;background:rgba(30,64,175,0.04);font-size:7.5px;line-height:1.5;color:#1e40af;max-width:200px">
-        <div style="font-weight:700;font-size:8px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Firmado digitalmente</div>
+      <div style="margin-top:4px;border:1.5px solid #1e40af;border-radius:5px;padding:5px 7px;background:rgba(30,64,175,0.04);font-size:7px;line-height:1.4;color:#1e40af;max-width:190px">
+        <div style="font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1px">Firmado digitalmente</div>
         <div>${_esc(cert.titular || E.nombre || '')}</div>
         ${cert.nif_titular ? '<div>NIF: '+_esc(cert.nif_titular)+'</div>' : ''}
         ${cert.emisor ? '<div>Emisor: '+_esc(cert.emisor)+'</div>' : ''}
