@@ -314,6 +314,34 @@ async function cargarCorreosAntiguos() {
 }
 
 // ═══════════════════════════════════════════════
+//  SIDEBAR CONTRAÍBLE
+// ═══════════════════════════════════════════════
+let _mailSidebarCollapsed = false;
+
+function toggleMailSidebar() {
+  _mailSidebarCollapsed = !_mailSidebarCollapsed;
+  const sidebar = document.getElementById('mailSidebar');
+  const arrow = document.getElementById('mailSidebarArrow');
+  if (!sidebar) return;
+
+  if (_mailSidebarCollapsed) {
+    sidebar.style.width = '48px';
+    sidebar.querySelectorAll('.mail-sidebar-label').forEach(el => el.style.display = 'none');
+    sidebar.querySelectorAll('.mail-count').forEach(el => el.style.display = 'none');
+    const btn = document.getElementById('mailBtnRedactar');
+    if (btn) { btn.style.padding = '8px'; btn.style.fontSize = '14px'; }
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+  } else {
+    sidebar.style.width = '180px';
+    sidebar.querySelectorAll('.mail-sidebar-label').forEach(el => el.style.display = '');
+    sidebar.querySelectorAll('.mail-count').forEach(el => el.style.display = '');
+    const btn = document.getElementById('mailBtnRedactar');
+    if (btn) { btn.style.padding = '8px 12px'; btn.style.fontSize = '12px'; }
+    if (arrow) arrow.style.transform = '';
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CARPETAS
 // ═══════════════════════════════════════════════
 function cambiarCarpeta(folder) {
@@ -463,15 +491,15 @@ function renderListaCorreos(list) {
     return;
   }
 
-  // ── Barra de acciones masivas mejorada (Spark-style) ──
-  const barraSeleccion = `<div id="mailSelBar" style="display:none;padding:8px 12px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;margin:4px 2px 8px;align-items:center;gap:6px;font-size:12px;box-shadow:0 1px 3px rgba(59,130,246,.12)">
-    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--gris-600)"><input type="checkbox" onchange="_toggleSelectAll(this.checked)" style="cursor:pointer;accent-color:var(--azul)"> <span style="font-size:11px">Todos</span></label>
-    <span id="mailSelCount" style="color:var(--azul);font-weight:700;font-size:12px">0</span>
+  // ── Barra de acciones masivas compacta ──
+  const barraSeleccion = `<div id="mailSelBar" style="display:none;padding:5px 8px;background:#eff6ff;border-radius:8px;margin:4px 6px 6px;align-items:center;gap:4px;font-size:11px;white-space:nowrap">
+    <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--gris-600);flex-shrink:0"><input type="checkbox" onchange="_toggleSelectAll(this.checked)" style="cursor:pointer;accent-color:var(--azul);width:13px;height:13px"></label>
+    <span id="mailSelCount" style="color:var(--azul);font-weight:700;font-size:11px;flex-shrink:0">0 sel.</span>
     <span style="flex:1"></span>
-    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(true)" title="Marcar como leídos" style="padding:4px 8px;font-size:11px;border-radius:6px">✓ Leídos</button>
-    <button class="btn btn-secondary btn-sm" onclick="_marcarSeleccionados(false)" title="Marcar como no leídos" style="padding:4px 8px;font-size:11px;border-radius:6px">● No leídos</button>
-    <button class="btn btn-secondary btn-sm" onclick="_eliminarSeleccionados()" title="Eliminar seleccionados" style="padding:4px 8px;font-size:11px;border-radius:6px;color:var(--rojo)">🗑 Eliminar</button>
-    <button class="btn btn-ghost btn-sm" onclick="_limpiarSeleccion()" style="color:var(--gris-400);padding:4px 6px;font-size:14px;line-height:1">✕</button>
+    <button onclick="_marcarSeleccionados(true)" title="Leídos" style="background:none;border:1px solid var(--gris-200);padding:3px 6px;border-radius:5px;font-size:10px;cursor:pointer;color:var(--gris-600)">✓ Leídos</button>
+    <button onclick="_marcarSeleccionados(false)" title="No leídos" style="background:none;border:1px solid var(--gris-200);padding:3px 6px;border-radius:5px;font-size:10px;cursor:pointer;color:var(--gris-600)">● No leídos</button>
+    <button onclick="_eliminarSeleccionados()" title="Eliminar" style="background:none;border:1px solid #fecaca;padding:3px 6px;border-radius:5px;font-size:10px;cursor:pointer;color:#dc2626">✕ Eliminar</button>
+    <button onclick="_limpiarSeleccion()" style="background:none;border:none;color:var(--gris-400);padding:2px 4px;font-size:12px;line-height:1;cursor:pointer">✕</button>
   </div>`;
 
   // ── Agrupar y renderizar con separadores de fecha (Spark-style) ──
@@ -480,7 +508,7 @@ function renderListaCorreos(list) {
 
   grupos.forEach(grupo => {
     // Separador de fecha
-    html += `<div style="padding:6px 12px 4px;font-size:11px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:0.8px;margin-top:4px">${grupo.label}</div>`;
+    html += `<div style="padding:4px 10px 2px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin-top:2px">${grupo.label}</div>`;
 
     grupo.items.forEach(c => {
       const esNoLeido = c.tipo === 'recibido' && !c.leido;
@@ -500,32 +528,29 @@ function renderListaCorreos(list) {
         : (c.de_nombre || c.de || '—');
       const initials = _avatarInitials(nombreDisplay, emailKey);
       const avatarBg = _avatarColor(emailKey);
-      const preview = (c.cuerpo_texto || '').replace(/\s+/g, ' ').substring(0, 90);
+      const preview = (c.cuerpo_texto || '').replace(/\s+/g, ' ').substring(0, 70);
 
       // Background según estado
       const bg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : esNoLeido ? '#fafbff' : 'transparent';
-      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f8fafc';
+      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f5f5f5';
 
-      html += `<div class="spark-mail-item" data-id="${c.id}" style="display:flex;align-items:center;gap:10px;padding:10px 10px;margin:1px 4px;border-radius:10px;cursor:pointer;background:${bg};transition:all .15s ease;border-left:3px solid ${esActivo ? 'var(--azul)' : 'transparent'}" onclick="abrirCorreo(${c.id})" onmouseenter="if(!this.classList.contains('sel'))this.style.background='${hoverBg}'" onmouseleave="this.style.background='${bg}'">
-        <!-- Checkbox (hover reveal) -->
-        <div style="position:relative;width:36px;height:36px;flex-shrink:0" onclick="event.stopPropagation()">
-          <div class="spark-avatar" style="width:36px;height:36px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;letter-spacing:0.5px;pointer-events:none">${initials}</div>
-          <input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;accent-color:var(--azul)">
-          ${esSel ? `<div style="position:absolute;inset:0;border-radius:50%;background:var(--azul);display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 8 6.5 11 12.5 5"></polyline></svg></div>` : ''}
+      html += `<div data-id="${c.id}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;margin:0 2px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:2px solid ${esActivo ? 'var(--azul)' : 'transparent'}" onclick="abrirCorreo(${c.id})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${bg}'">
+        <div style="position:relative;width:30px;height:30px;flex-shrink:0" onclick="event.stopPropagation()">
+          <div style="width:30px;height:30px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.3px;pointer-events:none">${initials}</div>
+          <input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2">
+          ${esSel ? `<div style="position:absolute;inset:0;border-radius:50%;background:var(--azul);display:flex;align-items:center;justify-content:center;pointer-events:none"><svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="3 7 6 10 11 4.5"></polyline></svg></div>` : ''}
         </div>
-        <!-- Contenido -->
-        <div style="flex:1;min-width:0;line-height:1.35">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:${esNoLeido ? '700' : '500'};color:${esNoLeido ? 'var(--gris-900)' : 'var(--gris-700)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${c.tipo === 'enviado' ? '<span style="color:var(--gris-400);font-weight:400;font-size:11px">Para: </span>' : ''}${nombreDisplay}</span>
-            <span style="font-size:10px;color:var(--gris-400);flex-shrink:0;margin-left:6px;font-weight:500">${fechaStr}</span>
+        <div style="flex:1;min-width:0;line-height:1.3">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1px">
+            <span style="font-size:12px;font-weight:${esNoLeido ? '700' : '400'};color:${esNoLeido ? '#1e293b' : '#64748b'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.tipo === 'enviado' ? '<span style="color:#94a3b8;font-size:10px">Para: </span>' : ''}${nombreDisplay}</span>
+            <span style="font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:4px">${fechaStr}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
-            ${esNoLeido ? '<span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' : ''}
-            ${c.tiene_adjuntos ? '<span style="font-size:10px;color:var(--gris-400)">📎</span>' : ''}
-            <span style="font-size:12.5px;font-weight:${esNoLeido ? '600' : '400'};color:${esNoLeido ? 'var(--gris-800)' : 'var(--gris-600)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
+          <div style="display:flex;align-items:center;gap:3px">
+            ${esNoLeido ? '<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' : ''}
+            ${c.tiene_adjuntos ? '<span style="font-size:9px;color:#94a3b8">📎</span>' : ''}
+            <span style="font-size:11.5px;font-weight:${esNoLeido ? '600' : '400'};color:${esNoLeido ? '#334155' : '#64748b'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
           </div>
-          <div style="font-size:11.5px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>
-          ${c.vinculado_tipo ? `<span style="font-size:9px;background:#eff6ff;color:#3b82f6;padding:1px 6px;border-radius:4px;margin-top:3px;display:inline-block;font-weight:600">${c.vinculado_tipo} ${c.vinculado_ref || ''}</span>` : ''}
+          <div style="font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>
         </div>
       </div>`;
     });
@@ -1893,7 +1918,7 @@ function _actualizarBarraSeleccion() {
   if (!bar) return;
   const n = _correosSeleccionados.size;
   bar.style.display = n > 0 ? 'flex' : 'none';
-  if (cnt) cnt.textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+  if (cnt) cnt.textContent = n + ' sel.';
 }
 
 async function _eliminarSeleccionados() {
