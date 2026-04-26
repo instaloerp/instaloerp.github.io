@@ -2855,8 +2855,7 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
   const cuerpo =
     `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
     `Le enviamos el presupuesto ${p.numero}${p.titulo ? ' (' + p.titulo + ')' : ''} por importe de ${importeStr} €.\n\n` +
-    `Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:\n\n` +
-    `>> ${enlaceTracking}\n\n` +
+    `Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:\n${enlaceTracking}\n\n` +
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
     `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`;
 
@@ -2867,7 +2866,7 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
 
   // Abrir composer SMTP del ERP
   if (typeof nuevoCorreo === 'function') {
-    nuevoCorreo(emailCliente, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' });
+    nuevoCorreo(emailCliente, asunto, cuerpo, { tipo: 'presupuesto', id: p.id, ref: p.numero || '', total: importeStr + ' €', fecha: p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '' });
     if (typeof goPage === 'function') goPage('correo');
     toast('📩 Enlace de firma listo — revisa y envía el correo', 'success');
   } else {

@@ -1334,7 +1334,7 @@ Le enviamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
 Importe total: ${totalFmt} (IVA incluido)
 Válido hasta: ${validezFmt}
 
-Pulse el siguiente enlace para ver, descargar o firmar su presupuesto:
+Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:
 ${enlaceTracking}
 
 Para aceptarlo, puede firmarlo en el enlace anterior, responder a este correo, o contactarnos directamente.
@@ -1347,7 +1347,7 @@ ${EMPRESA?.web||''}`;
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mPresDetalle');
-    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '' }, adjuntos);
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '', total: totalFmt, fecha: fechaFmt }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');

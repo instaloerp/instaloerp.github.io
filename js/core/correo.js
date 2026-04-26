@@ -1425,8 +1425,8 @@ async function cancelarCorreo(forzar) {
 function _buildCuerpoHtml(cuerpo, vinculacion) {
   if (!cuerpo) return '';
 
-  // Detectar URLs de documentos (doc-viewer Edge Function o doc.html directo)
-  const urlRegex = /(https?:\/\/[^\s]+(?:doc-viewer\?token=[^\s]+|doc\.html\?t=[^\s]+))/gi;
+  // Detectar URLs de documentos (doc-viewer, doc.html, f.html, firma.html)
+  const urlRegex = /(https?:\/\/[^\s]+(?:doc-viewer\?token=[^\s]+|doc\.html\?t=[^\s]+|f\.html\?t=[^\s]+|firma\.html\?token=[^\s]+))/gi;
   const match = cuerpo.match(urlRegex);
 
   let html = cuerpo;
@@ -1445,13 +1445,18 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
     const vencimiento = vinculacion?.vencimiento || '';
 
     // Quitar del texto: las líneas de importe/vencimiento/enlace (se muestran en la tarjeta)
-    html = html.replace(/Pulse el siguiente enlace[^\n]*\n[^\n]*(?:doc-viewer\?token=|doc\.html\?t=)[^\s]*/i, '__TARJETA_DOC__');
+    html = html.replace(/(?:Pulse el siguiente enlace|Puede revisar el detalle)[^\n]*\n[^\n]*(?:doc-viewer\?token=|doc\.html\?t=|f\.html\?t=|firma\.html\?token=)[^\s]*/i, '__TARJETA_DOC__');
+    if (!html.includes('__TARJETA_DOC__')) {
+      // Intentar con el patrón ">> enlace"
+      html = html.replace(/>> [^\n]*(?:doc-viewer\?token=|doc\.html\?t=|f\.html\?t=|firma\.html\?token=)[^\s]*/i, '__TARJETA_DOC__');
+    }
     if (!html.includes('__TARJETA_DOC__')) {
       html = html.replace(docUrl, '__TARJETA_DOC__');
     }
     // Quitar líneas de importe y vencimiento del texto (se muestran en la tarjeta)
     html = html.replace(/\nImporte total:[^\n]*/i, '');
     html = html.replace(/\nFecha de vencimiento:[^\n]*/i, '');
+    html = html.replace(/\nVálido hasta:[^\n]*/i, '');
 
     // Limpiar saltos de línea consecutivos excesivos
     html = html.replace(/\n{3,}/g, '\n\n');
@@ -1497,8 +1502,8 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
             <!-- Botón -->
             <tr>
               <td colspan="2" style="padding:24px 28px 20px;text-align:center">
-                <a href="${docUrl}" target="_blank" style="display:inline-block;background:#1e40af;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0.3px;min-width:200px">
-                  Ver y descargar
+                <a href="${docUrl}" target="_blank" style="display:inline-block;background:${tipo === 'presupuesto' ? '#059669' : '#1e40af'};color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0.3px;min-width:200px">
+                  ${tipo === 'presupuesto' ? 'Revisar y firmar' : 'Ver y descargar'}
                 </a>
               </td>
             </tr>
@@ -1506,7 +1511,7 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
             <tr>
               <td colspan="2" style="padding:0 28px 18px;text-align:center">
                 <div style="font-size:11px;color:#94a3b8;line-height:1.5">
-                  Puede ver, descargar e imprimir el documento desde este enlace
+                  ${tipo === 'presupuesto' ? 'Revise el detalle y firme digitalmente desde este enlace' : 'Puede ver, descargar e imprimir el documento desde este enlace'}
                 </div>
               </td>
             </tr>
