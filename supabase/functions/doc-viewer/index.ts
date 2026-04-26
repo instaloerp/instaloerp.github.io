@@ -95,9 +95,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 4b. Navegador: redirigir a doc.html con el acceso_token original
+  // 4b. Navegador: redirigir al visor correspondiente con el acceso_token
+  // Presupuestos → f.html (firma), resto → doc.html (visor)
   if (share.acceso_token) {
-    const docUrl = `https://instaloerp.github.io/doc.html?t=${encodeURIComponent(share.acceso_token)}`;
+    const visor = share.tipo_documento === 'presupuesto' ? 'f.html' : 'doc.html';
+    const docUrl = `https://instaloerp.github.io/${visor}?t=${encodeURIComponent(share.acceso_token)}`;
     return new Response(null, {
       status: 302,
       headers: { 'Location': docUrl, 'Cache-Control': 'no-cache' },
@@ -113,11 +115,15 @@ Deno.serve(async (req) => {
   const tabla = tablas[share.tipo_documento];
   if (tabla) {
     try {
-      const { data: doc } = await sb.from(tabla).select('acceso_token').eq('id', share.documento_id).single();
-      if (doc?.acceso_token) {
+      // Presupuestos usan firma_token, el resto acceso_token
+      const campoToken = share.tipo_documento === 'presupuesto' ? 'firma_token' : 'acceso_token';
+      const { data: doc } = await sb.from(tabla).select(campoToken).eq('id', share.documento_id).single();
+      const tokenVal = doc?.[campoToken];
+      if (tokenVal) {
         // Guardar para futuras visitas
-        await sb.from('documentos_compartidos').update({ acceso_token: doc.acceso_token }).eq('id', share.id);
-        const docUrl = `https://instaloerp.github.io/doc.html?t=${encodeURIComponent(doc.acceso_token)}`;
+        await sb.from('documentos_compartidos').update({ acceso_token: tokenVal }).eq('id', share.id);
+        const visor = share.tipo_documento === 'presupuesto' ? 'f.html' : 'doc.html';
+        const docUrl = `https://instaloerp.github.io/${visor}?t=${encodeURIComponent(tokenVal)}`;
         return new Response(null, {
           status: 302,
           headers: { 'Location': docUrl, 'Cache-Control': 'no-cache' },

@@ -2831,10 +2831,24 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
     }).eq('id', presId).then(() => {}).catch(() => {});
   }
 
-  // Construir URL corta de firma
+  // Construir URL corta de firma (fallback si tracking falla)
   const firmaUrl = `https://instaloerp.github.io/f.html?t=${firmaToken}`;
   const empresaNombre = EMPRESA.nombre || 'Nuestra empresa';
   const importeStr = (p.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+
+  // Tracking: registrar compartición y obtener enlace con tracking
+  let enlaceTracking = firmaUrl;
+  if (typeof compartirDocumento === 'function') {
+    try {
+      const track = await compartirDocumento({
+        tipo_documento: 'presupuesto', documento_id: presId,
+        documento_numero: p.numero, destinatario_nombre: cli?.nombre,
+        destinatario_email: emailCliente, canal: 'email',
+        acceso_token: firmaToken
+      });
+      if (track?.url) enlaceTracking = track.url;
+    } catch(e) { console.warn('[Tracking]', e); }
+  }
 
   // Construir asunto/cuerpo
   const asunto = `Presupuesto ${p.numero} — ${empresaNombre}`;
@@ -2842,21 +2856,9 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
     `Estimado/a ${cli?.nombre || 'cliente'},\n\n` +
     `Le enviamos el presupuesto ${p.numero}${p.titulo ? ' (' + p.titulo + ')' : ''} por importe de ${importeStr} €.\n\n` +
     `Puede revisar el detalle y firmarlo digitalmente en el siguiente enlace:\n\n` +
-    `>> ${firmaUrl}\n\n` +
+    `>> ${enlaceTracking}\n\n` +
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
     `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`;
-
-  // Tracking: registrar compartición
-  if (typeof compartirDocumento === 'function') {
-    try {
-      await compartirDocumento({
-        tipo_documento: 'presupuesto', documento_id: presId,
-        documento_numero: p.numero, destinatario_nombre: cli?.nombre,
-        destinatario_email: emailCliente, canal: 'email',
-        acceso_token: firmaToken
-      });
-    } catch(e) { console.warn('[Tracking]', e); }
-  }
 
   // Registrar en actividad de la obra (si hay obra)
   if (obraId) {
