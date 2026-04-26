@@ -96,9 +96,15 @@ Deno.serve(async (req) => {
   }
 
   // 4b. Navegador: redirigir al visor correspondiente con el acceso_token
-  // Presupuestos → f.html (firma), resto → doc.html (visor)
   if (share.acceso_token) {
-    const visor = share.tipo_documento === 'presupuesto' ? 'f.html' : 'doc.html';
+    let visor = 'doc.html';
+    if (share.tipo_documento === 'presupuesto') {
+      // Presupuestos: si está pendiente → f.html (firma), si aceptado → doc.html (visor)
+      try {
+        const { data: pres } = await sb.from('presupuestos').select('estado').eq('id', share.documento_id).single();
+        visor = (pres && pres.estado !== 'aceptado') ? 'f.html' : 'doc.html';
+      } catch(_) { visor = 'f.html'; } // fallback: firma
+    }
     const docUrl = `https://instaloerp.github.io/${visor}?t=${encodeURIComponent(share.acceso_token)}`;
     return new Response(null, {
       status: 302,
@@ -115,14 +121,24 @@ Deno.serve(async (req) => {
   const tabla = tablas[share.tipo_documento];
   if (tabla) {
     try {
-      // Presupuestos usan firma_token, el resto acceso_token
-      const campoToken = share.tipo_documento === 'presupuesto' ? 'firma_token' : 'acceso_token';
-      const { data: doc } = await sb.from(tabla).select(campoToken).eq('id', share.documento_id).single();
-      const tokenVal = doc?.[campoToken];
+      const selectFields = share.tipo_documento === 'presupuesto' ? 'acceso_token,firma_token,estado' : 'acceso_token';
+      const { data: doc } = await sb.from(tabla).select(selectFields).eq('id', share.documento_id).single();
+      let tokenVal: string | null = null;
+      let visor = 'doc.html';
+      if (share.tipo_documento === 'presupuesto') {
+        // Aceptado → acceso_token + doc.html, pendiente → firma_token + f.html
+        if (doc?.estado === 'aceptado' && doc.acceso_token) {
+          tokenVal = doc.acceso_token;
+          visor = 'doc.html';
+        } else if (doc?.firma_token) {
+          tokenVal = doc.firma_token;
+          visor = 'f.html';
+        }
+      } else {
+        tokenVal = doc?.acceso_token || null;
+      }
       if (tokenVal) {
-        // Guardar para futuras visitas
         await sb.from('documentos_compartidos').update({ acceso_token: tokenVal }).eq('id', share.id);
-        const visor = share.tipo_documento === 'presupuesto' ? 'f.html' : 'doc.html';
         const docUrl = `https://instaloerp.github.io/${visor}?t=${encodeURIComponent(tokenVal)}`;
         return new Response(null, {
           status: 302,

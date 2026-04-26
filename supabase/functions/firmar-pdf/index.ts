@@ -390,6 +390,19 @@ serve(async (req) => {
     let emailEnviado = false
     if (enviar_copia_email && firma_email && pdfUrl) {
       try {
+        // Buscar cuenta de correo predeterminada de la empresa
+        const { data: cuentaCorreo } = await sb.from('cuentas_correo')
+          .select('id')
+          .eq('empresa_id', empresa_id)
+          .eq('activa', true)
+          .order('predeterminada', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (!cuentaCorreo) {
+          console.error('No hay cuenta de correo activa para la empresa', empresa_id)
+        }
+
         const pdfBase64 = btoa(uint8ToBinaryString(pdfBytes))
 
         const emailResp = await fetch(`${supabaseUrl}/functions/v1/enviar-correo`, {
@@ -400,6 +413,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             empresa_id,
+            cuenta_correo_id: cuentaCorreo?.id || null,
             para: firma_email,
             asunto: `Presupuesto ${pres.numero} firmado — ${empresa.nombre}`,
             cuerpo_html: `

@@ -1296,19 +1296,27 @@ async function enviarPresupuestoEmail(id) {
   const fechaFmt = p.fecha ? new Date(p.fecha).toLocaleDateString('es-ES') : '—';
   const validezFmt = p.fecha_validez ? new Date(p.fecha_validez).toLocaleDateString('es-ES') : '—';
 
-  // Generar/reusar token público para que el cliente pueda ver/firmar online
-  let token = p.firma_token;
-  if (!token) {
-    token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
-    const { error: tokErr } = await sb.from('presupuestos').update({ firma_token: token }).eq('id', p.id);
-    if (tokErr) {
-      console.error('No se pudo generar token público:', tokErr);
-      token = null;
-    } else {
-      p.firma_token = token; // cache local
+  const yaAceptado = p.estado === 'aceptado';
+
+  // Generar/reusar token público
+  let token, enlaceDoc;
+  if (yaAceptado) {
+    // Aceptado: usar acceso_token → doc.html (visor, descarga)
+    token = p.acceso_token;
+    if (!token) {
+      token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
+      await sb.from('presupuestos').update({ acceso_token: token }).eq('id', p.id).then(r => { if (!r.error) p.acceso_token = token; });
     }
+    enlaceDoc = token ? `https://instaloerp.github.io/doc.html?t=${token}` : '';
+  } else {
+    // Pendiente: usar firma_token → firma.html (firma digital)
+    token = p.firma_token;
+    if (!token) {
+      token = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).substring(2)));
+      await sb.from('presupuestos').update({ firma_token: token }).eq('id', p.id).then(r => { if (!r.error) p.firma_token = token; });
+    }
+    enlaceDoc = token ? `https://instaloerp.github.io/firma.html?token=${token}` : '';
   }
-  const enlaceDoc = token ? `https://instaloerp.github.io/firma.html?token=${token}` : '';
 
   // Tracking: registrar compartición y obtener enlace con tracking
   let enlaceTracking = enlaceDoc;
@@ -1326,7 +1334,22 @@ async function enviarPresupuestoEmail(id) {
     } catch(e) { console.warn('[Tracking]', e); }
   }
 
-  const cuerpoTxt =
+  // Cuerpo distinto según estado
+  const cuerpoTxt = yaAceptado ?
+`Estimado/a ${p.cliente_nombre||'cliente'},
+
+Le enviamos copia del presupuesto ${p.numero||''} aceptado con fecha ${fechaFmt}.
+
+Importe total: ${totalFmt} (IVA incluido)
+
+Pulse el siguiente enlace para ver, descargar o imprimir su presupuesto:
+${enlaceTracking}
+
+Un saludo cordial,
+${EMPRESA?.nombre||''}
+${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
+${EMPRESA?.email||''}
+${EMPRESA?.web||''}` :
 `Estimado/a ${p.cliente_nombre||'cliente'},
 
 Le enviamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
@@ -1345,9 +1368,12 @@ ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
 ${EMPRESA?.web||''}`;
 
+  // tipo_vinculacion: si ya está aceptado → 'factura' (para que la tarjeta diga "Ver y descargar")
+  const tipoVinc = yaAceptado ? 'albaran' : 'presupuesto';
+
   if (typeof nuevoCorreo === 'function') {
     closeModal('mPresDetalle');
-    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'presupuesto', id: p.id, ref: p.numero || '', total: totalFmt, fecha: fechaFmt }, adjuntos);
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: tipoVinc, id: p.id, ref: p.numero || '', total: totalFmt, fecha: fechaFmt }, adjuntos);
     if (typeof goPage === 'function') goPage('correo');
   } else {
     toast('Módulo de correo no disponible','error');
