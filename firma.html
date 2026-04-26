@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Firma digital</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="js/comercial/html-documento.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
@@ -53,6 +55,7 @@ const params = new URLSearchParams(window.location.search);
 const token = params.get('token');
 let presData = null;
 let empresaData = null;
+let clienteData = null;
 let sepaData = null;   // { cliente, cuenta, empresa } cuando el token es de mandato SEPA
 
 async function init() {
@@ -66,6 +69,9 @@ async function init() {
     const { data: emp } = await sb.from('empresas').select('*').eq('id', pres.empresa_id).single();
     empresaData = emp;
     const { data: cli } = await sb.from('clientes').select('*').eq('id', pres.cliente_id).single();
+    clienteData = cli;
+    // Simular EMPRESA global para html-documento.js
+    window.EMPRESA = emp;
     document.title = 'Firma de presupuesto';
     renderPresupuesto(pres, emp, cli);
     return;
@@ -331,11 +337,56 @@ async function enviarFirma() {
       }
     }
 
-    // ── Generar PDF firmado digitalmente ──
+    // ── Generar PDF con el renderer del ERP (client-side) ──
     btn.textContent = 'Generando documento firmado...';
     let pdfFirmadoUrl = null;
     let copiaEnviada = false;
     try {
+      const firmaFecha = new Date().toISOString();
+      // Construir cfg igual que _cfgPresupuesto del ERP
+      const cli = clienteData || {};
+      const cfg = {
+        tipo: 'PRESUPUESTO',
+        numero: presData.numero + (presData.version ? ' · v' + presData.version : ''),
+        fecha: presData.fecha,
+        titulo: presData.titulo,
+        cliente: {
+          nombre: presData.cliente_nombre || cli.nombre || '—',
+          nif: cli.nif || cli.dni || '',
+          direccion: cli.direccion_fiscal || cli.direccion || '',
+          cp: cli.cp_fiscal || cli.cp || '',
+          municipio: cli.municipio_fiscal || cli.municipio || '',
+          provincia: cli.provincia_fiscal || cli.provincia || '',
+          email: cli.email, telefono: cli.telefono
+        },
+        lineas: presData.lineas || [],
+        base_imponible: presData.base_imponible,
+        total_iva: presData.total_iva,
+        total: presData.total,
+        observaciones: presData.observaciones,
+        datos_extra: [
+          ['Válido hasta', presData.fecha_validez ? new Date(presData.fecha_validez).toLocaleDateString('es-ES') : '15 días'],
+          presData.forma_pago ? ['Forma de pago', presData.forma_pago] : null
+        ].filter(Boolean),
+        condiciones: [
+          ['Forma de pago', presData.forma_pago || '40 % a la firma del presupuesto · 30 % a la entrega de materiales en obra · 30 % a la finalización.'],
+          ['Validez del presupuesto', presData.fecha_validez ? ('Hasta el ' + new Date(presData.fecha_validez).toLocaleDateString('es-ES')) : '15 días desde la fecha indicada en la cabecera.'],
+          ['IVA', 'IVA al 21 % incluido en el total final del presupuesto.']
+        ],
+        firma_zona: true,
+        firma_aceptada: {
+          nombre: nombre, fecha: firmaFecha, ip: dispositivo.ip || '—',
+          dispositivo: dispositivo, url: firmaUrl
+        }
+      };
+
+      // Generar PDF base64 con el renderer unificado del ERP
+      let pdfBase64 = null;
+      if (typeof window._documentoPdfBase64 === 'function') {
+        pdfBase64 = await window._documentoPdfBase64(cfg);
+      }
+
+      // Enviar a Edge Function para guardar en Storage y enviar copia por email
       const resp = await fetch(`${SUPA_URL}/functions/v1/firmar-pdf`, {
         method: 'POST',
         headers: {
@@ -345,14 +396,14 @@ async function enviarFirma() {
         body: JSON.stringify({
           presupuesto_id: presData.id,
           empresa_id: presData.empresa_id,
-          firma_imagen_base64: firmaBase64,
           firma_nombre: nombre,
           firma_dni: dni,
           firma_email: emailCliente || null,
-          firma_fecha: new Date().toISOString(),
+          firma_fecha: firmaFecha,
           firma_ip: dispositivo.ip || '—',
           firma_dispositivo: dispositivo,
           enviar_copia_email: !!emailCliente,
+          pdf_base64: pdfBase64,
         })
       });
       const resultado = await resp.json();
