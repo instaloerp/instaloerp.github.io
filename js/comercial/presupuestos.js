@@ -834,10 +834,19 @@ async function presToAlbaran(id) {
     if (_fActivas6.some(f=>f.presupuesto_id===p.id)) { toast('🔒 Este presupuesto ya tiene factura, no se puede albaranar','error'); return; }
     const ok = await confirmModal({titulo: 'Crear albarán', mensaje: '¿Crear albarán desde el presupuesto '+p.numero+'?', icono: '📦'}); if (!ok) return;
     const numero = await generarNumeroDoc('albaran');
-    const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>({
-      desc:l.desc||'', cant:l.cant||1, precio:l.precio||0
-    }));
-    let total=0; lineas.forEach(l=>{const bruto=l.cant*l.precio;total+=bruto*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);});
+    const lineas = (p.lineas||[]).filter(l=>l.tipo!=='capitulo').map(l=>{
+      const nl = { desc:l.desc||'', cant:l.cant||1, precio:l.precio||0 };
+      if (l.iva != null) nl.iva = l.iva;
+      if (l.dto) nl.dto = l.dto;
+      if (l.dto1) nl.dto1 = l.dto1;
+      if (l.dto2) nl.dto2 = l.dto2;
+      if (l.dto3) nl.dto3 = l.dto3;
+      if (l.codigo) nl.codigo = l.codigo;
+      if (l.articulo_id) nl.articulo_id = l.articulo_id;
+      return nl;
+    });
+    let _bA=0,_iA=0; lineas.forEach(l=>{let b=l.cant*l.precio;b*=(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);_bA+=b;_iA+=b*((l.iva!=null?l.iva:21)/100);});
+    _bA=Math.round(_bA*100)/100; _iA=Math.round(_iA*100)/100;
     // Buscar si este presupuesto tiene obra vinculada para asignar trabajo_id
     // Buscar por presupuesto_id de la obra O por trabajo_id del presupuesto
     const _obraVinc2 = trabajos.find(t=>t.presupuesto_id===p.id) || (p.trabajo_id ? trabajos.find(t=>t.id===p.trabajo_id) : null);
@@ -846,7 +855,7 @@ async function presToAlbaran(id) {
       cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
       fecha: new Date().toISOString().split('T')[0],
       referencia: p.titulo||null,
-      total: Math.round(total*100)/100,
+      base_imponible: _bA, total_iva: _iA, total: Math.round((_bA+_iA)*100)/100,
       estado: 'pendiente', observaciones: p.observaciones, lineas,
       presupuesto_id: p.id,
       ...(_obraVinc2 ? {trabajo_id: _obraVinc2.id} : {}),

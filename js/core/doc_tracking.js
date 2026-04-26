@@ -596,6 +596,12 @@ async function _inyectarBadgesTracking(list, tipo_documento) {
       const estado = mapa.get(docId) || mapa.get(String(docId));
       if (!estado || !estado.compartido) return;
 
+      // Limpiar badges previos para evitar duplicados
+      cell.querySelectorAll('[data-tracking-id]').forEach(el => {
+        const wrapper = el.closest('div[onclick*="mostrarDetalleTracking"]');
+        if (wrapper) wrapper.remove(); else el.remove();
+      });
+
       // Insertar badge después del primer span (el badge de estado)
       const badge = badgeTracking(estado, docId);
       if (!badge) return;

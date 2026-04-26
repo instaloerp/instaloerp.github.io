@@ -198,12 +198,25 @@ async function albaranToFactura(id) {
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate()+30);
     // Asignar trabajo_id si el albarán pertenece a una obra
     const _trabVinc = a.trabajo_id || (a.presupuesto_id && typeof trabajos !== 'undefined' ? (trabajos.find(t=>t.presupuesto_id===a.presupuesto_id)||{}).id : null) || null;
+    // Recalcular base, IVA y total desde las líneas
+    let _baseF=0, _ivaF=0;
+    (a.lineas||[]).forEach(l=>{
+      let b=(l.cant||1)*(l.precio||0);
+      if(l.dto||l.dto1) b*=(1-((l.dto||l.dto1||0)/100));
+      if(l.dto2) b*=(1-(l.dto2/100));
+      if(l.dto3) b*=(1-(l.dto3/100));
+      _baseF+=b;
+      _ivaF+=b*((l.iva!=null?l.iva:21)/100);
+    });
+    _baseF=Math.round(_baseF*100)/100;
+    _ivaF=Math.round(_ivaF*100)/100;
+    const _totalF=Math.round((_baseF+_ivaF)*100)/100;
     const { data: newFac, error } = await sb.from('facturas').insert({
       empresa_id: EMPRESA.id, numero,
       cliente_id: a.cliente_id, cliente_nombre: a.cliente_nombre,
       fecha: hoy.toISOString().split('T')[0],
       fecha_vencimiento: v.toISOString().split('T')[0],
-      base_imponible: a.total||0, total_iva: 0, total: a.total||0,
+      base_imponible: _baseF, total_iva: _ivaF, total: _totalF,
       estado: 'borrador', observaciones: a.observaciones,
       lineas: a.lineas, albaran_id: a.id,
       presupuesto_id: a.presupuesto_id || null,
@@ -387,16 +400,20 @@ async function facturarAlbaranesMulti() {
 
     // Combinar líneas con referencia al albarán
     let lineasTodas = [];
-    let totalGlobal = 0;
+    let _baseM=0, _ivaM=0;
     albs.forEach(a => {
       // Separador con nombre del albarán
       lineasTodas.push({ desc: `── ${a.numero} (${a.fecha||''}) ──`, cant: 0, precio: 0, _separator: true });
       (a.lineas || []).forEach(l => {
         lineasTodas.push({ ...l });
-        const _br2 = (l.cant || 0) * (l.precio || 0);
-        totalGlobal += _br2*(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);
+        let _br2 = (l.cant || 0) * (l.precio || 0);
+        _br2 *= (1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);
+        _baseM += _br2;
+        _ivaM += _br2 * ((l.iva != null ? l.iva : 21) / 100);
       });
     });
+    _baseM=Math.round(_baseM*100)/100;
+    _ivaM=Math.round(_ivaM*100)/100;
 
     const numero = await _generarNumeroBorrador();
     const hoy = new Date(); const v = new Date(); v.setDate(v.getDate() + 30);
@@ -406,8 +423,8 @@ async function facturarAlbaranesMulti() {
       cliente_id: albs[0].cliente_id, cliente_nombre: albs[0].cliente_nombre,
       fecha: hoy.toISOString().split('T')[0],
       fecha_vencimiento: v.toISOString().split('T')[0],
-      base_imponible: Math.round(totalGlobal * 100) / 100,
-      total_iva: 0, total: Math.round(totalGlobal * 100) / 100,
+      base_imponible: _baseM,
+      total_iva: _ivaM, total: Math.round((_baseM+_ivaM)*100)/100,
       estado: 'borrador',
       observaciones: `Factura agrupada: ${nums}`,
       lineas: lineasTodas,

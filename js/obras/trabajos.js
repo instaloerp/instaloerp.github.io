@@ -2632,17 +2632,26 @@ async function obraPresToAlbaran(presId) {
   const okAlb = await confirmModal({titulo:'Crear albarán',mensaje:`¿Crear albarán desde ${p.numero}?`,btnOk:'Crear albarán'}); if (!okAlb) return;
 
   const numero = await generarNumeroDoc('albaran');
-  const lineas = (p.lineas || []).filter(l => l.tipo !== 'capitulo').map(l => ({
-    desc: l.desc || '', cant: l.cant || 1, precio: l.precio || 0
-  }));
-  let total = 0; lineas.forEach(l => total += l.cant * l.precio);
+  const lineas = (p.lineas || []).filter(l => l.tipo !== 'capitulo').map(l => {
+    const nl = { desc: l.desc || '', cant: l.cant || 1, precio: l.precio || 0 };
+    if (l.iva != null) nl.iva = l.iva;
+    if (l.dto) nl.dto = l.dto;
+    if (l.dto1) nl.dto1 = l.dto1;
+    if (l.dto2) nl.dto2 = l.dto2;
+    if (l.dto3) nl.dto3 = l.dto3;
+    if (l.codigo) nl.codigo = l.codigo;
+    if (l.articulo_id) nl.articulo_id = l.articulo_id;
+    return nl;
+  });
+  let _bA2=0,_iA2=0; lineas.forEach(l=>{let b=l.cant*l.precio;b*=(1-(l.dto||l.dto1||0)/100)*(1-(l.dto2||0)/100)*(1-(l.dto3||0)/100);_bA2+=b;_iA2+=b*((l.iva!=null?l.iva:21)/100);});
+  _bA2=Math.round(_bA2*100)/100; _iA2=Math.round(_iA2*100)/100;
 
   const { error } = await sb.from('albaranes').insert({
     empresa_id: EMPRESA.id, numero,
     cliente_id: p.cliente_id, cliente_nombre: p.cliente_nombre,
     fecha: new Date().toISOString().split('T')[0],
     referencia: p.titulo || null,
-    total: Math.round(total * 100) / 100,
+    base_imponible: _bA2, total_iva: _iA2, total: Math.round((_bA2+_iA2)*100)/100,
     estado: 'pendiente', observaciones: p.observaciones, lineas,
     presupuesto_id: p.id,
     trabajo_id: obraActualId,
