@@ -2106,7 +2106,11 @@ ${EMPRESA?.email||''}`;
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mFacturaDetalle');
-    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, { tipo: 'factura', id: f.id, ref: f.numero || '' }, adjuntos);
+    await nuevoCorreo(email, asuntoTxt, cuerpoTxt, {
+      tipo: 'factura', id: f.id, ref: f.numero || '',
+      total: totalFmt, fecha: fechaFmt, vencimiento: vencFmt,
+      forma_pago: f.forma_pago || ''
+    }, adjuntos);
     goPage('correo');
   } else {
     toast('⚠️ El gestor de correo no está disponible. Configura una cuenta en Administración → Correo.', 'warning');

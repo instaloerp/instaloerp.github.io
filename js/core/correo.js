@@ -1433,40 +1433,79 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
 
   if (match && match[0]) {
     const docUrl = match[0];
-    // Extraer datos del contexto para la tarjeta
     const tipo = vinculacion?.tipo || 'documento';
     const ref = vinculacion?.ref || '';
     const tipoLabel = { factura: 'Factura', presupuesto: 'Presupuesto', albaran: 'Albarán', parte_trabajo: 'Parte de trabajo' }[tipo] || 'Documento';
     const logoUrl = (typeof EMPRESA !== 'undefined' && EMPRESA?.logo_url) ? EMPRESA.logo_url : '';
+    const empresaNombre = (typeof EMPRESA !== 'undefined' && EMPRESA?.nombre) ? EMPRESA.nombre : '';
 
-    // Reemplazar la línea del enlace (y la línea anterior "Pulse el siguiente...") por la tarjeta
+    // Datos extra de la vinculación (total, fecha, vencimiento)
+    const total = vinculacion?.total || '';
+    const fecha = vinculacion?.fecha || '';
+    const vencimiento = vinculacion?.vencimiento || '';
+
+    // Quitar del texto: las líneas de importe/vencimiento/enlace (se muestran en la tarjeta)
     html = html.replace(/Pulse el siguiente enlace[^\n]*\n[^\n]*(?:doc-viewer\?token=|doc\.html\?t=)[^\s]*/i, '__TARJETA_DOC__');
-    // Si no coincidió el patrón anterior, reemplazar solo la URL
     if (!html.includes('__TARJETA_DOC__')) {
       html = html.replace(docUrl, '__TARJETA_DOC__');
     }
+    // Quitar líneas de importe y vencimiento del texto (se muestran en la tarjeta)
+    html = html.replace(/\nImporte total:[^\n]*/i, '');
+    html = html.replace(/\nFecha de vencimiento:[^\n]*/i, '');
 
-    // Convertir saltos de línea a <br> ANTES de insertar la tarjeta HTML
+    // Limpiar saltos de línea consecutivos excesivos
+    html = html.replace(/\n{3,}/g, '\n\n');
+
+    // Convertir saltos de línea a <br>
     html = html.replace(/\n/g, '<br>');
 
-    // Construir tarjeta HTML
+    // Filas de detalle para la tarjeta
+    let detailRows = '';
+    if (total) {
+      detailRows += `<tr>
+        <td style="padding:8px 28px;font-size:12px;color:#888;border-bottom:1px solid #f0f0f0">Importe total</td>
+        <td style="padding:8px 28px;font-size:14px;font-weight:700;color:#1a1a1a;text-align:right;border-bottom:1px solid #f0f0f0">${total}</td>
+      </tr>`;
+    }
+    if (fecha) {
+      detailRows += `<tr>
+        <td style="padding:8px 28px;font-size:12px;color:#888;border-bottom:1px solid #f0f0f0">Fecha</td>
+        <td style="padding:8px 28px;font-size:13px;color:#444;text-align:right;border-bottom:1px solid #f0f0f0">${fecha}</td>
+      </tr>`;
+    }
+    if (vencimiento && vencimiento !== '—') {
+      detailRows += `<tr>
+        <td style="padding:8px 28px;font-size:12px;color:#888;border-bottom:1px solid #f0f0f0">Vencimiento</td>
+        <td style="padding:8px 28px;font-size:13px;color:#444;text-align:right;border-bottom:1px solid #f0f0f0">${vencimiento}</td>
+      </tr>`;
+    }
+
     const tarjeta = `
-      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0">
         <tr><td align="center">
-          <table cellpadding="0" cellspacing="0" border="0" width="480" style="max-width:480px;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;font-family:Arial,sans-serif">
+          <table cellpadding="0" cellspacing="0" border="0" width="520" style="max-width:520px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+            <!-- Cabecera con logo y tipo -->
             <tr>
-              <td style="background:#f8f9fa;padding:20px 24px;text-align:center">
-                ${logoUrl ? `<img src="${logoUrl}" alt="" style="max-height:40px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto">` : ''}
-                <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tipoLabel}</div>
-                <div style="font-size:22px;font-weight:700;color:#1a1a1a">${ref || ''}</div>
+              <td colspan="2" style="background:linear-gradient(135deg,#f8fafc 0%,#eef2ff 100%);padding:24px 28px 20px;text-align:center;border-bottom:1px solid #e2e8f0">
+                ${logoUrl ? `<img src="${logoUrl}" alt="${empresaNombre}" style="max-height:44px;margin-bottom:14px;display:block;margin-left:auto;margin-right:auto">` : `<div style="font-size:16px;font-weight:700;color:#1e40af;margin-bottom:8px">${empresaNombre}</div>`}
+                <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:6px">${tipoLabel}</div>
+                <div style="font-size:26px;font-weight:800;color:#0f172a;letter-spacing:0.5px">${ref}</div>
               </td>
             </tr>
+            <!-- Detalles -->
+            ${detailRows}
+            <!-- Botón -->
             <tr>
-              <td style="padding:20px 24px;text-align:center">
-                <a href="${docUrl}" target="_blank" style="display:inline-block;background:#1a73e8;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.3px">
-                  Ver y descargar ${tipoLabel.toLowerCase()}
+              <td colspan="2" style="padding:24px 28px 20px;text-align:center">
+                <a href="${docUrl}" target="_blank" style="display:inline-block;background:#1e40af;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0.3px;min-width:200px">
+                  Ver y descargar
                 </a>
-                <div style="margin-top:12px;font-size:11px;color:#999">
+              </td>
+            </tr>
+            <!-- Pie -->
+            <tr>
+              <td colspan="2" style="padding:0 28px 18px;text-align:center">
+                <div style="font-size:11px;color:#94a3b8;line-height:1.5">
                   Puede ver, descargar e imprimir el documento desde este enlace
                 </div>
               </td>
@@ -1477,11 +1516,10 @@ function _buildCuerpoHtml(cuerpo, vinculacion) {
 
     html = html.replace('__TARJETA_DOC__', tarjeta);
   } else {
-    // Sin enlace de documento: conversión simple
     html = html.replace(/\n/g, '<br>');
   }
 
-  return '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#333">' + html + '</div>';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#374151">' + html + '</div>';
 }
 
 
