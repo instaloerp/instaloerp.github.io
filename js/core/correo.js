@@ -17,6 +17,8 @@ let _correosSeleccionados = new Set(); // IDs de correos seleccionados
 let _correoCuentaActiva = null; // Cuenta predeterminada cargada
 let _correoAutoSyncInterval = null; // Intervalo de auto-sync
 const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
+let _correoFocusIdx = -1; // Índice del correo enfocado en la lista (navegación con flechas)
+let _correoLastClickIdx = -1; // Último índice clicado (para Shift+clic rango)
 
 // ═══════════════════════════════════════════════
 //  CARGA INICIAL
@@ -534,7 +536,10 @@ function renderListaCorreos(list) {
       const bg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : esNoLeido ? '#fafbff' : 'transparent';
       const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f5f5f5';
 
-      html += `<div data-id="${c.id}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;margin:0 2px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:2px solid ${esActivo ? 'var(--azul)' : 'transparent'}" onclick="abrirCorreo(${c.id})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${bg}'">
+      const idx = grupo.items.indexOf(c);
+      const globalIdx = list.indexOf(c);
+
+      html += `<div data-id="${c.id}" data-idx="${globalIdx}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;margin:0 2px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:2px solid ${esActivo ? 'var(--azul)' : 'transparent'};outline:none" onclick="_handleMailClick(event,${c.id},${globalIdx})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${_correoFocusIdx===globalIdx?'#f0f4ff':bg}'">
         <div style="position:relative;width:30px;height:30px;flex-shrink:0" onclick="event.stopPropagation()">
           <div style="width:30px;height:30px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.3px;pointer-events:none">${initials}</div>
           <input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2">
@@ -1920,6 +1925,136 @@ function _actualizarBarraSeleccion() {
   bar.style.display = n > 0 ? 'flex' : 'none';
   if (cnt) cnt.textContent = n + ' sel.';
 }
+
+// ═══════════════════════════════════════════════
+//  NAVEGACIÓN CON TECLADO + SELECCIÓN CON MODIFICADORES
+// ═══════════════════════════════════════════════
+
+// Clic en un correo: normal=abrir, Shift=rango, Cmd/Ctrl=toggle individual
+function _handleMailClick(event, id, idx) {
+  // Shift+clic → seleccionar rango desde último clic
+  if (event.shiftKey && _correoLastClickIdx >= 0) {
+    event.preventDefault();
+    const start = Math.min(_correoLastClickIdx, idx);
+    const end = Math.max(_correoLastClickIdx, idx);
+    // Si no tiene Cmd/Ctrl, limpiar selección previa
+    if (!event.metaKey && !event.ctrlKey) _correosSeleccionados.clear();
+    for (let i = start; i <= end; i++) {
+      if (correosFiltrados[i]) _correosSeleccionados.add(correosFiltrados[i].id);
+    }
+    _correoFocusIdx = idx;
+    _actualizarBarraSeleccion();
+    renderListaCorreos(correosFiltrados);
+    return;
+  }
+
+  // Cmd/Ctrl+clic → toggle individual sin deseleccionar otros
+  if (event.metaKey || event.ctrlKey) {
+    event.preventDefault();
+    if (_correosSeleccionados.has(id)) _correosSeleccionados.delete(id);
+    else _correosSeleccionados.add(id);
+    _correoLastClickIdx = idx;
+    _correoFocusIdx = idx;
+    _actualizarBarraSeleccion();
+    renderListaCorreos(correosFiltrados);
+    return;
+  }
+
+  // Clic normal → abrir correo
+  _correoLastClickIdx = idx;
+  _correoFocusIdx = idx;
+  abrirCorreo(id);
+}
+
+// Scroll el elemento enfocado a la vista
+function _scrollMailFocusIntoView() {
+  const container = document.getElementById('mailList');
+  if (!container || _correoFocusIdx < 0) return;
+  const el = container.querySelector(`[data-idx="${_correoFocusIdx}"]`);
+  if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Highlight visual del correo enfocado
+function _updateMailFocusHighlight() {
+  const container = document.getElementById('mailList');
+  if (!container) return;
+  container.querySelectorAll('[data-idx]').forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    if (idx === _correoFocusIdx) {
+      el.style.boxShadow = 'inset 0 0 0 1.5px var(--azul)';
+    } else {
+      el.style.boxShadow = '';
+    }
+  });
+}
+
+// Listener de teclado para la página de correo
+document.addEventListener('keydown', event => {
+  // Solo actuar si estamos en la página de correo y no hay input enfocado
+  const page = document.getElementById('page-correo');
+  if (!page || !page.classList.contains('active')) return;
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (!correosFiltrados.length) return;
+
+  const key = event.key;
+
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    event.preventDefault();
+    const dir = key === 'ArrowDown' ? 1 : -1;
+    const newIdx = Math.max(0, Math.min(correosFiltrados.length - 1,
+      _correoFocusIdx < 0 ? 0 : _correoFocusIdx + dir));
+
+    if (newIdx === _correoFocusIdx) return;
+
+    // Shift+flecha → extender/reducir selección
+    if (event.shiftKey) {
+      const c = correosFiltrados[newIdx];
+      if (c) {
+        _correosSeleccionados.add(c.id);
+        // Si se "retrocede" (cambia dirección), quitar el anterior
+        // Solo si el anterior NO es el ancla
+      }
+      _correoFocusIdx = newIdx;
+      _actualizarBarraSeleccion();
+      renderListaCorreos(correosFiltrados);
+      _scrollMailFocusIntoView();
+      _updateMailFocusHighlight();
+      return;
+    }
+
+    // Flecha sola → mover foco y abrir
+    _correoFocusIdx = newIdx;
+    _correoLastClickIdx = newIdx;
+    const c = correosFiltrados[newIdx];
+    if (c) abrirCorreo(c.id);
+    _scrollMailFocusIntoView();
+    _updateMailFocusHighlight();
+    return;
+  }
+
+  // Supr / Backspace → eliminar seleccionados
+  if ((key === 'Delete' || key === 'Backspace') && _correosSeleccionados.size > 0) {
+    event.preventDefault();
+    _eliminarSeleccionados();
+    return;
+  }
+
+  // Cmd/Ctrl+A → seleccionar todos
+  if ((event.metaKey || event.ctrlKey) && key === 'a') {
+    event.preventDefault();
+    correosFiltrados.forEach(c => _correosSeleccionados.add(c.id));
+    _actualizarBarraSeleccion();
+    renderListaCorreos(correosFiltrados);
+    return;
+  }
+
+  // Escape → limpiar selección
+  if (key === 'Escape' && _correosSeleccionados.size > 0) {
+    _limpiarSeleccion();
+    return;
+  }
+});
 
 async function _eliminarSeleccionados() {
   if (_correosSeleccionados.size === 0) return;
