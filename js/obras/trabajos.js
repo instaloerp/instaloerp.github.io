@@ -2846,6 +2846,18 @@ async function enviarPresupuestoCliente(presId, obraIdOverride) {
     `Si tiene alguna duda, no dude en contactarnos.\n\n` +
     `Atentamente,\n${CP?.nombre || ''} ${CP?.apellidos || ''}\n${empresaNombre}${EMPRESA.telefono ? '\nTel: ' + EMPRESA.telefono : ''}`;
 
+  // Tracking: registrar compartición
+  if (typeof compartirDocumento === 'function') {
+    try {
+      await compartirDocumento({
+        tipo_documento: 'presupuesto', documento_id: presId,
+        documento_numero: p.numero, destinatario_nombre: cli?.nombre,
+        destinatario_email: emailCliente, canal: 'email',
+        acceso_token: firmaToken
+      });
+    } catch(e) { console.warn('[Tracking]', e); }
+  }
+
   // Registrar en actividad de la obra (si hay obra)
   if (obraId) {
     await registrarActividadObra(obraId, 'Presupuesto enviado al cliente', `📩 ${p.numero} enviado a ${cli?.nombre || 'cliente'}${emailCliente ? ' (' + emailCliente + ')' : ''}`);

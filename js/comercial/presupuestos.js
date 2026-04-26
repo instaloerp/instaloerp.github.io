@@ -1308,19 +1308,35 @@ async function enviarPresupuestoEmail(id) {
       p.firma_token = token; // cache local
     }
   }
-  const enlace = token ? `https://instaloerp.github.io/firma.html?token=${token}` : '';
+  const enlaceDoc = token ? `https://instaloerp.github.io/firma.html?token=${token}` : '';
+
+  // Tracking: registrar compartición y obtener enlace con tracking
+  let enlaceTracking = enlaceDoc;
+  const adjuntos = []; // sin PDF adjunto — el cliente descarga desde el enlace
+
+  if (typeof compartirDocumento === 'function') {
+    try {
+      const track = await compartirDocumento({
+        tipo_documento: 'presupuesto', documento_id: p.id,
+        documento_numero: p.numero, destinatario_nombre: p.cliente_nombre,
+        destinatario_email: email, canal: 'email',
+        acceso_token: token
+      });
+      if (track?.url) enlaceTracking = track.url;
+    } catch(e) { console.warn('[Tracking]', e); }
+  }
 
   const cuerpoTxt =
 `Estimado/a ${p.cliente_nombre||'cliente'},
 
-Le adjuntamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
+Le enviamos el presupuesto ${p.numero||''} con fecha ${fechaFmt}.
 
 Importe total: ${totalFmt} (IVA incluido)
 Válido hasta: ${validezFmt}
-${enlace ? `
-👉 Ver, descargar o firmar el presupuesto online:
-${enlace}
-` : ''}
+
+Pulse el siguiente enlace para ver, descargar o firmar su presupuesto:
+${enlaceTracking}
+
 Para aceptarlo, puede firmarlo en el enlace anterior, responder a este correo, o contactarnos directamente.
 
 Un saludo cordial,
@@ -1328,22 +1344,6 @@ ${EMPRESA?.nombre||''}
 ${EMPRESA?.telefono?'Tel: '+EMPRESA.telefono:''}
 ${EMPRESA?.email||''}
 ${EMPRESA?.web||''}`;
-
-  // Generar PDF en memoria como adjunto
-  let adjuntos = [];
-  try {
-    const b64 = await generarPdfPresupuesto(p, { soloBase64: true });
-    if (b64) adjuntos.push({ nombre: `Presupuesto_${(p.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`, base64: b64, tipo_mime: 'application/pdf' });
-  } catch(e) { console.warn('No se pudo generar PDF para adjuntar:', e); }
-
-  // Tracking: registrar compartición
-  if (typeof compartirDocumento === 'function') {
-    await compartirDocumento({
-      tipo_documento: 'presupuesto', documento_id: p.id,
-      documento_numero: p.numero, destinatario_nombre: p.cliente_nombre,
-      destinatario_email: email, canal: 'email'
-    });
-  }
 
   if (typeof nuevoCorreo === 'function') {
     closeModal('mPresDetalle');
