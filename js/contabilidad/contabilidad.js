@@ -365,9 +365,12 @@ function _contFiltrarPlan() {
     const opaco = (!esVirtual && !c.activa) ? 'opacity:.5;' : '';
     const bgNivel = nivel <= 1 ? '' : (nivel === 2 ? 'background:var(--gris-50);' : 'background:var(--gris-100);');
 
+    const esHoja = !esVirtual && c.es_hoja && nivel >= 2;
+
     let flechaHtml = '';
-    if (tieneHijos) {
-      flechaHtml = '<span onclick="_contToggleExpand(\'' + c.codigo + '\')" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;margin-right:4px;font-size:10px;color:var(--gris-500);transition:transform .15s;transform:rotate(' + (expandida ? '90' : '0') + 'deg)">▶</span>';
+    if (tieneHijos || esHoja) {
+      const toggleFn = esHoja ? '_contTogglePlanDetalle(\'' + c.codigo + '\')' : '_contToggleExpand(\'' + c.codigo + '\')';
+      flechaHtml = '<span onclick="' + toggleFn + '" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;margin-right:4px;font-size:10px;color:var(--gris-500);transition:transform .15s;transform:rotate(' + (expandida ? '90' : '0') + 'deg)">▶</span>';
     } else if (nivel > 0) {
       flechaHtml = '<span style="display:inline-block;width:24px"></span>';
     }
@@ -376,8 +379,9 @@ function _contFiltrarPlan() {
       ? '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--azul-light);color:var(--azul);font-weight:700;margin-left:6px">' + numHijos + '</span>' : '';
 
     const tipoLabel = (c.tipo || '').toUpperCase();
-    const esClickable = tieneHijos ? ';font-weight:700;cursor:pointer' : '';
-    const onClickNombre = tieneHijos ? ' onclick="_contToggleExpand(\'' + c.codigo + '\')"' : '';
+    const esClickable = (tieneHijos || esHoja) ? ';font-weight:700;cursor:pointer' : '';
+    const onClickNombre = tieneHijos ? ' onclick="_contToggleExpand(\'' + c.codigo + '\')"'
+      : (esHoja ? ' onclick="_contTogglePlanDetalle(\'' + c.codigo + '\')"' : '');
 
     let acciones = '';
     if (!esVirtual) {
@@ -569,6 +573,90 @@ function _contToggleExpand(codigo) {
   _contFiltrarPlan();
 }
 
+// Toggle detalle de movimientos de una subcuenta en Plan Contable
+async function _contTogglePlanDetalle(codigo) {
+  const existente = document.getElementById('planDet_' + codigo);
+  if (existente) {
+    existente.remove();
+    // Rotar chevron
+    const tr = document.querySelector('tr[data-codigo="' + codigo + '"]');
+    if (tr) { const ch = tr.querySelector('span'); if (ch) ch.style.transform = ''; }
+    return;
+  }
+
+  // Rotar chevron
+  const trPadre = document.querySelector('tr[data-codigo="' + codigo + '"]');
+  if (trPadre) { const ch = trPadre.querySelector('span'); if (ch) ch.style.transform = 'rotate(90deg)'; }
+
+  // Cargar asientos y líneas si no están cargados
+  if (!_contAsientos.length) await _contCargarAsientos();
+  if (!_contLineas.length) await _contCargarTodasLineas();
+
+  // Filtrar líneas de esta cuenta
+  const lineasCuenta = _contLineas.filter(l => l.cuenta_codigo === codigo);
+  if (!lineasCuenta.length) {
+    const trDet = document.createElement('tr');
+    trDet.id = 'planDet_' + codigo;
+    trDet.innerHTML = '<td colspan="6" style="padding:12px 20px 12px 80px;color:var(--gris-400);font-size:13px">Sin movimientos en este ejercicio</td>';
+    trPadre?.after(trDet);
+    return;
+  }
+
+  // Mapa de asientos
+  const mapaAs = {};
+  _contAsientos.forEach(a => { mapaAs[a.id] = a; });
+
+  // Ordenar por fecha
+  lineasCuenta.sort((a, b) => {
+    const aA = mapaAs[a.asiento_id], bA = mapaAs[b.asiento_id];
+    const cmp = (aA?.fecha || '').localeCompare(bA?.fecha || '');
+    return cmp !== 0 ? cmp : (aA?.numero || 0) - (bA?.numero || 0);
+  });
+
+  // Totales
+  let totalD = 0, totalH = 0, saldoAcum = 0;
+  let rows = '';
+  lineasCuenta.forEach(l => {
+    let d = l.debe || 0, h = l.haber || 0;
+    if (d < 0) { h += Math.abs(d); d = 0; }
+    if (h < 0) { d += Math.abs(h); h = 0; }
+    totalD += d; totalH += h;
+    saldoAcum += d - h;
+    const as = mapaAs[l.asiento_id];
+    const fecha = as?.fecha ? new Date(as.fecha + 'T00:00:00').toLocaleDateString('es-ES') : '';
+    const num = as ? (as.numero || as.id) : '';
+    const concepto = l.concepto || as?.descripcion || '';
+    rows += '<tr style="border-bottom:1px solid var(--gris-50)">' +
+      '<td style="padding:4px 8px;font-size:12px;white-space:nowrap">' + fecha + '</td>' +
+      '<td style="padding:4px 8px;font-size:12px">' + num + '</td>' +
+      '<td style="padding:4px 8px;font-size:12px">' + concepto + '</td>' +
+      '<td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace">' + (d ? _contFmt(d) : '') + '</td>' +
+      '<td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace">' + (h ? _contFmt(h) : '') + '</td>' +
+      '<td style="padding:4px 8px;font-size:12px;text-align:right;font-family:monospace;font-weight:600;color:' + (saldoAcum >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldoAcum)) + ' ' + (saldoAcum >= 0 ? 'D' : 'H') + '</td></tr>';
+  });
+
+  // Fila totales
+  const saldoFinal = totalD - totalH;
+  rows += '<tr style="border-top:2px solid var(--gris-200);font-weight:700">' +
+    '<td colspan="3" style="padding:5px 8px;font-size:12px">Total (' + lineasCuenta.length + ' apuntes)</td>' +
+    '<td style="padding:5px 8px;font-size:12px;text-align:right;font-family:monospace">' + _contFmt(totalD) + '</td>' +
+    '<td style="padding:5px 8px;font-size:12px;text-align:right;font-family:monospace">' + _contFmt(totalH) + '</td>' +
+    '<td style="padding:5px 8px;font-size:12px;text-align:right;font-family:monospace;color:' + (saldoFinal >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldoFinal)) + ' ' + (saldoFinal >= 0 ? 'D' : 'H') + '</td></tr>';
+
+  const trDet = document.createElement('tr');
+  trDet.id = 'planDet_' + codigo;
+  trDet.innerHTML = '<td colspan="6" style="padding:8px 16px 12px 60px;background:var(--gris-100)">' +
+    '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="background:var(--gris-50)">' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:left">Fecha</th>' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:left">Asiento</th>' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:left">Concepto</th>' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:right">Debe</th>' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:right">Haber</th>' +
+      '<th style="padding:5px 8px;font-size:11px;font-weight:600;text-align:right">Saldo</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></td>';
+  trPadre?.after(trDet);
+}
 
 // ── CRUD Cuentas ──────────────────────────────
 
