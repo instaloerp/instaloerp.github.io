@@ -1349,14 +1349,24 @@ async function _contObtenerSubcuenta(tipo, nif, nombre) {
   // Devuelve el código de subcuenta (ej: '4309726')
   // Si no hay NIF, usa la cuenta genérica 430 o 400
   const prefijo = tipo === 'venta' ? '430' : '400';
-  if (!nif) return prefijo;
 
   // Cache para no repetir queries
-  const cacheKey = tipo + '_' + nif.toUpperCase().trim();
+  const cacheKey = tipo + '_' + (nif || nombre || '').toUpperCase().trim();
   if (_contSubcuentaCache[cacheKey]) return _contSubcuentaCache[cacheKey];
 
+  // Si no hay NIF, intentar buscar por nombre antes de devolver genérica
+  if (!nif || !_contExtraerDigitosNif(nif)) {
+    if (nombre) {
+      const nombreUpper = nombre.toUpperCase().trim();
+      const { data: porNombre } = await sb.from('cuentas_contables').select('codigo,nombre')
+        .eq('empresa_id', EMPRESA.id).like('codigo', prefijo + '%').gt('codigo', prefijo);
+      const match = (porNombre || []).find(c => c.nombre && c.nombre.toUpperCase().trim() === nombreUpper);
+      if (match) { _contSubcuentaCache[cacheKey] = match.codigo; return match.codigo; }
+    }
+    return prefijo;
+  }
+
   const digitos = _contExtraerDigitosNif(nif);
-  if (!digitos) return prefijo;
 
   let candidato = prefijo + digitos; // ej: '4309726'
 
