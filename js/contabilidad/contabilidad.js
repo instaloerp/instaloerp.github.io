@@ -1372,7 +1372,12 @@ async function _contAutoContabilizar(tipo, facturaId) {
 // ═══════════════════════════════════════════════
 
 async function exportarContaSol() {
-  if (!_contEjercicioSel) { toast('Selecciona un ejercicio fiscal', 'error'); return; }
+  // Auto-cargar ejercicios si no están cargados (ej: entrar directo a Plan Contable)
+  if (!_contEjercicios.length) await _contCargarEjercicios();
+  if (!_contEjercicioSel && _contEjercicios.length) {
+    _contEjercicioSel = _contEjercicios.find(e => e.estado === 'abierto') || _contEjercicios[0];
+  }
+  if (!_contEjercicioSel) { toast('No hay ejercicio fiscal creado. Crea uno primero en Libro Diario.', 'error'); return; }
 
   const overlay = document.createElement('div');
   overlay.id = '_contasolExportModal';
@@ -1471,37 +1476,57 @@ async function _ejecutarExportContaSol() {
     //  A=Codigo(10A), B=Nombre(100A), C=CIF(12A), D=Sigla(2A),
     //  E=Domicilio(100A), F=Num.calle(6A), G=CP(5N), H=Poblacion(30A),
     //  I=Provincia(20A), J=Telefono(12A), K=Fax(12A), L=Movil(12A)
+    //  Genera desde tabla clientes directamente (no depende de subcuentas)
     // ══════════════════════════════════════════════
     if (document.getElementById('_csCLI')?.checked) {
       setProgreso('Exportando Clientes...');
-      // Cargar todos los clientes de Supabase para cruzar datos
-      let allClientes = (typeof clientes !== 'undefined') ? clientes : [];
+      let allClientes = (typeof clientes !== 'undefined' && clientes.length) ? clientes : [];
       if (!allClientes.length) {
         try {
-          const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id);
+          const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
           allClientes = data || [];
         } catch(_) {}
       }
-      const clientesContab = _contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length >= 5);
+      // Mapa de subcuentas existentes por nombre (para reutilizar códigos ya asignados)
+      const subcuentasCli = _contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length >= 5);
+      const mapaSubcuentas = new Map();
+      subcuentasCli.forEach(sc => mapaSubcuentas.set((sc.nombre || '').toUpperCase().trim(), sc.codigo));
+
       const cliData = [];
-      for (const sc of clientesContab) {
-        // Buscar el cliente por nombre o NIF
-        const cli = allClientes.find(c =>
-          (c.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
-        ) || allClientes.find(c =>
-          c.nif && sc.nombre && sc.nombre.includes(c.nif)
-        );
+      const usados = new Set(subcuentasCli.map(sc => sc.codigo));
+      let autoIdx = 1;
+
+      for (const cli of allClientes) {
+        // Buscar si ya tiene subcuenta asignada en el plan contable
+        let codigo = mapaSubcuentas.get((cli.nombre || '').toUpperCase().trim());
+        if (!codigo) {
+          // Generar código a partir de los últimos 4 dígitos del NIF
+          const nifDigits = (cli.nif || '').replace(/\D/g, '');
+          if (nifDigits.length >= 4) {
+            codigo = '430' + nifDigits.slice(-4);
+          } else {
+            codigo = '430' + String(autoIdx).padStart(4, '0');
+          }
+          // Evitar duplicados
+          while (usados.has(codigo)) {
+            autoIdx++;
+            codigo = '430' + String(autoIdx).padStart(4, '0');
+          }
+          usados.add(codigo);
+          if (!nifDigits.length || nifDigits.length < 4) autoIdx++;
+        }
+
         cliData.push([
-          _padCuenta(sc.codigo),                               // A: Codigo contable
-          (sc.nombre || '').substring(0, 100),                 // B: Nombre
-          (cli?.nif || '').substring(0, 12),                   // C: CIF
+          _padCuenta(codigo),                                  // A: Codigo contable
+          (cli.nombre || '').substring(0, 100),                // B: Nombre
+          (cli.nif || '').substring(0, 12),                    // C: CIF
           '',                                                   // D: Sigla domicilio
-          (cli?.direccion || '').substring(0, 100),            // E: Domicilio
+          (cli.direccion || '').substring(0, 100),             // E: Domicilio
           '',                                                   // F: Numero calle
-          cli?.cp || '',                                        // G: Codigo postal
-          (cli?.poblacion || '').substring(0, 30),             // H: Poblacion
-          (cli?.provincia || '').substring(0, 20),             // I: Provincia
-          (cli?.telefono || '').substring(0, 12),              // J: Telefono
+          cli.cp || '',                                         // G: Codigo postal
+          (cli.poblacion || cli.municipio || '').substring(0, 30), // H: Poblacion
+          (cli.provincia || '').substring(0, 20),              // I: Provincia
+          (cli.telefono || '').substring(0, 12),               // J: Telefono
           '',                                                   // K: Fax
           ''                                                    // L: Movil
         ]);
@@ -1514,35 +1539,53 @@ async function _ejecutarExportContaSol() {
     //  A=Codigo(10A), B=Nombre(100A), C=CIF(12A), D=Sigla(2A),
     //  E=Domicilio(100A), F=Num.calle(6A), G=CP(5N), H=Poblacion(30A),
     //  I=Provincia(20A), J=Telefono(15A), K=Fax(15A), L=Movil(15A)
+    //  Genera desde tabla proveedores directamente
     // ══════════════════════════════════════════════
     if (document.getElementById('_csPRO')?.checked) {
       setProgreso('Exportando Proveedores...');
-      let allProvs = (typeof proveedores !== 'undefined') ? proveedores : [];
+      let allProvs = (typeof proveedores !== 'undefined' && proveedores.length) ? proveedores : [];
       if (!allProvs.length) {
         try {
-          const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id);
+          const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
           allProvs = data || [];
         } catch(_) {}
       }
-      const provsContab = _contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length >= 5);
+      const subcuentasPro = _contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length >= 5);
+      const mapaSubPro = new Map();
+      subcuentasPro.forEach(sc => mapaSubPro.set((sc.nombre || '').toUpperCase().trim(), sc.codigo));
+
       const proData = [];
-      for (const sc of provsContab) {
-        const prov = allProvs.find(p =>
-          (p.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
-        ) || allProvs.find(p =>
-          (p.cif || p.nif) && sc.nombre && sc.nombre.includes(p.cif || p.nif)
-        );
+      const usadosPro = new Set(subcuentasPro.map(sc => sc.codigo));
+      let autoIdxPro = 1;
+
+      for (const prov of allProvs) {
+        let codigo = mapaSubPro.get((prov.nombre || '').toUpperCase().trim());
+        if (!codigo) {
+          const cifDigits = (prov.cif || prov.nif || '').replace(/\D/g, '');
+          if (cifDigits.length >= 4) {
+            codigo = '400' + cifDigits.slice(-4);
+          } else {
+            codigo = '400' + String(autoIdxPro).padStart(4, '0');
+          }
+          while (usadosPro.has(codigo)) {
+            autoIdxPro++;
+            codigo = '400' + String(autoIdxPro).padStart(4, '0');
+          }
+          usadosPro.add(codigo);
+          if (!cifDigits.length || cifDigits.length < 4) autoIdxPro++;
+        }
+
         proData.push([
-          _padCuenta(sc.codigo),                               // A: Codigo contable
-          (sc.nombre || '').substring(0, 100),                 // B: Nombre
-          (prov?.cif || prov?.nif || '').substring(0, 12),     // C: CIF
+          _padCuenta(codigo),                                  // A: Codigo contable
+          (prov.nombre || '').substring(0, 100),               // B: Nombre
+          (prov.cif || prov.nif || '').substring(0, 12),       // C: CIF
           '',                                                   // D: Sigla domicilio
-          (prov?.direccion || '').substring(0, 100),           // E: Domicilio
+          (prov.direccion || '').substring(0, 100),            // E: Domicilio
           '',                                                   // F: Numero calle
-          prov?.cp || '',                                       // G: Codigo postal
-          (prov?.poblacion || '').substring(0, 30),            // H: Poblacion
-          (prov?.provincia || '').substring(0, 20),            // I: Provincia
-          (prov?.telefono || '').substring(0, 15),             // J: Telefono
+          prov.cp || '',                                        // G: Codigo postal
+          (prov.poblacion || '').substring(0, 30),             // H: Poblacion
+          (prov.provincia || '').substring(0, 20),             // I: Provincia
+          (prov.telefono || '').substring(0, 15),              // J: Telefono
           '',                                                   // K: Fax
           ''                                                    // L: Movil
         ]);
