@@ -16,7 +16,9 @@ let _correoSyncing = false;
 let _correosSeleccionados = new Set(); // IDs de correos seleccionados
 let _correoCuentaActiva = null; // Cuenta predeterminada cargada
 let _correoAutoSyncInterval = null; // Intervalo de auto-sync
-const CORREO_SYNC_INTERVALO_MS = 2 * 60 * 1000; // 2 minutos
+// Columnas ligeras para listado (excluye cuerpo_html que puede ser MUY pesado)
+const CORREO_COLS_LISTA = 'id,tipo,carpeta,de,de_nombre,para,cc,asunto,cuerpo_texto,fecha,leido,tiene_adjuntos,destacado,etiqueta,snooze_hasta,envio_programado,message_id,vinculado_tipo,vinculado_id,vinculado_ref,usuario_id';
+const CORREO_SYNC_INTERVALO_MS = 5 * 60 * 1000; // 5 minutos (optimizado para reducir Disk IO)
 let _correoFocusIdx = -1; // Índice del correo enfocado en la lista (navegación con flechas)
 let _correoLastClickIdx = -1; // Último índice clicado (para Shift+clic rango)
 
@@ -30,12 +32,13 @@ async function iniciarCorreoBackground() {
   await cargarCuentaCorreoActiva();
   if (!_correoCuentaActiva) return;
 
-  // 1. Cargar correos ya existentes en BD (sin esperar a IMAP)
+  // 1. Cargar correos ya existentes en BD (sin esperar a IMAP) — solo columnas ligeras
   try {
     const { data } = await sb.from('correos')
-      .select('*')
+      .select(CORREO_COLS_LISTA)
       .eq('empresa_id', EMPRESA.id)
-      .order('fecha', { ascending: false });
+      .order('fecha', { ascending: false })
+      .limit(500);
     correos = data || [];
   } catch(_) { correos = []; }
 
@@ -88,12 +91,13 @@ async function loadCorreos() {
     return;
   }
 
-  // Cargar correos desde BD
+  // Cargar correos desde BD — columnas ligeras, limitado
   try {
     const { data } = await sb.from('correos')
-      .select('*')
+      .select(CORREO_COLS_LISTA)
       .eq('empresa_id', EMPRESA.id)
-      .order('fecha', { ascending: false });
+      .order('fecha', { ascending: false })
+      .limit(500);
     correos = data || [];
   } catch(e) {
     correos = [];
@@ -207,8 +211,8 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
         // Actualizar lista en tiempo real cada 5 pasadas
         if (pasada % 5 === 0 && totalNuevos > 0) {
           const { data: parcial } = await sb.from('correos')
-            .select('*').eq('empresa_id', EMPRESA.id)
-            .order('fecha', { ascending: false });
+            .select(CORREO_COLS_LISTA).eq('empresa_id', EMPRESA.id)
+            .order('fecha', { ascending: false }).limit(500);
           correos = parcial || [];
           filtrarCorreos();
           actualizarBadgeCorreo();
@@ -237,11 +241,12 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
       toast('📭 No hay correos nuevos', 'info');
     }
 
-    // Siempre recargar lista después de sync
+    // Siempre recargar lista después de sync — columnas ligeras
     const { data: todos } = await sb.from('correos')
-      .select('*')
+      .select(CORREO_COLS_LISTA)
       .eq('empresa_id', EMPRESA.id)
-      .order('fecha', { ascending: false });
+      .order('fecha', { ascending: false })
+      .limit(500);
     correos = todos || [];
     filtrarCorreos();
     actualizarBadgeCorreo();
@@ -305,8 +310,8 @@ async function cargarCorreosAntiguos() {
     if (totalNuevos > 0) {
       toast(`📬 ${totalNuevos} correo${totalNuevos > 1 ? 's' : ''} antiguo${totalNuevos > 1 ? 's' : ''} cargado${totalNuevos > 1 ? 's' : ''}`, 'success');
       const { data } = await sb.from('correos')
-        .select('*').eq('empresa_id', EMPRESA.id)
-        .order('fecha', { ascending: false });
+        .select(CORREO_COLS_LISTA).eq('empresa_id', EMPRESA.id)
+        .order('fecha', { ascending: false }).limit(1000);
       correos = data || [];
       filtrarCorreos();
       actualizarBadgeCorreo();
@@ -639,6 +644,14 @@ async function abrirCorreo(id) {
   const c = correos.find(x => x.id === id);
   if (!c) return;
   correoActual = c;
+
+  // Cargar cuerpo_html bajo demanda (no viene en CORREO_COLS_LISTA para ahorrar IO)
+  if (!c.cuerpo_html && c.cuerpo_cacheado) {
+    try {
+      const { data } = await sb.from('correos').select('cuerpo_html,cuerpo_cacheado').eq('id', id).single();
+      if (data) { c.cuerpo_html = data.cuerpo_html; c.cuerpo_cacheado = data.cuerpo_cacheado; }
+    } catch(_) {}
+  }
 
   // Marcar como leído
   if (c.tipo === 'recibido' && !c.leido) {
@@ -2567,7 +2580,7 @@ async function _procesarSnooze() {
       await sb.from('correos').update({ snooze_hasta: null, leido: false }).eq('id', c.id);
     }
     // Refrescar
-    const { data: todos } = await sb.from('correos').select('*').eq('empresa_id', EMPRESA.id).order('fecha', { ascending: false });
+    const { data: todos } = await sb.from('correos').select(CORREO_COLS_LISTA).eq('empresa_id', EMPRESA.id).order('fecha', { ascending: false }).limit(500);
     correos = todos || [];
     filtrarCorreos();
     actualizarBadgeCorreo();

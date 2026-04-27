@@ -157,7 +157,8 @@ async function loadFacturas() {
   const { data } = await sb.from('facturas')
     .select('*').eq('empresa_id', EMPRESA.id)
     .neq('estado', 'eliminado')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
   facLocalData = data || [];
   window.facturasData = facLocalData;
 

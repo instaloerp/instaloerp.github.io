@@ -124,6 +124,7 @@ async function renderContPlanContable() {
         ${[1,2,3,4,5,6,7].map(g => '<option value="'+g+'">'+g+' — '+_contGrupoNombre(g)+'</option>').join('')}
       </select>
       <div style="flex:1"></div>
+      <button class="btn btn-secondary" onclick="exportarContaSol()" title="Exportar a ContaSol">📥 Exportar ContaSol</button>
       <button class="btn btn-primary" onclick="_contNuevaCuenta()">+ Nueva cuenta</button>
     </div>
   </div>`;
@@ -1141,4 +1142,320 @@ async function _contAutoContabilizar(tipo, facturaId) {
   } catch (e) {
     console.error('[Contab] Error auto-contabilizar:', e);
   }
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR A CONTASOL (APU + IVR + IVS + MAE + CLI + PRO)
+// ═══════════════════════════════════════════════
+
+async function exportarContaSol() {
+  if (!_contEjercicioSel) { toast('Selecciona un ejercicio fiscal', 'error'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.id = '_contasolExportModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:99999';
+
+  const ej = _contEjercicioSel;
+  const desde = ej.fecha_inicio || (new Date().getFullYear() + '-01-01');
+  const hasta = ej.fecha_fin || (new Date().getFullYear() + '-12-31');
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:var(--font)">
+      <h3 style="font-size:16px;font-weight:800;margin:0 0 6px">📊 Exportar a ContaSol</h3>
+      <p style="font-size:12px;color:var(--gris-400);margin:0 0 16px">Genera ficheros Excel compatibles con la importación de ContaSol</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--gris-600)">Desde</label>
+          <input type="date" id="_csDesde" value="${desde}" style="width:100%;padding:7px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:12px;font-family:var(--font)">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--gris-600)">Hasta</label>
+          <input type="date" id="_csHasta" value="${hasta}" style="width:100%;padding:7px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:12px;font-family:var(--font)">
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--gris-600);margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="_csAPU" checked> <strong>APU</strong> — Asientos contables</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="_csIVR" checked> <strong>IVR</strong> — Libro IVA Repercutido (ventas)</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="_csIVS" checked> <strong>IVS</strong> — Libro IVA Soportado (compras)</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="_csMAE" checked> <strong>MAE</strong> — Plan Contable</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="_csCLI" checked> <strong>CLI</strong> — Clientes</label>
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="_csPRO" checked> <strong>PRO</strong> — Proveedores</label>
+      </div>
+      <div style="font-size:11px;color:var(--gris-400);margin-bottom:14px;background:var(--gris-50);padding:8px 12px;border-radius:8px">
+        💡 Longitud de cuentas: <strong>7 dígitos</strong> (ej: 4300001). Asegúrate de que ContaSol tenga configurada la misma longitud.
+      </div>
+      <div id="_csProgreso" style="display:none;margin-bottom:14px;padding:10px;background:var(--azul-light);border-radius:8px;font-size:12px;color:var(--azul);text-align:center"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="document.getElementById('_contasolExportModal')?.remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="_ejecutarExportContaSol()" style="font-weight:700">📥 Generar ficheros</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function _ejecutarExportContaSol() {
+  const desde = document.getElementById('_csDesde')?.value;
+  const hasta = document.getElementById('_csHasta')?.value;
+  if (!desde || !hasta) { toast('Selecciona rango de fechas', 'error'); return; }
+
+  const prog = document.getElementById('_csProgreso');
+  prog.style.display = 'block';
+  const setProgreso = t => { prog.textContent = t; };
+
+  try {
+    const wb = XLSX.utils.book_new();
+    const fmtFecha = d => {
+      if (!d) return '';
+      const dt = new Date(d);
+      return dt.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    // ── MAE: Plan Contable ──
+    if (document.getElementById('_csMAE')?.checked) {
+      setProgreso('Exportando Plan Contable...');
+      await _contCargarCuentas();
+      const maeData = _contCuentas.map(c => [c.codigo, c.nombre]);
+      const wsMae = XLSX.utils.aoa_to_sheet(maeData);
+      XLSX.utils.book_append_sheet(wb, wsMae, 'MAE');
+    }
+
+    // ── CLI: Clientes ──
+    if (document.getElementById('_csCLI')?.checked) {
+      setProgreso('Exportando Clientes...');
+      // Buscar subcuentas de clientes (430XXXX)
+      const clientesContab = _contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length === 7);
+      const cliData = [];
+      for (const sc of clientesContab) {
+        const cli = (typeof clientes !== 'undefined' ? clientes : []).find(c =>
+          (c.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
+        );
+        cliData.push([
+          sc.codigo,                          // A: Código contable
+          (sc.nombre || '').substring(0, 40), // B: Nombre
+          cli?.direccion || '',               // C: Domicilio
+          cli?.cp || '',                      // D: CP
+          cli?.poblacion || '',               // E: Población
+          (cli?.provincia || '').toUpperCase(), // F: Provincia
+          'ESPAÑA',                           // G: País
+          cli?.telefono || '',                // H: Teléfono
+          '',                                 // I: Fax
+          cli?.nif || '',                     // J: CIF
+          ''                                  // K: Nombre comercial
+        ]);
+      }
+      if (cliData.length) {
+        const wsCli = XLSX.utils.aoa_to_sheet(cliData);
+        XLSX.utils.book_append_sheet(wb, wsCli, 'CLI');
+      }
+    }
+
+    // ── PRO: Proveedores ──
+    if (document.getElementById('_csPRO')?.checked) {
+      setProgreso('Exportando Proveedores...');
+      const provsContab = _contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length === 7);
+      const proData = [];
+      for (const sc of provsContab) {
+        const prov = (typeof proveedores !== 'undefined' ? proveedores : []).find(p =>
+          (p.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
+        );
+        proData.push([
+          sc.codigo,
+          (sc.nombre || '').substring(0, 40),
+          prov?.direccion || '',
+          prov?.cp || '',
+          prov?.poblacion || '',
+          (prov?.provincia || '').toUpperCase(),
+          'ESPAÑA',
+          prov?.telefono || '',
+          '',
+          prov?.nif || prov?.cif || '',
+          ''
+        ]);
+      }
+      if (proData.length) {
+        const wsPro = XLSX.utils.aoa_to_sheet(proData);
+        XLSX.utils.book_append_sheet(wb, wsPro, 'PRO');
+      }
+    }
+
+    // ── Cargar asientos del período ──
+    setProgreso('Cargando asientos del período...');
+    let qAs = sb.from('asientos').select('*').eq('empresa_id', EMPRESA.id)
+      .eq('estado', 'contabilizado')
+      .gte('fecha', desde).lte('fecha', hasta)
+      .order('fecha').order('numero');
+    if (_contEjercicioSel) qAs = qAs.eq('ejercicio_id', _contEjercicioSel.id);
+    const { data: asientos } = await qAs;
+    if (!asientos?.length && document.getElementById('_csAPU')?.checked) {
+      toast('No hay asientos contabilizados en el período seleccionado', 'warning');
+    }
+
+    // Cargar TODAS las líneas de estos asientos
+    const asientoIds = (asientos || []).map(a => a.id);
+    let todasLineas = [];
+    for (let i = 0; i < asientoIds.length; i += 50) {
+      const batch = asientoIds.slice(i, i + 50);
+      const { data } = await sb.from('lineas_asiento')
+        .select('*').in('asiento_id', batch).order('orden');
+      if (data) todasLineas = todasLineas.concat(data);
+    }
+
+    // ── APU: Asientos contables ──
+    if (document.getElementById('_csAPU')?.checked && asientos?.length) {
+      setProgreso('Generando fichero APU...');
+      const apuData = [];
+      let codigoIva = 0;
+      const ivrRows = []; // para IVR
+      const ivsRows = []; // para IVS
+
+      for (const as of asientos) {
+        const lineas = todasLineas.filter(l => l.asiento_id === as.id).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+        // Determinar si es factura emitida o recibida para IVA
+        const esVenta = as.origen === 'factura_emitida';
+        const esCompra = as.origen === 'factura_recibida';
+
+        // Buscar datos de la factura original para IVR/IVS
+        let facOriginal = null;
+        if (esVenta && as.origen_id) {
+          facOriginal = (typeof facturasData !== 'undefined' ? window.facturasData : []).find(f => f.id === as.origen_id);
+        }
+        if (esCompra && as.origen_id) {
+          try {
+            const { data: fp } = await sb.from('facturas_proveedor').select('*').eq('id', as.origen_id).maybeSingle();
+            facOriginal = fp;
+          } catch(_) {}
+        }
+
+        // Si tiene IVA, crear registro IVR/IVS
+        let codigoIvaAsiento = 0;
+        if ((esVenta || esCompra) && facOriginal) {
+          codigoIva++;
+          codigoIvaAsiento = codigoIva;
+
+          const base = parseFloat(facOriginal.base_imponible) || 0;
+          const ivaTotal = parseFloat(facOriginal.total_iva) || 0;
+          const pctIva = base > 0 ? Math.round(ivaTotal / base * 100 * 100) / 100 : 21;
+          const nif = esVenta ? (facOriginal.cliente_nif || '') : (facOriginal.proveedor_nif || facOriginal._proveedor_cif || '');
+          const nombre = esVenta ? (facOriginal.cliente_nombre || '') : (facOriginal.proveedor_nombre || '');
+          const cuentaTercero = lineas.find(l =>
+            esVenta ? l.cuenta_codigo?.startsWith('430') : l.cuenta_codigo?.startsWith('400')
+          )?.cuenta_codigo || (esVenta ? '430' : '400');
+
+          if (esVenta) {
+            ivrRows.push([
+              codigoIvaAsiento,     // A: Código
+              1,                     // B: Libro IVA
+              fmtFecha(as.fecha),   // C: Fecha
+              cuentaTercero,        // D: Cuenta cliente
+              facOriginal.numero || '',  // E: Factura
+              nombre.substring(0, 40),   // F: Nombre
+              nif,                   // G: CIF
+              '',                    // H: Tipo operación
+              base,                  // I: Base 1
+              pctIva,               // J: % IVA 1
+              ivaTotal,             // K: Cuota IVA 1
+              0, 0,                 // L,M: Recargo
+              0, 0, 0, 0, 0,       // N-R: Base 2 + IVA 2
+              0, 0, 0, 0, 0        // S-W: Base 3 + IVA 3
+            ]);
+          } else {
+            ivsRows.push([
+              codigoIvaAsiento,     // A: Código
+              1,                     // B: Libro IVA
+              fmtFecha(as.fecha),   // C: Fecha
+              cuentaTercero,        // D: Cuenta proveedor
+              facOriginal.numero || '',  // E: Factura
+              nombre.substring(0, 40),   // F: Nombre
+              nif,                   // G: CIF
+              '',                    // H: Tipo operación
+              'S',                   // I: Deducible
+              base,                  // J: Base 1
+              pctIva,               // K: % IVA 1
+              ivaTotal,             // L: Cuota IVA 1
+              0, 0,                 // M,N: Recargo
+              0, 0, 0, 0, 0,       // O-S: Base 2 + IVA 2
+              0, 0, 0, 0, 0        // T-X: Base 3 + IVA 3
+            ]);
+          }
+        }
+
+        // Generar líneas APU
+        lineas.forEach((l, idx) => {
+          const debe = parseFloat(l.debe) || 0;
+          const haber = parseFloat(l.haber) || 0;
+          const esLineaTercero = esVenta ? l.cuenta_codigo?.startsWith('430') : l.cuenta_codigo?.startsWith('400');
+          const tipoIvaLinea = esLineaTercero ? (esVenta ? 'R' : 'S') : '';
+          const codIvaLinea = (esLineaTercero && codigoIvaAsiento) ? codigoIvaAsiento : '';
+
+          apuData.push([
+            1,                          // A: Diario (1=General)
+            fmtFecha(as.fecha),        // B: Fecha
+            as.numero || 0,            // C: Asiento
+            idx + 1,                   // D: Orden
+            _padCuenta(l.cuenta_codigo), // E: Cuenta (7 dígitos)
+            0,                          // F: Importe pesetas (obsoleto)
+            (l.descripcion || as.descripcion || '').substring(0, 40), // G: Concepto
+            as.origen_ref || '',       // H: Documento
+            debe,                       // I: Debe €
+            haber,                      // J: Haber €
+            'E',                        // K: Moneda
+            0,                          // L: Punteo
+            tipoIvaLinea,              // M: Tipo IVA
+            codIvaLinea,               // N: Código IVA
+            '', '', ''                 // O,P,Q: Departamento, Subdept, Imagen
+          ]);
+        });
+      }
+
+      if (apuData.length) {
+        const wsApu = XLSX.utils.aoa_to_sheet(apuData);
+        XLSX.utils.book_append_sheet(wb, wsApu, 'APU');
+      }
+
+      // ── IVR: IVA Repercutido ──
+      if (document.getElementById('_csIVR')?.checked && ivrRows.length) {
+        setProgreso('Generando libro IVA Repercutido...');
+        const wsIvr = XLSX.utils.aoa_to_sheet(ivrRows);
+        XLSX.utils.book_append_sheet(wb, wsIvr, 'IVR');
+      }
+
+      // ── IVS: IVA Soportado ──
+      if (document.getElementById('_csIVS')?.checked && ivsRows.length) {
+        setProgreso('Generando libro IVA Soportado...');
+        const wsIvs = XLSX.utils.aoa_to_sheet(ivsRows);
+        XLSX.utils.book_append_sheet(wb, wsIvs, 'IVS');
+      }
+    }
+
+    // ── Descargar ──
+    if (wb.SheetNames.length === 0) {
+      toast('No hay datos para exportar', 'warning');
+      document.getElementById('_contasolExportModal')?.remove();
+      return;
+    }
+
+    setProgreso('Generando fichero Excel...');
+    const fileName = `ContaSol_${EMPRESA.nombre || 'ERP'}_${desde}_${hasta}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast(`✅ Exportación ContaSol generada: ${wb.SheetNames.join(', ')}`, 'success');
+    document.getElementById('_contasolExportModal')?.remove();
+
+  } catch(e) {
+    console.error('[ContaSol Export]', e);
+    toast('❌ Error al exportar: ' + (e.message || 'Error desconocido'), 'error');
+    setProgreso('');
+    prog.style.display = 'none';
+  }
+}
+
+// Ajustar cuenta a 7 dígitos para ContaSol
+function _padCuenta(codigo) {
+  if (!codigo) return '0000000';
+  const c = String(codigo).trim();
+  // Si ya tiene 7+ dígitos, devolver tal cual
+  if (c.length >= 7) return c.substring(0, 10);
+  // Rellenar con ceros a la derecha hasta 7 (ej: '705' → '7050000')
+  return c.padEnd(7, '0');
 }

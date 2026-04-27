@@ -16,7 +16,8 @@ async function loadAlbaranes() {
   const { data } = await sb.from('albaranes')
     .select('*').eq('empresa_id', EMPRESA.id)
     .neq('estado', 'eliminado')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
   albaranesData = data || [];
   window.albaranesData = albaranesData; // Sincronizar para acceso cruzado desde otros módulos
   // Filtro por defecto: año en curso

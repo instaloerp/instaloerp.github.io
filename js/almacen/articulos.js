@@ -516,7 +516,7 @@ async function saveArticulo() {
   }
 
   // Recargar lista
-  const { data } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo');
+  const { data } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo').limit(2000);
   articulos = data || [];
   filtrarArticulos();
 
@@ -1294,7 +1294,7 @@ async function importarArticulosExcel() {
   // ── Refrescar datos ──
   progreso(98, 'Recargando artículos…');
   await _yield();
-  const { data: fresh } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo');
+  const { data: fresh } = await sb.from('articulos').select('*').eq('empresa_id', EMPRESA.id).order('codigo').limit(2000);
   articulos = fresh || [];
   filtrarArticulos();
 

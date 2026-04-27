@@ -130,9 +130,9 @@ async function loadDashboard() {
   // ── BADGE CORREO NO LEÍDO ──
   if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
 
-  // ── Refrescar badge correo cada 2 min globalmente ──
+  // ── Refrescar badge correo cada 5 min globalmente (optimizado Disk IO) ──
   if (!window._badgeCorreoGlobalInterval && typeof actualizarBadgeCorreo === 'function') {
-    window._badgeCorreoGlobalInterval = setInterval(actualizarBadgeCorreo, 2 * 60 * 1000);
+    window._badgeCorreoGlobalInterval = setInterval(actualizarBadgeCorreo, 5 * 60 * 1000);
   }
 }
 

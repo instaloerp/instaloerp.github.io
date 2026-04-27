@@ -349,7 +349,7 @@ function _iniciarBandejaAutoRefresh() {
     await cargarBandejaItems();
     filtrarBandeja();
     actualizarBadgeBandeja();
-  }, 2 * 60 * 1000); // cada 2 minutos
+  }, 5 * 60 * 1000); // cada 5 minutos (optimizado Disk IO)
 }
 
 async function cargarBandejaItems() {
