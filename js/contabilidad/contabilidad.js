@@ -1427,10 +1427,14 @@ async function _ejecutarExportContaSol() {
   const setProgreso = t => { prog.textContent = t; };
 
   try {
+    // Formato fecha DD/MM/AAAA que exige ContaSol
     const fmtFecha = d => {
       if (!d) return '';
       const dt = new Date(d);
-      return dt.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const dd = String(dt.getDate()).padStart(2, '0');
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const yyyy = dt.getFullYear();
+      return dd + '/' + mm + '/' + yyyy;
     };
 
     // Helper: crear workbook de 1 hoja y descargarlo
@@ -1443,67 +1447,112 @@ async function _ejecutarExportContaSol() {
 
     const archivosGenerados = [];
 
-    // ── MAE: Plan Contable ──
+    // ══════════════════════════════════════════════
+    //  MAE: Plan Contable
+    //  A=Cuenta(10A), B=Descripcion(40A), C=Desc.extendida(255A),
+    //  D=Mensaje(255A), E=Departamento(4N), F=Subdepartamento(4N)
+    // ══════════════════════════════════════════════
     if (document.getElementById('_csMAE')?.checked) {
       setProgreso('Exportando Plan Contable...');
       await _contCargarCuentas();
-      const maeData = _contCuentas.map(c => [c.codigo, c.nombre]);
+      const maeData = _contCuentas.map(c => [
+        _padCuenta(c.codigo),                  // A: Cuenta
+        (c.nombre || '').substring(0, 40),     // B: Descripcion
+        '',                                     // C: Descripcion extendida
+        '',                                     // D: Mensaje emergente
+        '',                                     // E: Departamento
+        ''                                      // F: Subdepartamento
+      ]);
       if (maeData.length) { _descargarXlsx('MAE', maeData); archivosGenerados.push('MAE'); }
     }
 
-    // ── CLI: Clientes ──
+    // ══════════════════════════════════════════════
+    //  CLI: Clientes — formato oficial ContaSol
+    //  A=Codigo(10A), B=Nombre(100A), C=CIF(12A), D=Sigla(2A),
+    //  E=Domicilio(100A), F=Num.calle(6A), G=CP(5N), H=Poblacion(30A),
+    //  I=Provincia(20A), J=Telefono(12A), K=Fax(12A), L=Movil(12A)
+    // ══════════════════════════════════════════════
     if (document.getElementById('_csCLI')?.checked) {
       setProgreso('Exportando Clientes...');
-      const clientesContab = _contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length === 7);
+      // Cargar todos los clientes de Supabase para cruzar datos
+      let allClientes = (typeof clientes !== 'undefined') ? clientes : [];
+      if (!allClientes.length) {
+        try {
+          const { data } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA.id);
+          allClientes = data || [];
+        } catch(_) {}
+      }
+      const clientesContab = _contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length >= 5);
       const cliData = [];
       for (const sc of clientesContab) {
-        const cli = (typeof clientes !== 'undefined' ? clientes : []).find(c =>
+        // Buscar el cliente por nombre o NIF
+        const cli = allClientes.find(c =>
           (c.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
+        ) || allClientes.find(c =>
+          c.nif && sc.nombre && sc.nombre.includes(c.nif)
         );
         cliData.push([
-          sc.codigo,                          // A: Código contable
-          (sc.nombre || '').substring(0, 40), // B: Nombre
-          cli?.direccion || '',               // C: Domicilio
-          cli?.cp || '',                      // D: CP
-          cli?.poblacion || '',               // E: Población
-          (cli?.provincia || '').toUpperCase(), // F: Provincia
-          'ESPAÑA',                           // G: País
-          cli?.telefono || '',                // H: Teléfono
-          '',                                 // I: Fax
-          cli?.nif || '',                     // J: CIF
-          ''                                  // K: Nombre comercial
+          _padCuenta(sc.codigo),                               // A: Codigo contable
+          (sc.nombre || '').substring(0, 100),                 // B: Nombre
+          (cli?.nif || '').substring(0, 12),                   // C: CIF
+          '',                                                   // D: Sigla domicilio
+          (cli?.direccion || '').substring(0, 100),            // E: Domicilio
+          '',                                                   // F: Numero calle
+          cli?.cp || '',                                        // G: Codigo postal
+          (cli?.poblacion || '').substring(0, 30),             // H: Poblacion
+          (cli?.provincia || '').substring(0, 20),             // I: Provincia
+          (cli?.telefono || '').substring(0, 12),              // J: Telefono
+          '',                                                   // K: Fax
+          ''                                                    // L: Movil
         ]);
       }
       if (cliData.length) { _descargarXlsx('CLI', cliData); archivosGenerados.push('CLI'); }
     }
 
-    // ── PRO: Proveedores ──
+    // ══════════════════════════════════════════════
+    //  PRO: Proveedores — formato oficial ContaSol
+    //  A=Codigo(10A), B=Nombre(100A), C=CIF(12A), D=Sigla(2A),
+    //  E=Domicilio(100A), F=Num.calle(6A), G=CP(5N), H=Poblacion(30A),
+    //  I=Provincia(20A), J=Telefono(15A), K=Fax(15A), L=Movil(15A)
+    // ══════════════════════════════════════════════
     if (document.getElementById('_csPRO')?.checked) {
       setProgreso('Exportando Proveedores...');
-      const provsContab = _contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length === 7);
+      let allProvs = (typeof proveedores !== 'undefined') ? proveedores : [];
+      if (!allProvs.length) {
+        try {
+          const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id);
+          allProvs = data || [];
+        } catch(_) {}
+      }
+      const provsContab = _contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length >= 5);
       const proData = [];
       for (const sc of provsContab) {
-        const prov = (typeof proveedores !== 'undefined' ? proveedores : []).find(p =>
+        const prov = allProvs.find(p =>
           (p.nombre || '').toUpperCase().trim() === (sc.nombre || '').toUpperCase().trim()
+        ) || allProvs.find(p =>
+          (p.cif || p.nif) && sc.nombre && sc.nombre.includes(p.cif || p.nif)
         );
         proData.push([
-          sc.codigo,
-          (sc.nombre || '').substring(0, 40),
-          prov?.direccion || '',
-          prov?.cp || '',
-          prov?.poblacion || '',
-          (prov?.provincia || '').toUpperCase(),
-          'ESPAÑA',
-          prov?.telefono || '',
-          '',
-          prov?.nif || prov?.cif || '',
-          ''
+          _padCuenta(sc.codigo),                               // A: Codigo contable
+          (sc.nombre || '').substring(0, 100),                 // B: Nombre
+          (prov?.cif || prov?.nif || '').substring(0, 12),     // C: CIF
+          '',                                                   // D: Sigla domicilio
+          (prov?.direccion || '').substring(0, 100),           // E: Domicilio
+          '',                                                   // F: Numero calle
+          prov?.cp || '',                                       // G: Codigo postal
+          (prov?.poblacion || '').substring(0, 30),            // H: Poblacion
+          (prov?.provincia || '').substring(0, 20),            // I: Provincia
+          (prov?.telefono || '').substring(0, 15),             // J: Telefono
+          '',                                                   // K: Fax
+          ''                                                    // L: Movil
         ]);
       }
       if (proData.length) { _descargarXlsx('PRO', proData); archivosGenerados.push('PRO'); }
     }
 
-    // ── Cargar asientos del período (necesario para APU, IVR, IVS) ──
+    // ══════════════════════════════════════════════
+    //  Cargar asientos del período (para APU, IVR, IVS)
+    // ══════════════════════════════════════════════
     const necesitaAsientos = document.getElementById('_csAPU')?.checked
       || document.getElementById('_csIVR')?.checked
       || document.getElementById('_csIVS')?.checked;
@@ -1524,7 +1573,6 @@ async function _ejecutarExportContaSol() {
         toast('No hay asientos contabilizados en el período seleccionado', 'warning');
       }
 
-      // Cargar TODAS las líneas de estos asientos
       const asientoIds = asientos.map(a => a.id);
       for (let i = 0; i < asientoIds.length; i += 50) {
         const batch = asientoIds.slice(i, i + 50);
@@ -1534,7 +1582,9 @@ async function _ejecutarExportContaSol() {
       }
     }
 
-    // ── Procesar asientos para APU, IVR, IVS ──
+    // ══════════════════════════════════════════════
+    //  Procesar asientos → APU, IVR, IVS
+    // ══════════════════════════════════════════════
     if (necesitaAsientos && asientos.length) {
       const apuData = [];
       let codigoIva = 0;
@@ -1566,28 +1616,100 @@ async function _ejecutarExportContaSol() {
           const base = parseFloat(facOriginal.base_imponible) || 0;
           const ivaTotal = parseFloat(facOriginal.total_iva) || 0;
           const pctIva = base > 0 ? Math.round(ivaTotal / base * 100 * 100) / 100 : 21;
-          const nif = esVenta ? (facOriginal.cliente_nif || '') : (facOriginal.proveedor_nif || facOriginal._proveedor_cif || '');
-          const nombre = esVenta ? (facOriginal.cliente_nombre || '') : (facOriginal.proveedor_nombre || '');
-          const cuentaTercero = lineas.find(l =>
-            esVenta ? l.cuenta_codigo?.startsWith('430') : l.cuenta_codigo?.startsWith('400')
-          )?.cuenta_codigo || (esVenta ? '430' : '400');
+          const total = parseFloat(facOriginal.total) || (base + ivaTotal);
+          const nif = esVenta
+            ? (facOriginal.cliente_nif || '').substring(0, 12)
+            : (facOriginal.proveedor_nif || facOriginal._proveedor_cif || '').substring(0, 12);
+          const nombre = esVenta
+            ? (facOriginal.cliente_nombre || '').substring(0, 40)
+            : (facOriginal.proveedor_nombre || '').substring(0, 100);
+          const cuentaTercero = _padCuenta(
+            (lineas.find(l => esVenta ? l.cuenta_codigo?.startsWith('430') : l.cuenta_codigo?.startsWith('400'))
+              ?.cuenta_codigo) || (esVenta ? '4300000' : '4000000')
+          );
 
+          // ── IVR: IVA Repercutido (ventas) ──
+          // A=Codigo(5N), B=Libro(1N), C=Fecha, D=Cuenta(10A), E=Factura(12A),
+          // F=Nombre(40A), G=CIF(12A), H=Tipo op(1N: 0=General),
+          // I=Base1(15ND), J=Base2, K=Base3,
+          // L=%IVA1(5ND), M=%IVA2, N=%IVA3,
+          // O=%Rec1, P=%Rec2, Q=%Rec3,
+          // R=Imp.IVA1(15ND), S=Imp.IVA2, T=Imp.IVA3,
+          // U=Imp.Rec1, V=Imp.Rec2, W=Imp.Rec3,
+          // X=Total(15ND)
           if (esVenta) {
             ivrRows.push([
-              codigoIvaAsiento, 1, fmtFecha(as.fecha), cuentaTercero,
-              facOriginal.numero || '', nombre.substring(0, 40), nif, '',
-              base, pctIva, ivaTotal, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+              codigoIvaAsiento,                     // A: Codigo
+              1,                                     // B: Libro IVA
+              fmtFecha(as.fecha),                   // C: Fecha
+              cuentaTercero,                         // D: Cuenta cliente
+              (facOriginal.numero || '').substring(0, 12), // E: Factura
+              nombre.substring(0, 40),               // F: Nombre
+              nif,                                   // G: CIF
+              0,                                     // H: Tipo op (0=General)
+              base,                                  // I: Base 1
+              0,                                     // J: Base 2
+              0,                                     // K: Base 3
+              pctIva,                                // L: % IVA 1
+              0,                                     // M: % IVA 2
+              0,                                     // N: % IVA 3
+              0,                                     // O: % Recargo 1
+              0,                                     // P: % Recargo 2
+              0,                                     // Q: % Recargo 3
+              ivaTotal,                              // R: Importe IVA 1
+              0,                                     // S: Importe IVA 2
+              0,                                     // T: Importe IVA 3
+              0,                                     // U: Importe recargo 1
+              0,                                     // V: Importe recargo 2
+              0,                                     // W: Importe recargo 3
+              total                                  // X: Total
             ]);
           } else {
+            // ── IVS: IVA Soportado (compras) ──
+            // A=Codigo(5N), B=Libro(1N), C=Fecha, D=Cuenta(10A), E=Factura(12A),
+            // F=Nombre(100A), G=CIF(12A), H=Tipo op(1N: 0=Interior),
+            // I=Deducible(1N: 0=Deducible, 1=No ded, 2=Prorrata),
+            // J=Base1(15ND), K=Base2, L=Base3,
+            // M=%IVA1(5ND), N=%IVA2, O=%IVA3,
+            // P=%Rec1, Q=%Rec2, R=%Rec3,
+            // S=Imp.IVA1(15ND), T=Imp.IVA2, U=Imp.IVA3,
+            // V=Imp.Rec1, W=Imp.Rec2, X=Imp.Rec3,
+            // Y=Total(15ND)
             ivsRows.push([
-              codigoIvaAsiento, 1, fmtFecha(as.fecha), cuentaTercero,
-              facOriginal.numero || '', nombre.substring(0, 40), nif, '', 'S',
-              base, pctIva, ivaTotal, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+              codigoIvaAsiento,                     // A: Codigo
+              1,                                     // B: Libro IVA
+              fmtFecha(as.fecha),                   // C: Fecha
+              cuentaTercero,                         // D: Cuenta proveedor
+              (facOriginal.numero || '').substring(0, 12), // E: Factura
+              nombre.substring(0, 100),              // F: Nombre
+              nif,                                   // G: CIF
+              0,                                     // H: Tipo op (0=Interior)
+              0,                                     // I: Deducible (0=Deducible)
+              base,                                  // J: Base 1
+              0,                                     // K: Base 2
+              0,                                     // L: Base 3
+              pctIva,                                // M: % IVA 1
+              0,                                     // N: % IVA 2
+              0,                                     // O: % IVA 3
+              0,                                     // P: % Recargo 1
+              0,                                     // Q: % Recargo 2
+              0,                                     // R: % Recargo 3
+              ivaTotal,                              // S: Importe IVA 1
+              0,                                     // T: Importe IVA 2
+              0,                                     // U: Importe IVA 3
+              0,                                     // V: Importe recargo 1
+              0,                                     // W: Importe recargo 2
+              0,                                     // X: Importe recargo 3
+              total                                  // Y: Total
             ]);
           }
         }
 
-        // Generar líneas APU
+        // ── APU: Asientos contables ──
+        // A=Diario(3N), B=Fecha, C=Asiento(5N), D=Orden(6N),
+        // E=Cuenta(10A), F=Pesetas(15ND), G=Concepto(60A), H=Documento(5A),
+        // I=Debe€(15ND), J=Haber€(15ND), K=Moneda(1A), L=Punteo(1N),
+        // M=TipoIVA(1A: R/S), N=CodIVA(5N), O=Depart(4N), P=Subdepart(4N), Q=Imagen(255A)
         lineas.forEach((l, idx) => {
           const debe = parseFloat(l.debe) || 0;
           const haber = parseFloat(l.haber) || 0;
@@ -1596,30 +1718,42 @@ async function _ejecutarExportContaSol() {
           const codIvaLinea = (esLineaTercero && codigoIvaAsiento) ? codigoIvaAsiento : '';
 
           apuData.push([
-            1, fmtFecha(as.fecha), as.numero || 0, idx + 1,
-            _padCuenta(l.cuenta_codigo), 0,
-            (l.descripcion || as.descripcion || '').substring(0, 40),
-            as.origen_ref || '', debe, haber, 'E', 0,
-            tipoIvaLinea, codIvaLinea, '', '', ''
+            1,                                                       // A: Diario (1=General)
+            fmtFecha(as.fecha),                                     // B: Fecha DD/MM/AAAA
+            as.numero || 0,                                          // C: Asiento
+            idx + 1,                                                 // D: Orden
+            _padCuenta(l.cuenta_codigo),                            // E: Cuenta (7+ dígitos)
+            0,                                                       // F: Importe pesetas (obsoleto)
+            (l.descripcion || as.descripcion || '').substring(0, 60), // G: Concepto (max 60)
+            (as.origen_ref || '').substring(0, 5),                  // H: Documento (max 5)
+            debe,                                                    // I: Debe €
+            haber,                                                   // J: Haber €
+            'E',                                                     // K: Moneda (E=euros)
+            0,                                                       // L: Punteo
+            tipoIvaLinea,                                            // M: Tipo IVA
+            codIvaLinea,                                             // N: Código IVA
+            '',                                                      // O: Departamento
+            '',                                                      // P: Subdepartamento
+            ''                                                       // Q: Archivo imagen
           ]);
         });
       }
 
-      // ── APU: descargar archivo independiente ──
+      // Descargar APU
       if (document.getElementById('_csAPU')?.checked && apuData.length) {
         setProgreso('Generando fichero APU...');
         _descargarXlsx('APU', apuData);
         archivosGenerados.push('APU');
       }
 
-      // ── IVR: descargar archivo independiente ──
+      // Descargar IVR
       if (document.getElementById('_csIVR')?.checked && ivrRows.length) {
         setProgreso('Generando fichero IVR...');
         _descargarXlsx('IVR', ivrRows);
         archivosGenerados.push('IVR');
       }
 
-      // ── IVS: descargar archivo independiente ──
+      // Descargar IVS
       if (document.getElementById('_csIVS')?.checked && ivsRows.length) {
         setProgreso('Generando fichero IVS...');
         _descargarXlsx('IVS', ivsRows);
