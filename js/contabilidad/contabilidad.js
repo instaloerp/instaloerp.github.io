@@ -987,8 +987,12 @@ async function renderContLibroMayor() {
   const porCuenta = {};
   _contLineas.forEach(l => {
     if (!porCuenta[l.cuenta_codigo]) porCuenta[l.cuenta_codigo] = { debe: 0, haber: 0, lineas: [] };
-    porCuenta[l.cuenta_codigo].debe += (l.debe || 0);
-    porCuenta[l.cuenta_codigo].haber += (l.haber || 0);
+    // Normalizar negativos: debe<0 → haber, haber<0 → debe
+    let d = l.debe || 0, h = l.haber || 0;
+    if (d < 0) { h += Math.abs(d); d = 0; }
+    if (h < 0) { d += Math.abs(h); h = 0; }
+    porCuenta[l.cuenta_codigo].debe += d;
+    porCuenta[l.cuenta_codigo].haber += h;
     porCuenta[l.cuenta_codigo].lineas.push(l);
   });
 
@@ -1026,8 +1030,12 @@ async function renderContLibroMayor() {
       '</tr></thead><tbody>';
     let saldoAcum = 0;
     info.lineas.forEach(l => {
-      const debe = Math.abs(l.debe || 0);
-      const haber = Math.abs(l.haber || 0);
+      // Normalizar: importes negativos se mueven a la columna contraria
+      // Ej: debe=-536 → haber=536 (rectificativas mal contabilizadas)
+      let debe = l.debe || 0;
+      let haber = l.haber || 0;
+      if (debe < 0) { haber += Math.abs(debe); debe = 0; }
+      if (haber < 0) { debe += Math.abs(haber); haber = 0; }
       saldoAcum += debe - haber;
       // Fecha y concepto del asiento padre
       const asiento = _mapaAsientos[l.asiento_id];
@@ -1362,31 +1370,38 @@ async function _contCrearAsientoAuto(obj) {
 
 async function _contGenerarLineasFacturaVenta(f) {
   // Factura emitida → Debe 430XXXX / Haber 705 + 477
+  // Rectificativa   → Debe 705 + 477 / Haber 430XXXX (sentido invertido, importes positivos)
   const lineas = [];
-  const base = parseFloat(f.base_imponible) || 0;
-  const iva = parseFloat(f.total_iva) || 0;
-  const retencion = parseFloat(f.retencion) || 0;
-  const total = parseFloat(f.total) || 0;
+  const base = Math.abs(parseFloat(f.base_imponible) || 0);
+  const iva = Math.abs(parseFloat(f.total_iva) || 0);
+  const retencion = Math.abs(parseFloat(f.retencion) || 0);
+  const total = Math.abs(parseFloat(f.total) || 0);
   const desc = (f.numero || '') + ' ' + (f.cliente_nombre || '');
+
+  // ¿Es rectificativa? (importes negativos o tiene rectificativa_de)
+  const esRect = (parseFloat(f.base_imponible) || 0) < 0 || f.rectificativa_de;
 
   // Subcuenta individualizada del cliente (430 + 4 últimos dígitos NIF)
   const subcuenta = await _contObtenerSubcuenta('venta', f.cliente_nif, f.cliente_nombre);
 
-  // Debe: 430XXXX Cliente
-  lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: total, haber: 0 });
-
-  // Haber: 705 Prestaciones de servicios
-  lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: 0, haber: base });
-
-  // Haber: 477 IVA repercutido (también en rectificativas con IVA negativo)
-  if (iva !== 0) {
-    lineas.push({ cuenta_codigo: '477', descripcion: 'IVA rep. ' + (f.numero || ''), debe: 0, haber: iva });
-  }
-
-  // Si hay retención IRPF
-  if (retencion !== 0) {
-    lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: 0, haber: retencion });
-    lineas[0].debe = total - retencion;
+  if (!esRect) {
+    // FACTURA NORMAL: Debe 430 / Haber 705 + 477
+    lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: total, haber: 0 });
+    lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: 0, haber: base });
+    if (iva) lineas.push({ cuenta_codigo: '477', descripcion: 'IVA rep. ' + (f.numero || ''), debe: 0, haber: iva });
+    if (retencion) {
+      lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: 0, haber: retencion });
+      lineas[0].debe = total - retencion;
+    }
+  } else {
+    // RECTIFICATIVA: sentido invertido — Debe 705 + 477 / Haber 430
+    lineas.push({ cuenta_codigo: '705', descripcion: desc.trim(), debe: base, haber: 0 });
+    if (iva) lineas.push({ cuenta_codigo: '477', descripcion: 'IVA rep. ' + (f.numero || ''), debe: iva, haber: 0 });
+    lineas.push({ cuenta_codigo: subcuenta, descripcion: desc.trim(), debe: 0, haber: total });
+    if (retencion) {
+      lineas.push({ cuenta_codigo: '473', descripcion: 'Ret. IRPF ' + (f.numero || ''), debe: retencion, haber: 0 });
+      lineas[lineas.length - 2].haber = total - retencion; // Ajustar 430
+    }
   }
 
   return lineas;
@@ -1553,7 +1568,7 @@ async function _contAutoContabilizar(tipo, facturaId) {
     let f;
     if (tipo === 'venta') {
       const { data } = await sb.from('facturas')
-        .select('id,numero,cliente_nombre,cliente_nif,fecha,base_imponible,total_iva,retencion,total')
+        .select('id,numero,cliente_nombre,cliente_nif,fecha,base_imponible,total_iva,retencion,total,rectificativa_de')
         .eq('id', facturaId).single();
       f = data;
     } else {
