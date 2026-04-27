@@ -267,11 +267,11 @@ async function renderContPlanContable() {
   html += `<div class="card" style="padding:0;overflow:hidden">
     <table class="dt">
       <thead><tr>
-        <th style="width:80px">Código</th>
+        <th style="width:90px">Código</th>
         <th>Nombre</th>
         <th style="width:100px">Tipo</th>
-        <th style="width:60px">Grupo</th>
-        <th style="width:80px">Operativa</th>
+        <th style="width:50px">Grp</th>
+        <th style="width:80px">Nivel</th>
         <th style="width:80px">Acciones</th>
       </tr></thead>
       <tbody id="contPlanTable"></tbody>
@@ -299,46 +299,71 @@ function _contFiltrarPlan() {
 
   const hayBusqueda = !!search;
 
-  // Clasificar por nivel: grupo (≤2 dígitos), cuenta (3-4 dígitos), subcuenta (5+ dígitos)
-  const grupos = filtered.filter(c => c.codigo.length <= 2);
-  const cuentas = filtered.filter(c => c.codigo.length >= 3 && c.codigo.length <= 4);
-  const subcuentas = filtered.filter(c => c.codigo.length >= 5);
+  // ── PGC: 4 niveles ──
+  // Grupo     = 1 dígito  (1, 2, 3, 4, 5, 6, 7)
+  // Subgrupo  = 2 dígitos (10, 11, 40, 43, 57, 60, 70…)
+  // Cuenta    = 3 dígitos (100, 430, 477, 570, 600, 705…)
+  // Subcuenta = 4+ dígitos (4300001, 4006408…)
 
-  // Mapa de cuentas reales de 3-4 dígitos por su código
-  const cuentasReales = new Set(cuentas.map(c => c.codigo));
+  const nGrupos    = filtered.filter(c => c.codigo.length === 1);
+  const nSubgrupos = filtered.filter(c => c.codigo.length === 2);
+  const nCuentas   = filtered.filter(c => c.codigo.length === 3);
+  const nSubcuentas = filtered.filter(c => c.codigo.length >= 4);
 
-  // Crear agrupaciones virtuales para subcuentas sin cuenta intermedia
-  // Ej: si existe 4300001 pero no 430, crear nodo virtual "430"
-  const virtuales = new Map(); // código 3d → { codigo, nombre, tipo, grupo, hijas[] }
-  subcuentas.forEach(sc => {
-    const prefijo3 = sc.codigo.substring(0, 3);
-    // ¿Tiene cuenta real como padre?
-    if (cuentasReales.has(prefijo3)) return;
-    // ¿Tiene grupo padre?
-    const grupoCode = sc.codigo.substring(0, 2);
-    const grupoPadre = grupos.find(g => g.codigo === grupoCode);
-    if (!grupoPadre && !hayBusqueda) return;
+  // Sets para lookup rápido
+  const setGrupos    = new Set(nGrupos.map(c => c.codigo));
+  const setSubgrupos = new Set(nSubgrupos.map(c => c.codigo));
+  const setCuentas   = new Set(nCuentas.map(c => c.codigo));
 
-    if (!virtuales.has(prefijo3)) {
-      virtuales.set(prefijo3, {
-        codigo: prefijo3,
-        nombre: _contNombreCuenta3d(prefijo3),
-        tipo: sc.tipo || (grupoPadre?.tipo || ''),
-        grupo: sc.grupo || (grupoPadre?.grupo || 0),
-        virtual: true,
-        hijas: []
-      });
-    }
-    virtuales.get(prefijo3).hijas.push(sc);
+  // Crear nodos virtuales para niveles que falten en la BD
+  // Por ejemplo si hay subcuenta 4300001 pero no existe 430, ni 43, ni 4
+  const virtGrupos    = new Map();
+  const virtSubgrupos = new Map();
+  const virtCuentas   = new Map();
+
+  const _asegurarGrupo = (code1, tipoRef, grupoRef) => {
+    if (setGrupos.has(code1) || virtGrupos.has(code1)) return;
+    virtGrupos.set(code1, { codigo: code1, nombre: _contGrupoNombre(parseInt(code1)), tipo: tipoRef, grupo: parseInt(code1), virtual: true });
+  };
+  const _asegurarSubgrupo = (code2, tipoRef, grupoRef) => {
+    if (setSubgrupos.has(code2) || virtSubgrupos.has(code2)) return;
+    _asegurarGrupo(code2[0], tipoRef, grupoRef);
+    virtSubgrupos.set(code2, { codigo: code2, nombre: _contNombreSubgrupo(code2), tipo: tipoRef, grupo: parseInt(code2[0]), virtual: true });
+  };
+  const _asegurarCuenta = (code3, tipoRef, grupoRef) => {
+    if (setCuentas.has(code3) || virtCuentas.has(code3)) return;
+    _asegurarSubgrupo(code3.substring(0, 2), tipoRef, grupoRef);
+    virtCuentas.set(code3, { codigo: code3, nombre: _contNombreCuenta3d(code3), tipo: tipoRef, grupo: parseInt(code3[0]), virtual: true });
+  };
+
+  // Recorrer subcuentas para generar padres virtuales
+  nSubcuentas.forEach(sc => {
+    _asegurarCuenta(sc.codigo.substring(0, 3), sc.tipo, sc.grupo);
   });
+  // Recorrer cuentas para generar padres virtuales
+  nCuentas.forEach(c => {
+    _asegurarSubgrupo(c.codigo.substring(0, 2), c.tipo, c.grupo);
+  });
+  // Recorrer subgrupos para generar grupo virtual
+  nSubgrupos.forEach(sg => {
+    _asegurarGrupo(sg.codigo[0], sg.tipo, sg.grupo);
+  });
+
+  // Unir reales + virtuales
+  const todosGrupos    = [...nGrupos, ...virtGrupos.values()].sort((a,b) => a.codigo.localeCompare(b.codigo));
+  const todosSubgrupos = [...nSubgrupos, ...virtSubgrupos.values()].sort((a,b) => a.codigo.localeCompare(b.codigo));
+  const todasCuentas   = [...nCuentas, ...virtCuentas.values()].sort((a,b) => a.codigo.localeCompare(b.codigo));
+
+  // Etiqueta de nivel
+  const _nivelLabel = (nivel) => ['grupo','subgrupo','cuenta','subcuenta'][nivel] || '';
 
   // Función para renderizar una fila
   const renderRow = (c, nivel, numHijos, esVirtual) => {
     const expandida = _contExpandidas.has(c.codigo);
     const tieneHijos = numHijos > 0;
-    const indent = nivel * 28;
+    const indent = nivel * 24;
     const opaco = (!esVirtual && !c.activa) ? 'opacity:.5;' : '';
-    const bgNivel = nivel === 0 ? '' : (nivel === 1 ? 'background:var(--gris-50);' : 'background:var(--gris-100);');
+    const bgNivel = nivel <= 1 ? '' : (nivel === 2 ? 'background:var(--gris-50);' : 'background:var(--gris-100);');
 
     let flechaHtml = '';
     if (tieneHijos) {
@@ -360,80 +385,92 @@ function _contFiltrarPlan() {
         (c.es_hoja ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarCuenta(' + c.id + ')" title="Eliminar">🗑️</button>' : '');
     }
 
+    const nivelTag = esVirtual ? ' <span style="font-size:10px;color:var(--gris-400)">(' + _nivelLabel(nivel) + ')</span>' : '';
+
     return '<tr style="' + opaco + bgNivel + '" data-codigo="' + c.codigo + '">' +
       '<td style="padding-left:' + (8 + indent) + 'px;font-family:monospace;font-weight:700;color:' + _contTipoColor(tipoLabel) + ';white-space:nowrap">' +
         flechaHtml + c.codigo + '</td>' +
       '<td style="' + esClickable + '"' + onClickNombre + '>' +
-        c.nombre + badgeHijos + (esVirtual ? ' <span style="font-size:10px;color:var(--gris-400)">(cuenta)</span>' : '') + '</td>' +
+        c.nombre + badgeHijos + nivelTag + '</td>' +
       '<td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + _contTipoBg(tipoLabel) + ';color:' + _contTipoColor(tipoLabel) + ';font-weight:600">' + tipoLabel + '</span></td>' +
       '<td style="text-align:center">' + (c.grupo || '') + '</td>' +
-      '<td style="text-align:center">' + (esVirtual ? '📂' : (c.es_hoja ? '✅' : '📂')) + '</td>' +
+      '<td style="text-align:center;font-size:11px;color:var(--gris-500)">' + _nivelLabel(nivel) + '</td>' +
       '<td>' + acciones + '</td></tr>';
   };
 
   let html = '';
 
-  // Nivel 0: Grupos (≤2 dígitos)
-  grupos.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(g => {
-    // Contar hijos directos: cuentas reales de 3-4d + virtuales de 3d
-    const hijasReales = cuentas.filter(c => c.codigo.startsWith(g.codigo));
-    const hijasVirtuales = [...virtuales.values()].filter(v => v.codigo.startsWith(g.codigo));
-    // Subcuentas sin intermediario (directas al grupo, ej 4d→7d)
-    const subcDirectas = subcuentas.filter(sc => {
-      const p3 = sc.codigo.substring(0, 3);
-      return sc.codigo.startsWith(g.codigo) && !cuentasReales.has(p3) && !virtuales.has(p3);
-    });
-    const totalHijos = hijasReales.length + hijasVirtuales.length + subcDirectas.length;
-
-    html += renderRow(g, 0, totalHijos, false);
+  // Nivel 0: Grupos (1 dígito)
+  todosGrupos.forEach(g => {
+    const esVirt = !setGrupos.has(g.codigo);
+    const hijosSubgrupo = todosSubgrupos.filter(sg => sg.codigo[0] === g.codigo);
+    html += renderRow(g, 0, hijosSubgrupo.length, esVirt);
 
     if (!_contExpandidas.has(g.codigo) && !hayBusqueda) return;
 
-    // Nivel 1: Cuentas reales (3-4 dígitos) bajo este grupo
-    hijasReales.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(cuenta => {
-      const subcDeEsta = subcuentas.filter(sc => sc.codigo.startsWith(cuenta.codigo) && sc.codigo.length > cuenta.codigo.length);
-      html += renderRow(cuenta, 1, subcDeEsta.length, false);
+    // Nivel 1: Subgrupos (2 dígitos)
+    hijosSubgrupo.forEach(sg => {
+      const esVirtSg = !setSubgrupos.has(sg.codigo);
+      const hijosCuenta = todasCuentas.filter(c => c.codigo.substring(0, 2) === sg.codigo);
+      html += renderRow(sg, 1, hijosCuenta.length, esVirtSg);
 
-      if (!_contExpandidas.has(cuenta.codigo) && !hayBusqueda) return;
+      if (!_contExpandidas.has(sg.codigo) && !hayBusqueda) return;
 
-      // Nivel 2: Subcuentas bajo esta cuenta real
-      subcDeEsta.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
-        html += renderRow(sc, 2, 0, false);
+      // Nivel 2: Cuentas (3 dígitos)
+      hijosCuenta.forEach(ct => {
+        const esVirtCt = !setCuentas.has(ct.codigo);
+        const hijosSubcuenta = nSubcuentas.filter(sc => sc.codigo.substring(0, 3) === ct.codigo);
+        html += renderRow(ct, 2, hijosSubcuenta.length, esVirtCt);
+
+        if (!_contExpandidas.has(ct.codigo) && !hayBusqueda) return;
+
+        // Nivel 3: Subcuentas (4+ dígitos)
+        hijosSubcuenta.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
+          html += renderRow(sc, 3, 0, false);
+        });
       });
     });
-
-    // Nivel 1: Cuentas virtuales (3 dígitos) bajo este grupo
-    hijasVirtuales.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(virt => {
-      html += renderRow(virt, 1, virt.hijas.length, true);
-
-      if (!_contExpandidas.has(virt.codigo) && !hayBusqueda) return;
-
-      // Nivel 2: Subcuentas bajo esta cuenta virtual
-      virt.hijas.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
-        html += renderRow(sc, 2, 0, false);
-      });
-    });
-
-    // Subcuentas directas sin cuenta intermedia ni virtual (caso raro)
-    subcDirectas.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
-      html += renderRow(sc, 1, 0, false);
-    });
-  });
-
-  // Cuentas sueltas (sin grupo padre visible en filtered)
-  const gruposCodigos = new Set(grupos.map(g => g.codigo));
-  cuentas.filter(c => !gruposCodigos.has(c.codigo.substring(0, 2))).forEach(c => {
-    html += renderRow(c, 0, 0, false);
-  });
-  subcuentas.filter(sc => {
-    const p3 = sc.codigo.substring(0, 3);
-    const p2 = sc.codigo.substring(0, 2);
-    return !gruposCodigos.has(p2) && !cuentasReales.has(p3);
-  }).forEach(sc => {
-    html += renderRow(sc, 0, 0, false);
   });
 
   tbody.innerHTML = html;
+}
+
+// Nombre descriptivo para subgrupos (2 dígitos)
+function _contNombreSubgrupo(codigo) {
+  const map = {
+    '10':'Capital','11':'Reservas y otros instrumentos de patrimonio','12':'Resultados pendientes de aplicación',
+    '13':'Subvenciones, donaciones y ajustes por cambios de valor',
+    '14':'Provisiones','15':'Deudas a largo plazo con características especiales',
+    '16':'Deudas a largo plazo con partes vinculadas','17':'Deudas a largo plazo por préstamos y otros conceptos',
+    '18':'Pasivos por fianzas, garantías y otros conceptos a L/P','19':'Situaciones transitorias de financiación',
+    '20':'Inmovilizaciones intangibles','21':'Inmovilizaciones materiales',
+    '22':'Inversiones inmobiliarias','23':'Inmovilizaciones materiales en curso',
+    '24':'Inversiones financieras a L/P en partes vinculadas','25':'Otras inversiones financieras a L/P',
+    '26':'Fianzas y depósitos constituidos a L/P','28':'Amortización acumulada del inmovilizado',
+    '29':'Deterioro de valor de activos no corrientes',
+    '30':'Comerciales','31':'Materias primas','32':'Otros aprovisionamientos',
+    '33':'Productos en curso','34':'Productos semiterminados','35':'Productos terminados',
+    '36':'Subproductos, residuos y materiales recuperados','39':'Deterioro de valor de existencias',
+    '40':'Proveedores','41':'Acreedores varios','43':'Clientes','44':'Deudores varios',
+    '46':'Personal','47':'Administraciones Públicas','48':'Ajustes por periodificación',
+    '49':'Deterioro de valor de créditos comerciales y provisiones a C/P',
+    '50':'Empréstitos, deudas con caract. especiales y otras emisiones análogas C/P',
+    '51':'Deudas a C/P con partes vinculadas','52':'Deudas a C/P por préstamos recibidos y otros conceptos',
+    '53':'Inversiones financieras a C/P en partes vinculadas','54':'Otras inversiones financieras a C/P',
+    '55':'Otras cuentas no bancarias','56':'Fianzas y depósitos recibidos y constituidos a C/P',
+    '57':'Tesorería','58':'Activos no corrientes mantenidos para la venta',
+    '59':'Deterioro del valor de inversiones financieras a C/P',
+    '60':'Compras','61':'Variación de existencias','62':'Servicios exteriores',
+    '63':'Tributos','64':'Gastos de personal','65':'Otros gastos de gestión',
+    '66':'Gastos financieros','67':'Pérdidas procedentes de activos no corrientes y gastos excepcionales',
+    '68':'Dotaciones para amortizaciones','69':'Pérdidas por deterioro y otras dotaciones',
+    '70':'Ventas de mercaderías, producción, servicios, etc.','71':'Variación de existencias',
+    '73':'Trabajos realizados para la empresa','74':'Subvenciones, donaciones y legados a la explotación',
+    '75':'Otros ingresos de gestión','76':'Ingresos financieros',
+    '77':'Beneficios procedentes de activos no corrientes e ingresos excepcionales',
+    '79':'Excesos y aplicaciones de provisiones y pérdidas por deterioro'
+  };
+  return map[codigo] || 'Subgrupo ' + codigo;
 }
 
 // Nombre descriptivo para cuentas virtuales de 3 dígitos
