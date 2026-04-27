@@ -147,7 +147,7 @@ async function renderContPlanContable() {
   _contFiltrarPlan();
 }
 
-// Set de cuentas padre expandidas
+// Set de nodos expandidos (grupos, cuentas virtuales)
 const _contExpandidas = new Set();
 
 function _contFiltrarPlan() {
@@ -162,67 +162,230 @@ function _contFiltrarPlan() {
     return true;
   });
 
-  // Agrupar: cuentas padre (tienen hijas) y subcuentas (hijas)
-  // Una cuenta es "padre" si hay otras cuentas que empiezan por su código y son más largas
-  const codigosSet = new Set(filtered.map(c => c.codigo));
-  const tieneHijas = codigo => filtered.some(c => c.codigo !== codigo && c.codigo.startsWith(codigo) && c.codigo.length > codigo.length);
-  const esSubcuenta = c => {
-    // Es subcuenta si tiene padre_codigo o si hay una cuenta más corta que es su prefijo
-    if (c.padre_codigo && codigosSet.has(c.padre_codigo)) return c.padre_codigo;
-    // Buscar el padre más largo que sea prefijo
-    for (let len = c.codigo.length - 1; len >= 1; len--) {
-      const posiblePadre = c.codigo.substring(0, len);
-      if (codigosSet.has(posiblePadre) && tieneHijas(posiblePadre)) return posiblePadre;
-    }
-    return null;
-  };
-
-  // Si hay búsqueda activa, mostrar todo plano (para que se vean resultados)
   const hayBusqueda = !!search;
 
-  let html = '';
-  filtered.forEach(c => {
-    const padre = esSubcuenta(c);
-    const esHija = !!padre;
-    const esPadre = tieneHijas(c.codigo);
-    const numHijas = esPadre ? filtered.filter(x => esSubcuenta(x) === c.codigo).length : 0;
+  // Clasificar por nivel: grupo (≤2 dígitos), cuenta (3-4 dígitos), subcuenta (5+ dígitos)
+  const grupos = filtered.filter(c => c.codigo.length <= 2);
+  const cuentas = filtered.filter(c => c.codigo.length >= 3 && c.codigo.length <= 4);
+  const subcuentas = filtered.filter(c => c.codigo.length >= 5);
+
+  // Mapa de cuentas reales de 3-4 dígitos por su código
+  const cuentasReales = new Set(cuentas.map(c => c.codigo));
+
+  // Crear agrupaciones virtuales para subcuentas sin cuenta intermedia
+  // Ej: si existe 4300001 pero no 430, crear nodo virtual "430"
+  const virtuales = new Map(); // código 3d → { codigo, nombre, tipo, grupo, hijas[] }
+  subcuentas.forEach(sc => {
+    const prefijo3 = sc.codigo.substring(0, 3);
+    // ¿Tiene cuenta real como padre?
+    if (cuentasReales.has(prefijo3)) return;
+    // ¿Tiene grupo padre?
+    const grupoCode = sc.codigo.substring(0, 2);
+    const grupoPadre = grupos.find(g => g.codigo === grupoCode);
+    if (!grupoPadre && !hayBusqueda) return;
+
+    if (!virtuales.has(prefijo3)) {
+      virtuales.set(prefijo3, {
+        codigo: prefijo3,
+        nombre: _contNombreCuenta3d(prefijo3),
+        tipo: sc.tipo || (grupoPadre?.tipo || ''),
+        grupo: sc.grupo || (grupoPadre?.grupo || 0),
+        virtual: true,
+        hijas: []
+      });
+    }
+    virtuales.get(prefijo3).hijas.push(sc);
+  });
+
+  // Función para renderizar una fila
+  const renderRow = (c, nivel, numHijos, esVirtual) => {
     const expandida = _contExpandidas.has(c.codigo);
+    const tieneHijos = numHijos > 0;
+    const indent = nivel * 28;
+    const opaco = (!esVirtual && !c.activa) ? 'opacity:.5;' : '';
+    const bgNivel = nivel === 0 ? '' : (nivel === 1 ? 'background:var(--gris-50);' : 'background:var(--gris-100);');
 
-    // Si es subcuenta y su padre no está expandido (y no hay búsqueda), ocultar
-    if (esHija && !hayBusqueda && !_contExpandidas.has(padre)) return;
-
-    const indent = esHija ? 'padding-left:32px' : '';
-    const opaco = !c.activa ? 'opacity:.5;' : '';
-    const bgHija = esHija ? 'background:var(--gris-50);' : '';
-
-    // Flecha desplegable para cuentas padre
     let flechaHtml = '';
-    if (esPadre) {
-      flechaHtml = '<span onclick="_contToggleExpand(\'' + c.codigo + '\')" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;margin-right:4px;font-size:10px;color:var(--gris-500);transition:transform .15s;transform:rotate(' + (expandida ? '90' : '0') + 'deg)" title="' + numHijas + ' subcuenta' + (numHijas !== 1 ? 's' : '') + '">▶</span>';
-    } else if (esHija) {
+    if (tieneHijos) {
+      flechaHtml = '<span onclick="_contToggleExpand(\'' + c.codigo + '\')" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;margin-right:4px;font-size:10px;color:var(--gris-500);transition:transform .15s;transform:rotate(' + (expandida ? '90' : '0') + 'deg)">▶</span>';
+    } else if (nivel > 0) {
       flechaHtml = '<span style="display:inline-block;width:24px"></span>';
     }
 
-    // Badge con nº de subcuentas para cuentas padre
-    const badgeHijas = (esPadre && numHijas > 0) ?
-      '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--azul-light);color:var(--azul);font-weight:700;margin-left:6px">' + numHijas + '</span>' : '';
+    const badgeHijos = (tieneHijos && numHijos > 0)
+      ? '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--azul-light);color:var(--azul);font-weight:700;margin-left:6px">' + numHijos + '</span>' : '';
 
-    html += '<tr style="' + opaco + bgHija + '" data-codigo="' + c.codigo + '" data-padre="' + (padre || '') + '">' +
-      '<td style="font-family:monospace;font-weight:700;color:' + _contTipoColor(c.tipo) + ';white-space:nowrap">' +
+    const tipoLabel = (c.tipo || '').toUpperCase();
+    const esClickable = tieneHijos ? ';font-weight:700;cursor:pointer' : '';
+    const onClickNombre = tieneHijos ? ' onclick="_contToggleExpand(\'' + c.codigo + '\')"' : '';
+
+    let acciones = '';
+    if (!esVirtual) {
+      acciones = '<button class="btn btn-ghost btn-sm" onclick="_contEditarCuenta(' + c.id + ')" title="Editar">✏️</button>' +
+        (c.es_hoja ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarCuenta(' + c.id + ')" title="Eliminar">🗑️</button>' : '');
+    }
+
+    return '<tr style="' + opaco + bgNivel + '" data-codigo="' + c.codigo + '">' +
+      '<td style="padding-left:' + (8 + indent) + 'px;font-family:monospace;font-weight:700;color:' + _contTipoColor(tipoLabel) + ';white-space:nowrap">' +
         flechaHtml + c.codigo + '</td>' +
-      '<td style="' + indent + (esPadre ? ';font-weight:700;cursor:pointer' : '') + '"' +
-        (esPadre ? ' onclick="_contToggleExpand(\'' + c.codigo + '\')"' : '') + '>' +
-        c.nombre + badgeHijas + '</td>' +
-      '<td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + _contTipoBg(c.tipo) + ';color:' + _contTipoColor(c.tipo) + ';font-weight:600">' + c.tipo + '</span></td>' +
-      '<td style="text-align:center">' + c.grupo + '</td>' +
-      '<td style="text-align:center">' + (c.es_hoja ? '✅' : '📂') + '</td>' +
-      '<td>' +
-        '<button class="btn btn-ghost btn-sm" onclick="_contEditarCuenta(' + c.id + ')" title="Editar">✏️</button>' +
-        (c.es_hoja ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarCuenta(' + c.id + ')" title="Eliminar">🗑️</button>' : '') +
-      '</td></tr>';
+      '<td style="' + esClickable + '"' + onClickNombre + '>' +
+        c.nombre + badgeHijos + (esVirtual ? ' <span style="font-size:10px;color:var(--gris-400)">(cuenta)</span>' : '') + '</td>' +
+      '<td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + _contTipoBg(tipoLabel) + ';color:' + _contTipoColor(tipoLabel) + ';font-weight:600">' + tipoLabel + '</span></td>' +
+      '<td style="text-align:center">' + (c.grupo || '') + '</td>' +
+      '<td style="text-align:center">' + (esVirtual ? '📂' : (c.es_hoja ? '✅' : '📂')) + '</td>' +
+      '<td>' + acciones + '</td></tr>';
+  };
+
+  let html = '';
+
+  // Nivel 0: Grupos (≤2 dígitos)
+  grupos.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(g => {
+    // Contar hijos directos: cuentas reales de 3-4d + virtuales de 3d
+    const hijasReales = cuentas.filter(c => c.codigo.startsWith(g.codigo));
+    const hijasVirtuales = [...virtuales.values()].filter(v => v.codigo.startsWith(g.codigo));
+    // Subcuentas sin intermediario (directas al grupo, ej 4d→7d)
+    const subcDirectas = subcuentas.filter(sc => {
+      const p3 = sc.codigo.substring(0, 3);
+      return sc.codigo.startsWith(g.codigo) && !cuentasReales.has(p3) && !virtuales.has(p3);
+    });
+    const totalHijos = hijasReales.length + hijasVirtuales.length + subcDirectas.length;
+
+    html += renderRow(g, 0, totalHijos, false);
+
+    if (!_contExpandidas.has(g.codigo) && !hayBusqueda) return;
+
+    // Nivel 1: Cuentas reales (3-4 dígitos) bajo este grupo
+    hijasReales.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(cuenta => {
+      const subcDeEsta = subcuentas.filter(sc => sc.codigo.startsWith(cuenta.codigo) && sc.codigo.length > cuenta.codigo.length);
+      html += renderRow(cuenta, 1, subcDeEsta.length, false);
+
+      if (!_contExpandidas.has(cuenta.codigo) && !hayBusqueda) return;
+
+      // Nivel 2: Subcuentas bajo esta cuenta real
+      subcDeEsta.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
+        html += renderRow(sc, 2, 0, false);
+      });
+    });
+
+    // Nivel 1: Cuentas virtuales (3 dígitos) bajo este grupo
+    hijasVirtuales.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(virt => {
+      html += renderRow(virt, 1, virt.hijas.length, true);
+
+      if (!_contExpandidas.has(virt.codigo) && !hayBusqueda) return;
+
+      // Nivel 2: Subcuentas bajo esta cuenta virtual
+      virt.hijas.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
+        html += renderRow(sc, 2, 0, false);
+      });
+    });
+
+    // Subcuentas directas sin cuenta intermedia ni virtual (caso raro)
+    subcDirectas.sort((a, b) => a.codigo.localeCompare(b.codigo)).forEach(sc => {
+      html += renderRow(sc, 1, 0, false);
+    });
+  });
+
+  // Cuentas sueltas (sin grupo padre visible en filtered)
+  const gruposCodigos = new Set(grupos.map(g => g.codigo));
+  cuentas.filter(c => !gruposCodigos.has(c.codigo.substring(0, 2))).forEach(c => {
+    html += renderRow(c, 0, 0, false);
+  });
+  subcuentas.filter(sc => {
+    const p3 = sc.codigo.substring(0, 3);
+    const p2 = sc.codigo.substring(0, 2);
+    return !gruposCodigos.has(p2) && !cuentasReales.has(p3);
+  }).forEach(sc => {
+    html += renderRow(sc, 0, 0, false);
   });
 
   tbody.innerHTML = html;
+}
+
+// Nombre descriptivo para cuentas virtuales de 3 dígitos
+function _contNombreCuenta3d(codigo) {
+  const map = {
+    '100':'Capital social','101':'Fondo social','102':'Capital','103':'Socios por desembolsos',
+    '110':'Prima de emisión','111':'Otros instr. patrimonio','112':'Reserva legal',
+    '113':'Reservas voluntarias','118':'Aportaciones de socios','119':'Diferencias',
+    '120':'Remanente','121':'Resultados negativos','129':'Resultado del ejercicio',
+    '130':'Subvenciones oficiales','131':'Donaciones','133':'Ajustes valoración',
+    '170':'Deudas a L/P entidades crédito','171':'Deudas a L/P','173':'Proveedores inmov. L/P',
+    '174':'Acreedores arrendamiento L/P','175':'Efectos a pagar L/P',
+    '176':'Pasivos por derivados L/P','177':'Obligaciones y bonos',
+    '190':'Acciones emitidas','192':'Suscriptores de acciones',
+    '210':'Terrenos y bienes naturales','211':'Construcciones','212':'Instalaciones técnicas',
+    '213':'Maquinaria','214':'Utillaje','215':'Otras instalaciones',
+    '216':'Mobiliario','217':'Equipos procesos información','218':'Elementos transporte','219':'Otro inmov. material',
+    '220':'Inversiones en terrenos','221':'Inversiones en construcciones',
+    '230':'Adaptaciones terrenos','231':'Construcciones en curso','232':'Instalaciones en montaje',
+    '240':'Participaciones L/P empresas grupo','241':'Participaciones L/P asociadas',
+    '250':'Inversiones financieras L/P','251':'Valores renta fija L/P','252':'Créditos L/P',
+    '260':'Fianzas constituidas L/P','261':'Depósitos constituidos L/P',
+    '280':'Amort. acum. inmov. intangible','281':'Amort. acum. inmov. material',
+    '290':'Deterioro valor inmov. intangible','291':'Deterioro valor inmov. material',
+    '300':'Mercaderías','310':'Materias primas','320':'Elementos y conj. incorporables',
+    '330':'Productos en curso','340':'Productos semiterminados','350':'Productos terminados',
+    '360':'Subproductos y residuos','390':'Deterioro valor mercaderías',
+    '400':'Proveedores','401':'Proveedores ef. comerciales pagar','403':'Proveedores empresas grupo',
+    '406':'Envases a devolver proveedores','407':'Anticipos a proveedores','410':'Acreedores prest. servicios',
+    '430':'Clientes','431':'Clientes ef. comerciales cobrar','432':'Clientes operaciones factoring',
+    '433':'Clientes empresas grupo','435':'Clientes dudoso cobro','436':'Clientes de dudoso cobro',
+    '437':'Envases a devolver clientes','438':'Anticipos de clientes',
+    '440':'Deudores','460':'Anticipos remuneraciones',
+    '470':'H.P. deudora por IVA','471':'Organismos Seg. Social deudores',
+    '472':'H.P. IVA soportado','473':'H.P. retenciones y pagos a cuenta',
+    '474':'Activos imp. diferido','475':'H.P. acreedora por IVA',
+    '476':'Organismos Seg. Social acreedores','477':'H.P. IVA repercutido',
+    '479':'Pasivos diferencias temporarias',
+    '480':'Gastos anticipados','485':'Ingresos anticipados',
+    '490':'Deterioro valor créditos comerciales',
+    '520':'Deudas C/P entidades crédito','521':'Deudas C/P','523':'Proveedores inmov. C/P',
+    '524':'Acreedores arrendamiento C/P','525':'Efectos a pagar C/P',
+    '526':'Dividendo activo a pagar','527':'Intereses C/P deudas',
+    '530':'Participaciones C/P empresas grupo','540':'Inversiones financieras C/P',
+    '541':'Valores renta fija C/P','542':'Créditos C/P','543':'Créditos C/P enajenación inmov.',
+    '544':'Créditos C/P personal','545':'Dividendo a cobrar',
+    '550':'Titular de la explotación','551':'Cuenta corriente con socios',
+    '555':'Partidas pendientes aplicación',
+    '560':'Fianzas recibidas C/P','561':'Depósitos recibidos C/P',
+    '570':'Caja','571':'Bancos','572':'Bancos e instituciones crédito c/c',
+    '573':'Bancos e inst. crédito c/ahorro','574':'Bancos e inst. crédito c/crédito',
+    '600':'Compras de mercaderías','601':'Compras de materias primas','602':'Compras otros aprovisionamientos',
+    '606':'Descuentos s/compras p.p.','607':'Trabajos realizados por otras empresas',
+    '608':'Devoluciones compras','609':'Rappels por compras',
+    '620':'Gastos I+D ejercicio','621':'Arrendamientos y cánones','622':'Reparaciones y conservación',
+    '623':'Servicios profesionales independientes','624':'Transportes','625':'Primas de seguros',
+    '626':'Servicios bancarios','627':'Publicidad y propaganda','628':'Suministros','629':'Otros servicios',
+    '630':'Impuesto beneficios','631':'Otros tributos','634':'Ajustes neg. imposición s/beneficios',
+    '636':'Devolución impuestos','638':'Ajustes positivos imp. s/beneficios',
+    '640':'Sueldos y salarios','641':'Indemnizaciones','642':'Seguridad Social cargo empresa',
+    '649':'Otros gastos sociales',
+    '650':'Pérdidas créditos comerciales incobrables','651':'Resultados operaciones en común',
+    '659':'Otras pérdidas gestión corriente',
+    '660':'Gastos financieros actualización provisiones','661':'Intereses obligaciones',
+    '662':'Intereses deudas','663':'Pérdidas valoración instrumentos financieros',
+    '665':'Intereses descuento efectos','666':'Pérdidas participaciones',
+    '667':'Pérdidas créditos no comerciales','668':'Diferencias negativas cambio',
+    '669':'Otros gastos financieros',
+    '680':'Amortización inmov. intangible','681':'Amortización inmov. material',
+    '690':'Pérdidas por deterioro inmov. intangible','691':'Pérdidas deterioro inmov. material',
+    '694':'Pérdidas deterioro créditos L/P',
+    '700':'Ventas mercaderías','701':'Ventas productos terminados','702':'Ventas productos semiterminados',
+    '703':'Ventas subproductos','704':'Ventas envases','705':'Prestaciones de servicios',
+    '706':'Descuentos s/ventas p.p.','708':'Devoluciones ventas','709':'Rappels sobre ventas',
+    '740':'Subvenciones a la explotación','746':'Subvenciones donaciones transferidas',
+    '750':'Ingresos por arrendamientos','751':'Resultados operaciones en común',
+    '752':'Ingresos por comisiones','753':'Ingresos propiedad industrial',
+    '754':'Ingresos por cesión recursos','755':'Ingresos por servicios diversos','759':'Ingresos por servicios diversos',
+    '760':'Ingresos participaciones','761':'Ingresos valores renta fija',
+    '762':'Ingresos créditos','763':'Beneficios valoración instrumentos financieros',
+    '766':'Beneficios participaciones','768':'Diferencias positivas cambio','769':'Otros ingresos financieros',
+    '770':'Beneficios procedentes inmov. intangible','771':'Beneficios procedentes inmov. material',
+    '773':'Beneficios procedentes participaciones L/P','775':'Beneficios operaciones inmov.',
+    '790':'Reversión deterioro inmov. intangible','791':'Reversión deterioro inmov. material',
+    '794':'Reversión deterioro créditos L/P'
+  };
+  return map[codigo] || 'Cuenta ' + codigo;
 }
 
 function _contToggleExpand(codigo) {
