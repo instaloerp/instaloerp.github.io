@@ -147,6 +147,9 @@ async function renderContPlanContable() {
   _contFiltrarPlan();
 }
 
+// Set de cuentas padre expandidas
+const _contExpandidas = new Set();
+
 function _contFiltrarPlan() {
   const search = (document.getElementById('contCuentaSearch')?.value || '').toLowerCase();
   const grupo = document.getElementById('contGrupoFilter')?.value || '';
@@ -159,11 +162,57 @@ function _contFiltrarPlan() {
     return true;
   });
 
-  tbody.innerHTML = filtered.map(c => {
-    const indent = c.es_hoja ? 'padding-left:' + (c.codigo.length * 8) + 'px' : 'font-weight:700';
-    return '<tr style="' + (!c.activa ? 'opacity:.5' : '') + '">' +
-      '<td style="font-family:monospace;font-weight:700;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</td>' +
-      '<td style="' + indent + '">' + c.nombre + '</td>' +
+  // Agrupar: cuentas padre (tienen hijas) y subcuentas (hijas)
+  // Una cuenta es "padre" si hay otras cuentas que empiezan por su código y son más largas
+  const codigosSet = new Set(filtered.map(c => c.codigo));
+  const tieneHijas = codigo => filtered.some(c => c.codigo !== codigo && c.codigo.startsWith(codigo) && c.codigo.length > codigo.length);
+  const esSubcuenta = c => {
+    // Es subcuenta si tiene padre_codigo o si hay una cuenta más corta que es su prefijo
+    if (c.padre_codigo && codigosSet.has(c.padre_codigo)) return c.padre_codigo;
+    // Buscar el padre más largo que sea prefijo
+    for (let len = c.codigo.length - 1; len >= 1; len--) {
+      const posiblePadre = c.codigo.substring(0, len);
+      if (codigosSet.has(posiblePadre) && tieneHijas(posiblePadre)) return posiblePadre;
+    }
+    return null;
+  };
+
+  // Si hay búsqueda activa, mostrar todo plano (para que se vean resultados)
+  const hayBusqueda = !!search;
+
+  let html = '';
+  filtered.forEach(c => {
+    const padre = esSubcuenta(c);
+    const esHija = !!padre;
+    const esPadre = tieneHijas(c.codigo);
+    const numHijas = esPadre ? filtered.filter(x => esSubcuenta(x) === c.codigo).length : 0;
+    const expandida = _contExpandidas.has(c.codigo);
+
+    // Si es subcuenta y su padre no está expandido (y no hay búsqueda), ocultar
+    if (esHija && !hayBusqueda && !_contExpandidas.has(padre)) return;
+
+    const indent = esHija ? 'padding-left:32px' : '';
+    const opaco = !c.activa ? 'opacity:.5;' : '';
+    const bgHija = esHija ? 'background:var(--gris-50);' : '';
+
+    // Flecha desplegable para cuentas padre
+    let flechaHtml = '';
+    if (esPadre) {
+      flechaHtml = '<span onclick="_contToggleExpand(\'' + c.codigo + '\')" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;margin-right:4px;font-size:10px;color:var(--gris-500);transition:transform .15s;transform:rotate(' + (expandida ? '90' : '0') + 'deg)" title="' + numHijas + ' subcuenta' + (numHijas !== 1 ? 's' : '') + '">▶</span>';
+    } else if (esHija) {
+      flechaHtml = '<span style="display:inline-block;width:24px"></span>';
+    }
+
+    // Badge con nº de subcuentas para cuentas padre
+    const badgeHijas = (esPadre && numHijas > 0) ?
+      '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--azul-light);color:var(--azul);font-weight:700;margin-left:6px">' + numHijas + '</span>' : '';
+
+    html += '<tr style="' + opaco + bgHija + '" data-codigo="' + c.codigo + '" data-padre="' + (padre || '') + '">' +
+      '<td style="font-family:monospace;font-weight:700;color:' + _contTipoColor(c.tipo) + ';white-space:nowrap">' +
+        flechaHtml + c.codigo + '</td>' +
+      '<td style="' + indent + (esPadre ? ';font-weight:700;cursor:pointer' : '') + '"' +
+        (esPadre ? ' onclick="_contToggleExpand(\'' + c.codigo + '\')"' : '') + '>' +
+        c.nombre + badgeHijas + '</td>' +
       '<td><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:' + _contTipoBg(c.tipo) + ';color:' + _contTipoColor(c.tipo) + ';font-weight:600">' + c.tipo + '</span></td>' +
       '<td style="text-align:center">' + c.grupo + '</td>' +
       '<td style="text-align:center">' + (c.es_hoja ? '✅' : '📂') + '</td>' +
@@ -171,7 +220,18 @@ function _contFiltrarPlan() {
         '<button class="btn btn-ghost btn-sm" onclick="_contEditarCuenta(' + c.id + ')" title="Editar">✏️</button>' +
         (c.es_hoja ? '<button class="btn btn-ghost btn-sm" onclick="_contEliminarCuenta(' + c.id + ')" title="Eliminar">🗑️</button>' : '') +
       '</td></tr>';
-  }).join('');
+  });
+
+  tbody.innerHTML = html;
+}
+
+function _contToggleExpand(codigo) {
+  if (_contExpandidas.has(codigo)) {
+    _contExpandidas.delete(codigo);
+  } else {
+    _contExpandidas.add(codigo);
+  }
+  _contFiltrarPlan();
 }
 
 
