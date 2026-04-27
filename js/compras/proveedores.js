@@ -66,7 +66,11 @@ async function saveProveedor() {
   const banco = (typeof cuentasBancarias !== 'undefined' ? cuentasBancarias : []).find(b => b.id == bancoId);
   const obj={empresa_id:EMPRESA.id,nombre,cif:v('pv_cif'),telefono:v('pv_tel'),email_pedidos:v('pv_email_ped'),email:v('pv_email'),web:v('pv_web'),direccion:v('pv_dir'),municipio:v('pv_muni'),cp:v('pv_cp'),provincia:v('pv_prov'),dias_pago:parseInt(v('pv_dias'))||30,observaciones:v('pv_notas'),banco_predeterminado_id:bancoId?parseInt(bancoId):null,banco_predeterminado_nombre:banco?banco.nombre:null};
   if(id){await sb.from('proveedores').update(obj).eq('id',id);}
-  else{await sb.from('proveedores').insert(obj);}
+  else{
+    await sb.from('proveedores').insert(obj);
+    // Auto-crear subcuenta contable 400XXXX
+    if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('proveedor', nombre, obj.cif || '');
+  }
   closeModal('mProveedor');
   const {data}=await sb.from('proveedores').select('*').eq('empresa_id',EMPRESA.id).order('nombre');
   proveedores=data||[]; renderProveedores(proveedores);

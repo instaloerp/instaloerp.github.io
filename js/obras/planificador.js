@@ -1334,6 +1334,9 @@ async function planGuardarClienteRapido() {
 
   if (error) { toast('Error al crear cliente: ' + error.message, 'error'); return; }
 
+  // Auto-crear subcuenta contable 430XXXX
+  if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('cliente', nombre, nif || '');
+
   // Añadir al array local para buscarlo inmediatamente
   if (typeof clientes !== 'undefined' && Array.isArray(clientes)) {
     clientes.push({ id: data.id, nombre: data.nombre, telefono, nif, email,

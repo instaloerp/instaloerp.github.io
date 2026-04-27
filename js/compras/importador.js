@@ -194,6 +194,8 @@ async function confirmarImport(tipo) {
       const { data: cliData, error } = await sb.from('clientes').insert(cliObj).select('id').single();
       if (error) { err++; continue; }
       ok++;
+      // Auto-crear subcuenta contable 430XXXX
+      if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('cliente', row.nombre, row.nif || '');
       // Generar tarea si la ficha queda incompleta
       if (typeof _generarTareaClienteIncompleto === 'function') {
         await _generarTareaClienteIncompleto(cliData.id, row.nombre, cliObj);
@@ -216,6 +218,7 @@ async function confirmarImport(tipo) {
         dias_pago: parseInt(row.dias_pago)||30,
         observaciones: row.observaciones||null,
       });
+      if (!error && typeof contCrearSubcuenta === 'function') contCrearSubcuenta('proveedor', row.nombre, row.cif || '');
       error ? err++ : ok++;
     }
     closeModal('mImportarProveedores');

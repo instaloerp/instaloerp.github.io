@@ -670,6 +670,8 @@ async function crearProveedorDesdeAC(nombre) {
   if (error) { toast('Error: ' + error.message, 'error'); return; }
   proveedores.push(data);
   proveedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // Auto-crear subcuenta contable 400XXXX
+  if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('proveedor', data.nombre, data.cif || '');
   acProveedorArtSelect(data.id, data.nombre);
   toast('Proveedor "' + data.nombre + '" creado ✓', 'success');
 }

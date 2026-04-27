@@ -1454,6 +1454,8 @@ async function iaCrearProveedor(provData) {
     return null;
   }
   proveedores.push(data);
+  // Auto-crear subcuenta contable 400XXXX
+  if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('proveedor', data.nombre, data.cif || '');
   toast('Nuevo proveedor creado: ' + data.nombre, 'success');
 
   // Generar tarea si faltan campos obligatorios

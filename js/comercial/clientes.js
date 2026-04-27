@@ -1263,6 +1263,8 @@ async function saveCliente() {
     if (error) { toast('Error al guardar: '+error.message,'error'); return; }
     if (errores.length && data?.id) await _generarTareaClienteIncompleto(data.id, nombre, obj);
     registrarAudit('crear', 'cliente', data?.id || null, 'Nuevo cliente: '+nombre);
+    // Auto-crear subcuenta contable 430XXXX
+    if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('cliente', nombre, obj.nif || '');
     toast('Cliente guardado ✓','success');
   }
 

@@ -910,7 +910,7 @@ function initRealtimePartes() {
     // Proveedores — se crean desde OCR móvil
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'proveedores', filter: `empresa_id=eq.${EMPRESA.id}` },
-      async () => {
+      async (payload) => {
         try {
           const { data } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA.id).order('nombre');
           if (data && typeof proveedores !== 'undefined') {
@@ -918,6 +918,10 @@ function initRealtimePartes() {
             if (typeof _invalidarArtProvMap === 'function') _invalidarArtProvMap();
             const pageProv = document.getElementById('page-proveedores');
             if (pageProv && pageProv.classList.contains('active') && typeof renderProveedores === 'function') renderProveedores(proveedores);
+          }
+          // Auto-crear subcuenta contable 400XXXX al insertar proveedor
+          if (payload?.eventType === 'INSERT' && payload?.new?.nombre && typeof contCrearSubcuenta === 'function') {
+            contCrearSubcuenta('proveedor', payload.new.nombre, payload.new.cif || '');
           }
         } catch(e) {}
       }
@@ -932,6 +936,10 @@ function initRealtimePartes() {
             clientes = data;
             const pageCli = document.getElementById('page-clientes');
             if (pageCli && pageCli.classList.contains('active') && typeof renderClientes === 'function') renderClientes(clientes);
+          }
+          // Auto-crear subcuenta contable 430XXXX al insertar cliente
+          if (payload?.eventType === 'INSERT' && payload?.new?.nombre && typeof contCrearSubcuenta === 'function') {
+            contCrearSubcuenta('cliente', payload.new.nombre, payload.new.nif || '');
           }
           // Propagar firma SEPA remota a cuenta bancaria predeterminada (anon no puede via RLS)
           try {

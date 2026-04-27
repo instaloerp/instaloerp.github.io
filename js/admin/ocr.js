@@ -1057,6 +1057,8 @@ async function _ocrConfirmarValidacion() {
           if (!provErr && nuevoP) {
             proveedorId = nuevoP.id;
             if (typeof proveedores !== 'undefined' && Array.isArray(proveedores)) proveedores.push(nuevoP);
+            // Auto-crear subcuenta contable 400XXXX
+            if (typeof contCrearSubcuenta === 'function') contCrearSubcuenta('proveedor', nuevoP.nombre, nuevoP.cif || '');
             toast('✅ Proveedor creado: ' + nuevoP.nombre, 'success');
           }
         }

@@ -43,6 +43,140 @@ async function _contCargarCuentas() {
   _contCuentas = data || [];
 }
 
+// Crear subcuenta individual al crear/editar un cliente o proveedor.
+// Llamar: contCrearSubcuenta('cliente', 'NOMBRE', 'NIF')
+//         contCrearSubcuenta('proveedor', 'NOMBRE', 'CIF')
+async function contCrearSubcuenta(tipo, nombre, nif) {
+  if (!nombre || !EMPRESA?.id) return;
+  try {
+    const prefijo = tipo === 'cliente' ? '430' : '400';
+    const tipoContab = tipo === 'cliente' ? 'activo' : 'pasivo';
+    const padreCode = prefijo;
+
+    // Verificar que el padre existe
+    const { data: padre } = await sb.from('cuentas_contables')
+      .select('id').eq('empresa_id', EMPRESA.id).eq('codigo', padreCode).maybeSingle();
+    if (!padre) return; // No hay plan contable cargado
+
+    // Verificar si ya existe subcuenta para este nombre
+    const { data: existe } = await sb.from('cuentas_contables')
+      .select('id').eq('empresa_id', EMPRESA.id)
+      .ilike('nombre', nombre.trim())
+      .gte('codigo', prefijo + '0000').lte('codigo', prefijo + '9999')
+      .maybeSingle();
+    if (existe) return; // Ya tiene subcuenta
+
+    // Obtener subcuentas existentes para evitar duplicados de código
+    const { data: existentes } = await sb.from('cuentas_contables')
+      .select('codigo').eq('empresa_id', EMPRESA.id)
+      .gte('codigo', prefijo + '0000').lte('codigo', prefijo + '9999');
+    const usados = new Set((existentes || []).map(c => c.codigo));
+
+    // Generar código desde NIF
+    const nifD = (nif || '').replace(/\D/g, '');
+    let codigo;
+    if (nifD.length >= 4) {
+      codigo = prefijo + nifD.slice(-4);
+    } else {
+      let idx = 1;
+      codigo = prefijo + String(idx).padStart(4, '0');
+      while (usados.has(codigo)) { idx++; codigo = prefijo + String(idx).padStart(4, '0'); }
+    }
+    // Resolver colisión
+    let autoIdx = 1;
+    while (usados.has(codigo)) {
+      autoIdx++;
+      codigo = prefijo + String(autoIdx).padStart(4, '0');
+    }
+
+    await sb.from('cuentas_contables').insert({
+      empresa_id: EMPRESA.id,
+      codigo, nombre: nombre.trim(),
+      tipo: tipoContab, grupo: 4,
+      padre_codigo: padreCode, es_hoja: true, activa: true
+    });
+
+    // Actualizar padre a no-hoja
+    await sb.from('cuentas_contables').update({ es_hoja: false })
+      .eq('empresa_id', EMPRESA.id).eq('codigo', padreCode);
+
+    console.log('[Contab] ✅ Subcuenta creada:', codigo, nombre.trim());
+  } catch(e) {
+    console.warn('[Contab] No se pudo crear subcuenta:', e.message);
+  }
+}
+
+// Auto-crear subcuentas 430XXXX / 400XXXX para clientes y proveedores que no tengan
+async function _contSyncSubcuentas() {
+  if (!_contCuentas.length) return;
+  // Solo si existen las cuentas padre 430 y/o 400
+  const tiene430 = _contCuentas.some(c => c.codigo === '430');
+  const tiene400 = _contCuentas.some(c => c.codigo === '400');
+  if (!tiene430 && !tiene400) return;
+
+  let cambios = 0;
+
+  // ── Clientes → 430XXXX ──
+  if (tiene430) {
+    const allCli = (typeof clientes !== 'undefined' && clientes.length) ? clientes : [];
+    const existentes = new Set(_contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length === 7).map(c => (c.nombre || '').toUpperCase().trim()));
+    const usados = new Set(_contCuentas.filter(c => c.codigo.startsWith('430') && c.codigo.length === 7).map(c => c.codigo));
+    let autoIdx = 1;
+    const toInsert = [];
+
+    for (const cli of allCli) {
+      if (existentes.has((cli.nombre || '').toUpperCase().trim())) continue;
+      const nifD = (cli.nif || '').replace(/\D/g, '');
+      let cod = nifD.length >= 4 ? '430' + nifD.slice(-4) : '430' + String(autoIdx).padStart(4, '0');
+      while (usados.has(cod)) { autoIdx++; cod = '430' + String(autoIdx).padStart(4, '0'); }
+      usados.add(cod);
+      if (!nifD.length || nifD.length < 4) autoIdx++;
+      toInsert.push({ empresa_id: EMPRESA.id, codigo: cod, nombre: cli.nombre || '', tipo: 'activo', grupo: 4, padre_codigo: '430', es_hoja: true, activa: true });
+    }
+
+    if (toInsert.length) {
+      for (let i = 0; i < toInsert.length; i += 50) {
+        await sb.from('cuentas_contables').insert(toInsert.slice(i, i + 50));
+      }
+      await sb.from('cuentas_contables').update({ es_hoja: false }).eq('empresa_id', EMPRESA.id).eq('codigo', '430');
+      cambios += toInsert.length;
+    }
+  }
+
+  // ── Proveedores → 400XXXX ──
+  if (tiene400) {
+    const allProv = (typeof proveedores !== 'undefined' && proveedores.length) ? proveedores : [];
+    const existPro = new Set(_contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length === 7).map(c => (c.nombre || '').toUpperCase().trim()));
+    const usadosPro = new Set(_contCuentas.filter(c => c.codigo.startsWith('400') && c.codigo.length === 7).map(c => c.codigo));
+    let autoIdxP = 1;
+    const toInsertP = [];
+
+    for (const prov of allProv) {
+      if (existPro.has((prov.nombre || '').toUpperCase().trim())) continue;
+      const cifD = (prov.cif || prov.nif || '').replace(/\D/g, '');
+      let cod = cifD.length >= 4 ? '400' + cifD.slice(-4) : '400' + String(autoIdxP).padStart(4, '0');
+      while (usadosPro.has(cod)) { autoIdxP++; cod = '400' + String(autoIdxP).padStart(4, '0'); }
+      usadosPro.add(cod);
+      if (!cifD.length || cifD.length < 4) autoIdxP++;
+      toInsertP.push({ empresa_id: EMPRESA.id, codigo: cod, nombre: prov.nombre || '', tipo: 'pasivo', grupo: 4, padre_codigo: '400', es_hoja: true, activa: true });
+    }
+
+    if (toInsertP.length) {
+      for (let i = 0; i < toInsertP.length; i += 50) {
+        await sb.from('cuentas_contables').insert(toInsertP.slice(i, i + 50));
+      }
+      await sb.from('cuentas_contables').update({ es_hoja: false }).eq('empresa_id', EMPRESA.id).eq('codigo', '400');
+      cambios += toInsertP.length;
+    }
+  }
+
+  // Recargar si hubo cambios
+  if (cambios) {
+    await _contCargarCuentas();
+    console.log('[Contab] ✅ Sync subcuentas: ' + cambios + ' creadas');
+  }
+}
+
 async function _contCargarEjercicios() {
   const { data } = await sb.from('ejercicios_fiscales')
     .select('*').eq('empresa_id', EMPRESA.id)
@@ -95,6 +229,7 @@ async function renderContPlanContable() {
   page.innerHTML = '<div style="padding:40px;text-align:center;color:var(--gris-400)">Cargando plan contable...</div>';
 
   await _contCargarCuentas();
+  await _contSyncSubcuentas(); // Auto-crear subcuentas 430/400 para clientes/proveedores nuevos
 
   if (!_contCuentas.length) {
     page.innerHTML = `
