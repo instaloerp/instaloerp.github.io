@@ -965,10 +965,42 @@ async function renderContLibroMayor() {
   cuentasConMov.forEach(c => {
     const info = porCuenta[c.codigo];
     const saldo = info.debe - info.haber;
-    html += '<div class="card" style="margin-bottom:10px" data-codigo="' + c.codigo + '" data-nombre="' + c.nombre.toLowerCase() + '">' +
+    // Ordenar líneas por fecha
+    info.lineas.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+    // Tabla de detalle (oculta inicialmente)
+    let detalle = '<div id="mayorDet_' + c.codigo + '" style="display:none;margin-top:10px;border-top:1px solid var(--gris-100);padding-top:10px">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="background:var(--gris-50);text-align:left">' +
+        '<th style="padding:6px 8px;font-weight:600">Fecha</th>' +
+        '<th style="padding:6px 8px;font-weight:600">Asiento</th>' +
+        '<th style="padding:6px 8px;font-weight:600">Concepto</th>' +
+        '<th style="padding:6px 8px;font-weight:600;text-align:right">Debe</th>' +
+        '<th style="padding:6px 8px;font-weight:600;text-align:right">Haber</th>' +
+        '<th style="padding:6px 8px;font-weight:600;text-align:right">Saldo</th>' +
+      '</tr></thead><tbody>';
+    let saldoAcum = 0;
+    info.lineas.forEach(l => {
+      saldoAcum += (l.debe || 0) - (l.haber || 0);
+      const fecha = l.fecha ? new Date(l.fecha).toLocaleDateString('es-ES') : '';
+      // Buscar número de asiento
+      const asiento = _contAsientos.find(a => a.id === l.asiento_id);
+      const numAsiento = asiento ? (asiento.numero || asiento.id) : (l.asiento_id || '');
+      detalle += '<tr style="border-bottom:1px solid var(--gris-50)">' +
+        '<td style="padding:5px 8px;white-space:nowrap">' + fecha + '</td>' +
+        '<td style="padding:5px 8px;white-space:nowrap">' + numAsiento + '</td>' +
+        '<td style="padding:5px 8px">' + (l.concepto || '') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (l.debe ? _contFmt(l.debe) : '') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (l.haber ? _contFmt(l.haber) : '') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;font-weight:600;color:' + (saldoAcum >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldoAcum)) + ' ' + (saldoAcum >= 0 ? 'D' : 'H') + '</td>' +
+      '</tr>';
+    });
+    detalle += '</tbody></table></div>';
+
+    html += '<div class="card" style="margin-bottom:10px;cursor:pointer" data-codigo="' + c.codigo + '" data-nombre="' + c.nombre.toLowerCase() + '" onclick="_contToggleMayor(\'' + c.codigo + '\')">' +
       '<div class="card-b" style="padding:12px 16px">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-          '<div><span style="font-family:monospace;font-weight:800;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</span>' +
+          '<div><span id="mayorChev_' + c.codigo + '" style="display:inline-block;transition:transform .2s;margin-right:6px;font-size:11px;color:var(--gris-400)">&#9654;</span>' +
+          '<span style="font-family:monospace;font-weight:800;color:' + _contTipoColor(c.tipo) + '">' + c.codigo + '</span>' +
           '<span style="font-weight:600;margin-left:8px">' + c.nombre + '</span></div>' +
           '<div style="font-weight:800;font-size:15px;color:' + (saldo >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldo)) + ' ' + (saldo >= 0 ? 'D' : 'H') + '</div>' +
         '</div>' +
@@ -976,7 +1008,9 @@ async function renderContLibroMayor() {
           '<span>Debe: <b style="color:var(--gris-700)">' + _contFmt(info.debe) + '</b></span>' +
           '<span>Haber: <b style="color:var(--gris-700)">' + _contFmt(info.haber) + '</b></span>' +
           '<span>' + info.lineas.length + ' apuntes</span>' +
-        '</div></div></div>';
+        '</div>' +
+        detalle +
+      '</div></div>';
   });
   html += '</div>';
 
@@ -985,6 +1019,15 @@ async function renderContLibroMayor() {
   }
 
   page.innerHTML = html;
+}
+
+function _contToggleMayor(codigo) {
+  const det = document.getElementById('mayorDet_' + codigo);
+  const chev = document.getElementById('mayorChev_' + codigo);
+  if (!det) return;
+  const abierto = det.style.display !== 'none';
+  det.style.display = abierto ? 'none' : '';
+  if (chev) chev.style.transform = abierto ? '' : 'rotate(90deg)';
 }
 
 function _contFiltrarMayor() {
