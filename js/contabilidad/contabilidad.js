@@ -943,11 +943,15 @@ async function renderContLibroMayor() {
     return;
   }
 
+  // Mapa de asientos para acceso rápido a fecha/concepto
+  const _mapaAsientos = {};
+  _contAsientos.forEach(a => { _mapaAsientos[a.id] = a; });
+
   const porCuenta = {};
   _contLineas.forEach(l => {
     if (!porCuenta[l.cuenta_codigo]) porCuenta[l.cuenta_codigo] = { debe: 0, haber: 0, lineas: [] };
-    porCuenta[l.cuenta_codigo].debe += l.debe || 0;
-    porCuenta[l.cuenta_codigo].haber += l.haber || 0;
+    porCuenta[l.cuenta_codigo].debe += (l.debe || 0);
+    porCuenta[l.cuenta_codigo].haber += (l.haber || 0);
     porCuenta[l.cuenta_codigo].lineas.push(l);
   });
 
@@ -965,8 +969,13 @@ async function renderContLibroMayor() {
   cuentasConMov.forEach(c => {
     const info = porCuenta[c.codigo];
     const saldo = info.debe - info.haber;
-    // Ordenar líneas por fecha
-    info.lineas.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+    // Ordenar líneas por fecha del asiento, luego por número
+    info.lineas.sort((a, b) => {
+      const aA = _mapaAsientos[a.asiento_id], bA = _mapaAsientos[b.asiento_id];
+      const cmpFecha = (aA?.fecha || '').localeCompare(bA?.fecha || '');
+      if (cmpFecha !== 0) return cmpFecha;
+      return (aA?.numero || 0) - (bA?.numero || 0);
+    });
     // Tabla de detalle (oculta inicialmente)
     let detalle = '<div id="mayorDet_' + c.codigo + '" style="display:none;margin-top:10px;border-top:1px solid var(--gris-100);padding-top:10px">' +
       '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
@@ -980,17 +989,20 @@ async function renderContLibroMayor() {
       '</tr></thead><tbody>';
     let saldoAcum = 0;
     info.lineas.forEach(l => {
-      saldoAcum += (l.debe || 0) - (l.haber || 0);
-      const fecha = l.fecha ? new Date(l.fecha).toLocaleDateString('es-ES') : '';
-      // Buscar número de asiento
-      const asiento = _contAsientos.find(a => a.id === l.asiento_id);
+      const debe = Math.abs(l.debe || 0);
+      const haber = Math.abs(l.haber || 0);
+      saldoAcum += debe - haber;
+      // Fecha y concepto del asiento padre
+      const asiento = _mapaAsientos[l.asiento_id];
+      const fecha = asiento?.fecha ? new Date(asiento.fecha + 'T00:00:00').toLocaleDateString('es-ES') : '';
       const numAsiento = asiento ? (asiento.numero || asiento.id) : (l.asiento_id || '');
+      const concepto = l.concepto || asiento?.descripcion || asiento?.concepto || '';
       detalle += '<tr style="border-bottom:1px solid var(--gris-50)">' +
         '<td style="padding:5px 8px;white-space:nowrap">' + fecha + '</td>' +
         '<td style="padding:5px 8px;white-space:nowrap">' + numAsiento + '</td>' +
-        '<td style="padding:5px 8px">' + (l.concepto || '') + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (l.debe ? _contFmt(l.debe) : '') + '</td>' +
-        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (l.haber ? _contFmt(l.haber) : '') + '</td>' +
+        '<td style="padding:5px 8px">' + concepto + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (debe ? _contFmt(debe) : '') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace">' + (haber ? _contFmt(haber) : '') + '</td>' +
         '<td style="padding:5px 8px;text-align:right;font-family:monospace;font-weight:600;color:' + (saldoAcum >= 0 ? 'var(--azul)' : 'var(--rojo)') + '">' + _contFmt(Math.abs(saldoAcum)) + ' ' + (saldoAcum >= 0 ? 'D' : 'H') + '</td>' +
       '</tr>';
     });
