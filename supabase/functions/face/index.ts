@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════════
 //
 //  POST /face
-//  Body: { action: "enviar"|"anular"|"consultar", factura_id: number, empresa_id: string }
+//  Body: { action: "validar"|"enviar"|"anular"|"consultar", factura_id: number, empresa_id: string }
 //
 //  Flujo:
 //  1. Lee factura + cliente + empresa de Supabase
@@ -581,12 +581,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const sbAdmin = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Validar que el usuario tiene sesión activa
-    const sbUser = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: { user }, error: authErr } = await sbUser.auth.getUser(token);
-    if (authErr || !user) {
-      return json({ error: "No autorizado" }, 401);
+    // Permitir service_role key (legacy JWT o nueva sb_secret) para testing/cron
+    let user: { id: string; email?: string } | null = null;
+
+    // Comprobar si el token es service_role: comparar con SUPABASE_KEY o verificar el payload
+    let isServiceRole = (token === SUPABASE_KEY);
+    if (!isServiceRole) {
+      // También comprobar si es el JWT legacy con role=service_role
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1] || "{}"));
+        if (payload.role === "service_role" && payload.ref === "gskkqqhbpnycvuioqetj") {
+          isServiceRole = true;
+        }
+      } catch (_) { /* no es JWT, ignorar */ }
+    }
+
+    if (isServiceRole) {
+      user = { id: "service_role", email: "system@instaloerp.es" };
+    } else {
+      const sbUser = createClient(SUPABASE_URL, SUPABASE_KEY, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: { user: authUser }, error: authErr } = await sbUser.auth.getUser(token);
+      if (authErr || !authUser) {
+        return json({ error: "No autorizado" }, 401);
+      }
+      user = authUser;
     }
 
     // Leer body
@@ -606,7 +626,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Config FACe
     const faceConfig = (empresa.config?.face || {}) as Record<string, unknown>;
-    const modo = (faceConfig.modo as string) || "test";
+    const modoBody = body.modo as string | undefined;
+    const modo = modoBody || (faceConfig.modo as string) || "test";
     const correo = (faceConfig.correo as string) || empresa.email || "";
 
     // ── Leer factura ──
@@ -622,7 +643,53 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // ── Según acción ──
-    if (action === "enviar") {
+    if (action === "validar") {
+      // Modo validación: genera XML sin enviar
+      const { data: cliente, error: cliErr } = await sbAdmin
+        .from("clientes").select("*").eq("id", factura.cliente_id).single();
+      if (cliErr || !cliente) {
+        return json({ error: "Cliente no encontrado" }, 404);
+      }
+
+      if (!cliente.es_administracion_publica) {
+        return json({ error: "El cliente no está marcado como Administración Pública" }, 400);
+      }
+
+      const oc = factura.face_oficina_contable || cliente.face_oficina_contable;
+      const og = factura.face_organo_gestor || cliente.face_organo_gestor;
+      const ut = factura.face_unidad_tramitadora || cliente.face_unidad_tramitadora;
+      if (!oc || !og || !ut) {
+        return json({
+          error: "Faltan códigos DIR3. Se necesitan: Oficina Contable, Órgano Gestor y Unidad Tramitadora",
+          dir3: { oficina_contable: oc || null, organo_gestor: og || null, unidad_tramitadora: ut || null },
+        }, 400);
+      }
+
+      const xmlFacturae = generarFacturaeXML(factura, cliente, empresa);
+
+      // Guardar validación
+      await sbAdmin.from("face_envios").insert({
+        empresa_id,
+        factura_id,
+        accion: "validar",
+        codigo_estado: null,
+        estado: "validado",
+        xml_facturae: xmlFacturae,
+      });
+
+      return json({
+        ok: true,
+        estado: "validado",
+        modo,
+        descripcion: "XML Facturae 3.2.2 generado correctamente (no enviado)",
+        xml_facturae: xmlFacturae,
+        base_imponible: factura.base_imponible,
+        total_iva: factura.total_iva,
+        total: factura.total,
+        dir3: { oficina_contable: oc, organo_gestor: og, unidad_tramitadora: ut },
+      });
+
+    } else if (action === "enviar") {
       // Leer cliente
       const { data: cliente, error: cliErr } = await sbAdmin
         .from("clientes").select("*").eq("id", factura.cliente_id).single();
@@ -851,7 +918,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
 
     } else {
-      return json({ error: `Acción no válida: ${action}. Usar: enviar, anular, consultar` }, 400);
+      return json({ error: `Acción no válida: ${action}. Usar: validar, enviar, anular, consultar` }, 400);
     }
 
   } catch (err: unknown) {

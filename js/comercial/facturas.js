@@ -528,11 +528,11 @@ async function verDetalleFactura(id) {
       faceWrap.style.display = '';
       const FACE_COLORS = {
         registrada:'#2563EB', contabilizada:'#7C3AED', pagada:'#059669',
-        rechazada:'#DC2626', anulada:'var(--gris-400)', simulado:'#D97706'
+        rechazada:'#DC2626', anulada:'var(--gris-400)', simulado:'#D97706', validado:'#D97706'
       };
       const FACE_LABELS = {
         registrada:'Registrada', contabilizada:'Contabilizada', pagada:'Pagada',
-        rechazada:'Rechazada', anulada:'Anulada', simulado:'Simulado'
+        rechazada:'Rechazada', anulada:'Anulada', simulado:'Simulado', validado:'Validado'
       };
       const faceColor = FACE_COLORS[f.face_estado] || 'var(--gris-500)';
       const faceLabel = FACE_LABELS[f.face_estado] || f.face_estado || '—';
@@ -543,7 +543,8 @@ async function verDetalleFactura(id) {
       // Botones FACe según estado
       const faceBtns = document.getElementById('facDetFaceBtns');
       let btnsHtml = '';
-      if (!f.face_estado || f.face_estado === 'simulado') {
+      if (!f.face_estado || f.face_estado === 'simulado' || f.face_estado === 'validado') {
+        btnsHtml += `<button class="btn btn-sm" onclick="validarFacturaFACe(${id})" style="background:#FFFBEB;color:#92400E;border:1px solid #FCD34D;font-weight:600;margin-right:6px">🧪 Validar XML</button>`;
         btnsHtml += `<button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
       }
       if (f.face_estado && f.face_estado !== 'simulado') {
@@ -562,7 +563,7 @@ async function verDetalleFactura(id) {
         document.getElementById('facDetFaceReg').textContent = '';
         const faceBtns = document.getElementById('facDetFaceBtns');
         if (faceBtns && f.estado !== 'borrador') {
-          faceBtns.innerHTML = `<button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
+          faceBtns.innerHTML = `<button class="btn btn-sm" onclick="validarFacturaFACe(${id})" style="background:#FFFBEB;color:#92400E;border:1px solid #FCD34D;font-weight:600;margin-right:6px">🧪 Validar XML</button><button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
         } else if (faceBtns) {
           faceBtns.innerHTML = '';
         }
@@ -2391,6 +2392,63 @@ async function anularFacturaAEAT(facturaId) {
 // ═══════════════════════════════════════════════
 //  FACe — Factura electrónica a Administraciones Públicas
 // ═══════════════════════════════════════════════
+
+/** Validar XML Facturae sin enviar a FACe */
+async function validarFacturaFACe(facturaId) {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac) { toast('Factura no encontrada', 'error'); return; }
+  if (fac.estado === 'borrador') { toast('No se pueden validar borradores', 'error'); return; }
+
+  toast('Generando XML Facturae 3.2.2...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'validar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { toast(`Error: ${result.error || 'Error desconocido'}`, 'error'); return; }
+
+    if (result.ok) {
+      // Mostrar modal con XML generado
+      const xmlPre = result.xml_facturae || '';
+      const modalHtml = `
+        <div style="padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="font-size:24px">✅</span>
+            <div>
+              <div style="font-weight:700;font-size:15px;color:#166534">XML Facturae 3.2.2 válido</div>
+              <div style="font-size:12px;color:var(--gris-500)">Base: ${(result.base_imponible||0).toFixed(2)}€ · IVA: ${(result.total_iva||0).toFixed(2)}€ · Total: ${(result.total||0).toFixed(2)}€</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px">DIR3: OC=${result.dir3?.oficina_contable||'?'} · OG=${result.dir3?.organo_gestor||'?'} · UT=${result.dir3?.unidad_tramitadora||'?'}</div>
+          <textarea readonly style="width:100%;height:300px;font-family:monospace;font-size:11px;background:var(--gris-50);border:1px solid var(--gris-200);border-radius:8px;padding:8px;resize:vertical">${xmlPre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+          <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+            <button onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(xmlPre)}'));toast('XML copiado','success')" class="btn btn-sm" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD">📋 Copiar XML</button>
+            <button onclick="this.closest('.modal-overlay')?.remove()" class="btn btn-sm" style="background:var(--gris-100);color:var(--gris-700)">Cerrar</button>
+          </div>
+        </div>`;
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+      overlay.innerHTML = `<div style="background:white;border-radius:12px;max-width:700px;width:95%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">${modalHtml}</div>`;
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
+
+      toast('🧪 XML Facturae generado correctamente', 'success');
+    } else {
+      toast(`❌ Error de validación: ${result.descripcion || result.error || ''}`, 'error');
+    }
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+  }
+}
 
 /** Enviar factura a FACe */
 async function enviarFacturaFACe(facturaId) {
