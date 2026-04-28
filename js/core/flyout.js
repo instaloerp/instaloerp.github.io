@@ -170,11 +170,12 @@ function _showFlyout(el, html) {
   flyout.innerHTML = html;
   flyout.classList.add('show');
 
-  // Position vertically aligned to the icon
+  // Position vertically centered on the icon, clamped to viewport
   const rect = el.getBoundingClientRect();
   const flyH = flyout.offsetHeight;
+  const iconCenter = rect.top + rect.height / 2;
   const maxTop = window.innerHeight - flyH - 10;
-  let top = rect.top;
+  let top = iconCenter - flyH / 2;
   if (top > maxTop) top = maxTop;
   if (top < 8) top = 8;
   flyout.style.top = top + 'px';
@@ -284,6 +285,44 @@ function _syncLogo() {
     const img = document.getElementById('ibLogoImg');
     if (img) img.src = EMPRESA.logo_url;
   }
+}
+
+// ── Ocultar iconos del sidebar cuando el usuario no tiene permisos ──
+function applyIconbarPerms() {
+  if (!CP) return;
+  // Admin/superadmin ven todo
+  if (CP.es_superadmin || CP.rol === 'admin') {
+    document.querySelectorAll('.ib-item[data-flyout]').forEach(el => {
+      if (el.id === 'ibAdminItem') return; // config se gestiona aparte
+      el.style.display = 'flex';
+    });
+    return;
+  }
+
+  document.querySelectorAll('.ib-item[data-flyout]').forEach(el => {
+    const flyKey = el.dataset.flyout;
+    if (!flyKey || flyKey === 'favoritos' || flyKey === 'user') return;
+    if (el.id === 'ibAdminItem') return; // config se gestiona aparte
+
+    const sec = FLYOUT_SECTIONS[flyKey];
+    if (!sec) { el.style.display = 'none'; return; }
+
+    // Secciones con buildFn especial (favoritos) → siempre visibles
+    if (sec.buildFn) return;
+
+    // Comprobar si al menos un sub-item del flyout es accesible
+    let hasAccess = false;
+    if (sec.items) {
+      for (const it of sec.items) {
+        if (typeof userCanAccess === 'function' && userCanAccess(it.id)) {
+          hasAccess = true;
+          break;
+        }
+      }
+    }
+
+    el.style.display = hasAccess ? 'flex' : 'none';
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

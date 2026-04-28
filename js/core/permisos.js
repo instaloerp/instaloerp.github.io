@@ -27,7 +27,7 @@ const PLANES_DEF = {
     label: 'Premium',
     ico: '👑',
     color: '#D97706',
-    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen','obras','flota','personal','comunicaciones','tesoreria']
+    modulos: ['clientes','ventas','facturacion','agenda','compras','almacen','obras','flota','personal','comunicaciones','tesoreria','contabilidad','companias']
   }
 };
 
@@ -44,6 +44,8 @@ const TODOS_MODULOS = [
   { key:'personal',       label:'Personal',         ico:'👤' },
   { key:'comunicaciones', label:'Comunicaciones',   ico:'📧' },
   { key:'tesoreria',      label:'Tesorería',        ico:'🏦' },
+  { key:'contabilidad',   label:'Contabilidad',     ico:'📊' },
+  { key:'companias',     label:'Compañías',        ico:'🏢' },
 ];
 
 /**
@@ -53,7 +55,7 @@ const TODOS_MODULOS = [
  */
 function moduloActivo(modKey) {
   // Secciones que siempre están activas (no dependen de módulos)
-  const siempre = ['acceso','inicio','configuracion','opciones'];
+  const siempre = ['acceso','inicio','configuracion','opciones','companias'];
   if (siempre.includes(modKey)) return true;
 
   // Si no hay empresa cargada, permitir todo (por seguridad)
@@ -144,10 +146,12 @@ const PERM_SECTIONS = [
   ]},
   { key:'flota', label:'Flota', ico:'🚗', crud:true, items:[
     {key:'vehiculos', label:'Vehículos'},
-    {key:'gastos', label:'Gastos de flota'}
+    {key:'gastos', label:'Gastos de flota'},
+    {key:'gps', label:'GPS en vivo'}
   ]},
   { key:'comunicaciones', label:'Comunicaciones', ico:'📧', crud:false, items:[
-    {key:'correo', label:'Correo'}
+    {key:'correo', label:'Correo'},
+    {key:'mensajes', label:'Mensajes / Chat'}
   ]},
   { key:'personal', label:'Personal', ico:'👤', crud:false, items:[
     {key:'fichajes', label:'Fichajes'},
@@ -155,12 +159,23 @@ const PERM_SECTIONS = [
     {key:'timeline', label:'Timeline operarios'},
     {key:'calendario_laboral', label:'Calendario laboral'}
   ]},
+  { key:'companias', label:'Compañías', ico:'🏢', crud:false, items:[
+    {key:'asitur', label:'Asitur'}
+  ]},
   { key:'tesoreria', label:'Tesorería', ico:'🏦', crud:true, items:[
     {key:'cuentas', label:'Cuentas bancarias'},
     {key:'movimientos', label:'Movimientos'},
     {key:'conciliacion', label:'Conciliación'},
     {key:'importar', label:'Importar extractos'},
     {key:'ver_saldos', label:'Ver saldos'}
+  ]},
+  { key:'contabilidad', label:'Contabilidad', ico:'📊', crud:false, items:[
+    {key:'plan_contable', label:'Plan Contable'},
+    {key:'libro_diario', label:'Libro Diario'},
+    {key:'libro_mayor', label:'Libro Mayor'},
+    {key:'balance_sumas', label:'Balance de Sumas y Saldos'},
+    {key:'cuenta_resultados', label:'Cuenta de Resultados'},
+    {key:'exportar', label:'Exportar datos contables'}
   ]},
   { key:'configuracion', label:'Configuración', ico:'⚙️', crud:true, items:[
     {key:'empresa', label:'Datos de empresa'},
@@ -199,6 +214,7 @@ const PAGE_PERM_MAP = {
   // Almacén
   'articulos':           {sec:'almacen', sub:'articulos'},
   'servicios':           {sec:'almacen', sub:'servicios'},
+  'almacenes':           {sec:'almacen', sub:'almacenes'},
   'almacenes-page':      {sec:'almacen', sub:'almacenes'},
   'stock':               {sec:'almacen', sub:'stock'},
   'consumos':            {sec:'almacen', sub:'consumos'},
@@ -217,15 +233,28 @@ const PAGE_PERM_MAP = {
   // Flota
   'flota':               {sec:'flota', sub:'vehiculos'},
   'flota-gastos':        {sec:'flota', sub:'gastos'},
+  'flota-gps':           {sec:'flota', sub:'gps'},
   // Comunicaciones
   'correo':              {sec:'comunicaciones', sub:'correo'},
+  'mensajes':            {sec:'comunicaciones', sub:'mensajes'},
   // Personal
   'fichajes':            {sec:'personal', sub:'fichajes'},
+  'ausencias':           {sec:'personal', sub:'ausencias'},
+  'timeline':            {sec:'personal', sub:'timeline'},
+  'calendario-laboral':  {sec:'personal', sub:'calendario_laboral'},
+  // Compañías
+  'asitur':              {sec:'companias', sub:'asitur'},
   // Tesorería
   'tesoreria-cuentas':   {sec:'tesoreria', sub:'cuentas'},
   'tesoreria-movimientos':{sec:'tesoreria', sub:'movimientos'},
   'tesoreria-conciliacion':{sec:'tesoreria', sub:'conciliacion'},
   'tesoreria-importar':  {sec:'tesoreria', sub:'importar'},
+  // Contabilidad
+  'plan-contable':       {sec:'contabilidad', sub:'plan_contable'},
+  'libro-diario':        {sec:'contabilidad', sub:'libro_diario'},
+  'libro-mayor':         {sec:'contabilidad', sub:'libro_mayor'},
+  'balance-sumas':       {sec:'contabilidad', sub:'balance_sumas'},
+  'cuenta-resultados':   {sec:'contabilidad', sub:'cuenta_resultados'},
   // Config
   'configuracion':       {sec:'configuracion', sub:'empresa'},
   'usuarios':            {sec:'configuracion', sub:'usuarios'},
@@ -266,10 +295,12 @@ const PERM_PRESETS = {
     almacen:       {ver:true, editar:true, crear:true, eliminar:true, articulos:true, servicios:true, almacenes:true, stock:true, consumos:true, incidencias:true, traspasos:true, activos:true, etiquetas_qr:true},
     obras:         {ver:true, editar:true, crear:true, eliminar:true, trabajos:true, mantenimientos:true, partes:true, planificador:true},
     agenda:        {calendario:true, tareas:true},
-    flota:         {ver:true, editar:true, crear:true, eliminar:true, vehiculos:true, gastos:true},
-    comunicaciones:{correo:true},
-    personal:      {fichajes:true},
+    flota:         {ver:true, editar:true, crear:true, eliminar:true, vehiculos:true, gastos:true, gps:true},
+    comunicaciones:{correo:true, mensajes:true},
+    personal:      {fichajes:true, ausencias:true, timeline:true, calendario_laboral:true},
     tesoreria:     {ver:true, editar:true, crear:true, eliminar:false, cuentas:true, movimientos:true, conciliacion:true, importar:true, ver_saldos:false},
+    contabilidad:  {plan_contable:true, libro_diario:true, libro_mayor:true, balance_sumas:true, cuenta_resultados:true, exportar:true},
+    companias:     {asitur:true},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:true, precios_compra:true, rentabilidad:true, ver_stock:true, sumatorios:true}
   },
@@ -284,10 +315,12 @@ const PERM_PRESETS = {
     almacen:       {ver:true, editar:true, crear:true, eliminar:true, articulos:true, servicios:true, almacenes:true, stock:true, consumos:true, incidencias:true, traspasos:true, activos:true, etiquetas_qr:true},
     obras:         {ver:true, editar:true, crear:false, eliminar:false, trabajos:true, mantenimientos:true, partes:true, planificador:false},
     agenda:        {calendario:true, tareas:true},
-    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
-    comunicaciones:{correo:false},
-    personal:      {fichajes:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false, gps:false},
+    comunicaciones:{correo:false, mensajes:false},
+    personal:      {fichajes:true, ausencias:false, timeline:false, calendario_laboral:false},
     tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false, ver_saldos:false},
+    contabilidad:  {plan_contable:false, libro_diario:false, libro_mayor:false, balance_sumas:false, cuenta_resultados:false, exportar:false},
+    companias:     {asitur:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:false, precios_compra:true, rentabilidad:false, ver_stock:true, sumatorios:true}
   },
@@ -302,10 +335,12 @@ const PERM_PRESETS = {
     almacen:       {ver:false, editar:false, crear:false, eliminar:false, articulos:false, servicios:false, almacenes:false, stock:false, consumos:false, incidencias:false, traspasos:false, activos:false, etiquetas_qr:false},
     obras:         {ver:true, editar:true, crear:false, eliminar:false, trabajos:true, mantenimientos:false, partes:true, planificador:false},
     agenda:        {calendario:true, tareas:true},
-    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
-    comunicaciones:{correo:false},
-    personal:      {fichajes:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false, gps:false},
+    comunicaciones:{correo:false, mensajes:false},
+    personal:      {fichajes:true, ausencias:false, timeline:false, calendario_laboral:false},
     tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false, ver_saldos:false},
+    contabilidad:  {plan_contable:false, libro_diario:false, libro_mayor:false, balance_sumas:false, cuenta_resultados:false, exportar:false},
+    companias:     {asitur:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:false, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:false}
   },
@@ -320,12 +355,34 @@ const PERM_PRESETS = {
     almacen:       {ver:true, editar:false, crear:false, eliminar:false, articulos:true, servicios:true, almacenes:false, stock:false, consumos:false, incidencias:false, traspasos:false, activos:false, etiquetas_qr:false},
     obras:         {ver:true, editar:false, crear:false, eliminar:false, trabajos:true, mantenimientos:false, partes:false, planificador:false},
     agenda:        {calendario:true, tareas:true},
-    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false},
-    comunicaciones:{correo:true},
-    personal:      {fichajes:true},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false, gps:false},
+    comunicaciones:{correo:true, mensajes:true},
+    personal:      {fichajes:true, ausencias:false, timeline:false, calendario_laboral:false},
     tesoreria:     {ver:false, editar:false, crear:false, eliminar:false, cuentas:false, movimientos:false, conciliacion:false, importar:false, ver_saldos:false},
+    contabilidad:  {plan_contable:false, libro_diario:false, libro_mayor:false, balance_sumas:false, cuenta_resultados:false, exportar:false},
+    companias:     {asitur:false},
     configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
     opciones:      {precios_venta:true, precios_compra:false, rentabilidad:false, ver_stock:false, sumatorios:true}
+  },
+
+  gestoria: {
+    acceso:        {web:true, app_operario:false, app_admin:false, app_almacen:false},
+    inicio:        {importes:true},
+    clientes:      {ver:true, editar:false, crear:false, eliminar:false},
+    ventas:        {ver:true, editar:false, crear:false, eliminar:false, presupuestos:true, albaranes:true},
+    facturacion:   {ver:true, editar:false, crear:false, eliminar:false, facturas:true, rectificativas:true},
+    compras:       {ver:true, editar:false, crear:false, eliminar:false, proveedores:true, presup_compra:false, pedidos:false, albaranes_prov:false, facturas_prov:true, calendario_pagos:false, ocr:false},
+    almacen:       {ver:false, editar:false, crear:false, eliminar:false, articulos:false, servicios:false, almacenes:false, stock:false, consumos:false, incidencias:false, traspasos:false, activos:false, etiquetas_qr:false},
+    obras:         {ver:false, editar:false, crear:false, eliminar:false, trabajos:false, mantenimientos:false, partes:false, planificador:false},
+    agenda:        {calendario:false, tareas:false},
+    flota:         {ver:false, editar:false, crear:false, eliminar:false, vehiculos:false, gastos:false, gps:false},
+    comunicaciones:{correo:false, mensajes:false},
+    personal:      {fichajes:false, ausencias:false, timeline:false, calendario_laboral:false},
+    tesoreria:     {ver:true, editar:false, crear:false, eliminar:false, cuentas:true, movimientos:true, conciliacion:false, importar:false, ver_saldos:true},
+    contabilidad:  {plan_contable:true, libro_diario:true, libro_mayor:true, balance_sumas:true, cuenta_resultados:true, exportar:true},
+    companias:     {asitur:false},
+    configuracion: {ver:false, editar:false, crear:false, eliminar:false, empresa:false, usuarios:false, audit_log:false, papelera:false, laboratorio:false},
+    opciones:      {precios_venta:true, precios_compra:true, rentabilidad:true, ver_stock:false, sumatorios:true}
   }
 };
 

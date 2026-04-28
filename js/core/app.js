@@ -633,7 +633,7 @@ async function mostrarApp() {
   try { document.getElementById('s-login')?.remove(); } catch(e) {}
   // Sidebar
   document.getElementById('sbNombre').textContent = CP?.nombre || CU.email;
-  const _rolLabels = {admin:'Admin',oficina:'Oficina',almacen:'Almacén',operario:'Operario',comercial:'Comercial'};
+  const _rolLabels = {admin:'Admin',oficina:'Oficina',almacen:'Almacén',operario:'Operario',comercial:'Comercial',gestoria:'Gestoría'};
   const rolTxt = CP?.es_superadmin ? 'Admin' : (_rolLabels[CP?.rol] || 'Usuario');
   const empTxt = EMPRESA?.nombre || '';
   document.getElementById('sbRol').textContent = empTxt ? `${empTxt} · ${rolTxt}` : rolTxt;
@@ -675,6 +675,7 @@ async function mostrarApp() {
   loadDashboard();
   // Aplicar permisos CRUD a botones de acción
   if (typeof applyPermButtons === 'function') applyPermButtons();
+  if (typeof applyIconbarPerms === 'function') applyIconbarPerms();
   // Suscripción Realtime — notificaciones de partes
   initRealtimePartes();
   // Mensajería: cargar conversaciones + iniciar Realtime para notificaciones globales
