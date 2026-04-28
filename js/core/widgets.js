@@ -300,6 +300,7 @@ const WIDGET_CATALOG = [
     cat: 'panel', size: 'lg',
     async fetch(eid) {
       const meses = _wgUltMeses(6);
+      const mesLabels = meses.map(m => m.label);
       const [rV, rC] = await Promise.all([
         sb.from('facturas').select('fecha,base_imponible,estado').eq('empresa_id', eid).neq('estado', 'eliminado'),
         sb.from('facturas_proveedor').select('fecha,base_imponible,estado').eq('empresa_id', eid).neq('estado', 'eliminado'),
@@ -309,51 +310,105 @@ const WIDGET_CATALOG = [
 
       const factMes = ventas.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
       const factAno = ventas.filter(f => f.fecha >= _wgInicioAno()).reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const compraAno = compras.filter(f => f.fecha >= _wgInicioAno()).reduce((s, f) => s + (f.base_imponible || 0), 0);
       const compraMes = compras.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
       const resultado = factMes - compraMes;
+      const resultadoAno = factAno - compraAno;
 
       const sparkVentas = meses.map(m => ventas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
       const sparkCompras = meses.map(m => compras.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
       const sparkResultado = meses.map((m, i) => sparkVentas[i] - sparkCompras[i]);
 
-      // Variación vs mes anterior
       const factMesAnt = sparkVentas.length >= 2 ? sparkVentas[sparkVentas.length - 2] : 0;
-      const variacion = factMesAnt > 0 ? ((factMes - factMesAnt) / factMesAnt * 100) : 0;
+      const compraMesAnt = sparkCompras.length >= 2 ? sparkCompras[sparkCompras.length - 2] : 0;
+      const varVentas = factMesAnt > 0 ? ((factMes - factMesAnt) / factMesAnt * 100) : 0;
+      const varCompras = compraMesAnt > 0 ? ((compraMes - compraMesAnt) / compraMesAnt * 100) : 0;
 
-      return { factMes, factAno, compraMes, resultado, sparkVentas, sparkCompras, sparkResultado, variacion };
+      // Num facturas emitidas este mes y total
+      const facturasMes = ventas.filter(f => f.fecha >= _wgInicioMes()).length;
+      const facturasTotal = ventas.filter(f => f.fecha >= _wgInicioAno()).length;
+
+      // Mejor y peor mes
+      const maxMes = Math.max(...sparkVentas);
+      const maxMesIdx = sparkVentas.indexOf(maxMes);
+
+      return { factMes, factAno, compraMes, compraAno, resultado, resultadoAno,
+               sparkVentas, sparkCompras, sparkResultado, mesLabels,
+               varVentas, varCompras, factMesAnt, compraMesAnt,
+               facturasMes, facturasTotal, maxMes, maxMesLabel: mesLabels[maxMesIdx] };
     },
     render(data, el) {
-      const resColor = data.resultado >= 0 ? 'var(--verde)' : 'var(--rojo)';
-      const varIcon = data.variacion >= 0 ? '↑' : '↓';
-      const varColor = data.variacion >= 0 ? 'var(--verde)' : 'var(--rojo)';
+      const resColor = data.resultado >= 0 ? '#10B981' : '#EF4444';
+      const varVIcon = data.varVentas >= 0 ? '▲' : '▼';
+      const varVColor = data.varVentas >= 0 ? '#10B981' : '#EF4444';
+      const varCIcon = data.varCompras >= 0 ? '▲' : '▼';
+      const varCColor = data.varCompras <= 0 ? '#10B981' : '#EF4444'; // menos compras = mejor
+      const margen = data.factMes > 0 ? ((data.resultado / data.factMes) * 100).toFixed(0) : 0;
+      const margenAno = data.factAno > 0 ? ((data.resultadoAno / data.factAno) * 100).toFixed(0) : 0;
+      const mediaMes = data.factAno / (new Date().getMonth() + 1);
+
       el.innerHTML = `
-        <div class="wg-panel-grid wg-panel-4">
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--azul)">${fmtE(data.factMes)}</div>
-            <div class="wg-panel-label">Facturado mes</div>
-            <div class="wg-panel-extra" style="color:${varColor}">${varIcon} ${Math.abs(data.variacion).toFixed(0)}% vs anterior</div>
-            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="var(--azul)"></canvas>
+        <div style="display:flex;gap:14px;flex-wrap:wrap">
+          <!-- Columna izquierda: KPIs principales -->
+          <div style="flex:1;min-width:280px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <!-- Facturado mes -->
+            <div class="wg-card-accent" style="--card-accent:#3B82F6">
+              <div class="wg-card-ico">📈</div>
+              <div class="wg-card-big">${fmtE(data.factMes)}</div>
+              <div class="wg-card-title">Facturado mes</div>
+              <div class="wg-card-row">
+                <span style="color:${varVColor};font-weight:700;font-size:11px">${varVIcon} ${Math.abs(data.varVentas).toFixed(0)}%</span>
+                <span class="wg-card-dim">vs ${fmtE(data.factMesAnt)}</span>
+              </div>
+              <div class="wg-card-dim">${data.facturasMes} facturas emitidas</div>
+              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="#3B82F6"></canvas>
+            </div>
+            <!-- Compras mes -->
+            <div class="wg-card-accent" style="--card-accent:#EF4444">
+              <div class="wg-card-ico">🧾</div>
+              <div class="wg-card-big">${fmtE(data.compraMes)}</div>
+              <div class="wg-card-title">Compras mes</div>
+              <div class="wg-card-row">
+                <span style="color:${varCColor};font-weight:700;font-size:11px">${varCIcon} ${Math.abs(data.varCompras).toFixed(0)}%</span>
+                <span class="wg-card-dim">vs ${fmtE(data.compraMesAnt)}</span>
+              </div>
+              <div class="wg-card-dim">${data.factMes > 0 ? ((data.compraMes / data.factMes) * 100).toFixed(0) : 0}% sobre ventas</div>
+              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkCompras)}' data-color="#EF4444"></canvas>
+            </div>
+            <!-- Resultado mes -->
+            <div class="wg-card-accent" style="--card-accent:${resColor}">
+              <div class="wg-card-ico">${data.resultado >= 0 ? '✅' : '⚠️'}</div>
+              <div class="wg-card-big">${fmtE(data.resultado)}</div>
+              <div class="wg-card-title">Resultado mes</div>
+              <div class="wg-card-row">
+                <span style="font-weight:700;font-size:11px;color:${resColor}">Margen ${margen}%</span>
+              </div>
+              <div class="wg-bar-track"><div class="wg-bar-fill" style="width:${Math.min(Math.abs(margen), 100)}%;background:${resColor}"></div></div>
+              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkResultado)}' data-color="${resColor}"></canvas>
+            </div>
+            <!-- Acumulado año -->
+            <div class="wg-card-accent" style="--card-accent:#10B981">
+              <div class="wg-card-ico">📊</div>
+              <div class="wg-card-big">${fmtE(data.factAno)}</div>
+              <div class="wg-card-title">Acumulado ${new Date().getFullYear()}</div>
+              <div class="wg-card-row">
+                <span class="wg-card-dim">Media ${fmtE(mediaMes)}/mes</span>
+              </div>
+              <div class="wg-card-dim">Margen anual ${margenAno}% · Mejor: ${data.maxMesLabel} (${fmtE(data.maxMes)})</div>
+            </div>
           </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--rojo)">${fmtE(data.compraMes)}</div>
-            <div class="wg-panel-label">Compras mes</div>
-            <div class="wg-panel-extra">${((data.compraMes / (data.factMes || 1)) * 100).toFixed(0)}% de ventas</div>
-            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkCompras)}' data-color="var(--rojo)"></canvas>
-          </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:${resColor}">${fmtE(data.resultado)}</div>
-            <div class="wg-panel-label">Resultado mes</div>
-            <div class="wg-panel-extra">Margen ${data.factMes > 0 ? ((data.resultado / data.factMes) * 100).toFixed(0) : 0}%</div>
-            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkResultado)}' data-color="${resColor}"></canvas>
-          </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--verde)">${fmtE(data.factAno)}</div>
-            <div class="wg-panel-label">Acumulado ${new Date().getFullYear()}</div>
-            <div class="wg-panel-extra">Media ${fmtE(data.factAno / (new Date().getMonth() + 1))}/mes</div>
-            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="var(--verde)"></canvas>
+          <!-- Columna derecha: gráfico comparativo -->
+          <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:11px;font-weight:700;color:var(--gris-500)">Ventas vs Compras — últimos 6 meses</div>
+            <canvas class="wg-chart" height="180" id="wg-chart-fin"></canvas>
+            <div style="display:flex;gap:14px;justify-content:center;margin-top:2px">
+              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3B82F6;display:inline-block"></span>Ventas</span>
+              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#EF4444;display:inline-block"></span>Compras</span>
+              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#10B981;display:inline-block"></span>Resultado</span>
+            </div>
           </div>
         </div>`;
-      // Dibujar sparklines
+      // Dibujar sparklines y gráfico
       requestAnimationFrame(() => {
         el.querySelectorAll('.wg-spark-sm').forEach(c => {
           const vals = JSON.parse(c.dataset.spark || '[]');
@@ -361,16 +416,23 @@ const WIDGET_CATALOG = [
           c.height = 24;
           if (vals.length >= 2) _drawSparkline(c, vals, c.dataset.color);
         });
+        const chart = el.querySelector('#wg-chart-fin');
+        if (chart) {
+          chart.width = chart.parentElement.offsetWidth || 300;
+          _drawBarChart(chart, data.mesLabels, [
+            { label: 'Ventas', color: '#3B82F6', values: data.sparkVentas },
+            { label: 'Compras', color: '#EF4444', values: data.sparkCompras }
+          ]);
+        }
       });
     }
   },
 
-  // ── Panel: Tesorería (Pendiente cobro + pago + saldo bancario) ──
+  // ── Panel: Tesorería (Pendiente cobro + pago + saldo + posición neta + antigüedad) ──
   {
     id: 'panel_tesoreria', label: 'Tesorería', ico: '🏦',
     cat: 'panel', size: 'md',
     async fetch(eid) {
-      const meses = _wgUltMeses(6);
       const [rFact, rProv, rBanco] = await Promise.all([
         sb.from('facturas').select('fecha,base_imponible,estado,fecha_vencimiento').eq('empresa_id', eid).neq('estado', 'eliminado'),
         sb.from('facturas_proveedor').select('fecha,base_imponible,estado').eq('empresa_id', eid).neq('estado', 'eliminado'),
@@ -381,47 +443,113 @@ const WIDGET_CATALOG = [
       const totalCobro = pendCobro.reduce((s, f) => s + (f.base_imponible || 0), 0);
       const totalVencido = vencidas.reduce((s, f) => s + (f.base_imponible || 0), 0);
 
+      // Antigüedad deuda por cobrar
+      const hoy = new Date();
+      const aging = { d30: 0, d60: 0, d90: 0, dmas: 0 };
+      pendCobro.forEach(f => {
+        const dias = Math.floor((hoy - new Date(f.fecha)) / 86400000);
+        const imp = f.base_imponible || 0;
+        if (dias <= 30) aging.d30 += imp;
+        else if (dias <= 60) aging.d60 += imp;
+        else if (dias <= 90) aging.d90 += imp;
+        else aging.dmas += imp;
+      });
+
       const pendPago = (rProv.data || []).filter(f => f.estado === 'pendiente');
       const totalPago = pendPago.reduce((s, f) => s + (f.base_imponible || 0), 0);
 
       const saldo = (rBanco.data || []).reduce((s, c) => s + (c.saldo_actual || 0), 0);
       const nCuentas = (rBanco.data || []).length;
+      const cuentas = (rBanco.data || []).map(c => ({ nombre: c.nombre, saldo: c.saldo_actual || 0 }));
 
-      // Posición neta = saldo + por cobrar - por pagar
       const posicionNeta = saldo + totalCobro - totalPago;
+      // Ratio cobertura: cuánto cobro hay por cada euro de pago
+      const ratio = totalPago > 0 ? (totalCobro / totalPago) : totalCobro > 0 ? 99 : 0;
 
       return { totalCobro, countCobro: pendCobro.length, totalVencido, countVencido: vencidas.length,
-               totalPago, countPago: pendPago.length, saldo, nCuentas, posicionNeta };
+               totalPago, countPago: pendPago.length, saldo, nCuentas, cuentas, posicionNeta,
+               aging, ratio };
     },
     render(data, el) {
-      const posColor = data.posicionNeta >= 0 ? 'var(--verde)' : 'var(--rojo)';
+      const posColor = data.posicionNeta >= 0 ? '#10B981' : '#EF4444';
+      const ratioColor = data.ratio >= 1.5 ? '#10B981' : data.ratio >= 1 ? '#F59E0B' : '#EF4444';
+      const ratioLabel = data.ratio >= 1.5 ? 'Saludable' : data.ratio >= 1 ? 'Ajustado' : 'Riesgo';
+      // Barra visual cobrar vs pagar
+      const totalFlow = data.totalCobro + data.totalPago || 1;
+      const pctCobro = (data.totalCobro / totalFlow * 100).toFixed(0);
+      const pctPago = (data.totalPago / totalFlow * 100).toFixed(0);
+      // Aging bar
+      const agingTotal = data.totalCobro || 1;
+      const agPct = k => ((data.aging[k] / agingTotal) * 100).toFixed(0);
+
       el.innerHTML = `
-        <div class="wg-panel-grid wg-panel-2x2">
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--acento)">${fmtE(data.totalCobro)}</div>
-            <div class="wg-panel-label">Por cobrar · ${data.countCobro} fact.</div>
-            ${data.totalVencido > 0 ? `<div class="wg-panel-extra" style="color:var(--rojo)">⚠ ${fmtE(data.totalVencido)} vencido (${data.countVencido})</div>` : '<div class="wg-panel-extra" style="color:var(--verde)">Sin vencidos</div>'}
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <!-- Fila 1: Cobrar vs Pagar como barra comparativa -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="wg-card-accent" style="--card-accent:#F59E0B">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:16px">📥</span>
+                <div>
+                  <div class="wg-card-big" style="font-size:18px">${fmtE(data.totalCobro)}</div>
+                  <div class="wg-card-title">Por cobrar · ${data.countCobro} fact.</div>
+                </div>
+              </div>
+              ${data.totalVencido > 0 ? `<div style="margin-top:4px;padding:3px 8px;background:rgba(239,68,68,.08);border-radius:4px;font-size:10px;color:#EF4444;font-weight:600">⚠ ${fmtE(data.totalVencido)} vencido (${data.countVencido} fact.)</div>` : '<div style="margin-top:4px;font-size:10px;color:#10B981;font-weight:600">✓ Sin facturas vencidas</div>'}
+            </div>
+            <div class="wg-card-accent" style="--card-accent:#EF4444">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:16px">📤</span>
+                <div>
+                  <div class="wg-card-big" style="font-size:18px">${fmtE(data.totalPago)}</div>
+                  <div class="wg-card-title">Por pagar · ${data.countPago} fact.</div>
+                </div>
+              </div>
+              <div style="margin-top:4px;font-size:10px;color:var(--gris-500)">Ratio cobro/pago: <strong style="color:${ratioColor}">${data.ratio.toFixed(1)}x</strong> <span style="color:${ratioColor}">(${ratioLabel})</span></div>
+            </div>
           </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--rojo)">${fmtE(data.totalPago)}</div>
-            <div class="wg-panel-label">Por pagar · ${data.countPago} fact.</div>
-            <div class="wg-panel-extra">A proveedores</div>
+          <!-- Barra visual comparativa cobrar vs pagar -->
+          <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#F3F4F6">
+            <div style="width:${pctCobro}%;background:linear-gradient(90deg,#F59E0B,#FBBF24);transition:width .3s" title="Por cobrar ${pctCobro}%"></div>
+            <div style="width:${pctPago}%;background:linear-gradient(90deg,#EF4444,#F87171);transition:width .3s" title="Por pagar ${pctPago}%"></div>
           </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:${data.saldo >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${fmtE(data.saldo)}</div>
-            <div class="wg-panel-label">Saldo bancario</div>
-            <div class="wg-panel-extra">${data.nCuentas} cuenta${data.nCuentas !== 1 ? 's' : ''} activa${data.nCuentas !== 1 ? 's' : ''}</div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--gris-400)">
+            <span>📥 Cobrar ${pctCobro}%</span>
+            <span>📤 Pagar ${pctPago}%</span>
           </div>
-          <div class="wg-panel-cell" style="background:${data.posicionNeta >= 0 ? 'rgba(16,185,129,.06)' : 'rgba(239,68,68,.06)'};border-radius:8px">
-            <div class="wg-panel-val" style="color:${posColor}">${fmtE(data.posicionNeta)}</div>
-            <div class="wg-panel-label">Posición neta</div>
-            <div class="wg-panel-extra">Saldo + cobros − pagos</div>
+          <!-- Aging deuda -->
+          <div style="background:var(--gris-50,#F9FAFB);border-radius:8px;padding:8px 10px">
+            <div style="font-size:10px;font-weight:700;color:var(--gris-500);margin-bottom:4px">Antigüedad deuda por cobrar</div>
+            <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:#E5E7EB">
+              <div style="width:${agPct('d30')}%;background:#10B981" title="0-30d"></div>
+              <div style="width:${agPct('d60')}%;background:#F59E0B" title="31-60d"></div>
+              <div style="width:${agPct('d90')}%;background:#F97316" title="61-90d"></div>
+              <div style="width:${agPct('dmas')}%;background:#EF4444" title=">90d"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:var(--gris-400)">
+              <span><span style="color:#10B981">●</span> 0-30d ${fmtE(data.aging.d30)}</span>
+              <span><span style="color:#F59E0B">●</span> 31-60d ${fmtE(data.aging.d60)}</span>
+              <span><span style="color:#F97316">●</span> 61-90d ${fmtE(data.aging.d90)}</span>
+              <span><span style="color:#EF4444">●</span> >90d ${fmtE(data.aging.dmas)}</span>
+            </div>
+          </div>
+          <!-- Posición neta -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="padding:8px 10px;background:${data.saldo >= 0 ? 'rgba(16,185,129,.05)' : 'rgba(239,68,68,.05)'};border-radius:8px;border-left:3px solid ${data.saldo >= 0 ? '#10B981' : '#EF4444'}">
+              <div style="font-size:10px;color:var(--gris-500);font-weight:600">🏦 Saldo bancario</div>
+              <div style="font-size:18px;font-weight:800;color:${data.saldo >= 0 ? '#10B981' : '#EF4444'}">${fmtE(data.saldo)}</div>
+              <div style="font-size:9px;color:var(--gris-400)">${data.nCuentas} cuenta${data.nCuentas !== 1 ? 's' : ''} activa${data.nCuentas !== 1 ? 's' : ''}</div>
+            </div>
+            <div style="padding:8px 10px;background:${data.posicionNeta >= 0 ? 'rgba(16,185,129,.05)' : 'rgba(239,68,68,.05)'};border-radius:8px;border-left:3px solid ${posColor}">
+              <div style="font-size:10px;color:var(--gris-500);font-weight:600">📐 Posición neta</div>
+              <div style="font-size:18px;font-weight:800;color:${posColor}">${fmtE(data.posicionNeta)}</div>
+              <div style="font-size:9px;color:var(--gris-400)">Saldo + cobros − pagos</div>
+            </div>
           </div>
         </div>`;
     }
   },
 
-  // ── Panel: Actividad Comercial (Presupuestos + Clientes + Obras) ──
+  // ── Panel: Actividad Comercial (Presupuestos + Clientes + Obras + Funnel) ──
   {
     id: 'panel_comercial', label: 'Actividad comercial', ico: '📋',
     cat: 'panel', size: 'md',
@@ -431,46 +559,118 @@ const WIDGET_CATALOG = [
         .select('fecha,estado,total,created_at')
         .eq('empresa_id', eid).neq('estado', 'eliminado');
 
-      const pend = (presups || []).filter(p => p.estado === 'pendiente' || p.estado === 'enviado');
-      const aceptados = (presups || []).filter(p => p.estado === 'aceptado');
+      const todos = presups || [];
+      const pend = todos.filter(p => p.estado === 'pendiente' || p.estado === 'enviado');
+      const aceptados = todos.filter(p => p.estado === 'aceptado');
+      const rechazados = todos.filter(p => p.estado === 'rechazado');
       const totalPend = pend.reduce((s, p) => s + (p.total || 0), 0);
+      const totalAceptado = aceptados.reduce((s, p) => s + (p.total || 0), 0);
 
-      // Tasa de conversión
-      const totalPresups = (presups || []).length;
+      // Funnel
+      const totalPresups = todos.length;
       const tasaConversion = totalPresups > 0 ? ((aceptados.length / totalPresups) * 100) : 0;
+      const tasaRechazo = totalPresups > 0 ? ((rechazados.length / totalPresups) * 100) : 0;
 
-      const totalClientes = (typeof clientes !== 'undefined' ? clientes : []).length;
-      const clientesNuevosMes = (typeof clientes !== 'undefined' ? clientes : []).filter(c => {
+      // Presupuestos este mes vs anterior
+      const presupsMes = todos.filter(p => (p.fecha || (p.created_at || '').split('T')[0]) >= _wgInicioMes()).length;
+      const sparkPresups = meses.map(m => todos.filter(p => {
+        const f = p.fecha || (p.created_at || '').split('T')[0];
+        return f >= m.desde && f < m.hasta;
+      }).length);
+
+      const allClientes = (typeof clientes !== 'undefined' ? clientes : []);
+      const totalClientes = allClientes.length;
+      const clientesNuevosMes = allClientes.filter(c => {
         const f = (c.created_at || '').split('T')[0];
         return f >= _wgInicioMes();
       }).length;
+      const sparkClientes = meses.map(m => allClientes.filter(c => {
+        const f = (c.created_at || '').split('T')[0];
+        return f >= m.desde && f < m.hasta;
+      }).length);
 
-      const obrasActivas = (typeof trabajos !== 'undefined' ? trabajos : [])
-        .filter(t => t.estado === 'en_curso' || t.estado === 'planificado' || t.estado === 'pendiente');
+      const allObras = (typeof trabajos !== 'undefined' ? trabajos : []);
+      const obrasActivas = allObras.filter(t => t.estado === 'en_curso' || t.estado === 'planificado' || t.estado === 'pendiente');
+      const obrasEnCurso = allObras.filter(t => t.estado === 'en_curso').length;
+      const obrasPlanificadas = allObras.filter(t => t.estado === 'planificado' || t.estado === 'pendiente').length;
 
-      return { pendCount: pend.length, totalPend, tasaConversion: tasaConversion.toFixed(0),
-               totalClientes, clientesNuevosMes, obrasActivas: obrasActivas.length };
+      return { pendCount: pend.length, totalPend, totalAceptado,
+               aceptadosCount: aceptados.length, rechazadosCount: rechazados.length,
+               tasaConversion: tasaConversion.toFixed(0), tasaRechazo: tasaRechazo.toFixed(0),
+               totalPresups, presupsMes, sparkPresups,
+               totalClientes, clientesNuevosMes, sparkClientes,
+               obrasActivas: obrasActivas.length, obrasEnCurso, obrasPlanificadas };
     },
     render(data, el) {
+      const convPct = parseInt(data.tasaConversion);
+      const convColor = convPct >= 50 ? '#10B981' : convPct >= 30 ? '#F59E0B' : '#EF4444';
+
       el.innerHTML = `
-        <div class="wg-panel-grid wg-panel-3">
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--violeta)">${data.pendCount}</div>
-            <div class="wg-panel-label">Presupuestos pend.</div>
-            <div class="wg-panel-extra">${fmtE(data.totalPend)} en cartera</div>
-            <div class="wg-panel-extra">Conversión: ${data.tasaConversion}%</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <!-- Presupuestos -->
+          <div class="wg-card-accent" style="--card-accent:#8B5CF6">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <div style="font-size:10px;font-weight:600;color:var(--gris-500)">📋 Presupuestos pendientes</div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+                  <span style="font-size:22px;font-weight:800;color:#8B5CF6">${data.pendCount}</span>
+                  <span style="font-size:12px;color:var(--gris-500);font-weight:600">${fmtE(data.totalPend)}</span>
+                </div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:var(--gris-400)">${data.presupsMes} este mes · ${data.totalPresups} total</div>
+              </div>
+            </div>
+            <!-- Mini funnel -->
+            <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
+              <div style="flex:${data.totalPresups || 1};height:6px;background:#D1D5DB;border-radius:3px;position:relative;overflow:hidden">
+                <div style="position:absolute;left:0;top:0;height:100%;width:${data.tasaConversion}%;background:${convColor};border-radius:3px"></div>
+              </div>
+              <span style="font-size:10px;font-weight:700;color:${convColor}">${data.tasaConversion}%</span>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:3px;font-size:9px;color:var(--gris-400)">
+              <span>✅ ${data.aceptadosCount} aceptados (${fmtE(data.totalAceptado)})</span>
+              <span>❌ ${data.rechazadosCount} rechazados</span>
+            </div>
           </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--azul)">${data.totalClientes}</div>
-            <div class="wg-panel-label">Clientes</div>
-            <div class="wg-panel-extra">+${data.clientesNuevosMes} este mes</div>
-          </div>
-          <div class="wg-panel-cell">
-            <div class="wg-panel-val" style="color:var(--azul)">${data.obrasActivas}</div>
-            <div class="wg-panel-label">Obras activas</div>
-            <div class="wg-panel-extra">En curso / planificadas</div>
+          <!-- Clientes + Obras -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="wg-card-accent" style="--card-accent:#3B82F6">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:16px">👥</span>
+                <div>
+                  <div style="font-size:20px;font-weight:800;color:#3B82F6">${data.totalClientes}</div>
+                  <div class="wg-card-title">Clientes</div>
+                </div>
+              </div>
+              <div style="font-size:10px;margin-top:4px;color:${data.clientesNuevosMes > 0 ? '#10B981' : 'var(--gris-400)'}">
+                ${data.clientesNuevosMes > 0 ? `+${data.clientesNuevosMes} nuevos este mes` : 'Sin altas este mes'}
+              </div>
+              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkClientes)}' data-color="#3B82F6"></canvas>
+            </div>
+            <div class="wg-card-accent" style="--card-accent:#0EA5E9">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:16px">🏗️</span>
+                <div>
+                  <div style="font-size:20px;font-weight:800;color:#0EA5E9">${data.obrasActivas}</div>
+                  <div class="wg-card-title">Obras activas</div>
+                </div>
+              </div>
+              <div style="font-size:10px;margin-top:4px;color:var(--gris-500)">
+                🔨 ${data.obrasEnCurso} en curso · 📅 ${data.obrasPlanificadas} planificadas
+              </div>
+            </div>
           </div>
         </div>`;
+      // Sparklines
+      requestAnimationFrame(() => {
+        el.querySelectorAll('.wg-spark-sm').forEach(c => {
+          const vals = JSON.parse(c.dataset.spark || '[]');
+          c.width = c.parentElement.offsetWidth || 100;
+          c.height = 24;
+          if (vals.length >= 2) _drawSparkline(c, vals, c.dataset.color);
+        });
+      });
     }
   },
 
@@ -1178,15 +1378,24 @@ function _injectWidgetStyles() {
     .wg-kpi-sub { font-size:10px; color:var(--gris-400); margin-top:2px; }
     .wg-kpi-spark { flex:1; min-width:0; }
 
-    /* ── Panel compuesto: grid interno ── */
-    .wg-panel-grid { display:grid; gap:12px; }
-    .wg-panel-4 { grid-template-columns: repeat(4, 1fr); }
-    .wg-panel-3 { grid-template-columns: repeat(3, 1fr); }
-    .wg-panel-2x2 { grid-template-columns: repeat(2, 1fr); }
-    .wg-panel-cell { padding:8px 10px; border-radius:8px; background:var(--gris-50,#F9FAFB); }
-    .wg-panel-val { font-size:20px; font-weight:800; line-height:1.2; white-space:nowrap; }
-    .wg-panel-label { font-size:11px; color:var(--gris-500); font-weight:600; margin-top:2px; }
-    .wg-panel-extra { font-size:10px; margin-top:2px; font-weight:500; }
+    /* ── Card con acento lateral — usado en paneles compuestos ── */
+    .wg-card-accent {
+      padding: 10px 12px; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(var(--card-accent-rgb, 59,130,246), .03), rgba(var(--card-accent-rgb, 59,130,246), .07));
+      border-left: 3px solid var(--card-accent, #3B82F6);
+      position: relative;
+    }
+    .wg-card-ico { font-size:14px; margin-bottom:2px; }
+    .wg-card-big { font-size:20px; font-weight:800; line-height:1.2; }
+    .wg-card-title { font-size:11px; font-weight:600; color:var(--gris-500); }
+    .wg-card-row { display:flex; align-items:center; gap:6px; margin-top:2px; }
+    .wg-card-dim { font-size:10px; color:var(--gris-400); margin-top:1px; }
+
+    /* ── Barra de progreso ── */
+    .wg-bar-track { height:5px; background:#E5E7EB; border-radius:3px; margin-top:4px; overflow:hidden; }
+    .wg-bar-fill { height:100%; border-radius:3px; transition:width .4s ease; }
+
+    /* ── Sparkline mini ── */
     .wg-spark-sm { display:block; width:100%; height:24px; margin-top:6px; }
 
     /* ── Botones modo edición ── */
