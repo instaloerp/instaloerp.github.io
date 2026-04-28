@@ -3,11 +3,11 @@
 // ═══════════════════════════════════════════════
 
 async function loadDashboard() {
-  // Subtítulo con nombre empresa y fecha
-  const sub = document.getElementById('dash-sub');
-  if (sub) {
+  // Subtítulo con nombre empresa y fecha en la topbar
+  const pgSub = document.getElementById('pgSub');
+  if (pgSub) {
     const mes = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-    sub.textContent = (EMPRESA?.nombre || '') + ' · ' + mes;
+    pgSub.textContent = (EMPRESA?.nombre || '') + ' · ' + mes;
   }
 
   // Renderizar widgets dinámicos según rol y config del usuario

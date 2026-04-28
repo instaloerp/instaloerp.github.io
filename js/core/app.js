@@ -667,7 +667,7 @@ async function mostrarApp() {
   renderFavoritos();
   // Cargar preferencias sidebar desde Supabase (sobreescribe localStorage si hay datos guardados)
   if (typeof sbCargarPrefsSupabase === 'function') sbCargarPrefsSupabase();
-  document.getElementById('pgTitle').textContent = '🏠 Panel';
+  document.getElementById('pgTitle').textContent = '🏠 Panel de control';
   document.getElementById('pgSub').textContent = _fechaHoraActual();
   document.getElementById('tr_fecha').value = new Date().toISOString().split('T')[0];
   // Cargar datos
