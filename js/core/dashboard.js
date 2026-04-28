@@ -373,6 +373,15 @@ async function loadDashboardDocsOcr() {
 }
 
 
+// Helper: generar quick-link solo si la página es accesible
+function _dashQuickLink(pageId, ico, label) {
+  if (typeof canAccessPage === 'function' && !canAccessPage(pageId)) return '';
+  return `<div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('${pageId}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+    <div style="font-size:24px;margin-bottom:6px">${ico}</div>
+    <div style="font-size:12px;font-weight:700">${label}</div>
+  </div>`;
+}
+
 // ═══════════════════════════════════════════════
 //  DASHBOARD GESTORÍA — Vista contable
 // ═══════════════════════════════════════════════
@@ -440,9 +449,9 @@ async function loadDashboardGestoria() {
         <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${EMPRESA.nombre || ''} · ${mesLabel}</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary btn-sm" onclick="goPage('plan-contable')">📊 Plan Contable</button>
-        <button class="btn btn-secondary btn-sm" onclick="goPage('libro-diario')">📖 Libro Diario</button>
-        <button class="btn btn-primary btn-sm" onclick="goPage('cuenta-resultados')">📈 PyG</button>
+        ${canAccessPage('plan-contable') ? '<button class="btn btn-secondary btn-sm" onclick="goPage(\'plan-contable\')">📊 Plan Contable</button>' : ''}
+        ${canAccessPage('libro-diario') ? '<button class="btn btn-secondary btn-sm" onclick="goPage(\'libro-diario\')">📖 Libro Diario</button>' : ''}
+        ${canAccessPage('cuenta-resultados') ? '<button class="btn btn-primary btn-sm" onclick="goPage(\'cuenta-resultados\')">📈 PyG</button>' : ''}
       </div>
     </div>
 
@@ -492,38 +501,16 @@ async function loadDashboardGestoria() {
     <div style="margin-top:18px">
       <div style="font-size:13px;font-weight:800;color:var(--gris-600);margin-bottom:10px">⚡ Accesos rápidos</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('plan-contable')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">📊</div>
-          <div style="font-size:12px;font-weight:700">Plan Contable</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('libro-diario')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">📖</div>
-          <div style="font-size:12px;font-weight:700">Libro Diario</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('libro-mayor')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">📒</div>
-          <div style="font-size:12px;font-weight:700">Libro Mayor</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('balance-sumas')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">📈</div>
-          <div style="font-size:12px;font-weight:700">Balance Sumas</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('cuenta-resultados')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">💹</div>
-          <div style="font-size:12px;font-weight:700">Cuenta de Resultados</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('tesoreria-movimientos')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">🏦</div>
-          <div style="font-size:12px;font-weight:700">Movimientos banco</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('clientes')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">👥</div>
-          <div style="font-size:12px;font-weight:700">Clientes</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('proveedores')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
-          <div style="font-size:24px;margin-bottom:6px">🏭</div>
-          <div style="font-size:12px;font-weight:700">Proveedores</div>
-        </div>
+        ${_dashQuickLink('plan-contable','📊','Plan Contable')}
+        ${_dashQuickLink('libro-diario','📖','Libro Diario')}
+        ${_dashQuickLink('libro-mayor','📒','Libro Mayor')}
+        ${_dashQuickLink('balance-sumas','📈','Balance Sumas')}
+        ${_dashQuickLink('cuenta-resultados','💹','Cuenta de Resultados')}
+        ${_dashQuickLink('tesoreria-movimientos','🏦','Movimientos banco')}
+        ${_dashQuickLink('clientes','👥','Clientes')}
+        ${_dashQuickLink('proveedores','🏭','Proveedores')}
+        ${_dashQuickLink('facturas','🧾','Facturas emitidas')}
+        ${_dashQuickLink('facturas-proveedor','📑','Facturas recibidas')}
       </div>
     </div>
 
