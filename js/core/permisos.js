@@ -121,7 +121,8 @@ const PERM_SECTIONS = [
     {key:'albaranes_prov', label:'Albaranes de proveedor'},
     {key:'facturas_prov', label:'Facturas de proveedor'},
     {key:'calendario_pagos', label:'Calendario de pagos'},
-    {key:'ocr', label:'OCR facturas'}
+    {key:'ocr', label:'OCR facturas'},
+    {key:'bandeja', label:'Automatizaciones (bandeja)'}
   ]},
   { key:'almacen', label:'Almacén / Catálogo', ico:'📦', crud:true, items:[
     {key:'articulos', label:'Artículos'},
@@ -211,6 +212,7 @@ const PAGE_PERM_MAP = {
   'facturas-proveedor':  {sec:'compras', sub:'facturas_prov'},
   'calendario-pagos':    {sec:'compras', sub:'calendario_pagos'},
   'ocr':                 {sec:'compras', sub:'ocr'},
+  'bandeja':             {sec:'compras', sub:'bandeja'},
   // Almacén
   'articulos':           {sec:'almacen', sub:'articulos'},
   'servicios':           {sec:'almacen', sub:'servicios'},
@@ -291,7 +293,7 @@ const PERM_PRESETS = {
     clientes:      {ver:true, editar:true, crear:true, eliminar:true},
     ventas:        {ver:true, editar:true, crear:true, eliminar:true, presupuestos:true, albaranes:true},
     facturacion:   {ver:true, editar:true, crear:true, eliminar:true, facturas:true, rectificativas:true},
-    compras:       {ver:true, editar:true, crear:true, eliminar:true, proveedores:true, presup_compra:true, pedidos:true, albaranes_prov:true, facturas_prov:true, calendario_pagos:true, ocr:true},
+    compras:       {ver:true, editar:true, crear:true, eliminar:true, proveedores:true, presup_compra:true, pedidos:true, albaranes_prov:true, facturas_prov:true, calendario_pagos:true, ocr:true, bandeja:true},
     almacen:       {ver:true, editar:true, crear:true, eliminar:true, articulos:true, servicios:true, almacenes:true, stock:true, consumos:true, incidencias:true, traspasos:true, activos:true, etiquetas_qr:true},
     obras:         {ver:true, editar:true, crear:true, eliminar:true, trabajos:true, mantenimientos:true, partes:true, planificador:true},
     agenda:        {calendario:true, tareas:true},

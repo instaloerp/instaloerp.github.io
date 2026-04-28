@@ -194,7 +194,7 @@ function _drawBarChart(canvas, labels, datasets) {
 
   ctx.clearRect(0, 0, W, H);
 
-  const padL = 10, padR = 10, padT = 14, padB = 28;
+  const padL = 10, padR = 10, padT = 18, padB = 28;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
 
@@ -206,14 +206,16 @@ function _drawBarChart(canvas, labels, datasets) {
   const nGroups = labels.length;
   const nBars = datasets.length;
   const groupW = chartW / nGroups;
-  const barGap = 3;
-  const barW = Math.max(8, (groupW - barGap * (nBars + 1)) / nBars);
+  const barGap = nBars > 1 ? 2 : 0;
+  const totalBarSpace = groupW * 0.7; // 70% del grupo para barras
+  const barW = Math.max(10, (totalBarSpace - barGap * (nBars - 1)) / nBars);
+  const groupStart = (groupW - totalBarSpace) / 2; // centrar barras en grupo
 
-  // Líneas de referencia horizontales
-  ctx.strokeStyle = '#E5E7EB';
-  ctx.lineWidth = 0.5;
-  for (let i = 0; i <= 4; i++) {
-    const y = padT + (i / 4) * chartH;
+  // Líneas de referencia horizontales (más sutiles)
+  ctx.strokeStyle = '#F3F4F6';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i <= 3; i++) {
+    const y = padT + (i / 3) * chartH;
     ctx.beginPath();
     ctx.moveTo(padL, y);
     ctx.lineTo(W - padR, y);
@@ -226,27 +228,33 @@ function _drawBarChart(canvas, labels, datasets) {
 
     ds.values.forEach((val, gi) => {
       const barH = (Math.abs(val) / maxVal) * chartH;
-      const x = padL + gi * groupW + barGap + di * (barW + barGap);
+      const x = padL + gi * groupW + groupStart + di * (barW + barGap);
       const y = padT + chartH - barH;
 
       // Barra con bordes redondeados superiores
+      const r = Math.min(4, barW / 2);
       ctx.fillStyle = resolvedColor;
       ctx.beginPath();
-      const r = Math.min(3, barW / 2);
-      ctx.moveTo(x, y + r);
-      ctx.arcTo(x, y, x + barW, y, r);
-      ctx.arcTo(x + barW, y, x + barW, y + barH, r);
-      ctx.lineTo(x + barW, padT + chartH);
-      ctx.lineTo(x, padT + chartH);
+      if (barH > r * 2) {
+        ctx.moveTo(x, padT + chartH);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.lineTo(x + barW - r, y);
+        ctx.arcTo(x + barW, y, x + barW, y + r, r);
+        ctx.lineTo(x + barW, padT + chartH);
+      } else {
+        ctx.rect(x, y, barW, barH);
+      }
       ctx.closePath();
       ctx.fill();
 
-      // Valor encima de la barra (solo si cabe)
-      if (barH > 14) {
-        ctx.fillStyle = '#FFF';
-        ctx.font = 'bold 8px system-ui';
+      // Valor encima de la barra (siempre que haya valor)
+      if (val > 0) {
+        ctx.fillStyle = barH > 18 ? '#FFF' : resolvedColor;
+        ctx.font = 'bold 9px system-ui';
         ctx.textAlign = 'center';
-        ctx.fillText(_shortNum(val), x + barW / 2, y + 10);
+        const labelY = barH > 18 ? y + 12 : y - 4;
+        ctx.fillText(_shortNum(val), x + barW / 2, labelY);
       }
     });
   });
@@ -259,21 +267,6 @@ function _drawBarChart(canvas, labels, datasets) {
     const x = padL + i * groupW + groupW / 2;
     ctx.fillText(lbl, x, H - 6);
   });
-
-  // Leyenda (si hay más de 1 dataset)
-  if (datasets.length > 1) {
-    let lx = padL;
-    ctx.font = '9px system-ui';
-    ctx.textAlign = 'left';
-    datasets.forEach(ds => {
-      const rc = _resolveColor(canvas, ds.color);
-      ctx.fillStyle = rc;
-      ctx.fillRect(lx, 2, 8, 8);
-      ctx.fillStyle = '#6B7280';
-      ctx.fillText(ds.label, lx + 11, 9);
-      lx += ctx.measureText(ds.label).width + 24;
-    });
-  }
 }
 
 /** Formato corto para valores en barras (1200 → 1.2k) */
@@ -348,9 +341,9 @@ const WIDGET_CATALOG = [
       const mediaMes = data.factAno / (new Date().getMonth() + 1);
 
       el.innerHTML = `
-        <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
           <!-- Columna izquierda: KPIs principales -->
-          <div style="flex:1;min-width:280px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="flex:1;min-width:280px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <!-- Facturado mes -->
             <div class="wg-card-accent" style="--card-accent:#3B82F6">
               <div class="wg-card-ico">📈</div>
@@ -358,10 +351,9 @@ const WIDGET_CATALOG = [
               <div class="wg-card-title">Facturado mes</div>
               <div class="wg-card-row">
                 <span style="color:${varVColor};font-weight:700;font-size:11px">${varVIcon} ${Math.abs(data.varVentas).toFixed(0)}%</span>
-                <span class="wg-card-dim">vs ${fmtE(data.factMesAnt)}</span>
+                <span class="wg-card-dim" style="margin-top:0">vs ${fmtE(data.factMesAnt)}</span>
               </div>
               <div class="wg-card-dim">${data.facturasMes} facturas emitidas</div>
-              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="#3B82F6"></canvas>
             </div>
             <!-- Compras mes -->
             <div class="wg-card-accent" style="--card-accent:#EF4444">
@@ -370,52 +362,43 @@ const WIDGET_CATALOG = [
               <div class="wg-card-title">Compras mes</div>
               <div class="wg-card-row">
                 <span style="color:${varCColor};font-weight:700;font-size:11px">${varCIcon} ${Math.abs(data.varCompras).toFixed(0)}%</span>
-                <span class="wg-card-dim">vs ${fmtE(data.compraMesAnt)}</span>
+                <span class="wg-card-dim" style="margin-top:0">vs ${fmtE(data.compraMesAnt)}</span>
               </div>
               <div class="wg-card-dim">${data.factMes > 0 ? ((data.compraMes / data.factMes) * 100).toFixed(0) : 0}% sobre ventas</div>
-              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkCompras)}' data-color="#EF4444"></canvas>
             </div>
             <!-- Resultado mes -->
             <div class="wg-card-accent" style="--card-accent:${resColor}">
               <div class="wg-card-ico">${data.resultado >= 0 ? '✅' : '⚠️'}</div>
               <div class="wg-card-big">${fmtE(data.resultado)}</div>
               <div class="wg-card-title">Resultado mes</div>
-              <div class="wg-card-row">
-                <span style="font-weight:700;font-size:11px;color:${resColor}">Margen ${margen}%</span>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                <span style="font-weight:700;font-size:12px;color:${resColor}">Margen ${margen}%</span>
               </div>
-              <div class="wg-bar-track"><div class="wg-bar-fill" style="width:${Math.min(Math.abs(margen), 100)}%;background:${resColor}"></div></div>
-              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkResultado)}' data-color="${resColor}"></canvas>
+              <div class="wg-bar-track" style="margin-top:6px"><div class="wg-bar-fill" style="width:${Math.min(Math.abs(margen), 100)}%;background:${resColor}"></div></div>
             </div>
             <!-- Acumulado año -->
-            <div class="wg-card-accent" style="--card-accent:#10B981">
+            <div class="wg-card-accent" style="--card-accent:#8B5CF6">
               <div class="wg-card-ico">📊</div>
               <div class="wg-card-big">${fmtE(data.factAno)}</div>
               <div class="wg-card-title">Acumulado ${new Date().getFullYear()}</div>
-              <div class="wg-card-row">
-                <span class="wg-card-dim">Media ${fmtE(mediaMes)}/mes</span>
-              </div>
-              <div class="wg-card-dim">Margen anual ${margenAno}% · Mejor: ${data.maxMesLabel} (${fmtE(data.maxMes)})</div>
+              <div class="wg-card-dim" style="margin-top:4px">Media ${fmtE(mediaMes)}/mes</div>
+              <div class="wg-card-dim">Margen anual ${margenAno}%</div>
+              <div class="wg-card-dim" style="color:#8B5CF6;font-weight:600">★ Mejor: ${data.maxMesLabel} (${fmtE(data.maxMes)})</div>
             </div>
           </div>
           <!-- Columna derecha: gráfico comparativo -->
-          <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:6px">
-            <div style="font-size:11px;font-weight:700;color:var(--gris-500)">Ventas vs Compras — últimos 6 meses</div>
-            <canvas class="wg-chart" height="180" id="wg-chart-fin"></canvas>
-            <div style="display:flex;gap:14px;justify-content:center;margin-top:2px">
-              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3B82F6;display:inline-block"></span>Ventas</span>
-              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#EF4444;display:inline-block"></span>Compras</span>
-              <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#10B981;display:inline-block"></span>Resultado</span>
+          <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+            <div style="font-size:12px;font-weight:700;color:var(--gris-600);letter-spacing:0.01em">Ventas vs Compras — últimos 6 meses</div>
+            <canvas class="wg-chart" height="190" id="wg-chart-fin"></canvas>
+            <div style="display:flex;gap:16px;justify-content:center;margin-top:4px">
+              <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#3B82F6;display:inline-block"></span>Ventas</span>
+              <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#EF4444;display:inline-block"></span>Compras</span>
+              <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#10B981;display:inline-block"></span>Resultado</span>
             </div>
           </div>
         </div>`;
-      // Dibujar sparklines y gráfico
+      // Dibujar gráfico
       requestAnimationFrame(() => {
-        el.querySelectorAll('.wg-spark-sm').forEach(c => {
-          const vals = JSON.parse(c.dataset.spark || '[]');
-          c.width = c.parentElement.offsetWidth || 100;
-          c.height = 24;
-          if (vals.length >= 2) _drawSparkline(c, vals, c.dataset.color);
-        });
         const chart = el.querySelector('#wg-chart-fin');
         if (chart) {
           chart.width = chart.parentElement.offsetWidth || 300;
@@ -483,66 +466,68 @@ const WIDGET_CATALOG = [
       const agPct = k => ((data.aging[k] / agingTotal) * 100).toFixed(0);
 
       el.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <!-- Fila 1: Cobrar vs Pagar como barra comparativa -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <!-- Fila 1: Cobrar vs Pagar -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="wg-card-accent" style="--card-accent:#F59E0B">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:16px">📥</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:18px">📥</span>
                 <div>
-                  <div class="wg-card-big" style="font-size:18px">${fmtE(data.totalCobro)}</div>
+                  <div class="wg-card-big" style="font-size:20px">${fmtE(data.totalCobro)}</div>
                   <div class="wg-card-title">Por cobrar · ${data.countCobro} fact.</div>
                 </div>
               </div>
-              ${data.totalVencido > 0 ? `<div style="margin-top:4px;padding:3px 8px;background:rgba(239,68,68,.08);border-radius:4px;font-size:10px;color:#EF4444;font-weight:600">⚠ ${fmtE(data.totalVencido)} vencido (${data.countVencido} fact.)</div>` : '<div style="margin-top:4px;font-size:10px;color:#10B981;font-weight:600">✓ Sin facturas vencidas</div>'}
+              ${data.totalVencido > 0 ? `<div style="margin-top:6px;padding:4px 10px;background:rgba(239,68,68,.08);border-radius:6px;font-size:10px;color:#EF4444;font-weight:600">⚠ ${fmtE(data.totalVencido)} vencido (${data.countVencido} fact.)</div>` : '<div style="margin-top:6px;font-size:10px;color:#10B981;font-weight:600">✓ Sin facturas vencidas</div>'}
             </div>
             <div class="wg-card-accent" style="--card-accent:#EF4444">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:16px">📤</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:18px">📤</span>
                 <div>
-                  <div class="wg-card-big" style="font-size:18px">${fmtE(data.totalPago)}</div>
+                  <div class="wg-card-big" style="font-size:20px">${fmtE(data.totalPago)}</div>
                   <div class="wg-card-title">Por pagar · ${data.countPago} fact.</div>
                 </div>
               </div>
-              <div style="margin-top:4px;font-size:10px;color:var(--gris-500)">Ratio cobro/pago: <strong style="color:${ratioColor}">${data.ratio.toFixed(1)}x</strong> <span style="color:${ratioColor}">(${ratioLabel})</span></div>
+              <div style="margin-top:6px;font-size:10px;color:var(--gris-500)">Ratio cobro/pago: <strong style="color:${ratioColor}">${data.ratio.toFixed(1)}x</strong> <span style="color:${ratioColor}">(${ratioLabel})</span></div>
             </div>
           </div>
-          <!-- Barra visual comparativa cobrar vs pagar -->
-          <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#F3F4F6">
-            <div style="width:${pctCobro}%;background:linear-gradient(90deg,#F59E0B,#FBBF24);transition:width .3s" title="Por cobrar ${pctCobro}%"></div>
-            <div style="width:${pctPago}%;background:linear-gradient(90deg,#EF4444,#F87171);transition:width .3s" title="Por pagar ${pctPago}%"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--gris-400)">
-            <span>📥 Cobrar ${pctCobro}%</span>
-            <span>📤 Pagar ${pctPago}%</span>
+          <!-- Barra visual comparativa -->
+          <div>
+            <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:#F3F4F6">
+              <div style="width:${pctCobro}%;background:linear-gradient(90deg,#F59E0B,#FBBF24);transition:width .4s" title="Por cobrar ${pctCobro}%"></div>
+              <div style="width:${pctPago}%;background:linear-gradient(90deg,#EF4444,#F87171);transition:width .4s" title="Por pagar ${pctPago}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--gris-400);margin-top:3px">
+              <span>📥 Cobrar ${pctCobro}%</span>
+              <span>📤 Pagar ${pctPago}%</span>
+            </div>
           </div>
           <!-- Aging deuda -->
-          <div style="background:var(--gris-50,#F9FAFB);border-radius:8px;padding:8px 10px">
-            <div style="font-size:10px;font-weight:700;color:var(--gris-500);margin-bottom:4px">Antigüedad deuda por cobrar</div>
-            <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:#E5E7EB">
+          <div style="background:var(--gris-50,#F9FAFB);border-radius:10px;padding:10px 12px">
+            <div style="font-size:10px;font-weight:700;color:var(--gris-500);margin-bottom:6px">Antigüedad deuda por cobrar</div>
+            <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#E5E7EB">
               <div style="width:${agPct('d30')}%;background:#10B981" title="0-30d"></div>
               <div style="width:${agPct('d60')}%;background:#F59E0B" title="31-60d"></div>
               <div style="width:${agPct('d90')}%;background:#F97316" title="61-90d"></div>
               <div style="width:${agPct('dmas')}%;background:#EF4444" title=">90d"></div>
             </div>
-            <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:var(--gris-400)">
+            <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9px;color:var(--gris-400)">
               <span><span style="color:#10B981">●</span> 0-30d ${fmtE(data.aging.d30)}</span>
               <span><span style="color:#F59E0B">●</span> 31-60d ${fmtE(data.aging.d60)}</span>
               <span><span style="color:#F97316">●</span> 61-90d ${fmtE(data.aging.d90)}</span>
               <span><span style="color:#EF4444">●</span> >90d ${fmtE(data.aging.dmas)}</span>
             </div>
           </div>
-          <!-- Posición neta -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div style="padding:8px 10px;background:${data.saldo >= 0 ? 'rgba(16,185,129,.05)' : 'rgba(239,68,68,.05)'};border-radius:8px;border-left:3px solid ${data.saldo >= 0 ? '#10B981' : '#EF4444'}">
+          <!-- Saldo + Posición neta -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="wg-card-accent" style="--card-accent:${data.saldo >= 0 ? '#10B981' : '#EF4444'}">
               <div style="font-size:10px;color:var(--gris-500);font-weight:600">🏦 Saldo bancario</div>
-              <div style="font-size:18px;font-weight:800;color:${data.saldo >= 0 ? '#10B981' : '#EF4444'}">${fmtE(data.saldo)}</div>
-              <div style="font-size:9px;color:var(--gris-400)">${data.nCuentas} cuenta${data.nCuentas !== 1 ? 's' : ''} activa${data.nCuentas !== 1 ? 's' : ''}</div>
+              <div style="font-size:20px;font-weight:800;color:${data.saldo >= 0 ? '#10B981' : '#EF4444'};margin-top:2px">${fmtE(data.saldo)}</div>
+              <div style="font-size:9px;color:var(--gris-400);margin-top:2px">${data.nCuentas} cuenta${data.nCuentas !== 1 ? 's' : ''} activa${data.nCuentas !== 1 ? 's' : ''}</div>
             </div>
-            <div style="padding:8px 10px;background:${data.posicionNeta >= 0 ? 'rgba(16,185,129,.05)' : 'rgba(239,68,68,.05)'};border-radius:8px;border-left:3px solid ${posColor}">
+            <div class="wg-card-accent" style="--card-accent:${data.posicionNeta >= 0 ? '#10B981' : '#EF4444'}">
               <div style="font-size:10px;color:var(--gris-500);font-weight:600">📐 Posición neta</div>
-              <div style="font-size:18px;font-weight:800;color:${posColor}">${fmtE(data.posicionNeta)}</div>
-              <div style="font-size:9px;color:var(--gris-400)">Saldo + cobros − pagos</div>
+              <div style="font-size:20px;font-weight:800;color:${posColor};margin-top:2px">${fmtE(data.posicionNeta)}</div>
+              <div style="font-size:9px;color:var(--gris-400);margin-top:2px">Saldo + cobros − pagos</div>
             </div>
           </div>
         </div>`;
@@ -606,15 +591,15 @@ const WIDGET_CATALOG = [
       const convColor = convPct >= 50 ? '#10B981' : convPct >= 30 ? '#F59E0B' : '#EF4444';
 
       el.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:12px">
           <!-- Presupuestos -->
           <div class="wg-card-accent" style="--card-accent:#8B5CF6">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
               <div>
                 <div style="font-size:10px;font-weight:600;color:var(--gris-500)">📋 Presupuestos pendientes</div>
-                <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
-                  <span style="font-size:22px;font-weight:800;color:#8B5CF6">${data.pendCount}</span>
-                  <span style="font-size:12px;color:var(--gris-500);font-weight:600">${fmtE(data.totalPend)}</span>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
+                  <span style="font-size:24px;font-weight:800;color:#8B5CF6">${data.pendCount}</span>
+                  <span style="font-size:13px;color:var(--gris-500);font-weight:600">${fmtE(data.totalPend)}</span>
                 </div>
               </div>
               <div style="text-align:right">
@@ -622,55 +607,45 @@ const WIDGET_CATALOG = [
               </div>
             </div>
             <!-- Mini funnel -->
-            <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
-              <div style="flex:${data.totalPresups || 1};height:6px;background:#D1D5DB;border-radius:3px;position:relative;overflow:hidden">
-                <div style="position:absolute;left:0;top:0;height:100%;width:${data.tasaConversion}%;background:${convColor};border-radius:3px"></div>
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+              <div style="flex:1;height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${data.tasaConversion}%;background:linear-gradient(90deg,${convColor},${convColor}cc);border-radius:4px;transition:width .4s"></div>
               </div>
-              <span style="font-size:10px;font-weight:700;color:${convColor}">${data.tasaConversion}%</span>
+              <span style="font-size:11px;font-weight:800;color:${convColor}">${data.tasaConversion}%</span>
             </div>
-            <div style="display:flex;gap:12px;margin-top:3px;font-size:9px;color:var(--gris-400)">
+            <div style="display:flex;gap:14px;margin-top:5px;font-size:10px;color:var(--gris-400)">
               <span>✅ ${data.aceptadosCount} aceptados (${fmtE(data.totalAceptado)})</span>
               <span>❌ ${data.rechazadosCount} rechazados</span>
             </div>
           </div>
           <!-- Clientes + Obras -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="wg-card-accent" style="--card-accent:#3B82F6">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:16px">👥</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">👥</span>
                 <div>
-                  <div style="font-size:20px;font-weight:800;color:#3B82F6">${data.totalClientes}</div>
+                  <div style="font-size:22px;font-weight:800;color:#3B82F6">${data.totalClientes}</div>
                   <div class="wg-card-title">Clientes</div>
                 </div>
               </div>
-              <div style="font-size:10px;margin-top:4px;color:${data.clientesNuevosMes > 0 ? '#10B981' : 'var(--gris-400)'}">
+              <div style="font-size:10px;margin-top:6px;color:${data.clientesNuevosMes > 0 ? '#10B981' : 'var(--gris-400)'}">
                 ${data.clientesNuevosMes > 0 ? `+${data.clientesNuevosMes} nuevos este mes` : 'Sin altas este mes'}
               </div>
-              <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkClientes)}' data-color="#3B82F6"></canvas>
             </div>
             <div class="wg-card-accent" style="--card-accent:#0EA5E9">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:16px">🏗️</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">🏗️</span>
                 <div>
-                  <div style="font-size:20px;font-weight:800;color:#0EA5E9">${data.obrasActivas}</div>
+                  <div style="font-size:22px;font-weight:800;color:#0EA5E9">${data.obrasActivas}</div>
                   <div class="wg-card-title">Obras activas</div>
                 </div>
               </div>
-              <div style="font-size:10px;margin-top:4px;color:var(--gris-500)">
-                🔨 ${data.obrasEnCurso} en curso · 📅 ${data.obrasPlanificadas} planificadas
+              <div style="font-size:10px;margin-top:6px;color:var(--gris-500)">
+                🔨 ${data.obrasEnCurso} en curso · 📅 ${data.obrasPlanificadas} planif.
               </div>
             </div>
           </div>
         </div>`;
-      // Sparklines
-      requestAnimationFrame(() => {
-        el.querySelectorAll('.wg-spark-sm').forEach(c => {
-          const vals = JSON.parse(c.dataset.spark || '[]');
-          c.width = c.parentElement.offsetWidth || 100;
-          c.height = 24;
-          if (vals.length >= 2) _drawSparkline(c, vals, c.dataset.color);
-        });
-      });
     }
   },
 
@@ -1739,22 +1714,22 @@ function _injectWidgetStyles() {
     }
 
     /* ── Widget base ── */
-    .wg { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; transition: box-shadow .15s; display:flex; flex-direction:column; }
-    .wg:hover { box-shadow: 0 3px 12px rgba(0,0,0,.1); }
+    .wg { background: #fff; border-radius: 14px; border:1px solid rgba(0,0,0,.05); box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.03); overflow: hidden; transition: box-shadow .2s, transform .2s; display:flex; flex-direction:column; }
+    .wg:hover { box-shadow: 0 2px 6px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06); }
     .wg-sm { grid-column: span 1; }
     .wg-md { grid-column: span 2; }
     .wg-lg { grid-column: span 4; }
 
     /* ── Cabecera ── */
     .wg-head {
-      display: flex; align-items: center; gap: 6px;
-      padding: 10px 14px 0; font-size: 11px; color: var(--gris-400);
+      display: flex; align-items: center; gap: 7px;
+      padding: 12px 16px 0; font-size: 11px; color: var(--gris-400);
     }
-    .wg-ico { font-size: 14px; }
-    .wg-label { font-weight: 700; flex: 1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wg-ico { font-size: 15px; }
+    .wg-label { font-weight: 700; flex: 1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:0.01em; }
 
     /* ── Cuerpo ── */
-    .wg-body { padding: 8px 14px 12px; flex:1; display:flex; flex-direction:column; }
+    .wg-body { padding: 10px 16px 14px; flex:1; display:flex; flex-direction:column; }
 
     /* ── KPI layout (para widgets individuales si se mantienen) ── */
     .wg-kpi-row { display:flex; align-items:flex-end; gap:10px; }
@@ -1764,29 +1739,30 @@ function _injectWidgetStyles() {
 
     /* ── Card con acento lateral — usado en paneles compuestos ── */
     .wg-card-accent {
-      padding: 10px 12px; border-radius: 10px;
-      background: linear-gradient(135deg, rgba(var(--card-accent-rgb, 59,130,246), .03), rgba(var(--card-accent-rgb, 59,130,246), .07));
-      border-left: 3px solid var(--card-accent, #3B82F6);
+      padding: 12px 14px; border-radius: 12px;
+      background: #fff;
+      border-left: 3.5px solid var(--card-accent, #3B82F6);
       position: relative;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
     }
-    .wg-card-ico { font-size:14px; margin-bottom:2px; }
-    .wg-card-big { font-size:20px; font-weight:800; line-height:1.2; }
-    .wg-card-title { font-size:11px; font-weight:600; color:var(--gris-500); }
-    .wg-card-row { display:flex; align-items:center; gap:6px; margin-top:2px; }
-    .wg-card-dim { font-size:10px; color:var(--gris-400); margin-top:1px; }
+    .wg-card-ico { font-size:15px; margin-bottom:3px; }
+    .wg-card-big { font-size:22px; font-weight:800; line-height:1.15; letter-spacing:-0.5px; }
+    .wg-card-title { font-size:11px; font-weight:600; color:var(--gris-500); margin-top:1px; }
+    .wg-card-row { display:flex; align-items:center; gap:6px; margin-top:3px; }
+    .wg-card-dim { font-size:10px; color:var(--gris-400); margin-top:2px; line-height:1.3; }
 
     /* ── Fila de lista enriquecida ── */
     .wg-list-row {
-      display:flex; align-items:center; gap:8px; padding:6px 4px;
+      display:flex; align-items:center; gap:8px; padding:7px 6px;
       border-bottom:1px solid var(--gris-100,#F3F4F6); cursor:pointer;
-      border-radius:6px; transition:background .1s;
+      border-radius:8px; transition:background .12s;
     }
     .wg-list-row:hover { background:var(--gris-50,#F9FAFB); }
     .wg-list-row:last-child { border-bottom:none; }
 
     /* ── Barra de progreso ── */
-    .wg-bar-track { height:5px; background:#E5E7EB; border-radius:3px; margin-top:4px; overflow:hidden; }
-    .wg-bar-fill { height:100%; border-radius:3px; transition:width .4s ease; }
+    .wg-bar-track { height:6px; background:#E5E7EB; border-radius:3px; margin-top:4px; overflow:hidden; }
+    .wg-bar-fill { height:100%; border-radius:3px; transition:width .5s ease; }
 
     /* ── Sparkline mini ── */
     .wg-spark-sm { display:block; width:100%; height:24px; margin-top:6px; }
