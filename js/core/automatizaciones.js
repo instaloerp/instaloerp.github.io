@@ -1219,10 +1219,10 @@ async function inboxSubirDocumento(files) {
 // ═══════════════════════════════════════════════
 async function iniciarAutomatizacionesBackground() {
   await cargarAutomatizaciones();
-  // Mostrar botón bandeja en topbar si tiene permiso
-  const btnWrap = document.getElementById('btnBandejaWrap');
-  if (btnWrap && typeof canDo === 'function' && canDo('compras', 'bandeja')) {
-    btnWrap.style.display = '';
+  // Mostrar botón bandeja en sidebar si tiene permiso
+  const ibBandeja = document.getElementById('ibBandejaItem');
+  if (ibBandeja && typeof canDo === 'function' && canDo('compras', 'bandeja')) {
+    ibBandeja.style.display = '';
   }
   await actualizarBadgeBandeja();
   // Suscripción Realtime a bandeja_entrada — actualiza badge, widget y bandeja en vivo

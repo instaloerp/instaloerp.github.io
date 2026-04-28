@@ -257,6 +257,9 @@ try {
 
       <div class="ib-sep"></div>
 
+      <div class="ib-item" id="ibBandejaItem" onclick="goPage('bandeja')" data-tip="Automatizaciones" style="display:none;position:relative">⚡
+        <span id="bandejaBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:14px;height:14px;border-radius:7px;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;line-height:14px;text-align:center;padding:0 3px"></span>
+      </div>
       <div class="ib-item" data-flyout="config" data-tip="Configuración" id="ibAdminItem" style="display:none">⚙️</div>
 
       <div class="ib-bottom">
@@ -282,7 +285,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 132</span>
+      <span id="erpBuildVersion">v1.1 · build 133</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -299,13 +302,6 @@ try {
       </div>
       <div class="tb-sp"></div>
       <div id="topbarBtns" style="display:flex;gap:7px"></div>
-      <!-- Botón bandeja automatizaciones -->
-      <div id="btnBandejaWrap" style="position:relative;margin-left:2px;display:none">
-        <button onclick="goPage('bandeja')" style="position:relative;background:none;border:none;cursor:pointer;padding:6px;border-radius:50%;transition:background .2s" title="Automatizaciones">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gris-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-          <span id="bandejaBadge" style="display:none;position:absolute;top:1px;right:1px;min-width:16px;height:16px;border-radius:8px;background:#F59E0B;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 4px"></span>
-        </button>
-      </div>
       <!-- Centro de notificaciones -->
       <div id="notifCenter" style="position:relative;margin-left:4px">
         <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;background:none;border:none;cursor:pointer;padding:6px;border-radius:50%;transition:background .2s" title="Notificaciones">
