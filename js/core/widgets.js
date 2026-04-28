@@ -46,6 +46,39 @@ function _wgUltMeses(n) {
   return meses;
 }
 
+/**
+ * Render helper para KPI compacto: número + subtexto + sparkline al lado
+ * @param {HTMLElement} el - contenedor
+ * @param {string} valor - texto del valor principal
+ * @param {string} sub - subtexto
+ * @param {number[]} spark - datos sparkline (puede ser null)
+ * @param {string} color - color CSS
+ */
+function _renderKpi(el, valor, sub, spark, color) {
+  const sparkHtml = spark && spark.length >= 2
+    ? `<div class="wg-kpi-spark"><canvas class="wg-spark" height="28"></canvas></div>`
+    : '';
+  el.innerHTML = `
+    <div class="wg-kpi-row">
+      <div>
+        <div class="wg-kpi-num" style="color:${color}">${valor}</div>
+        <div class="wg-kpi-sub">${sub}</div>
+      </div>
+      ${sparkHtml}
+    </div>`;
+  if (spark && spark.length >= 2) {
+    const canvas = el.querySelector('.wg-spark');
+    if (canvas) {
+      // Ajustar width al contenedor real
+      requestAnimationFrame(() => {
+        canvas.width = canvas.parentElement.offsetWidth || 80;
+        canvas.height = 28;
+        _drawSparkline(canvas, spark, color);
+      });
+    }
+  }
+}
+
 /** Filtra facturas activas (excluye anulada, rectificada, borrador) */
 function _wgFactActivas(arr) {
   return (arr || []).filter(f =>
@@ -257,66 +290,14 @@ function _shortNum(n) {
 
 const WIDGET_CATALOG = [
 
-  // ── KPI: Facturado neto mes ──
-  {
-    id: 'kpi_facturacion_mes', label: 'Facturado neto mes', ico: '💶',
-    cat: 'kpi', size: 'sm',
-    async fetch(eid) {
-      const meses = _wgUltMeses(6);
-      const { data } = await sb.from('facturas')
-        .select('fecha,base_imponible,estado')
-        .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const activas = _wgFactActivas(data);
-      const actual = activas
-        .filter(f => f.fecha >= _wgInicioMes())
-        .reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const spark = meses.map(m =>
-        activas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
-          .reduce((s, f) => s + (f.base_imponible || 0), 0)
-      );
-      return { valor: actual, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--azul)">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">base imponible</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--azul)');
-    }
-  },
+  // ═══════════════════════════════════════════
+  //  PANELES COMPUESTOS — Combinan múltiples KPIs en una vista rica
+  // ═══════════════════════════════════════════
 
-  // ── KPI: Compras netas mes ──
+  // ── Panel: Resumen Financiero (Facturación mes + año + compras + resultado) ──
   {
-    id: 'kpi_compras_mes', label: 'Compras netas mes', ico: '🧾',
-    cat: 'kpi', size: 'sm',
-    async fetch(eid) {
-      const meses = _wgUltMeses(6);
-      const { data } = await sb.from('facturas_proveedor')
-        .select('fecha,base_imponible,estado')
-        .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const activas = (data || []).filter(f => f.estado !== 'anulada');
-      const actual = activas
-        .filter(f => f.fecha >= _wgInicioMes())
-        .reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const spark = meses.map(m =>
-        activas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
-          .reduce((s, f) => s + (f.base_imponible || 0), 0)
-      );
-      return { valor: actual, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--rojo)">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">base imponible</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--rojo)');
-    }
-  },
-
-  // ── KPI: Resultado mes (ventas - compras) ──
-  {
-    id: 'kpi_resultado_mes', label: 'Resultado mes', ico: '📈',
-    cat: 'kpi', size: 'sm',
+    id: 'panel_financiero', label: 'Resumen financiero', ico: '💶',
+    cat: 'panel', size: 'lg',
     async fetch(eid) {
       const meses = _wgUltMeses(6);
       const [rV, rC] = await Promise.all([
@@ -326,201 +307,170 @@ const WIDGET_CATALOG = [
       const ventas = _wgFactActivas(rV.data);
       const compras = (rC.data || []).filter(f => f.estado !== 'anulada');
 
-      const sumByMes = (arr, m) => arr.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const vMes = ventas.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const cMes = compras.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const factMes = ventas.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const factAno = ventas.filter(f => f.fecha >= _wgInicioAno()).reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const compraMes = compras.filter(f => f.fecha >= _wgInicioMes()).reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const resultado = factMes - compraMes;
 
-      const spark = meses.map(m => sumByMes(ventas, m) - sumByMes(compras, m));
-      return { valor: vMes - cMes, spark };
+      const sparkVentas = meses.map(m => ventas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
+      const sparkCompras = meses.map(m => compras.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
+      const sparkResultado = meses.map((m, i) => sparkVentas[i] - sparkCompras[i]);
+
+      // Variación vs mes anterior
+      const factMesAnt = sparkVentas.length >= 2 ? sparkVentas[sparkVentas.length - 2] : 0;
+      const variacion = factMesAnt > 0 ? ((factMes - factMesAnt) / factMesAnt * 100) : 0;
+
+      return { factMes, factAno, compraMes, resultado, sparkVentas, sparkCompras, sparkResultado, variacion };
     },
     render(data, el) {
-      const color = data.valor >= 0 ? 'var(--verde)' : 'var(--rojo)';
+      const resColor = data.resultado >= 0 ? 'var(--verde)' : 'var(--rojo)';
+      const varIcon = data.variacion >= 0 ? '↑' : '↓';
+      const varColor = data.variacion >= 0 ? 'var(--verde)' : 'var(--rojo)';
       el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:${color}">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">ventas − compras</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, color);
+        <div class="wg-panel-grid wg-panel-4">
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--azul)">${fmtE(data.factMes)}</div>
+            <div class="wg-panel-label">Facturado mes</div>
+            <div class="wg-panel-extra" style="color:${varColor}">${varIcon} ${Math.abs(data.variacion).toFixed(0)}% vs anterior</div>
+            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="var(--azul)"></canvas>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--rojo)">${fmtE(data.compraMes)}</div>
+            <div class="wg-panel-label">Compras mes</div>
+            <div class="wg-panel-extra">${((data.compraMes / (data.factMes || 1)) * 100).toFixed(0)}% de ventas</div>
+            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkCompras)}' data-color="var(--rojo)"></canvas>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:${resColor}">${fmtE(data.resultado)}</div>
+            <div class="wg-panel-label">Resultado mes</div>
+            <div class="wg-panel-extra">Margen ${data.factMes > 0 ? ((data.resultado / data.factMes) * 100).toFixed(0) : 0}%</div>
+            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkResultado)}' data-color="${resColor}"></canvas>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--verde)">${fmtE(data.factAno)}</div>
+            <div class="wg-panel-label">Acumulado ${new Date().getFullYear()}</div>
+            <div class="wg-panel-extra">Media ${fmtE(data.factAno / (new Date().getMonth() + 1))}/mes</div>
+            <canvas class="wg-spark-sm" data-spark='${JSON.stringify(data.sparkVentas)}' data-color="var(--verde)"></canvas>
+          </div>
+        </div>`;
+      // Dibujar sparklines
+      requestAnimationFrame(() => {
+        el.querySelectorAll('.wg-spark-sm').forEach(c => {
+          const vals = JSON.parse(c.dataset.spark || '[]');
+          c.width = c.parentElement.offsetWidth || 100;
+          c.height = 24;
+          if (vals.length >= 2) _drawSparkline(c, vals, c.dataset.color);
+        });
+      });
     }
   },
 
-  // ── KPI: Pendiente cobro ──
+  // ── Panel: Tesorería (Pendiente cobro + pago + saldo bancario) ──
   {
-    id: 'kpi_pend_cobro', label: 'Pendiente cobro', ico: '⏳',
-    cat: 'kpi', size: 'sm',
+    id: 'panel_tesoreria', label: 'Tesorería', ico: '🏦',
+    cat: 'panel', size: 'md',
     async fetch(eid) {
       const meses = _wgUltMeses(6);
-      const { data } = await sb.from('facturas')
-        .select('fecha,base_imponible,estado')
-        .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const pend = (data || []).filter(f => f.estado === 'pendiente' || f.estado === 'vencida');
-      const total = pend.reduce((s, f) => s + (f.base_imponible || 0), 0);
-      // Sparkline: acumulado pendiente por mes de emisión
-      const spark = meses.map(m =>
-        pend.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
-          .reduce((s, f) => s + (f.base_imponible || 0), 0)
-      );
-      return { valor: total, count: pend.length, spark };
+      const [rFact, rProv, rBanco] = await Promise.all([
+        sb.from('facturas').select('fecha,base_imponible,estado,fecha_vencimiento').eq('empresa_id', eid).neq('estado', 'eliminado'),
+        sb.from('facturas_proveedor').select('fecha,base_imponible,estado').eq('empresa_id', eid).neq('estado', 'eliminado'),
+        sb.from('cuentas_bancarias').select('saldo_actual,nombre').eq('empresa_id', eid).eq('activa', true),
+      ]);
+      const pendCobro = (rFact.data || []).filter(f => f.estado === 'pendiente' || f.estado === 'vencida');
+      const vencidas = pendCobro.filter(f => f.estado === 'vencida');
+      const totalCobro = pendCobro.reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const totalVencido = vencidas.reduce((s, f) => s + (f.base_imponible || 0), 0);
+
+      const pendPago = (rProv.data || []).filter(f => f.estado === 'pendiente');
+      const totalPago = pendPago.reduce((s, f) => s + (f.base_imponible || 0), 0);
+
+      const saldo = (rBanco.data || []).reduce((s, c) => s + (c.saldo_actual || 0), 0);
+      const nCuentas = (rBanco.data || []).length;
+
+      // Posición neta = saldo + por cobrar - por pagar
+      const posicionNeta = saldo + totalCobro - totalPago;
+
+      return { totalCobro, countCobro: pendCobro.length, totalVencido, countVencido: vencidas.length,
+               totalPago, countPago: pendPago.length, saldo, nCuentas, posicionNeta };
     },
     render(data, el) {
+      const posColor = data.posicionNeta >= 0 ? 'var(--verde)' : 'var(--rojo)';
       el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--acento)">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">${data.count} factura${data.count !== 1 ? 's' : ''}</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--acento)');
+        <div class="wg-panel-grid wg-panel-2x2">
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--acento)">${fmtE(data.totalCobro)}</div>
+            <div class="wg-panel-label">Por cobrar · ${data.countCobro} fact.</div>
+            ${data.totalVencido > 0 ? `<div class="wg-panel-extra" style="color:var(--rojo)">⚠ ${fmtE(data.totalVencido)} vencido (${data.countVencido})</div>` : '<div class="wg-panel-extra" style="color:var(--verde)">Sin vencidos</div>'}
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--rojo)">${fmtE(data.totalPago)}</div>
+            <div class="wg-panel-label">Por pagar · ${data.countPago} fact.</div>
+            <div class="wg-panel-extra">A proveedores</div>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:${data.saldo >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${fmtE(data.saldo)}</div>
+            <div class="wg-panel-label">Saldo bancario</div>
+            <div class="wg-panel-extra">${data.nCuentas} cuenta${data.nCuentas !== 1 ? 's' : ''} activa${data.nCuentas !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="wg-panel-cell" style="background:${data.posicionNeta >= 0 ? 'rgba(16,185,129,.06)' : 'rgba(239,68,68,.06)'};border-radius:8px">
+            <div class="wg-panel-val" style="color:${posColor}">${fmtE(data.posicionNeta)}</div>
+            <div class="wg-panel-label">Posición neta</div>
+            <div class="wg-panel-extra">Saldo + cobros − pagos</div>
+          </div>
+        </div>`;
     }
   },
 
-  // ── KPI: Pendiente pago ──
+  // ── Panel: Actividad Comercial (Presupuestos + Clientes + Obras) ──
   {
-    id: 'kpi_pend_pago', label: 'Pendiente pago', ico: '💸',
-    cat: 'kpi', size: 'sm',
+    id: 'panel_comercial', label: 'Actividad comercial', ico: '📋',
+    cat: 'panel', size: 'md',
     async fetch(eid) {
       const meses = _wgUltMeses(6);
-      const { data } = await sb.from('facturas_proveedor')
-        .select('fecha,base_imponible,estado')
-        .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const pend = (data || []).filter(f => f.estado === 'pendiente');
-      const total = pend.reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const spark = meses.map(m =>
-        pend.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
-          .reduce((s, f) => s + (f.base_imponible || 0), 0)
-      );
-      return { valor: total, count: pend.length, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--rojo)">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">${data.count} factura${data.count !== 1 ? 's' : ''}</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--rojo)');
-    }
-  },
-
-  // ── KPI: Presupuestos pendientes ──
-  {
-    id: 'kpi_presup_pend', label: 'Presupuestos pend.', ico: '📋',
-    cat: 'kpi', size: 'sm',
-    async fetch(eid) {
-      const meses = _wgUltMeses(6);
-      const { data } = await sb.from('presupuestos')
+      const { data: presups } = await sb.from('presupuestos')
         .select('fecha,estado,total,created_at')
         .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const pend = (data || []).filter(p => p.estado === 'pendiente' || p.estado === 'enviado');
-      // Sparkline: presupuestos creados por mes
-      const spark = meses.map(m => {
-        const desde = m.desde, hasta = m.hasta;
-        return (data || []).filter(p => {
-          const f = p.fecha || (p.created_at || '').split('T')[0];
-          return f >= desde && f < hasta && (p.estado === 'pendiente' || p.estado === 'enviado');
-        }).length;
-      });
-      return { valor: pend.length, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--violeta)">${data.valor}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">pendientes / enviados</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--violeta)');
-    }
-  },
 
-  // ── KPI: Obras activas ──
-  {
-    id: 'kpi_obras_activas', label: 'Obras activas', ico: '🏗️',
-    cat: 'kpi', size: 'sm',
-    async fetch(_eid) {
-      const activas = (typeof trabajos !== 'undefined' ? trabajos : [])
+      const pend = (presups || []).filter(p => p.estado === 'pendiente' || p.estado === 'enviado');
+      const aceptados = (presups || []).filter(p => p.estado === 'aceptado');
+      const totalPend = pend.reduce((s, p) => s + (p.total || 0), 0);
+
+      // Tasa de conversión
+      const totalPresups = (presups || []).length;
+      const tasaConversion = totalPresups > 0 ? ((aceptados.length / totalPresups) * 100) : 0;
+
+      const totalClientes = (typeof clientes !== 'undefined' ? clientes : []).length;
+      const clientesNuevosMes = (typeof clientes !== 'undefined' ? clientes : []).filter(c => {
+        const f = (c.created_at || '').split('T')[0];
+        return f >= _wgInicioMes();
+      }).length;
+
+      const obrasActivas = (typeof trabajos !== 'undefined' ? trabajos : [])
         .filter(t => t.estado === 'en_curso' || t.estado === 'planificado' || t.estado === 'pendiente');
-      // Sparkline: obras creadas últimos 6 meses
-      const meses = _wgUltMeses(6);
-      const spark = meses.map(m =>
-        activas.filter(t => {
-          const f = (t.created_at || '').split('T')[0];
-          return f >= m.desde && f < m.hasta;
-        }).length
-      );
-      return { valor: activas.length, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--azul)">${data.valor}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">en curso / planificadas</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--azul)');
-    }
-  },
 
-  // ── KPI: Facturado año ──
-  {
-    id: 'kpi_fact_ano', label: 'Facturado año', ico: '📊',
-    cat: 'kpi', size: 'sm',
-    async fetch(eid) {
-      const meses = _wgUltMeses(6);
-      const { data } = await sb.from('facturas')
-        .select('fecha,base_imponible,estado')
-        .eq('empresa_id', eid).neq('estado', 'eliminado');
-      const activas = _wgFactActivas(data);
-      const total = activas
-        .filter(f => f.fecha >= _wgInicioAno())
-        .reduce((s, f) => s + (f.base_imponible || 0), 0);
-      const spark = meses.map(m =>
-        activas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
-          .reduce((s, f) => s + (f.base_imponible || 0), 0)
-      );
-      return { valor: total, spark };
+      return { pendCount: pend.length, totalPend, tasaConversion: tasaConversion.toFixed(0),
+               totalClientes, clientesNuevosMes, obrasActivas: obrasActivas.length };
     },
     render(data, el) {
       el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--verde)">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">acumulado ${new Date().getFullYear()}</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--verde)');
-    }
-  },
-
-  // ── KPI: Saldo bancario ──
-  {
-    id: 'kpi_saldo_banco', label: 'Saldo bancario', ico: '🏦',
-    cat: 'kpi', size: 'sm',
-    async fetch(eid) {
-      const { data } = await sb.from('cuentas_bancarias')
-        .select('saldo_actual')
-        .eq('empresa_id', eid).eq('activa', true);
-      const total = (data || []).reduce((s, c) => s + (c.saldo_actual || 0), 0);
-      // Sin sparkline histórico disponible — usar array plano
-      return { valor: total, spark: [total, total] };
-    },
-    render(data, el) {
-      const color = data.valor >= 0 ? 'var(--verde)' : 'var(--rojo)';
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:${color}">${fmtE(data.valor)}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">cuentas activas</div>`;
-    }
-  },
-
-  // ── KPI: Total clientes ──
-  {
-    id: 'kpi_clientes', label: 'Total clientes', ico: '👥',
-    cat: 'kpi', size: 'sm',
-    async fetch(_eid) {
-      const total = (typeof clientes !== 'undefined' ? clientes : []).length;
-      // Sparkline: clientes creados últimos 6 meses
-      const meses = _wgUltMeses(6);
-      const spark = meses.map(m =>
-        (typeof clientes !== 'undefined' ? clientes : []).filter(c => {
-          const f = (c.created_at || '').split('T')[0];
-          return f >= m.desde && f < m.hasta;
-        }).length
-      );
-      return { valor: total, spark };
-    },
-    render(data, el) {
-      el.innerHTML = `
-        <div style="font-size:24px;font-weight:800;color:var(--azul)">${data.valor}</div>
-        <div style="font-size:11px;color:var(--gris-400);margin:2px 0 4px">en la base de datos</div>
-        <canvas width="100" height="30" class="wg-spark"></canvas>`;
-      _drawSparkline(el.querySelector('.wg-spark'), data.spark, 'var(--azul)');
+        <div class="wg-panel-grid wg-panel-3">
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--violeta)">${data.pendCount}</div>
+            <div class="wg-panel-label">Presupuestos pend.</div>
+            <div class="wg-panel-extra">${fmtE(data.totalPend)} en cartera</div>
+            <div class="wg-panel-extra">Conversión: ${data.tasaConversion}%</div>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--azul)">${data.totalClientes}</div>
+            <div class="wg-panel-label">Clientes</div>
+            <div class="wg-panel-extra">+${data.clientesNuevosMes} este mes</div>
+          </div>
+          <div class="wg-panel-cell">
+            <div class="wg-panel-val" style="color:var(--azul)">${data.obrasActivas}</div>
+            <div class="wg-panel-label">Obras activas</div>
+            <div class="wg-panel-extra">En curso / planificadas</div>
+          </div>
+        </div>`;
     }
   },
 
@@ -680,10 +630,14 @@ const WIDGET_CATALOG = [
       return { labels: meses.map(m => m.label), values };
     },
     render(data, el) {
-      el.innerHTML = '<canvas width="300" height="180" class="wg-chart"></canvas>';
-      _drawBarChart(el.querySelector('.wg-chart'), data.labels, [
-        { label: 'Facturación', color: 'var(--azul)', values: data.values }
-      ]);
+      el.innerHTML = '<canvas class="wg-chart" height="160"></canvas>';
+      requestAnimationFrame(() => {
+        const c = el.querySelector('.wg-chart');
+        c.width = c.parentElement.offsetWidth || 280;
+        _drawBarChart(c, data.labels, [
+          { label: 'Facturación', color: 'var(--azul)', values: data.values }
+        ]);
+      });
     }
   },
 
@@ -706,11 +660,15 @@ const WIDGET_CATALOG = [
       return { labels: meses.map(m => m.label), ventas: vValues, compras: cValues };
     },
     render(data, el) {
-      el.innerHTML = '<canvas width="300" height="180" class="wg-chart"></canvas>';
-      _drawBarChart(el.querySelector('.wg-chart'), data.labels, [
-        { label: 'Ventas', color: 'var(--azul)', values: data.ventas },
-        { label: 'Compras', color: 'var(--rojo)', values: data.compras }
-      ]);
+      el.innerHTML = '<canvas class="wg-chart" height="160"></canvas>';
+      requestAnimationFrame(() => {
+        const c = el.querySelector('.wg-chart');
+        c.width = c.parentElement.offsetWidth || 280;
+        _drawBarChart(c, data.labels, [
+          { label: 'Ventas', color: 'var(--azul)', values: data.ventas },
+          { label: 'Compras', color: 'var(--rojo)', values: data.compras }
+        ]);
+      });
     }
   }
 
@@ -723,22 +681,19 @@ const WIDGET_CATALOG = [
 
 const DASH_DEFAULTS = {
   admin: [
-    'kpi_facturacion_mes', 'kpi_compras_mes', 'kpi_resultado_mes',
-    'kpi_pend_cobro', 'kpi_pend_pago', 'kpi_presup_pend',
-    'kpi_obras_activas', 'kpi_fact_ano', 'kpi_saldo_banco', 'kpi_clientes',
+    'panel_financiero', 'panel_tesoreria', 'panel_comercial',
     'list_tareas', 'list_obras', 'list_facturas_pend', 'list_presup_pend',
     'chart_facturacion_6m', 'chart_cobros_pagos'
   ],
   gestoria: [
-    'kpi_facturacion_mes', 'kpi_compras_mes', 'kpi_resultado_mes', 'kpi_saldo_banco',
-    'kpi_pend_cobro', 'kpi_pend_pago', 'kpi_fact_ano',
+    'panel_financiero', 'panel_tesoreria',
     'list_facturas_pend', 'chart_facturacion_6m', 'chart_cobros_pagos'
   ],
   operario: [
-    'kpi_obras_activas', 'list_tareas', 'list_obras'
+    'panel_comercial', 'list_tareas', 'list_obras'
   ],
   oficina: [
-    'kpi_facturacion_mes', 'kpi_pend_cobro', 'kpi_presup_pend', 'kpi_obras_activas',
+    'panel_financiero', 'panel_tesoreria', 'panel_comercial',
     'list_tareas', 'list_facturas_pend', 'list_presup_pend', 'list_obras'
   ],
 };
@@ -757,7 +712,7 @@ WIDGET_CATALOG.forEach(w => { _wgMap[w.id] = w; });
 
 /** Etiquetas de categoría para el panel de edición */
 const _CAT_LABELS = {
-  kpi: '📊 KPIs',
+  panel: '📊 Paneles',
   lista: '📋 Listas',
   grafico: '📈 Gráficos',
   alerta: '🔔 Alertas'
@@ -1008,7 +963,12 @@ function _loadDashConfig() {
     const saved = localStorage.getItem(key);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Filtrar IDs que ya no existen en el catálogo
+        const valid = parsed.filter(id => _wgMap[id]);
+        if (valid.length > 0) return valid;
+        // Si todos son inválidos (ej. migración de kpi_* a panel_*), resetear
+      }
     }
   } catch (e) { /* ignorar */ }
 
@@ -1186,7 +1146,7 @@ function _injectWidgetStyles() {
   const style = document.createElement('style');
   style.id = 'wg-styles';
   style.textContent = `
-    /* ── Grid principal ── */
+    /* ── Grid principal — 4 columnas ── */
     .wg-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -1194,88 +1154,82 @@ function _injectWidgetStyles() {
       padding: 4px 0;
     }
 
-    /* ── Tamaños de widget ── */
-    .wg { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden; transition: box-shadow .15s; }
-    .wg:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    /* ── Widget base ── */
+    .wg { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; transition: box-shadow .15s; display:flex; flex-direction:column; }
+    .wg:hover { box-shadow: 0 3px 12px rgba(0,0,0,.1); }
     .wg-sm { grid-column: span 1; }
     .wg-md { grid-column: span 2; }
     .wg-lg { grid-column: span 4; }
 
-    /* ── Cabecera del widget ── */
+    /* ── Cabecera ── */
     .wg-head {
       display: flex; align-items: center; gap: 6px;
       padding: 10px 14px 0; font-size: 11px; color: var(--gris-400);
     }
     .wg-ico { font-size: 14px; }
-    .wg-label { font-weight: 700; flex: 1; }
+    .wg-label { font-weight: 700; flex: 1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    /* ── Cuerpo del widget ── */
-    .wg-body { padding: 8px 14px 12px; }
+    /* ── Cuerpo ── */
+    .wg-body { padding: 8px 14px 12px; flex:1; display:flex; flex-direction:column; }
 
-    /* ── Botón eliminar (modo edición) ── */
-    .wg-rm {
-      background: none; border: none; cursor: pointer;
-      font-size: 18px; color: var(--gris-400); line-height: 1;
-      padding: 0 2px; transition: color .15s;
+    /* ── KPI layout (para widgets individuales si se mantienen) ── */
+    .wg-kpi-row { display:flex; align-items:flex-end; gap:10px; }
+    .wg-kpi-num { font-size:22px; font-weight:800; line-height:1.1; white-space:nowrap; }
+    .wg-kpi-sub { font-size:10px; color:var(--gris-400); margin-top:2px; }
+    .wg-kpi-spark { flex:1; min-width:0; }
+
+    /* ── Panel compuesto: grid interno ── */
+    .wg-panel-grid { display:grid; gap:12px; }
+    .wg-panel-4 { grid-template-columns: repeat(4, 1fr); }
+    .wg-panel-3 { grid-template-columns: repeat(3, 1fr); }
+    .wg-panel-2x2 { grid-template-columns: repeat(2, 1fr); }
+    .wg-panel-cell { padding:8px 10px; border-radius:8px; background:var(--gris-50,#F9FAFB); }
+    .wg-panel-val { font-size:20px; font-weight:800; line-height:1.2; white-space:nowrap; }
+    .wg-panel-label { font-size:11px; color:var(--gris-500); font-weight:600; margin-top:2px; }
+    .wg-panel-extra { font-size:10px; margin-top:2px; font-weight:500; }
+    .wg-spark-sm { display:block; width:100%; height:24px; margin-top:6px; }
+
+    /* ── Botones modo edición ── */
+    .wg-rm { background:none; border:none; cursor:pointer; font-size:16px; color:var(--gris-400); line-height:1; padding:0 2px; transition:color .15s; }
+    .wg-rm:hover { color:var(--rojo); }
+    .wg-resize { background:none; border:1px solid var(--gris-200,#E5E7EB); cursor:pointer; font-size:9px; color:var(--gris-400); line-height:1; padding:1px 4px; border-radius:3px; transition:all .15s; letter-spacing:-1px; }
+    .wg-resize:hover { border-color:var(--azul); color:var(--azul); }
+    .wg-drag { cursor:grab; font-size:12px; color:var(--gris-300); user-select:none; padding:0 2px; }
+    .wg-drag:active { cursor:grabbing; }
+
+    /* ── Drag & drop ── */
+    .wg-dragging { opacity:.4; transform:scale(.97); }
+    .wg-drop-before { box-shadow:-3px 0 0 0 var(--azul,#3B82F6),0 1px 3px rgba(0,0,0,.06) !important; }
+    .wg-drop-after { box-shadow:3px 0 0 0 var(--azul,#3B82F6),0 1px 3px rgba(0,0,0,.06) !important; }
+
+    /* ── Panel añadir ── */
+    .wg-add-panel { background:var(--gris-50,#F9FAFB); border:2px dashed var(--gris-200,#E5E7EB); border-radius:10px; padding:14px; margin-bottom:14px; }
+    .wg-add-chip { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; background:#fff; border:1px solid var(--gris-200,#E5E7EB); cursor:pointer; transition:all .15s; user-select:none; }
+    .wg-add-chip:hover { border-color:var(--azul); color:var(--azul); }
+    .wg-add-chip.active { background:var(--azul-light,#DBEAFE); border-color:var(--azul,#3B82F6); color:var(--azul,#3B82F6); opacity:.7; }
+
+    /* ── Sparkline: full width ── */
+    .wg-spark { display:block; width:100%; height:28px; }
+
+    /* ── Chart: responsive ── */
+    .wg-chart { display:block; width:100%; }
+
+    /* ── Responsive ── */
+    @media (max-width:1100px) {
+      .wg-grid { grid-template-columns:repeat(2,1fr); }
+      .wg-lg { grid-column:span 2; }
+      .wg-panel-4 { grid-template-columns:repeat(2,1fr); }
     }
-    .wg-rm:hover { color: var(--rojo); }
-
-    /* ── Botón redimensionar (modo edición) ── */
-    .wg-resize {
-      background: none; border: 1px solid var(--gris-200, #E5E7EB); cursor: pointer;
-      font-size: 10px; color: var(--gris-400); line-height: 1;
-      padding: 2px 6px; border-radius: 4px; transition: all .15s;
-      letter-spacing: -1px;
+    @media (max-width:768px) {
+      .wg-grid { grid-template-columns:repeat(2,1fr); }
+      .wg-lg { grid-column:span 2; }
+      .wg-panel-4 { grid-template-columns:repeat(2,1fr); }
+      .wg-panel-3 { grid-template-columns:repeat(1,1fr); }
     }
-    .wg-resize:hover { border-color: var(--azul); color: var(--azul); }
-
-    /* ── Handle de arrastre (modo edición) ── */
-    .wg-drag {
-      cursor: grab; font-size: 14px; color: var(--gris-300);
-      user-select: none; padding: 0 2px;
-    }
-    .wg-drag:active { cursor: grabbing; }
-
-    /* ── Drag & drop visual ── */
-    .wg-dragging { opacity: .4; transform: scale(.97); }
-    .wg-drop-before { box-shadow: -3px 0 0 0 var(--azul, #3B82F6), 0 1px 3px rgba(0,0,0,.06) !important; }
-    .wg-drop-after { box-shadow: 3px 0 0 0 var(--azul, #3B82F6), 0 1px 3px rgba(0,0,0,.06) !important; }
-
-    /* ── Panel de añadir widgets ── */
-    .wg-add-panel {
-      background: var(--gris-50, #F9FAFB); border: 2px dashed var(--gris-200, #E5E7EB);
-      border-radius: 12px; padding: 16px; margin-bottom: 16px;
-    }
-
-    /* ── Chip de widget disponible ── */
-    .wg-add-chip {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600;
-      background: #fff; border: 1px solid var(--gris-200, #E5E7EB);
-      cursor: pointer; transition: all .15s; user-select: none;
-    }
-    .wg-add-chip:hover { border-color: var(--azul); color: var(--azul); }
-    .wg-add-chip.active {
-      background: var(--azul-light, #DBEAFE); border-color: var(--azul, #3B82F6);
-      color: var(--azul, #3B82F6); opacity: .7;
-    }
-
-    /* ── Sparkline canvas ── */
-    .wg-spark { display: block; margin-top: 2px; }
-
-    /* ── Chart canvas ── */
-    .wg-chart { display: block; width: 100%; }
-
-    /* ── Responsive: tablets ── */
-    @media (max-width: 900px) {
-      .wg-grid { grid-template-columns: repeat(2, 1fr); }
-      .wg-lg { grid-column: span 2; }
-    }
-
-    /* ── Responsive: móvil ── */
-    @media (max-width: 600px) {
-      .wg-grid { grid-template-columns: 1fr; }
-      .wg-sm, .wg-md, .wg-lg { grid-column: span 1; }
+    @media (max-width:500px) {
+      .wg-grid { grid-template-columns:1fr; }
+      .wg-sm,.wg-md,.wg-lg { grid-column:span 1; }
+      .wg-panel-4,.wg-panel-3,.wg-panel-2x2 { grid-template-columns:1fr; }
     }
   `;
   document.head.appendChild(style);
