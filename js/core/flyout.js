@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════
 
 const FLYOUT_SECTIONS = {
-  favoritos: { label: 'Favoritos', buildFn: '_buildFavoritosFlyout' },
   ventas: { label: 'Ventas', items: [
     { id:'clientes', ico:'👥', name:'Clientes' },
     { id:'presupuestos', ico:'📋', name:'Presupuestos' },
@@ -115,27 +114,6 @@ function _buildSectionFlyout(sec) {
     else html += _buildTagHtml(it.tag);
     html += `</div>`;
   }
-  return html;
-}
-
-function _buildFavoritosFlyout() {
-  let html = '<div class="fly-title">Favoritos</div>';
-  const favs = typeof sbFavoritos !== 'undefined' ? sbFavoritos : ['dashboard'];
-  const pages = typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : [];
-
-  for (const id of favs) {
-    const p = pages.find(x => x.id === id);
-    if (!p) continue;
-    if (typeof userCanAccess === 'function' && !userCanAccess(p.id)) continue;
-    html += `<div class="fly-item" onclick="goPage('${p.id}');_hideFlyout(true)">`;
-    html += `<span class="ico">${p.ico}</span>${p.label}`;
-    html += `</div>`;
-  }
-
-  // Edit button
-  html += `<div style="border-top:1px solid var(--gris-200);margin-top:4px;padding-top:4px">`;
-  html += `<div class="fly-item" onclick="goPage('dashboard');toggleFavEdit();_hideFlyout(true)" style="color:var(--gris-400)">`;
-  html += `<span class="ico">✏️</span>Editar favoritos</div></div>`;
   return html;
 }
 
@@ -301,14 +279,11 @@ function applyIconbarPerms() {
 
   document.querySelectorAll('.ib-item[data-flyout]').forEach(el => {
     const flyKey = el.dataset.flyout;
-    if (!flyKey || flyKey === 'favoritos' || flyKey === 'user') return;
+    if (!flyKey || flyKey === 'user') return;
     if (el.id === 'ibAdminItem') return; // config se gestiona aparte
 
     const sec = FLYOUT_SECTIONS[flyKey];
     if (!sec) { el.style.display = 'none'; return; }
-
-    // Secciones con buildFn especial (favoritos) → siempre visibles
-    if (sec.buildFn) return;
 
     // Comprobar si al menos un sub-item del flyout es accesible
     let hasAccess = false;
