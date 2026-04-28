@@ -814,15 +814,20 @@ async function _renderSingleWidget(wid, grid) {
 
   // Wrapper del widget
   const wrapper = document.createElement('div');
-  wrapper.className = `wg wg-${def.size}`;
   wrapper.dataset.wid = wid;
+
+  // Tamaño: custom override o el por defecto del widget
+  const customSize = _getWidgetSize(wid) || def.size;
+  wrapper.className = `wg wg-${customSize}`;
 
   // Cabecera
   const header = document.createElement('div');
   header.className = 'wg-head';
+  const sizeLabel = { sm: '1col', md: '2col', lg: '4col' };
   header.innerHTML = `
     <span class="wg-ico">${def.ico}</span>
     <span class="wg-label">${def.label}</span>
+    ${_dashEditMode ? `<button class="wg-resize" onclick="_cycleWidgetSize('${wid}')" title="Redimensionar: ${sizeLabel[customSize]}">${customSize === 'sm' ? '◻' : customSize === 'md' ? '◻◻' : '◻◻◻◻'}</button>` : ''}
     ${_dashEditMode ? `<button class="wg-rm" onclick="_removeWidget('${wid}')" title="Quitar widget">&times;</button>` : ''}
   `;
   // En modo edición, hacer draggable + handle
@@ -954,8 +959,10 @@ function _toggleWidgetFromChip(wid, chip) {
 
 /** Resetear config al default del rol */
 function _resetDashConfig() {
-  const key = `dash_widgets_${CU?.id}`;
-  try { localStorage.removeItem(key); } catch(e) {}
+  try {
+    localStorage.removeItem(`dash_widgets_${CU?.id}`);
+    localStorage.removeItem(`dash_sizes_${CU?.id}`);
+  } catch(e) {}
   renderWidgetDashboard(_dashContainerId);
 }
 
@@ -1020,6 +1027,65 @@ function _saveDashConfig(ids) {
     localStorage.setItem(key, JSON.stringify(ids));
   } catch (e) {
     console.warn('[widgets] Error guardando config:', e);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   REDIMENSIONAR WIDGETS
+   ══════════════════════════════════════════════════════════════════════ */
+
+/** Lee tamaños custom de localStorage */
+function _loadWidgetSizes() {
+  const key = `dash_sizes_${CU?.id}`;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return {};
+}
+
+/** Guarda tamaños custom en localStorage */
+function _saveWidgetSizes(sizes) {
+  const key = `dash_sizes_${CU?.id}`;
+  try { localStorage.setItem(key, JSON.stringify(sizes)); } catch(e) {}
+}
+
+/** Obtiene el tamaño custom de un widget (o null si usa el default) */
+function _getWidgetSize(wid) {
+  return _loadWidgetSizes()[wid] || null;
+}
+
+/** Cicla el tamaño de un widget: sm → md → lg → sm */
+function _cycleWidgetSize(wid) {
+  const def = _wgMap[wid];
+  if (!def) return;
+  const currentSize = _getWidgetSize(wid) || def.size;
+  const cycle = ['sm', 'md', 'lg'];
+  const idx = cycle.indexOf(currentSize);
+  const newSize = cycle[(idx + 1) % cycle.length];
+
+  // Guardar
+  const sizes = _loadWidgetSizes();
+  if (newSize === def.size) {
+    delete sizes[wid]; // volver al default = no guardar
+  } else {
+    sizes[wid] = newSize;
+  }
+  _saveWidgetSizes(sizes);
+
+  // Actualizar DOM directamente
+  const el = document.querySelector(`.wg[data-wid="${wid}"]`);
+  if (el) {
+    el.classList.remove('wg-sm', 'wg-md', 'wg-lg');
+    el.classList.add(`wg-${newSize}`);
+    // Actualizar botón de resize
+    const btn = el.querySelector('.wg-resize');
+    if (btn) {
+      const sizeLabel = { sm: '1col', md: '2col', lg: '4col' };
+      btn.title = 'Redimensionar: ' + sizeLabel[newSize];
+      btn.textContent = newSize === 'sm' ? '◻' : newSize === 'md' ? '◻◻' : '◻◻◻◻';
+    }
   }
 }
 
@@ -1153,6 +1219,15 @@ function _injectWidgetStyles() {
       padding: 0 2px; transition: color .15s;
     }
     .wg-rm:hover { color: var(--rojo); }
+
+    /* ── Botón redimensionar (modo edición) ── */
+    .wg-resize {
+      background: none; border: 1px solid var(--gris-200, #E5E7EB); cursor: pointer;
+      font-size: 10px; color: var(--gris-400); line-height: 1;
+      padding: 2px 6px; border-radius: 4px; transition: all .15s;
+      letter-spacing: -1px;
+    }
+    .wg-resize:hover { border-color: var(--azul); color: var(--azul); }
 
     /* ── Handle de arrastre (modo edición) ── */
     .wg-drag {
