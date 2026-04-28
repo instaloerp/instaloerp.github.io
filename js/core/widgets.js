@@ -1002,11 +1002,174 @@ const WIDGET_CATALOG = [
   }
 
   // ═══════════════════════════════════════════
+  //  WIDGETS GESTORÍA / CONTABILIDAD
+  // ═══════════════════════════════════════════
+
+  // ── Lista: Facturas proveedor pendientes de pago ──
+  ,{
+    id: 'list_facturas_prov_pend', label: 'Facturas prov. pend.', ico: '📑',
+    cat: 'lista', size: 'md',
+    async fetch(eid) {
+      const { data } = await sb.from('facturas_proveedor')
+        .select('id,numero,proveedor_nombre,base_imponible,total,estado,fecha_vencimiento,fecha')
+        .eq('empresa_id', eid)
+        .in('estado', ['pendiente'])
+        .order('fecha_vencimiento', { ascending: true })
+        .limit(8);
+      const items = data || [];
+      const total = items.reduce((s, f) => s + (f.total || f.base_imponible || 0), 0);
+      const hoy = new Date();
+      const vencidas = items.filter(f => f.fecha_vencimiento && new Date(f.fecha_vencimiento) < hoy);
+      const totalVencido = vencidas.reduce((s, f) => s + (f.total || f.base_imponible || 0), 0);
+      return { items, total, vencidas: vencidas.length, totalVencido };
+    },
+    render(data, el) {
+      if (!data.items.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:600;color:#10B981">Todo pagado</div><div style="font-size:11px;color:var(--gris-400)">No hay facturas de proveedor pendientes</div></div>';
+        return;
+      }
+      const hoy = new Date();
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div>
+          <span style="font-size:16px;font-weight:800;color:#EF4444">${fmtE(data.total)}</span>
+          <span style="font-size:11px;color:var(--gris-400);margin-left:4px">${data.items.length} facturas</span>
+        </div>
+        ${data.vencidas > 0 ? `<div style="padding:2px 8px;background:rgba(239,68,68,.08);border-radius:4px;font-size:10px;color:#EF4444;font-weight:600">⚠ ${data.vencidas} vencida${data.vencidas > 1 ? 's' : ''} · ${fmtE(data.totalVencido)}</div>` : '<div style="font-size:10px;color:#10B981;font-weight:600">✓ Sin vencidas</div>'}
+      </div>`;
+      html += data.items.map(f => {
+        const dias = f.fecha_vencimiento ? Math.floor((hoy - new Date(f.fecha_vencimiento)) / 86400000) : null;
+        const diasTxt = dias !== null ? (dias > 0 ? `hace ${dias}d` : dias === 0 ? 'hoy' : `en ${Math.abs(dias)}d`) : '';
+        const diasColor = dias !== null ? (dias > 0 ? '#EF4444' : dias <= 7 ? '#F59E0B' : '#10B981') : 'var(--gris-400)';
+        const vencida = dias !== null && dias > 0;
+        return `
+        <div class="wg-list-row" onclick="goPage('facturas-proveedor')">
+          <div style="width:3px;border-radius:2px;background:${vencida ? '#EF4444' : '#F59E0B'};align-self:stretch;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:700;font-size:12px">${f.numero || '—'}</span>
+              ${vencida ? '<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.1);color:#EF4444;font-weight:700">Vencida</span>' : ''}
+            </div>
+            <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.proveedor_nombre || '—'}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:800;font-size:13px">${fmtE(f.total || f.base_imponible)}</div>
+            ${diasTxt ? `<div style="font-size:9px;color:${diasColor};font-weight:600">Vence ${diasTxt}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
+    }
+  },
+
+  // ── Panel: Resumen fiscal (IVA repercutido vs soportado, resultado trimestre) ──
+  {
+    id: 'panel_fiscal', label: 'Resumen fiscal', ico: '🧮',
+    cat: 'panel', size: 'md',
+    async fetch(eid) {
+      const hoy = new Date();
+      const trimestre = Math.floor(hoy.getMonth() / 3); // 0,1,2,3
+      const trimestreLabel = `${trimestre + 1}T ${hoy.getFullYear()}`;
+      const trDesde = new Date(hoy.getFullYear(), trimestre * 3, 1).toISOString().split('T')[0];
+      const trHasta = new Date(hoy.getFullYear(), (trimestre + 1) * 3, 1).toISOString().split('T')[0];
+      const anoDesde = _wgInicioAno();
+
+      const [rV, rC] = await Promise.all([
+        sb.from('facturas').select('fecha,base_imponible,total_iva,total,estado')
+          .eq('empresa_id', eid).neq('estado', 'eliminado'),
+        sb.from('facturas_proveedor').select('fecha,base_imponible,total_iva,total,estado')
+          .eq('empresa_id', eid).neq('estado', 'eliminado'),
+      ]);
+      const ventas = _wgFactActivas(rV.data);
+      const compras = (rC.data || []).filter(f => f.estado !== 'anulada');
+
+      // IVA trimestre
+      const ventasTr = ventas.filter(f => f.fecha >= trDesde && f.fecha < trHasta);
+      const comprasTr = compras.filter(f => f.fecha >= trDesde && f.fecha < trHasta);
+      const ivaRepTr = ventasTr.reduce((s, f) => s + (f.total_iva || 0), 0);
+      const ivaSopTr = comprasTr.reduce((s, f) => s + (f.total_iva || 0), 0);
+      const liquidacionTr = ivaRepTr - ivaSopTr;
+      const basesVentaTr = ventasTr.reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const basesCompraTr = comprasTr.reduce((s, f) => s + (f.base_imponible || 0), 0);
+
+      // IVA año
+      const ventasAno = ventas.filter(f => f.fecha >= anoDesde);
+      const comprasAno = compras.filter(f => f.fecha >= anoDesde);
+      const ivaRepAno = ventasAno.reduce((s, f) => s + (f.total_iva || 0), 0);
+      const ivaSopAno = comprasAno.reduce((s, f) => s + (f.total_iva || 0), 0);
+      const liquidacionAno = ivaRepAno - ivaSopAno;
+
+      // Resultado fiscal año (bases)
+      const resultadoAno = ventasAno.reduce((s, f) => s + (f.base_imponible || 0), 0) -
+                           comprasAno.reduce((s, f) => s + (f.base_imponible || 0), 0);
+
+      // Número de facturas
+      const nFactVenta = ventasTr.length;
+      const nFactCompra = comprasTr.length;
+
+      return { trimestreLabel, ivaRepTr, ivaSopTr, liquidacionTr, basesVentaTr, basesCompraTr,
+               nFactVenta, nFactCompra,
+               ivaRepAno, ivaSopAno, liquidacionAno, resultadoAno };
+    },
+    render(data, el) {
+      const liqColor = data.liquidacionTr >= 0 ? '#EF4444' : '#10B981'; // positivo = a pagar, negativo = a devolver
+      const liqLabel = data.liquidacionTr >= 0 ? 'A ingresar' : 'A compensar';
+      const liqAnoColor = data.liquidacionAno >= 0 ? '#EF4444' : '#10B981';
+      const resAnoColor = data.resultadoAno >= 0 ? '#10B981' : '#EF4444';
+
+      el.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <!-- Trimestre actual -->
+          <div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.05em">📅 ${data.trimestreLabel}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="wg-card-accent" style="--card-accent:#3B82F6">
+              <div class="wg-card-title">IVA Repercutido</div>
+              <div class="wg-card-big" style="font-size:18px;color:#3B82F6">${fmtE(data.ivaRepTr)}</div>
+              <div class="wg-card-dim">${data.nFactVenta} fact. emitidas · Base ${fmtE(data.basesVentaTr)}</div>
+            </div>
+            <div class="wg-card-accent" style="--card-accent:#EF4444">
+              <div class="wg-card-title">IVA Soportado</div>
+              <div class="wg-card-big" style="font-size:18px;color:#EF4444">${fmtE(data.ivaSopTr)}</div>
+              <div class="wg-card-dim">${data.nFactCompra} fact. recibidas · Base ${fmtE(data.basesCompraTr)}</div>
+            </div>
+          </div>
+          <!-- Liquidación trimestre -->
+          <div class="wg-card-accent" style="--card-accent:${liqColor}">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div class="wg-card-title">Liquidación IVA ${data.trimestreLabel}</div>
+                <div class="wg-card-big" style="font-size:20px;color:${liqColor}">${fmtE(Math.abs(data.liquidacionTr))}</div>
+              </div>
+              <div style="padding:4px 10px;background:${liqColor}12;border-radius:6px;font-size:11px;font-weight:700;color:${liqColor}">${liqLabel}</div>
+            </div>
+          </div>
+          <!-- Acumulado año -->
+          <div style="background:var(--gris-50,#F9FAFB);border-radius:10px;padding:10px 12px">
+            <div style="font-size:10px;font-weight:700;color:var(--gris-500);margin-bottom:6px">Acumulado ${new Date().getFullYear()}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <div>
+                <div style="font-size:9px;color:var(--gris-400)">IVA Rep.</div>
+                <div style="font-size:13px;font-weight:800;color:#3B82F6">${fmtE(data.ivaRepAno)}</div>
+              </div>
+              <div>
+                <div style="font-size:9px;color:var(--gris-400)">IVA Sop.</div>
+                <div style="font-size:13px;font-weight:800;color:#EF4444">${fmtE(data.ivaSopAno)}</div>
+              </div>
+              <div>
+                <div style="font-size:9px;color:var(--gris-400)">Resultado fiscal</div>
+                <div style="font-size:13px;font-weight:800;color:${resAnoColor}">${fmtE(data.resultadoAno)}</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+  },
+
+  // ═══════════════════════════════════════════
   //  WIDGETS COMUNICACIÓN
   // ═══════════════════════════════════════════
 
   // ── Correo: últimos correos recibidos ──
-  ,{
+  {
     id: 'list_correo', label: 'Correo reciente', ico: '📧',
     cat: 'comunicacion', size: 'md',
     async fetch(eid) {
@@ -1150,21 +1313,22 @@ const WIDGET_CATALOG = [
 const DASH_DEFAULTS = {
   admin: [
     'panel_financiero', 'panel_tesoreria', 'panel_comercial',
-    'list_tareas', 'list_obras', 'list_facturas_pend', 'list_presup_pend',
     'list_correo', 'list_mensajeria',
-    'chart_facturacion_6m', 'chart_cobros_pagos'
+    'list_tareas', 'list_obras',
+    'list_facturas_pend', 'list_presup_pend'
   ],
   gestoria: [
-    'panel_financiero', 'panel_tesoreria',
-    'list_facturas_pend', 'chart_facturacion_6m', 'chart_cobros_pagos'
+    'panel_financiero', 'panel_tesoreria', 'panel_fiscal',
+    'list_facturas_pend', 'list_facturas_prov_pend'
   ],
   operario: [
     'panel_comercial', 'list_tareas', 'list_obras'
   ],
   oficina: [
-    'panel_financiero', 'panel_tesoreria', 'panel_comercial',
-    'list_tareas', 'list_facturas_pend', 'list_presup_pend', 'list_obras',
-    'list_correo', 'list_mensajeria'
+    'panel_comercial',
+    'list_correo', 'list_mensajeria',
+    'list_tareas', 'list_obras',
+    'list_presup_pend'
   ],
 };
 
@@ -1242,9 +1406,23 @@ async function renderWidgetDashboard(containerId) {
  * @param {string} wid — ID del widget
  * @param {HTMLElement} grid — Contenedor grid
  */
+/** Mapa de permisos requeridos por widget (widgets sensibles) */
+const _WG_PERM_REQ = {
+  panel_financiero:   {sec:'facturacion', sub:'facturas'},
+  panel_tesoreria:    {sec:'tesoreria', sub:'ver'},
+  panel_fiscal:       {sec:'facturacion', sub:'facturas'},
+  list_facturas_pend: {sec:'facturacion', sub:'facturas'},
+  list_facturas_prov_pend: {sec:'compras', sub:'facturas_prov'},
+  chart_facturacion_6m: {sec:'facturacion', sub:'facturas'},
+  chart_cobros_pagos: {sec:'facturacion', sub:'facturas'},
+};
+
 async function _renderSingleWidget(wid, grid) {
   const def = _wgMap[wid];
   if (!def) { console.warn('[widgets] Widget desconocido:', wid); return; }
+  // Verificar permisos — no renderizar si el usuario no tiene acceso
+  const req = _WG_PERM_REQ[wid];
+  if (req && typeof canDo === 'function' && !canDo(req.sec, req.sub)) return;
 
   // Wrapper del widget
   const wrapper = document.createElement('div');
@@ -1382,10 +1560,17 @@ function _buildAddPanel(container) {
     </div>
   `;
 
-  // Agrupar widgets por categoría
+  // Filtrar widgets según permisos del usuario
   const currentIds = _loadDashConfig();
+  const visibleWidgets = WIDGET_CATALOG.filter(w => {
+    const req = _WG_PERM_REQ[w.id];
+    if (!req) return true; // sin restricción
+    return typeof canDo === 'function' ? canDo(req.sec, req.sub) : true;
+  });
+
+  // Agrupar widgets visibles por categoría
   const byCat = {};
-  WIDGET_CATALOG.forEach(w => {
+  visibleWidgets.forEach(w => {
     if (!byCat[w.cat]) byCat[w.cat] = [];
     byCat[w.cat].push(w);
   });
@@ -1403,6 +1588,8 @@ function _buildAddPanel(container) {
     chart_cobros_pagos: 'Comparativa visual ventas vs compras con margen acumulado',
     list_correo: 'Últimos correos recibidos con contador de no leídos',
     list_mensajeria: 'Conversaciones de chat recientes con mensajes nuevos',
+    list_facturas_prov_pend: 'Facturas de proveedor pendientes con vencimiento y total',
+    panel_fiscal: 'IVA repercutido/soportado trimestral, liquidación y acumulado anual',
   };
 
   const sizeLabels = { sm: '1 col', md: '2 col', lg: 'Ancho completo' };
@@ -1524,9 +1711,15 @@ function _loadDashConfig() {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Filtrar IDs que ya no existen en el catálogo
-        const valid = parsed.filter(id => _wgMap[id]);
+        let valid = parsed.filter(id => _wgMap[id]);
+        // Migración: quitar charts duplicados si ya tiene panel_financiero
+        if (valid.includes('panel_financiero')) {
+          const dup = ['chart_facturacion_6m', 'chart_cobros_pagos'];
+          const before = valid.length;
+          valid = valid.filter(id => !dup.includes(id));
+          if (valid.length !== before) _saveDashConfig(valid); // auto-guardar migración
+        }
         if (valid.length > 0) return valid;
-        // Si todos son inválidos (ej. migración de kpi_* a panel_*), resetear
       }
     }
   } catch (e) { /* ignorar */ }
