@@ -282,7 +282,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 116</span>
+      <span id="erpBuildVersion">v1.1 · build 117</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -321,54 +321,16 @@ try {
 
       <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
-
-        <!-- FILA 1: KPIs principales -->
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:16px">
-          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">💶</div><div class="sv" id="d-fact-mes">—</div><div class="sl">Facturado neto este mes</div></div>
-          <div class="sc" style="--c:var(--gris-600);--bg:var(--gris-100)"><div class="si">📝</div><div class="sv" id="d-fact-borrador">—</div><div class="sl">En borrador</div></div>
-          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">⏳</div><div class="sv" id="d-pend-cobro">—</div><div class="sl">Pendiente de cobro</div></div>
-          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">🧾</div><div class="sv" id="d-pend-pago">—</div><div class="sl">Pendiente de pago</div></div>
-          <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light)"><div class="si">📋</div><div class="sv" id="d-presup-mes">—</div><div class="sl">Presupuestos pendientes</div></div>
+        <!-- Cabecera del dashboard -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <h2 style="font-size:18px;font-weight:800;margin:0">Panel de control</h2>
+            <div style="font-size:12px;color:var(--gris-400);margin-top:2px" id="dash-sub"></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="toggleDashEdit()" id="btnDashEdit">⚙️ Personalizar</button>
         </div>
-
-        <!-- FILA 2: KPIs secundarios -->
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:16px">
-          <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">✅</div><div class="sv" id="d-presup-acep">—</div><div class="sl">Aceptados pendientes</div></div>
-          <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">👥</div><div class="sv" id="d-cli">—</div><div class="sl">Clientes</div></div>
-          <div class="sc" style="--c:var(--acento);--bg:#FFF4ED"><div class="si">🏗️</div><div class="sv" id="d-trab">—</div><div class="sl">Obras activas</div></div>
-          <div class="sc" style="--c:var(--violeta);--bg:var(--violeta-light)"><div class="si">💰</div><div class="sv" id="d-fact-ano">—</div><div class="sl">Facturado neto este año</div></div>
-          <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">⚠️</div><div class="sv" id="d-vencidas">—</div><div class="sl">Facturas vencidas</div></div>
-        </div>
-
-        <!-- ALERTAS -->
-        <div id="dash-incidencias" style="display:none;margin-bottom:16px"></div>
-        <div id="dash-partes-completados" style="display:none;margin-bottom:16px"></div>
-
-        <!-- TARJETAS con pestaña de color y resize -->
-        <div class="dash-grid">
-          <div class="dash-card dash-card--orange" id="dash-docs-ocr" style="display:none"></div>
-          <div class="dash-card dash-card--purple" id="dash-bandeja" style="display:none">
-            <div class="card-h"><h3>⚡ Inbox</h3><div class="card-ha"><span id="d-bandeja-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('bandeja')">Ver todas</button></div></div>
-            <div class="card-b" id="d-bandeja-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">📥</div><p>Sin tareas pendientes</p></div></div>
-          </div>
-          <div class="dash-card dash-card--green">
-            <div class="card-h"><h3>✅ Tareas</h3><div class="card-ha"><span id="d-tareas-count" style="font-size:11px;color:var(--gris-400)"></span><button class="btn btn-secondary btn-sm" onclick="goPage('mistareas')">Ver todas</button></div></div>
-            <div class="card-b" id="d-tareas-list" style="max-height:280px;overflow-y:auto"><div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div></div>
-          </div>
-          <div class="dash-card dash-card--blue">
-            <div class="card-h"><h3>🏗️ Obras activas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('trabajos')">Ver todos</button></div></div>
-            <div class="card-b" id="d-trabajos-list"><div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div></div>
-          </div>
-          <div class="dash-card dash-card--red">
-            <div class="card-h"><h3>🧾 Facturas pendientes cobro</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas')">Ver todas</button></div></div>
-            <div class="card-b" id="d-fact-list"><div class="empty"><div class="ei">✅</div><p>Todo cobrado</p></div></div>
-          </div>
-          <div class="dash-card dash-card--yellow">
-            <div class="card-h"><h3>📋 Presupuestos pendientes</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('presupuestos')">Ver todos</button></div></div>
-            <div class="card-b" id="d-presup-list"><div class="empty"><div class="ei">📋</div><p>Sin presupuestos</p></div></div>
-          </div>
-        </div>
-
+        <!-- Contenedor dinámico de widgets -->
+        <div id="dash-widgets"></div>
       </div>
 
       <!-- CLIENTES -->
@@ -5252,6 +5214,7 @@ try {
     // Core
     'js/core/app.js',
     'js/core/ui.js',
+    'js/core/widgets.js',
     'js/core/dashboard.js',
     'js/core/sidebar.js',
     'js/core/flyout.js',

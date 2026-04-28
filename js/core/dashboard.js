@@ -1,160 +1,20 @@
 // ═══════════════════════════════════════════════
-//  DASHBOARD — Panel de control
+//  DASHBOARD — Panel de control (motor de widgets)
 // ═══════════════════════════════════════════════
 
 async function loadDashboard() {
-  // Dashboard específico por rol
-  if (CP && !CP.es_superadmin && CP.rol === 'gestoria') {
-    // Ocultar dashboard normal, usar contenedor dinámico
-    const page = document.getElementById('page-dashboard');
-    if (page) {
-      // Guardar HTML original si no existe el wrapper
-      if (!document.getElementById('dash-gestoria')) {
-        const orig = page.innerHTML;
-        page.innerHTML = `<div id="dash-normal" style="display:none">${orig}</div><div id="dash-gestoria"></div>`;
-      }
-      document.getElementById('dash-normal').style.display = 'none';
-      document.getElementById('dash-gestoria').style.display = '';
-    }
-    return loadDashboardGestoria();
-  } else {
-    // Restaurar dashboard normal si fue reemplazado
-    const dashNormal = document.getElementById('dash-normal');
-    if (dashNormal) {
-      dashNormal.style.display = '';
-      const dashGest = document.getElementById('dash-gestoria');
-      if (dashGest) dashGest.style.display = 'none';
-    }
+  // Subtítulo con nombre empresa y fecha
+  const sub = document.getElementById('dash-sub');
+  if (sub) {
+    const mes = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+    sub.textContent = (EMPRESA?.nombre || '') + ' · ' + mes;
   }
 
-  const eid = EMPRESA.id;
-  const hoy = new Date();
-  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
-  const inicioAno = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0];
+  // Renderizar widgets dinámicos según rol y config del usuario
+  await renderWidgetDashboard('dash-widgets');
 
-  // Cargar datos en paralelo
-  const [facts, presups, presupAcep] = await Promise.all([
-    sb.from('facturas').select('*').eq('empresa_id', eid).neq('estado','eliminado'),
-    sb.from('presupuestos').select('*').eq('empresa_id', eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5),
-    sb.from('presupuestos').select('id', {count:'exact',head:true}).eq('empresa_id', eid).eq('estado','aceptado'),
-  ]);
-
-  const todasFacturas = facts.data || [];
-  const todosPresups = presups.data || [];
-
-  // KPIs facturación — neto real SIN IVA: excluir anuladas, rectificadas y borradores; INCLUIR rectificativas (abonos restan)
-  const facturasActivas = todasFacturas.filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && f.estado !== 'borrador');
-  const factMes = facturasActivas.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.base_imponible||0), 0);
-  const factAno = facturasActivas.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.base_imponible||0), 0);
-  const factBorrador = todasFacturas.filter(f => f.estado === 'borrador').reduce((s,f) => s + (f.base_imponible||0), 0);
-  const pendCobro = todasFacturas.filter(f => (f.estado === 'pendiente' || f.estado === 'vencida')).reduce((s,f) => s + (f.base_imponible||0), 0);
-  const vencidas = todasFacturas.filter(f => f.estado === 'vencida').length;
-  const presupPend = todosPresups.filter(p => p.estado === 'pendiente' || p.estado === 'enviado').length;
-
-  // KPIs facturas proveedor pendientes pago (sin IVA)
-  const { data: factsProv } = await sb.from('facturas_proveedor').select('base_imponible,estado').eq('empresa_id', eid).eq('estado','pendiente');
-  const pendPago = (factsProv||[]).reduce((s,f) => s + (f.base_imponible||0), 0);
-
-  // KPI presupuestos aceptados (count)
-  const numAceptados = presupAcep.count || 0;
-
-  // Actualizar KPIs (usar ?. por si falta algún elemento en el HTML)
-  const _d = id => document.getElementById(id);
-  if (_d('d-fact-mes'))      _d('d-fact-mes').textContent = fmtE(factMes);
-  if (_d('d-fact-borrador')) _d('d-fact-borrador').textContent = fmtE(factBorrador);
-  if (_d('d-fact-ano'))      _d('d-fact-ano').textContent = fmtE(factAno);
-  if (_d('d-pend-cobro'))    _d('d-pend-cobro').textContent = fmtE(pendCobro);
-  if (_d('d-pend-pago'))   _d('d-pend-pago').textContent = fmtE(pendPago);
-  if (_d('d-presup-mes'))  _d('d-presup-mes').textContent = presupPend;
-  if (_d('d-presup-acep')) _d('d-presup-acep').textContent = numAceptados;
-  if (_d('d-vencidas'))    _d('d-vencidas').textContent = vencidas;
-  if (_d('d-cli'))         _d('d-cli').textContent = clientes.length;
-  if (_d('d-trab'))        _d('d-trab').textContent = trabajos.filter(t=>t.estado==='en_curso'||t.estado==='planificado'||t.estado==='pendiente').length;
-
-  // Trabajos activos
-  const trabActivos = trabajos.filter(t=>t.estado!=='finalizado'&&t.estado!=='cancelado').slice(0,5);
-  document.getElementById('d-trabajos-list').innerHTML = trabActivos.length ?
-    trabActivos.map(t=>`
-      <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--gris-100)">
-        <span style="font-size:16px">${catIco(t.categoria)}</span>
-        <div style="flex:1"><div style="font-weight:700;font-size:12.5px">${t.titulo}</div><div style="font-size:11px;color:var(--gris-400)">${t.cliente_nombre||'—'} · ${t.fecha||'—'}</div></div>
-        ${estadoBadge(t.estado)}
-      </div>`).join('') :
-    '<div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div>';
-
-  // Facturas pendientes cobro — incluir rectificativas (abonos restan)
-  const factPend = todasFacturas.filter(f=>(f.estado==='pendiente'||f.estado==='vencida')).slice(0,5);
-  document.getElementById('d-fact-list').innerHTML = factPend.length ?
-    factPend.map(f=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100)">
-        <div>
-          <div style="font-weight:700;font-size:12.5px">${f.numero}${f.rectificativa_de?' (abono)':''}</div>
-          <div style="font-size:11px;color:var(--gris-400)">${f.cliente_nombre||'—'} · Vence: ${f.fecha_vencimiento||'—'}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:800;font-size:13px;color:${f.rectificativa_de?'var(--violeta)':f.estado==='vencida'?'var(--rojo)':'var(--gris-800)'}">${fmtE(f.base_imponible)}</div>
-          ${f.rectificativa_de?'<span class="badge bg-purple">Abono</span>':f.estado==='vencida'?'<span class="badge bg-red">Vencida</span>':'<span class="badge bg-yellow">Pendiente</span>'}
-        </div>
-      </div>`).join('') :
-    '<div class="empty"><div class="ei">✅</div><p>Todo cobrado</p></div>';
-
-  // Presupuestos pendientes
-  document.getElementById('d-presup-list').innerHTML = todosPresups.filter(p=>p.estado==='pendiente'||p.estado==='borrador').slice(0,5).length ?
-    todosPresups.filter(p=>p.estado==='pendiente'||p.estado==='borrador').slice(0,5).map(p=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gris-100)">
-        <div>
-          <div style="font-weight:700;font-size:12.5px">${p.numero||'—'}</div>
-          <div style="font-size:11px;color:var(--gris-400)">${p.cliente_nombre||'—'}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>
-          ${estadoBadgeP(p.estado)}
-        </div>
-      </div>`).join('') :
-    '<div class="empty"><div class="ei">📋</div><p>Sin presupuestos pendientes</p></div>';
-
-  // ── MIS TAREAS (todas las tareas asignadas al usuario actual) ──
-  await loadDashboardTareas();
-
-  // ── PARTES AUTO-GENERADOS POR GREMIO ──
-  await loadDashboardPartesGremio();
-
-  // ── INCIDENCIAS STOCK PENDIENTES ──
-  try {
-    const { data: incPend, error: incErr } = await sb.from('incidencias_stock')
-      .select('id', { count: 'exact', head: true })
-      .eq('empresa_id', EMPRESA.id)
-      .eq('estado', 'pendiente');
-    if (!incErr && incPend !== null) {
-      const cnt = typeof incPend === 'number' ? incPend : 0;
-      const el = document.getElementById('dash-incidencias');
-      if (el && cnt > 0) {
-        el.style.display = '';
-        el.innerHTML = `<div class="card" style="padding:14px;border-left:4px solid var(--rojo);cursor:pointer" onclick="goPage('incidencias-stock')">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:24px">⚠️</div>
-            <div style="flex:1"><div style="font-weight:800;font-size:14px">${cnt} incidencia${cnt>1?'s':''} de stock pendiente${cnt>1?'s':''}</div>
-            <div style="font-size:11px;color:var(--gris-400)">Materiales consumidos sin stock disponible</div></div>
-            <span class="badge bg-red">${cnt}</span>
-          </div>
-        </div>`;
-      }
-    }
-  } catch(e) { /* silent */ }
-
-  // ── PARTES COMPLETADOS PENDIENTES DE REVISAR ──
-  await loadDashboardPartesCompletados();
-
-  // ── DOCUMENTOS OCR PENDIENTES ──
-  await loadDashboardDocsOcr();
-
-  // ── BANDEJA DE ENTRADA (AUTOMATIZACIONES) ──
-  if (typeof renderDashBandeja === 'function') renderDashBandeja();
-
-  // ── BADGE CORREO NO LEÍDO ──
+  // ── BADGE CORREO NO LEÍDO (global) ──
   if (typeof actualizarBadgeCorreo === 'function') actualizarBadgeCorreo();
-
-  // ── Refrescar badge correo cada 5 min globalmente (optimizado Disk IO) ──
   if (!window._badgeCorreoGlobalInterval && typeof actualizarBadgeCorreo === 'function') {
     window._badgeCorreoGlobalInterval = setInterval(actualizarBadgeCorreo, 5 * 60 * 1000);
   }
@@ -383,9 +243,11 @@ function _dashQuickLink(pageId, ico, label) {
 }
 
 // ═══════════════════════════════════════════════
-//  DASHBOARD GESTORÍA — Vista contable
+//  DASHBOARD GESTORÍA — Vista contable (LEGACY — ahora gestionado por widgets.js)
 // ═══════════════════════════════════════════════
 async function loadDashboardGestoria() {
+  // Ya no se usa — el sistema de widgets renderiza según DASH_DEFAULTS.gestoria
+  return;
   const eid = EMPRESA.id;
   const page = document.getElementById('dash-gestoria') || document.getElementById('page-dashboard');
   if (!page) return;
