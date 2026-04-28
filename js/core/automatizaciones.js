@@ -621,10 +621,18 @@ async function actualizarBadgeBandeja() {
       .eq('empresa_id', EMPRESA.id)
       .eq('estado', 'pendiente');
     const n = count || 0;
+    const txt = n > 99 ? '99+' : String(n);
+    // Badge del sidebar (si existe)
     const badge = document.getElementById('bandeja-badge');
     if (badge) {
-      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.textContent = txt;
       badge.style.display = n > 0 ? 'inline-flex' : 'none';
+    }
+    // Badge del topbar
+    const tbBadge = document.getElementById('bandejaBadge');
+    if (tbBadge) {
+      tbBadge.textContent = txt;
+      tbBadge.style.display = n > 0 ? '' : 'none';
     }
   } catch (_) {}
 }
@@ -1211,6 +1219,11 @@ async function inboxSubirDocumento(files) {
 // ═══════════════════════════════════════════════
 async function iniciarAutomatizacionesBackground() {
   await cargarAutomatizaciones();
+  // Mostrar botón bandeja en topbar si tiene permiso
+  const btnWrap = document.getElementById('btnBandejaWrap');
+  if (btnWrap && typeof canDo === 'function' && canDo('compras', 'bandeja')) {
+    btnWrap.style.display = '';
+  }
   await actualizarBadgeBandeja();
   // Suscripción Realtime a bandeja_entrada — actualiza badge, widget y bandeja en vivo
   _suscribirBandejaRealtime();
