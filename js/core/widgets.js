@@ -675,7 +675,7 @@ const WIDGET_CATALOG = [
   },
 
   // ═══════════════════════════════════════════
-  //  WIDGETS TIPO LISTA (size: md)
+  //  WIDGETS TIPO LISTA (size: md) — Enriquecidos
   // ═══════════════════════════════════════════
 
   // ── Lista: Facturas pendientes cobro ──
@@ -684,31 +684,55 @@ const WIDGET_CATALOG = [
     cat: 'lista', size: 'md',
     async fetch(eid) {
       const { data } = await sb.from('facturas')
-        .select('id,numero,cliente_nombre,base_imponible,estado,fecha_vencimiento')
+        .select('id,numero,cliente_nombre,base_imponible,estado,fecha_vencimiento,fecha')
         .eq('empresa_id', eid)
         .in('estado', ['pendiente', 'vencida'])
         .order('fecha_vencimiento', { ascending: true })
-        .limit(6);
-      return { items: data || [] };
+        .limit(8);
+      const items = data || [];
+      const total = items.reduce((s, f) => s + (f.base_imponible || 0), 0);
+      const vencidas = items.filter(f => f.estado === 'vencida');
+      const totalVencido = vencidas.reduce((s, f) => s + (f.base_imponible || 0), 0);
+      return { items, total, vencidas: vencidas.length, totalVencido };
     },
     render(data, el) {
       if (!data.items.length) {
-        el.innerHTML = '<div class="empty"><div class="ei">✅</div><p>Todo cobrado</p></div>';
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">🎉</div><div style="font-size:13px;font-weight:600;color:#10B981">Todo cobrado</div><div style="font-size:11px;color:var(--gris-400)">No hay facturas pendientes de cobro</div></div>';
         return;
       }
-      el.innerHTML = data.items.map(f => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gris-100);font-size:12px;cursor:pointer" onclick="goPage('facturas')">
+      const hoy = new Date();
+      // Cabecera resumen
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div>
+          <span style="font-size:16px;font-weight:800;color:var(--acento,#F59E0B)">${fmtE(data.total)}</span>
+          <span style="font-size:11px;color:var(--gris-400);margin-left:4px">${data.items.length} facturas</span>
+        </div>
+        ${data.vencidas > 0 ? `<div style="padding:2px 8px;background:rgba(239,68,68,.08);border-radius:4px;font-size:10px;color:#EF4444;font-weight:600">⚠ ${data.vencidas} vencida${data.vencidas > 1 ? 's' : ''} · ${fmtE(data.totalVencido)}</div>` : '<div style="font-size:10px;color:#10B981;font-weight:600">✓ Sin vencidas</div>'}
+      </div>`;
+      // Lista
+      html += data.items.map(f => {
+        const dias = f.fecha_vencimiento ? Math.floor((hoy - new Date(f.fecha_vencimiento)) / 86400000) : null;
+        const diasTxt = dias !== null ? (dias > 0 ? `hace ${dias}d` : dias === 0 ? 'hoy' : `en ${Math.abs(dias)}d`) : '';
+        const diasColor = dias !== null ? (dias > 0 ? '#EF4444' : dias <= 7 ? '#F59E0B' : '#10B981') : 'var(--gris-400)';
+        const badgeBg = f.estado === 'vencida' ? 'rgba(239,68,68,.1)' : 'rgba(245,158,11,.1)';
+        const badgeColor = f.estado === 'vencida' ? '#EF4444' : '#F59E0B';
+        return `
+        <div class="wg-list-row" onclick="goPage('facturas')">
+          <div style="width:3px;border-radius:2px;background:${badgeColor};align-self:stretch;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700">${f.numero || '—'}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:700;font-size:12px">${f.numero || '—'}</span>
+              <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${badgeBg};color:${badgeColor};font-weight:700">${f.estado === 'vencida' ? 'Vencida' : 'Pendiente'}</span>
+            </div>
             <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.cliente_nombre || '—'}</div>
           </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:8px">
-            <div style="font-weight:800;font-size:12px">${fmtE(f.base_imponible)}</div>
-            ${f.estado === 'vencida'
-              ? '<span class="badge bg-red" style="font-size:9px">Vencida</span>'
-              : '<span class="badge bg-yellow" style="font-size:9px">Pendiente</span>'}
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:800;font-size:13px">${fmtE(f.base_imponible)}</div>
+            ${diasTxt ? `<div style="font-size:9px;color:${diasColor};font-weight:600">Vence ${diasTxt}</div>` : ''}
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
     }
   },
 
@@ -718,31 +742,61 @@ const WIDGET_CATALOG = [
     cat: 'lista', size: 'md',
     async fetch(eid) {
       const { data } = await sb.from('presupuestos')
-        .select('id,numero,cliente_nombre,total,estado')
+        .select('id,numero,cliente_nombre,total,estado,created_at')
         .eq('empresa_id', eid)
-        .in('estado', ['pendiente', 'borrador'])
+        .in('estado', ['pendiente', 'borrador', 'enviado'])
         .order('created_at', { ascending: false })
-        .limit(6);
-      return { items: data || [] };
+        .limit(8);
+      const items = data || [];
+      const total = items.reduce((s, p) => s + (p.total || 0), 0);
+      const porEstado = { pendiente: 0, borrador: 0, enviado: 0 };
+      items.forEach(p => { if (porEstado[p.estado] !== undefined) porEstado[p.estado]++; });
+      return { items, total, porEstado };
     },
     render(data, el) {
       if (!data.items.length) {
-        el.innerHTML = '<div class="empty"><div class="ei">📋</div><p>Sin presupuestos pendientes</p></div>';
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">📋</div><div style="font-size:13px;font-weight:600;color:var(--gris-500)">Sin presupuestos pendientes</div></div>';
         return;
       }
-      el.innerHTML = data.items.map(p => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gris-100);font-size:12px;cursor:pointer" onclick="goPage('presupuestos')">
+      const hoy = new Date();
+      const estadoConfig = {
+        borrador: { bg: 'rgba(156,163,175,.1)', color: '#6B7280', label: 'Borrador' },
+        pendiente: { bg: 'rgba(245,158,11,.1)', color: '#F59E0B', label: 'Pendiente' },
+        enviado: { bg: 'rgba(59,130,246,.1)', color: '#3B82F6', label: 'Enviado' }
+      };
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div>
+          <span style="font-size:16px;font-weight:800;color:#8B5CF6">${fmtE(data.total)}</span>
+          <span style="font-size:11px;color:var(--gris-400);margin-left:4px">${data.items.length} presupuestos</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${Object.entries(data.porEstado).filter(([,v]) => v > 0).map(([k, v]) => {
+            const c = estadoConfig[k] || estadoConfig.pendiente;
+            return `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${c.bg};color:${c.color};font-weight:700">${v} ${c.label.toLowerCase()}</span>`;
+          }).join('')}
+        </div>
+      </div>`;
+      html += data.items.map(p => {
+        const dias = Math.floor((hoy - new Date(p.created_at)) / 86400000);
+        const diasTxt = dias === 0 ? 'Hoy' : dias === 1 ? 'Ayer' : `Hace ${dias}d`;
+        const ec = estadoConfig[p.estado] || estadoConfig.pendiente;
+        return `
+        <div class="wg-list-row" onclick="goPage('presupuestos')">
+          <div style="width:3px;border-radius:2px;background:${ec.color};align-self:stretch;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700">${p.numero || '—'}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:700;font-size:12px">${p.numero || '—'}</span>
+              <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${ec.bg};color:${ec.color};font-weight:700">${ec.label}</span>
+            </div>
             <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente_nombre || '—'}</div>
           </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:8px">
-            <div style="font-weight:800;font-size:12px">${fmtE(p.total)}</div>
-            ${p.estado === 'borrador'
-              ? '<span class="badge bg-gray" style="font-size:9px">Borrador</span>'
-              : '<span class="badge bg-yellow" style="font-size:9px">Pendiente</span>'}
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:800;font-size:13px">${fmtE(p.total)}</div>
+            <div style="font-size:9px;color:var(--gris-400)">${diasTxt}</div>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
     }
   },
 
@@ -750,26 +804,49 @@ const WIDGET_CATALOG = [
   {
     id: 'list_obras', label: 'Obras activas', ico: '🏗️',
     cat: 'lista', size: 'md',
-    async fetch(_eid) {
-      const activas = (typeof trabajos !== 'undefined' ? trabajos : [])
-        .filter(t => t.estado !== 'finalizado' && t.estado !== 'cancelado')
-        .slice(0, 6);
-      return { items: activas };
+    async fetch(eid) {
+      const allObras = (typeof trabajos !== 'undefined' ? trabajos : []);
+      const activas = allObras.filter(t => t.estado !== 'finalizado' && t.estado !== 'cancelado').slice(0, 8);
+      const enCurso = activas.filter(t => t.estado === 'en_curso').length;
+      const planif = activas.filter(t => t.estado === 'planificado' || t.estado === 'pendiente').length;
+      return { items: activas, enCurso, planif, total: activas.length };
     },
     render(data, el) {
       if (!data.items.length) {
-        el.innerHTML = '<div class="empty"><div class="ei">🏗️</div><p>Sin obras activas</p></div>';
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">🏗️</div><div style="font-size:13px;font-weight:600;color:var(--gris-500)">Sin obras activas</div></div>';
         return;
       }
-      el.innerHTML = data.items.map(t => `
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gris-100);font-size:12px;cursor:pointer" onclick="goPage('trabajos')">
-          <span style="font-size:14px">${typeof catIco === 'function' ? catIco(t.categoria) : '🔧'}</span>
+      const estadoColors = { en_curso: '#3B82F6', planificado: '#F59E0B', pendiente: '#9CA3AF' };
+      const estadoLabels = { en_curso: 'En curso', planificado: 'Planificada', pendiente: 'Pendiente' };
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div>
+          <span style="font-size:16px;font-weight:800;color:#0EA5E9">${data.total}</span>
+          <span style="font-size:11px;color:var(--gris-400);margin-left:4px">obras activas</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${data.enCurso > 0 ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,.1);color:#3B82F6;font-weight:700">🔨 ${data.enCurso} en curso</span>` : ''}
+          ${data.planif > 0 ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.1);color:#F59E0B;font-weight:700">📅 ${data.planif} planif.</span>` : ''}
+        </div>
+      </div>`;
+      html += data.items.map(t => {
+        const color = estadoColors[t.estado] || '#9CA3AF';
+        const label = estadoLabels[t.estado] || t.estado;
+        const dias = t.created_at ? Math.floor((new Date() - new Date(t.created_at)) / 86400000) : null;
+        return `
+        <div class="wg-list-row" onclick="goPage('trabajos')">
+          <div style="width:3px;border-radius:2px;background:${color};align-self:stretch;flex-shrink:0"></div>
+          <span style="font-size:16px;flex-shrink:0">${typeof catIco === 'function' ? catIco(t.categoria) : '🔧'}</span>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.titulo || '—'}</div>
-            <div style="font-size:11px;color:var(--gris-400)">${t.cliente_nombre || '—'}</div>
+            <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.titulo || '—'}</div>
+            <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.cliente_nombre || '—'}</div>
           </div>
-          ${typeof estadoBadge === 'function' ? estadoBadge(t.estado) : `<span class="badge" style="font-size:9px">${t.estado}</span>`}
-        </div>`).join('');
+          <div style="text-align:right;flex-shrink:0">
+            <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${color}18;color:${color};font-weight:700">${label}</span>
+            ${dias !== null ? `<div style="font-size:9px;color:var(--gris-400);margin-top:1px">${dias}d abierta</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
     }
   },
 
@@ -779,7 +856,7 @@ const WIDGET_CATALOG = [
     cat: 'lista', size: 'md',
     async fetch(eid) {
       const userId = CU?.id;
-      if (!userId) return { items: [] };
+      if (!userId) return { items: [], urgentes: 0, enProgreso: 0, vencidas: 0, total: 0 };
       const { data } = await sb.from('tareas_obra')
         .select('id,texto,estado,prioridad,fecha_limite,trabajo_id')
         .eq('empresa_id', eid)
@@ -787,30 +864,63 @@ const WIDGET_CATALOG = [
         .neq('estado', 'completada')
         .neq('estado', 'rechazada')
         .order('created_at', { ascending: false })
-        .limit(8);
-      return { items: data || [] };
+        .limit(10);
+      const items = data || [];
+      const urgentes = items.filter(t => t.prioridad === 'Urgente' || t.prioridad === 'Alta').length;
+      const enProgreso = items.filter(t => t.estado === 'en_progreso').length;
+      const vencidas = items.filter(t => t.fecha_limite && new Date(t.fecha_limite) < new Date()).length;
+      return { items, urgentes, enProgreso, vencidas, total: items.length };
     },
     render(data, el) {
       if (!data.items.length) {
-        el.innerHTML = '<div class="empty"><div class="ei">✅</div><p>Sin tareas pendientes</p></div>';
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">🎯</div><div style="font-size:13px;font-weight:600;color:#10B981">Todo al día</div><div style="font-size:11px;color:var(--gris-400)">No tienes tareas pendientes</div></div>';
         return;
       }
-      const prioIco = { Urgente: '🔴', Alta: '🟠', Normal: '⚪', Baja: '🔵' };
-      el.innerHTML = data.items.map(t => {
-        const vencida = t.fecha_limite && new Date(t.fecha_limite) < new Date();
+      const prioConfig = {
+        Urgente: { ico: '🔴', bg: 'rgba(239,68,68,.08)', color: '#EF4444' },
+        Alta:    { ico: '🟠', bg: 'rgba(249,115,22,.08)', color: '#F97316' },
+        Normal:  { ico: '⚪', bg: 'rgba(156,163,175,.06)', color: '#6B7280' },
+        Baja:    { ico: '🔵', bg: 'rgba(59,130,246,.06)', color: '#3B82F6' }
+      };
+      const hoy = new Date();
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div>
+          <span style="font-size:16px;font-weight:800;color:#3B82F6">${data.total}</span>
+          <span style="font-size:11px;color:var(--gris-400);margin-left:4px">tareas</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${data.urgentes > 0 ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.1);color:#EF4444;font-weight:700">${data.urgentes} urgente${data.urgentes > 1 ? 's' : ''}</span>` : ''}
+          ${data.enProgreso > 0 ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,.1);color:#3B82F6;font-weight:700">${data.enProgreso} en progreso</span>` : ''}
+          ${data.vencidas > 0 ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,.1);color:#EF4444;font-weight:700">⚠ ${data.vencidas} vencida${data.vencidas > 1 ? 's' : ''}</span>` : ''}
+        </div>
+      </div>`;
+      html += data.items.map(t => {
+        const p = prioConfig[t.prioridad] || prioConfig.Normal;
+        const vencida = t.fecha_limite && new Date(t.fecha_limite) < hoy;
+        const dias = t.fecha_limite ? Math.floor((new Date(t.fecha_limite) - hoy) / 86400000) : null;
+        const diasTxt = dias !== null ? (dias < 0 ? `${Math.abs(dias)}d tarde` : dias === 0 ? 'Hoy' : `${dias}d`) : '';
+        const diasColor = vencida ? '#EF4444' : (dias !== null && dias <= 2) ? '#F59E0B' : 'var(--gris-400)';
+        const estadoBg = t.estado === 'en_progreso' ? 'rgba(59,130,246,.1)' : 'transparent';
+        const estadoColor = t.estado === 'en_progreso' ? '#3B82F6' : 'var(--gris-400)';
         return `
-        <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--gris-100);font-size:12px">
-          <span style="font-size:10px">${prioIco[t.prioridad] || '⚪'}</span>
-          <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${t.texto}</div>
-          ${t.fecha_limite ? `<span style="font-size:10px;color:${vencida ? 'var(--rojo)' : 'var(--gris-400)'}">${t.fecha_limite}</span>` : ''}
-          <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${t.estado === 'en_progreso' ? '#DBEAFE' : 'var(--gris-50)'};color:${t.estado === 'en_progreso' ? 'var(--azul)' : 'var(--gris-500)'};font-weight:700;white-space:nowrap">${(t.estado || 'pendiente').replace('_', ' ')}</span>
+        <div class="wg-list-row" style="background:${p.bg}">
+          <span style="font-size:11px;flex-shrink:0">${p.ico}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${vencida ? '#EF4444' : 'inherit'}">${t.texto}</div>
+            <div style="display:flex;gap:8px;margin-top:1px">
+              ${t.estado === 'en_progreso' ? `<span style="font-size:9px;padding:0 5px;border-radius:3px;background:${estadoBg};color:${estadoColor};font-weight:700">En progreso</span>` : ''}
+              ${diasTxt ? `<span style="font-size:9px;color:${diasColor};font-weight:600">${vencida ? '⚠ ' : '📅 '}${diasTxt}</span>` : ''}
+            </div>
+          </div>
+          <span style="font-size:9px;color:${p.color};font-weight:700;flex-shrink:0">${t.prioridad || 'Normal'}</span>
         </div>`;
       }).join('');
+      el.innerHTML = html;
     }
   },
 
   // ═══════════════════════════════════════════
-  //  WIDGETS TIPO GRÁFICO (size: md)
+  //  WIDGETS TIPO GRÁFICO (size: md) — Enriquecidos
   // ═══════════════════════════════════════════
 
   // ── Gráfico: Facturación 6 meses ──
@@ -827,15 +937,35 @@ const WIDGET_CATALOG = [
         activas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta)
           .reduce((s, f) => s + (f.base_imponible || 0), 0)
       );
-      return { labels: meses.map(m => m.label), values };
+      const total = values.reduce((s, v) => s + v, 0);
+      const media = total / values.length;
+      const max = Math.max(...values);
+      const maxIdx = values.indexOf(max);
+      const mesActual = values[values.length - 1];
+      const mesAnterior = values.length >= 2 ? values[values.length - 2] : 0;
+      const variacion = mesAnterior > 0 ? ((mesActual - mesAnterior) / mesAnterior * 100) : 0;
+      return { labels: meses.map(m => m.label), values, total, media, max, maxLabel: meses[maxIdx]?.label, mesActual, variacion };
     },
     render(data, el) {
-      el.innerHTML = '<canvas class="wg-chart" height="160"></canvas>';
+      const varIcon = data.variacion >= 0 ? '▲' : '▼';
+      const varColor = data.variacion >= 0 ? '#10B981' : '#EF4444';
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">TOTAL 6M</div><div style="font-size:14px;font-weight:800;color:#3B82F6">${fmtE(data.total)}</div></div>
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">MEDIA</div><div style="font-size:14px;font-weight:800;color:var(--gris-600)">${fmtE(data.media)}</div></div>
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">MEJOR MES</div><div style="font-size:14px;font-weight:800;color:#10B981">${data.maxLabel} (${fmtE(data.max)})</div></div>
+          </div>
+          <div style="text-align:right">
+            <span style="font-size:11px;font-weight:700;color:${varColor}">${varIcon} ${Math.abs(data.variacion).toFixed(0)}% vs anterior</span>
+          </div>
+        </div>
+        <canvas class="wg-chart" height="150"></canvas>`;
       requestAnimationFrame(() => {
         const c = el.querySelector('.wg-chart');
         c.width = c.parentElement.offsetWidth || 280;
         _drawBarChart(c, data.labels, [
-          { label: 'Facturación', color: 'var(--azul)', values: data.values }
+          { label: 'Facturación', color: '#3B82F6', values: data.values }
         ]);
       });
     }
@@ -857,18 +987,181 @@ const WIDGET_CATALOG = [
       const vValues = meses.map(m => ventas.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
       const cValues = meses.map(m => compras.filter(f => f.fecha >= m.desde && f.fecha < m.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
 
-      return { labels: meses.map(m => m.label), ventas: vValues, compras: cValues };
+      const totalV = vValues.reduce((s, v) => s + v, 0);
+      const totalC = cValues.reduce((s, v) => s + v, 0);
+      const resultado = totalV - totalC;
+      const margen = totalV > 0 ? ((resultado / totalV) * 100).toFixed(0) : 0;
+      // Meses con resultado positivo
+      const mesesPositivos = vValues.filter((v, i) => v - cValues[i] > 0).length;
+
+      return { labels: meses.map(m => m.label), ventas: vValues, compras: cValues, totalV, totalC, resultado, margen, mesesPositivos, totalMeses: meses.length };
     },
     render(data, el) {
-      el.innerHTML = '<canvas class="wg-chart" height="160"></canvas>';
+      const resColor = data.resultado >= 0 ? '#10B981' : '#EF4444';
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">VENTAS 6M</div><div style="font-size:14px;font-weight:800;color:#3B82F6">${fmtE(data.totalV)}</div></div>
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">COMPRAS 6M</div><div style="font-size:14px;font-weight:800;color:#EF4444">${fmtE(data.totalC)}</div></div>
+            <div><div style="font-size:9px;color:var(--gris-400);font-weight:600">RESULTADO</div><div style="font-size:14px;font-weight:800;color:${resColor}">${fmtE(data.resultado)}</div></div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--gris-400)">Margen <strong style="color:${resColor}">${data.margen}%</strong></div>
+            <div style="font-size:9px;color:var(--gris-400)">${data.mesesPositivos}/${data.totalMeses} meses positivos</div>
+          </div>
+        </div>
+        <canvas class="wg-chart" height="150"></canvas>
+        <div style="display:flex;gap:14px;justify-content:center;margin-top:4px">
+          <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#3B82F6;display:inline-block"></span>Ventas</span>
+          <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#EF4444;display:inline-block"></span>Compras</span>
+        </div>`;
       requestAnimationFrame(() => {
         const c = el.querySelector('.wg-chart');
         c.width = c.parentElement.offsetWidth || 280;
         _drawBarChart(c, data.labels, [
-          { label: 'Ventas', color: 'var(--azul)', values: data.ventas },
-          { label: 'Compras', color: 'var(--rojo)', values: data.compras }
+          { label: 'Ventas', color: '#3B82F6', values: data.ventas },
+          { label: 'Compras', color: '#EF4444', values: data.compras }
         ]);
       });
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  //  WIDGETS COMUNICACIÓN
+  // ═══════════════════════════════════════════
+
+  // ── Correo: últimos correos recibidos ──
+  ,{
+    id: 'list_correo', label: 'Correo reciente', ico: '📧',
+    cat: 'comunicacion', size: 'md',
+    async fetch(eid) {
+      const { data } = await sb.from('correos')
+        .select('id,tipo,de,de_nombre,asunto,fecha,leido,tiene_adjuntos,carpeta')
+        .eq('empresa_id', eid)
+        .eq('tipo', 'recibido')
+        .not('carpeta', 'eq', 'spam')
+        .order('fecha', { ascending: false })
+        .limit(10);
+      const items = data || [];
+      const sinLeer = items.filter(c => !c.leido).length;
+      // Total sin leer (aprox.)
+      const { count } = await sb.from('correos')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', eid).eq('tipo', 'recibido').eq('leido', false);
+      const hoyStr = new Date().toISOString().split('T')[0];
+      const recibidosHoy = items.filter(c => (c.fecha || '').startsWith(hoyStr)).length;
+      return { items, sinLeer, totalSinLeer: count || sinLeer, recibidosHoy };
+    },
+    render(data, el) {
+      if (!data.items.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">📭</div><div style="font-size:13px;font-weight:600;color:var(--gris-500)">Bandeja vacía</div></div>';
+        return;
+      }
+      const hoy = new Date();
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${data.totalSinLeer > 0
+            ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;background:#3B82F6;color:#fff;font-size:11px;font-weight:800;padding:0 5px">${data.totalSinLeer}</span><span style="font-size:11px;color:var(--gris-500);font-weight:600">sin leer</span>`
+            : '<span style="font-size:11px;color:#10B981;font-weight:600">✓ Todo leído</span>'}
+        </div>
+        <div style="font-size:10px;color:var(--gris-400)">${data.recibidosHoy} hoy</div>
+      </div>`;
+      html += data.items.slice(0, 7).map(c => {
+        const mins = Math.floor((hoy - new Date(c.fecha)) / 60000);
+        const tiempoTxt = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`;
+        const bold = !c.leido ? 'font-weight:700' : 'font-weight:400;color:var(--gris-500)';
+        return `
+        <div class="wg-list-row" onclick="goPage('correo')">
+          ${!c.leido ? '<div style="width:6px;height:6px;border-radius:50%;background:#3B82F6;flex-shrink:0"></div>' : '<div style="width:6px;flex-shrink:0"></div>'}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:11px;${bold};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.de_nombre || c.de || '—'}</span>
+              ${c.tiene_adjuntos ? '<span style="font-size:10px;flex-shrink:0">📎</span>' : ''}
+            </div>
+            <div style="font-size:11px;${!c.leido ? 'font-weight:600;color:var(--gris-700)' : 'color:var(--gris-400)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.asunto || '(sin asunto)'}</div>
+          </div>
+          <div style="font-size:9px;color:var(--gris-400);flex-shrink:0;white-space:nowrap">${tiempoTxt}</div>
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
+    }
+  },
+
+  // ── Mensajería: chats con mensajes recientes ──
+  {
+    id: 'list_mensajeria', label: 'Mensajería', ico: '💬',
+    cat: 'comunicacion', size: 'md',
+    async fetch(eid) {
+      const userId = CU?.id;
+      if (!userId) return { convs: [], sinLeer: 0 };
+
+      // Mis participaciones
+      const { data: parts } = await sb.from('chat_participantes')
+        .select('conversacion_id,ultimo_leido_at')
+        .eq('usuario_id', userId);
+      const convIds = (parts || []).map(p => p.conversacion_id);
+      if (!convIds.length) return { convs: [], sinLeer: 0 };
+
+      // Conversaciones
+      const { data: convs } = await sb.from('chat_conversaciones')
+        .select('id,nombre,tipo,ultimo_mensaje,ultimo_mensaje_at,ultimo_mensaje_autor')
+        .in('id', convIds)
+        .order('ultimo_mensaje_at', { ascending: false })
+        .limit(8);
+
+      // Calcular no leídos
+      const leidoMap = {};
+      (parts || []).forEach(p => { leidoMap[p.conversacion_id] = p.ultimo_leido_at; });
+      let sinLeer = 0;
+      (convs || []).forEach(c => {
+        const ultimoLeido = leidoMap[c.id];
+        if (c.ultimo_mensaje_at && (!ultimoLeido || c.ultimo_mensaje_at > ultimoLeido)) {
+          c._sinLeer = true;
+          sinLeer++;
+        }
+      });
+
+      return { convs: convs || [], sinLeer };
+    },
+    render(data, el) {
+      if (!data.convs.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:6px">💬</div><div style="font-size:13px;font-weight:600;color:var(--gris-500)">Sin conversaciones</div><div style="font-size:11px;color:var(--gris-400)">Inicia un chat desde Mensajería</div></div>';
+        return;
+      }
+      const hoy = new Date();
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;border-bottom:2px solid var(--gris-100);margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${data.sinLeer > 0
+            ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;background:#10B981;color:#fff;font-size:11px;font-weight:800;padding:0 5px">${data.sinLeer}</span><span style="font-size:11px;color:var(--gris-500);font-weight:600">chats con mensajes nuevos</span>`
+            : '<span style="font-size:11px;color:var(--gris-400)">Todo al día</span>'}
+        </div>
+        <div style="font-size:10px;color:var(--gris-400)">${data.convs.length} chats</div>
+      </div>`;
+      html += data.convs.map(c => {
+        const mins = c.ultimo_mensaje_at ? Math.floor((hoy - new Date(c.ultimo_mensaje_at)) / 60000) : 9999;
+        const tiempoTxt = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`;
+        const tipoIco = c.tipo === 'grupo' ? '👥' : '💬';
+        const unread = c._sinLeer;
+        const bold = unread ? 'font-weight:700' : 'font-weight:400;color:var(--gris-500)';
+        // Nombre de conversación o autor del último mensaje
+        const nombre = c.nombre || c.ultimo_mensaje_autor || 'Chat';
+        // Truncar último mensaje
+        const msg = (c.ultimo_mensaje || '').slice(0, 60) + ((c.ultimo_mensaje || '').length > 60 ? '…' : '');
+        return `
+        <div class="wg-list-row" onclick="goPage('mensajeria')">
+          ${unread ? '<div style="width:6px;height:6px;border-radius:50%;background:#10B981;flex-shrink:0"></div>' : '<div style="width:6px;flex-shrink:0"></div>'}
+          <span style="font-size:14px;flex-shrink:0">${tipoIco}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;${bold};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombre}</div>
+            <div style="font-size:11px;color:var(--gris-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${msg || '...'}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:9px;color:var(--gris-400)">${tiempoTxt}</div>
+            ${unread ? '<div style="width:8px;height:8px;border-radius:50%;background:#10B981;margin:3px 0 0 auto"></div>' : ''}
+          </div>
+        </div>`;
+      }).join('');
+      el.innerHTML = html;
     }
   }
 
@@ -883,6 +1176,7 @@ const DASH_DEFAULTS = {
   admin: [
     'panel_financiero', 'panel_tesoreria', 'panel_comercial',
     'list_tareas', 'list_obras', 'list_facturas_pend', 'list_presup_pend',
+    'list_correo', 'list_mensajeria',
     'chart_facturacion_6m', 'chart_cobros_pagos'
   ],
   gestoria: [
@@ -894,7 +1188,8 @@ const DASH_DEFAULTS = {
   ],
   oficina: [
     'panel_financiero', 'panel_tesoreria', 'panel_comercial',
-    'list_tareas', 'list_facturas_pend', 'list_presup_pend', 'list_obras'
+    'list_tareas', 'list_facturas_pend', 'list_presup_pend', 'list_obras',
+    'list_correo', 'list_mensajeria'
   ],
 };
 
@@ -915,6 +1210,7 @@ const _CAT_LABELS = {
   panel: '📊 Paneles',
   lista: '📋 Listas',
   grafico: '📈 Gráficos',
+  comunicacion: '💬 Comunicación',
   alerta: '🔔 Alertas'
 };
 
@@ -956,6 +1252,14 @@ async function renderWidgetDashboard(containerId) {
   // Renderizar cada widget
   const promises = widgetIds.map(wid => _renderSingleWidget(wid, grid));
   await Promise.allSettled(promises);
+
+  // Bind long-press para entrar en modo edición
+  if (!_dashEditMode) {
+    _bindLongPress(grid);
+  } else {
+    // Añadir clase wiggle a todos los widgets
+    grid.querySelectorAll('.wg').forEach(w => w.classList.add('wg-wiggle'));
+  }
 }
 
 /**
@@ -1024,44 +1328,86 @@ async function _renderSingleWidget(wid, grid) {
 
 
 /* ══════════════════════════════════════════════════════════════════════
-   MODO EDICIÓN
+   MODO EDICIÓN — Long-press para activar, panel de previsualización
    ══════════════════════════════════════════════════════════════════════ */
 
-/**
- * Alterna el modo de edición del dashboard.
- * Muestra/oculta panel de añadir widgets y botones de eliminar.
- */
-function toggleDashEdit() {
-  _dashEditMode = !_dashEditMode;
+let _longPressTimer = null;
+const _LONG_PRESS_MS = 800; // milisegundos para activar
 
-  // Cambiar texto del botón
-  const btn = document.getElementById('btnDashEdit');
-  if (btn) btn.textContent = _dashEditMode ? '✓ Listo' : '⚙️ Personalizar';
+/** Registra long-press en todos los widgets del grid */
+function _bindLongPress(grid) {
+  if (_dashEditMode) return; // ya estamos en edición, no re-bind
 
-  // Re-renderizar todo el dashboard (con o sin controles de edición)
+  const widgets = grid.querySelectorAll('.wg');
+  widgets.forEach(w => {
+    // Pointer events (funciona en touch y mouse)
+    w.addEventListener('pointerdown', _onLongPressStart, { passive: true });
+    w.addEventListener('pointerup', _onLongPressCancel);
+    w.addEventListener('pointerleave', _onLongPressCancel);
+    w.addEventListener('pointermove', _onLongPressMove);
+  });
+}
+
+function _onLongPressStart(e) {
+  if (_dashEditMode) return;
+  _longPressTimer = setTimeout(() => {
+    _longPressTimer = null;
+    // Vibración háptica si disponible
+    if (navigator.vibrate) navigator.vibrate(30);
+    _enterEditMode();
+  }, _LONG_PRESS_MS);
+}
+
+function _onLongPressCancel() {
+  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+}
+
+function _onLongPressMove(e) {
+  // Cancelar si mueve más de 10px (es scroll, no long-press)
+  if (_longPressTimer && (e.movementX > 5 || e.movementY > 5)) {
+    clearTimeout(_longPressTimer); _longPressTimer = null;
+  }
+}
+
+/** Entra en modo edición (llamado por long-press) */
+function _enterEditMode() {
+  if (_dashEditMode) return;
+  _dashEditMode = true;
   renderWidgetDashboard(_dashContainerId);
 }
 
 /**
- * Construye el panel de añadir widgets (solo en modo edición).
- * Se inserta DENTRO del grid container pero ANTES del grid.
+ * Alterna el modo de edición del dashboard.
+ */
+function toggleDashEdit() {
+  _dashEditMode = !_dashEditMode;
+  renderWidgetDashboard(_dashContainerId);
+}
+
+/**
+ * Construye el panel de previsualización de widgets con mini-cards.
+ * Se inserta DENTRO del container pero ANTES del grid.
  */
 function _buildAddPanel(container) {
   const panel = document.createElement('div');
   panel.id = 'wg-add-panel';
   panel.className = 'wg-add-panel';
 
+  // Cabecera
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-weight:800;font-size:14px">➕ Añadir widgets</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div style="font-weight:800;font-size:15px;color:var(--gris-700)">Personalizar dashboard</div>
+        <div style="font-size:11px;color:var(--gris-400);margin-top:1px">Añade, quita, reordena o redimensiona widgets</div>
+      </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="_resetDashConfig()" title="Restaurar widgets por defecto del rol">↺ Resetear</button>
+        <button class="btn btn-ghost btn-sm" onclick="_resetDashConfig()" title="Restaurar por defecto">↺ Resetear</button>
         <button class="btn btn-primary btn-sm" onclick="toggleDashEdit()">✓ Listo</button>
       </div>
     </div>
   `;
 
-  // Agrupar por categoría
+  // Agrupar widgets por categoría
   const currentIds = _loadDashConfig();
   const byCat = {};
   WIDGET_CATALOG.forEach(w => {
@@ -1069,26 +1415,64 @@ function _buildAddPanel(container) {
     byCat[w.cat].push(w);
   });
 
+  // Descripciones cortas para cada widget
+  const _WG_DESC = {
+    panel_financiero: 'Facturación, compras, resultado y acumulado anual con gráfico comparativo',
+    panel_tesoreria: 'Cobros, pagos, saldo bancario, antigüedad deuda y posición neta',
+    panel_comercial: 'Presupuestos, clientes, obras activas y tasa de conversión',
+    list_facturas_pend: 'Facturas pendientes de cobro con días vencimiento y alertas',
+    list_presup_pend: 'Presupuestos pendientes con estado y antigüedad',
+    list_obras: 'Obras activas con estado y tiempo abierta',
+    list_tareas: 'Tus tareas pendientes con prioridad y fechas',
+    chart_facturacion_6m: 'Gráfico de barras con facturación mensual, totales y tendencia',
+    chart_cobros_pagos: 'Comparativa visual ventas vs compras con margen acumulado',
+    list_correo: 'Últimos correos recibidos con contador de no leídos',
+    list_mensajeria: 'Conversaciones de chat recientes con mensajes nuevos',
+  };
+
+  const sizeLabels = { sm: '1 col', md: '2 col', lg: 'Ancho completo' };
+  const sizeColors = { sm: '#9CA3AF', md: '#3B82F6', lg: '#8B5CF6' };
+
   Object.keys(byCat).forEach(cat => {
     const catDiv = document.createElement('div');
-    catDiv.style.marginBottom = '10px';
+    catDiv.style.marginBottom = '14px';
 
     const catLabel = document.createElement('div');
-    catLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:6px';
+    catLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:8px';
     catLabel.textContent = _CAT_LABELS[cat] || cat;
     catDiv.appendChild(catLabel);
 
     const catGrid = document.createElement('div');
-    catGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+    catGrid.className = 'wg-preview-grid';
 
     byCat[cat].forEach(w => {
       const isActive = currentIds.includes(w.id);
-      const chip = document.createElement('div');
-      chip.className = 'wg-add-chip' + (isActive ? ' active' : '');
-      chip.dataset.wid = w.id;
-      chip.innerHTML = `<span>${w.ico}</span> ${w.label}`;
-      chip.onclick = () => _toggleWidgetFromChip(w.id, chip);
-      catGrid.appendChild(chip);
+      const desc = _WG_DESC[w.id] || w.label;
+      const card = document.createElement('div');
+      card.className = 'wg-preview-card' + (isActive ? ' active' : '');
+      card.dataset.wid = w.id;
+      card.innerHTML = `
+        <div class="wg-preview-top">
+          <span class="wg-preview-ico">${w.ico}</span>
+          <div class="wg-preview-info">
+            <div class="wg-preview-name">${w.label}</div>
+            <div class="wg-preview-desc">${desc}</div>
+          </div>
+          <div class="wg-preview-toggle">${isActive ? '✓' : '+'}</div>
+        </div>
+        <div class="wg-preview-meta">
+          <span class="wg-preview-size" style="color:${sizeColors[w.size]}">${sizeLabels[w.size]}</span>
+          <span class="wg-preview-cat">${_CAT_LABELS[w.cat]?.split(' ')[0] || ''}</span>
+        </div>
+      `;
+      card.onclick = () => {
+        _toggleWidgetFromChip(w.id, card);
+        // Actualizar visual
+        const nowActive = _loadDashConfig().includes(w.id);
+        card.classList.toggle('active', nowActive);
+        card.querySelector('.wg-preview-toggle').textContent = nowActive ? '✓' : '+';
+      };
+      catGrid.appendChild(card);
     });
 
     catDiv.appendChild(catGrid);
@@ -1391,6 +1775,15 @@ function _injectWidgetStyles() {
     .wg-card-row { display:flex; align-items:center; gap:6px; margin-top:2px; }
     .wg-card-dim { font-size:10px; color:var(--gris-400); margin-top:1px; }
 
+    /* ── Fila de lista enriquecida ── */
+    .wg-list-row {
+      display:flex; align-items:center; gap:8px; padding:6px 4px;
+      border-bottom:1px solid var(--gris-100,#F3F4F6); cursor:pointer;
+      border-radius:6px; transition:background .1s;
+    }
+    .wg-list-row:hover { background:var(--gris-50,#F9FAFB); }
+    .wg-list-row:last-child { border-bottom:none; }
+
     /* ── Barra de progreso ── */
     .wg-bar-track { height:5px; background:#E5E7EB; border-radius:3px; margin-top:4px; overflow:hidden; }
     .wg-bar-fill { height:100%; border-radius:3px; transition:width .4s ease; }
@@ -1412,10 +1805,45 @@ function _injectWidgetStyles() {
     .wg-drop-after { box-shadow:3px 0 0 0 var(--azul,#3B82F6),0 1px 3px rgba(0,0,0,.06) !important; }
 
     /* ── Panel añadir ── */
-    .wg-add-panel { background:var(--gris-50,#F9FAFB); border:2px dashed var(--gris-200,#E5E7EB); border-radius:10px; padding:14px; margin-bottom:14px; }
-    .wg-add-chip { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; background:#fff; border:1px solid var(--gris-200,#E5E7EB); cursor:pointer; transition:all .15s; user-select:none; }
-    .wg-add-chip:hover { border-color:var(--azul); color:var(--azul); }
-    .wg-add-chip.active { background:var(--azul-light,#DBEAFE); border-color:var(--azul,#3B82F6); color:var(--azul,#3B82F6); opacity:.7; }
+    .wg-add-panel { background:var(--gris-50,#F9FAFB); border:2px dashed var(--gris-200,#E5E7EB); border-radius:12px; padding:16px; margin-bottom:14px; }
+
+    /* ── Preview cards para catálogo de widgets ── */
+    .wg-preview-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; }
+    .wg-preview-card {
+      background:#fff; border:1.5px solid var(--gris-200,#E5E7EB); border-radius:10px;
+      padding:10px 12px; cursor:pointer; transition:all .15s; user-select:none;
+    }
+    .wg-preview-card:hover { border-color:var(--azul,#3B82F6); box-shadow:0 2px 8px rgba(59,130,246,.1); }
+    .wg-preview-card.active {
+      border-color:var(--azul,#3B82F6); background:rgba(59,130,246,.04);
+    }
+    .wg-preview-top { display:flex; align-items:flex-start; gap:8px; }
+    .wg-preview-ico { font-size:22px; flex-shrink:0; line-height:1; }
+    .wg-preview-info { flex:1; min-width:0; }
+    .wg-preview-name { font-size:12px; font-weight:700; color:var(--gris-700,#374151); line-height:1.2; }
+    .wg-preview-desc { font-size:10px; color:var(--gris-400,#9CA3AF); margin-top:2px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .wg-preview-toggle {
+      flex-shrink:0; width:24px; height:24px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:14px; font-weight:800; transition:all .15s;
+      background:var(--gris-100,#F3F4F6); color:var(--gris-400);
+    }
+    .wg-preview-card.active .wg-preview-toggle { background:var(--azul,#3B82F6); color:#fff; }
+    .wg-preview-meta { display:flex; gap:8px; margin-top:6px; }
+    .wg-preview-size { font-size:9px; font-weight:700; }
+    .wg-preview-cat { font-size:9px; color:var(--gris-400); }
+
+    /* ── Wiggle animation (modo edición tipo iOS) ── */
+    @keyframes wg-wiggle {
+      0%,100% { transform:rotate(0deg); }
+      25% { transform:rotate(-0.5deg); }
+      75% { transform:rotate(0.5deg); }
+    }
+    .wg-wiggle { animation: wg-wiggle .3s ease-in-out infinite; }
+    .wg-wiggle:hover { animation-play-state:paused; }
+
+    /* ── Legacy chip (unused but safe) ── */
+    .wg-add-chip { display:none; }
 
     /* ── Sparkline: full width ── */
     .wg-spark { display:block; width:100%; height:28px; }

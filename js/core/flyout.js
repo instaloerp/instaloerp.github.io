@@ -17,7 +17,8 @@ const FLYOUT_SECTIONS = {
     { id:'albaranes-proveedor', ico:'📥', name:'Albaranes', tag:'beta' },
     { id:'facturas-proveedor', ico:'📑', name:'Facturas prov.', tag:'beta' },
     { id:'calendario-pagos', ico:'📅', name:'Calendario pagos', tag:'beta' },
-    { id:'ocr', ico:'🤖', name:'Bandeja OCR', tag:'beta', badgeId:'ocrBadge' }
+    { id:'ocr', ico:'🤖', name:'Bandeja OCR', tag:'beta', badgeId:'ocrBadge' },
+    { id:'bandeja', ico:'⚡', name:'Automatizaciones', tag:'beta' }
   ]},
   almacen: { label: 'Almacén', items: [
     { id:'articulos', ico:'📦', name:'Artículos' },
