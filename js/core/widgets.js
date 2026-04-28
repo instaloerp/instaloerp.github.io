@@ -388,8 +388,8 @@ const WIDGET_CATALOG = [
             </div>
           </div>
           <!-- Columna derecha: gráfico comparativo con selector de periodo -->
-          <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px;justify-content:center">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0">
               <div style="font-size:12px;font-weight:700;color:var(--gris-600);letter-spacing:0.01em">Ventas vs Compras</div>
               <div id="wg-fin-periodo-tabs" style="display:flex;gap:2px;background:var(--gris-100,#F3F4F6);border-radius:6px;padding:2px">
                 <button data-p="semana" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--gris-500)">S</button>
@@ -398,8 +398,10 @@ const WIDGET_CATALOG = [
                 <button data-p="ano" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--gris-500)">A</button>
               </div>
             </div>
-            <canvas class="wg-chart" height="190" id="wg-chart-fin"></canvas>
-            <div style="display:flex;gap:16px;justify-content:center;margin-top:4px">
+            <div id="wg-chart-fin-wrap" style="flex:1;min-height:120px;position:relative">
+              <canvas class="wg-chart" id="wg-chart-fin" style="position:absolute;top:0;left:0;width:100%;height:100%"></canvas>
+            </div>
+            <div style="display:flex;gap:16px;justify-content:center;flex-shrink:0">
               <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#3B82F6;display:inline-block"></span>Ventas</span>
               <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#EF4444;display:inline-block"></span>Compras</span>
               <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#10B981;display:inline-block"></span>Resultado</span>
@@ -448,9 +450,11 @@ const WIDGET_CATALOG = [
 
       function _redrawChart(periodo) {
         const { labels, vData, cData } = _buildChartData(periodo);
+        const wrap = el.querySelector('#wg-chart-fin-wrap');
         const chart = el.querySelector('#wg-chart-fin');
-        if (!chart) return;
-        chart.width = chart.parentElement.offsetWidth || 300;
+        if (!chart || !wrap) return;
+        chart.width = wrap.offsetWidth || 300;
+        chart.height = wrap.offsetHeight || 190;
         _drawBarChart(chart, labels, [
           { label: 'Ventas', color: '#3B82F6', values: vData },
           { label: 'Compras', color: '#EF4444', values: cData }
