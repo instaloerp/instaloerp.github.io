@@ -312,3 +312,279 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+
+// ═══════════════════════════════════════════════
+//  SIDEBAR REORDER — Long-press + drag & drop
+// ═══════════════════════════════════════════════
+
+let _sbEditMode = false;
+let _sbLongPressTimer = null;
+let _sbDraggedEl = null;
+
+/** Obtiene todos los ib-item reordenables (excluye logo, bottom, seps) */
+function _getSortableItems() {
+  const bar = document.getElementById('sbIconbar');
+  if (!bar) return [];
+  return [...bar.querySelectorAll('.ib-item')].filter(el => {
+    if (el.closest('.ib-bottom')) return false; // Claude IA + avatar no se mueven
+    if (el.style.display === 'none') return false; // ocultos por permisos
+    return true;
+  });
+}
+
+/** Activa modo edición del sidebar */
+function _enterSbEditMode() {
+  if (_sbEditMode) return;
+  _sbEditMode = true;
+  _hideFlyout(true);
+
+  const bar = document.getElementById('sbIconbar');
+  if (!bar) return;
+
+  // Quitar separadores temporalmente
+  bar.querySelectorAll('.ib-sep').forEach(s => s.style.display = 'none');
+
+  // Añadir wiggle y draggable a cada item visible
+  _getSortableItems().forEach(el => {
+    el.classList.add('ib-editing');
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', _sbDragStart);
+    el.addEventListener('dragover', _sbDragOver);
+    el.addEventListener('dragenter', _sbDragEnter);
+    el.addEventListener('dragleave', _sbDragLeave);
+    el.addEventListener('drop', _sbDrop);
+    el.addEventListener('dragend', _sbDragEnd);
+  });
+
+  // Botón confirmar al final (antes de ib-bottom)
+  const btn = document.createElement('div');
+  btn.id = 'sbEditDone';
+  btn.className = 'ib-item';
+  btn.style.cssText = 'background:#10B981;color:#fff;font-size:16px;margin-top:6px;border-radius:8px;animation:none';
+  btn.textContent = '✓';
+  btn.title = 'Confirmar orden';
+  btn.onclick = _exitSbEditMode;
+  const bottom = bar.querySelector('.ib-bottom');
+  if (bottom) bar.insertBefore(btn, bottom);
+  else bar.appendChild(btn);
+
+  // Vibrar si soportado
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+/** Sale del modo edición y guarda el orden */
+function _exitSbEditMode() {
+  if (!_sbEditMode) return;
+  _sbEditMode = false;
+
+  const bar = document.getElementById('sbIconbar');
+  if (!bar) return;
+
+  // Quitar wiggle y draggable
+  bar.querySelectorAll('.ib-editing').forEach(el => {
+    el.classList.remove('ib-editing', 'ib-drag-over');
+    el.removeAttribute('draggable');
+  });
+
+  // Quitar botón confirmar
+  const btn = document.getElementById('sbEditDone');
+  if (btn) btn.remove();
+
+  // Restaurar separadores
+  bar.querySelectorAll('.ib-sep').forEach(s => s.style.display = '');
+
+  // Guardar orden
+  _saveSbOrder();
+
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
+/** Guarda el orden actual de los iconos en localStorage */
+function _saveSbOrder() {
+  const items = _getSortableItems();
+  const order = items.map(el => {
+    // Identificar por data-flyout o por id
+    return el.dataset.flyout || el.id || '';
+  }).filter(Boolean);
+  try {
+    localStorage.setItem(`sb_order_${CU?.id}`, JSON.stringify(order));
+  } catch (_) {}
+}
+
+/** Carga y aplica el orden guardado */
+function applySbOrder() {
+  let order;
+  try {
+    const raw = localStorage.getItem(`sb_order_${CU?.id}`);
+    if (!raw) return;
+    order = JSON.parse(raw);
+    if (!Array.isArray(order) || order.length === 0) return;
+  } catch (_) { return; }
+
+  const bar = document.getElementById('sbIconbar');
+  if (!bar) return;
+
+  // Recoger todos los ib-item (no bottom)
+  const allItems = [...bar.querySelectorAll('.ib-item')].filter(el => !el.closest('.ib-bottom'));
+
+  // Mapear por identificador
+  const itemMap = {};
+  allItems.forEach(el => {
+    const key = el.dataset.flyout || el.id || '';
+    if (key) itemMap[key] = el;
+  });
+
+  // Encontrar el punto de inserción (antes del primer ib-sep o ib-bottom)
+  const firstSep = bar.querySelector('.ib-sep');
+  const bottom = bar.querySelector('.ib-bottom');
+
+  // Quitar todos los separadores temporalmente
+  const seps = [...bar.querySelectorAll('.ib-sep')];
+  seps.forEach(s => s.remove());
+
+  // Quitar todos los items no-bottom
+  allItems.forEach(el => el.remove());
+
+  // Reinsertar en el orden guardado
+  const insertBefore = bottom || null;
+  const inserted = new Set();
+
+  order.forEach(key => {
+    const el = itemMap[key];
+    if (el) {
+      bar.insertBefore(el, insertBefore);
+      inserted.add(key);
+    }
+  });
+
+  // Añadir al final los que no estaban en el orden guardado (nuevos iconos)
+  Object.keys(itemMap).forEach(key => {
+    if (!inserted.has(key)) {
+      bar.insertBefore(itemMap[key], insertBefore);
+    }
+  });
+
+  // Re-añadir separadores (al final de los items, antes de bottom)
+  seps.forEach(s => bar.insertBefore(s, insertBefore));
+}
+
+// ── Drag & Drop handlers ──
+function _sbDragStart(e) {
+  _sbDraggedEl = this;
+  this.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function _sbDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function _sbDragEnter(e) {
+  e.preventDefault();
+  if (this !== _sbDraggedEl && this.classList.contains('ib-editing')) {
+    this.classList.add('ib-drag-over');
+  }
+}
+
+function _sbDragLeave() {
+  this.classList.remove('ib-drag-over');
+}
+
+function _sbDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  this.classList.remove('ib-drag-over');
+
+  if (!_sbDraggedEl || _sbDraggedEl === this) return;
+
+  // Determinar si insertar antes o después
+  const bar = document.getElementById('sbIconbar');
+  const items = _getSortableItems();
+  const fromIdx = items.indexOf(_sbDraggedEl);
+  const toIdx = items.indexOf(this);
+
+  if (fromIdx < toIdx) {
+    this.after(_sbDraggedEl);
+  } else {
+    this.before(_sbDraggedEl);
+  }
+}
+
+function _sbDragEnd() {
+  this.style.opacity = '1';
+  document.querySelectorAll('.ib-drag-over').forEach(el => el.classList.remove('ib-drag-over'));
+  _sbDraggedEl = null;
+}
+
+// ── Touch drag para móvil ──
+function _sbTouchStart(e) {
+  if (!_sbEditMode) return;
+  const touch = e.touches[0];
+  _sbDraggedEl = this;
+  this.style.opacity = '0.4';
+  e.preventDefault();
+}
+
+function _sbTouchMove(e) {
+  if (!_sbEditMode || !_sbDraggedEl) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const target = document.elementFromPoint(touch.clientX, touch.clientY);
+  // Limpiar todos los drag-over
+  document.querySelectorAll('.ib-drag-over').forEach(el => el.classList.remove('ib-drag-over'));
+  if (target && target.classList.contains('ib-editing') && target !== _sbDraggedEl) {
+    target.classList.add('ib-drag-over');
+  }
+}
+
+function _sbTouchEnd(e) {
+  if (!_sbEditMode || !_sbDraggedEl) return;
+  const overEl = document.querySelector('.ib-drag-over');
+  if (overEl && overEl !== _sbDraggedEl) {
+    const items = _getSortableItems();
+    const fromIdx = items.indexOf(_sbDraggedEl);
+    const toIdx = items.indexOf(overEl);
+    if (fromIdx < toIdx) overEl.after(_sbDraggedEl);
+    else overEl.before(_sbDraggedEl);
+  }
+  _sbDraggedEl.style.opacity = '1';
+  document.querySelectorAll('.ib-drag-over').forEach(el => el.classList.remove('ib-drag-over'));
+  _sbDraggedEl = null;
+}
+
+// ── Long-press binding ──
+function _bindSbLongPress() {
+  const bar = document.getElementById('sbIconbar');
+  if (!bar) return;
+
+  bar.addEventListener('pointerdown', (e) => {
+    const item = e.target.closest('.ib-item');
+    if (!item || item.closest('.ib-bottom') || _sbEditMode) return;
+
+    _sbLongPressTimer = setTimeout(() => {
+      _enterSbEditMode();
+      // Añadir touch handlers para móvil
+      _getSortableItems().forEach(el => {
+        el.addEventListener('touchstart', _sbTouchStart, { passive: false });
+        el.addEventListener('touchmove', _sbTouchMove, { passive: false });
+        el.addEventListener('touchend', _sbTouchEnd);
+      });
+    }, 600);
+  });
+
+  bar.addEventListener('pointerup', () => clearTimeout(_sbLongPressTimer));
+  bar.addEventListener('pointerleave', () => clearTimeout(_sbLongPressTimer));
+  bar.addEventListener('pointermove', (e) => {
+    // Cancelar si se mueve mucho (>10px = scroll, no long-press)
+    if (Math.abs(e.movementX) > 2 || Math.abs(e.movementY) > 2) {
+      clearTimeout(_sbLongPressTimer);
+    }
+  });
+}
+
+// Init al cargar
+document.addEventListener('DOMContentLoaded', () => {
+  _bindSbLongPress();
+});

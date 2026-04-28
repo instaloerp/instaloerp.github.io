@@ -676,6 +676,7 @@ async function mostrarApp() {
   // Aplicar permisos CRUD a botones de acción
   if (typeof applyPermButtons === 'function') applyPermButtons();
   if (typeof applyIconbarPerms === 'function') applyIconbarPerms();
+  if (typeof applySbOrder === 'function') applySbOrder();
   // Suscripción Realtime — notificaciones de partes
   initRealtimePartes();
   // Mensajería: cargar conversaciones + iniciar Realtime para notificaciones globales
