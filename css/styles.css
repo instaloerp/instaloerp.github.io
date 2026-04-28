@@ -105,8 +105,8 @@ a{text-decoration:none;color:inherit}
 .fly-title{font-size:11px;font-weight:600;color:var(--gris-400);padding:8px 14px 4px;text-transform:uppercase;letter-spacing:.5px}
 .fly-user-header{padding:12px 14px;border-bottom:1px solid var(--gris-200);margin-bottom:4px}
 .fly-user-name{font-size:14px;font-weight:600;color:var(--gris-800)}
-.fly-user-role{font-size:11px;color:var(--gris-400);margin-top:2px}
-.fly-user-email{font-size:11px;color:var(--gris-400)}
+.fly-user-role{font-size:11px;color:var(--gris-600);margin-top:2px}
+.fly-user-email{font-size:11px;color:var(--gris-500)}
 .fly-item{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:13px;color:var(--gris-700);cursor:pointer;transition:background .12s;border:none;background:none;width:100%;text-align:left}
 .fly-item:hover{background:var(--gris-50)}
 .fly-item .ico{font-size:15px;width:20px;text-align:center;flex-shrink:0}
