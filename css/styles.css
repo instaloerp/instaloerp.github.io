@@ -495,6 +495,10 @@ body.sb-fullscreen #main{margin-left:0}
 .pe-item-label input{width:14px;height:14px;accent-color:var(--azul);cursor:pointer}
 .pe-item-label input:checked+span{color:var(--gris-800);font-weight:600}
 @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+#mPermisos .pe-container{max-height:none;border:none;background:transparent}
+#mPermisos .pe-sec{border:1px solid var(--gris-200);border-radius:10px;margin-bottom:8px;background:#fff}
+#mPermisos .pe-items-grid{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:700px){#mPermisos .pe-items-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.pe-crud{flex-wrap:wrap;gap:1px}.pe-items-grid{grid-template-columns:1fr}.pe-header{flex-direction:column;align-items:flex-start;gap:8px}}
 
 /* ═══ MENSAJERÍA INTERNA — DESKTOP ═══ */

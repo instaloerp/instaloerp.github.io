@@ -107,9 +107,9 @@ function nuevoUsuarioModal() {
   prev.innerHTML = '?';
   prev.style.background = 'var(--azul)';
   usuariosFotoFile = null;
-  // Renderizar editor de permisos granulares
-  renderPermisosEditor('permisosEditorContainer');
-  setPermisosByRol('operario');
+  // Inicializar permisos con preset del rol
+  _permisosTemp = PERM_PRESETS['operario'] ? JSON.parse(JSON.stringify(PERM_PRESETS['operario'])) : null;
+  _actualizarResumenPermisos();
   // Disponible partes por defecto true para nuevo operario
   const elDP = document.getElementById('up_disponible_partes');
   if(elDP) elDP.checked = true;
@@ -140,8 +140,8 @@ async function saveUsuario() {
   if (!nombre || !email) { toast('Nombre y email son obligatorios','error'); return; }
   if (!id && pass.length < 8) { toast('La contraseña debe tener mínimo 8 caracteres','error'); return; }
 
-  // Leer permisos del editor granular
-  const permisos = typeof readPermisosFromUI === 'function' ? readPermisosFromUI() : {};
+  // Leer permisos del modal dedicado
+  const permisos = _permisosTemp || {};
   const dni = document.getElementById('usr_dni')?.value?.trim() || null;
 
   let avatar_url = null;
@@ -223,24 +223,23 @@ function editUsuario(uid) {
     prev.style.background = '#1B4FD8';
   }
 
-  // Renderizar editor de permisos granulares y cargar datos
-  renderPermisosEditor('permisosEditorContainer');
+  // Cargar permisos en _permisosTemp
   const isAdmin = u.es_superadmin || rol === 'admin';
   if (isAdmin) {
-    writePermisosToUI(PERM_PRESETS.admin);
+    _permisosTemp = JSON.parse(JSON.stringify(PERM_PRESETS.admin));
   } else if (u.permisos && typeof u.permisos === 'object') {
-    // Detectar formato: si tiene claves de sección como objetos → formato nuevo
     const isNewFormat = Object.values(u.permisos).some(v => typeof v === 'object');
     if (isNewFormat) {
-      writePermisosToUI(u.permisos);
+      _permisosTemp = JSON.parse(JSON.stringify(u.permisos));
     } else {
-      // Formato antiguo → aplicar preset del rol actual como base
       const preset = PERM_PRESETS[rol] || PERM_PRESETS.operario;
-      writePermisosToUI(preset);
+      _permisosTemp = JSON.parse(JSON.stringify(preset));
     }
   } else {
-    setPermisosByRol(rol);
+    const preset = PERM_PRESETS[rol] || PERM_PRESETS.operario;
+    _permisosTemp = JSON.parse(JSON.stringify(preset));
   }
+  _actualizarResumenPermisos();
 
   // Disponible para partes
   const elDP = document.getElementById('up_disponible_partes');
@@ -251,6 +250,66 @@ function editUsuario(uid) {
   if (btnSave) btnSave.textContent = '💾 Guardar cambios';
 
   openModal('mNuevoUsuario', true);  // skipReset=true para NO borrar los datos que acabamos de poner
+}
+
+// ── Modal de permisos (separado) ──────────────────
+let _permisosBackup = null; // backup para cancelar
+
+function abrirModalPermisos() {
+  renderPermisosEditor('permisosEditorContainer');
+  // Si ya hay permisos guardados en _permisosTemp, cargarlos
+  if (_permisosTemp) {
+    writePermisosToUI(_permisosTemp);
+  } else {
+    // Cargar según el rol seleccionado
+    const rol = document.getElementById('usr_rol')?.value || 'operario';
+    setPermisosByRol(rol);
+  }
+  _permisosBackup = readPermisosFromUI();
+  // Sincronizar el selector de preset con el rol actual
+  const presetSel = document.getElementById('permPresetRapido');
+  if (presetSel) presetSel.value = '';
+  openModal('mPermisos');
+}
+
+function cerrarModalPermisos() {
+  // Cancelar — restaurar backup
+  if (_permisosBackup) {
+    writePermisosToUI(_permisosBackup);
+  }
+  closeModal('mPermisos');
+}
+
+function confirmarPermisos() {
+  _permisosTemp = readPermisosFromUI();
+  _actualizarResumenPermisos();
+  closeModal('mPermisos');
+}
+
+let _permisosTemp = null; // permisos editados pendientes de guardar
+
+function _actualizarResumenPermisos() {
+  const el = document.getElementById('permResumen');
+  if (!el || !_permisosTemp) { if(el) el.textContent = 'Sin configurar'; return; }
+  // Contar secciones con acceso
+  const secciones = [];
+  PERM_SECTIONS.forEach(sec => {
+    if (['acceso','inicio','opciones'].includes(sec.key)) return;
+    const d = _permisosTemp[sec.key];
+    if (!d) return;
+    // Tiene acceso si "ver" es true o algún sub-item es true
+    let tiene = false;
+    if (d.ver === true) tiene = true;
+    if (!tiene) {
+      for (const k of Object.keys(d)) {
+        if (d[k] === true) { tiene = true; break; }
+      }
+    }
+    if (tiene) secciones.push(sec.label);
+  });
+  el.textContent = secciones.length
+    ? `Acceso a: ${secciones.join(', ')}`
+    : 'Sin acceso a ninguna sección';
 }
 
 async function delUsuario(id) {
