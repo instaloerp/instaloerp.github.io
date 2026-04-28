@@ -787,6 +787,11 @@ async function renderWidgetDashboard(containerId) {
   // Inyectar estilos si no existen
   _injectWidgetStyles();
 
+  // Si estamos en modo edición, construir panel de añadir
+  if (_dashEditMode) {
+    _buildAddPanel(container);
+  }
+
   // Crear grid
   const grid = document.createElement('div');
   grid.className = 'wg-grid';
@@ -869,74 +874,88 @@ async function _renderSingleWidget(wid, grid) {
 function toggleDashEdit() {
   _dashEditMode = !_dashEditMode;
 
-  const container = document.getElementById(_dashContainerId);
-  if (!container) return;
+  // Cambiar texto del botón
+  const btn = document.getElementById('btnDashEdit');
+  if (btn) btn.textContent = _dashEditMode ? '✓ Listo' : '⚙️ Personalizar';
 
-  // Quitar panel existente si lo hubiera
-  const oldPanel = document.getElementById('wg-add-panel');
-  if (oldPanel) oldPanel.remove();
+  // Re-renderizar todo el dashboard (con o sin controles de edición)
+  renderWidgetDashboard(_dashContainerId);
+}
 
-  if (_dashEditMode) {
-    // Crear panel de widgets disponibles
-    const panel = document.createElement('div');
-    panel.id = 'wg-add-panel';
-    panel.className = 'wg-add-panel';
+/**
+ * Construye el panel de añadir widgets (solo en modo edición).
+ * Se inserta DENTRO del grid container pero ANTES del grid.
+ */
+function _buildAddPanel(container) {
+  const panel = document.createElement('div');
+  panel.id = 'wg-add-panel';
+  panel.className = 'wg-add-panel';
 
-    // Cabecera del panel
-    panel.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-weight:800;font-size:14px">➕ Añadir widgets</div>
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-weight:800;font-size:14px">➕ Añadir widgets</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="_resetDashConfig()" title="Restaurar widgets por defecto del rol">↺ Resetear</button>
         <button class="btn btn-primary btn-sm" onclick="toggleDashEdit()">✓ Listo</button>
       </div>
-    `;
+    </div>
+  `;
 
-    // Agrupar por categoría
-    const currentIds = _loadDashConfig();
-    const byCat = {};
-    WIDGET_CATALOG.forEach(w => {
-      if (!byCat[w.cat]) byCat[w.cat] = [];
-      byCat[w.cat].push(w);
+  // Agrupar por categoría
+  const currentIds = _loadDashConfig();
+  const byCat = {};
+  WIDGET_CATALOG.forEach(w => {
+    if (!byCat[w.cat]) byCat[w.cat] = [];
+    byCat[w.cat].push(w);
+  });
+
+  Object.keys(byCat).forEach(cat => {
+    const catDiv = document.createElement('div');
+    catDiv.style.marginBottom = '10px';
+
+    const catLabel = document.createElement('div');
+    catLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:6px';
+    catLabel.textContent = _CAT_LABELS[cat] || cat;
+    catDiv.appendChild(catLabel);
+
+    const catGrid = document.createElement('div');
+    catGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+
+    byCat[cat].forEach(w => {
+      const isActive = currentIds.includes(w.id);
+      const chip = document.createElement('div');
+      chip.className = 'wg-add-chip' + (isActive ? ' active' : '');
+      chip.dataset.wid = w.id;
+      chip.innerHTML = `<span>${w.ico}</span> ${w.label}`;
+      chip.onclick = () => _toggleWidgetFromChip(w.id, chip);
+      catGrid.appendChild(chip);
     });
 
-    Object.keys(byCat).forEach(cat => {
-      const catDiv = document.createElement('div');
-      catDiv.style.marginBottom = '10px';
+    catDiv.appendChild(catGrid);
+    panel.appendChild(catDiv);
+  });
 
-      const catLabel = document.createElement('div');
-      catLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--gris-500);margin-bottom:6px';
-      catLabel.textContent = _CAT_LABELS[cat] || cat;
-      catDiv.appendChild(catLabel);
+  container.insertBefore(panel, container.firstChild);
+}
 
-      const catGrid = document.createElement('div');
-      catGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
-
-      byCat[cat].forEach(w => {
-        const isActive = currentIds.includes(w.id);
-        const chip = document.createElement('div');
-        chip.className = 'wg-add-chip' + (isActive ? ' active' : '');
-        chip.dataset.wid = w.id;
-        chip.innerHTML = `<span>${w.ico}</span> ${w.label}`;
-        chip.title = isActive ? 'Ya añadido — click para quitar' : 'Click para añadir';
-        chip.onclick = () => {
-          if (isActive) {
-            _removeWidget(w.id);
-            chip.classList.remove('active');
-          } else {
-            _addWidget(w.id);
-            chip.classList.add('active');
-          }
-        };
-        catGrid.appendChild(chip);
-      });
-
-      catDiv.appendChild(catGrid);
-      panel.appendChild(catDiv);
-    });
-
-    container.insertBefore(panel, container.firstChild);
+/** Toggle widget desde chip del panel: comprueba estado LIVE cada vez */
+function _toggleWidgetFromChip(wid, chip) {
+  const ids = _loadDashConfig();
+  if (ids.includes(wid)) {
+    // Quitar
+    _removeWidget(wid);
+    chip.classList.remove('active');
+  } else {
+    // Añadir
+    _addWidget(wid);
+    chip.classList.add('active');
   }
+}
 
-  // Re-renderizar para mostrar/ocultar botones de edición
+/** Resetear config al default del rol */
+function _resetDashConfig() {
+  const key = `dash_widgets_${CU?.id}`;
+  try { localStorage.removeItem(key); } catch(e) {}
   renderWidgetDashboard(_dashContainerId);
 }
 
