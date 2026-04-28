@@ -474,32 +474,29 @@ body.sb-fullscreen #main{margin-left:0}
 .plan-fullscreen .plan-container{height:calc(100vh - 120px)!important;min-height:auto}
 
 /* ══ EDITOR DE PERMISOS GRANULARES ══ */
-.pe-container{max-height:420px;overflow-y:auto;border:1px solid var(--gris-200);border-radius:10px;background:#fff}
-.pe-sec{border-bottom:1px solid var(--gris-100)}
-.pe-sec:last-child{border-bottom:none}
-.pe-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;transition:background .15s}
-.pe-header:hover{background:var(--gris-50)}
-.pe-h-left{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--gris-700)}
-.pe-arrow{font-size:11px;color:var(--gris-400);width:12px;text-align:center}
+/* ═══ EDITOR PERMISOS — Estilo Stel Order ═══ */
+.pe-container{overflow-y:auto;border-radius:10px}
+.pe-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pe-sec{border:1px solid var(--gris-200);border-radius:10px;background:#fff;overflow:hidden}
+.pe-sec-head{padding:10px 14px;background:var(--gris-50);border-bottom:1px solid var(--gris-200)}
+.pe-sec-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--gris-700);user-select:none}
+.pe-sec-toggle input{width:16px;height:16px;accent-color:var(--azul);cursor:pointer}
 .pe-ico{font-size:16px}
 .pe-label{font-size:13px}
-.pe-crud{display:flex;gap:2px}
-.pe-crud-label{display:flex;align-items:center;gap:3px;padding:3px 7px;border-radius:6px;font-size:10px;font-weight:600;color:var(--gris-500);cursor:pointer;transition:background .15s}
-.pe-crud-label:hover{background:var(--gris-100)}
-.pe-crud-label input{width:14px;height:14px;accent-color:var(--azul);cursor:pointer}
-.pe-crud-label input:checked+span{color:var(--azul)}
-.pe-items{padding:0 14px 12px 36px;animation:slideDown .15s ease}
-.pe-toggle-all{margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--gris-100)}
-.pe-items-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px}
-.pe-item-label{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px;color:var(--gris-600);cursor:pointer}
-.pe-item-label input{width:14px;height:14px;accent-color:var(--azul);cursor:pointer}
+.pe-table{width:100%;border-collapse:collapse;font-size:11.5px}
+.pe-table th{text-align:center;padding:6px 4px;font-size:10px;font-weight:700;color:var(--gris-400);text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--gris-100)}
+.pe-table th:first-child{text-align:left;padding-left:14px;width:auto}
+.pe-table th:not(:first-child){width:52px}
+.pe-table td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--gris-50)}
+.pe-table td:first-child{text-align:left;padding-left:14px;color:var(--gris-600);font-size:11.5px}
+.pe-table tr:last-child td{border-bottom:none}
+.pe-tr-main td:first-child{font-weight:700;color:var(--gris-700)}
+.pe-table input[type="checkbox"]{width:15px;height:15px;accent-color:var(--azul);cursor:pointer}
+.pe-items-flat{padding:8px 14px 10px;display:flex;flex-direction:column;gap:4px}
+.pe-item-label{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:var(--gris-600);cursor:pointer}
+.pe-item-label input{width:15px;height:15px;accent-color:var(--azul);cursor:pointer}
 .pe-item-label input:checked+span{color:var(--gris-800);font-weight:600}
-@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-#mPermisos .pe-container{max-height:none;border:none;background:transparent}
-#mPermisos .pe-sec{border:1px solid var(--gris-200);border-radius:10px;margin-bottom:8px;background:#fff}
-#mPermisos .pe-items-grid{grid-template-columns:1fr 1fr 1fr}
-@media(max-width:700px){#mPermisos .pe-items-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.pe-crud{flex-wrap:wrap;gap:1px}.pe-items-grid{grid-template-columns:1fr}.pe-header{flex-direction:column;align-items:flex-start;gap:8px}}
+@media(max-width:600px){.pe-grid{grid-template-columns:1fr}}
 
 /* ═══ MENSAJERÍA INTERNA — DESKTOP ═══ */
 .chat-desktop-wrap{display:flex;height:calc(100vh - 120px);border:1px solid var(--gris-200);border-radius:10px;overflow:hidden;background:#fff}

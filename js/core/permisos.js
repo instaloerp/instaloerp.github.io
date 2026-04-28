@@ -480,65 +480,66 @@ function userCanAccess(pageId) { return canAccessPage(pageId); }
 
 /**
  * Renderiza el editor completo de permisos en un contenedor
+ * Diseño estilo Stel Order: 2 columnas, secciones con checkbox + sub-items CRUD en tabla
  * @param {string} containerId — id del div contenedor
  */
 function renderPermisosEditor(containerId) {
   const c = document.getElementById(containerId);
   if (!c) return;
 
-  let html = '';
+  let html = '<div class="pe-grid">';
   PERM_SECTIONS.forEach(sec => {
     const hasCrud = sec.crud;
     const hasItems = sec.items.length > 0;
 
-    // — Header de sección —
     html += `<div class="pe-sec" id="pe_sec_${sec.key}">`;
-    html += `<div class="pe-header" onclick="peToggle('${sec.key}')">`;
-    html += `<div class="pe-h-left">`;
-    html += `<span class="pe-arrow" id="pe_arrow_${sec.key}">▸</span>`;
+
+    // — Checkbox de sección —
+    html += `<div class="pe-sec-head">`;
+    html += `<label class="pe-sec-toggle">`;
+    html += `<input type="checkbox" id="pe_${sec.key}_ALL" onchange="peToggleAll('${sec.key}',this.checked)">`;
     html += `<span class="pe-ico">${sec.ico}</span>`;
     html += `<span class="pe-label">${sec.label}</span>`;
+    html += `</label>`;
     html += `</div>`;
 
+    // — CRUD global de sección —
     if (hasCrud) {
-      html += `<div class="pe-crud" onclick="event.stopPropagation()">`;
-      [{k:'ver',l:'Ver'},{k:'editar',l:'Editar'},{k:'crear',l:'Crear'},{k:'eliminar',l:'Elim.'}].forEach(a => {
-        html += `<label class="pe-crud-label" title="${a.l}">`;
-        html += `<input type="checkbox" id="pe_${sec.key}_${a.k}" onchange="peOnCrud('${sec.key}','${a.k}')">`;
-        html += `<span>${a.l}</span></label>`;
+      html += `<table class="pe-table"><thead><tr><th></th><th>Ver</th><th>Editar</th><th>Crear</th><th>Elim.</th></tr></thead><tbody>`;
+      html += `<tr class="pe-tr-main"><td style="font-weight:700;font-size:11.5px">General</td>`;
+      [{k:'ver'},{k:'editar'},{k:'crear'},{k:'eliminar'}].forEach(a => {
+        html += `<td><input type="checkbox" id="pe_${sec.key}_${a.k}" onchange="peOnCrud('${sec.key}','${a.k}')"></td>`;
       });
-      html += `</div>`;
-    }
-    html += `</div>`; // .pe-header
-
-    // — Sub-ítems —
-    if (hasItems) {
-      html += `<div class="pe-items" id="pe_items_${sec.key}" style="display:none">`;
-      // Toggle all
-      html += `<div class="pe-toggle-all">`;
-      html += `<label class="pe-item-label"><input type="checkbox" id="pe_${sec.key}_ALL" onchange="peToggleAll('${sec.key}',this.checked)"><span style="font-weight:700;color:var(--gris-600)">Todos los permisos</span></label>`;
-      html += `</div>`;
-      html += `<div class="pe-items-grid">`;
+      html += `</tr>`;
+      // Sub-items con CRUD (si tienen sentido) — si no, solo checkboxes
+      sec.items.forEach(it => {
+        html += `<tr><td>${it.label}</td>`;
+        // Sub-items solo tienen on/off, no CRUD individual, ocupan toda la fila
+        html += `<td colspan="4"><input type="checkbox" id="pe_${sec.key}_${it.key}"></td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+    } else if (hasItems) {
+      // Secciones sin CRUD (acceso, inicio, agenda, comunicaciones, personal, opciones, companias, contabilidad)
+      html += `<div class="pe-items-flat">`;
       sec.items.forEach(it => {
         html += `<label class="pe-item-label"><input type="checkbox" id="pe_${sec.key}_${it.key}"><span>${it.label}</span></label>`;
       });
-      html += `</div></div>`; // .pe-items-grid + .pe-items
+      html += `</div>`;
     }
 
     html += `</div>`; // .pe-sec
   });
+  html += '</div>'; // .pe-grid
 
   c.innerHTML = html;
 }
 
-/** Expandir / colapsar sub-ítems */
+/** Expandir / colapsar sub-ítems (legacy — ya no se usa con el diseño nuevo) */
 function peToggle(secKey) {
   const items = document.getElementById('pe_items_' + secKey);
-  const arrow = document.getElementById('pe_arrow_' + secKey);
   if (!items) return;
-  const open = items.style.display !== 'none';
-  items.style.display = open ? 'none' : '';
-  if (arrow) arrow.textContent = open ? '▸' : '▾';
+  items.style.display = items.style.display !== 'none' ? 'none' : '';
 }
 
 /** Cuando se cambia un toggle CRUD */
@@ -560,10 +561,18 @@ function peOnCrud(secKey, action) {
   }
 }
 
-/** Toggle all sub-items de una sección */
+/** Toggle all sub-items de una sección (incluye CRUD si los tiene) */
 function peToggleAll(secKey, checked) {
   const sec = PERM_SECTIONS.find(s => s.key === secKey);
   if (!sec) return;
+  // CRUD toggles
+  if (sec.crud) {
+    ['ver','editar','crear','eliminar'].forEach(a => {
+      const el = document.getElementById(`pe_${secKey}_${a}`);
+      if (el) el.checked = checked;
+    });
+  }
+  // Sub-items
   sec.items.forEach(it => {
     const el = document.getElementById(`pe_${secKey}_${it.key}`);
     if (el) el.checked = checked;
@@ -601,6 +610,11 @@ function writePermisosToUI(perms) {
       });
     }
     let allChecked = true;
+    if (sec.crud) {
+      ['ver','editar','crear','eliminar'].forEach(a => {
+        if (!(secData && secData[a] === true)) allChecked = false;
+      });
+    }
     sec.items.forEach(it => {
       const el = document.getElementById(`pe_${sec.key}_${it.key}`);
       let val = false;
@@ -610,9 +624,9 @@ function writePermisosToUI(perms) {
       if (el) el.checked = val;
       if (!val) allChecked = false;
     });
-    // "Todos" toggle
+    // "Todos" toggle — refleja si TODO está activado
     const allCb = document.getElementById(`pe_${sec.key}_ALL`);
-    if (allCb) allCb.checked = sec.items.length > 0 && allChecked;
+    if (allCb) allCb.checked = (sec.items.length > 0 || sec.crud) && allChecked;
   });
 }
 

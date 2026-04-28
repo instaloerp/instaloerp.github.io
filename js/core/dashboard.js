@@ -3,6 +3,30 @@
 // ═══════════════════════════════════════════════
 
 async function loadDashboard() {
+  // Dashboard específico por rol
+  if (CP && !CP.es_superadmin && CP.rol === 'gestoria') {
+    // Ocultar dashboard normal, usar contenedor dinámico
+    const page = document.getElementById('page-dashboard');
+    if (page) {
+      // Guardar HTML original si no existe el wrapper
+      if (!document.getElementById('dash-gestoria')) {
+        const orig = page.innerHTML;
+        page.innerHTML = `<div id="dash-normal" style="display:none">${orig}</div><div id="dash-gestoria"></div>`;
+      }
+      document.getElementById('dash-normal').style.display = 'none';
+      document.getElementById('dash-gestoria').style.display = '';
+    }
+    return loadDashboardGestoria();
+  } else {
+    // Restaurar dashboard normal si fue reemplazado
+    const dashNormal = document.getElementById('dash-normal');
+    if (dashNormal) {
+      dashNormal.style.display = '';
+      const dashGest = document.getElementById('dash-gestoria');
+      if (dashGest) dashGest.style.display = 'none';
+    }
+  }
+
   const eid = EMPRESA.id;
   const hoy = new Date();
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
@@ -346,4 +370,176 @@ async function loadDashboardDocsOcr() {
         </div>`;
       }).join('')}
     </div>`;
+}
+
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD GESTORÍA — Vista contable
+// ═══════════════════════════════════════════════
+async function loadDashboardGestoria() {
+  const eid = EMPRESA.id;
+  const page = document.getElementById('dash-gestoria') || document.getElementById('page-dashboard');
+  if (!page) return;
+
+  const hoy = new Date();
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
+  const inicioTri = new Date(hoy.getFullYear(), Math.floor(hoy.getMonth()/3)*3, 1).toISOString().split('T')[0];
+  const inicioAno = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0];
+  const mesLabel = hoy.toLocaleString('es-ES', {month:'long', year:'numeric'});
+  const triLabel = `T${Math.floor(hoy.getMonth()/3)+1} ${hoy.getFullYear()}`;
+
+  // Cargar datos en paralelo
+  const [rFacts, rFactsProv, rTeso] = await Promise.all([
+    sb.from('facturas').select('numero,fecha,cliente_nombre,base_imponible,total,estado,rectificativa_de').eq('empresa_id', eid).neq('estado','eliminado'),
+    sb.from('facturas_proveedor').select('numero,fecha,proveedor_nombre,base_imponible,total,estado').eq('empresa_id', eid).neq('estado','eliminado'),
+    sb.from('cuentas_bancarias').select('nombre,saldo_actual,banco').eq('empresa_id', eid).eq('activa', true),
+  ]);
+
+  const factVenta = (rFacts.data || []).filter(f => f.estado !== 'anulada' && f.estado !== 'rectificada' && f.estado !== 'borrador');
+  const factCompra = (rFactsProv.data || []).filter(f => f.estado !== 'anulada');
+  const cuentas = rTeso.data || [];
+
+  // KPIs
+  const ventaMes = factVenta.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const ventaTri = factVenta.filter(f => f.fecha >= inicioTri).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const ventaAno = factVenta.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const compraMes = factCompra.filter(f => f.fecha >= inicioMes).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const compraTri = factCompra.filter(f => f.fecha >= inicioTri).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const compraAno = factCompra.filter(f => f.fecha >= inicioAno).reduce((s,f) => s + (f.base_imponible||0), 0);
+  const pendCobro = (rFacts.data||[]).filter(f => f.estado === 'pendiente' || f.estado === 'vencida').reduce((s,f) => s + (f.base_imponible||0), 0);
+  const pendPago = (rFactsProv.data||[]).filter(f => f.estado === 'pendiente').reduce((s,f) => s + (f.base_imponible||0), 0);
+  const saldoTotal = cuentas.reduce((s,c) => s + (c.saldo_actual||0), 0);
+
+  // IVA estimado trimestre
+  const ivaRepercutido = factVenta.filter(f => f.fecha >= inicioTri).reduce((s,f) => s + ((f.total||0) - (f.base_imponible||0)), 0);
+  const ivaSoportado = factCompra.filter(f => f.fecha >= inicioTri).reduce((s,f) => s + ((f.total||0) - (f.base_imponible||0)), 0);
+  const ivaLiquidar = ivaRepercutido - ivaSoportado;
+
+  // Últimas facturas emitidas y recibidas
+  const ultFactVenta = (rFacts.data||[]).filter(f => f.estado !== 'eliminado' && f.estado !== 'borrador').sort((a,b) => (b.fecha||'').localeCompare(a.fecha||'')).slice(0,8);
+  const ultFactCompra = (rFactsProv.data||[]).filter(f => f.estado !== 'eliminado').sort((a,b) => (b.fecha||'').localeCompare(a.fecha||'')).slice(0,8);
+
+  function factRow(f, tipo) {
+    const nombre = tipo === 'venta' ? (f.cliente_nombre||'—') : (f.proveedor_nombre||'—');
+    const stColor = f.estado === 'vencida' ? 'var(--rojo)' : f.estado === 'cobrada' || f.estado === 'pagada' ? 'var(--verde)' : 'var(--gris-500)';
+    const stLabel = f.estado === 'pendiente' ? 'Pdte' : f.estado === 'vencida' ? 'Vencida' : f.estado === 'cobrada' || f.estado === 'pagada' ? 'OK' : f.estado;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gris-100);font-size:12px;cursor:pointer" onclick="goPage('${tipo === 'venta' ? 'facturas' : 'facturas-proveedor'}')">
+      <span style="font-weight:700;width:90px;flex-shrink:0">${f.numero||'—'}</span>
+      <span style="flex:1;color:var(--gris-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombre}</span>
+      <span style="color:var(--gris-400);font-size:10px;flex-shrink:0">${f.fecha||''}</span>
+      <span style="font-weight:800;width:80px;text-align:right;flex-shrink:0">${fmtE(f.base_imponible)}</span>
+      <span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;color:${stColor};flex-shrink:0">${stLabel}</span>
+    </div>`;
+  }
+
+  page.innerHTML = `
+    <!-- Cabecera gestoría -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <h2 style="font-size:20px;font-weight:800;margin:0">📊 Panel contable</h2>
+        <div style="font-size:12px;color:var(--gris-400);margin-top:2px">${EMPRESA.nombre || ''} · ${mesLabel}</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="goPage('plan-contable')">📊 Plan Contable</button>
+        <button class="btn btn-secondary btn-sm" onclick="goPage('libro-diario')">📖 Libro Diario</button>
+        <button class="btn btn-primary btn-sm" onclick="goPage('cuenta-resultados')">📈 PyG</button>
+      </div>
+    </div>
+
+    <!-- KPIs principales -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px">
+      <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">💶</div><div class="sv">${fmtE(ventaMes)}</div><div class="sl">Ventas netas (mes)</div></div>
+      <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">🧾</div><div class="sv">${fmtE(compraMes)}</div><div class="sl">Compras netas (mes)</div></div>
+      <div class="sc" style="--c:${ventaMes - compraMes >= 0 ? 'var(--verde)' : 'var(--rojo)'};--bg:${ventaMes - compraMes >= 0 ? 'var(--verde-light)' : 'var(--rojo-light)'}"><div class="si">📈</div><div class="sv">${fmtE(ventaMes - compraMes)}</div><div class="sl">Resultado mes</div></div>
+      <div class="sc" style="--c:var(--violeta);--bg:var(--violeta-light)"><div class="si">🏦</div><div class="sv">${fmtE(saldoTotal)}</div><div class="sl">Saldo bancario</div></div>
+    </div>
+
+    <!-- KPIs trimestre y año -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px">
+      <div class="sc" style="--c:var(--azul);--bg:var(--azul-light)"><div class="si">📊</div><div class="sv">${fmtE(ventaTri)}</div><div class="sl">Ventas ${triLabel}</div></div>
+      <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light)"><div class="si">📊</div><div class="sv">${fmtE(compraTri)}</div><div class="sl">Compras ${triLabel}</div></div>
+      <div class="sc" style="--c:${ivaLiquidar >= 0 ? '#D97706' : 'var(--verde)'};--bg:${ivaLiquidar >= 0 ? '#FFFBEB' : 'var(--verde-light)'}"><div class="si">🏛️</div><div class="sv">${fmtE(ivaLiquidar)}</div><div class="sl">IVA a ${ivaLiquidar >= 0 ? 'liquidar' : 'compensar'} (${triLabel})</div></div>
+      <div class="sc" style="--c:var(--verde);--bg:var(--verde-light)"><div class="si">💰</div><div class="sv">${fmtE(ventaAno)}</div><div class="sl">Facturado ${hoy.getFullYear()}</div></div>
+    </div>
+
+    <!-- Pendientes cobro/pago -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px">
+      <div class="sc" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer" onclick="goPage('facturas')">
+        <div class="si">⏳</div><div class="sv">${fmtE(pendCobro)}</div><div class="sl">Pendiente de cobro</div>
+      </div>
+      <div class="sc" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer" onclick="goPage('facturas-proveedor')">
+        <div class="si">⏳</div><div class="sv">${fmtE(pendPago)}</div><div class="sl">Pendiente de pago</div>
+      </div>
+    </div>
+
+    <!-- Listas: Últimas facturas emitidas y recibidas -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="dash-card dash-card--blue">
+        <div class="card-h"><h3>🧾 Últimas facturas emitidas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas')">Ver todas</button></div></div>
+        <div class="card-b" style="max-height:320px;overflow-y:auto">
+          ${ultFactVenta.length ? ultFactVenta.map(f => factRow(f,'venta')).join('') : '<div class="empty"><div class="ei">🧾</div><p>Sin facturas</p></div>'}
+        </div>
+      </div>
+      <div class="dash-card dash-card--red">
+        <div class="card-h"><h3>📑 Últimas facturas recibidas</h3><div class="card-ha"><button class="btn btn-secondary btn-sm" onclick="goPage('facturas-proveedor')">Ver todas</button></div></div>
+        <div class="card-b" style="max-height:320px;overflow-y:auto">
+          ${ultFactCompra.length ? ultFactCompra.map(f => factRow(f,'compra')).join('') : '<div class="empty"><div class="ei">📑</div><p>Sin facturas</p></div>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Accesos rápidos contabilidad -->
+    <div style="margin-top:18px">
+      <div style="font-size:13px;font-weight:800;color:var(--gris-600);margin-bottom:10px">⚡ Accesos rápidos</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('plan-contable')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📊</div>
+          <div style="font-size:12px;font-weight:700">Plan Contable</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('libro-diario')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📖</div>
+          <div style="font-size:12px;font-weight:700">Libro Diario</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('libro-mayor')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📒</div>
+          <div style="font-size:12px;font-weight:700">Libro Mayor</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('balance-sumas')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📈</div>
+          <div style="font-size:12px;font-weight:700">Balance Sumas</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('cuenta-resultados')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">💹</div>
+          <div style="font-size:12px;font-weight:700">Cuenta de Resultados</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('tesoreria-movimientos')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🏦</div>
+          <div style="font-size:12px;font-weight:700">Movimientos banco</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('clientes')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">👥</div>
+          <div style="font-size:12px;font-weight:700">Clientes</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;cursor:pointer;transition:transform .1s" onclick="goPage('proveedores')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🏭</div>
+          <div style="font-size:12px;font-weight:700">Proveedores</div>
+        </div>
+      </div>
+    </div>
+
+    ${cuentas.length ? `
+    <!-- Cuentas bancarias -->
+    <div style="margin-top:18px">
+      <div style="font-size:13px;font-weight:800;color:var(--gris-600);margin-bottom:10px">🏦 Cuentas bancarias</div>
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(cuentas.length,3)},1fr);gap:10px">
+        ${cuentas.map(c => `
+          <div class="card" style="padding:14px;cursor:pointer" onclick="goPage('tesoreria-cuentas')">
+            <div style="font-size:12px;font-weight:700;margin-bottom:4px">${c.nombre||'Cuenta'}</div>
+            <div style="font-size:10px;color:var(--gris-400);margin-bottom:8px">${c.banco||''}</div>
+            <div style="font-size:18px;font-weight:800;color:${(c.saldo_actual||0)>=0?'var(--verde)':'var(--rojo)'}">${fmtE(c.saldo_actual||0)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+  `;
 }

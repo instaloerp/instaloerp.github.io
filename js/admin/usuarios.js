@@ -24,6 +24,7 @@ async function loadUsuarios() {
     almacen:   { label:'Almacén',          ico:'📦', color:'#7C3AED', bg:'#F5F3FF' },
     operario:  { label:'Operario',         ico:'👷', color:'#059669', bg:'#ECFDF5' },
     comercial: { label:'Comercial',        ico:'💼', color:'#0891B2', bg:'#ECFEFF' },
+    gestoria:  { label:'Gestoría',         ico:'📋', color:'#9333EA', bg:'#FAF5FF' },
   };
   const AVC2 = ['#1B4FD8','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2'];
 
@@ -33,8 +34,9 @@ async function loadUsuarios() {
   const alm = users.filter(u => u.rol === 'almacen');
   const operarios = users.filter(u => u.rol === 'operario');
   const comerciales = users.filter(u => u.rol === 'comercial');
+  const gestorias = users.filter(u => u.rol === 'gestoria');
   // Usuarios con rol legacy o sin rol → "otros"
-  const classified = new Set([...admins,...ofi,...alm,...operarios,...comerciales].map(u=>u.id));
+  const classified = new Set([...admins,...ofi,...alm,...operarios,...comerciales,...gestorias].map(u=>u.id));
   const otros = users.filter(u => !classified.has(u.id));
 
   function renderUserCard(u) {
@@ -76,7 +78,8 @@ async function loadUsuarios() {
     { label:'📦 Almacén', list:alm },
     { label:'👷 Operarios', list:operarios },
     { label:'💼 Comerciales', list:comerciales },
-    { label:'📋 Otros', list:otros },
+    { label:'📋 Gestoría', list:gestorias },
+    { label:'🏷️ Otros', list:otros },
   ];
   groups.forEach((g,i) => {
     if (!g.list.length) return;
