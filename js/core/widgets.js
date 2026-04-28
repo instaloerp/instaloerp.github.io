@@ -820,8 +820,16 @@ async function _renderSingleWidget(wid, grid) {
     <span class="wg-label">${def.label}</span>
     ${_dashEditMode ? `<button class="wg-rm" onclick="_removeWidget('${wid}')" title="Quitar widget">&times;</button>` : ''}
   `;
-  // En modo edición, añadir handle de arrastre
+  // En modo edición, hacer draggable + handle
   if (_dashEditMode) {
+    wrapper.draggable = true;
+    wrapper.addEventListener('dragstart', _onDragStart);
+    wrapper.addEventListener('dragend', _onDragEnd);
+    wrapper.addEventListener('dragover', _onDragOver);
+    wrapper.addEventListener('drop', _onDrop);
+    wrapper.addEventListener('dragenter', _onDragEnter);
+    wrapper.addEventListener('dragleave', _onDragLeave);
+
     const handle = document.createElement('span');
     handle.className = 'wg-drag';
     handle.textContent = '⠿';
@@ -998,6 +1006,92 @@ function _saveDashConfig(ids) {
 
 
 /* ══════════════════════════════════════════════════════════════════════
+   DRAG & DROP — Reordenar widgets arrastrando
+   ══════════════════════════════════════════════════════════════════════ */
+
+let _draggedWid = null; // widget ID que se está arrastrando
+
+function _onDragStart(e) {
+  _draggedWid = this.dataset.wid;
+  this.classList.add('wg-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  // Necesario para Firefox
+  e.dataTransfer.setData('text/plain', _draggedWid);
+}
+
+function _onDragEnd(e) {
+  this.classList.remove('wg-dragging');
+  // Limpiar indicadores de todos los widgets
+  document.querySelectorAll('.wg-drop-before,.wg-drop-after').forEach(el => {
+    el.classList.remove('wg-drop-before', 'wg-drop-after');
+  });
+  _draggedWid = null;
+}
+
+function _onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function _onDragEnter(e) {
+  e.preventDefault();
+  const target = this;
+  if (target.dataset.wid === _draggedWid) return;
+  // Mostrar indicador visual de dónde se insertará
+  const rect = target.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  const midX = rect.left + rect.width / 2;
+  // Decidir si antes o después según posición del cursor
+  const after = (e.clientY > midY) || (e.clientY === midY && e.clientX > midX);
+  target.classList.toggle('wg-drop-before', !after);
+  target.classList.toggle('wg-drop-after', after);
+}
+
+function _onDragLeave(e) {
+  this.classList.remove('wg-drop-before', 'wg-drop-after');
+}
+
+function _onDrop(e) {
+  e.preventDefault();
+  const targetWid = this.dataset.wid;
+  if (!_draggedWid || targetWid === _draggedWid) return;
+
+  // Determinar posición de inserción
+  const rect = this.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  const midX = rect.left + rect.width / 2;
+  const after = (e.clientY > midY) || (e.clientY === midY && e.clientX > midX);
+
+  // Actualizar orden en config
+  const ids = _loadDashConfig();
+  const fromIdx = ids.indexOf(_draggedWid);
+  const toIdx = ids.indexOf(targetWid);
+  if (fromIdx === -1 || toIdx === -1) return;
+
+  // Quitar el arrastrado
+  ids.splice(fromIdx, 1);
+  // Recalcular toIdx después del splice
+  const newToIdx = ids.indexOf(targetWid);
+  // Insertar antes o después del target
+  ids.splice(after ? newToIdx + 1 : newToIdx, 0, _draggedWid);
+  _saveDashConfig(ids);
+
+  // Mover el elemento DOM directamente (sin re-render)
+  const grid = document.getElementById('wg-grid');
+  const draggedEl = grid.querySelector(`.wg[data-wid="${_draggedWid}"]`);
+  const targetEl = this;
+
+  this.classList.remove('wg-drop-before', 'wg-drop-after');
+
+  if (after) {
+    targetEl.after(draggedEl);
+  } else {
+    targetEl.before(draggedEl);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
    ESTILOS INYECTADOS — Se añaden al <head> una sola vez
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -1047,6 +1141,11 @@ function _injectWidgetStyles() {
       user-select: none; padding: 0 2px;
     }
     .wg-drag:active { cursor: grabbing; }
+
+    /* ── Drag & drop visual ── */
+    .wg-dragging { opacity: .4; transform: scale(.97); }
+    .wg-drop-before { box-shadow: -3px 0 0 0 var(--azul, #3B82F6), 0 1px 3px rgba(0,0,0,.06) !important; }
+    .wg-drop-after { box-shadow: 3px 0 0 0 var(--azul, #3B82F6), 0 1px 3px rgba(0,0,0,.06) !important; }
 
     /* ── Panel de añadir widgets ── */
     .wg-add-panel {
