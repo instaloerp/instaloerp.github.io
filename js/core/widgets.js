@@ -328,7 +328,8 @@ const WIDGET_CATALOG = [
       return { factMes, factAno, compraMes, compraAno, resultado, resultadoAno,
                sparkVentas, sparkCompras, sparkResultado, mesLabels,
                varVentas, varCompras, factMesAnt, compraMesAnt,
-               facturasMes, facturasTotal, maxMes, maxMesLabel: mesLabels[maxMesIdx] };
+               facturasMes, facturasTotal, maxMes, maxMesLabel: mesLabels[maxMesIdx],
+               _rawVentas: ventas, _rawCompras: compras };
     },
     render(data, el) {
       const resColor = data.resultado >= 0 ? '#10B981' : '#EF4444';
@@ -386,9 +387,17 @@ const WIDGET_CATALOG = [
               <div class="wg-card-dim" style="color:#8B5CF6;font-weight:600">★ Mejor: ${data.maxMesLabel} (${fmtE(data.maxMes)})</div>
             </div>
           </div>
-          <!-- Columna derecha: gráfico comparativo -->
+          <!-- Columna derecha: gráfico comparativo con selector de periodo -->
           <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px;justify-content:center">
-            <div style="font-size:12px;font-weight:700;color:var(--gris-600);letter-spacing:0.01em">Ventas vs Compras — últimos 6 meses</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="font-size:12px;font-weight:700;color:var(--gris-600);letter-spacing:0.01em">Ventas vs Compras</div>
+              <div id="wg-fin-periodo-tabs" style="display:flex;gap:2px;background:var(--gris-100,#F3F4F6);border-radius:6px;padding:2px">
+                <button data-p="semana" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--gris-500)">S</button>
+                <button data-p="mes" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:#fff;color:var(--gris-800);box-shadow:0 1px 2px rgba(0,0,0,.08)">M</button>
+                <button data-p="trimestre" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--gris-500)">T</button>
+                <button data-p="ano" style="font-size:10px;font-weight:600;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--gris-500)">A</button>
+              </div>
+            </div>
             <canvas class="wg-chart" height="190" id="wg-chart-fin"></canvas>
             <div style="display:flex;gap:16px;justify-content:center;margin-top:4px">
               <span style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#3B82F6;display:inline-block"></span>Ventas</span>
@@ -397,17 +406,71 @@ const WIDGET_CATALOG = [
             </div>
           </div>
         </div>`;
-      // Dibujar gráfico
-      requestAnimationFrame(() => {
-        const chart = el.querySelector('#wg-chart-fin');
-        if (chart) {
-          chart.width = chart.parentElement.offsetWidth || 300;
-          _drawBarChart(chart, data.mesLabels, [
-            { label: 'Ventas', color: '#3B82F6', values: data.sparkVentas },
-            { label: 'Compras', color: '#EF4444', values: data.sparkCompras }
-          ]);
+
+      // ── Función para redibujar el gráfico según periodo ──
+      const ventas = data._rawVentas || [];
+      const compras = data._rawCompras || [];
+
+      function _buildChartData(periodo) {
+        const hoy = new Date();
+        let rangos = [];
+        if (periodo === 'semana') {
+          // Últimas 8 semanas
+          for (let i = 7; i >= 0; i--) {
+            const fin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - (i * 7));
+            const ini = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() - 6);
+            const lbl = ini.getDate() + '-' + fin.getDate() + ' ' + fin.toLocaleString('es-ES', { month: 'short' }).replace('.', '');
+            rangos.push({ label: lbl, desde: ini.toISOString().split('T')[0], hasta: new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + 1).toISOString().split('T')[0] });
+          }
+        } else if (periodo === 'mes') {
+          rangos = _wgUltMeses(6);
+        } else if (periodo === 'trimestre') {
+          // Últimos 4 trimestres
+          for (let i = 3; i >= 0; i--) {
+            const q = Math.floor(hoy.getMonth() / 3) - i;
+            const y = hoy.getFullYear() + Math.floor(q / 4) + (q < 0 ? -1 : 0);
+            const qn = ((q % 4) + 4) % 4;
+            const ini = new Date(y, qn * 3, 1);
+            const fin = new Date(y, qn * 3 + 3, 1);
+            rangos.push({ label: 'T' + (qn + 1) + ' ' + y, desde: ini.toISOString().split('T')[0], hasta: fin.toISOString().split('T')[0] });
+          }
+        } else { // año
+          for (let i = 2; i >= 0; i--) {
+            const y = hoy.getFullYear() - i;
+            rangos.push({ label: '' + y, desde: y + '-01-01', hasta: (y + 1) + '-01-01' });
+          }
         }
+        const labels = rangos.map(r => r.label);
+        const vData = rangos.map(r => ventas.filter(f => f.fecha >= r.desde && f.fecha < r.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
+        const cData = rangos.map(r => compras.filter(f => f.fecha >= r.desde && f.fecha < r.hasta).reduce((s, f) => s + (f.base_imponible || 0), 0));
+        return { labels, vData, cData };
+      }
+
+      function _redrawChart(periodo) {
+        const { labels, vData, cData } = _buildChartData(periodo);
+        const chart = el.querySelector('#wg-chart-fin');
+        if (!chart) return;
+        chart.width = chart.parentElement.offsetWidth || 300;
+        _drawBarChart(chart, labels, [
+          { label: 'Ventas', color: '#3B82F6', values: vData },
+          { label: 'Compras', color: '#EF4444', values: cData }
+        ]);
+      }
+
+      // Bind tabs del selector de periodo
+      const tabs = el.querySelectorAll('#wg-fin-periodo-tabs button');
+      tabs.forEach(btn => {
+        btn.onclick = () => {
+          tabs.forEach(b => { b.style.background = 'transparent'; b.style.color = 'var(--gris-500)'; b.style.boxShadow = 'none'; });
+          btn.style.background = '#fff';
+          btn.style.color = 'var(--gris-800)';
+          btn.style.boxShadow = '0 1px 2px rgba(0,0,0,.08)';
+          _redrawChart(btn.dataset.p);
+        };
       });
+
+      // Dibujar gráfico inicial (mes)
+      requestAnimationFrame(() => _redrawChart('mes'));
     }
   },
 
@@ -1301,6 +1364,74 @@ const WIDGET_CATALOG = [
       }).join('');
       el.innerHTML = html;
     }
+  },
+
+  // ═══════════════════════════════════════════
+  //  WIDGET AUTOMATIZACIONES (BANDEJA)
+  // ═══════════════════════════════════════════
+
+  // ── Lista: Tareas pendientes de la bandeja de automatizaciones ──
+  {
+    id: 'list_bandeja', label: 'Automatizaciones', ico: '⚡',
+    cat: 'lista', size: 'md',
+    async fetch(eid) {
+      // Pendientes
+      const { data: pend, count: countPend } = await sb.from('bandeja_entrada')
+        .select('id,titulo,tipo,estado,created_at,descripcion', { count: 'exact' })
+        .eq('empresa_id', eid)
+        .eq('estado', 'pendiente')
+        .order('created_at', { ascending: false })
+        .limit(6);
+      // Errores
+      const { count: countErr } = await sb.from('bandeja_entrada')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', eid)
+        .eq('estado', 'error');
+      // Completados hoy
+      const hoyStr = new Date().toISOString().split('T')[0];
+      const { count: countHoy } = await sb.from('bandeja_entrada')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', eid)
+        .eq('estado', 'completado')
+        .gte('created_at', hoyStr);
+      return { items: pend || [], pendientes: countPend || 0, errores: countErr || 0, completadosHoy: countHoy || 0 };
+    },
+    render(el, data) {
+      // Cabecera con badges
+      const badges = [];
+      if (data.pendientes > 0) badges.push(`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:#FEF3C7;color:#D97706">${data.pendientes} pendiente${data.pendientes > 1 ? 's' : ''}</span>`);
+      if (data.errores > 0) badges.push(`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:#FEE2E2;color:#DC2626">${data.errores} error${data.errores > 1 ? 'es' : ''}</span>`);
+      if (data.completadosHoy > 0) badges.push(`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:#D1FAE5;color:#059669">${data.completadosHoy} hoy ✓</span>`);
+
+      const TIPO_ICO = {
+        crear_albaran: '📦', crear_factura: '🧾', registrar_gasto: '💸',
+        crear_pedido: '📋', registrar_proveedor: '🏢', personalizada: '⚙️'
+      };
+
+      let html = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${badges.join('')}</div>`;
+
+      if (!data.items.length) {
+        html += `<div style="text-align:center;padding:20px;color:var(--gris-400);font-size:12px">📥 Sin tareas pendientes</div>`;
+      } else {
+        html += data.items.map(b => {
+          const ico = TIPO_ICO[b.tipo] || '⚡';
+          const fecha = b.created_at ? new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          return `<div class="wg-list-row" onclick="goPage('bandeja')" style="cursor:pointer">
+            <span style="font-size:16px;flex-shrink:0">${ico}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.titulo}</div>
+              <div style="font-size:10px;color:var(--gris-400)">${fecha}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      // Link al final
+      if (data.pendientes > data.items.length) {
+        html += `<div onclick="goPage('bandeja')" style="text-align:center;font-size:11px;color:var(--azul);font-weight:600;cursor:pointer;padding:6px 0;margin-top:4px">Ver todas (${data.pendientes}) →</div>`;
+      }
+      el.innerHTML = html;
+    }
   }
 
 ]; // fin WIDGET_CATALOG
@@ -1315,7 +1446,7 @@ const DASH_DEFAULTS = {
     'panel_financiero', 'panel_tesoreria', 'panel_comercial',
     'list_correo', 'list_mensajeria',
     'list_tareas', 'list_obras',
-    'list_facturas_pend', 'list_presup_pend'
+    'list_facturas_pend', 'list_presup_pend', 'list_bandeja'
   ],
   gestoria: [
     'panel_financiero', 'panel_tesoreria', 'panel_fiscal',
@@ -1328,7 +1459,7 @@ const DASH_DEFAULTS = {
     'panel_comercial',
     'list_correo', 'list_mensajeria',
     'list_tareas', 'list_obras',
-    'list_presup_pend'
+    'list_presup_pend', 'list_bandeja'
   ],
 };
 
@@ -1413,6 +1544,7 @@ const _WG_PERM_REQ = {
   panel_fiscal:       {sec:'facturacion', sub:'facturas'},
   list_facturas_pend: {sec:'facturacion', sub:'facturas'},
   list_facturas_prov_pend: {sec:'compras', sub:'facturas_prov'},
+  list_bandeja:       {sec:'compras', sub:'bandeja'},
   chart_facturacion_6m: {sec:'facturacion', sub:'facturas'},
   chart_cobros_pagos: {sec:'facturacion', sub:'facturas'},
 };
@@ -1590,6 +1722,7 @@ function _buildAddPanel(container) {
     list_mensajeria: 'Conversaciones de chat recientes con mensajes nuevos',
     list_facturas_prov_pend: 'Facturas de proveedor pendientes con vencimiento y total',
     panel_fiscal: 'IVA repercutido/soportado trimestral, liquidación y acumulado anual',
+    list_bandeja: 'Tareas automáticas pendientes con errores y completadas hoy',
   };
 
   const sizeLabels = { sm: '1 col', md: '2 col', lg: 'Ancho completo' };
