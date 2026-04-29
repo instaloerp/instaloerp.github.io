@@ -17,6 +17,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as crypto from "node:crypto";
+import { Buffer } from "node:buffer";
 import forge from "npm:node-forge@1.3.1";
 
 // ─── Config ───
@@ -585,14 +586,14 @@ function loadCertificate(): ParsedCert {
 
 // ── Crypto helpers ──
 
-function sha256B64(data: string): string {
-  return crypto.createHash("sha256").update(data, "utf8").digest("base64");
+function sha512B64(data: string): string {
+  return crypto.createHash("sha512").update(data, "utf8").digest("base64");
 }
-function sha256BufB64(data: Buffer): string {
-  return crypto.createHash("sha256").update(data).digest("base64");
+function sha512BufB64(data: Buffer): string {
+  return crypto.createHash("sha512").update(data).digest("base64");
 }
-function rsaSignSha256(data: string, keyPem: string): string {
-  const sign = crypto.createSign("RSA-SHA256");
+function rsaSignSha512(data: string, keyPem: string): string {
+  const sign = crypto.createSign("RSA-SHA512");
   sign.update(data, "utf8");
   return sign.sign(keyPem, "base64");
 }
@@ -612,15 +613,15 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
   const refId = `Reference-${crypto.randomUUID()}`;
   const signingTime = isoNow();
 
-  // Certificate digest (SHA-256 of DER)
-  const certDigestB64 = sha256BufB64(cert.certDer);
+  // Certificate digest (SHA-512 of DER)
+  const certDigestB64 = sha512BufB64(cert.certDer);
 
   // Step 1: Document digest (sin declaración XML, sin Signature)
   const xmlClean = xmlFacturae
     .replace(/<\?xml[^?]*\?>\s*/, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
-  const docDigest = sha256B64(xmlClean);
+  const docDigest = sha512B64(xmlClean);
 
   // Step 2: SignedProperties (con namespaces explícitos para digest)
   const signedPropsXml =
@@ -630,7 +631,7 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
         `<xades:SigningCertificate>` +
           `<xades:Cert>` +
             `<xades:CertDigest>` +
-              `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+              `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
               `<ds:DigestValue>${certDigestB64}</ds:DigestValue>` +
             `</xades:CertDigest>` +
             `<xades:IssuerSerial>` +
@@ -665,7 +666,7 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `</xades:SignedDataObjectProperties>` +
     `</xades:SignedProperties>`;
 
-  const signedPropsDigest = sha256B64(signedPropsXml);
+  const signedPropsDigest = sha512B64(signedPropsXml);
 
   // Step 3: KeyInfo
   const keyInfoXml =
@@ -681,13 +682,13 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `</ds:KeyValue>` +
     `</ds:KeyInfo>`;
 
-  const keyInfoDigest = sha256B64(keyInfoXml);
+  const keyInfoDigest = sha512B64(keyInfoXml);
 
   // Step 4: SignedInfo (para calcular la firma RSA)
   const signedInfoXml =
     `<ds:SignedInfo xmlns:ds="${NS_DS}">` +
       `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>` +
-      `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
+      `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></ds:SignatureMethod>` +
       `<ds:Reference Id="${refId}" URI="">` +
         `<ds:Transforms>` +
           `<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform>` +
@@ -696,28 +697,28 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
             `<ds:XPath xmlns:ds="${NS_DS}">not(ancestor-or-self::ds:Signature)</ds:XPath>` +
           `</ds:Transform>` +
         `</ds:Transforms>` +
-        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
         `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
       `</ds:Reference>` +
-      `<ds:Reference Type="${NS_XADES}#SignedProperties" URI="#${sigId}-SignedProperties">` +
-        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+      `<ds:Reference Type="${NS_XADES}SignedProperties" URI="#${sigId}-SignedProperties">` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
         `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
       `</ds:Reference>` +
       `<ds:Reference URI="#${sigId}-KeyInfo">` +
-        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
         `<ds:DigestValue>${keyInfoDigest}</ds:DigestValue>` +
       `</ds:Reference>` +
     `</ds:SignedInfo>`;
 
-  // Step 5: RSA-SHA256 Signature
-  const signatureValue = rsaSignSha256(signedInfoXml, cert.keyPem);
+  // Step 5: RSA-SHA512 Signature
+  const signatureValue = rsaSignSha512(signedInfoXml, cert.keyPem);
 
   // Step 6: Ensamblar ds:Signature completo
   const signatureXml =
     `<ds:Signature Id="${sigId}-Signature" xmlns:ds="${NS_DS}">` +
       `<ds:SignedInfo>` +
         `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>` +
-        `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
+        `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></ds:SignatureMethod>` +
         `<ds:Reference Id="${refId}" URI="">` +
           `<ds:Transforms>` +
             `<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform>` +
@@ -726,15 +727,15 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
               `<ds:XPath xmlns:ds="${NS_DS}">not(ancestor-or-self::ds:Signature)</ds:XPath>` +
             `</ds:Transform>` +
           `</ds:Transforms>` +
-          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
           `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
         `</ds:Reference>` +
-        `<ds:Reference Type="${NS_XADES}#SignedProperties" URI="#${sigId}-SignedProperties">` +
-          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:Reference Type="${NS_XADES}SignedProperties" URI="#${sigId}-SignedProperties">` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
           `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
         `</ds:Reference>` +
         `<ds:Reference URI="#${sigId}-KeyInfo">` +
-          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
           `<ds:DigestValue>${keyInfoDigest}</ds:DigestValue>` +
         `</ds:Reference>` +
       `</ds:SignedInfo>` +
@@ -761,7 +762,7 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
               `<xades:SigningCertificate>` +
                 `<xades:Cert>` +
                   `<xades:CertDigest>` +
-                    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+                    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
                     `<ds:DigestValue>${certDigestB64}</ds:DigestValue>` +
                   `</xades:CertDigest>` +
                   `<xades:IssuerSerial>` +
