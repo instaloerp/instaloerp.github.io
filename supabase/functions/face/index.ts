@@ -80,6 +80,7 @@ interface Linea {
 interface Factura {
   id: number;
   numero: string;
+  serie?: string;
   fecha: string;
   fecha_vencimiento?: string;
   cliente_id: number;
@@ -134,6 +135,7 @@ interface Empresa {
   provincia?: string;
   cp?: string;
   email?: string;
+  telefono?: string;
   config?: Record<string, unknown>;
 }
 
@@ -182,7 +184,7 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
 
   // ── Construir XML ──
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<fe:Facturae xmlns:fe="http://www.facturae.es/Facturae/2014/v3.2.2/Facturae" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<fe:Facturae xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:fe="http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml">
   <FileHeader>
     <SchemaVersion>3.2.2</SchemaVersion>
     <Modality>I</Modality>
@@ -215,13 +217,17 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
     xml += `
       <LegalEntity>
         <CorporateName>${esc(emp.razon_social || emp.nombre)}</CorporateName>
+        <TradeName>${esc(emp.razon_social || emp.nombre)}</TradeName>
         <AddressInSpain>
           <Address>${esc(emp.direccion || "")}</Address>
           <PostCode>${esc(emp.cp || "00000")}</PostCode>
           <Town>${esc(emp.municipio || "")}</Town>
           <Province>${esc(emp.provincia || "")}</Province>
           <CountryCode>ESP</CountryCode>
-        </AddressInSpain>
+        </AddressInSpain>${emp.telefono ? `
+        <ContactDetails>
+          <Telephone>${esc(emp.telefono)}</Telephone>
+        </ContactDetails>` : ""}
       </LegalEntity>`;
   } else {
     // Persona física — usar Individual
@@ -250,6 +256,12 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
       </TaxIdentification>`;
 
   // Centros administrativos DIR3 (obligatorio para FACe)
+  // Dirección del comprador para los centros administrativos
+  const cliDir = esc(cli.direccion_fiscal || "");
+  const cliCP = esc(cli.cp_fiscal || "00000");
+  const cliTown = esc(cli.municipio_fiscal || "");
+  const cliProv = esc(cli.provincia_fiscal || "");
+
   if (dir3OC || dir3OG || dir3UT) {
     xml += `
       <AdministrativeCentres>`;
@@ -258,7 +270,13 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
         <AdministrativeCentre>
           <CentreCode>${esc(dir3OC)}</CentreCode>
           <RoleTypeCode>01</RoleTypeCode>
-          <CentreDescription>Oficina Contable</CentreDescription>
+          <AddressInSpain>
+            <Address>${cliDir}</Address>
+            <PostCode>${cliCP}</PostCode>
+            <Town>${cliTown}</Town>
+            <Province>${cliProv}</Province>
+            <CountryCode>ESP</CountryCode>
+          </AddressInSpain>
         </AdministrativeCentre>`;
     }
     if (dir3OG) {
@@ -266,7 +284,13 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
         <AdministrativeCentre>
           <CentreCode>${esc(dir3OG)}</CentreCode>
           <RoleTypeCode>02</RoleTypeCode>
-          <CentreDescription>Organo Gestor</CentreDescription>
+          <AddressInSpain>
+            <Address>${cliDir}</Address>
+            <PostCode>${cliCP}</PostCode>
+            <Town>${cliTown}</Town>
+            <Province>${cliProv}</Province>
+            <CountryCode>ESP</CountryCode>
+          </AddressInSpain>
         </AdministrativeCentre>`;
     }
     if (dir3UT) {
@@ -274,7 +298,13 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
         <AdministrativeCentre>
           <CentreCode>${esc(dir3UT)}</CentreCode>
           <RoleTypeCode>03</RoleTypeCode>
-          <CentreDescription>Unidad Tramitadora</CentreDescription>
+          <AddressInSpain>
+            <Address>${cliDir}</Address>
+            <PostCode>${cliCP}</PostCode>
+            <Town>${cliTown}</Town>
+            <Province>${cliProv}</Province>
+            <CountryCode>ESP</CountryCode>
+          </AddressInSpain>
         </AdministrativeCentre>`;
     }
     xml += `
@@ -286,6 +316,7 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
     xml += `
       <LegalEntity>
         <CorporateName>${esc(cli.razon_social || cli.nombre)}</CorporateName>
+        <TradeName>${esc(cli.razon_social || cli.nombre)}</TradeName>
         <AddressInSpain>
           <Address>${esc(cli.direccion_fiscal || "")}</Address>
           <PostCode>${esc(cli.cp_fiscal || "00000")}</PostCode>
@@ -316,7 +347,8 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
   <Invoices>
     <Invoice>
       <InvoiceHeader>
-        <InvoiceNumber>${esc(fac.numero)}</InvoiceNumber>
+        <InvoiceNumber>${esc(fac.numero)}</InvoiceNumber>${fac.serie ? `
+        <InvoiceSeriesCode>${esc(fac.serie)}</InvoiceSeriesCode>` : ""}
         <InvoiceDocumentType>${invoiceDocType}</InvoiceDocumentType>
         <InvoiceClass>${invoiceClass}</InvoiceClass>`;
 
@@ -340,9 +372,10 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
       </InvoiceHeader>
       <InvoiceIssueData>
         <IssueDate>${fmtFechaISO(fac.fecha)}</IssueDate>
+        <OperationDate>${fmtFechaISO(fac.fecha)}</OperationDate>
         <InvoiceCurrencyCode>EUR</InvoiceCurrencyCode>
         <TaxCurrencyCode>EUR</TaxCurrencyCode>
-        <LanguageCode>es</LanguageCode>
+        <LanguageName>es</LanguageName>
       </InvoiceIssueData>
       <TaxesOutputs>`;
 
@@ -365,6 +398,8 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
       </TaxesOutputs>
       <InvoiceTotals>
         <TotalGrossAmount>${dec2(totalBase)}</TotalGrossAmount>
+        <TotalGeneralDiscounts>0.00</TotalGeneralDiscounts>
+        <TotalGeneralSurcharges>0.00</TotalGeneralSurcharges>
         <TotalGrossAmountBeforeTaxes>${dec2(totalBase)}</TotalGrossAmountBeforeTaxes>
         <TotalTaxOutputs>${dec2(totalIva)}</TotalTaxOutputs>
         <TotalTaxesWithheld>0.00</TotalTaxesWithheld>
@@ -385,7 +420,8 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
     xml += `
         <InvoiceLine>
           <ItemDescription>${esc(l.desc || `Linea ${i + 1}`)}</ItemDescription>
-          <Quantity>${dec8(l.cant || 0)}</Quantity>
+          <Quantity>${dec2(l.cant || 0)}</Quantity>
+          <UnitOfMeasure>01</UnitOfMeasure>
           <UnitPriceWithoutTax>${dec6(l.precio || 0)}</UnitPriceWithoutTax>
           <TotalCost>${dec2(totalCost)}</TotalCost>`;
 
