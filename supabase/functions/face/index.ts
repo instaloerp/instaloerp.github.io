@@ -16,12 +16,24 @@
 // ════════════════════════════════════════════════════════════════
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as crypto from "node:crypto";
+import forge from "npm:node-forge@1.3.1";
 
 // ─── Config ───
 const SUPABASE_URL  = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PROXY_URL     = Deno.env.get("FACE_PROXY_URL") || Deno.env.get("VERIFACTU_PROXY_URL") || "";
 const PROXY_SECRET  = Deno.env.get("FACE_PROXY_SECRET") || Deno.env.get("VERIFACTU_PROXY_SECRET") || "";
+
+// ─── Certificado (.p12) para firma XAdES ───
+const CERT_P12_BASE64 = Deno.env.get("CERT_P12_BASE64") || "";
+const CERT_PASSWORD   = Deno.env.get("CERT_PASSWORD") || "";
+
+// ─── Constantes firma XAdES-EPES ───
+const NS_DS    = "http://www.w3.org/2000/09/xmldsig#";
+const NS_XADES = "http://uri.etsi.org/01903/v1.3.2#";
+const FACTURAE_POLICY_ID   = "http://www.facturae.es/politica_de_firma_formato_facturae/politica_de_firma_formato_facturae_v3_1.pdf";
+const FACTURAE_POLICY_HASH = "Ohixl6upD6av8N7pEvDABhEL6hM="; // SHA-1
 
 // Endpoints FACe (MINHAP)
 const FACE_ENDPOINTS: Record<string, string> = {
@@ -487,6 +499,315 @@ function generarFacturaeXML(fac: Factura, cli: Cliente, emp: Empresa): string {
   return xml;
 }
 
+// ════════════════════════════════════════════════════════════════
+//  Firma XAdES-EPES para Facturae 3.2.2
+// ════════════════════════════════════════════════════════════════
+
+interface ParsedCert {
+  certPem: string;
+  keyPem: string;
+  certB64: string;      // Base64 DER certificate (sin headers)
+  certDer: Buffer;      // Raw DER certificate
+  issuerDN: string;     // RFC 2253 issuer DN
+  serialNumber: string; // Decimal serial number
+  subjectDN: string;
+  modulusB64: string;
+  exponentB64: string;
+}
+
+let _cachedCert: ParsedCert | null = null;
+
+function loadCertificate(): ParsedCert {
+  if (_cachedCert) return _cachedCert;
+  if (!CERT_P12_BASE64) throw new Error("CERT_P12_BASE64 no configurado");
+
+  const p12Der = forge.util.decode64(CERT_P12_BASE64);
+  const p12Asn1 = forge.asn1.fromDer(p12Der);
+  const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, CERT_PASSWORD);
+
+  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+  const certBagList = certBags[forge.pki.oids.certBag];
+  if (!certBagList || certBagList.length === 0) throw new Error("No cert in .p12");
+
+  const forgeCert = certBagList[0].cert;
+  if (!forgeCert) throw new Error("Cert null");
+
+  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+  const keyBagList = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
+  if (!keyBagList || keyBagList.length === 0) throw new Error("No key in .p12");
+
+  const forgeKey = keyBagList[0].key;
+  if (!forgeKey) throw new Error("Key null");
+
+  const certPem = forge.pki.certificateToPem(forgeCert);
+  const keyPem = forge.pki.privateKeyToPem(forgeKey);
+
+  // DER certificate
+  const certAsn1 = forge.pki.certificateToAsn1(forgeCert);
+  const certDerStr = forge.asn1.toDer(certAsn1).getBytes();
+  const certDer = Buffer.from(certDerStr, "binary");
+  const certB64 = certDer.toString("base64");
+
+  // Issuer DN RFC 2253
+  const issuerAttrs = forgeCert.issuer.attributes.slice().reverse();
+  const issuerDN = issuerAttrs.map((a: any) => {
+    const oid = a.shortName || a.name || a.type;
+    return `${oid}=${a.value}`;
+  }).join(", ");
+
+  // Serial number (hex → decimal)
+  const snHex = forgeCert.serialNumber;
+  let snDec = "0";
+  try {
+    snDec = BigInt("0x" + snHex).toString(10);
+  } catch { snDec = snHex; }
+
+  // Subject DN
+  const subjAttrs = forgeCert.subject.attributes.slice().reverse();
+  const subjectDN = subjAttrs.map((a: any) => {
+    const oid = a.shortName || a.name || a.type;
+    return `${oid}=${a.value}`;
+  }).join(", ");
+
+  // RSA modulus/exponent
+  const rsaPublicKey = forgeCert.publicKey as any;
+  const modHex = rsaPublicKey.n.toString(16);
+  const modBuf = Buffer.from(modHex.length % 2 ? "0" + modHex : modHex, "hex");
+  const modulusB64 = modBuf.toString("base64");
+  const expHex = rsaPublicKey.e.toString(16);
+  const expBuf = Buffer.from(expHex.length % 2 ? "0" + expHex : expHex, "hex");
+  const exponentB64 = expBuf.toString("base64");
+
+  _cachedCert = { certPem, keyPem, certB64, certDer, issuerDN, serialNumber: snDec, subjectDN, modulusB64, exponentB64 };
+  console.log("[cert] Loaded:", subjectDN);
+  return _cachedCert;
+}
+
+// ── Crypto helpers ──
+
+function sha256B64(data: string): string {
+  return crypto.createHash("sha256").update(data, "utf8").digest("base64");
+}
+function sha256BufB64(data: Buffer): string {
+  return crypto.createHash("sha256").update(data).digest("base64");
+}
+function rsaSignSha256(data: string, keyPem: string): string {
+  const sign = crypto.createSign("RSA-SHA256");
+  sign.update(data, "utf8");
+  return sign.sign(keyPem, "base64");
+}
+function escXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function isoNow(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+// ── Firma XAdES-EPES enveloped ──
+
+function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
+  const uuid = crypto.randomUUID();
+  const sigId = `Signature-${uuid}`;
+  const refId = `Reference-${crypto.randomUUID()}`;
+  const signingTime = isoNow();
+
+  // Certificate digest (SHA-256 of DER)
+  const certDigestB64 = sha256BufB64(cert.certDer);
+
+  // Step 1: Document digest (sin declaración XML, sin Signature)
+  const xmlClean = xmlFacturae
+    .replace(/<\?xml[^?]*\?>\s*/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  const docDigest = sha256B64(xmlClean);
+
+  // Step 2: SignedProperties (con namespaces explícitos para digest)
+  const signedPropsXml =
+    `<xades:SignedProperties xmlns:ds="${NS_DS}" xmlns:xades="${NS_XADES}" Id="${sigId}-SignedProperties">` +
+      `<xades:SignedSignatureProperties>` +
+        `<xades:SigningTime>${signingTime}</xades:SigningTime>` +
+        `<xades:SigningCertificate>` +
+          `<xades:Cert>` +
+            `<xades:CertDigest>` +
+              `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+              `<ds:DigestValue>${certDigestB64}</ds:DigestValue>` +
+            `</xades:CertDigest>` +
+            `<xades:IssuerSerial>` +
+              `<ds:X509IssuerName>${escXml(cert.issuerDN)}</ds:X509IssuerName>` +
+              `<ds:X509SerialNumber>${cert.serialNumber}</ds:X509SerialNumber>` +
+            `</xades:IssuerSerial>` +
+          `</xades:Cert>` +
+        `</xades:SigningCertificate>` +
+        `<xades:SignaturePolicyIdentifier>` +
+          `<xades:SignaturePolicyId>` +
+            `<xades:SigPolicyId>` +
+              `<xades:Identifier>${FACTURAE_POLICY_ID}</xades:Identifier>` +
+              `<xades:Description></xades:Description>` +
+            `</xades:SigPolicyId>` +
+            `<xades:SigPolicyHash>` +
+              `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>` +
+              `<ds:DigestValue>${FACTURAE_POLICY_HASH}</ds:DigestValue>` +
+            `</xades:SigPolicyHash>` +
+          `</xades:SignaturePolicyId>` +
+        `</xades:SignaturePolicyIdentifier>` +
+      `</xades:SignedSignatureProperties>` +
+      `<xades:SignedDataObjectProperties>` +
+        `<xades:DataObjectFormat ObjectReference="#${refId}">` +
+          `<xades:Description></xades:Description>` +
+          `<xades:ObjectIdentifier>` +
+            `<xades:Identifier Qualifier="OIDAsURN">urn:oid:1.2.840.10003.5.109.10</xades:Identifier>` +
+            `<xades:Description></xades:Description>` +
+          `</xades:ObjectIdentifier>` +
+          `<xades:MimeType>text/xml</xades:MimeType>` +
+          `<xades:Encoding></xades:Encoding>` +
+        `</xades:DataObjectFormat>` +
+      `</xades:SignedDataObjectProperties>` +
+    `</xades:SignedProperties>`;
+
+  const signedPropsDigest = sha256B64(signedPropsXml);
+
+  // Step 3: KeyInfo
+  const keyInfoXml =
+    `<ds:KeyInfo xmlns:ds="${NS_DS}" Id="${sigId}-KeyInfo">` +
+      `<ds:X509Data>` +
+        `<ds:X509Certificate>${cert.certB64}</ds:X509Certificate>` +
+      `</ds:X509Data>` +
+      `<ds:KeyValue>` +
+        `<ds:RSAKeyValue>` +
+          `<ds:Modulus>${cert.modulusB64}</ds:Modulus>` +
+          `<ds:Exponent>${cert.exponentB64}</ds:Exponent>` +
+        `</ds:RSAKeyValue>` +
+      `</ds:KeyValue>` +
+    `</ds:KeyInfo>`;
+
+  const keyInfoDigest = sha256B64(keyInfoXml);
+
+  // Step 4: SignedInfo (para calcular la firma RSA)
+  const signedInfoXml =
+    `<ds:SignedInfo xmlns:ds="${NS_DS}">` +
+      `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>` +
+      `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
+      `<ds:Reference Id="${refId}" URI="">` +
+        `<ds:Transforms>` +
+          `<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform>` +
+          `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>` +
+          `<ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">` +
+            `<ds:XPath xmlns:ds="${NS_DS}">not(ancestor-or-self::ds:Signature)</ds:XPath>` +
+          `</ds:Transform>` +
+        `</ds:Transforms>` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
+      `</ds:Reference>` +
+      `<ds:Reference Type="${NS_XADES}#SignedProperties" URI="#${sigId}-SignedProperties">` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
+      `</ds:Reference>` +
+      `<ds:Reference URI="#${sigId}-KeyInfo">` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestValue>${keyInfoDigest}</ds:DigestValue>` +
+      `</ds:Reference>` +
+    `</ds:SignedInfo>`;
+
+  // Step 5: RSA-SHA256 Signature
+  const signatureValue = rsaSignSha256(signedInfoXml, cert.keyPem);
+
+  // Step 6: Ensamblar ds:Signature completo
+  const signatureXml =
+    `<ds:Signature Id="${sigId}-Signature" xmlns:ds="${NS_DS}">` +
+      `<ds:SignedInfo>` +
+        `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>` +
+        `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
+        `<ds:Reference Id="${refId}" URI="">` +
+          `<ds:Transforms>` +
+            `<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform>` +
+            `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>` +
+            `<ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">` +
+              `<ds:XPath xmlns:ds="${NS_DS}">not(ancestor-or-self::ds:Signature)</ds:XPath>` +
+            `</ds:Transform>` +
+          `</ds:Transforms>` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+          `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
+        `</ds:Reference>` +
+        `<ds:Reference Type="${NS_XADES}#SignedProperties" URI="#${sigId}-SignedProperties">` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+          `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
+        `</ds:Reference>` +
+        `<ds:Reference URI="#${sigId}-KeyInfo">` +
+          `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+          `<ds:DigestValue>${keyInfoDigest}</ds:DigestValue>` +
+        `</ds:Reference>` +
+      `</ds:SignedInfo>` +
+      `<ds:SignatureValue Id="${sigId}-SignatureValue">${signatureValue}</ds:SignatureValue>` +
+      `<ds:KeyInfo Id="${sigId}-KeyInfo">` +
+        `<ds:X509Data>` +
+          `<ds:X509Certificate>${cert.certB64}</ds:X509Certificate>` +
+        `</ds:X509Data>` +
+        `<ds:KeyValue>` +
+          `<ds:RSAKeyValue>` +
+            `<ds:Modulus>${cert.modulusB64}</ds:Modulus>` +
+            `<ds:Exponent>${cert.exponentB64}</ds:Exponent>` +
+          `</ds:RSAKeyValue>` +
+        `</ds:KeyValue>` +
+      `</ds:KeyInfo>` +
+      `<ds:Object>` +
+        `<xades:QualifyingProperties Id="${sigId}-QualifyingProperties" ` +
+          `Target="#${sigId}-Signature" ` +
+          `xmlns:ds="${NS_DS}" ` +
+          `xmlns:xades="${NS_XADES}">` +
+          `<xades:SignedProperties Id="${sigId}-SignedProperties">` +
+            `<xades:SignedSignatureProperties>` +
+              `<xades:SigningTime>${signingTime}</xades:SigningTime>` +
+              `<xades:SigningCertificate>` +
+                `<xades:Cert>` +
+                  `<xades:CertDigest>` +
+                    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+                    `<ds:DigestValue>${certDigestB64}</ds:DigestValue>` +
+                  `</xades:CertDigest>` +
+                  `<xades:IssuerSerial>` +
+                    `<ds:X509IssuerName>${escXml(cert.issuerDN)}</ds:X509IssuerName>` +
+                    `<ds:X509SerialNumber>${cert.serialNumber}</ds:X509SerialNumber>` +
+                  `</xades:IssuerSerial>` +
+                `</xades:Cert>` +
+              `</xades:SigningCertificate>` +
+              `<xades:SignaturePolicyIdentifier>` +
+                `<xades:SignaturePolicyId>` +
+                  `<xades:SigPolicyId>` +
+                    `<xades:Identifier>${FACTURAE_POLICY_ID}</xades:Identifier>` +
+                    `<xades:Description></xades:Description>` +
+                  `</xades:SigPolicyId>` +
+                  `<xades:SigPolicyHash>` +
+                    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>` +
+                    `<ds:DigestValue>${FACTURAE_POLICY_HASH}</ds:DigestValue>` +
+                  `</xades:SigPolicyHash>` +
+                `</xades:SignaturePolicyId>` +
+              `</xades:SignaturePolicyIdentifier>` +
+            `</xades:SignedSignatureProperties>` +
+            `<xades:SignedDataObjectProperties>` +
+              `<xades:DataObjectFormat ObjectReference="#${refId}">` +
+                `<xades:Description></xades:Description>` +
+                `<xades:ObjectIdentifier>` +
+                  `<xades:Identifier Qualifier="OIDAsURN">urn:oid:1.2.840.10003.5.109.10</xades:Identifier>` +
+                  `<xades:Description></xades:Description>` +
+                `</xades:ObjectIdentifier>` +
+                `<xades:MimeType>text/xml</xades:MimeType>` +
+                `<xades:Encoding></xades:Encoding>` +
+              `</xades:DataObjectFormat>` +
+            `</xades:SignedDataObjectProperties>` +
+          `</xades:SignedProperties>` +
+        `</xades:QualifyingProperties>` +
+      `</ds:Object>` +
+    `</ds:Signature>`;
+
+  // Step 7: Insertar firma enveloped antes del cierre </fe:Facturae>
+  if (xmlFacturae.includes("</fe:Facturae>")) {
+    return xmlFacturae.replace("</fe:Facturae>", signatureXml + "</fe:Facturae>");
+  } else if (xmlFacturae.includes("</Facturae>")) {
+    return xmlFacturae.replace("</Facturae>", signatureXml + "</Facturae>");
+  }
+  throw new Error("No se encontró cierre de Facturae en XML");
+}
+
 // ─── Helpers auxiliares ───
 
 /** Determina si un NIF/CIF es persona jurídica */
@@ -725,6 +1046,45 @@ Deno.serve(async (req: Request): Promise<Response> => {
         dir3: { oficina_contable: oc, organo_gestor: og, unidad_tramitadora: ut },
       });
 
+    } else if (action === "descargar") {
+      // Genera XML y lo firma con XAdES-EPES — devuelve XML firmado para descarga
+      const { data: cliente, error: cliErr } = await sbAdmin
+        .from("clientes").select("*").eq("id", factura.cliente_id).single();
+      if (cliErr || !cliente) {
+        return json({ error: "Cliente no encontrado" }, 404);
+      }
+      if (!cliente.es_administracion_publica) {
+        return json({ error: "El cliente no está marcado como Administración Pública" }, 400);
+      }
+      const oc = factura.face_oficina_contable || cliente.face_oficina_contable;
+      const og = factura.face_organo_gestor || cliente.face_organo_gestor;
+      const ut = factura.face_unidad_tramitadora || cliente.face_unidad_tramitadora;
+      if (!oc || !og || !ut) {
+        return json({ error: "Faltan códigos DIR3", dir3: { oficina_contable: oc || null, organo_gestor: og || null, unidad_tramitadora: ut || null } }, 400);
+      }
+
+      // Generar XML sin firma
+      const xmlSinFirma = generarFacturaeXML(factura, cliente, empresa);
+
+      // Firmar con XAdES-EPES
+      let xmlFirmado: string;
+      try {
+        const cert = loadCertificate();
+        xmlFirmado = signFacturaeXAdES(xmlSinFirma, cert);
+      } catch (err: any) {
+        console.error("[face/descargar] Error firmando:", err);
+        return json({ error: `Error firmando XML: ${err.message}. ¿Está configurado CERT_P12_BASE64?` }, 500);
+      }
+
+      return json({
+        ok: true,
+        xml_firmado: xmlFirmado,
+        numero: factura.numero,
+        base_imponible: factura.base_imponible,
+        total_iva: factura.total_iva,
+        total: factura.total,
+      });
+
     } else if (action === "enviar") {
       // Leer cliente
       const { data: cliente, error: cliErr } = await sbAdmin
@@ -954,7 +1314,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
 
     } else {
-      return json({ error: `Acción no válida: ${action}. Usar: validar, enviar, anular, consultar` }, 400);
+      return json({ error: `Acción no válida: ${action}. Usar: validar, descargar, enviar, anular, consultar` }, 400);
     }
 
   } catch (err: unknown) {

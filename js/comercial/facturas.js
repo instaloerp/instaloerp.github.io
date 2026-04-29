@@ -2458,7 +2458,7 @@ async function descargarXMLFACe(facturaId) {
   if (!fac) { toast('Factura no encontrada', 'error'); return; }
   if (fac.estado === 'borrador') { toast('No se pueden descargar borradores', 'error'); return; }
 
-  toast('Generando XML Facturae...', 'info');
+  toast('Generando y firmando XML Facturae...', 'info');
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { toast('Sesión expirada', 'error'); return; }
@@ -2469,7 +2469,7 @@ async function descargarXMLFACe(facturaId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ action: 'validar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+      body: JSON.stringify({ action: 'descargar', factura_id: facturaId, empresa_id: EMPRESA.id }),
     });
     const result = await resp.json();
     if (!resp.ok || !result.ok) {
@@ -2477,7 +2477,7 @@ async function descargarXMLFACe(facturaId) {
       return;
     }
 
-    const xml = result.xml_facturae || '';
+    const xml = result.xml_firmado || '';
     const blob = new Blob([xml], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2487,7 +2487,7 @@ async function descargarXMLFACe(facturaId) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast('XML descargado', 'success');
+    toast('XML firmado descargado', 'success');
   } catch (err) {
     toast(`Error de conexión: ${err.message}`, 'error');
   }
