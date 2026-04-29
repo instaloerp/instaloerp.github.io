@@ -627,7 +627,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Config FACe
     const faceConfig = (empresa.config?.face || {}) as Record<string, unknown>;
     const modoBody = body.modo as string | undefined;
-    const modo = modoBody || (faceConfig.modo as string) || "test";
+    const modo = modoBody || (faceConfig.modo as string) || "produccion";
     const correo = (faceConfig.correo as string) || empresa.email || "";
 
     // ── Leer factura ──

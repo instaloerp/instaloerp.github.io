@@ -545,6 +545,7 @@ async function verDetalleFactura(id) {
       let btnsHtml = '';
       if (!f.face_estado || f.face_estado === 'simulado' || f.face_estado === 'validado') {
         btnsHtml += `<button class="btn btn-sm" onclick="validarFacturaFACe(${id})" style="background:#FFFBEB;color:#92400E;border:1px solid #FCD34D;font-weight:600;margin-right:6px">🧪 Validar XML</button>`;
+        btnsHtml += `<button class="btn btn-sm" onclick="descargarXMLFACe(${id})" style="background:#F0F9FF;color:#0369A1;border:1px solid #7DD3FC;font-weight:600;margin-right:6px">📥 Descargar XML</button>`;
         btnsHtml += `<button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
       }
       if (f.face_estado && f.face_estado !== 'simulado') {
@@ -563,7 +564,7 @@ async function verDetalleFactura(id) {
         document.getElementById('facDetFaceReg').textContent = '';
         const faceBtns = document.getElementById('facDetFaceBtns');
         if (faceBtns && f.estado !== 'borrador') {
-          faceBtns.innerHTML = `<button class="btn btn-sm" onclick="validarFacturaFACe(${id})" style="background:#FFFBEB;color:#92400E;border:1px solid #FCD34D;font-weight:600;margin-right:6px">🧪 Validar XML</button><button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
+          faceBtns.innerHTML = `<button class="btn btn-sm" onclick="validarFacturaFACe(${id})" style="background:#FFFBEB;color:#92400E;border:1px solid #FCD34D;font-weight:600;margin-right:6px">🧪 Validar XML</button><button class="btn btn-sm" onclick="descargarXMLFACe(${id})" style="background:#F0F9FF;color:#0369A1;border:1px solid #7DD3FC;font-weight:600;margin-right:6px">📥 Descargar XML</button><button class="btn btn-sm" onclick="enviarFacturaFACe(${id})" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600">🏛️ Enviar a FACe</button>`;
         } else if (faceBtns) {
           faceBtns.innerHTML = '';
         }
@@ -2431,6 +2432,7 @@ async function validarFacturaFACe(facturaId) {
           <textarea readonly style="width:100%;height:300px;font-family:monospace;font-size:11px;background:var(--gris-50);border:1px solid var(--gris-200);border-radius:8px;padding:8px;resize:vertical">${xmlPre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
           <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
             <button onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(xmlPre)}'));toast('XML copiado','success')" class="btn btn-sm" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD">📋 Copiar XML</button>
+            <button onclick="(function(){var b=new Blob([decodeURIComponent('${encodeURIComponent(xmlPre)}')],{type:'application/xml'});var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download='${(fac.numero || 'factura').replace(/[\/\\]/g, '-')}_facturae.xml';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);toast('XML descargado','success')})()" class="btn btn-sm" style="background:#F0F9FF;color:#0369A1;border:1px solid #7DD3FC">📥 Descargar XML</button>
             <button onclick="this.closest('.modal-overlay')?.remove()" class="btn btn-sm" style="background:var(--gris-100);color:var(--gris-700)">Cerrar</button>
           </div>
         </div>`;
@@ -2445,6 +2447,47 @@ async function validarFacturaFACe(facturaId) {
     } else {
       toast(`❌ Error de validación: ${result.descripcion || result.error || ''}`, 'error');
     }
+  } catch (err) {
+    toast(`Error de conexión: ${err.message}`, 'error');
+  }
+}
+
+/** Descargar XML Facturae como archivo .xml */
+async function descargarXMLFACe(facturaId) {
+  const fac = facLocalData.find(f => f.id === facturaId);
+  if (!fac) { toast('Factura no encontrada', 'error'); return; }
+  if (fac.estado === 'borrador') { toast('No se pueden descargar borradores', 'error'); return; }
+
+  toast('Generando XML Facturae...', 'info');
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { toast('Sesión expirada', 'error'); return; }
+
+    const resp = await fetch(`${SUPA_URL}/functions/v1/face`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'validar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+    });
+    const result = await resp.json();
+    if (!resp.ok || !result.ok) {
+      toast(`Error: ${result.error || result.descripcion || 'Error generando XML'}`, 'error');
+      return;
+    }
+
+    const xml = result.xml_facturae || '';
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(fac.numero || 'factura').replace(/[\/\\]/g, '-')}_facturae.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('XML descargado', 'success');
   } catch (err) {
     toast(`Error de conexión: ${err.message}`, 'error');
   }
