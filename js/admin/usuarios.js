@@ -157,15 +157,33 @@ async function saveUsuario() {
       const { data: up } = await sb.storage.from('fotos-partes').upload(`avatars/${id}_${Date.now()}`, usuariosFotoFile);
       if (up) { const { data: url } = sb.storage.from('fotos-partes').getPublicUrl(up.path); obj.avatar_url = url.publicUrl; }
     }
+    // Actualizar email en perfiles si cambió
+    const oldEmail = todosUsuarios.find(x => x.id === id)?.email;
+    if (email && email !== oldEmail) obj.email = email;
     const { error: updErr } = await sb.from('perfiles').update(obj).eq('id', id);
     if (updErr) { toast('Error al guardar: ' + updErr.message, 'error'); console.error('[saveUsuario] Error:', updErr); return; }
+    // Actualizar credenciales en Supabase Auth (email y/o contraseña)
+    if ((email && email !== oldEmail) || (pass && pass.length >= 8)) {
+      const authParams = {};
+      if (email && email !== oldEmail) authParams.new_email = email;
+      if (pass && pass.length >= 8) authParams.new_password = pass;
+      authParams.target_user_id = id;
+      const { error: authErr } = await sb.rpc('admin_update_user_auth', authParams);
+      if (authErr) {
+        console.error('[saveUsuario] Error actualizando auth:', authErr);
+        toast('Perfil guardado, pero error al actualizar login: ' + authErr.message, 'error');
+      } else {
+        toast('Usuario y credenciales actualizados ✓', 'success');
+      }
+    } else {
+      toast('Usuario actualizado ✓', 'success');
+    }
     // If current user, update CP and refresh sidebar
     if (id === CU.id) {
       await cargarPerfil();
       if (typeof applySbItemVisibility === 'function') applySbItemVisibility();
       if (typeof renderFavoritos === 'function') renderFavoritos();
     }
-    toast('Usuario actualizado ✓', 'success');
   } else {
     const { data: authData, error: authErr } = await sb.auth.signUp({ email, password: pass, options: { data: { nombre } } });
     if (authErr) { toast('Error: ' + authErr.message, 'error'); return; }

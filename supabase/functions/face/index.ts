@@ -19,6 +19,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as crypto from "node:crypto";
 import { Buffer } from "node:buffer";
 import forge from "npm:node-forge@1.3.1";
+import { DOMParser as XmlDOMParser } from "npm:@xmldom/xmldom@0.9.5";
 
 // ─── Config ───
 const SUPABASE_URL  = Deno.env.get("SUPABASE_URL")!;
@@ -33,6 +34,7 @@ const CERT_PASSWORD   = Deno.env.get("CERT_PASSWORD") || "";
 // ─── Constantes firma XAdES-EPES ───
 const NS_DS    = "http://www.w3.org/2000/09/xmldsig#";
 const NS_XADES = "http://uri.etsi.org/01903/v1.3.2#";
+const NS_FE    = "http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml";
 const FACTURAE_POLICY_ID   = "http://www.facturae.es/politica_de_firma_formato_facturae/politica_de_firma_formato_facturae_v3_1.pdf";
 const FACTURAE_POLICY_HASH = "Ohixl6upD6av8N7pEvDABhEL6hM="; // SHA-1
 
@@ -514,6 +516,7 @@ interface ParsedCert {
   subjectDN: string;
   modulusB64: string;
   exponentB64: string;
+  chainB64: string[];   // Cadena completa de certificados (hoja + intermedios + raíz)
 }
 
 let _cachedCert: ParsedCert | null = null;
@@ -530,15 +533,25 @@ function loadCertificate(): ParsedCert {
   const certBagList = certBags[forge.pki.oids.certBag];
   if (!certBagList || certBagList.length === 0) throw new Error("No cert in .p12");
 
-  const forgeCert = certBagList[0].cert;
-  if (!forgeCert) throw new Error("Cert null");
-
+  // Find leaf cert (the one with matching private key) and collect all certs for chain
   const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const keyBagList = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
   if (!keyBagList || keyBagList.length === 0) throw new Error("No key in .p12");
 
   const forgeKey = keyBagList[0].key;
   if (!forgeKey) throw new Error("Key null");
+
+  // Find leaf cert that matches the private key
+  let forgeCert: any = null;
+  for (const bag of certBagList) {
+    if (bag.cert && bag.cert.publicKey) {
+      const pubKeyPem = forge.pki.publicKeyToPem(bag.cert.publicKey);
+      const privPubPem = forge.pki.publicKeyToPem(forge.pki.setRsaPublicKey(forgeKey.n, forgeKey.e));
+      if (pubKeyPem === privPubPem) { forgeCert = bag.cert; break; }
+    }
+  }
+  if (!forgeCert) forgeCert = certBagList[0].cert;
+  if (!forgeCert) throw new Error("Cert null");
 
   const certPem = forge.pki.certificateToPem(forgeCert);
   const keyPem = forge.pki.privateKeyToPem(forgeKey);
@@ -549,11 +562,31 @@ function loadCertificate(): ParsedCert {
   const certDer = Buffer.from(certDerStr, "binary");
   const certB64 = certDer.toString("base64");
 
-  // Issuer DN RFC 2253
+  // Build certificate chain (all certs in P12 except the leaf, ordered: leaf first)
+  const chainB64: string[] = [certB64];
+  for (const bag of certBagList) {
+    if (bag.cert && bag.cert !== forgeCert) {
+      const cAsn1 = forge.pki.certificateToAsn1(bag.cert);
+      const cDerStr = forge.asn1.toDer(cAsn1).getBytes();
+      chainB64.push(Buffer.from(cDerStr, "binary").toString("base64"));
+    }
+  }
+  console.log(`[cert] Chain: ${chainB64.length} certificates`);
+
+  // Issuer DN RFC 2253 — decode UTF-8 correctly
   const issuerAttrs = forgeCert.issuer.attributes.slice().reverse();
   const issuerDN = issuerAttrs.map((a: any) => {
     const oid = a.shortName || a.name || a.type;
-    return `${oid}=${a.value}`;
+    // node-forge can return latin1-encoded strings for UTF-8 values
+    let val = a.value as string;
+    try {
+      // If the string looks like mojibake, decode it
+      const bytes = new Uint8Array(val.length);
+      for (let i = 0; i < val.length; i++) bytes[i] = val.charCodeAt(i);
+      const decoded = new TextDecoder("utf-8").decode(bytes);
+      if (decoded !== val && /[À-ÿ]/.test(val)) val = decoded;
+    } catch { /* keep original */ }
+    return `${oid}=${val}`;
   }).join(", ");
 
   // Serial number (hex → decimal)
@@ -579,7 +612,7 @@ function loadCertificate(): ParsedCert {
   const expBuf = Buffer.from(expHex.length % 2 ? "0" + expHex : expHex, "hex");
   const exponentB64 = expBuf.toString("base64");
 
-  _cachedCert = { certPem, keyPem, certB64, certDer, issuerDN, serialNumber: snDec, subjectDN, modulusB64, exponentB64 };
+  _cachedCert = { certPem, keyPem, certB64, certDer, issuerDN, serialNumber: snDec, subjectDN, modulusB64, exponentB64, chainB64 };
   console.log("[cert] Loaded:", subjectDN);
   return _cachedCert;
 }
@@ -605,6 +638,118 @@ function isoNow(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+// ── C14N 1.0 Inclusive — implementación propia ──
+// Verificada contra XML SICI de referencia: produce los mismos digests
+// que el validador FACe espera.
+
+function escTextC14n(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\r/g, "&#xD;");
+}
+function escAttrC14n(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
+    .replace(/\t/g, "&#x9;").replace(/\n/g, "&#xA;").replace(/\r/g, "&#xD;");
+}
+
+/** Serializa un nodo DOM en forma canónica C14N 1.0 */
+function c14nSerialize(node: any, parentNsContext: Record<string, string>): string {
+  if (node.nodeType === 3) return escTextC14n(node.nodeValue || ""); // Text
+  if (node.nodeType === 8 || node.nodeType === 7) return "";        // Comment, PI
+  if (node.nodeType === 9) {                                         // Document
+    let r = "";
+    for (let i = 0; i < node.childNodes.length; i++) {
+      if (node.childNodes[i].nodeType === 1) r += c14nSerialize(node.childNodes[i], parentNsContext);
+    }
+    return r;
+  }
+  if (node.nodeType !== 1) return "";
+
+  const prefix = node.prefix || "";
+  const localName = node.localName || node.nodeName;
+  const tagName = prefix ? `${prefix}:${localName}` : localName;
+
+  // Recoger TODAS las declaraciones xmlns de este elemento
+  const elementNsDecls: Record<string, string> = {};
+  if (node.attributes) {
+    for (let i = 0; i < node.attributes.length; i++) {
+      const a = node.attributes[i];
+      if (a.name === "xmlns") elementNsDecls[""] = a.value;
+      else if (a.name.startsWith("xmlns:")) elementNsDecls[a.name.substring(6)] = a.value;
+    }
+  }
+
+  // Output las que difieran del contexto del padre
+  const nsToOutput: [string, string][] = [];
+  for (const [p, uri] of Object.entries(elementNsDecls)) {
+    if (parentNsContext[p] !== uri) nsToOutput.push([p, uri]);
+  }
+  nsToOutput.sort((a, b) => {
+    if (a[0] === "" && b[0] !== "") return -1;
+    if (a[0] !== "" && b[0] === "") return 1;
+    return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+  });
+
+  const thisNsContext = { ...parentNsContext };
+  for (const [p, uri] of nsToOutput) thisNsContext[p] = uri;
+
+  // Atributos no-xmlns, ordenados por ns URI + local name
+  const attrs: any[] = [];
+  if (node.attributes) {
+    for (let i = 0; i < node.attributes.length; i++) {
+      const a = node.attributes[i];
+      if (!a.name.startsWith("xmlns")) attrs.push(a);
+    }
+  }
+  attrs.sort((a: any, b: any) => {
+    const nsA = a.namespaceURI || "";
+    const nsB = b.namespaceURI || "";
+    if (nsA !== nsB) return nsA < nsB ? -1 : 1;
+    return (a.localName || a.name) < (b.localName || b.name) ? -1 : 1;
+  });
+
+  let result = `<${tagName}`;
+  for (const [p, uri] of nsToOutput) {
+    result += p ? ` xmlns:${p}="${escAttrC14n(uri)}"` : ` xmlns="${escAttrC14n(uri)}"`;
+  }
+  for (const a of attrs) {
+    const an = a.prefix ? `${a.prefix}:${a.localName}` : (a.localName || a.name);
+    result += ` ${an}="${escAttrC14n(a.value)}"`;
+  }
+  result += ">";
+  for (let i = 0; i < node.childNodes.length; i++) {
+    result += c14nSerialize(node.childNodes[i], thisNsContext);
+  }
+  result += `</${tagName}>`;
+  return result;
+}
+
+/**
+ * Canonicaliza un fragmento XML (string) según C14N 1.0 Inclusive.
+ * @param ancestorNs — Namespaces heredados de ancestros fuera del subtree
+ */
+function canonicalize(
+  xmlStr: string,
+  ancestorNs?: Array<{ prefix: string; namespaceURI: string }>
+): string {
+  const parser = new XmlDOMParser();
+  const doc = parser.parseFromString(xmlStr, "text/xml");
+  const root = doc.documentElement;
+  // Añadir namespaces ancestros como attrs en el root para que C14N los incluya
+  if (ancestorNs) {
+    for (const ns of ancestorNs) {
+      const attrName = ns.prefix ? `xmlns:${ns.prefix}` : "xmlns";
+      if (!root.hasAttribute(attrName)) {
+        root.setAttributeNS("http://www.w3.org/2000/xmlns/", attrName, ns.namespaceURI);
+      }
+    }
+  }
+  return c14nSerialize(doc, {});
+}
+
+/** Canonicaliza un nodo DOM ya parseado (para documento completo) */
+function canonicalizeNode(node: any): string {
+  return c14nSerialize(node, {});
+}
+
 // ── Firma XAdES-EPES enveloped ──
 
 function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
@@ -616,14 +761,27 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
   // Certificate digest (SHA-512 of DER)
   const certDigestB64 = sha512BufB64(cert.certDer);
 
-  // Step 1: Document digest (sin declaración XML, sin Signature)
-  const xmlClean = xmlFacturae
-    .replace(/<\?xml[^?]*\?>\s*/, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
-  const docDigest = sha512B64(xmlClean);
+  // ═══ Ancestor namespaces para C14N inclusiva ═══
+  // SignedProperties vive dentro de: fe:Facturae > ds:Signature > ds:Object > xades:QualifyingProperties
+  const spAncestorNs = [
+    { prefix: "ds", namespaceURI: NS_DS },
+    { prefix: "fe", namespaceURI: NS_FE },
+    { prefix: "xades", namespaceURI: NS_XADES },
+  ];
+  // KeyInfo y SignedInfo viven dentro de: fe:Facturae > ds:Signature
+  const siAncestorNs = [
+    { prefix: "ds", namespaceURI: NS_DS },
+    { prefix: "fe", namespaceURI: NS_FE },
+  ];
 
-  // Step 2: SignedProperties (con namespaces explícitos para digest)
+  // Step 1: Document digest — C14N del documento completo (sin Signature, sin XML decl)
+  const docParser = new XmlDOMParser();
+  const docDom = docParser.parseFromString(xmlFacturae, "text/xml");
+  const docC14n = canonicalizeNode(docDom.documentElement);
+  const docDigest = sha512B64(docC14n);
+  console.log("[xades] Doc digest:", docDigest.substring(0, 20) + "...");
+
+  // Step 2: SignedProperties — C14N con namespaces ancestros
   const signedPropsXml =
     `<xades:SignedProperties xmlns:ds="${NS_DS}" xmlns:xades="${NS_XADES}" Id="${sigId}-SignedProperties">` +
       `<xades:SignedSignatureProperties>` +
@@ -666,13 +824,16 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `</xades:SignedDataObjectProperties>` +
     `</xades:SignedProperties>`;
 
-  const signedPropsDigest = sha512B64(signedPropsXml);
+  const signedPropsC14n = canonicalize(signedPropsXml, spAncestorNs);
+  const signedPropsDigest = sha512B64(signedPropsC14n);
+  console.log("[xades] SP digest:", signedPropsDigest.substring(0, 20) + "...");
 
-  // Step 3: KeyInfo
+  // Step 3: KeyInfo — C14N con namespaces ancestros
+  const certChainXml = cert.chainB64.map(c => `<ds:X509Certificate>${c}</ds:X509Certificate>`).join("");
   const keyInfoXml =
     `<ds:KeyInfo xmlns:ds="${NS_DS}" Id="${sigId}-KeyInfo">` +
       `<ds:X509Data>` +
-        `<ds:X509Certificate>${cert.certB64}</ds:X509Certificate>` +
+        certChainXml +
       `</ds:X509Data>` +
       `<ds:KeyValue>` +
         `<ds:RSAKeyValue>` +
@@ -682,9 +843,11 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `</ds:KeyValue>` +
     `</ds:KeyInfo>`;
 
-  const keyInfoDigest = sha512B64(keyInfoXml);
+  const keyInfoC14n = canonicalize(keyInfoXml, siAncestorNs);
+  const keyInfoDigest = sha512B64(keyInfoC14n);
+  console.log("[xades] KI digest:", keyInfoDigest.substring(0, 20) + "...");
 
-  // Step 4: SignedInfo (para calcular la firma RSA)
+  // Step 4: SignedInfo — C14N con namespaces ancestros → firma RSA
   const signedInfoXml =
     `<ds:SignedInfo xmlns:ds="${NS_DS}">` +
       `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>` +
@@ -694,13 +857,13 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
           `<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform>` +
           `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>` +
           `<ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">` +
-            `<ds:XPath xmlns:ds="${NS_DS}">not(ancestor-or-self::ds:Signature)</ds:XPath>` +
+            `<ds:XPath>not(ancestor-or-self::ds:Signature)</ds:XPath>` +
           `</ds:Transform>` +
         `</ds:Transforms>` +
         `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
         `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
       `</ds:Reference>` +
-      `<ds:Reference Type="${NS_XADES}SignedProperties" URI="#${sigId}-SignedProperties">` +
+      `<ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#${sigId}-SignedProperties">` +
         `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
         `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
       `</ds:Reference>` +
@@ -710,10 +873,12 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `</ds:Reference>` +
     `</ds:SignedInfo>`;
 
-  // Step 5: RSA-SHA512 Signature
-  const signatureValue = rsaSignSha512(signedInfoXml, cert.keyPem);
+  // C14N del SignedInfo para firma RSA (el validador hará lo mismo)
+  const signedInfoC14n = canonicalize(signedInfoXml, siAncestorNs);
+  const signatureValue = rsaSignSha512(signedInfoC14n, cert.keyPem);
+  console.log("[xades] RSA signature computed");
 
-  // Step 6: Ensamblar ds:Signature completo
+  // Step 5: Ensamblar ds:Signature completo
   const signatureXml =
     `<ds:Signature Id="${sigId}-Signature" xmlns:ds="${NS_DS}">` +
       `<ds:SignedInfo>` +
@@ -730,7 +895,7 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
           `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
           `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
         `</ds:Reference>` +
-        `<ds:Reference Type="${NS_XADES}SignedProperties" URI="#${sigId}-SignedProperties">` +
+        `<ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#${sigId}-SignedProperties">` +
           `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></ds:DigestMethod>` +
           `<ds:DigestValue>${signedPropsDigest}</ds:DigestValue>` +
         `</ds:Reference>` +
@@ -742,7 +907,7 @@ function signFacturaeXAdES(xmlFacturae: string, cert: ParsedCert): string {
       `<ds:SignatureValue Id="${sigId}-SignatureValue">${signatureValue}</ds:SignatureValue>` +
       `<ds:KeyInfo Id="${sigId}-KeyInfo">` +
         `<ds:X509Data>` +
-          `<ds:X509Certificate>${cert.certB64}</ds:X509Certificate>` +
+          certChainXml +
         `</ds:X509Data>` +
         `<ds:KeyValue>` +
           `<ds:RSAKeyValue>` +
@@ -912,6 +1077,97 @@ function estadoFACeLabel(codigo: string): string {
   return map[codigo] || `Estado ${codigo}`;
 }
 
+// ─── Auto-verificación del XML firmado ───
+
+function verifySigned(xmlFirmado: string): Record<string, unknown> {
+  try {
+    const parser = new XmlDOMParser();
+    const doc = parser.parseFromString(xmlFirmado, "text/xml");
+
+    // Extraer DigestValues del XML
+    const refs = doc.getElementsByTagNameNS(NS_DS, "Reference");
+    const digests: Record<string, string> = {};
+    for (let i = 0; i < refs.length; i++) {
+      const ref = refs[i];
+      const uri = ref.getAttribute("URI") || "";
+      const dvNodes = ref.getElementsByTagNameNS(NS_DS, "DigestValue");
+      if (dvNodes.length > 0) digests[uri || "doc"] = dvNodes[0].textContent || "";
+    }
+
+    // 1. Verificar Document digest
+    const docClone = parser.parseFromString(xmlFirmado, "text/xml");
+    const sigNode = docClone.getElementsByTagNameNS(NS_DS, "Signature")[0];
+    if (sigNode) sigNode.parentNode?.removeChild(sigNode);
+    const docC14n = canonicalizeNode(docClone.documentElement);
+    const docDigestComputed = sha512B64(docC14n);
+    const docDigestXml = digests["doc"] || "";
+
+    // 2. Verificar SignedProperties digest
+    const spNode = doc.getElementsByTagNameNS(NS_XADES, "SignedProperties")[0];
+    let spDigestComputed = "";
+    let spC14nSnippet = "";
+    if (spNode) {
+      const spXmlStr = spNode.toString();
+      const spC14n = canonicalize(spXmlStr, [
+        { prefix: "ds", namespaceURI: NS_DS },
+        { prefix: "fe", namespaceURI: NS_FE },
+        { prefix: "xades", namespaceURI: NS_XADES },
+      ]);
+      spDigestComputed = sha512B64(spC14n);
+      spC14nSnippet = spC14n.substring(0, 200);
+    }
+    // Find SP digest by URI fragment
+    const spId = spNode?.getAttribute("Id") || "";
+    const spDigestXml = digests[`#${spId}`] || "";
+
+    // 3. Verificar KeyInfo digest
+    const kiNode = doc.getElementsByTagNameNS(NS_DS, "KeyInfo")[0];
+    let kiDigestComputed = "";
+    let kiC14nSnippet = "";
+    if (kiNode) {
+      const kiXmlStr = kiNode.toString();
+      const kiC14n = canonicalize(kiXmlStr, [
+        { prefix: "ds", namespaceURI: NS_DS },
+        { prefix: "fe", namespaceURI: NS_FE },
+      ]);
+      kiDigestComputed = sha512B64(kiC14n);
+      kiC14nSnippet = kiC14n.substring(0, 200);
+    }
+    const kiId = kiNode?.getAttribute("Id") || "";
+    const kiDigestXml = digests[`#${kiId}`] || "";
+
+    // 4. Verificar SignedInfo C14N (lo que el validador usaría para RSA)
+    const siNode = doc.getElementsByTagNameNS(NS_DS, "SignedInfo")[0];
+    let siC14nSnippet = "";
+    if (siNode) {
+      const siXmlStr = siNode.toString();
+      const siC14n = canonicalize(siXmlStr, [
+        { prefix: "ds", namespaceURI: NS_DS },
+        { prefix: "fe", namespaceURI: NS_FE },
+      ]);
+      siC14nSnippet = siC14n.substring(0, 300);
+    }
+
+    return {
+      doc_digest_xml: docDigestXml,
+      doc_digest_computed: docDigestComputed,
+      doc_match: docDigestXml === docDigestComputed,
+      doc_c14n_first200: docC14n.substring(0, 200),
+      sp_digest_xml: spDigestXml,
+      sp_digest_computed: spDigestComputed,
+      sp_match: spDigestXml === spDigestComputed,
+      sp_c14n_first200: spC14nSnippet,
+      ki_digest_xml: kiDigestXml,
+      ki_digest_computed: kiDigestComputed,
+      ki_match: kiDigestXml === kiDigestComputed,
+      ki_c14n_first200: kiC14nSnippet,
+      si_c14n_first300: siC14nSnippet,
+    };
+  } catch (err: any) {
+    return { error: err.message, stack: err.stack?.substring(0, 500) };
+  }
+}
+
 // ─── Handler principal ───
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -1077,6 +1333,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return json({ error: `Error firmando XML: ${err.message}. ¿Está configurado CERT_P12_BASE64?` }, 500);
       }
 
+      // ── Auto-verificación: re-computar digests del XML firmado ──
+      const verif = verifySigned(xmlFirmado);
+
       return json({
         ok: true,
         xml_firmado: xmlFirmado,
@@ -1084,6 +1343,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         base_imponible: factura.base_imponible,
         total_iva: factura.total_iva,
         total: factura.total,
+        _debug_verify: verif,
       });
 
     } else if (action === "enviar") {
