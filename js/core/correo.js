@@ -554,15 +554,11 @@ function renderListaCorreos(list) {
       // Marca de automatización (si el correo tiene entradas en bandeja_entrada)
       const ban = (typeof getBandejaEstadoCorreo === 'function') ? getBandejaEstadoCorreo(c.id) : null;
       const banColor = ban?.visual?.color || null;
-      const banBg    = ban?.visual?.bg || null;
-      const banCinta = ban?.visual?.cinta || '';
+      const banCintaTxt = ban?.visual?.cintaLista || '';
 
-      // Background según estado (la marca de automatización pinta toda la caja si existe)
-      const bg = esSel ? '#dbeafe'
-               : esActivo ? '#eff6ff'
-               : banBg ? banBg
-               : esNoLeido ? '#fafbff' : 'transparent';
-      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : (banBg || '#f5f5f5');
+      // Background normal (la marca NO pinta toda la caja; queda más limpio)
+      const bg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : esNoLeido ? '#fafbff' : 'transparent';
+      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f5f5f5';
 
       // Borde izquierdo: prioridad correo activo > marca automatización
       const borderColor = esActivo ? 'var(--azul)' : (banColor || 'transparent');
@@ -600,14 +596,14 @@ function renderListaCorreos(list) {
         && (typeof correoTieneReglaParaRemitente === 'function')
         && !correoTieneReglaParaRemitente(c);
 
-      // Cinta superior:
-      //  - Si hay automatización: cinta de color con el estado.
-      //  - Si no, y el remitente no tiene regla: cinta gris discreta para crear regla.
+      // Cinta superior fina (1 línea, solo texto en color, sin fondo):
+      //  - Si hay automatización: texto del estado en color.
+      //  - Si no, y el remitente no tiene regla: texto gris discreto para crear regla.
       let cintaHtml = '';
-      if (banCinta) {
-        cintaHtml = `<div style="background:${banColor};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;letter-spacing:0.6px;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5">${banCinta}</div>`;
+      if (banCintaTxt) {
+        cintaHtml = `<div style="color:${banColor};font-size:10px;font-weight:700;padding:3px 10px 0;letter-spacing:0.3px;line-height:1.4">${banCintaTxt}</div>`;
       } else if (mostrarCtaAuto) {
-        cintaHtml = `<div onclick="event.stopPropagation();crearReglaDesdeCorreo(${c.id})" style="background:#f1f5f9;color:#94a3b8;font-size:9px;font-weight:600;padding:2px 10px;letter-spacing:0.5px;cursor:pointer;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5;transition:background .15s,color .15s" onmouseenter="this.style.background='#e2e8f0';this.style.color='#475569'" onmouseleave="this.style.background='#f1f5f9';this.style.color='#94a3b8'">+ CREAR AUTOMATIZACIÓN PARA ESTE REMITENTE</div>`;
+        cintaHtml = `<div onclick="event.stopPropagation();crearReglaDesdeCorreo(${c.id})" style="color:#94a3b8;font-size:10px;font-weight:600;padding:3px 10px 0;letter-spacing:0.3px;cursor:pointer;line-height:1.4;transition:color .15s" onmouseenter="this.style.color='#475569'" onmouseleave="this.style.color='#94a3b8'">+ crear automatización</div>`;
       }
 
       html += `<div data-id="${c.id}" data-idx="${globalIdx}" style="margin:0 2px 4px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:${borderWidth} solid ${borderColor};overflow:hidden;outline:none" onclick="_handleMailClick(event,${c.id},${globalIdx})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${_correoFocusIdx===globalIdx?'#f0f4ff':bg}'">
@@ -715,18 +711,15 @@ async function abrirCorreo(id) {
     const v = banDet.visual;
     const items = banDet.items || [];
     const principal = items.find(i => i.estado === banDet.estado) || items[0];
-    const nMas = items.length > 1 ? ` <span style="opacity:.7;font-weight:400">· +${items.length - 1} más</span>` : '';
+    const nMas = items.length > 1 ? ` <span style="opacity:.6;font-weight:400">· +${items.length - 1} más</span>` : '';
     const verBtn = principal?.id
-      ? `<button onclick="(typeof previsualizarTarea==='function')&&previsualizarTarea(${principal.id})" style="background:#fff;color:${v.color};border:1px solid ${v.color};border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Ver tarea</button>`
+      ? `<button onclick="(typeof previsualizarTarea==='function')&&previsualizarTarea(${principal.id})" style="background:transparent;color:${v.color};border:1px solid ${v.color};border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Ver tarea</button>`
       : '';
-    // Cinta superior + caja sombreada (mismo patrón que la lista)
-    banBannerHtml = `<div style="margin:0 0 14px;border-radius:8px;background:${v.bg};border-left:4px solid ${v.color};overflow:hidden">
-      <div style="background:${v.color};color:#fff;font-size:10px;font-weight:700;padding:3px 12px;letter-spacing:0.6px;line-height:1.5">${v.cinta}</div>
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:12px">
-        <span style="flex:1;color:${v.color};font-weight:600">${v.label}${nMas}</span>
-        ${principal?.titulo ? `<span style="color:var(--gris-500);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${principal.titulo}</span>` : ''}
-        ${verBtn}
-      </div>
+    // Banner fino: solo texto en color con borde lateral, sin caja sombreada
+    banBannerHtml = `<div style="margin:0 0 12px;padding:6px 0 6px 10px;border-left:4px solid ${v.color};display:flex;align-items:center;gap:10px;font-size:12px">
+      <span style="flex:1;color:${v.color};font-weight:700">${v.label}${nMas}</span>
+      ${principal?.titulo ? `<span style="color:var(--gris-500);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${principal.titulo}</span>` : ''}
+      ${verBtn}
     </div>`;
   }
 

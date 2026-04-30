@@ -70,16 +70,17 @@ const ESTADOS_BANDEJA = {
 let _bandejaCorreoMap = new Map(); // correo_id → [{id, estado, tipo, titulo}, ...]
 
 // Estilo visual para marcar correos según el estado agregado de su bandeja
-// color = color principal de la cinta y borde
-// bg    = color de fondo tintado de la caja del correo
-// label = texto largo (banner del detalle)
-// cinta = texto de la cinta superior en la lista (CORTO, MAYÚSCULAS)
+// color       = color principal de la cinta y borde
+// bg          = color de fondo tintado (solo se usa en el banner del detalle)
+// label       = texto largo (banner del detalle)
+// cintaLista  = texto corto y discreto para la lista de correos
+// cinta       = texto largo en mayúsculas (banner del detalle)
 const BANDEJA_VISUAL_CORREO = {
-  pendiente:  { ico: '⚡', color: '#D97706', bg: '#FEF3E0', label: 'Automatización pendiente de revisión',  cinta: '⚡ AUTOMATIZACIÓN PENDIENTE DE REVISIÓN' },
-  aprobado:   { ico: '⚡', color: '#2563EB', bg: '#DBEAFE', label: 'Automatización en ejecución',           cinta: '⚡ AUTOMATIZACIÓN EN EJECUCIÓN' },
-  error:      { ico: '⚠️', color: '#DC2626', bg: '#FEE2E2', label: 'Error al ejecutar automatización',      cinta: '⚠️ ERROR EN AUTOMATIZACIÓN' },
-  completado: { ico: '✓',  color: '#059669', bg: '#D1FAE5', label: 'Automatización completada',             cinta: '✓ AUTOMATIZACIÓN COMPLETADA' },
-  rechazado:  { ico: '✗',  color: '#6B7280', bg: '#F3F4F6', label: 'Automatización descartada',             cinta: '✗ AUTOMATIZACIÓN DESCARTADA' },
+  pendiente:  { ico: '⚡', color: '#D97706', bg: '#FEF3E0', label: 'Automatización pendiente de revisión',  cinta: '⚡ AUTOMATIZACIÓN PENDIENTE DE REVISIÓN', cintaLista: '⚡ pendiente revisar' },
+  aprobado:   { ico: '⚡', color: '#2563EB', bg: '#DBEAFE', label: 'Automatización en ejecución',           cinta: '⚡ AUTOMATIZACIÓN EN EJECUCIÓN',           cintaLista: '⚡ en ejecución' },
+  error:      { ico: '⚠️', color: '#DC2626', bg: '#FEE2E2', label: 'Error al ejecutar automatización',      cinta: '⚠️ ERROR EN AUTOMATIZACIÓN',              cintaLista: '⚠️ error' },
+  completado: { ico: '✓',  color: '#059669', bg: '#D1FAE5', label: 'Automatización completada',             cinta: '✓ AUTOMATIZACIÓN COMPLETADA',            cintaLista: '✓ completada' },
+  rechazado:  { ico: '✗',  color: '#6B7280', bg: '#F3F4F6', label: 'Automatización descartada',             cinta: '✗ AUTOMATIZACIÓN DESCARTADA',            cintaLista: '✗ descartada' },
 };
 
 // Prioridad de estado cuando un mismo correo tiene varias entradas de bandeja
