@@ -548,23 +548,28 @@ function renderListaCorreos(list) {
       const avatarBg = _avatarColor(emailKey);
       const preview = (c.cuerpo_texto || '').replace(/\s+/g, ' ').substring(0, 70);
 
-      // Background según estado
-      const bg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : esNoLeido ? '#fafbff' : 'transparent';
-      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : '#f5f5f5';
-
       const idx = grupo.items.indexOf(c);
       const globalIdx = list.indexOf(c);
 
       // Marca de automatización (si el correo tiene entradas en bandeja_entrada)
       const ban = (typeof getBandejaEstadoCorreo === 'function') ? getBandejaEstadoCorreo(c.id) : null;
       const banColor = ban?.visual?.color || null;
-      const banIco = ban?.visual?.ico || null;
-      const banTitle = ban?.visual?.label || '';
+      const banBg    = ban?.visual?.bg || null;
+      const banCinta = ban?.visual?.cinta || '';
+
+      // Background según estado (la marca de automatización pinta toda la caja si existe)
+      const bg = esSel ? '#dbeafe'
+               : esActivo ? '#eff6ff'
+               : banBg ? banBg
+               : esNoLeido ? '#fafbff' : 'transparent';
+      const hoverBg = esSel ? '#dbeafe' : esActivo ? '#eff6ff' : (banBg || '#f5f5f5');
+
       // Borde izquierdo: prioridad correo activo > marca automatización
       const borderColor = esActivo ? 'var(--azul)' : (banColor || 'transparent');
-      const borderWidth = esActivo ? '2px' : (banColor ? '3px' : '2px');
+      const borderWidth = esActivo ? '2px' : (banColor ? '4px' : '2px');
 
-      html += `<div data-id="${c.id}" data-idx="${globalIdx}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;margin:0 2px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:${borderWidth} solid ${borderColor};outline:none" onclick="_handleMailClick(event,${c.id},${globalIdx})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${_correoFocusIdx===globalIdx?'#f0f4ff':bg}'">
+      // Contenido principal del correo (filas avatar + asunto + preview)
+      const contenidoCorreo = `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px">
         <div style="position:relative;width:30px;height:30px;flex-shrink:0" onclick="event.stopPropagation()">
           <div style="width:30px;height:30px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.3px;pointer-events:none">${initials}</div>
           <input type="checkbox" ${esSel ? 'checked' : ''} onchange="_toggleCorreoSel(${c.id},this.checked)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2">
@@ -578,7 +583,6 @@ function renderListaCorreos(list) {
           <div style="display:flex;align-items:center;gap:3px">
             ${esNoLeido ? '<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>' : ''}
             ${c.tiene_adjuntos ? '<span style="font-size:9px;color:#94a3b8">📎</span>' : ''}
-            ${banIco ? `<span title="${banTitle}" style="font-size:11px;color:${banColor};flex-shrink:0;font-weight:700">${banIco}</span>` : ''}
             <span style="font-size:11.5px;font-weight:${esNoLeido ? '600' : '400'};color:${esNoLeido ? '#334155' : '#64748b'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.asunto || '(sin asunto)'}</span>
             <span onclick="toggleDestacar(${c.id},event)" style="flex-shrink:0;cursor:pointer;font-size:12px;opacity:${c.destacado ? '1' : '0.25'};transition:opacity .15s" title="Destacar">${c.destacado ? '⭐' : '☆'}</span>
           </div>
@@ -587,6 +591,16 @@ function renderListaCorreos(list) {
             ${c.etiqueta ? _badgeEtiqueta(c.etiqueta) : ''}
           </div>
         </div>
+      </div>`;
+
+      // Cinta superior con texto en mayúsculas (solo si hay marca de automatización)
+      const cintaHtml = banCinta
+        ? `<div style="background:${banColor};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;letter-spacing:0.6px;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5">${banCinta}</div>`
+        : '';
+
+      html += `<div data-id="${c.id}" data-idx="${globalIdx}" style="margin:0 2px 4px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:${borderWidth} solid ${borderColor};overflow:hidden;outline:none" onclick="_handleMailClick(event,${c.id},${globalIdx})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${_correoFocusIdx===globalIdx?'#f0f4ff':bg}'">
+        ${cintaHtml}
+        ${contenidoCorreo}
       </div>`;
     });
   });
@@ -689,13 +703,18 @@ async function abrirCorreo(id) {
     const v = banDet.visual;
     const items = banDet.items || [];
     const principal = items.find(i => i.estado === banDet.estado) || items[0];
-    const nMas = items.length > 1 ? ` <span style="opacity:.7">· +${items.length - 1} más</span>` : '';
-    const verBtn = principal?.id ? `<button onclick="(typeof previsualizarTarea==='function')&&previsualizarTarea(${principal.id})" style="background:${v.color};color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">Ver tarea</button>` : '';
-    banBannerHtml = `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin:0 0 12px;border-radius:8px;background:${v.color}12;border:1px solid ${v.color}40;font-size:12px">
-      <span style="font-size:14px;color:${v.color}">${v.ico}</span>
-      <span style="flex:1;color:${v.color};font-weight:600">${v.label}${nMas}</span>
-      ${principal?.titulo ? `<span style="color:var(--gris-500);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px">${principal.titulo}</span>` : ''}
-      ${verBtn}
+    const nMas = items.length > 1 ? ` <span style="opacity:.7;font-weight:400">· +${items.length - 1} más</span>` : '';
+    const verBtn = principal?.id
+      ? `<button onclick="(typeof previsualizarTarea==='function')&&previsualizarTarea(${principal.id})" style="background:#fff;color:${v.color};border:1px solid ${v.color};border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Ver tarea</button>`
+      : '';
+    // Cinta superior + caja sombreada (mismo patrón que la lista)
+    banBannerHtml = `<div style="margin:0 0 14px;border-radius:8px;background:${v.bg};border-left:4px solid ${v.color};overflow:hidden">
+      <div style="background:${v.color};color:#fff;font-size:10px;font-weight:700;padding:3px 12px;letter-spacing:0.6px;line-height:1.5">${v.cinta}</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:12px">
+        <span style="flex:1;color:${v.color};font-weight:600">${v.label}${nMas}</span>
+        ${principal?.titulo ? `<span style="color:var(--gris-500);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${principal.titulo}</span>` : ''}
+        ${verBtn}
+      </div>
     </div>`;
   }
 
