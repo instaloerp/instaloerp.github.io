@@ -934,9 +934,41 @@ function lanzarRetroactiva(id) {
   openModal('mRetroactiva');
 }
 
+// Lanza el modal de retroactiva en modo "todas las reglas activas"
+function lanzarRetroactivaTodas() {
+  const activas = (_automatizaciones || []).filter(a => a.activa);
+  if (!activas.length) {
+    toast('No hay automatizaciones activas para ejecutar', 'error');
+    return;
+  }
+  _retroReglaId = 'todas';
+
+  document.getElementById('retroNombreRegla').textContent = `⚡ Ejecutar TODAS las reglas activas (${activas.length})`;
+  // Defaults: desde hace 3 meses, hasta hoy
+  const hoy = new Date().toISOString().split('T')[0];
+  const hace3m = new Date();
+  hace3m.setMonth(hace3m.getMonth() - 3);
+  document.getElementById('retro_desde').value = hace3m.toISOString().split('T')[0];
+  document.getElementById('retro_hasta').value = hoy;
+  document.getElementById('retroResultado').style.display = 'none';
+  document.getElementById('btnEjecutarRetro').disabled = false;
+  document.getElementById('btnEjecutarRetro').textContent = '⚡ Ejecutar todas';
+  openModal('mRetroactiva');
+}
+
 async function ejecutarRetroactiva() {
-  const regla = _automatizaciones.find(x => x.id === _retroReglaId);
-  if (!regla) return;
+  // Determinar reglas a evaluar (una concreta o todas las activas)
+  const modoTodas = (_retroReglaId === 'todas');
+  let reglasAEjecutar;
+  if (modoTodas) {
+    reglasAEjecutar = (_automatizaciones || []).filter(a => a.activa);
+    if (!reglasAEjecutar.length) { toast('No hay reglas activas', 'error'); return; }
+  } else {
+    const regla = _automatizaciones.find(x => x.id === _retroReglaId);
+    if (!regla) return;
+    reglasAEjecutar = [regla];
+  }
+  const textoBtnDefault = modoTodas ? '⚡ Ejecutar todas' : '🔄 Ejecutar';
 
   const desde = document.getElementById('retro_desde').value;
   const hasta = document.getElementById('retro_hasta').value;
@@ -967,51 +999,68 @@ async function ejecutarRetroactiva() {
       resDiv.style.color = '#92400E';
       resDiv.innerHTML = 'No se encontraron correos en ese rango de fechas.';
       btn.disabled = false;
-      btn.textContent = '🔄 Ejecutar';
+      btn.textContent = textoBtnDefault;
       return;
     }
 
-    btn.textContent = `⏳ Evaluando ${correosRango.length} correos...`;
+    btn.textContent = modoTodas
+      ? `⏳ Evaluando ${correosRango.length} correos × ${reglasAEjecutar.length} reglas...`
+      : `⏳ Evaluando ${correosRango.length} correos...`;
 
-    // Evaluar la regla contra cada correo
-    let coincidencias = 0;
-    let yaExistentes = 0;
-    let creados = 0;
+    // Pre-cargar entradas existentes (1 sola query) para no martillear BD
+    const { data: existentes } = await sb.from('bandeja_entrada')
+      .select('correo_id, automatizacion_id')
+      .eq('empresa_id', EMPRESA.id);
+    const yaExiste = new Set((existentes || []).map(e => e.correo_id + '_' + e.automatizacion_id));
 
-    for (const correo of correosRango) {
-      if (_correoCoincideRegla(correo, regla)) {
-        coincidencias++;
-        // Verificar que no exista ya entrada para este correo + regla
-        const { count } = await sb.from('bandeja_entrada')
-          .select('id', { count: 'exact', head: true })
-          .eq('correo_id', correo.id)
-          .eq('automatizacion_id', regla.id);
-        if (count > 0) {
-          yaExistentes++;
-          continue;
+    let totalCoincidencias = 0;
+    let totalYaExistentes = 0;
+    let totalCreados = 0;
+    const detallePorRegla = [];
+
+    for (const regla of reglasAEjecutar) {
+      let coincidencias = 0;
+      let yaExistentesR = 0;
+      let creados = 0;
+      for (const correo of correosRango) {
+        if (_correoCoincideRegla(correo, regla)) {
+          coincidencias++;
+          const key = correo.id + '_' + regla.id;
+          if (yaExiste.has(key)) { yaExistentesR++; continue; }
+          await _crearEntradaBandeja(correo, regla, true); // skipCheck
+          yaExiste.add(key);
+          creados++;
         }
-        // Crear entrada en bandeja
-        await _crearEntradaBandeja(correo, regla);
-        creados++;
+      }
+      totalCoincidencias += coincidencias;
+      totalYaExistentes += yaExistentesR;
+      totalCreados += creados;
+      if (creados > 0 || coincidencias > 0) {
+        detallePorRegla.push({ nombre: regla.nombre, coincidencias, creados, yaExistentes: yaExistentesR });
       }
     }
 
     // Mostrar resultado
     resDiv.style.display = 'block';
-    if (creados > 0) {
+    if (totalCreados > 0) {
       resDiv.style.background = '#D1FAE5';
       resDiv.style.color = '#065F46';
-      resDiv.innerHTML = `<b>${correosRango.length}</b> correos analizados<br><b>${coincidencias}</b> coincidencias encontradas<br><b>${creados}</b> tareas creadas en la bandeja${yaExistentes ? `<br><span style="color:#92400E">${yaExistentes} ya existían</span>` : ''}`;
+      const detalleHtml = (modoTodas && detallePorRegla.length)
+        ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #6EE7B7;font-weight:600;font-size:11px">Detalle por regla:</div>' +
+          detallePorRegla.map(d => `<div style="font-size:11px;margin-top:2px">· <b>${d.nombre}</b>: ${d.creados} creada${d.creados!==1?'s':''}${d.yaExistentes ? ` <span style="color:#92400E">(${d.yaExistentes} ya existían)</span>` : ''}</div>`).join('')
+        : '';
+      const cabRegla = modoTodas ? ` × <b>${reglasAEjecutar.length}</b> regla${reglasAEjecutar.length>1?'s':''}` : '';
+      resDiv.innerHTML = `<b>${correosRango.length}</b> correos analizados${cabRegla}<br><b>${totalCoincidencias}</b> coincidencia${totalCoincidencias!==1?'s':''}<br><b>${totalCreados}</b> tarea${totalCreados!==1?'s':''} creada${totalCreados!==1?'s':''} en la bandeja${totalYaExistentes ? `<br><span style="color:#92400E">${totalYaExistentes} ya existían</span>` : ''}${detalleHtml}`;
       actualizarBadgeBandeja();
-      toast(`${creados} tarea${creados > 1 ? 's' : ''} creada${creados > 1 ? 's' : ''} en la bandeja`, 'success');
-    } else if (coincidencias > 0 && yaExistentes === coincidencias) {
+      toast(`${totalCreados} tarea${totalCreados > 1 ? 's' : ''} creada${totalCreados > 1 ? 's' : ''} en la bandeja`, 'success');
+    } else if (totalCoincidencias > 0 && totalYaExistentes === totalCoincidencias) {
       resDiv.style.background = '#FEF3C7';
       resDiv.style.color = '#92400E';
-      resDiv.innerHTML = `${coincidencias} correos coinciden pero ya tienen entradas en la bandeja.`;
+      resDiv.innerHTML = `${totalCoincidencias} correo${totalCoincidencias!==1?'s':''} coinciden pero ya tienen entradas en la bandeja.`;
     } else {
       resDiv.style.background = '#FEF3C7';
       resDiv.style.color = '#92400E';
-      resDiv.innerHTML = `${correosRango.length} correos analizados, ninguno coincide con las condiciones de esta regla.`;
+      resDiv.innerHTML = `${correosRango.length} correos analizados, ninguno coincide con las condiciones de ${modoTodas ? 'ninguna regla activa' : 'esta regla'}.`;
     }
   } catch (e) {
     console.error('[ejecutarRetroactiva]', e);
@@ -1022,7 +1071,7 @@ async function ejecutarRetroactiva() {
   }
 
   btn.disabled = false;
-  btn.textContent = '🔄 Ejecutar';
+  btn.textContent = textoBtnDefault;
 }
 
 // ═══════════════════════════════════════════════

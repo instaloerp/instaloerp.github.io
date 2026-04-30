@@ -285,7 +285,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 143</span>
+      <span id="erpBuildVersion">v1.1 · build 144</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2435,7 +2435,8 @@ try {
             <div class="cfg-panel card" id="cfg-automatizaciones">
               <div class="card-h">
                 <h3>⚡ Automatizaciones</h3>
-                <div class="card-ha">
+                <div class="card-ha" style="display:flex;gap:6px">
+                  <button class="btn btn-secondary btn-sm" onclick="lanzarRetroactivaTodas()" title="Evaluar todas las reglas activas contra los correos en un rango de fechas">⚡ Ejecutar todas</button>
                   <button class="btn btn-primary btn-sm" onclick="nuevaAutomatizacion()">➕ Nueva regla</button>
                 </div>
               </div>
