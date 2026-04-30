@@ -41,15 +41,17 @@ let _bandejaItems = [];
 let _bandejaFiltrados = [];
 
 // Acciones disponibles con su etiqueta y icono
+// Orden = flujo de compras: Presupuesto → Pedido → Albarán → Factura
 const ACCIONES_AUTO = {
-  crear_factura_prov:   { label: 'Crear factura de proveedor', ico: '📑', color: '#7C3AED' },
-  crear_albaran_prov:   { label: 'Crear albarán de proveedor', ico: '📥', color: '#2563EB' },
-  crear_pedido_compra:  { label: 'Crear pedido de compra', ico: '🛒', color: '#0891B2' },
-  procesar_nominas:     { label: 'Procesar nóminas', ico: '💰', color: '#059669' },
-  crear_cliente:        { label: 'Crear cliente', ico: '👤', color: '#D97706' },
-  crear_tarea:          { label: 'Crear tarea', ico: '✅', color: '#DC2626' },
-  archivar_documento:   { label: 'Archivar documento', ico: '📂', color: '#64748B' },
-  personalizada:        { label: 'Acción personalizada', ico: '⚙️', color: '#374151' },
+  crear_presupuesto_prov: { label: 'Crear presupuesto de proveedor', ico: '📋', color: '#9333EA' },
+  crear_pedido_compra:    { label: 'Crear pedido de proveedor', ico: '🛒', color: '#0891B2' },
+  crear_albaran_prov:     { label: 'Crear albarán de proveedor', ico: '📥', color: '#2563EB' },
+  crear_factura_prov:     { label: 'Crear factura de proveedor', ico: '📑', color: '#7C3AED' },
+  procesar_nominas:       { label: 'Procesar nóminas', ico: '💰', color: '#059669' },
+  crear_cliente:          { label: 'Crear cliente', ico: '👤', color: '#D97706' },
+  crear_tarea:            { label: 'Crear tarea', ico: '✅', color: '#DC2626' },
+  archivar_documento:     { label: 'Archivar documento', ico: '📂', color: '#64748B' },
+  personalizada:          { label: 'Acción personalizada', ico: '⚙️', color: '#374151' },
 };
 
 const ESTADOS_BANDEJA = {
@@ -650,6 +652,7 @@ function verResultadoBandeja(id) {
     factura_proveedor: 'facturas-proveedor',
     albaran_proveedor: 'albaranes-proveedor',
     pedido_compra: 'pedidos-compra',
+    presupuesto_compra: 'presupuestos-compra',
     cliente: 'clientes',
     tarea: 'mistareas',
   };
@@ -662,7 +665,16 @@ function verResultadoBandeja(id) {
 // ═══════════════════════════════════════════════
 
 // Tipos que se procesan vía OCR (documentos con adjunto PDF)
-const _TIPOS_OCR = ['crear_factura_prov', 'crear_albaran_prov', 'crear_pedido_compra', 'archivar_documento'];
+const _TIPOS_OCR = ['crear_factura_prov', 'crear_albaran_prov', 'crear_pedido_compra', 'crear_presupuesto_prov', 'archivar_documento'];
+
+// Mapeo de la acción a tipo_documento que entiende el módulo OCR
+const _OCR_TIPO_DOC = {
+  crear_factura_prov:     'factura',
+  crear_albaran_prov:     'albaran',
+  crear_pedido_compra:    'pedido',
+  crear_presupuesto_prov: 'presupuesto',
+  archivar_documento:     'auto',
+};
 
 async function _ejecutarAccionBandeja(item) {
   const datos = item.datos_extraidos || {};
@@ -726,7 +738,7 @@ async function _enviarAdjuntoAOCR(item, adjuntos, datos) {
   if (upErr) throw new Error('Error subiendo a storage: ' + upErr.message);
 
   // 4. Crear registro en documentos_ocr
-  const tipoDoc = item.tipo === 'crear_albaran_prov' ? 'albaran' : 'factura';
+  const tipoDoc = _OCR_TIPO_DOC[item.tipo] || 'factura';
   const { data: docData, error: insErr } = await sb.from('documentos_ocr').insert({
     empresa_id: eid,
     usuario_id: CU?.id || null,

@@ -16,9 +16,10 @@ CREATE TABLE IF NOT EXISTS automatizaciones (
   condicion_cuerpo      TEXT,          -- patrón: cuerpo contiene este texto
   -- Acción a ejecutar
   accion          TEXT NOT NULL CHECK (accion IN (
-    'crear_factura_prov',
-    'crear_albaran_prov',
+    'crear_presupuesto_prov',
     'crear_pedido_compra',
+    'crear_albaran_prov',
+    'crear_factura_prov',
     'procesar_nominas',
     'crear_cliente',
     'crear_tarea',
