@@ -593,10 +593,22 @@ function renderListaCorreos(list) {
         </div>
       </div>`;
 
-      // Cinta superior con texto en mayúsculas (solo si hay marca de automatización)
-      const cintaHtml = banCinta
-        ? `<div style="background:${banColor};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;letter-spacing:0.6px;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5">${banCinta}</div>`
-        : '';
+      // CTA "+ Crear automatización" en correos recibidos que NO tienen ban
+      // y cuyo remitente NO está cubierto por ninguna regla activa.
+      const mostrarCtaAuto = !ban
+        && c.tipo === 'recibido'
+        && (typeof correoTieneReglaParaRemitente === 'function')
+        && !correoTieneReglaParaRemitente(c);
+
+      // Cinta superior:
+      //  - Si hay automatización: cinta de color con el estado.
+      //  - Si no, y el remitente no tiene regla: cinta gris discreta para crear regla.
+      let cintaHtml = '';
+      if (banCinta) {
+        cintaHtml = `<div style="background:${banColor};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;letter-spacing:0.6px;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5">${banCinta}</div>`;
+      } else if (mostrarCtaAuto) {
+        cintaHtml = `<div onclick="event.stopPropagation();crearReglaDesdeCorreo(${c.id})" style="background:#f1f5f9;color:#94a3b8;font-size:9px;font-weight:600;padding:2px 10px;letter-spacing:0.5px;cursor:pointer;border-top-left-radius:6px;border-top-right-radius:8px;line-height:1.5;transition:background .15s,color .15s" onmouseenter="this.style.background='#e2e8f0';this.style.color='#475569'" onmouseleave="this.style.background='#f1f5f9';this.style.color='#94a3b8'">+ CREAR AUTOMATIZACIÓN PARA ESTE REMITENTE</div>`;
+      }
 
       html += `<div data-id="${c.id}" data-idx="${globalIdx}" style="margin:0 2px 4px;border-radius:8px;cursor:pointer;background:${bg};transition:background .1s;border-left:${borderWidth} solid ${borderColor};overflow:hidden;outline:none" onclick="_handleMailClick(event,${c.id},${globalIdx})" onmouseenter="this.style.background='${hoverBg}'" onmouseleave="this.style.background='${_correoFocusIdx===globalIdx?'#f0f4ff':bg}'">
         ${cintaHtml}

@@ -99,6 +99,19 @@ async function cargarMapaBandejaCorreos() {
   } catch (e) { console.warn('[bandejaMap]', e); }
 }
 
+// Comprueba si ya existe alguna regla activa cuyo condicion_remitente
+// matchea con el remitente de este correo (mismo algoritmo que _correoCoincideRegla)
+function correoTieneReglaParaRemitente(correo) {
+  if (!correo) return false;
+  const rem = (correo.de || correo.remitente || '').toLowerCase();
+  if (!rem) return false;
+  return (_automatizaciones || []).some(a =>
+    a.activa &&
+    a.condicion_remitente &&
+    rem.includes(a.condicion_remitente.trim().toLowerCase())
+  );
+}
+
 // Devuelve { estado, items, visual } para un correo con bandeja, o null
 function getBandejaEstadoCorreo(correoId) {
   const items = _bandejaCorreoMap?.get(correoId);
@@ -161,6 +174,14 @@ async function cargarAutomatizaciones() {
     .order('created_at', { ascending: false });
   if (error) { console.error('Error cargando automatizaciones:', error); return; }
   _automatizaciones = data || [];
+  // Si la pestaña Correo está visible, refrescar la lista para mostrar/ocultar
+  // la cinta CTA "+ Crear automatización" según el conjunto de reglas actuales.
+  try {
+    const pageCorreo = document.getElementById('page-correo');
+    if (pageCorreo && pageCorreo.style.display !== 'none' && typeof renderListaCorreos === 'function' && typeof correosFiltrados !== 'undefined') {
+      renderListaCorreos(correosFiltrados);
+    }
+  } catch(_) {}
 }
 
 function renderAutomatizaciones() {
