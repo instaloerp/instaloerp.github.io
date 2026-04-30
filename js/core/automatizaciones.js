@@ -61,6 +61,93 @@ const ESTADOS_BANDEJA = {
 };
 
 // ═══════════════════════════════════════════════
+//  MAPA correo_id → entradas de bandeja
+//  Permite marcar correos en la lista/vista cuando
+//  ya han sido procesados por una automatización.
+// ═══════════════════════════════════════════════
+let _bandejaCorreoMap = new Map(); // correo_id → [{id, estado, tipo, titulo}, ...]
+
+// Estilo visual para marcar correos según el estado agregado de su bandeja
+const BANDEJA_VISUAL_CORREO = {
+  pendiente:  { ico: '⚡', color: '#D97706', label: 'Automatización pendiente de revisión' },
+  aprobado:   { ico: '⚡', color: '#2563EB', label: 'Automatización en ejecución' },
+  error:      { ico: '⚠️', color: '#DC2626', label: 'Error al ejecutar automatización' },
+  completado: { ico: '✓',  color: '#059669', label: 'Automatización completada' },
+  // rechazado: no se muestra marca (el usuario lo descartó conscientemente)
+};
+
+// Prioridad de estado cuando un mismo correo tiene varias entradas de bandeja
+const _BANDEJA_PRIORIDAD = ['error', 'pendiente', 'aprobado', 'completado'];
+
+async function cargarMapaBandejaCorreos() {
+  try {
+    const { data } = await sb.from('bandeja_entrada')
+      .select('id, correo_id, estado, tipo, titulo')
+      .eq('empresa_id', EMPRESA.id)
+      .not('correo_id', 'is', null);
+    _bandejaCorreoMap = new Map();
+    for (const item of (data || [])) {
+      if (!item.correo_id) continue;
+      const arr = _bandejaCorreoMap.get(item.correo_id) || [];
+      arr.push(item);
+      _bandejaCorreoMap.set(item.correo_id, arr);
+    }
+  } catch (e) { console.warn('[bandejaMap]', e); }
+}
+
+// Devuelve { estado, items, visual } para un correo con bandeja, o null
+function getBandejaEstadoCorreo(correoId) {
+  const items = _bandejaCorreoMap?.get(correoId);
+  if (!items || !items.length) return null;
+  let estado = items[0].estado;
+  for (const e of _BANDEJA_PRIORIDAD) {
+    if (items.some(i => i.estado === e)) { estado = e; break; }
+  }
+  const visual = BANDEJA_VISUAL_CORREO[estado];
+  if (!visual) return null; // p.ej. solo rechazadas → no marcar
+  return { estado, items, visual };
+}
+
+// Aplica un cambio Realtime al mapa correo→bandeja sin volver a consultar BD
+function _aplicarCambioRealtimeMapaCorreos(payload) {
+  try {
+    const ev = payload?.eventType;
+    const oldRow = payload?.old || {};
+    const newRow = payload?.new || {};
+    // Quitar la entrada antigua si cambió el correo_id, el estado o se borró
+    const correoIdViejo = oldRow.correo_id;
+    if (correoIdViejo) {
+      const arr = _bandejaCorreoMap.get(correoIdViejo) || [];
+      const filtrado = arr.filter(x => x.id !== oldRow.id);
+      if (filtrado.length) _bandejaCorreoMap.set(correoIdViejo, filtrado);
+      else _bandejaCorreoMap.delete(correoIdViejo);
+    }
+    // Añadir/actualizar la entrada nueva
+    if (ev !== 'DELETE' && newRow.correo_id) {
+      const arr = _bandejaCorreoMap.get(newRow.correo_id) || [];
+      // Reemplazar si ya existía
+      const idx = arr.findIndex(x => x.id === newRow.id);
+      const entrada = { id: newRow.id, correo_id: newRow.correo_id, estado: newRow.estado, tipo: newRow.tipo, titulo: newRow.titulo };
+      if (idx >= 0) arr[idx] = entrada; else arr.push(entrada);
+      _bandejaCorreoMap.set(newRow.correo_id, arr);
+    }
+  } catch (e) { console.warn('[bandejaMap RT]', e); }
+}
+
+// Refresca el mapa y, si la pestaña Correo está visible, vuelve a renderizar la lista
+async function refrescarMarcasCorreoTrasBandeja() {
+  await cargarMapaBandejaCorreos();
+  const pageCorreo = document.getElementById('page-correo');
+  if (pageCorreo && pageCorreo.style.display !== 'none' && typeof renderListaCorreos === 'function' && Array.isArray(window.correosFiltrados || correosFiltrados)) {
+    try { renderListaCorreos(correosFiltrados); } catch(_) {}
+    // Si hay correo abierto, refrescar también su cabecera por si apareció/desapareció el banner
+    if (typeof correoActual !== 'undefined' && correoActual?.id && typeof abrirCorreo === 'function') {
+      try { abrirCorreo(correoActual.id); } catch(_) {}
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CARGA DE AUTOMATIZACIONES (Config)
 // ═══════════════════════════════════════════════
 async function cargarAutomatizaciones() {
@@ -359,6 +446,14 @@ async function cargarBandejaItems() {
     .order('created_at', { ascending: false });
   if (error) { console.error('Error cargando bandeja:', error); return; }
   _bandejaItems = data || [];
+  // Reconstruir mapa correo→bandeja a partir de los items completos
+  _bandejaCorreoMap = new Map();
+  for (const item of _bandejaItems) {
+    if (!item.correo_id) continue;
+    const arr = _bandejaCorreoMap.get(item.correo_id) || [];
+    arr.push({ id: item.id, correo_id: item.correo_id, estado: item.estado, tipo: item.tipo, titulo: item.titulo });
+    _bandejaCorreoMap.set(item.correo_id, arr);
+  }
 }
 
 function _poblarFiltroTipos() {
@@ -1219,6 +1314,8 @@ async function inboxSubirDocumento(files) {
 // ═══════════════════════════════════════════════
 async function iniciarAutomatizacionesBackground() {
   await cargarAutomatizaciones();
+  // Cargar mapa correo→bandeja para marcar correos ya procesados
+  await cargarMapaBandejaCorreos();
   // Mostrar botón bandeja en sidebar si tiene permiso
   const ibBandeja = document.getElementById('ibBandejaItem');
   if (ibBandeja && typeof canDo === 'function' && canDo('compras', 'bandeja')) {
@@ -1235,6 +1332,14 @@ function _suscribirBandejaRealtime() {
       { event: '*', schema: 'public', table: 'bandeja_entrada', filter: `empresa_id=eq.${EMPRESA.id}` },
       async (payload) => {
         console.log('[Bandeja RT]', payload.eventType, payload.new?.titulo || '');
+        // Actualizar mapa correo→bandeja y refrescar marca en lista de correos
+        _aplicarCambioRealtimeMapaCorreos(payload);
+        if (document.getElementById('page-correo')?.style.display !== 'none' && typeof renderListaCorreos === 'function') {
+          try { renderListaCorreos(correosFiltrados); } catch(_) {}
+          if (typeof correoActual !== 'undefined' && correoActual?.id && (payload.new?.correo_id === correoActual.id || payload.old?.correo_id === correoActual.id)) {
+            try { abrirCorreo(correoActual.id); } catch(_) {}
+          }
+        }
         // Actualizar badge siempre
         actualizarBadgeBandeja();
         // Actualizar widget del dashboard si está visible

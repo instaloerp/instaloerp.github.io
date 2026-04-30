@@ -2502,14 +2502,18 @@ async function enviarFacturaFACe(facturaId) {
     toast('Esta factura ya se envió a FACe', 'info'); return;
   }
 
+  // Determinar modo FACe (test/produccion) desde config empresa
+  const faceModo = (EMPRESA.config?.face?.modo) || 'test';
+  const faceModoLabel = faceModo === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
+
   const ok = await confirmModal({
-    titulo: 'Enviar a FACe',
-    mensaje: `¿Enviar factura ${fac.numero} a FACe (Administración Pública)?`,
+    titulo: `Enviar a FACe (${faceModoLabel})`,
+    mensaje: `¿Enviar factura ${fac.numero} a FACe?${faceModo === 'test' ? '\n\n🧪 Modo PRUEBAS — se enviará al entorno de test' : '\n\n⚠️ Modo PRODUCCIÓN — se enviará a la administración real'}`,
     icono: '🏛️'
   });
   if (!ok) return;
 
-  toast('Enviando a FACe...', 'info');
+  toast(`Enviando a FACe (${faceModoLabel})...`, 'info');
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { toast('Sesión expirada', 'error'); return; }
@@ -2520,7 +2524,7 @@ async function enviarFacturaFACe(facturaId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ action: 'enviar', factura_id: facturaId, empresa_id: EMPRESA.id }),
+      body: JSON.stringify({ action: 'enviar', factura_id: facturaId, empresa_id: EMPRESA.id, modo: faceModo }),
     });
     const result = await resp.json();
     if (!resp.ok) { toast(`Error FACe: ${result.error || 'Error desconocido'}`, 'error'); return; }

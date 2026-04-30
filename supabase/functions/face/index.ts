@@ -1373,59 +1373,129 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Generar XML Facturae 3.2.2
       const xmlFacturae = generarFacturaeXML(factura, cliente, empresa);
 
-      // Enviar al proxy v4 (firma XAdES + WS-Security + mTLS)
+      // ═══ Firmar XML con XAdES-EPES ═══
+      const cert = loadCertificate();
+      const xmlFirmado = signFacturaeXAdES(xmlFacturae, cert);
+      console.log("[enviar] XML firmado:", xmlFirmado.length, "bytes");
+
+      // Endpoint FACe
       const endpoint = FACE_ENDPOINTS[modo];
       if (!endpoint) {
         return json({ error: `Modo FACe no válido: ${modo}` }, 400);
       }
 
-      let resultado;
-      if (PROXY_URL) {
-        const proxyResp = await fetch(PROXY_URL, {
+      // ═══ Construir SOAP Envelope ═══
+      const xmlB64 = btoa(unescape(encodeURIComponent(xmlFirmado)));
+      const nombreFichero = `${factura.numero || factura.id}.xsig`;
+      const soapEnvelope =
+        `<?xml version="1.0" encoding="UTF-8"?>` +
+        `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="https://webservice.face.gob.es">` +
+          `<soapenv:Header/>` +
+          `<soapenv:Body>` +
+            `<fac:enviarFactura>` +
+              `<request>` +
+                `<correo>${esc(correo)}</correo>` +
+                `<factura>` +
+                  `<factura>${xmlB64}</factura>` +
+                  `<nombre>${esc(nombreFichero)}</nombre>` +
+                  `<mime>application/xml</mime>` +
+                `</factura>` +
+                `<anexos/>` +
+              `</request>` +
+            `</fac:enviarFactura>` +
+          `</soapenv:Body>` +
+        `</soapenv:Envelope>`;
+      console.log("[enviar] SOAP envelope:", soapEnvelope.length, "bytes");
+
+      // ═══ Enviar a FACe ═══
+      let resultado: any;
+      let metodoEnvio = "desconocido";
+
+      // Método 1: Envío directo con mTLS (Deno.createHttpClient)
+      try {
+        // @ts-ignore — Deno.createHttpClient puede no estar disponible en Deploy
+        const httpClient = Deno.createHttpClient({
+          certChain: cert.certPem,
+          privateKey: cert.keyPem,
+        });
+        console.log("[enviar] Intentando envío directo con mTLS...");
+        const directResp = await fetch(endpoint, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${PROXY_SECRET}`,
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": "enviarFactura",
           },
-          body: JSON.stringify({
-            xml_facturae: xmlFacturae,
-            correo,
-            modo,
-            servicio: "face",
-            accion: "enviarFactura",
-          }),
+          body: soapEnvelope,
+          // @ts-ignore
+          client: httpClient,
         });
-        resultado = await proxyResp.json();
-      } else {
-        // Sin proxy — modo simulación (solo genera XML, no envía)
+        const respText = await directResp.text();
         resultado = {
-          ok: true,
-          simulado: true,
-          xml_facturae: xmlFacturae,
-          mensaje: "Modo simulación: XML generado correctamente pero no enviado (sin proxy configurado)",
+          ok: directResp.ok,
+          status: directResp.status,
+          xml_respuesta: respText,
         };
+        metodoEnvio = "directo-mTLS";
+        console.log("[enviar] Envío directo OK, status:", directResp.status);
+      } catch (directErr: any) {
+        console.log("[enviar] mTLS directo no disponible:", directErr.message);
+
+        // Método 2: Proxy relay (solo mTLS, XML ya firmado)
+        if (PROXY_URL) {
+          console.log("[enviar] Usando proxy:", PROXY_URL);
+          try {
+            const proxyResp = await fetch(PROXY_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${PROXY_SECRET}`,
+              },
+              body: JSON.stringify({
+                soap_envelope: soapEnvelope,
+                endpoint,
+                correo,
+                modo,
+                servicio: "face",
+                accion: "enviarFactura",
+                // Enviar también el XML firmado para que el proxy pueda relay sin re-firmar
+                xml_firmado: xmlFirmado,
+              }),
+            });
+            resultado = await proxyResp.json();
+            metodoEnvio = "proxy";
+          } catch (proxyErr: any) {
+            resultado = { ok: false, error: `Error de proxy: ${proxyErr.message}` };
+            metodoEnvio = "proxy-error";
+          }
+        } else {
+          // Método 3: Sin proxy — modo simulación
+          resultado = {
+            ok: true,
+            simulado: true,
+            xml_facturae: xmlFirmado,
+            soap_preview: soapEnvelope.substring(0, 500) + "...",
+            mensaje: "Modo simulación: XML firmado y SOAP generados pero no enviados (mTLS no disponible, sin proxy)",
+          };
+          metodoEnvio = "simulacion";
+        }
       }
 
       // Parsear respuesta FACe
       let faceResp = { ok: true, codigo: "", descripcion: "Simulado", numeroRegistro: undefined as string | undefined, codigoEstado: undefined as string | undefined, estado: undefined as string | undefined };
 
-      // Comprobar primero si el proxy reportó error HTTP
-      const proxyOk = resultado.ok !== false && resultado.status >= 200 && resultado.status < 300;
-
       if (resultado.xml_respuesta && resultado.xml_respuesta.includes("<") && !resultado.xml_respuesta.includes("<!DOCTYPE html>")) {
         // Respuesta SOAP válida de FACe — parsear
         faceResp = parseFACeResponse(resultado.xml_respuesta);
-      } else if (!proxyOk || resultado.error) {
-        // Error: proxy falló, o FACe devolvió HTML/error en vez de SOAP
+      } else if (resultado.ok === false || resultado.error) {
         const desc = resultado.error
-          || (resultado.xml_respuesta?.includes("<!DOCTYPE html>") ? `FACe devolvió error HTTP ${resultado.status || "?"}` : "Error desconocido del proxy")
-          || "Error de conexión con FACe";
+          || (resultado.xml_respuesta?.includes("<!DOCTYPE html>") ? `FACe devolvió error HTTP ${resultado.status || "?"}` : "Error de conexión con FACe")
+          || "Error desconocido";
         faceResp = { ok: false, codigo: `HTTP-${resultado.status || "?"}`, descripcion: desc };
       } else if (resultado.simulado) {
         faceResp = { ok: true, codigo: "0", descripcion: "Simulación", numeroRegistro: `SIM-${Date.now()}`, codigoEstado: "1200", estado: "Registrada (simulada)" };
       }
 
-      // Guardar en face_envios (incluir diagnósticos del proxy)
+      // Guardar en face_envios
       await sbAdmin.from("face_envios").insert({
         empresa_id,
         factura_id,
@@ -1433,15 +1503,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
         numero_registro: faceResp.numeroRegistro || null,
         codigo_estado: faceResp.codigoEstado || (faceResp.ok ? "1200" : null),
         estado: faceResp.estado || (faceResp.ok ? "Registrada" : "Error"),
-        motivo_rechazo: faceResp.ok ? null : (faceResp.descripcion + (resultado.debug_soap_enviado ? ` [SOAP: ${resultado.debug_soap_enviado.substring(0, 500)}...]` : "")),
-        xml_facturae: xmlFacturae,
+        motivo_rechazo: faceResp.ok ? null : faceResp.descripcion,
+        xml_facturae: xmlFirmado,
         xml_respuesta: resultado.xml_respuesta || null,
       });
 
       // Actualizar factura
-      if (faceResp.ok) {
+      if (faceResp.ok && !resultado.simulado) {
         await sbAdmin.from("facturas").update({
-          face_estado: resultado.simulado ? "simulado" : "registrada",
+          face_estado: "registrada",
           face_numero_registro: faceResp.numeroRegistro || null,
           face_enviado_at: new Date().toISOString(),
           face_organo_gestor: og,
@@ -1457,7 +1527,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         codigo_estado: faceResp.codigoEstado || null,
         descripcion: faceResp.descripcion,
         simulado: resultado.simulado || false,
-        xml_preview: xmlFacturae.substring(0, 500) + "...",
+        metodo_envio: metodoEnvio,
+        xml_preview: xmlFirmado.substring(0, 500) + "...",
       });
 
     } else if (action === "anular") {
