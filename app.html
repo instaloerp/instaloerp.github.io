@@ -1747,6 +1747,7 @@ function renderBottomNav() {
     if (fab) {
       fab.style.display = '';
       if (fabMenu) fabMenu.innerHTML = `
+        <div class="fab-action"><button style="background:#0891B2" onclick="toggleFab();navigateTo('medicion-nueva')">📐</button><span>Medición</span></div>
         <div class="fab-action"><button style="background:var(--azul)" onclick="toggleFab();fabCrear('presupuesto')">📋</button><span>Presupuesto</span></div>
         <div class="fab-action"><button style="background:var(--verde)" onclick="toggleFab();fabCrear('albaran')">📄</button><span>Albarán</span></div>
         <div class="fab-action"><button style="background:var(--violeta)" onclick="toggleFab();fabCrear('factura')">🧾</button><span>Factura</span></div>
@@ -1805,13 +1806,16 @@ function navigateTo(tab) {
     }
   } else if (esJefe) {
     switch(tab) {
-      case 'inicio':     renderJefeInicio(body); break;
-      case 'equipo':     renderJefeEquipo(body); break;
-      case 'furgoneta':  renderMiFurgoneta(); break;
-      case 'gps':        renderJefeGPS(body); break;
-      case 'agenda':     renderJefeAgenda(body); break;
-      case 'chat':       renderChatMobile(body); break;
-      case 'mas':        renderJefeMas(body); break;
+      case 'inicio':           renderJefeInicio(body); break;
+      case 'equipo':           renderJefeEquipo(body); break;
+      case 'furgoneta':        renderMiFurgoneta(); break;
+      case 'gps':              renderJefeGPS(body); break;
+      case 'agenda':           renderJefeAgenda(body); break;
+      case 'chat':             renderChatMobile(body); break;
+      case 'mas':              renderJefeMas(body); break;
+      case 'mediciones':       renderMedicionesLista(body); break;
+      case 'medicion-nueva':   renderMedicionNuevaPaso1(body); break;
+      case 'medicion-detalle': renderMedicionDetalle(body); break;
     }
   } else {
     switch(tab) {
@@ -3430,7 +3434,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 17
+      instaloERP v1.0 · build 18
     </div>
   `;
 }
@@ -4226,6 +4230,12 @@ async function renderJefeMas(el) {
       <span style="color:var(--gris-400);font-size:18px">›</span>
     </div>
 
+    <div class="card" onclick="navigateTo('mediciones')" style="cursor:pointer;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">📐</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px">Mediciones</div><div style="font-size:12px;color:var(--gris-400)">Visitas técnicas: medir y generar presupuesto en sitio</div></div>
+      <span style="color:var(--gris-400);font-size:18px">›</span>
+    </div>
+
     <div class="section-title" style="margin-top:16px">📡 Conexión y datos</div>
     <div class="card" style="display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">${navigator.onLine ? '🟢' : '🟡'}</span>
@@ -4268,9 +4278,456 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 17
+      instaloERP v1.0 · build 18
     </div>
   `;
+}
+
+// ═══════════════════════════════════════════════
+//  MEDICIONES (visitas técnicas en campo)
+// ═══════════════════════════════════════════════
+let _medActual = null;          // medición que se está editando { id, cliente_id, tipo, items, ... }
+let _medItemEditIdx = null;     // índice del item en edición (null = nuevo)
+
+// Plantillas: campos por tipo de medición
+const MED_PLANTILLAS = {
+  ventanas: {
+    label: 'Ventanas', ico: '🪟', color: '#0891B2',
+    campos: [
+      { key: 'ubicacion', label: 'Ubicación', tipo: 'text', placeholder: 'Salón, cocina, dormitorio…' },
+      { key: 'ancho',     label: 'Ancho (cm)', tipo: 'number' },
+      { key: 'alto',      label: 'Alto (cm)',  tipo: 'number' },
+      { key: 'cantidad',  label: 'Unidades', tipo: 'number', defecto: 1 },
+      { key: 'tipo_apertura', label: 'Tipo', tipo: 'select', opciones: ['Oscilo-batiente','Corredera','Practicable','Fija','Abatible'] },
+      { key: 'material',  label: 'Material', tipo: 'select', opciones: ['PVC','Aluminio','Madera','Mixta'] },
+      { key: 'cristal',   label: 'Cristal', tipo: 'select', opciones: ['Climalit estándar','Climalit bajo emisivo','Triple','Seguridad','Otro'] },
+      { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
+    ],
+    descripcionItem: (it) => `${it.cantidad||1}× Ventana ${it.ancho||'?'}×${it.alto||'?'} cm${it.tipo_apertura ? ' ' + it.tipo_apertura : ''}${it.material ? ' · ' + it.material : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
+  },
+  bano: {
+    label: 'Baño', ico: '🚿', color: '#7C3AED',
+    campos: [
+      { key: 'ubicacion', label: 'Ubicación', tipo: 'text', placeholder: 'Baño principal, aseo…' },
+      { key: 'metros',    label: 'Metros²',  tipo: 'number' },
+      { key: 'reformar',  label: 'Reforma', tipo: 'select', opciones: ['Integral','Solo sanitarios','Solo ducha/bañera','Solo azulejos','Otro'] },
+      { key: 'sanitarios', label: 'Sanitarios a sustituir', tipo: 'multiselect', opciones: ['Inodoro','Lavabo','Bidé','Ducha','Bañera','Mampara','Mueble baño','Grifería'] },
+      { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
+    ],
+    descripcionItem: (it) => `Baño ${it.metros||'?'} m²${it.reformar ? ' · ' + it.reformar : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
+  },
+  suelo: {
+    label: 'Suelo', ico: '🟫', color: '#D97706',
+    campos: [
+      { key: 'ubicacion', label: 'Estancia', tipo: 'text', placeholder: 'Salón, dormitorio…' },
+      { key: 'largo',     label: 'Largo (m)', tipo: 'number' },
+      { key: 'ancho',     label: 'Ancho (m)', tipo: 'number' },
+      { key: 'tipo',      label: 'Tipo', tipo: 'select', opciones: ['Tarima','Laminado','Cerámica','Vinílico','Microcemento','Otro'] },
+      { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
+    ],
+    descripcionItem: (it) => {
+      const m2 = (it.largo && it.ancho) ? (parseFloat(it.largo)*parseFloat(it.ancho)).toFixed(2) + ' m²' : '?';
+      return `Suelo ${m2}${it.tipo ? ' · ' + it.tipo : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`;
+    },
+  },
+  pintura: {
+    label: 'Pintura', ico: '🎨', color: '#059669',
+    campos: [
+      { key: 'ubicacion',  label: 'Estancia', tipo: 'text', placeholder: 'Salón, dormitorio…' },
+      { key: 'metros',     label: 'm² aprox.', tipo: 'number' },
+      { key: 'manos',      label: 'Manos', tipo: 'number', defecto: 2 },
+      { key: 'tipo',       label: 'Tipo', tipo: 'select', opciones: ['Plástica','Esmalte','Gotelé/Liso','Empapelado','Otro'] },
+      { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
+    ],
+    descripcionItem: (it) => `Pintura ${it.metros||'?'} m² · ${it.manos||2} manos${it.tipo ? ' · ' + it.tipo : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
+  },
+  otra: {
+    label: 'Otra', ico: '📦', color: '#64748B',
+    campos: [
+      { key: 'titulo',     label: 'Concepto', tipo: 'text', placeholder: 'Ej: Cuadro eléctrico…' },
+      { key: 'cantidad',   label: 'Cantidad', tipo: 'number', defecto: 1 },
+      { key: 'unidad',     label: 'Unidad',   tipo: 'select', opciones: ['ud','m','m²','m³','h','kg'] },
+      { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
+    ],
+    descripcionItem: (it) => `${it.cantidad||1} ${it.unidad||'ud'} · ${it.titulo||'(sin concepto)'}`,
+  },
+};
+
+// ── BD ─────────────────────────────────────────────────────────────
+async function _medListar() {
+  if (!EMPRESA?.id) return [];
+  const { data, error } = await sb.from('mediciones')
+    .select('*')
+    .eq('empresa_id', EMPRESA.id)
+    .neq('estado', 'archivado')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) { console.error('[mediciones]', error); return []; }
+  return data || [];
+}
+
+async function _medCrear(cliente_id, tipo) {
+  const obj = {
+    empresa_id: EMPRESA.id,
+    usuario_id: CU?.id || null,
+    cliente_id: cliente_id || null,
+    tipo,
+    fecha: new Date().toISOString().split('T')[0],
+    estado: 'borrador',
+    items: [],
+    fotos: [],
+  };
+  const { data, error } = await sb.from('mediciones').insert(obj).select().single();
+  if (error) { toast('Error: ' + error.message, 'error'); return null; }
+  return data;
+}
+
+async function _medGuardar(id, patch) {
+  const { error } = await sb.from('mediciones').update(patch).eq('id', id);
+  if (error) toast('Error guardando: ' + error.message, 'error');
+}
+
+async function _medEliminar(id) {
+  await sb.from('mediciones').update({ estado: 'archivado' }).eq('id', id);
+}
+
+// ── Pantalla 1: Lista ──────────────────────────────────────────────
+async function renderMedicionesLista(el) {
+  el.innerHTML = `
+    <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between">
+      <button onclick="navigateTo('inicio')" style="background:none;border:none;color:#3B82F6;font-weight:700;font-size:14px;cursor:pointer;padding:0">← Inicio</button>
+      <h2 style="font-size:18px;margin:0">📐 Mediciones</h2>
+      <div style="width:44px"></div>
+    </div>
+    <div style="padding:8px 16px 16px">
+      <button onclick="navigateTo('medicion-nueva')" style="width:100%;padding:14px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 2px 8px rgba(59,130,246,.25)">+ Nueva visita</button>
+    </div>
+    <div id="medListaCont" style="padding:0 16px 80px">
+      <div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Cargando…</div>
+    </div>
+  `;
+  const lista = await _medListar();
+  const cont = document.getElementById('medListaCont');
+  if (!cont) return;
+  if (!lista.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--gris-400)">
+      <div style="font-size:42px;margin-bottom:10px">📐</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">Aún no hay mediciones</div>
+      <div style="font-size:12px">Crea una visita para empezar a tomar medidas en sitio</div>
+    </div>`;
+    return;
+  }
+  cont.innerHTML = lista.map(m => {
+    const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+    const cli = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+    const nCli = cli?.nombre || 'Sin cliente';
+    const nItems = (m.items || []).length;
+    const fechaTxt = m.fecha ? new Date(m.fecha).toLocaleDateString('es-ES', { day:'2-digit', month:'short' }) : '';
+    const estadoBadge = m.estado === 'presupuestado'
+      ? '<span style="font-size:10px;background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-weight:700">presupuesto generado</span>'
+      : m.estado === 'medido'
+      ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-weight:700">medido</span>'
+      : '<span style="font-size:10px;background:#E0E7FF;color:#3730A3;padding:2px 8px;border-radius:10px;font-weight:700">borrador</span>';
+    return `<div onclick="_medAbrir(${m.id})" style="background:#fff;border:1px solid var(--gris-200);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <div style="width:42px;height:42px;border-radius:10px;background:${pl.color}15;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${pl.ico}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nCli}</div>
+        <div style="font-size:11.5px;color:var(--gris-500);margin-top:2px">${pl.label} · ${nItems} item${nItems!==1?'s':''} · ${fechaTxt}</div>
+        <div style="margin-top:4px">${estadoBadge}</div>
+      </div>
+      <span style="color:var(--gris-400);font-size:18px">›</span>
+    </div>`;
+  }).join('');
+}
+
+async function _medAbrir(id) {
+  const { data } = await sb.from('mediciones').select('*').eq('id', id).single();
+  if (!data) return;
+  _medActual = data;
+  navigateTo('medicion-detalle');
+}
+
+// ── Pantalla 2: Nueva visita (cliente + tipo) ──────────────────────
+function renderMedicionNuevaPaso1(el) {
+  el.innerHTML = `
+    <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between">
+      <button onclick="navigateTo('mediciones')" style="background:none;border:none;color:#3B82F6;font-weight:700;font-size:14px;cursor:pointer;padding:0">← Atrás</button>
+      <h2 style="font-size:18px;margin:0">Nueva visita</h2>
+      <div style="width:44px"></div>
+    </div>
+    <div style="padding:8px 16px 80px">
+      <div style="background:#fff;border:1px solid var(--gris-200);border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;font-weight:600">CLIENTE</div>
+        <input id="medCliBusca" type="text" placeholder="Buscar cliente por nombre o NIF…" oninput="_medFiltrarClientes(this.value)" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;outline:none;box-sizing:border-box">
+        <div id="medCliResultados" style="margin-top:8px;max-height:180px;overflow-y:auto"></div>
+        <div style="text-align:center;font-size:11px;color:var(--gris-400);margin-top:8px">o</div>
+        <button onclick="_medSinCliente()" style="width:100%;margin-top:6px;padding:9px;background:transparent;border:1.5px dashed var(--gris-300);border-radius:9px;color:var(--gris-500);font-size:12px;cursor:pointer">Sin cliente (anotar luego)</button>
+      </div>
+      <div id="medTipoSel" style="display:none">
+        <div style="font-size:11px;color:var(--gris-500);margin-bottom:8px;font-weight:600;padding:0 4px">TIPO DE MEDICIÓN</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${Object.entries(MED_PLANTILLAS).map(([key, pl]) => `
+            <button onclick="_medElegirTipo('${key}')" style="padding:18px 8px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <span style="font-size:28px">${pl.ico}</span>
+              <span>${pl.label}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  _medClienteSel = null;
+  _medFiltrarClientes('');
+}
+
+let _medClienteSel = null;
+function _medFiltrarClientes(q) {
+  const cont = document.getElementById('medCliResultados');
+  if (!cont) return;
+  const lista = (Array.isArray(clientes) ? clientes : []);
+  const query = (q || '').toLowerCase().trim();
+  const filtrados = query
+    ? lista.filter(c => (c.nombre||'').toLowerCase().includes(query) || (c.nif||'').toLowerCase().includes(query)).slice(0, 8)
+    : lista.slice(0, 8);
+  if (!filtrados.length) {
+    cont.innerHTML = '<div style="padding:8px;color:var(--gris-400);font-size:12px;text-align:center">Sin resultados</div>';
+    return;
+  }
+  cont.innerHTML = filtrados.map(c => `
+    <div onclick="_medSeleccionarCliente(${c.id})" style="padding:9px 11px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;border:1px solid transparent" onmouseenter="this.style.background='var(--gris-50)';this.style.borderColor='var(--gris-200)'" onmouseleave="this.style.background='';this.style.borderColor='transparent'">
+      <div style="width:32px;height:32px;border-radius:50%;background:#3B82F6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${(c.nombre||'?').substring(0,2).toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.nombre||'—'}</div>
+        ${c.nif ? `<div style="font-size:11px;color:var(--gris-400)">${c.nif}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function _medSeleccionarCliente(id) {
+  _medClienteSel = id;
+  const c = (Array.isArray(clientes) ? clientes : []).find(x => x.id === id);
+  document.getElementById('medCliBusca').value = c?.nombre || '';
+  document.getElementById('medCliResultados').innerHTML = `<div style="padding:8px 11px;background:#D1FAE5;color:#065F46;border-radius:8px;font-size:12px;font-weight:600">✓ ${c?.nombre || 'Cliente'} seleccionado</div>`;
+  document.getElementById('medTipoSel').style.display = '';
+}
+
+function _medSinCliente() {
+  _medClienteSel = null;
+  document.getElementById('medCliBusca').value = '';
+  document.getElementById('medCliResultados').innerHTML = '<div style="padding:8px 11px;background:#FEF3C7;color:#92400E;border-radius:8px;font-size:12px;font-weight:600">Sin cliente — podrás asignarlo más tarde</div>';
+  document.getElementById('medTipoSel').style.display = '';
+}
+
+async function _medElegirTipo(tipo) {
+  const m = await _medCrear(_medClienteSel, tipo);
+  if (!m) return;
+  _medActual = m;
+  navigateTo('medicion-detalle');
+}
+
+// ── Pantalla 3: Detalle (items + acciones) ─────────────────────────
+async function renderMedicionDetalle(el) {
+  if (!_medActual) { navigateTo('mediciones'); return; }
+  // Refrescar de BD por si vinimos desde lista
+  const { data } = await sb.from('mediciones').select('*').eq('id', _medActual.id).single();
+  if (data) _medActual = data;
+  const m = _medActual;
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  const cli = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+  const items = m.items || [];
+
+  el.innerHTML = `
+    <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between">
+      <button onclick="navigateTo('mediciones')" style="background:none;border:none;color:#3B82F6;font-weight:700;font-size:14px;cursor:pointer;padding:0">← Lista</button>
+      <h2 style="font-size:16px;margin:0;display:flex;align-items:center;gap:6px"><span>${pl.ico}</span> ${pl.label}</h2>
+      <button onclick="_medConfirmEliminar()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0">🗑️</button>
+    </div>
+    <div style="padding:0 16px 8px">
+      <div style="background:#fff;border:1px solid var(--gris-200);border-radius:10px;padding:10px 12px;font-size:12px">
+        <div style="color:var(--gris-500);font-size:10px;font-weight:600;margin-bottom:2px">CLIENTE</div>
+        <div style="font-weight:700">${cli?.nombre || 'Sin cliente'}</div>
+        ${cli?.dir ? `<div style="font-size:11px;color:var(--gris-500);margin-top:2px">📍 ${cli.dir}${cli.muni ? ', ' + cli.muni : ''}</div>` : ''}
+      </div>
+    </div>
+    <div style="padding:8px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:700;font-size:14px">Items medidos (${items.length})</div>
+        <button onclick="_medAddItem()" style="padding:8px 14px;background:#3B82F6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">+ Añadir</button>
+      </div>
+      <div id="medItemsCont">
+        ${items.length === 0
+          ? `<div style="text-align:center;padding:30px 16px;color:var(--gris-400);background:#fff;border:1px dashed var(--gris-300);border-radius:10px"><div style="font-size:32px;margin-bottom:6px">${pl.ico}</div><div style="font-size:13px;font-weight:600">Aún no hay medidas</div><div style="font-size:11px;margin-top:4px">Pulsa "+ Añadir" para empezar</div></div>`
+          : items.map((it, i) => `
+            <div onclick="_medEditItem(${i})" style="background:#fff;border:1px solid var(--gris-200);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">
+              <div style="width:28px;height:28px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${i+1}</div>
+              <div style="flex:1;font-size:12.5px;line-height:1.4">${pl.descripcionItem(it)}</div>
+              <span style="color:var(--gris-400);font-size:16px">›</span>
+            </div>`).join('')}
+      </div>
+    </div>
+    <div style="padding:8px 16px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">Notas generales</div>
+      <textarea id="medNotasGen" oninput="_medGuardarNotas()" placeholder="Notas globales de esta visita…" style="width:100%;min-height:60px;padding:10px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:13px;font-family:var(--font);box-sizing:border-box;resize:vertical">${m.notas || ''}</textarea>
+    </div>
+    <div style="padding:16px 16px 100px;display:flex;flex-direction:column;gap:8px">
+      ${items.length ? `
+        <button onclick="_medGenerarPresupuesto()" style="padding:13px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">📑 Generar presupuesto</button>
+      ` : ''}
+      <button onclick="_medMarcarEstado('${items.length ? 'medido' : 'borrador'}')" style="padding:11px;background:#fff;border:1.5px solid var(--gris-300);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;color:var(--gris-700)">💾 Guardar y volver</button>
+    </div>
+  `;
+}
+
+let _medNotasTimer = null;
+function _medGuardarNotas() {
+  if (!_medActual) return;
+  const v = document.getElementById('medNotasGen')?.value || '';
+  _medActual.notas = v;
+  if (_medNotasTimer) clearTimeout(_medNotasTimer);
+  _medNotasTimer = setTimeout(() => _medGuardar(_medActual.id, { notas: v }), 600);
+}
+
+async function _medMarcarEstado(estado) {
+  if (!_medActual) return;
+  await _medGuardar(_medActual.id, { estado });
+  toast('Medición guardada ✓', 'success');
+  navigateTo('mediciones');
+}
+
+async function _medConfirmEliminar() {
+  if (!_medActual) return;
+  if (!confirm('¿Eliminar esta medición? No se puede deshacer.')) return;
+  await _medEliminar(_medActual.id);
+  toast('Medición eliminada', 'info');
+  _medActual = null;
+  navigateTo('mediciones');
+}
+
+// ── Modal de item (añadir/editar) ──────────────────────────────────
+function _medAddItem() { _medItemEditIdx = null; _medAbrirModalItem({}); }
+function _medEditItem(i) {
+  _medItemEditIdx = i;
+  const it = (_medActual.items || [])[i] || {};
+  _medAbrirModalItem(it);
+}
+
+function _medAbrirModalItem(it) {
+  if (!_medActual) return;
+  const pl = MED_PLANTILLAS[_medActual.tipo] || MED_PLANTILLAS.otra;
+  let camposHtml = '';
+  for (const c of pl.campos) {
+    const val = it[c.key] != null ? it[c.key] : (c.defecto != null ? c.defecto : '');
+    if (c.tipo === 'select') {
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><select id="medi_${c.key}" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;background:#fff;box-sizing:border-box"><option value=""></option>${c.opciones.map(o => `<option value="${o}" ${o===val?'selected':''}>${o}</option>`).join('')}</select></div>`;
+    } else if (c.tipo === 'multiselect') {
+      const sel = Array.isArray(val) ? val : (typeof val === 'string' && val ? val.split(',').map(s=>s.trim()) : []);
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><div id="medi_${c.key}" data-multiselect="1" style="display:flex;flex-wrap:wrap;gap:5px">${c.opciones.map(o => `<button type="button" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'#3B82F6':'#fff';this.style.color=this.classList.contains('on')?'#fff':'var(--gris-700)';this.style.borderColor=this.classList.contains('on')?'#3B82F6':'var(--gris-300)'" class="${sel.includes(o)?'on':''}" data-v="${o}" style="padding:6px 11px;border-radius:18px;font-size:11.5px;cursor:pointer;font-weight:600;border:1.5px solid ${sel.includes(o)?'#3B82F6':'var(--gris-300)'};background:${sel.includes(o)?'#3B82F6':'#fff'};color:${sel.includes(o)?'#fff':'var(--gris-700)'}">${o}</button>`).join('')}</div></div>`;
+    } else if (c.tipo === 'textarea') {
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><textarea id="medi_${c.key}" placeholder="${c.placeholder||''}" style="width:100%;min-height:50px;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;font-family:var(--font);box-sizing:border-box;resize:vertical">${val}</textarea></div>`;
+    } else if (c.tipo === 'number') {
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><input id="medi_${c.key}" type="number" inputmode="decimal" value="${val}" style="width:100%;padding:14px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:22px;font-weight:700;text-align:center;box-sizing:border-box"></div>`;
+    } else {
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><input id="medi_${c.key}" type="text" value="${val}" placeholder="${c.placeholder||''}" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box"></div>`;
+    }
+  }
+  // Modal manual (no usamos openModal del ERP)
+  const ov = document.createElement('div');
+  ov.id = '_medModalItem';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:90vh;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:15px">${pl.ico} ${_medItemEditIdx==null ? 'Nuevo item' : 'Editar item ' + (_medItemEditIdx+1)}</div>
+        <button onclick="document.getElementById('_medModalItem').remove()" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer;padding:0">✕</button>
+      </div>
+      <div style="padding:14px 16px;overflow-y:auto;flex:1">${camposHtml}</div>
+      <div style="padding:12px 16px;border-top:1px solid var(--gris-100);display:flex;gap:8px">
+        ${_medItemEditIdx!=null ? '<button onclick="_medBorrarItem()" style="padding:11px;background:#fff;border:1.5px solid #ef4444;color:#ef4444;border-radius:9px;font-weight:700;font-size:13px">Eliminar</button>' : ''}
+        <button onclick="_medGuardarItem()" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer">${_medItemEditIdx==null ? 'Añadir' : 'Guardar'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+
+async function _medGuardarItem() {
+  if (!_medActual) return;
+  const pl = MED_PLANTILLAS[_medActual.tipo] || MED_PLANTILLAS.otra;
+  const obj = {};
+  for (const c of pl.campos) {
+    const el = document.getElementById('medi_' + c.key);
+    if (!el) continue;
+    if (el.dataset.multiselect === '1') {
+      obj[c.key] = [...el.querySelectorAll('button.on')].map(b => b.dataset.v);
+    } else {
+      obj[c.key] = el.value;
+    }
+  }
+  const items = [...(_medActual.items || [])];
+  if (_medItemEditIdx == null) items.push(obj);
+  else items[_medItemEditIdx] = obj;
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items, estado: 'medido' });
+  document.getElementById('_medModalItem')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+}
+
+async function _medBorrarItem() {
+  if (!_medActual || _medItemEditIdx == null) return;
+  const items = [...(_medActual.items || [])];
+  items.splice(_medItemEditIdx, 1);
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items });
+  document.getElementById('_medModalItem')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+}
+
+// ── Generar presupuesto ────────────────────────────────────────────
+async function _medGenerarPresupuesto() {
+  if (!_medActual) return;
+  const m = _medActual;
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  const items = m.items || [];
+  if (!items.length) { toast('Añade al menos un item antes de generar', 'error'); return; }
+
+  // Construir líneas a partir de los items
+  const lineas = items.map(it => {
+    let cantidad = parseFloat(it.cantidad) || 1;
+    if (m.tipo === 'suelo') {
+      const l = parseFloat(it.largo) || 0, a = parseFloat(it.ancho) || 0;
+      if (l && a) cantidad = parseFloat((l*a).toFixed(2));
+    } else if (m.tipo === 'pintura' && it.metros) {
+      cantidad = parseFloat(it.metros) || 1;
+    } else if (m.tipo === 'bano' && it.metros) {
+      cantidad = parseFloat(it.metros) || 1;
+    }
+    return {
+      descripcion: pl.descripcionItem(it),
+      cantidad,
+      precio: 0,
+      iva: 21,
+      observaciones: it.observaciones || '',
+    };
+  });
+
+  // Crear presupuesto en BD (cabecera) — usa la misma tabla que el ERP escritorio
+  const obj = {
+    empresa_id: EMPRESA.id,
+    cliente_id: m.cliente_id || null,
+    fecha: new Date().toISOString().split('T')[0],
+    estado: 'borrador',
+    titulo: `${pl.label} · ${(items.length)} item${items.length!==1?'s':''}`,
+    observaciones: (m.notas || '') + (m.notas ? '\n\n' : '') + 'Presupuesto generado desde medición #' + m.id,
+    lineas,
+  };
+
+  const { data, error } = await sb.from('presupuestos').insert(obj).select().single();
+  if (error) { toast('Error generando presupuesto: ' + error.message, 'error'); return; }
+
+  await _medGuardar(m.id, { estado: 'presupuestado', resultado_tipo: 'presupuesto', resultado_id: data?.id || null });
+  toast('📑 Presupuesto creado en borrador ✓', 'success');
+  navigateTo('mediciones');
 }
 
 // ═══════════════════════════════════════════════
@@ -4644,7 +5101,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 17
+        instaloERP v1.0 · build 18
       </div>
     </div>`;
 }
