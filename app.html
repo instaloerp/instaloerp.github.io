@@ -16,6 +16,7 @@
 <title>Instalo App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/mensajeria/chat.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -3434,7 +3435,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 18
+      instaloERP v1.0 · build 20
     </div>
   `;
 }
@@ -4278,7 +4279,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 18
+      instaloERP v1.0 · build 20
     </div>
   `;
 }
@@ -4460,6 +4461,9 @@ function renderMedicionNuevaPaso1(el) {
         <div style="font-size:11px;color:var(--gris-500);margin-bottom:6px;font-weight:600">CLIENTE</div>
         <input id="medCliBusca" type="text" placeholder="Buscar cliente por nombre o NIF…" oninput="_medFiltrarClientes(this.value)" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:10px;font-size:14px;outline:none;box-sizing:border-box">
         <div id="medCliResultados" style="margin-top:8px;max-height:180px;overflow-y:auto"></div>
+        <button onclick="_medAbrirModalNuevoCliente()" style="width:100%;margin-top:8px;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+          <span style="font-size:15px">+</span> Crear cliente nuevo
+        </button>
         <div style="text-align:center;font-size:11px;color:var(--gris-400);margin-top:8px">o</div>
         <button onclick="_medSinCliente()" style="width:100%;margin-top:6px;padding:9px;background:transparent;border:1.5px dashed var(--gris-300);border-radius:9px;color:var(--gris-500);font-size:12px;cursor:pointer">Sin cliente (anotar luego)</button>
       </div>
@@ -4519,6 +4523,156 @@ function _medSinCliente() {
   document.getElementById('medTipoSel').style.display = '';
 }
 
+// ── Modal nuevo cliente (alta rápida con campos obligatorios) ──────
+function _medAbrirModalNuevoCliente() {
+  // Pre-rellenar con texto buscado si parecía un nombre
+  const buscado = (document.getElementById('medCliBusca')?.value || '').trim();
+  const ov = document.createElement('div');
+  ov.id = '_medModalNuevoCli';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:92vh;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:15px">+ Nuevo cliente</div>
+        <button onclick="document.getElementById('_medModalNuevoCli').remove()" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer;padding:0">✕</button>
+      </div>
+      <div style="padding:14px 16px;overflow-y:auto;flex:1">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:4px">TIPO</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <button type="button" id="medCli_tipo_par" onclick="_medCliSetTipo('Particular')" style="padding:9px 6px;border-radius:9px;border:1.5px solid #3B82F6;background:#3B82F6;color:#fff;font-size:12px;font-weight:700">Particular</button>
+            <button type="button" id="medCli_tipo_emp" onclick="_medCliSetTipo('Empresa')" style="padding:9px 6px;border-radius:9px;border:1.5px solid var(--gris-200);background:#fff;color:var(--gris-700);font-size:12px;font-weight:700">Empresa</button>
+            <button type="button" id="medCli_tipo_pro" onclick="_medCliSetTipo('Profesional')" style="padding:9px 6px;border-radius:9px;border:1.5px solid var(--gris-200);background:#fff;color:var(--gris-700);font-size:12px;font-weight:700">Profesional</button>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Nombre <span style="color:#ef4444">*</span></label>
+          <input id="medCli_nombre" type="text" value="${buscado.replace(/"/g,'&quot;')}" placeholder="Nombre completo o razón social" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px"><span id="medCli_nif_label">DNI / NIF</span> <span style="color:#ef4444">*</span></label>
+          <input id="medCli_nif" type="text" placeholder="12345678A" autocapitalize="characters" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box;text-transform:uppercase">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Teléfono <span style="color:#ef4444">*</span></label>
+            <input id="medCli_tel" type="tel" inputmode="tel" placeholder="600123456" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Email</label>
+            <input id="medCli_email" type="email" inputmode="email" placeholder="cliente@ejemplo.es" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Dirección <span style="color:#ef4444">*</span></label>
+          <input id="medCli_dir" type="text" placeholder="Calle y número" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">CP <span style="color:#ef4444">*</span></label>
+            <input id="medCli_cp" type="text" inputmode="numeric" maxlength="5" oninput="_medCliCpChange(this.value)" placeholder="36000" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Municipio <span style="color:#ef4444">*</span></label>
+            <input id="medCli_muni" type="text" placeholder="Vigo" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">Provincia <span style="color:#ef4444">*</span></label>
+          <input id="medCli_prov" type="text" placeholder="Pontevedra" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--gris-100);display:flex;gap:8px">
+        <button onclick="document.getElementById('_medModalNuevoCli').remove()" style="padding:11px 18px;background:#fff;border:1.5px solid var(--gris-300);border-radius:9px;font-weight:700;font-size:13px;color:var(--gris-700)">Cancelar</button>
+        <button onclick="_medGuardarClienteNuevo()" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer">Crear y seleccionar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  // Tipo por defecto: Particular
+  _medCliTipo = 'Particular';
+}
+
+let _medCliTipo = 'Particular';
+function _medCliSetTipo(tipo) {
+  _medCliTipo = tipo;
+  ['par','emp','pro'].forEach(k => {
+    const el = document.getElementById('medCli_tipo_' + k);
+    if (!el) return;
+    const activo = (k === 'par' && tipo === 'Particular') || (k === 'emp' && tipo === 'Empresa') || (k === 'pro' && tipo === 'Profesional');
+    el.style.background = activo ? '#3B82F6' : '#fff';
+    el.style.color = activo ? '#fff' : 'var(--gris-700)';
+    el.style.borderColor = activo ? '#3B82F6' : 'var(--gris-200)';
+  });
+  const lbl = document.getElementById('medCli_nif_label');
+  if (lbl) lbl.textContent = tipo === 'Empresa' ? 'CIF' : tipo === 'Particular' ? 'DNI / NIF' : 'NIF';
+}
+
+// CP → provincia auto (si tenemos tabla CP en BD; si no, simplemente nada)
+async function _medCliCpChange(cp) {
+  cp = (cp || '').trim();
+  if (cp.length !== 5) return;
+  try {
+    const { data } = await sb.from('codigos_postales').select('municipio,provincia').eq('cp', cp).limit(1);
+    if (data && data[0]) {
+      const muni = document.getElementById('medCli_muni');
+      const prov = document.getElementById('medCli_prov');
+      if (muni && !muni.value) muni.value = data[0].municipio || '';
+      if (prov && !prov.value) prov.value = data[0].provincia || '';
+    }
+  } catch(_) {}
+}
+
+async function _medGuardarClienteNuevo() {
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const nombre = v('medCli_nombre');
+  const nif    = v('medCli_nif').toUpperCase();
+  const tel    = v('medCli_tel');
+  const dir    = v('medCli_dir');
+  const cp     = v('medCli_cp');
+  const muni   = v('medCli_muni');
+  const prov   = v('medCli_prov');
+  const email  = v('medCli_email');
+
+  const errores = [];
+  if (!nombre) errores.push('nombre');
+  if (!nif)    errores.push(_medCliTipo === 'Empresa' ? 'CIF' : 'DNI/NIF');
+  if (!tel)    errores.push('teléfono');
+  if (!dir)    errores.push('dirección');
+  if (!cp)     errores.push('CP');
+  if (!muni)   errores.push('municipio');
+  if (!prov)   errores.push('provincia');
+  if (errores.length) {
+    toast('Faltan: ' + errores.join(', '), 'error');
+    return;
+  }
+
+  const obj = {
+    empresa_id: EMPRESA.id,
+    nombre,
+    tipo: _medCliTipo,
+    nif,
+    telefono: tel,
+    email: email || null,
+    direccion_fiscal: dir,
+    cp_fiscal: cp,
+    municipio_fiscal: muni,
+    provincia_fiscal: prov,
+  };
+
+  const { data, error } = await sb.from('clientes').insert(obj).select().single();
+  if (error) { toast('Error al guardar: ' + error.message, 'error'); return; }
+
+  // Refrescar lista en memoria
+  if (Array.isArray(clientes)) clientes.push(data);
+  else clientes = [data];
+
+  // Cerrar modal y auto-seleccionar
+  document.getElementById('_medModalNuevoCli')?.remove();
+  toast('✅ Cliente creado: ' + data.nombre, 'success');
+  _medSeleccionarCliente(data.id);
+}
+
 async function _medElegirTipo(tipo) {
   const m = await _medCrear(_medClienteSel, tipo);
   if (!m) return;
@@ -4572,7 +4726,8 @@ async function renderMedicionDetalle(el) {
     </div>
     <div style="padding:16px 16px 100px;display:flex;flex-direction:column;gap:8px">
       ${items.length ? `
-        <button onclick="_medGenerarPresupuesto()" style="padding:13px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">📑 Generar presupuesto</button>
+        <button onclick="_medAbrirMenuExportar()" style="padding:13px;background:#0F766E;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">📤 Compartir / Exportar</button>
+        <button onclick="_medGenerarPresupuesto()" style="padding:11px;background:#7C3AED;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">📑 Generar presupuesto en el ERP</button>
       ` : ''}
       <button onclick="_medMarcarEstado('${items.length ? 'medido' : 'borrador'}')" style="padding:11px;background:#fff;border:1.5px solid var(--gris-300);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;color:var(--gris-700)">💾 Guardar y volver</button>
     </div>
@@ -4683,16 +4838,10 @@ async function _medBorrarItem() {
   renderMedicionDetalle(document.getElementById('appBody'));
 }
 
-// ── Generar presupuesto ────────────────────────────────────────────
-async function _medGenerarPresupuesto() {
-  if (!_medActual) return;
-  const m = _medActual;
+// ── Helpers comunes para presupuesto/exportar ──────────────────────
+function _medConstruirLineas(m) {
   const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
-  const items = m.items || [];
-  if (!items.length) { toast('Añade al menos un item antes de generar', 'error'); return; }
-
-  // Construir líneas a partir de los items
-  const lineas = items.map(it => {
+  return (m.items || []).map(it => {
     let cantidad = parseFloat(it.cantidad) || 1;
     if (m.tipo === 'suelo') {
       const l = parseFloat(it.largo) || 0, a = parseFloat(it.ancho) || 0;
@@ -4703,31 +4852,291 @@ async function _medGenerarPresupuesto() {
       cantidad = parseFloat(it.metros) || 1;
     }
     return {
-      descripcion: pl.descripcionItem(it),
-      cantidad,
+      desc: pl.descripcionItem(it),
+      cant: cantidad,
       precio: 0,
       iva: 21,
+      dto: 0,
       observaciones: it.observaciones || '',
     };
   });
+}
 
-  // Crear presupuesto en BD (cabecera) — usa la misma tabla que el ERP escritorio
+// ── Generar presupuesto en el ERP ──────────────────────────────────
+async function _medGenerarPresupuesto() {
+  if (!_medActual) return;
+  const m = _medActual;
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  if (!(m.items || []).length) { toast('Añade al menos un item antes de generar', 'error'); return; }
+  if (!m.cliente_id) { toast('Asigna un cliente antes de generar el presupuesto', 'error'); return; }
+
+  const lineas = _medConstruirLineas(m);
+  const cliente = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+
+  // Generar número provisional (igual que en el ERP escritorio)
+  const ahora = new Date();
+  const yy = String(ahora.getFullYear()).slice(-2);
+  const numero = `PR${yy}-${String(Date.now()).slice(-5)}`;
+
   const obj = {
     empresa_id: EMPRESA.id,
-    cliente_id: m.cliente_id || null,
-    fecha: new Date().toISOString().split('T')[0],
-    estado: 'borrador',
-    titulo: `${pl.label} · ${(items.length)} item${items.length!==1?'s':''}`,
-    observaciones: (m.notas || '') + (m.notas ? '\n\n' : '') + 'Presupuesto generado desde medición #' + m.id,
+    numero,
+    cliente_id: m.cliente_id,
+    cliente_nombre: cliente?.nombre || '',
+    fecha: ahora.toISOString().split('T')[0],
+    titulo: `${pl.label} · ${lineas.length} item${lineas.length!==1?'s':''}`,
+    observaciones: (m.notas || '') + (m.notas ? '\n\n' : '') + 'Generado desde medición #' + m.id,
+    base_imponible: 0,
+    total_iva: 0,
+    total: 0,
     lineas,
+    estado: 'borrador',
   };
 
   const { data, error } = await sb.from('presupuestos').insert(obj).select().single();
   if (error) { toast('Error generando presupuesto: ' + error.message, 'error'); return; }
 
   await _medGuardar(m.id, { estado: 'presupuestado', resultado_tipo: 'presupuesto', resultado_id: data?.id || null });
-  toast('📑 Presupuesto creado en borrador ✓', 'success');
+  toast('📑 Presupuesto ' + numero + ' creado ✓', 'success');
   navigateTo('mediciones');
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR MEDICIÓN (PDF + share nativo + texto)
+// ═══════════════════════════════════════════════
+
+// Resumen en texto plano (para WhatsApp, email, copiar)
+function _medGenerarTextoPlano(m) {
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  const cli = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+  const fecha = m.fecha ? new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' }) : '';
+  let txt = `📐 MEDICIÓN — ${pl.label}\n`;
+  txt += `Fecha: ${fecha}\n`;
+  if (cli) {
+    txt += `Cliente: ${cli.nombre}\n`;
+    if (cli.dir) txt += `Dirección: ${cli.dir}${cli.muni ? ', ' + cli.muni : ''}${cli.cp ? ' ' + cli.cp : ''}\n`;
+    if (cli.tel || cli.movil) txt += `Tel: ${cli.tel || cli.movil}\n`;
+  }
+  txt += '\nITEMS:\n';
+  (m.items || []).forEach((it, i) => {
+    txt += `${i+1}. ${pl.descripcionItem(it)}\n`;
+    if (it.observaciones) txt += `   · ${it.observaciones}\n`;
+  });
+  if (m.notas) txt += `\nNotas:\n${m.notas}\n`;
+  return txt;
+}
+
+// Genera el PDF y devuelve el doc jsPDF + nombre de fichero
+function _medGenerarPdf(m) {
+  const jsPDFLib = window.jspdf?.jsPDF || window.jsPDF;
+  if (!jsPDFLib) { toast('jsPDF no disponible', 'error'); return null; }
+
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  const cli = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+  const items = m.items || [];
+  const fechaTxt = m.fecha
+    ? new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' })
+    : '';
+
+  const doc = new jsPDFLib({ format:'a4', unit:'mm' });
+  const pageW = 210;
+  const margin = 15;
+  let y = 0;
+
+  // Cabecera teal
+  const colorRgb = pl.color === '#0891B2' ? [8,145,178] : pl.color === '#7C3AED' ? [124,58,237] : pl.color === '#D97706' ? [217,119,6] : pl.color === '#059669' ? [5,150,105] : [100,116,139];
+  doc.setFillColor(...colorRgb);
+  doc.rect(0, 0, pageW, 26, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(16); doc.setFont('helvetica','bold');
+  doc.text(`${pl.label.toUpperCase()} - HOJA DE MEDICION`, pageW/2, 12, { align:'center' });
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text((EMPRESA?.nombre || 'instaloERP') + ' · ' + fechaTxt, pageW/2, 19, { align:'center' });
+  y = 36;
+
+  // Cliente
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text('CLIENTE', margin, y); y += 1.5;
+  doc.setDrawColor(...colorRgb); doc.setLineWidth(0.4);
+  doc.line(margin, y, pageW - margin, y); y += 6;
+  doc.setFontSize(11); doc.setFont('helvetica','bold');
+  doc.text(cli?.nombre || 'Sin cliente', margin, y); y += 5;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if (cli?.dir) { doc.text(`${cli.dir}${cli.muni ? ', ' + cli.muni : ''}${cli.cp ? ' ' + cli.cp : ''}`, margin, y); y += 4; }
+  if (cli?.tel || cli?.movil) { doc.text(`Tel: ${cli.tel || cli.movil}`, margin, y); y += 4; }
+  if (cli?.nif) { doc.text(`NIF: ${cli.nif}`, margin, y); y += 4; }
+  y += 4;
+
+  // Items con autoTable si está disponible
+  doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text(`ITEMS MEDIDOS (${items.length})`, margin, y); y += 1.5;
+  doc.setDrawColor(...colorRgb); doc.line(margin, y, pageW - margin, y); y += 4;
+
+  if (window.jspdf?.jsPDF?.API?.autoTable || doc.autoTable) {
+    const rows = items.map((it, i) => [
+      i + 1,
+      pl.descripcionItem(it),
+      it.observaciones || '',
+    ]);
+    doc.autoTable({
+      startY: y,
+      head: [['#', 'Descripción', 'Observaciones']],
+      body: rows,
+      theme: 'striped',
+      headStyles: { fillColor: colorRgb, textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, cellPadding: 2.5 },
+      columnStyles: { 0: { cellWidth: 10, halign:'center' }, 1: { cellWidth: 110 }, 2: { cellWidth: 'auto' } },
+      margin: { left: margin, right: margin },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  } else {
+    // Fallback sin autoTable: línea por línea
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    items.forEach((it, i) => {
+      const linea = `${i+1}. ${pl.descripcionItem(it)}`;
+      const wrap = doc.splitTextToSize(linea, pageW - margin*2);
+      wrap.forEach(l => { doc.text(l, margin, y); y += 4.5; });
+      if (it.observaciones) {
+        const obs = doc.splitTextToSize('   · ' + it.observaciones, pageW - margin*2);
+        doc.setTextColor(120,120,120);
+        obs.forEach(l => { doc.text(l, margin, y); y += 4; });
+        doc.setTextColor(0,0,0);
+      }
+      y += 1;
+      if (y > 270) { doc.addPage(); y = 20; }
+    });
+    y += 4;
+  }
+
+  // Notas
+  if (m.notas) {
+    if (y > 250) { doc.addPage(); y = 20; }
+    doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.text('NOTAS', margin, y); y += 1.5;
+    doc.setDrawColor(...colorRgb); doc.line(margin, y, pageW - margin, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    const notas = doc.splitTextToSize(m.notas, pageW - margin*2);
+    notas.forEach(l => { doc.text(l, margin, y); y += 4.5; });
+  }
+
+  // Pie
+  doc.setFontSize(8); doc.setTextColor(140,140,140);
+  doc.text(`Generado por ${EMPRESA?.nombre || 'instaloERP'} · ${new Date().toLocaleString('es-ES')}`, pageW/2, 290, { align:'center' });
+
+  const filename = `medicion-${pl.label.toLowerCase()}-${(cli?.nombre || 'sin-cliente').replace(/[^\w]/g,'_')}-${m.id}.pdf`;
+  return { doc, filename };
+}
+
+// Menú de exportación (modal bottom sheet)
+function _medAbrirMenuExportar() {
+  if (!_medActual) return;
+  const ov = document.createElement('div');
+  ov.id = '_medModalExportar';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  const tieneShare = !!(navigator.share);
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:14px 16px 24px">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="width:36px;height:4px;background:var(--gris-200);border-radius:2px;margin:0 auto 10px"></div>
+        <div style="font-weight:700;font-size:15px">📤 Compartir / Exportar</div>
+      </div>
+      ${tieneShare ? `
+      <button onclick="_medCompartirNativo()" style="width:100%;padding:14px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px">
+        <span style="font-size:24px">📱</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-weight:700;font-size:14px">Compartir...</div>
+          <div style="font-size:11px;color:var(--gris-500)">WhatsApp, Mail, AirDrop, Notas...</div>
+        </div>
+        <span style="color:var(--gris-400);font-size:18px">›</span>
+      </button>
+      ` : ''}
+      <button onclick="_medDescargarPDF()" style="width:100%;padding:14px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px">
+        <span style="font-size:24px">📄</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-weight:700;font-size:14px">Descargar PDF</div>
+          <div style="font-size:11px;color:var(--gris-500)">Hoja de medición lista para imprimir</div>
+        </div>
+        <span style="color:var(--gris-400);font-size:18px">›</span>
+      </button>
+      <button onclick="_medCopiarTexto()" style="width:100%;padding:14px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px">
+        <span style="font-size:24px">📋</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-weight:700;font-size:14px">Copiar resumen</div>
+          <div style="font-size:11px;color:var(--gris-500)">Texto plano al portapapeles</div>
+        </div>
+        <span style="color:var(--gris-400);font-size:18px">›</span>
+      </button>
+      <button onclick="_medEnviarEmail()" style="width:100%;padding:14px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:14px">
+        <span style="font-size:24px">📧</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-weight:700;font-size:14px">Enviar por email</div>
+          <div style="font-size:11px;color:var(--gris-500)">Abrir app de correo con el resumen</div>
+        </div>
+        <span style="color:var(--gris-400);font-size:18px">›</span>
+      </button>
+      <button onclick="document.getElementById('_medModalExportar').remove()" style="width:100%;padding:11px;background:#f5f7fa;border:none;border-radius:10px;font-weight:700;font-size:13px;color:var(--gris-600)">Cancelar</button>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+}
+
+function _medCerrarMenuExportar() {
+  document.getElementById('_medModalExportar')?.remove();
+}
+
+function _medDescargarPDF() {
+  if (!_medActual) return;
+  const r = _medGenerarPdf(_medActual);
+  if (!r) return;
+  r.doc.save(r.filename);
+  _medCerrarMenuExportar();
+  toast('📄 PDF descargado ✓', 'success');
+}
+
+async function _medCompartirNativo() {
+  if (!_medActual || !navigator.share) { toast('Compartir no disponible en este dispositivo', 'error'); return; }
+  const m = _medActual;
+  const r = _medGenerarPdf(m);
+  if (!r) return;
+  const blob = r.doc.output('blob');
+  const file = new File([blob], r.filename, { type: 'application/pdf' });
+  const texto = _medGenerarTextoPlano(m);
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: r.filename, text: texto });
+    } else {
+      await navigator.share({ title: r.filename, text: texto });
+    }
+    _medCerrarMenuExportar();
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message, 'error');
+  }
+}
+
+async function _medCopiarTexto() {
+  if (!_medActual) return;
+  const txt = _medGenerarTextoPlano(_medActual);
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('📋 Resumen copiado al portapapeles', 'success');
+    _medCerrarMenuExportar();
+  } catch (e) {
+    toast('No se pudo copiar: ' + e.message, 'error');
+  }
+}
+
+function _medEnviarEmail() {
+  if (!_medActual) return;
+  const m = _medActual;
+  const cli = (Array.isArray(clientes) ? clientes : []).find(c => c.id === m.cliente_id);
+  const pl = MED_PLANTILLAS[m.tipo] || MED_PLANTILLAS.otra;
+  const subject = encodeURIComponent(`Medición ${pl.label} - ${cli?.nombre || ''}`.trim());
+  const body = encodeURIComponent(_medGenerarTextoPlano(m));
+  const to = cli?.email ? encodeURIComponent(cli.email) : '';
+  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  _medCerrarMenuExportar();
 }
 
 // ═══════════════════════════════════════════════
@@ -5101,7 +5510,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 18
+        instaloERP v1.0 · build 20
       </div>
     </div>`;
 }
