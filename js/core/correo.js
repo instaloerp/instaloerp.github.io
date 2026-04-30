@@ -159,6 +159,43 @@ function detenerAutoSyncCorreo() {
 // ═══════════════════════════════════════════════
 //  SINCRONIZACIÓN IMAP
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  INDICADOR "última sync: hace X min"
+// ═══════════════════════════════════════════════
+let _ultimaSyncTs = null;
+let _ultimaSyncTimer = null;
+
+function _formatearHaceTiempo(ts) {
+  const ms = Date.now() - ts;
+  if (ms < 30000) return 'ahora mismo';
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'hace <1 min';
+  if (min === 1) return 'hace 1 min';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return h === 1 ? 'hace 1 h' : `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'hace 1 día' : `hace ${d} días`;
+}
+
+function _actualizarTextoUltimaSync() {
+  const row = document.getElementById('mailUltimaSyncRow');
+  const span = document.getElementById('mailUltimaSync');
+  if (!row || !span) return;
+  if (!_ultimaSyncTs) { row.style.display = 'none'; return; }
+  row.style.display = '';
+  span.textContent = _formatearHaceTiempo(_ultimaSyncTs);
+  span.title = 'Sincronizado: ' + new Date(_ultimaSyncTs).toLocaleString('es-ES');
+}
+
+function _marcarUltimaSync() {
+  _ultimaSyncTs = Date.now();
+  _actualizarTextoUltimaSync();
+  if (!_ultimaSyncTimer) {
+    _ultimaSyncTimer = setInterval(_actualizarTextoUltimaSync, 30000); // refresca cada 30s
+  }
+}
+
 async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
   if (_correoSyncing) return;
   if (!_correoCuentaActiva) {
@@ -258,6 +295,9 @@ async function sincronizarCorreo(silencioso = false, cargaCompleta = false) {
       const recibidos = correos.filter(c => c.tipo === 'recibido' && !c.leido);
       if (recibidos.length) evaluarAutomatizaciones(recibidos);
     }
+
+    // Marcar timestamp de la última sincronización exitosa
+    _marcarUltimaSync();
 
   } catch(e) {
     if (!silencioso) toast('⚠️ Error de sincronización: ' + (e.message || 'Error desconocido'), 'error');
