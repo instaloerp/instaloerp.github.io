@@ -177,14 +177,16 @@ async function cargarAutomatizaciones() {
     .order('created_at', { ascending: false });
   if (error) { console.error('Error cargando automatizaciones:', error); return; }
   _automatizaciones = data || [];
-  // Si la pestaña Correo está visible, refrescar la lista para mostrar/ocultar
-  // la cinta CTA "+ Crear automatización" según el conjunto de reglas actuales.
-  try {
-    const pageCorreo = document.getElementById('page-correo');
-    if (pageCorreo && pageCorreo.style.display !== 'none' && typeof renderListaCorreos === 'function' && typeof correosFiltrados !== 'undefined') {
-      renderListaCorreos(correosFiltrados);
-    }
-  } catch(_) {}
+  // Refrescar la lista de correos (cinta CTA) DIFERIDO para no bloquear el
+  // cierre del modal ni el typing si esto se llama tras guardar una regla.
+  setTimeout(() => {
+    try {
+      const pageCorreo = document.getElementById('page-correo');
+      if (pageCorreo && pageCorreo.style.display !== 'none' && typeof renderListaCorreos === 'function' && typeof correosFiltrados !== 'undefined') {
+        renderListaCorreos(correosFiltrados);
+      }
+    } catch(_) {}
+  }, 0);
 }
 
 function renderAutomatizaciones() {
@@ -425,20 +427,38 @@ async function guardarAutomatizacion() {
     modo: v('auto_modo'),
   };
 
+  const esNueva = !_autoEditId;
+  let nuevaReglaId = null;
+
   if (_autoEditId) {
     const { error } = await sb.from('automatizaciones').update(obj).eq('id', _autoEditId);
     if (error) { toast('Error: ' + error.message, 'error'); return; }
     toast('Automatización actualizada ✓', 'success');
   } else {
     obj.creado_por = CU.id;
-    const { error } = await sb.from('automatizaciones').insert(obj);
+    const { data, error } = await sb.from('automatizaciones').insert(obj).select().single();
     if (error) { toast('Error: ' + error.message, 'error'); return; }
+    nuevaReglaId = data?.id || null;
     toast('Automatización creada ✓', 'success');
   }
 
   closeModal('mAutomatizacion');
   await cargarAutomatizaciones();
   renderAutomatizaciones();
+
+  // Si es una regla NUEVA, ofrecer aplicarla retroactivamente a correos existentes
+  if (esNueva && nuevaReglaId) {
+    setTimeout(async () => {
+      const aplicar = await confirmModal({
+        titulo: '⚡ Aplicar a correos existentes',
+        mensaje: `Acabas de crear la regla <b>${nombre}</b>.<br><br>¿Quieres aplicarla ahora a los correos que ya están en el sistema? Podrás elegir el rango de fechas en la siguiente pantalla.`,
+        btnOk: '🔄 Sí, aplicar ahora',
+        btnCancel: 'No, sólo a partir de ahora',
+        colorOk: '#059669'
+      });
+      if (aplicar) lanzarRetroactiva(nuevaReglaId);
+    }, 200);
+  }
 }
 
 async function toggleAutomatizacion(id) {
