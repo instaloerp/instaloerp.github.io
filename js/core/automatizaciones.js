@@ -359,6 +359,24 @@ async function aplicarReglaDesdeCorreo() {
 // ═══════════════════════════════════════════════
 let _autoEditId = null;
 
+// Navega al panel de Automatizaciones (Configuración → Automatizaciones)
+// para ver todas las reglas existentes, editarlas o forzar ejecución retroactiva.
+function irAPanelAutomatizaciones() {
+  try { closeModal('mAutomatizacion'); } catch(_) {}
+  setTimeout(() => {
+    if (typeof goPage === 'function') goPage('configuracion');
+    // Activar la tab "Automatizaciones" dentro del panel de configuración
+    setTimeout(() => {
+      let btn = null;
+      document.querySelectorAll('.cfg-menu-item').forEach(it => {
+        const oc = it.getAttribute('onclick') || '';
+        if (oc.includes("'automatizaciones'")) btn = it;
+      });
+      if (btn && typeof cfgTab === 'function') cfgTab('automatizaciones', btn);
+    }, 80);
+  }, 80);
+}
+
 function nuevaAutomatizacion() {
   _autoEditId = null;
   document.getElementById('mAutoTit').textContent = 'Nueva automatización';
