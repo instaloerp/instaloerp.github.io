@@ -70,12 +70,10 @@ const FLYOUT_SECTIONS = {
     { id:'calendario-laboral', ico:'📅', name:'Calendario laboral' }
   ]},
   config: { label: 'Configuración', items: [
-    { id:'_empresas', ico:'🏢', name:'Empresas', action:"openModal('mEmpresas')" },
-    { id:'usuarios', ico:'👷', name:'Usuarios', tag:'beta' },
-    { id:'etiquetas-qr', ico:'🏷️', name:'Etiquetas QR', tag:'pronto' },
-    { id:'audit-log', ico:'📜', name:'Registro actividad', tag:'beta' },
-    { id:'papelera', ico:'🗑️', name:'Papelera', tag:'beta' },
-    { id:'laboratorio', ico:'🧪', name:'Laboratorio', tag:'dev' },
+    // Empresas, Usuarios, Etiquetas QR, Registro actividad, Papelera y
+    // Laboratorio se movieron DENTRO de la pantalla de Configuración como
+    // cards reorganizables (Tarea #8). El flyout solo deja la entrada
+    // principal a Configuración.
     { id:'configuracion', ico:'⚙️', name:'Configuración', tag:'beta' }
   ]}
 };

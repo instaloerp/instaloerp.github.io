@@ -286,7 +286,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 187</span>
+      <span id="erpBuildVersion">v1.1 · build 188</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2069,12 +2069,22 @@ try {
         <!-- Grid de cards (vista por defecto al entrar en una categoría) -->
         <div id="cfgCardsView">
           <div class="cfg-cards-grid" data-cat="empresa">
-            <button class="cfg-card" data-cfg-keywords="empresa datos fiscales" onclick="cfgTab('empresa',null)">
+            <button class="cfg-card" data-cfg-id="empresa" data-cfg-keywords="empresa datos fiscales" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🏢</div>
               <div class="cfg-card-title">Empresa</div>
               <div class="cfg-card-desc">Datos fiscales y de contacto</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="plan modulos suscripcion" onclick="cfgTab('plan',null)">
+            <button class="cfg-card" data-cfg-id="_empresas" data-cfg-action="openModal('mEmpresas')" data-cfg-keywords="empresas multi gestion" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">🏬</div>
+              <div class="cfg-card-title">Empresas <span class="cfg-card-tag tag-multi">multi</span></div>
+              <div class="cfg-card-desc">Gestionar varias empresas</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="usuarios" data-cfg-action="goPage('usuarios')" data-cfg-keywords="usuarios equipo permisos" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">👷</div>
+              <div class="cfg-card-title">Usuarios <span class="cfg-card-tag tag-beta">beta</span></div>
+              <div class="cfg-card-desc">Equipo y permisos</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="plan" data-cfg-keywords="plan modulos suscripcion" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">👑</div>
               <div class="cfg-card-title">Plan y módulos</div>
               <div class="cfg-card-desc">Suscripción y add-ons</div>
@@ -2082,25 +2092,30 @@ try {
           </div>
 
           <div class="cfg-cards-grid" data-cat="almacen" style="display:none">
-            <button class="cfg-card" data-cfg-keywords="familias articulos productos" onclick="cfgTab('familias',null)">
+            <button class="cfg-card" data-cfg-id="familias" data-cfg-keywords="familias articulos productos" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🗂️</div>
               <div class="cfg-card-title">Familias artículos</div>
               <div class="cfg-card-desc">Categorías de productos</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="unidades medida" onclick="cfgTab('unidades',null)">
+            <button class="cfg-card" data-cfg-id="unidades" data-cfg-keywords="unidades medida" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">📏</div>
               <div class="cfg-card-title">Unidades de medida</div>
               <div class="cfg-card-desc">m, kg, h, ud…</div>
             </button>
+            <button class="cfg-card" data-cfg-id="etiquetas-qr" data-cfg-action="goPage('etiquetas-qr')" data-cfg-keywords="etiquetas qr codigos" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">🏷️</div>
+              <div class="cfg-card-title">Etiquetas QR <span class="cfg-card-tag tag-pronto">pronto</span></div>
+              <div class="cfg-card-desc">Códigos QR de productos</div>
+            </button>
           </div>
 
           <div class="cfg-cards-grid" data-cat="partes" style="display:none">
-            <button class="cfg-card" data-cfg-keywords="costes tarifas mano obra" onclick="cfgTab('partes',null)">
+            <button class="cfg-card" data-cfg-id="partes" data-cfg-keywords="costes tarifas mano obra" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">💰</div>
               <div class="cfg-card-title">Costes y tarifas</div>
               <div class="cfg-card-desc">Precio hora, kilometraje</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="formularios plantillas rite" onclick="cfgTab('formularios',null)">
+            <button class="cfg-card" data-cfg-id="formularios" data-cfg-keywords="formularios plantillas rite" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">📋</div>
               <div class="cfg-card-title">Formularios</div>
               <div class="cfg-card-desc">Plantillas RITE y otras</div>
@@ -2108,32 +2123,32 @@ try {
           </div>
 
           <div class="cfg-cards-grid" data-cat="facturacion" style="display:none">
-            <button class="cfg-card" data-cfg-keywords="series numeracion facturas" onclick="cfgTab('series',null)">
+            <button class="cfg-card" data-cfg-id="series" data-cfg-keywords="series numeracion facturas" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🔢</div>
               <div class="cfg-card-title">Series de numeración</div>
               <div class="cfg-card-desc">Facturas, presupuestos</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="iva tipos impuestos" onclick="cfgTab('iva',null)">
+            <button class="cfg-card" data-cfg-id="iva" data-cfg-keywords="iva tipos impuestos" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">💶</div>
               <div class="cfg-card-title">Tipos de IVA</div>
               <div class="cfg-card-desc">21%, 10%, 4%, exento</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="formas pago cobro" onclick="cfgTab('formas-pago',null)">
+            <button class="cfg-card" data-cfg-id="formas-pago" data-cfg-keywords="formas pago cobro" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">💳</div>
               <div class="cfg-card-title">Formas de pago</div>
               <div class="cfg-card-desc">Transferencia, recibo…</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="bancos cuentas iban" onclick="cfgTab('bancos',null)">
+            <button class="cfg-card" data-cfg-id="bancos" data-cfg-keywords="bancos cuentas iban" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🏦</div>
               <div class="cfg-card-title">Cuentas bancarias</div>
               <div class="cfg-card-desc">IBAN, banco preferido</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="facturacion electronica verifactu" onclick="cfgTab('facturacion',null)">
+            <button class="cfg-card" data-cfg-id="facturacion" data-cfg-keywords="facturacion electronica verifactu" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">📜</div>
               <div class="cfg-card-title">Facturación electrónica</div>
               <div class="cfg-card-desc">Verifactu, QR</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="certificado digital firma fnmt" onclick="cfgTab('certificado',null)">
+            <button class="cfg-card" data-cfg-id="certificado" data-cfg-keywords="certificado digital firma fnmt" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🔐</div>
               <div class="cfg-card-title">Certificado digital</div>
               <div class="cfg-card-desc">FNMT, firma de PDFs</div>
@@ -2141,17 +2156,17 @@ try {
           </div>
 
           <div class="cfg-cards-grid" data-cat="comunicaciones" style="display:none">
-            <button class="cfg-card" data-cfg-keywords="correo email smtp" onclick="cfgTab('correo',null)">
+            <button class="cfg-card" data-cfg-id="correo" data-cfg-keywords="correo email smtp" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">✉️</div>
               <div class="cfg-card-title">Correo electrónico</div>
               <div class="cfg-card-desc">Cuentas SMTP de envío</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="automatizaciones reglas triggers" onclick="cfgTab('automatizaciones',null)">
+            <button class="cfg-card" data-cfg-id="automatizaciones" data-cfg-keywords="automatizaciones reglas triggers" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">⚡</div>
               <div class="cfg-card-title">Automatizaciones</div>
               <div class="cfg-card-desc">Reglas y disparadores</div>
             </button>
-            <button class="cfg-card" data-cfg-keywords="ia inteligencia artificial chat" onclick="cfgTab('ia',null)">
+            <button class="cfg-card" data-cfg-id="ia" data-cfg-keywords="ia inteligencia artificial chat" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🤖</div>
               <div class="cfg-card-title">Inteligencia Artificial</div>
               <div class="cfg-card-desc">Asistente IA</div>
@@ -2159,7 +2174,22 @@ try {
           </div>
 
           <div class="cfg-cards-grid" data-cat="sistema" style="display:none">
-            <button class="cfg-card" data-cfg-keywords="sistema avanzado debug" onclick="cfgTab('sistema',null)">
+            <button class="cfg-card" data-cfg-id="audit-log" data-cfg-action="goPage('audit-log')" data-cfg-keywords="registro actividad audit log" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">📜</div>
+              <div class="cfg-card-title">Registro actividad <span class="cfg-card-tag tag-beta">beta</span></div>
+              <div class="cfg-card-desc">Quién hizo qué y cuándo</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="papelera" data-cfg-action="goPage('papelera')" data-cfg-keywords="papelera documentos eliminados" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">🗑️</div>
+              <div class="cfg-card-title">Papelera <span class="cfg-card-tag tag-beta">beta</span></div>
+              <div class="cfg-card-desc">Documentos eliminados</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="laboratorio" data-cfg-action="goPage('laboratorio')" data-cfg-keywords="laboratorio dev pruebas" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">🧪</div>
+              <div class="cfg-card-title">Laboratorio <span class="cfg-card-tag tag-dev">dev</span></div>
+              <div class="cfg-card-desc">Funcionalidades en desarrollo</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="sistema" data-cfg-keywords="sistema avanzado debug" onclick="cfgCardClick(this)">
               <div class="cfg-card-ico">🔧</div>
               <div class="cfg-card-title">Sistema</div>
               <div class="cfg-card-desc">Verificación e información</div>

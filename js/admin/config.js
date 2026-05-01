@@ -236,6 +236,86 @@ async function reloadCfg(tipo) {
   renderConfigLists(); populateSelects();
 }
 
+// Tarea #8 — Click en una card de Configuración. Si tiene data-cfg-action
+// (navegación a página externa o modal) lo ejecuta. Si no, abre el panel
+// interno de Configuración (cfgTab).
+function cfgCardClick(cardEl) {
+  const action = cardEl.dataset.cfgAction;
+  const id = cardEl.dataset.cfgId;
+  if (action) {
+    try { eval(action); } catch (e) { console.warn('[cfgCardClick]', e); }
+    return;
+  }
+  if (id) cfgTab(id, null);
+}
+
+// Persistencia drag&drop: guarda y carga en localStorage el orden y categoría
+// de cada card por id, scoped a la empresa actual.
+function _cfgDDStorageKey() {
+  const eid = (typeof EMPRESA !== 'undefined' && EMPRESA?.id) ? EMPRESA.id : 'global';
+  return 'cfgCardsLayout_' + eid;
+}
+function cfgGuardarLayout() {
+  const layout = {};
+  document.querySelectorAll('.cfg-cards-grid').forEach(grid => {
+    const cat = grid.dataset.cat;
+    const ids = Array.from(grid.querySelectorAll('.cfg-card')).map(c => c.dataset.cfgId).filter(Boolean);
+    layout[cat] = ids;
+  });
+  try { localStorage.setItem(_cfgDDStorageKey(), JSON.stringify(layout)); } catch(e) {}
+}
+function cfgRestaurarLayout() {
+  let layout;
+  try { layout = JSON.parse(localStorage.getItem(_cfgDDStorageKey()) || 'null'); } catch(e) { return; }
+  if (!layout) return;
+  // Mover cards a su categoría guardada y reordenar
+  const allCards = {};
+  document.querySelectorAll('.cfg-card').forEach(c => { if (c.dataset.cfgId) allCards[c.dataset.cfgId] = c; });
+  Object.keys(layout).forEach(cat => {
+    const grid = document.querySelector('.cfg-cards-grid[data-cat="'+cat+'"]');
+    if (!grid) return;
+    layout[cat].forEach(id => {
+      const card = allCards[id];
+      if (card && card.parentElement !== grid) grid.appendChild(card);
+      else if (card) grid.appendChild(card); // reorden
+    });
+  });
+}
+
+// Inicializa drag&drop al cargar la pantalla de Configuración por primera vez.
+// Se llama también desde cfgCat (idempotente — ya hay flag _sortableInit).
+if (typeof window !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      if (document.querySelector('.cfg-cards-grid')) {
+        try { cfgRestaurarLayout(); cfgInitDragDrop(); } catch(e) { console.warn('[cfgInit]', e); }
+      }
+    }, 600);
+  });
+}
+
+// Inicializa SortableJS sobre cada grid permitiendo arrastrar entre todos.
+function cfgInitDragDrop() {
+  if (typeof Sortable === 'undefined') return;
+  const grids = document.querySelectorAll('.cfg-cards-grid');
+  grids.forEach(grid => {
+    if (grid._sortableInit) return;
+    grid._sortableInit = true;
+    Sortable.create(grid, {
+      group: 'cfg-cards',          // mismo group → permite mover entre grids
+      animation: 160,
+      delay: 180,                  // long-press para no interferir con click normal
+      delayOnTouchOnly: true,
+      touchStartThreshold: 5,
+      onStart: () => grids.forEach(g => g.classList.add('cfg-dragging')),
+      onEnd: () => {
+        grids.forEach(g => g.classList.remove('cfg-dragging'));
+        cfgGuardarLayout();
+      }
+    });
+  });
+}
+
 // Tarea #8 v2 — Cambiar de pestaña horizontal: muestra el grid de cards de la
 // categoría seleccionada y vuelve a la vista de cards si estaba en un panel.
 function cfgCat(cat, el) {
@@ -251,6 +331,9 @@ function cfgCat(cat, el) {
   // Limpiar buscador
   const s = document.getElementById('cfgSearch');
   if (s) { s.value = ''; cfgFiltrarCards(''); }
+  // Asegurar drag&drop inicializado y layout restaurado (idempotente)
+  cfgRestaurarLayout();
+  cfgInitDragDrop();
 }
 
 // Volver a la vista de grid de cards desde un panel concreto.
