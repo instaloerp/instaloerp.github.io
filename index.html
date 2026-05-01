@@ -286,7 +286,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 185</span>
+      <span id="erpBuildVersion">v1.1 · build 186</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2057,22 +2057,34 @@ try {
       <div class="page" id="page-configuracion">
         <div class="cfg-grid">
           <div class="cfg-menu">
-            <button class="cfg-menu-item active" onclick="cfgTab('empresa',this)"><span class="ico">🏢</span> Empresa</button>
-            <button class="cfg-menu-item" onclick="cfgTab('series',this)"><span class="ico">🔢</span> Series numeración</button>
-            <button class="cfg-menu-item" onclick="cfgTab('iva',this)"><span class="ico">💶</span> Tipos de IVA</button>
-            <button class="cfg-menu-item" onclick="cfgTab('unidades',this)"><span class="ico">📏</span> Unidades medida</button>
-            <button class="cfg-menu-item" onclick="cfgTab('formas-pago',this)"><span class="ico">💳</span> Formas de pago</button>
-            <button class="cfg-menu-item" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
-            <button class="cfg-menu-item" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
-            <button class="cfg-menu-item" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
-            <button class="cfg-menu-item" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
-            <button class="cfg-menu-item" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
-            <button class="cfg-menu-item" onclick="cfgTab('automatizaciones',this)"><span class="ico">⚡</span> Automatizaciones</button>
-            <button class="cfg-menu-item" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
-            <button class="cfg-menu-item" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
-            <button class="cfg-menu-item" onclick="cfgTab('formularios',this)"><span class="ico">📋</span> Formularios</button>
-            <button class="cfg-menu-item" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
-            <button class="cfg-menu-item" onclick="cfgTab('plan',this)"><span class="ico">👑</span> Plan y módulos</button>
+            <input type="search" id="cfgSearch" placeholder="🔍 Buscar configuración..." style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:12.5px;margin-bottom:10px;box-sizing:border-box" oninput="cfgFiltrarMenu(this.value)">
+            <div class="cfg-menu-group-label">Mi empresa</div>
+            <button class="cfg-menu-item active" data-cfg-keywords="empresa datos fiscales" onclick="cfgTab('empresa',this)"><span class="ico">🏢</span> Empresa</button>
+            <button class="cfg-menu-item" data-cfg-keywords="plan modulos suscripcion" onclick="cfgTab('plan',this)"><span class="ico">👑</span> Plan y módulos</button>
+
+            <div class="cfg-menu-group-label">Almacén</div>
+            <button class="cfg-menu-item" data-cfg-keywords="familias articulos productos" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
+            <button class="cfg-menu-item" data-cfg-keywords="unidades medida" onclick="cfgTab('unidades',this)"><span class="ico">📏</span> Unidades de medida</button>
+
+            <div class="cfg-menu-group-label">Partes y obras</div>
+            <button class="cfg-menu-item" data-cfg-keywords="costes tarifas mano obra" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
+            <button class="cfg-menu-item" data-cfg-keywords="formularios plantillas rite" onclick="cfgTab('formularios',this)"><span class="ico">📋</span> Formularios</button>
+
+            <div class="cfg-menu-group-label">Facturación y contabilidad</div>
+            <button class="cfg-menu-item" data-cfg-keywords="series numeracion facturas" onclick="cfgTab('series',this)"><span class="ico">🔢</span> Series numeración</button>
+            <button class="cfg-menu-item" data-cfg-keywords="iva tipos impuestos" onclick="cfgTab('iva',this)"><span class="ico">💶</span> Tipos de IVA</button>
+            <button class="cfg-menu-item" data-cfg-keywords="formas pago cobro" onclick="cfgTab('formas-pago',this)"><span class="ico">💳</span> Formas de pago</button>
+            <button class="cfg-menu-item" data-cfg-keywords="bancos cuentas iban" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
+            <button class="cfg-menu-item" data-cfg-keywords="facturacion electronica verifactu" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
+            <button class="cfg-menu-item" data-cfg-keywords="certificado digital firma fnmt" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
+
+            <div class="cfg-menu-group-label">Comunicaciones</div>
+            <button class="cfg-menu-item" data-cfg-keywords="correo email smtp" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
+            <button class="cfg-menu-item" data-cfg-keywords="automatizaciones reglas triggers" onclick="cfgTab('automatizaciones',this)"><span class="ico">⚡</span> Automatizaciones</button>
+            <button class="cfg-menu-item" data-cfg-keywords="ia inteligencia artificial chat" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
+
+            <div class="cfg-menu-group-label">Sistema</div>
+            <button class="cfg-menu-item" data-cfg-keywords="sistema avanzado debug" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
           </div>
           <div>
             <!-- Empresa -->

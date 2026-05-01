@@ -236,6 +236,29 @@ async function reloadCfg(tipo) {
   renderConfigLists(); populateSelects();
 }
 
+// Tarea #8 — filtra el menú lateral de Configuración por texto. Esconde los
+// items y los grupos cuya cabecera quede sin items visibles.
+function cfgFiltrarMenu(q){
+  const txt = (q||'').toLowerCase().trim();
+  const items = document.querySelectorAll('.cfg-menu-item');
+  items.forEach(it => {
+    const label = (it.textContent || '').toLowerCase();
+    const kw = (it.dataset.cfgKeywords || '').toLowerCase();
+    const match = !txt || label.includes(txt) || kw.includes(txt);
+    it.style.display = match ? '' : 'none';
+  });
+  // Esconde headers de grupo que quedan sin items visibles después
+  document.querySelectorAll('.cfg-menu-group-label').forEach(lbl => {
+    let next = lbl.nextElementSibling;
+    let hayVisible = false;
+    while (next && !next.classList.contains('cfg-menu-group-label')) {
+      if (next.classList.contains('cfg-menu-item') && next.style.display !== 'none') { hayVisible = true; break; }
+      next = next.nextElementSibling;
+    }
+    lbl.classList.toggle('hidden', !hayVisible);
+  });
+}
+
 function cfgTab(id,el){
   document.querySelectorAll('.cfg-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.cfg-menu-item').forEach(b=>b.classList.remove('active'));

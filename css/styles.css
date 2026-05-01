@@ -313,12 +313,13 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 
 /* ══ CONFIG PAGE ══ */
 .cfg-grid{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
-.cfg-menu{background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);overflow:hidden;box-shadow:var(--sh)}
-.cfg-menu-item{display:flex;align-items:center;gap:9px;padding:11px 14px;font-size:13px;font-weight:500;color:var(--gris-600);cursor:pointer;border:none;background:none;width:100%;text-align:left;border-bottom:1px solid var(--gris-100);transition:background .12s,color .12s}
-.cfg-menu-item:last-child{border-bottom:none}
+.cfg-menu{background:#fff;border-radius:var(--r);border:1px solid var(--gris-200);box-shadow:var(--sh);padding:10px}
+.cfg-menu-item{display:flex;align-items:center;gap:9px;padding:9px 12px;font-size:13px;font-weight:500;color:var(--gris-600);cursor:pointer;border:none;background:none;width:100%;text-align:left;border-radius:7px;transition:background .12s,color .12s}
 .cfg-menu-item:hover{background:var(--gris-50);color:var(--gris-800)}
 .cfg-menu-item.active{background:var(--azul-light);color:var(--azul);font-weight:700}
 .cfg-menu-item .ico{font-size:15px;width:18px;text-align:center}
+.cfg-menu-group-label{font-size:10.5px;font-weight:600;color:var(--gris-400);padding:10px 12px 4px;text-transform:uppercase;letter-spacing:.6px}
+.cfg-menu-group-label.hidden{display:none}
 .cfg-panel{display:none}.cfg-panel.active{display:block}
 
 /* Config table */
