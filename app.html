@@ -294,7 +294,11 @@ input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
 
 /* ═══════ FAB (Floating Action Button) ═══════ */
-.fab-container{position:fixed;bottom:calc(64px + var(--safe-bottom));right:16px;z-index:90;display:flex;flex-direction:column-reverse;align-items:flex-end;gap:10px}
+.fab-container{position:fixed;bottom:calc(64px + var(--safe-bottom));right:16px;z-index:90;display:flex;flex-direction:column-reverse;align-items:flex-end;gap:10px;pointer-events:none}
+/* El fab-main siempre debe recibir clicks; los hijos del menú solo cuando está abierto. */
+.fab-container > *{pointer-events:auto}
+.fab-container .fab-menu:not(.open){pointer-events:none}
+.fab-container .fab-menu:not(.open) *{pointer-events:none}
 .fab-main{width:56px;height:56px;border-radius:50%;background:var(--azul);color:#fff;border:none;font-size:26px;box-shadow:0 4px 16px rgba(27,79,216,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .3s,background .3s;z-index:2}
 .fab-main.open{transform:rotate(45deg);background:var(--gris-700)}
 .fab-menu{display:flex;flex-direction:column-reverse;gap:8px;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .25s,transform .25s}
@@ -3454,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 31
+      instaloERP v1.0 · build 32
     </div>
   `;
 }
@@ -4298,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 31
+      instaloERP v1.0 · build 32
     </div>
   `;
 }
@@ -5703,7 +5707,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 31
+        instaloERP v1.0 · build 32
       </div>
     </div>`;
 }
