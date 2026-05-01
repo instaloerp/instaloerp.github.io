@@ -721,12 +721,9 @@ function initFirmaCanvas() {
   pt_canvas.width = 300;
   pt_canvas.height = 120;
 
-  // Fondo blanco
-  pt_ctx.fillStyle = '#FFFFFF';
-  pt_ctx.fillRect(0, 0, pt_canvas.width, pt_canvas.height);
-  pt_ctx.strokeStyle = '#E5E7EB';
-  pt_ctx.lineWidth = 1;
-  pt_ctx.strokeRect(0, 0, pt_canvas.width, pt_canvas.height);
+  // NO pintamos fondo blanco en el canvas — queremos PNG transparente para
+  // que la firma se vea sobre cualquier color de bloque (verde, gris…).
+  // El fondo blanco visible mientras dibujas viene del CSS (#pt_canvas{background:#fff}).
 
   pt_canvas.onmousedown = (e) => {
     pt_isDrawing = true;
@@ -777,11 +774,9 @@ function initFirmaCanvas() {
 
 function limpiarFirma() {
   if (pt_canvas) {
-    pt_ctx.fillStyle = '#FFFFFF';
-    pt_ctx.fillRect(0, 0, pt_canvas.width, pt_canvas.height);
-    pt_ctx.strokeStyle = '#E5E7EB';
-    pt_ctx.lineWidth = 1;
-    pt_ctx.strokeRect(0, 0, pt_canvas.width, pt_canvas.height);
+    // clearRect deja el canvas TRANSPARENTE (no blanco). El fondo blanco
+    // visible al usuario lo da el CSS (#pt_canvas{background:#fff}).
+    pt_ctx.clearRect(0, 0, pt_canvas.width, pt_canvas.height);
   }
   const preview = document.getElementById('pt_firma_preview');
   if (preview) {
@@ -2293,7 +2288,7 @@ async function _ptSeccionFirmas(parte) {
         <b style="color:#1e293b">${_ptEsc(empresa.nombre || '')}</b>
         ${parte.usuario_nombre ? '<br>Operario: '+_ptEsc(parte.usuario_nombre) : ''}
       </div>
-      ${firmaOp ? `<img src="${firmaOp}" style="max-width:100%;width:auto;height:auto;max-height:80px;margin:6px auto 0;display:block">` : ''}
+      ${firmaOp ? `<img src="${firmaOp}" style="max-width:100%;width:auto;height:auto;max-height:80px;margin:6px auto 0;display:block;mix-blend-mode:multiply">` : ''}
       ${selloEmpresa}
     </div>`;
 
@@ -2306,7 +2301,7 @@ async function _ptSeccionFirmas(parte) {
         ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
         ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
       </div>
-      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:90px;margin:8px auto 0;display:block">
+      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:90px;margin:8px auto 0;display:block;mix-blend-mode:multiply">
     </div>` : `
     <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
       <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Aceptación del cliente</div>
