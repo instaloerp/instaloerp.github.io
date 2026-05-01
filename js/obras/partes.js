@@ -2092,7 +2092,14 @@ async function _ptSeccionFormulario(parte) {
       if (!cod) return true;
       return valoresIn.includes(respuestas[cod]);
     };
-    const visibles = (campos||[]).filter(evalMostrar);
+    // Campos que ya se reflejan en el TÍTULO del informe (banda azul) y por
+    // tanto NO repetimos en el cuerpo. Reduce ruido visual y elimina la
+    // primera tabla redundante con cabecera OPERACIÓN/RESULTADO/OBSERVACIONES
+    // que solo contenía esa única fila.
+    const ocultosEnPdf = new Set(['tipo_mantenimiento']);
+    const visibles = (campos||[])
+      .filter(evalMostrar)
+      .filter(c => !ocultosEnPdf.has(c.codigo));
 
     const keyOf = (c) => c.codigo || ('id_'+c.id);
     const esVacio = (v) => (v == null || v === '' || (Array.isArray(v) && v.length === 0));
