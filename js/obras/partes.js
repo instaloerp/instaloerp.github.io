@@ -2293,18 +2293,19 @@ async function _ptSeccionFirmas(parte) {
     </div>`;
 
   // Bloque cliente: estado "firmado" (verde) si hay firma, "pendiente" si no.
-  // Layout horizontal: texto a la izquierda (~38%), firma a la derecha grande.
+  // Layout horizontal: texto a la izquierda (~38%), firma a la derecha llenando
+  // toda la altura disponible (flex column + flex:1 en el content).
   const bloqueCliente = hayCli ? `
-    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:8px 10px">
+    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column">
       <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">✓ Aceptado por el cliente</div>
-      <div style="display:flex;gap:10px;align-items:center">
+      <div style="display:flex;gap:10px;align-items:stretch;flex:1">
         <div style="flex:0 0 38%;font-size:9.5px;color:#475569;line-height:1.4">
           <b style="color:#1e293b">${_ptEsc(parte.cliente_nombre_firma || '—')}</b>
           ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
           ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
         </div>
-        <div style="flex:1;display:flex;justify-content:center;align-items:center">
-          <img src="${firmaCli}" style="max-width:100%;max-height:55px;width:auto;height:auto;display:block;mix-blend-mode:multiply">
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;min-height:60px">
+          <img src="${firmaCli}" style="max-width:100%;max-height:100%;width:auto;height:auto;display:block;mix-blend-mode:multiply;object-fit:contain">
         </div>
       </div>
     </div>` : `
