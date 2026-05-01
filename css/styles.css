@@ -334,7 +334,10 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 /* Estilo coherente para páginas externas mostradas con la barra de Configuración inyectada */
 .page.cfg-external-wrapped{padding:0!important;background:transparent}
 .page.cfg-external-wrapped > .cfg-tabs-bar.cfg-tabs-bar-injected{margin-bottom:16px}
-.cfg-external-card{padding:18px 20px;background:#fff;border:1px solid var(--gris-200);border-radius:var(--r);box-shadow:var(--sh)}
+.cfg-external-card{background:#fff;border:1px solid var(--gris-200);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.cfg-external-card > .card-h{padding:14px 20px;border-bottom:1px solid var(--gris-100)}
+.cfg-external-card > .card-h h3{margin:0;font-size:14.5px;font-weight:700;color:var(--gris-700)}
+.cfg-external-body{padding:18px 20px}
 .cfg-tab{padding:9px 14px;border:none;background:transparent;color:var(--gris-600);font-size:13px;font-weight:500;cursor:pointer;border-radius:7px;white-space:nowrap;transition:background .12s,color .12s}
 .cfg-tab:hover{background:var(--gris-50);color:var(--gris-800)}
 .cfg-tab.active{background:var(--azul-light);color:var(--azul);font-weight:700}

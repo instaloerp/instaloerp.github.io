@@ -259,9 +259,17 @@ function _cfgDesenvolverPagina(page) {
   page.classList.remove('cfg-external-wrapped');
   const bar = page.querySelector('.cfg-tabs-bar.cfg-tabs-bar-injected');
   if (bar) bar.remove();
+  const volverBtn = page.querySelector('.cfg-external-volver');
+  if (volverBtn) volverBtn.remove();
   const card = page.querySelector('.cfg-external-card');
   if (card) {
-    while (card.firstChild) page.appendChild(card.firstChild);
+    // Saca el contenido del body de la card y deshace .card-h
+    const body = card.querySelector('.cfg-external-body');
+    if (body) {
+      while (body.firstChild) page.appendChild(body.firstChild);
+    } else {
+      while (card.firstChild) page.appendChild(card.firstChild);
+    }
     card.remove();
   }
 }
@@ -333,16 +341,41 @@ function _cfgInyectarBotonVolver() {
   bar.innerHTML = html;
   activePage.insertBefore(bar, activePage.firstChild);
 
-  // Envolver TODO el contenido restante en una card visual igual a las del
-  // panel interno de Configuración (Datos de la empresa, IVA, etc.).
+  // Botón "← Volver" interno bajo la barra (igual al de los paneles internos).
+  const volverInterno = document.createElement('button');
+  volverInterno.className = 'btn btn-ghost btn-sm cfg-external-volver';
+  volverInterno.textContent = '← Volver';
+  volverInterno.style.margin = '0 0 12px 4px';
+  volverInterno.onclick = () => { window._cfgDesdeConfig = false; cfgSalir(); };
+  activePage.appendChild(volverInterno);
+
+  // Mapa de títulos por página (mostrados en el header de la card)
+  const titulosPagina = {
+    'page-usuarios':     '👷 Usuarios',
+    'page-etiquetas-qr': '🏷️ Etiquetas QR',
+    'page-audit-log':    '📜 Registro de actividad',
+    'page-papelera':     '🗑️ Papelera',
+    'page-laboratorio':  '🧪 Laboratorio',
+  };
+  const titulo = titulosPagina[activePage.id] || '';
+
+  // Wrapper card con header (igual estructura que los paneles internos: .card > .card-h + .card-b)
   const wrapper = document.createElement('div');
   wrapper.className = 'card cfg-external-card';
-  // Mover todos los hijos posteriores al wrapper (la barra ya está fuera)
-  const children = Array.from(activePage.children).filter(el => el !== bar);
-  children.forEach(c => wrapper.appendChild(c));
+  if (titulo) {
+    const header = document.createElement('div');
+    header.className = 'card-h';
+    header.innerHTML = `<h3>${titulo}</h3>`;
+    wrapper.appendChild(header);
+  }
+  const body = document.createElement('div');
+  body.className = 'card-b cfg-external-body';
+  // Mover el contenido restante (excepto barra y botón volver) al body
+  const children = Array.from(activePage.children).filter(el => el !== bar && el !== volverInterno);
+  children.forEach(c => body.appendChild(c));
+  wrapper.appendChild(body);
   activePage.appendChild(wrapper);
 
-  // Marcamos la página para aplicar estilos coherentes con el panel interno
   activePage.classList.add('cfg-external-wrapped');
 }
 
