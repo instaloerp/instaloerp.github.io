@@ -257,8 +257,21 @@ function _medErpDescItem(tipo, it) {
       const ubicTxt = it.ubicacion ? ' ('+e(it.ubicacion)+')' : '';
       return `${it.cantidad||1}× ${tipologiaLabel} ${dim}${hojasTxt}${cajonTxt}${balPrefix}${matTxt}${cristalTxt}${extrasTxt}${ubicTxt}`;
     }
-    case 'bano':
-      return `Baño ${it.metros||'?'} m²${it.reformar?' · '+e(it.reformar):''}${it.ubicacion?' ('+e(it.ubicacion)+')':''}`;
+    case 'bano': {
+      // Soporte tanto modelo nuevo (ancho_mm/largo_mm + bloques) como legacy (metros + reformar)
+      const a = it.ancho_mm, l = it.largo_mm, h = it.alto_mm;
+      const m2 = it.metros || (a && l ? +((a/1000)*(l/1000)).toFixed(2) : null);
+      const dim = (a && l) ? `${a}×${l}${h?'×'+h:''} mm` : (m2 ? `${m2} m²` : '?');
+      const partes = [`Baño ${dim}`];
+      if (it.alcance)             partes.push(e(it.alcance));
+      else if (it.reformar)       partes.push(e(it.reformar));
+      if (it.plato)               partes.push(`plato ${it.plato.ancho_mm||'?'}×${it.plato.largo_mm||'?'}${it.plato.tipo?' '+e(it.plato.tipo):''}`);
+      if (it.banera)              partes.push(`bañera ${it.banera.tipo||''}`.trim());
+      if (it.mampara)             partes.push(`mampara ${e(it.mampara.tipo||'')}`);
+      if (it.inodoro)             partes.push(`WC ${e(it.inodoro)}`);
+      if (it.ubicacion)           partes.push(`(${e(it.ubicacion)})`);
+      return partes.filter(Boolean).join(' · ');
+    }
     case 'suelo': {
       const m2 = (it.largo && it.ancho) ? (parseFloat(it.largo)*parseFloat(it.ancho)).toFixed(2)+' m²' : '?';
       return `Suelo ${m2}${it.tipo?' · '+e(it.tipo):''}${it.ubicacion?' ('+e(it.ubicacion)+')':''}`;
