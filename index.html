@@ -261,7 +261,11 @@ try {
       <div class="ib-item" id="ibBandejaItem" onclick="goPage('bandeja')" data-tip="Automatizaciones" style="display:none;position:relative">⚡
         <span id="bandejaBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:14px;height:14px;border-radius:7px;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;line-height:14px;text-align:center;padding:0 3px"></span>
       </div>
-      <div class="ib-item" data-flyout="config" data-tip="Configuración" id="ibAdminItem" style="display:none">⚙️</div>
+      <!-- ⚙️ Configuración movida al flyout del usuario (Tarea #8) — antes
+           era data-flyout="config" pero el flyout solo tenía "Configuración"
+           dentro, no tenía sentido. Mantengo el div oculto por si JS antiguo
+           busca el id `ibAdminItem`. -->
+      <div class="ib-item" data-tip="Configuración" id="ibAdminItem" style="display:none!important">⚙️</div>
 
       <div class="ib-bottom">
         <div class="ib-item" onclick="toggleClaude()" data-tip="Claude IA">🤖</div>
@@ -286,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 188</span>
+      <span id="erpBuildVersion">v1.1 · build 189</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>

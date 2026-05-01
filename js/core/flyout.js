@@ -130,6 +130,10 @@ function _buildUserFlyout() {
   const buildEl = document.getElementById('erpBuildVersion');
   const buildTxt = buildEl ? buildEl.textContent : '';
   if (buildTxt) html += `<div style="padding:4px 14px;font-size:10px;color:var(--gris-500);border-bottom:1px solid var(--gris-100);margin-bottom:2px">${buildTxt}</div>`;
+  // Configuración aquí — sustituye al icono del sidebar global (Tarea #8)
+  if (typeof userCanAccess !== 'function' || userCanAccess('configuracion')) {
+    html += `<div class="fly-item" onclick="goPage('configuracion');_hideFlyout(true)"><span class="ico">⚙️</span>Configuración</div>`;
+  }
   html += `<div class="fly-item fly-danger" onclick="_confirmarCerrarSesion()"><span class="ico">⏻</span>Cerrar sesión</div>`;
   return html;
 }
