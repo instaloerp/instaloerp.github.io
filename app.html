@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 35
+      instaloERP v1.0 · build 37
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 35
+      instaloERP v1.0 · build 37
     </div>
   `;
 }
@@ -5175,6 +5175,72 @@ function _medRenderHojas(anchoTotal, altoTotal) {
   return html;
 }
 
+// Devuelve la configuración del selector secundario según el tipo de hoja:
+// {label, opciones, msgVacio} u objeto con flag {ninguno:true} cuando no aplica.
+function _medSelectorSegunTipo(tipo) {
+  const t = (tipo || '').toLowerCase();
+  if (t === 'fija' || t.includes('fij')) {
+    return { ninguno: true, msgVacio: '— Hoja fija (sin apertura) —' };
+  }
+  if (t.includes('corredera') || t === 'elevable' || t.includes('elevable')) {
+    return {
+      label: 'Sentido deslizamiento',
+      opciones: [
+        {k:'izquierda', ico:'⬅', l:'Izq'},
+        {k:'derecha',   ico:'➡', l:'Der'},
+      ],
+    };
+  }
+  if (t.includes('plegable')) {
+    return {
+      label: 'Lado del pliegue',
+      opciones: [
+        {k:'izquierda', ico:'⬅', l:'Izq'},
+        {k:'derecha',   ico:'➡', l:'Der'},
+      ],
+    };
+  }
+  if (t.includes('proyectante')) {
+    return {
+      label: 'Eje proyección',
+      opciones: [
+        {k:'arriba', ico:'⬆', l:'Arr'},
+        {k:'abajo',  ico:'⬇', l:'Aba'},
+      ],
+    };
+  }
+  if (t.includes('abatible')) {
+    return {
+      label: 'Eje abatimiento',
+      opciones: [
+        {k:'abajo',  ico:'⬇', l:'Aba (proyectante)'},
+        {k:'arriba', ico:'⬆', l:'Arr (basculante)'},
+      ],
+    };
+  }
+  // practicable, oscilo-batiente, oscilo-paralela
+  return {
+    label: 'Lado bisagras',
+    opciones: [
+      {k:'izquierda', ico:'⬅', l:'Izq'},
+      {k:'derecha',   ico:'➡', l:'Der'},
+    ],
+  };
+}
+
+function _medRenderSelectorSecundario(i, h) {
+  const cfg = _medSelectorSegunTipo(h.tipo);
+  if (cfg.ninguno) {
+    return `<div style="font-size:11px;color:#9CA3AF;font-style:italic">${cfg.msgVacio}</div>`;
+  }
+  const v = h.lado_bisagras || cfg.opciones[0].k;
+  return `<div><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">${cfg.label}</div>
+    <div style="display:flex;gap:5px">${cfg.opciones.map(o => {
+      const a = v === o.k;
+      return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${o.k}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:#fff;color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${o.ico} ${o.l}</button>`;
+    }).join('')}</div></div>`;
+}
+
 function _medRenderHojaBlock(i, anchoSugerido, soloPrimero, modo) {
   const st = window._medVentanaState;
   // Si modo='lado-only', heredamos tipo de la hoja 0
@@ -5183,28 +5249,24 @@ function _medRenderHojaBlock(i, anchoSugerido, soloPrimero, modo) {
   // Sincronizar el tipo de hojas extras con el de la primera cuando son simétricas
   if (modo === 'lado-only') h.tipo = h0.tipo;
   const tipos = ['practicable','oscilo-batiente','oscilo-paralela','corredera','elevable','plegable','abatible','proyectante','fija'];
-  const lados = ['izquierda','derecha','arriba','abajo'];
-  const tipoEsFija = (modo === 'lado-only' ? h0.tipo : h.tipo) === 'fija';
+  const cfgSec = _medSelectorSegunTipo(modo === 'lado-only' ? h0.tipo : h.tipo);
+  const labelLado = (cfgSec.label || 'Apertura').toLowerCase();
   const labelHoja = modo === 'lado-only'
-    ? `Hoja ${i+1} — bisagras`
+    ? `Hoja ${i+1}${cfgSec.ninguno ? '' : ' — ' + labelLado}`
     : `Hoja ${i+1}${soloPrimero && st.num_hojas > 1 ? ' (mismo tipo)' : ''}`;
-  const subtitle = soloPrimero ? `Tipo aplicado a TODAS las ${st.num_hojas} hojas — el lado se ajusta por hoja abajo` : '';
+  const subtitle = soloPrimero ? `Tipo aplicado a TODAS las ${st.num_hojas} hojas — ${labelLado} se ajusta por hoja abajo` : '';
 
-  // Modo lado-only: bloque mini con solo el selector de bisagras
+  // Modo lado-only: bloque mini con solo el selector contextual
   if (modo === 'lado-only') {
-    if (tipoEsFija) {
+    if (cfgSec.ninguno) {
       return `<div style="border:1px dashed var(--gris-200);border-radius:9px;padding:8px 11px;margin-bottom:6px;background:#FAFBFC;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:11px;font-weight:600;color:var(--gris-500)">Hoja ${i+1}</div>
-        <div style="font-size:10.5px;color:#9CA3AF;font-style:italic">— Sin bisagras (fija) —</div>
+        <div style="font-size:10.5px;color:#9CA3AF;font-style:italic">${cfgSec.msgVacio}</div>
       </div>`;
     }
     return `<div style="border:1.5px solid var(--gris-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;background:#FAFBFC">
       <div style="font-size:10.5px;font-weight:700;color:var(--gris-700);margin-bottom:6px">${labelHoja}</div>
-      <div style="display:flex;gap:5px">${lados.map(l => {
-        const a = h.lado_bisagras===l;
-        const ico = ({izquierda:'⬅',derecha:'➡',arriba:'⬆',abajo:'⬇'})[l];
-        return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:#fff;color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
-      }).join('')}</div>
+      ${_medRenderSelectorSecundario(i, h)}
     </div>`;
   }
 
@@ -5216,13 +5278,7 @@ function _medRenderHojaBlock(i, anchoSugerido, soloPrimero, modo) {
     ${subtitle?`<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${subtitle}</div>`:''}
     ${st.hojas_simetricas ? '' : `<div style="margin-bottom:7px"><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Ancho (mm)</div><input data-hoja="${i}" data-campo="ancho" oninput="_medVentanaHojaInput(${i},'ancho',this.value)" type="number" value="${h.ancho||anchoSugerido||''}" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box"></div>`}
     <div style="margin-bottom:7px"><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Tipo apertura</div><select data-hoja="${i}" data-campo="tipo" onchange="_medVentanaHojaInput(${i},'tipo',this.value)" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;background:#fff;box-sizing:border-box">${tipos.map(t => `<option value="${t}" ${h.tipo===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
-    ${h.tipo==='fija'?'<div style="font-size:11px;color:#9CA3AF;font-style:italic">— Sin bisagras —</div>':`
-    <div><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Lado bisagras</div>
-    <div style="display:flex;gap:5px">${lados.map(l => {
-      const a = h.lado_bisagras===l;
-      const ico = ({izquierda:'⬅',derecha:'➡',arriba:'⬆',abajo:'⬇'})[l];
-      return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:#fff;color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
-    }).join('')}</div></div>`}
+    ${_medRenderSelectorSecundario(i, h)}
   </div>`;
 }
 
@@ -5339,7 +5395,8 @@ async function _medGuardarItemVentana() {
       : st.hojas.slice(0, st.num_hojas).map(h => ({...h, ancho: parseInt(h.ancho)||0})),
     cajon: st.cajon_tipo === 'ninguno' ? null : {
       tipo: st.cajon_tipo,
-      alto_mm: parseInt(v('mvCajonAlto')) || null,
+      // Default por tipo si el usuario no rellena el alto (necesario para el dibujo SVG)
+      alto_mm: parseInt(v('mvCajonAlto')) || 200,
       accionamiento: v('mvCajonAcc'),
       material: v('mvCajonMat'),
       color: v('mvCajonColor'),
@@ -6121,7 +6178,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 35
+        instaloERP v1.0 · build 37
       </div>
     </div>`;
 }

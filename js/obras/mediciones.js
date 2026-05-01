@@ -368,8 +368,9 @@ function _medSvgVentana(item) {
   let cajonHtml = '';
   let cotaCajonHtml = '';
   let frameTop = FY;
-  if (cajon && cajon.tipo && cajon.tipo !== 'ninguno' && cajon.alto_mm) {
-    const cajonMm = parseFloat(cajon.alto_mm);
+  if (cajon && cajon.tipo && cajon.tipo !== 'ninguno') {
+    // Fallback: si el alto no está, asumimos 200 mm (altura estándar)
+    const cajonMm = parseFloat(cajon.alto_mm) || 200;
     const cajonH = (cajonMm / altoMm) * mh;
     const ny = FY - cajonH - 1;
     cajonHtml = `<rect x="${FX}" y="${ny}" width="${mw}" height="${cajonH}" fill="rgba(120,120,120,.18)" stroke="#1F2937" stroke-width=".7"/>`;
@@ -535,8 +536,14 @@ function _medSvgVentana(item) {
     umbralHtml = `<line x1="${FX-2}" y1="${FY+mh}" x2="${FX+mw+2}" y2="${FY+mh}" stroke="#1F2937" stroke-width="2"/>`;
   }
 
+  // Calculamos un viewBox que respete el cajón (que se dibuja por encima del marco)
+  // y la cota horizontal arriba (frameTop-18). Con cajón el frameTop puede ser negativo.
+  const minY = Math.min(0, frameTop - 22);   // 22 = espacio para la cota del ancho
+  const vbY  = minY;
+  const vbH  = SVG_H - minY;                  // amplía el viewBox hacia arriba
+
   return `
-    <svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:180px;height:auto">
+    <svg viewBox="0 ${vbY} ${SVG_W} ${vbH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:180px;height:auto">
       ${cajonHtml}
       <rect x="${FX}" y="${FY}" width="${mw}" height="${mh}" fill="rgba(160,200,230,.35)" stroke="#1F2937" stroke-width="1.2"/>
       ${zocaloHtml}
