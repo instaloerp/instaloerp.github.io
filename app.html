@@ -3454,7 +3454,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 30
+      instaloERP v1.0 · build 31
     </div>
   `;
 }
@@ -4298,7 +4298,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 30
+      instaloERP v1.0 · build 31
     </div>
   `;
 }
@@ -4579,8 +4579,8 @@ function renderMedicionNuevaPaso1(el) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           ${Object.entries(MED_PLANTILLAS).map(([key, pl]) => `
             <button type="button" class="tap-card" onclick="_medElegirTipo('${key}')" style="padding:18px 8px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
-              <span style="font-size:28px;pointer-events:none">${pl.ico}</span>
-              <span style="pointer-events:none">${pl.label}</span>
+              <span style="font-size:28px">${pl.ico}</span>
+              <span>${pl.label}</span>
             </button>
           `).join('')}
         </div>
@@ -5703,7 +5703,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 30
+        instaloERP v1.0 · build 31
       </div>
     </div>`;
 }
