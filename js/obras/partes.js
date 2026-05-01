@@ -2253,6 +2253,10 @@ async function _ptUrlToDataUrl(url) {
 }
 
 async function _ptSeccionFirmas(parte) {
+  // Si el parte se marcó "sin firma" (firma_opcional:true) NO mostramos el
+  // bloque CONFORMIDAD. Si saliera vacío parecería que falta la firma del
+  // cliente cuando en realidad no se requería.
+  if (parte.firma_opcional) return null;
   const hayCli = !!parte.firma_url;
   const hayOp  = !!parte.firma_operario_url;
   if (!hayCli && !hayOp) return null;
