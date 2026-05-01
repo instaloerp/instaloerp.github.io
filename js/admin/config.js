@@ -240,18 +240,25 @@ async function reloadCfg(tipo) {
 // página del ERP donde estabas antes de abrir Configuración. Si no se
 // recuerda ninguna (recarga directa), va a dashboard.
 window._cfgPrevPage = window._cfgPrevPage || null;
+// Páginas que se consideran parte del ámbito de Configuración (no actualizan
+// _cfgPrevPage al navegar a ellas, para que "Volver" salga al sitio real anterior).
+const _CFG_PAGES_AMBITO = new Set(['configuracion','usuarios','etiquetas-qr','audit-log','papelera','laboratorio']);
 (function _hookGoPageParaConfig() {
   if (typeof window === 'undefined' || window._cfgGoPageHooked) return;
   const orig = window.goPage;
   if (typeof orig !== 'function') return;
   window._cfgGoPageHooked = true;
   window.goPage = function(id, opts) {
-    if (id && id !== 'configuracion') window._cfgPrevPage = id;
-    // Si NO venimos desde Configuración, des-envolvemos páginas externas
-    // (limpia el wrap card / barra inyectada que dejó una visita anterior).
-    if (!window._cfgDesdeConfig) {
-      document.querySelectorAll('.page.cfg-external-wrapped').forEach(_cfgDesenvolverPagina);
+    // Actualiza _cfgPrevPage SOLO cuando la página destino NO pertenece al
+    // ámbito de Configuración. Así "Volver" siempre devuelve al ERP normal.
+    if (id && !_CFG_PAGES_AMBITO.has(id)) {
+      window._cfgPrevPage = id;
     }
+    // Desenvuelve cualquier página externa wrapped DISTINTA de la destino,
+    // sin depender del flag _cfgDesdeConfig (más robusto).
+    document.querySelectorAll('.page.cfg-external-wrapped').forEach(p => {
+      if (p.id !== 'page-' + id) _cfgDesenvolverPagina(p);
+    });
     return orig.apply(this, arguments);
   };
 })();
