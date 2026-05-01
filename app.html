@@ -3435,7 +3435,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 25
+      instaloERP v1.0 · build 26
     </div>
   `;
 }
@@ -4279,7 +4279,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 25
+      instaloERP v1.0 · build 26
     </div>
   `;
 }
@@ -4670,6 +4670,14 @@ async function _medGuardarClienteNuevo() {
   // Cerrar modal y auto-seleccionar
   document.getElementById('_medModalNuevoCli')?.remove();
   toast('✅ Cliente creado: ' + data.nombre, 'success');
+  // Si venimos del flujo "Cambiar cliente" sobre una medición existente,
+  // asignamos el cliente recién creado a esa medición. Si no, seguimos con
+  // el flujo normal de Nueva visita.
+  if (window._medAsignarTrasCrear && _medActual) {
+    window._medAsignarTrasCrear = false;
+    await _medAsignarCliente(data.id);
+    return;
+  }
   _medSeleccionarCliente(data.id);
 }
 
@@ -4780,7 +4788,8 @@ function _medCambiarCliente() {
         '<input id="medCliBuscaModal" placeholder="🔍 Buscar cliente…" style="width:100%;padding:10px;border:1.5px solid #E5E7EB;border-radius:10px;font-size:14px;box-sizing:border-box;outline:none">'+
       '</div>'+
       '<div id="medCliListaModal" style="flex:1;overflow-y:auto;padding:6px 8px"></div>'+
-      '<div style="padding:10px 16px;border-top:1px solid #F3F4F6">'+
+      '<div style="padding:10px 16px;border-top:1px solid #F3F4F6;display:flex;flex-direction:column;gap:6px">'+
+        '<button id="medCliCrearNuevo" style="width:100%;padding:11px;background:#3B82F6;border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">+ Crear cliente nuevo</button>'+
         '<button id="medCliSinCliente" style="width:100%;padding:11px;background:transparent;border:1.5px dashed #D1D5DB;border-radius:9px;color:#6B7280;font-size:13px;font-weight:600;cursor:pointer">📋 Sin cliente</button>'+
       '</div>'+
     '</div>';
@@ -4816,6 +4825,12 @@ function _medCambiarCliente() {
   overlay.querySelector('#medCliSinCliente').onclick = async () => {
     await _medAsignarCliente(null);
     overlay.remove();
+  };
+  overlay.querySelector('#medCliCrearNuevo').onclick = () => {
+    overlay.remove();
+    // Marca que tras crear el cliente debe asignarse a la medición actual
+    window._medAsignarTrasCrear = true;
+    _medAbrirModalNuevoCliente();
   };
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
@@ -5581,7 +5596,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 25
+        instaloERP v1.0 · build 26
       </div>
     </div>`;
 }
