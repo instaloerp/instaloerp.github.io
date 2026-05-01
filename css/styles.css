@@ -348,6 +348,9 @@ table.dt tbody tr:hover{background:var(--gris-50)}
 .cfg-card.sortable-ghost{opacity:.35}
 .cfg-card.sortable-chosen{cursor:grabbing}
 .cfg-card.sortable-drag{box-shadow:0 8px 24px rgba(0,0,0,.18);transform:rotate(-2deg)}
+/* Pestañas como zonas de drop al arrastrar una card */
+.cfg-tab.cfg-tab-droptarget{outline:2px dashed var(--gris-300);outline-offset:-2px;background:rgba(59,130,246,.04)}
+.cfg-tab.cfg-tab-droptarget-hover{outline-color:var(--azul);outline-style:solid;background:var(--azul-light);color:var(--azul);transform:scale(1.04)}
 
 /* Config table */
 .cfg-list{display:flex;flex-direction:column;gap:0}

@@ -294,42 +294,60 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Inicializa SortableJS sobre cada grid permitiendo arrastrar entre todos.
-// IMPORTANTE: como solo el grid de la pestaña activa está visible, hay que
-// permitir cambiar de pestaña arrastrando: hover sobre una pestaña mientras
-// arrastras → activa esa pestaña automáticamente y muestra su grid destino.
+// Inicializa SortableJS sobre cada grid (sortear interno) Y sobre cada
+// pestaña (drop target para mover cards entre categorías). Soltando una
+// card sobre una pestaña → la card se mueve al grid de esa categoría.
 let _cfgIsDragging = false;
 function cfgInitDragDrop() {
   if (typeof Sortable === 'undefined') return;
   const grids = document.querySelectorAll('.cfg-cards-grid');
+  // 1) Cada grid: permite reordenar dentro y aceptar cards de otros grids/pestañas.
   grids.forEach(grid => {
     if (grid._sortableInit) return;
     grid._sortableInit = true;
     Sortable.create(grid, {
-      group: 'cfg-cards',          // mismo group → permite mover entre grids
+      group: 'cfg-cards',
       animation: 160,
-      delay: 180,                  // long-press para no interferir con click normal
+      delay: 180,
       delayOnTouchOnly: true,
       touchStartThreshold: 5,
       onStart: () => {
         _cfgIsDragging = true;
-        grids.forEach(g => g.classList.add('cfg-dragging'));
+        document.querySelectorAll('.cfg-tab').forEach(t => t.classList.add('cfg-tab-droptarget'));
       },
       onEnd: () => {
         _cfgIsDragging = false;
-        grids.forEach(g => g.classList.remove('cfg-dragging'));
+        document.querySelectorAll('.cfg-tab').forEach(t => t.classList.remove('cfg-tab-droptarget','cfg-tab-droptarget-hover'));
         cfgGuardarLayout();
       }
     });
   });
-  // Hover sobre pestaña mientras arrastras → activa esa pestaña.
+  // 2) Cada pestaña: drop target. Cuando se suelta una card encima, se mueve
+  // al grid de esa categoría. Las pestañas no se reordenan ni se sacan items.
   document.querySelectorAll('.cfg-tab').forEach(tab => {
-    if (tab._cfgHoverBound) return;
-    tab._cfgHoverBound = true;
-    tab.addEventListener('mouseenter', () => {
-      if (_cfgIsDragging && !tab.classList.contains('active')) {
-        cfgCat(tab.dataset.cat, tab);
+    if (tab._sortableInit) return;
+    tab._sortableInit = true;
+    Sortable.create(tab, {
+      group: { name: 'cfg-cards', put: true, pull: false },
+      sort: false,
+      animation: 0,
+      onAdd: (evt) => {
+        const card = evt.item;
+        const cat = tab.dataset.cat;
+        const targetGrid = document.querySelector('.cfg-cards-grid[data-cat="'+cat+'"]');
+        if (targetGrid && card) {
+          targetGrid.appendChild(card);
+          cfgGuardarLayout();
+          cfgCat(cat, tab);  // activa esa pestaña para que el user vea el resultado
+        }
       }
+    });
+    // Highlight cuando el cursor está sobre la pestaña arrastrando
+    tab.addEventListener('mouseenter', () => {
+      if (_cfgIsDragging) tab.classList.add('cfg-tab-droptarget-hover');
+    });
+    tab.addEventListener('mouseleave', () => {
+      tab.classList.remove('cfg-tab-droptarget-hover');
     });
   });
 }
