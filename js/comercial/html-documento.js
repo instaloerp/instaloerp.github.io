@@ -416,11 +416,16 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       const titulo = sec.titulo || '';
       const html = sec.html || '';
       const styles = [];
-      if (sec.pageBreakBefore) styles.push('page-break-before:always');
       // Si es "large" no aplicamos page-break-inside:avoid, para permitir partir
       if (sec.large) styles.push('page-break-inside:auto;break-inside:auto');
       const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
+      // Page break ANTES del capítulo: usamos un elemento dedicado, más robusto
+      // tanto para html2pdf (clase 'html2pdf__page-break') como para window.print()
+      const pageBreak = sec.pageBreakBefore
+        ? '<div class="html2pdf__page-break" style="page-break-before:always;break-before:page;height:0;line-height:0;font-size:0"></div>'
+        : '';
       return `
+${pageBreak}
 <div class="capitulo"${styleAttr}>
   <div class="cap-banda">
     <div class="cap-num">${String(idx).padStart(2,'0')}</div>
@@ -543,7 +548,10 @@ ${_renderPie(E)}
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff',
                         scrollY: 0, height: fullHeight, windowHeight: fullHeight + 200 },
         jsPDF:        { unit:'mm', format:'a4', orientation:'portrait' },
-        pagebreak:    { mode:['css','legacy'], avoid:['.capitulo','.resumen-bloque','.firma','.firma-bloque'] }
+        // CSS gestiona los avoids vía .capitulo (page-break-inside:avoid). Las secciones
+        // marcadas como "large" sobrescriben con style inline. Las clases legacy
+        // 'html2pdf__page-break' fuerzan saltos donde se necesiten.
+        pagebreak:    { mode:['css','legacy'], avoid:['.resumen-bloque','.firma-bloque'] }
       };
       const worker = window.html2pdf().set(opt).from(docEl);
       const pdf = await worker.toPdf().get('pdf');
