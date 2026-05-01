@@ -2282,31 +2282,31 @@ async function _ptSeccionFirmas(parte) {
 
   // Bloque empresa: nombre + operario + firma operario (si hay) + sello
   const bloqueEmpresa = `
-    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
-      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Por la empresa instaladora</div>
-      <div style="font-size:9.5px;color:#475569;line-height:1.5">
+    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 10px">
+      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Por la empresa instaladora</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.4">
         <b style="color:#1e293b">${_ptEsc(empresa.nombre || '')}</b>
         ${parte.usuario_nombre ? '<br>Operario: '+_ptEsc(parte.usuario_nombre) : ''}
       </div>
-      ${firmaOp ? `<img src="${firmaOp}" style="max-width:100%;width:auto;height:auto;max-height:80px;margin:6px auto 0;display:block;mix-blend-mode:multiply">` : ''}
+      ${firmaOp ? `<img src="${firmaOp}" style="max-width:100%;width:auto;height:auto;max-height:55px;margin:4px auto 0;display:block;mix-blend-mode:multiply">` : ''}
       ${selloEmpresa}
     </div>`;
 
   // Bloque cliente: estado "firmado" (verde) si hay firma, "pendiente" si no
   const bloqueCliente = hayCli ? `
-    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:10px;min-height:90px">
-      <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">✓ Aceptado por el cliente</div>
-      <div style="font-size:9.5px;color:#475569;line-height:1.5">
+    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:8px 10px">
+      <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">✓ Aceptado por el cliente</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.4">
         <b style="color:#1e293b">${_ptEsc(parte.cliente_nombre_firma || '—')}</b>
         ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
         ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
       </div>
-      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:90px;margin:8px auto 0;display:block;mix-blend-mode:multiply">
+      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:65px;margin:4px auto 0;display:block;mix-blend-mode:multiply">
     </div>` : `
-    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
-      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Aceptación del cliente</div>
-      <div style="font-size:9.5px;color:#475569;line-height:1.5">Fecha y firma:</div>
-      <div style="margin-top:36px;border-top:1px solid #94a3b8;padding-top:4px;font-size:9px;color:#94a3b8;text-align:center">Conforme</div>
+    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 10px">
+      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Aceptación del cliente</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.4">Fecha y firma:</div>
+      <div style="margin-top:30px;border-top:1px solid #94a3b8;padding-top:4px;font-size:9px;color:#94a3b8;text-align:center">Conforme</div>
     </div>`;
 
   return {
