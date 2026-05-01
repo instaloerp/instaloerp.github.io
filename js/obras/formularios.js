@@ -70,13 +70,22 @@ async function loadFormPlantillas() {
 async function _formCargarConteoCampos() {
   if (!_formPlantillas.length) return;
   const ids = _formPlantillas.map(p => p.id);
-  const { data, error } = await sb.from('form_plantilla_campos')
+  // Contar campos por plantilla
+  const { data: campos } = await sb.from('form_plantilla_campos')
     .select('plantilla_id')
     .in('plantilla_id', ids);
-  if (error) { console.warn(error); return; }
-  const conteo = {};
-  (data || []).forEach(r => { conteo[r.plantilla_id] = (conteo[r.plantilla_id] || 0) + 1; });
-  _formPlantillas.forEach(p => { p._n_campos = conteo[p.id] || 0; });
+  const conteoCampos = {};
+  (campos || []).forEach(r => { conteoCampos[r.plantilla_id] = (conteoCampos[r.plantilla_id] || 0) + 1; });
+  // Contar partes que usan cada plantilla (Fase 6 — badges informativos)
+  const { data: usos } = await sb.from('partes_formulario')
+    .select('plantilla_id')
+    .in('plantilla_id', ids);
+  const conteoUsos = {};
+  (usos || []).forEach(r => { conteoUsos[r.plantilla_id] = (conteoUsos[r.plantilla_id] || 0) + 1; });
+  _formPlantillas.forEach(p => {
+    p._n_campos = conteoCampos[p.id] || 0;
+    p._n_usos   = conteoUsos[p.id] || 0;
+  });
 }
 
 function renderFormPlantillas() {
@@ -94,20 +103,28 @@ function renderFormPlantillas() {
     return;
   }
 
-  tbody.innerHTML = lista.map(p => `
+  tbody.innerHTML = lista.map(p => {
+    const usoBadge = p._n_usos
+      ? `<span class="badge bg-blue" style="margin-left:6px" title="Partes que usan esta plantilla">📋 ${p._n_usos}</span>`
+      : '';
+    return `
     <tr>
-      <td><strong>${_formEsc(p.nombre)}</strong>${p.descripcion ? `<div style="font-size:11px;color:var(--gris-400);margin-top:2px">${_formEsc(p.descripcion)}</div>` : ''}</td>
+      <td>
+        <strong>${_formEsc(p.nombre)}</strong>${usoBadge}
+        ${p.descripcion ? `<div style="font-size:11px;color:var(--gris-400);margin-top:2px">${_formEsc(p.descripcion)}</div>` : ''}
+      </td>
       <td>${p.categoria ? `<span class="badge bg-blue">${_formEsc(p.categoria)}</span>` : '—'}</td>
       <td>v${p.version}</td>
       <td>${p._n_campos || 0}</td>
       <td>${p.activa ? '<span class="badge bg-green">Activa</span>' : '<span class="badge bg-gray">Inactiva</span>'}</td>
-      <td style="text-align:right">
+      <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-secondary btn-sm" onclick="editarPlantillaForm(${p.id})">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="duplicarPlantillaForm(${p.id})" title="Duplicar">📑</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportarPlantillaForm(${p.id})" title="Exportar JSON">💾</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleActivaPlantillaForm(${p.id})" title="${p.activa ? 'Desactivar' : 'Activar'}">${p.activa ? '🚫' : '✅'}</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ─── 2. CRUD DE PLANTILLAS ──────────────────────────────────────
@@ -193,6 +210,82 @@ async function duplicarPlantillaForm(id) {
   } catch (e) {
     console.error(e);
     if (typeof toast === 'function') toast('Error al duplicar: ' + e.message, 'error');
+  }
+}
+
+// Fase 6 — Exportar plantilla a JSON descargable
+async function exportarPlantillaForm(id) {
+  try {
+    const { data: plant, error: e1 } = await sb.from('form_plantillas')
+      .select('nombre, descripcion, categoria, version').eq('id', id).single();
+    if (e1) throw e1;
+    const { data: campos, error: e2 } = await sb.from('form_plantilla_campos')
+      .select('orden, codigo, tipo, etiqueta, obligatorio, mostrar_si, config')
+      .eq('plantilla_id', id).order('orden');
+    if (e2) throw e2;
+    const json = {
+      _formato: 'instaloERP_form_plantilla_v1',
+      _exportado_at: new Date().toISOString(),
+      nombre: plant.nombre,
+      descripcion: plant.descripcion || '',
+      categoria: plant.categoria || '',
+      version: plant.version,
+      campos: campos || []
+    };
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plantilla_${plant.nombre.replace(/[^a-zA-Z0-9-]/g,'_')}_v${plant.version}.json`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    if (typeof toast === 'function') toast('Plantilla exportada', 'success');
+  } catch (e) {
+    console.error(e);
+    if (typeof toast === 'function') toast('Error al exportar: ' + e.message, 'error');
+  }
+}
+
+// Fase 6 — Importar plantilla desde JSON
+async function importarPlantillaForm(input) {
+  const file = input.files?.[0];
+  input.value = '';  // permite re-importar el mismo archivo después
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    // Aceptamos tanto el formato exportado como uno mínimo {nombre, campos:[...]}
+    if (!json.nombre || !Array.isArray(json.campos)) {
+      throw new Error('JSON no válido: faltan "nombre" o "campos"');
+    }
+    const { data: nueva, error: eP } = await sb.from('form_plantillas').insert({
+      empresa_id: EMPRESA.id,
+      nombre: json.nombre + ' (importada)',
+      descripcion: json.descripcion || '',
+      categoria: json.categoria || '',
+      version: 1,
+      activa: true
+    }).select().single();
+    if (eP) throw eP;
+    if (json.campos.length) {
+      const filas = json.campos.map(c => ({
+        plantilla_id: nueva.id,
+        orden: c.orden,
+        codigo: c.codigo || null,
+        tipo: c.tipo,
+        etiqueta: c.etiqueta,
+        obligatorio: !!c.obligatorio,
+        mostrar_si: c.mostrar_si || null,
+        config: c.config || {}
+      }));
+      const { error: eC } = await sb.from('form_plantilla_campos').insert(filas);
+      if (eC) throw eC;
+    }
+    if (typeof toast === 'function') toast(`Plantilla "${json.nombre}" importada`, 'success');
+    await loadFormPlantillas();
+  } catch (e) {
+    console.error(e);
+    if (typeof toast === 'function') toast('Error al importar: ' + e.message, 'error');
   }
 }
 

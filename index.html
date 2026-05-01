@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 3</span>
+      <span id="erpBuildVersion">v1.1 · build 4</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2768,6 +2768,8 @@ try {
                       <label style="font-size:11.5px;color:var(--gris-500);display:flex;align-items:center;gap:5px;cursor:pointer">
                         <input type="checkbox" id="formMostrarInactivas" onchange="renderFormPlantillas()"> Mostrar inactivas
                       </label>
+                      <input type="file" id="formImportarFile" accept=".json,application/json" style="display:none" onchange="importarPlantillaForm(this)">
+                      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('formImportarFile').click()" title="Importar plantilla desde JSON">📂 Importar</button>
                       <button class="btn btn-primary btn-sm" onclick="nuevaPlantillaForm()">+ Nueva plantilla</button>
                     </div>
                   </div>
