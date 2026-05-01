@@ -2267,24 +2267,59 @@ async function _ptSeccionFirmas(parte) {
     hayOp  ? _ptUrlToDataUrl(parte.firma_operario_url) : null,
   ]);
 
-  const bloque = (titulo, nombre, dni, dataUrl) => {
-    const imgHtml = dataUrl
-      ? `<img src="${dataUrl}" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;display:inline-block">`
-      : '<div style="height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>';
-    return `
-    <div style="text-align:center">
-      <div style="font-size:8.5px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${titulo}</div>
-      ${imgHtml}
-      ${nombre ? `<div style="font-size:10px;font-weight:600;color:#1e293b;margin-top:3px">${_ptEsc(nombre)}</div>` : ''}
-      ${dni ? `<div style="font-size:9px;color:#64748b">DNI: ${_ptEsc(dni)}</div>` : ''}
+  // Formato unificado con presupuestos: bloque empresa (firma operario + sello
+  // digital del certificado) + bloque cliente (firma + nombre + DNI + fecha).
+  const empresa = (typeof EMPRESA !== 'undefined' && EMPRESA) ? EMPRESA : {};
+  const cert = (typeof _certActual !== 'undefined') ? _certActual : null;
+  const fechaFirma = parte.completado_at
+    ? new Date(parte.completado_at).toLocaleDateString('es-ES')
+    : (parte.fecha ? new Date(parte.fecha).toLocaleDateString('es-ES') : '');
+
+  // Sello digital de empresa (idéntico al de _renderFirma de presupuestos)
+  const selloEmpresa = cert ? `
+    <div style="margin-top:6px;border:1.5px solid #1e40af;border-radius:5px;padding:5px 7px;background:rgba(30,64,175,0.04);font-size:7px;line-height:1.4;color:#1e40af">
+      <div style="font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1px">Firmado digitalmente</div>
+      <div>${_ptEsc(cert.titular || empresa.nombre || '')}</div>
+      ${cert.nif_titular ? '<div>NIF: '+_ptEsc(cert.nif_titular)+'</div>' : ''}
+      ${cert.emisor ? '<div>Emisor: '+_ptEsc(cert.emisor)+'</div>' : ''}
+      <div>Fecha: ${fechaFirma || new Date().toLocaleDateString('es-ES')}</div>
+    </div>` : '<div style="margin-top:10px;border-top:1px solid #94a3b8;padding-top:4px;font-size:9px;color:#94a3b8;text-align:center">Firma y sello</div>';
+
+  // Bloque empresa: nombre + operario + firma operario (si hay) + sello
+  const bloqueEmpresa = `
+    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
+      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Por la empresa instaladora</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.5">
+        <b style="color:#1e293b">${_ptEsc(empresa.nombre || '')}</b>
+        ${parte.usuario_nombre ? '<br>Operario: '+_ptEsc(parte.usuario_nombre) : ''}
+      </div>
+      ${firmaOp ? `<img src="${firmaOp}" style="max-width:160px;max-height:55px;margin-top:6px;display:block;background:#fff;border:1px solid #e2e8f0;border-radius:4px">` : ''}
+      ${selloEmpresa}
     </div>`;
-  };
+
+  // Bloque cliente: estado "firmado" (verde) si hay firma, "pendiente" si no
+  const bloqueCliente = hayCli ? `
+    <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:10px;min-height:90px">
+      <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">✓ Aceptado por el cliente</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.5">
+        <b style="color:#1e293b">${_ptEsc(parte.cliente_nombre_firma || '—')}</b>
+        ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
+        ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
+      </div>
+      <img src="${firmaCli}" style="max-width:160px;max-height:55px;margin-top:6px;display:block;background:#fff;border:1px solid #e2e8f0;border-radius:4px">
+    </div>` : `
+    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
+      <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Aceptación del cliente</div>
+      <div style="font-size:9.5px;color:#475569;line-height:1.5">Fecha y firma:</div>
+      <div style="margin-top:36px;border-top:1px solid #94a3b8;padding-top:4px;font-size:9px;color:#94a3b8;text-align:center">Conforme</div>
+    </div>`;
+
   return {
     titulo: 'CONFORMIDAD',
     html: `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 18px">
-        ${bloque('Persona responsable', parte.cliente_nombre_firma, parte.cliente_dni, firmaCli)}
-        ${bloque('Operario', parte.operario_nombre_firma || parte.usuario_nombre, '', firmaOp)}
+        ${bloqueEmpresa}
+        ${bloqueCliente}
       </div>`
   };
 }
