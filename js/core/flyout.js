@@ -243,13 +243,11 @@ function initFlyout() {
   }
 }
 
-// Show/hide admin config icon based on adminSection visibility
+// Show/hide admin config icon based on adminSection visibility.
+// Tarea #8: Configuración se mueve al flyout del usuario → SIEMPRE oculto.
 function _syncAdminIcon() {
-  const adminSection = document.getElementById('adminSection');
   const ibAdmin = document.getElementById('ibAdminItem');
-  if (ibAdmin && adminSection) {
-    ibAdmin.style.display = (adminSection.style.display !== 'none') ? 'flex' : 'none';
-  }
+  if (ibAdmin) ibAdmin.style.display = 'none';
 }
 
 // Observe adminSection for style changes

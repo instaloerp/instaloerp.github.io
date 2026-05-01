@@ -295,6 +295,10 @@ if (typeof window !== 'undefined') {
 }
 
 // Inicializa SortableJS sobre cada grid permitiendo arrastrar entre todos.
+// IMPORTANTE: como solo el grid de la pestaña activa está visible, hay que
+// permitir cambiar de pestaña arrastrando: hover sobre una pestaña mientras
+// arrastras → activa esa pestaña automáticamente y muestra su grid destino.
+let _cfgIsDragging = false;
 function cfgInitDragDrop() {
   if (typeof Sortable === 'undefined') return;
   const grids = document.querySelectorAll('.cfg-cards-grid');
@@ -307,10 +311,24 @@ function cfgInitDragDrop() {
       delay: 180,                  // long-press para no interferir con click normal
       delayOnTouchOnly: true,
       touchStartThreshold: 5,
-      onStart: () => grids.forEach(g => g.classList.add('cfg-dragging')),
+      onStart: () => {
+        _cfgIsDragging = true;
+        grids.forEach(g => g.classList.add('cfg-dragging'));
+      },
       onEnd: () => {
+        _cfgIsDragging = false;
         grids.forEach(g => g.classList.remove('cfg-dragging'));
         cfgGuardarLayout();
+      }
+    });
+  });
+  // Hover sobre pestaña mientras arrastras → activa esa pestaña.
+  document.querySelectorAll('.cfg-tab').forEach(tab => {
+    if (tab._cfgHoverBound) return;
+    tab._cfgHoverBound = true;
+    tab.addEventListener('mouseenter', () => {
+      if (_cfgIsDragging && !tab.classList.contains('active')) {
+        cfgCat(tab.dataset.cat, tab);
       }
     });
   });
