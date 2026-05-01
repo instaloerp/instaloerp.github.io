@@ -3435,7 +3435,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 23
+      instaloERP v1.0 · build 24
     </div>
   `;
 }
@@ -4279,7 +4279,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 23
+      instaloERP v1.0 · build 24
     </div>
   `;
 }
@@ -5510,7 +5510,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 23
+        instaloERP v1.0 · build 24
       </div>
     </div>`;
 }
@@ -8138,8 +8138,6 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
         <input type="checkbox" id="qf_borrador" style="width:18px;height:18px;cursor:pointer;accent-color:var(--azul)">
         <span style="font-size:13px;color:var(--gris-600)">Guardar como borrador (pendiente de confirmar)</span>
       </label>
-      <!-- (El checkbox "No requiere firma del cliente" se eliminó: ahora se
-           pregunta con un modal al pulsar Crear parte — Tarea #11) -->
       <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:10px">Crear parte</button>
     </div>
   `;
@@ -8381,28 +8379,24 @@ async function _qfGuardarDireccionCliente(clienteId) {
 }
 
 
-// Tarea #11 — Modal "¿Requiere firma del cliente?" para la PWA. Devuelve
-// promesa con 'si' / 'no' / 'cancel'. Se monta dinámicamente para no tener
-// que añadir HTML estático.
+// Tarea #11 — Modal "¿Requiere firma del cliente?" para la PWA.
+// Se monta dinámicamente con estilo en consonancia con los modales nativos.
 function _pwaPreguntarFirma() {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:99999;display:flex;align-items:flex-end;justify-content:center;padding:0';
     overlay.innerHTML =
-      '<div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,0.2)">' +
-        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700;color:#111827">✍️ ¿Requiere firma del cliente?</h3>' +
-        '<p style="margin:0 0 16px;font-size:13.5px;color:#374151;line-height:1.5">¿Este parte requerirá firma del cliente cuando se complete?</p>' +
-        '<div style="display:flex;flex-direction:column;gap:8px">' +
-          '<button data-d="si" style="padding:12px;border-radius:10px;border:none;background:#3B82F6;color:#fff;font-weight:600;font-size:14px;cursor:pointer;text-align:left">' +
-            '✍️ Sí, requiere firma' +
-            '<div style="font-size:11.5px;font-weight:400;opacity:.85;margin-top:2px">Se pedirá al completar el parte</div>' +
-          '</button>' +
-          '<button data-d="no" style="padding:12px;border-radius:10px;border:1px solid #D1D5DB;background:#fff;color:#374151;font-weight:600;font-size:14px;cursor:pointer;text-align:left">' +
-            '📋 No, sin firma' +
-            '<div style="font-size:11.5px;font-weight:400;color:#9CA3AF;margin-top:2px">No saldrá la conformidad en el PDF</div>' +
-          '</button>' +
-          '<button data-d="cancel" style="padding:10px;border-radius:10px;border:none;background:transparent;color:#6B7280;font-weight:500;font-size:13px;cursor:pointer">Cancelar</button>' +
-        '</div>' +
+      '<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;padding:18px 18px 22px;box-shadow:0 -10px 40px rgba(0,0,0,0.18)">' +
+        '<div style="width:42px;height:4px;background:var(--gris-200);border-radius:3px;margin:0 auto 14px"></div>' +
+        '<h3 style="margin:0 0 6px;font-size:17px;font-weight:700;color:var(--gris-700)">✍️ Firma del cliente</h3>' +
+        '<p style="margin:0 0 14px;font-size:13px;color:var(--gris-500);line-height:1.45">¿Este parte requerirá firma del cliente al completarse?</p>' +
+        '<button data-d="si" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--azul);color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;margin-bottom:8px">' +
+          '✍️ Sí, requiere firma' +
+        '</button>' +
+        '<button data-d="no" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--gris-200);background:#fff;color:var(--gris-700);font-weight:700;font-size:14.5px;cursor:pointer;margin-bottom:8px">' +
+          '📋 No, sin firma' +
+        '</button>' +
+        '<button data-d="cancel" style="width:100%;padding:11px;border-radius:10px;border:none;background:transparent;color:var(--gris-500);font-weight:500;font-size:13.5px;cursor:pointer">Cancelar</button>' +
       '</div>';
     overlay.querySelectorAll('button[data-d]').forEach(btn => {
       btn.onclick = () => {
@@ -8411,6 +8405,7 @@ function _pwaPreguntarFirma() {
         resolve(d);
       };
     });
+    overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); resolve('cancel'); } });
     document.body.appendChild(overlay);
   });
 }
@@ -8482,10 +8477,9 @@ async function _saveParteForm() {
     // Estado: programado por defecto (tiene fecha); borrador si el check está marcado
     const esBorrador = document.getElementById('qf_borrador')?.checked || false;
 
-    // Tarea #11: si NO es borrador, SIEMPRE preguntamos si requiere firma
-    // del cliente (ya no hay checkbox previo).
+    // Tarea #11: modal preguntando firma del cliente.
     let firmaOpcional = false;
-    if (!esBorrador && typeof _pwaPreguntarFirma === 'function') {
+    if (typeof _pwaPreguntarFirma === 'function') {
       const _decision = await _pwaPreguntarFirma();
       if (_decision === 'cancel') return;
       firmaOpcional = (_decision === 'no');

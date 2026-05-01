@@ -1037,9 +1037,6 @@ function abrirCrearParteRapido(fecha, hora) {
       <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Instrucciones para el operario..."></textarea>
     </div>
 
-    <!-- (El checkbox "No requiere firma del cliente" se eliminó: ahora se
-         pregunta con un modal al pulsar Programar — Tarea #11) -->
-
     <!-- Formulario asociado (opcional) -->
     <div style="margin-bottom:16px;padding:10px;border:1px dashed #D1D5DB;border-radius:8px;background:#F9FAFB">
       <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">📋 Formulario asociado <span style="font-weight:400;color:#9CA3AF">(opcional)</span></label>
@@ -1060,11 +1057,11 @@ function abrirCrearParteRapido(fecha, hora) {
 
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.getElementById('planCrearNo').onclick = () => overlay.remove();
-  document.getElementById('planCrearBorrador').onclick = () => crearPartesDesdeModal('borrador');
-  document.getElementById('planCrearProgramar').onclick = async () => {
-    // Tarea #11: SIEMPRE preguntamos si requiere firma al programar (ya no
-    // hay checkbox previo). La decisión queda en window._planFirmaOpcional
-    // para que crearPartesDesdeModal lo lea al construir el payload.
+
+  // Tarea #11: al pulsar Borrador o Programar abrimos el modal mFirmaConfirm
+  // (estilo unificado con el resto del ERP). La decisión queda en
+  // window._planFirmaOpcional para crearPartesDesdeModal.
+  const _planContinuar = async (estado) => {
     if (typeof pt_preguntarFirma === 'function') {
       const decision = await pt_preguntarFirma();
       if (decision === 'cancel') return;
@@ -1072,8 +1069,10 @@ function abrirCrearParteRapido(fecha, hora) {
     } else {
       window._planFirmaOpcional = false;
     }
-    crearPartesDesdeModal('programado');
+    crearPartesDesdeModal(estado);
   };
+  document.getElementById('planCrearBorrador').onclick = () => _planContinuar('borrador');
+  document.getElementById('planCrearProgramar').onclick = () => _planContinuar('programado');
 
   // Cargar plantillas activas para el selector de formulario
   (async () => {

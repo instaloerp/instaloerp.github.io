@@ -286,7 +286,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 183</span>
+      <span id="erpBuildVersion">v1.1 · build 185</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -5238,25 +5238,25 @@ try {
      MODAL: confirmar firma del cliente al guardar
      (Tarea #11 — preguntar si requiere firma)
      ═══════════════════════════════════════════════ -->
-<div class="overlay" id="mFirmaConfirm">
-  <div class="modal" style="max-width:520px">
+<div class="overlay" id="mFirmaConfirm" style="z-index:10001">
+  <div class="modal" style="max-width:440px">
     <div class="modal-h">
-      <h2>✍️ ¿Requiere firma del cliente?</h2>
+      <h2 style="font-size:17px">✍️ Firma del cliente</h2>
+      <button class="btn-ghost" onclick="mfc_decision('cancel')" style="margin-left:auto">✕</button>
     </div>
-    <div class="modal-b">
-      <p style="margin:0 0 18px;font-size:14px;line-height:1.5">
-        ¿Este parte requerirá firma del cliente cuando se complete?
+    <div class="modal-b" style="padding-top:6px">
+      <p style="margin:0 0 16px;font-size:13.5px;color:var(--gris-500);line-height:1.5">
+        ¿Este parte requerirá firma del cliente al completarse?
       </p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="mfc_decision('si')" class="btn btn-primary" style="justify-content:flex-start;text-align:left;padding:12px 14px">
-          <strong>✍️ Sí, requiere firma del cliente</strong>
-          <div style="font-size:12px;font-weight:400;opacity:.85;margin-top:2px">El operario pedirá la firma al completar el parte.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="mfc_decision('si')" class="btn btn-primary" style="padding:14px 8px;font-size:13.5px;flex-direction:column;line-height:1.3">
+          <span style="font-size:20px;margin-bottom:4px">✍️</span>
+          Sí, requiere firma
         </button>
-        <button onclick="mfc_decision('no')" class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--gris-200)">
-          <strong>📋 No, sin firma</strong>
-          <div style="font-size:12px;font-weight:400;color:var(--gris-500);margin-top:2px">No saldrá la sección de conformidad en el PDF.</div>
+        <button onclick="mfc_decision('no')" class="btn btn-ghost" style="padding:14px 8px;font-size:13.5px;border:1.5px solid var(--gris-200);flex-direction:column;line-height:1.3">
+          <span style="font-size:20px;margin-bottom:4px">📋</span>
+          No, sin firma
         </button>
-        <button onclick="mfc_decision('cancel')" class="btn btn-ghost" style="margin-top:4px">Cancelar</button>
       </div>
     </div>
   </div>
