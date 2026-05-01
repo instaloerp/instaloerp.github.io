@@ -174,34 +174,24 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
    del .doc solo afecta al principio y al final del bloque, así que si el
    contenido se parte entre páginas, las páginas intermedias salen sin margen
    superior. Por eso movemos los márgenes principales aquí. */
-@page{size:A4;margin:14mm 12mm 16mm 12mm}
+@page{
+  size:A4;
+  margin:14mm 12mm 16mm 12mm;
+  /* Pie inyectado por el navegador en CADA página al imprimir / Save as PDF.
+     counter(page) y counter(pages) sólo funcionan dentro de @page rules — por
+     eso lo ponemos aquí y no en el .pie del HTML. */
+  @bottom-center{
+    content: "PIE_PLACEHOLDER · Página " counter(page) " de " counter(pages);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    font-size:8px;
+    color:#94a3b8;
+  }
+}
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
   .doc{padding:0 4mm}  /* padding mínimo lateral; el grueso lo da @page */
-  /* Pie repetido en cada página al imprimir. position:fixed + bottom:0 hace que
-     Chrome lo replique en cada hoja. Ahora centrado y con paginación añadida
-     vía CSS counter (Chrome soporta counter(page)/counter(pages) en print). */
-  .pie{
-    position:fixed;
-    bottom:0;
-    left:0;
-    right:0;
-    border-top:1px solid #e2e8f0;
-    padding:3px 12mm 0;
-    font-size:8px;
-    color:#94a3b8;
-    background:#fff;
-    display:block!important;
-    text-align:center;
-  }
-  .pie .pag::before{
-    /* counter(page)/counter(pages) sólo se incrementa dentro de @page, pero
-       Chrome los expone también en pseudoelementos de elementos position:fixed
-       que se replican en cada página. Si el navegador no lo soporta, el span
-       queda vacío y el resto del pie sigue centrado. */
-    content: " · Página " counter(page) " de " counter(pages);
-  }
+  .pie{display:none!important}  /* el pie real lo inyecta @page @bottom-center */
 }
 `;
 
@@ -491,12 +481,20 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     const baseUrl = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('about:'))
       ? window.location.origin + window.location.pathname.replace(/[^/]*$/, '')
       : '';
+    // Pie de página dinámico: insertamos los datos reales de empresa en el
+    // CSS antes de servirlo, sustituyendo el PIE_PLACEHOLDER que dejamos en
+    // la regla @page @bottom-center. Escapamos comillas simples y dobles
+    // para no romper el `content:"..."`.
+    const piePartes = [E.nombre, E.cif && ('CIF '+E.cif), E.direccion, E.telefono, E.email]
+      .filter(Boolean).join(' · ')
+      .replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const cssFinal = CSS.replace(/PIE_PLACEHOLDER/g, piePartes);
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">${baseUrl ? `\n<base href="${baseUrl}">` : ''}
 <title>${_esc(cfg.tipo||'Documento')} ${_esc(cfg.numero||'')}</title>
-<style>${CSS}</style>
+<style>${cssFinal}</style>
 </head>
 <body>
 <div class="doc" style="position:relative">
