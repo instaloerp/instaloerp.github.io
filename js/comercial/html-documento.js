@@ -552,14 +552,17 @@ ${_renderPie(E)}
     const html = _buildHtmlDocumento(cfg);
     const filename = `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`;
     const cfgJson = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
-    // Ambos botones (Imprimir / Guardar PDF) usan window.print() — produce
-    // PDF nativo de texto (seleccionable, editable). En el diálogo del
-    // navegador el usuario elige "Guardar como PDF" en Destino, o imprime
-    // directamente. El antiguo flujo html2pdf generaba imagen, no editable.
+    // DOS botones con comportamientos distintos (limitación del navegador):
+    //  - Imprimir → window.print() → diálogo del navegador. Elige "Guardar como
+    //    PDF" en destino para obtener PDF nativo de texto (editable, limpio).
+    //  - Descargar PDF → html2pdf → descarga directa sin diálogo, pero el PDF
+    //    es tipo imagen (texto NO seleccionable).
+    // No se puede combinar: los navegadores NO exponen API para "guardar
+    // PDF" sin diálogo manteniendo texto nativo.
     const barra = `
 <div class="no-print" style="position:sticky;top:0;background:#1e293b;padding:10px 16px;display:flex;gap:10px;justify-content:center;z-index:9999;box-shadow:0 2px 6px rgba(0,0,0,.2)">
-  <button onclick="window.print()" style="padding:8px 18px;border:none;border-radius:6px;background:#1e40af;color:#fff;font-weight:700;cursor:pointer;font-size:13px">🖨️ Imprimir</button>
-  <button onclick="window.print()" title="En el diálogo, elige Destino: Guardar como PDF" style="padding:8px 18px;border:none;border-radius:6px;background:#059669;color:#fff;font-weight:700;cursor:pointer;font-size:13px">💾 Guardar PDF</button>
+  <button onclick="window.print()" title="Abre el diálogo de impresión. Elige Destino: Guardar como PDF para PDF editable." style="padding:8px 18px;border:none;border-radius:6px;background:#1e40af;color:#fff;font-weight:700;cursor:pointer;font-size:13px">🖨️ Imprimir / PDF editable</button>
+  <button onclick="window.opener && window.opener._descargarDocumentoDesdeVentana && window.opener._descargarDocumentoDesdeVentana('${cfgJson}','${_esc(filename)}')" title="Descarga directa sin diálogo (PDF tipo imagen)" style="padding:8px 18px;border:none;border-radius:6px;background:#059669;color:#fff;font-weight:700;cursor:pointer;font-size:13px">⬇️ Descargar directo</button>
   <button onclick="window.close()" style="padding:8px 18px;border:none;border-radius:6px;background:#475569;color:#fff;font-weight:700;cursor:pointer;font-size:13px">✕ Cerrar</button>
 </div>`;
     const htmlConBarra = html.replace('<body>', '<body>'+barra);
