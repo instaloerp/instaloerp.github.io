@@ -320,10 +320,15 @@ function _medErpDetalleBano(it) {
   html += `<div style="font-size:11.5px;color:#374151;display:grid;gap:1px">`;
 
   // Dimensiones
-  html += linea('📐', 'Dimensiones', dimTxt + (it.forma ? ` · ${e(it.forma)}` : ''));
+  html += linea('📐', 'Dimensiones', dimTxt);
 
   // Reforma
-  const refTxt = join([it.alcance, it.demolicion ? `demolición ${e(it.demolicion).toLowerCase()}` : '', it.quitar_bide ? 'quitar bidé' : '']);
+  const refTxt = join([
+    it.alcance,
+    it.alcance_libre,
+    it.demolicion ? `demolición ${e(it.demolicion).toLowerCase()}` : '',
+    it.quitar_bide ? 'quitar bidé' : ''
+  ]);
   html += linea('🔨', 'Reforma', refTxt);
 
   // Pavimento
@@ -335,8 +340,7 @@ function _medErpDetalleBano(it) {
   // Paredes
   if (it.paredes) {
     const pa = it.paredes;
-    const altTxt = pa.altura === 'Otra (libre en mm)' && pa.altura_mm ? `${pa.altura_mm} mm` : e(pa.altura||'');
-    html += linea('🧱', 'Paredes', join([e(pa.tipo||''), altTxt, e(pa.observ||'')]));
+    html += linea('🧱', 'Paredes', join([e(pa.tipo||''), e(pa.observ||'')]));
   }
 
   // Techo
@@ -350,13 +354,13 @@ function _medErpDetalleBano(it) {
   if (it.plato) {
     const p = it.plato;
     const dim = (p.ancho_mm && p.largo_mm) ? `${p.ancho_mm}×${p.largo_mm} mm` : '';
-    html += linea('🚿', 'Plato', join([dim, e(p.tipo||''), e(p.color||''), p.desague?`desagüe ${e(p.desague)}`:'']));
+    html += linea('🚿', 'Plato', join([dim, e(p.tipo||''), e(p.color||'')]));
   }
 
   // Bañera
   if (it.banera) {
     const b = it.banera;
-    const dim = (b.largo_mm && b.ancho_mm) ? `${b.largo_mm}×${b.ancho_mm}${b.alto_mm?'×'+b.alto_mm:''} mm` : '';
+    const dim = (b.largo_mm && b.ancho_mm) ? `${b.largo_mm}×${b.ancho_mm} mm` : '';
     html += linea('🛁', 'Bañera', join([dim, e(b.tipo||''), e(b.posicion||''), e(b.color||''), b.faldon?'con faldón':'']));
   }
 

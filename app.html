@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 41
+      instaloERP v1.0 · build 42
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 41
+      instaloERP v1.0 · build 42
     </div>
   `;
 }
@@ -5546,12 +5546,13 @@ function _medRenderBanoForm(it) {
     field('mbAlto',  'Alto (mm)',  it.alto_mm,  'number', '2400')
   );
   body1 += `<div style="font-size:11px;color:#6B7280;margin:4px 0 8px"><strong id="mbM2">m²: —</strong> (calculado)</div>`;
-  body1 += select('mbForma', 'Forma', it.forma, ['Rectangular','En L','Irregular']);
+  // (Forma quitada — no aporta sin permitir más medidas)
   html += _medBanoBloque('dim', '📐 Dimensiones', body1);
 
   // ── Bloque 2: Reforma
   let body2 = '';
-  body2 += select('mbAlcance', 'Alcance', it.alcance, ['Integral','Solo zona ducha-bañera','Solo sanitarios']);
+  body2 += select('mbAlcance', 'Tipo intervención', it.alcance, ['Reforma de baño','Sustitución bañera por plato','Cambio de sanitarios','Otra (especificar abajo)']);
+  body2 += field('mbAlcanceLibre', 'Detalle (libre)', it.alcance_libre, 'text', 'Ej. Sustituir bañera y mampara, dejar resto…');
   body2 += select('mbDemolicion', 'Demolición previa', it.demolicion, ['Sí','No','Parcial']);
   body2 += check('mbQuitarBide', 'Quitar bidé', it.quitar_bide);
   html += _medBanoBloque('ref', '🔨 Tipo de reforma', body2);
@@ -5559,45 +5560,43 @@ function _medRenderBanoForm(it) {
   // ── Bloque 3: Pavimento
   const pav = it.pavimento || {};
   let body3 = '';
-  body3 += select('mbPavTipo', 'Tipo', pav.tipo, ['Cerámico / gres','Porcelánico','SPC','Tarima vinílica','Mantener actual']);
+  body3 += select('mbPavTipo', 'Tipo', pav.tipo, ['Cerámico','Vinílico','Dejar el que hay']);
   body3 += select('mbPavAntid', 'Antideslizante (clase)', pav.antideslizante, ['C1','C2','C3','No aplica']);
   body3 += field('mbPavColor', 'Color / serie / observación', pav.color);
   html += _medBanoBloque('pav', '🟫 Pavimento', body3);
 
-  // ── Bloque 4: Paredes
+  // ── Bloque 4: Paredes (sin altura, con campo libre)
   const par = it.paredes || {};
   let body4 = '';
-  body4 += select('mbParTipo', 'Revestimiento', par.tipo, ['Alicatado cerámico','Porcelánico gran formato','Pintura (esmalte)','Paneles SPC','Paneles PVC','Mixto (varias zonas)','Mantener actual']);
-  body4 += select('mbParAltura', 'Altura del revestimiento', par.altura, ['Hasta techo','Media altura','Otra (libre en mm)']);
-  body4 += field('mbParAlturaMm', 'Si "Otra": altura (mm)', par.altura_mm, 'number');
-  body4 += field('mbParObserv', 'Notas (zonas, mixto…)', par.observ);
+  body4 += select('mbParTipo', 'Revestimiento', par.tipo, ['Alicatado cerámico','Forrado con paneles SPC']);
+  body4 += field('mbParObserv', 'Notas / detalle libre', par.observ);
   html += _medBanoBloque('par', '🧱 Paredes / revestimiento', body4);
 
   // ── Bloque 5: Techo
   const tec = it.techo || {};
   let body5 = '';
-  body5 += select('mbTecTipo', 'Tipo', tec.tipo, ['Pintado','Falso techo PYL','Falso techo desmontable','Hidrófugo','Mantener']);
-  body5 += `<div style="font-size:9.5px;color:var(--gris-500);margin:8px 0 4px">Iluminación incorporada</div>`;
-  body5 += chips('mbTecLuz', tec.iluminacion || [], ['Downlights','Lineal LED']);
+  body5 += select('mbTecTipo', 'Tipo', tec.tipo, ['Sustituir techo','Mantener','Pintar','Poner falso techo de Pladur']);
+  body5 += `<div style="font-size:9.5px;color:var(--gris-500);margin:8px 0 4px">Iluminación</div>`;
+  body5 += chips('mbTecLuz', tec.iluminacion || [], ['Downlights','Dejar las que hay','Lineal LED']);
   html += _medBanoBloque('tec', '☀️ Techo', body5);
 
-  // ── Bloque 6: Plato (toggle)
+  // ── Bloque 6: Plato (toggle) — sin desagüe, color default Blanco
   let body6 = '';
   body6 += grid2(
     field('mbPlatoAncho', 'Ancho (mm)', plato.ancho_mm, 'number'),
     field('mbPlatoLargo', 'Largo (mm)', plato.largo_mm, 'number')
   );
-  body6 += field('mbPlatoColor', 'Color', plato.color);
-  body6 += select('mbPlatoTipo', 'Tipo', plato.tipo, ['Cerámico','Carga mineral','Obra']);
-  body6 += select('mbPlatoDesague', 'Desagüe', plato.desague, ['Centrado','Lateral','Lineal (canaleta)','Bote sifónico']);
+  // Color: si edita item con valor → ese; si nuevo (sin valor) → 'Blanco' por defecto
+  const colorPlatoDefault = (plato.color != null && plato.color !== '') ? plato.color : (_medItemEditIdx == null ? 'Blanco' : '');
+  body6 += field('mbPlatoColor', 'Color', colorPlatoDefault);
+  body6 += select('mbPlatoTipo', 'Tipo', plato.tipo, ['Carga mineral','Loza sanitaria']);
   html += _medBanoBloque('plato', '🚿 Plato de ducha', body6, { toggle: st.plato_activo, toggleKey: 'plato_activo' });
 
-  // ── Bloque 7: Bañera (toggle)
+  // ── Bloque 7: Bañera (toggle) — sin alto
   let body7 = '';
-  body7 += grid3(
+  body7 += grid2(
     field('mbBanLargo', 'Largo (mm)', banera.largo_mm, 'number'),
-    field('mbBanAncho', 'Ancho (mm)', banera.ancho_mm, 'number'),
-    field('mbBanAlto',  'Alto (mm)',  banera.alto_mm,  'number')
+    field('mbBanAncho', 'Ancho (mm)', banera.ancho_mm, 'number')
   );
   body7 += field('mbBanColor', 'Color', banera.color);
   body7 += select('mbBanTipo', 'Tipo', banera.tipo, ['Acrílica','Hierro fundido']);
@@ -5736,8 +5735,8 @@ async function _medGuardarItemBano() {
     largo_mm: largo,
     alto_mm:  n('mbAlto'),
     metros: m2,                  // compat con desc legacy
-    forma: v('mbForma'),
     alcance: v('mbAlcance'),
+    alcance_libre: v('mbAlcanceLibre'),
     demolicion: v('mbDemolicion'),
     quitar_bide: c('mbQuitarBide'),
     pavimento: {
@@ -5747,8 +5746,6 @@ async function _medGuardarItemBano() {
     },
     paredes: {
       tipo: v('mbParTipo'),
-      altura: v('mbParAltura'),
-      altura_mm: n('mbParAlturaMm'),
       observ: v('mbParObserv'),
     },
     techo: {
@@ -5760,12 +5757,10 @@ async function _medGuardarItemBano() {
       largo_mm: n('mbPlatoLargo'),
       color: v('mbPlatoColor'),
       tipo: v('mbPlatoTipo'),
-      desague: v('mbPlatoDesague'),
     },
     banera: !st.banera_activa ? null : {
       largo_mm: n('mbBanLargo'),
       ancho_mm: n('mbBanAncho'),
-      alto_mm:  n('mbBanAlto'),
       color: v('mbBanColor'),
       tipo: v('mbBanTipo'),
       posicion: v('mbBanPos'),
@@ -6573,7 +6568,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 41
+        instaloERP v1.0 · build 42
       </div>
     </div>`;
 }
