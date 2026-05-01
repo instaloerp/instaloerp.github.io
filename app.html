@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 37
+      instaloERP v1.0 · build 39
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 37
+      instaloERP v1.0 · build 39
     </div>
   `;
 }
@@ -5059,12 +5059,7 @@ function _medRenderVentanaForm(d) {
 
   // Número de hojas + simétricas
   html += labelGrupo('Hojas');
-  html += `<div style="display:flex;gap:6px;margin-bottom:8px">`;
-  for (let i = 1; i <= 4; i++) {
-    const a = i === st.num_hojas;
-    html += `<button type="button" class="tap" onclick="_medVentanaSetHojas(${i})" style="flex:1;padding:9px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'400'};font-size:12.5px">${i}</button>`;
-  }
-  html += `</div>`;
+  html += `<div id="mvNumBotones" style="display:flex;gap:6px;margin-bottom:8px">${_medRenderNumBotones()}</div>`;
   html += `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gris-600);margin-bottom:10px;cursor:pointer">
     <input type="checkbox" id="mvSim" ${st.hojas_simetricas?'checked':''} onchange="_medVentanaToggleSim(this.checked)" style="width:15px;height:15px">
     <span>Hojas iguales (simétricas)</span>
@@ -5353,14 +5348,27 @@ function _medVentanaHojaInput(i, campo, valor) {
   // Si cambia tipo o lado, re-render para refrescar UI (botones lado activos)
   if (campo === 'tipo' || campo === 'lado_bisagras') _medRefrescarVentanaForm();
 }
+function _medRenderNumBotones() {
+  const st = window._medVentanaState;
+  let html = '';
+  for (let i = 1; i <= 4; i++) {
+    const a = i === st.num_hojas;
+    html += `<button type="button" class="tap" onclick="_medVentanaSetHojas(${i})" style="flex:1;padding:9px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'400'};font-size:12.5px">${i}</button>`;
+  }
+  return html;
+}
+
 function _medRefrescarVentanaForm() {
-  // Re-renderiza solo la sección de hojas (no todo el form para no perder valores)
+  // Re-renderiza la fila de botones 1/2/3/4 + el contenedor de hojas
+  const btns = document.getElementById('mvNumBotones');
+  if (btns) btns.innerHTML = _medRenderNumBotones();
   const cont = document.getElementById('mvHojasCont');
-  if (!cont) return;
-  const ancho = document.getElementById('mvAncho')?.value || '';
-  const alto = document.getElementById('mvAlto')?.value || '';
-  cont.innerHTML = _medRenderHojas(ancho, alto);
-  // Refrescar botones de num_hojas
+  if (cont) {
+    const ancho = document.getElementById('mvAncho')?.value || '';
+    const alto = document.getElementById('mvAlto')?.value || '';
+    cont.innerHTML = _medRenderHojas(ancho, alto);
+  }
+  // Refrescar checkbox simétricas
   const sim = document.getElementById('mvSim');
   if (sim) sim.checked = window._medVentanaState.hojas_simetricas;
 }
@@ -6178,7 +6186,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 37
+        instaloERP v1.0 · build 39
       </div>
     </div>`;
 }

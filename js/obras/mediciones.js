@@ -405,29 +405,33 @@ function _medSvgVentana(item) {
     const tipoH  = ((hojas[i] && hojas[i].tipo) || '').toLowerCase();
     const ladoH  = ((hojas[i] && hojas[i].lado_bisagras) || 'izquierda').toLowerCase();
 
-    if (tipoH.includes('practicable') || tipoH.includes('oscilo')) {
+    if (tipoH.includes('practicable') || (tipoH.includes('oscilo') && !tipoH.includes('paralela'))) {
+      // Convención: las DOS líneas salen de las dos esquinas del lado de las bisagras
+      // y convergen en el centro del lado opuesto (ápice = lado de la manilla).
       if (ladoH === 'derecha') {
-        // V apunta a la derecha
-        lineas.push(`<line x1="${hx}" y1="${hy}"    x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
-        lineas.push(`<line x1="${hx}" y1="${hy+hh}" x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
-      } else {
-        // V apunta a la izquierda (default)
+        // Bisagras a la derecha → líneas desde esquinas derechas, ápice en el centro izquierdo
         lineas.push(`<line x1="${hx+hw}" y1="${hy}"    x2="${hx}" y2="${hcy}" ${traz}/>`);
         lineas.push(`<line x1="${hx+hw}" y1="${hy+hh}" x2="${hx}" y2="${hcy}" ${traz}/>`);
+      } else {
+        // Bisagras a la izquierda (default) → líneas desde esquinas izquierdas, ápice centro-derecha
+        lineas.push(`<line x1="${hx}" y1="${hy}"    x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
+        lineas.push(`<line x1="${hx}" y1="${hy+hh}" x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
       }
-      // Si es oscilobatiente, añadir triángulo invertido (a la mitad inferior)
+      // Si es oscilo-batiente, añadir triángulo punteado del eje basculante (inferior)
       if (tipoH.includes('oscilo')) {
-        lineas.push(`<line x1="${hx}"    y1="${hy}" x2="${hcx}" y2="${hy+hh}" stroke="#1F2937" stroke-width=".5" stroke-dasharray="2,1.5" fill="none"/>`);
-        lineas.push(`<line x1="${hx+hw}" y1="${hy}" x2="${hcx}" y2="${hy+hh}" stroke="#1F2937" stroke-width=".5" stroke-dasharray="2,1.5" fill="none"/>`);
+        // 2 líneas punteadas desde las esquinas inferiores (eje bisagras inferiores)
+        // hacia el centro superior (ápice arriba)
+        lineas.push(`<line x1="${hx}"    y1="${hy+hh}" x2="${hcx}" y2="${hy}" stroke="#1F2937" stroke-width=".5" stroke-dasharray="2,1.5" fill="none"/>`);
+        lineas.push(`<line x1="${hx+hw}" y1="${hy+hh}" x2="${hcx}" y2="${hy}" stroke="#1F2937" stroke-width=".5" stroke-dasharray="2,1.5" fill="none"/>`);
       }
     } else if (tipoH.includes('paralela')) {
-      // Oscilo-paralela (PSK): V apuntando a bisagras + flechas de deslizamiento
+      // Oscilo-paralela (PSK): V invertida + flechas de deslizamiento
       if (ladoH === 'derecha') {
-        lineas.push(`<line x1="${hx}" y1="${hy}"    x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
-        lineas.push(`<line x1="${hx}" y1="${hy+hh}" x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
-      } else {
         lineas.push(`<line x1="${hx+hw}" y1="${hy}"    x2="${hx}" y2="${hcy}" ${traz}/>`);
         lineas.push(`<line x1="${hx+hw}" y1="${hy+hh}" x2="${hx}" y2="${hcy}" ${traz}/>`);
+      } else {
+        lineas.push(`<line x1="${hx}" y1="${hy}"    x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
+        lineas.push(`<line x1="${hx}" y1="${hy+hh}" x2="${hx+hw}" y2="${hcy}" ${traz}/>`);
       }
       // Flecha horizontal indicando paralela
       const ay2 = hy + hh - 4;
@@ -459,9 +463,24 @@ function _medSvgVentana(item) {
         path += ` L ${xp} ${yp}`;
       }
       lineas.push(`<path d="${path}" ${traz}/>`);
-    } else if (tipoH.includes('abatible') || tipoH.includes('proyectante')) {
+    } else if (tipoH.includes('proyectante')) {
+      // Proyectante: bisagras arriba (eje superior) → líneas desde esquinas
+      // superiores hacia el centro inferior (ápice abajo, lado de apertura)
       lineas.push(`<line x1="${hx}"    y1="${hy}" x2="${hcx}" y2="${hy+hh}" ${traz}/>`);
       lineas.push(`<line x1="${hx+hw}" y1="${hy}" x2="${hcx}" y2="${hy+hh}" ${traz}/>`);
+    } else if (tipoH.includes('abatible')) {
+      // Abatible (eje inferior, basculante hacia exterior): bisagras abajo →
+      // líneas desde esquinas inferiores hacia el centro superior (ápice arriba)
+      const ladoEs = (ladoH === 'arriba');
+      if (ladoEs) {
+        // Eje superior (igual que proyectante)
+        lineas.push(`<line x1="${hx}"    y1="${hy}" x2="${hcx}" y2="${hy+hh}" ${traz}/>`);
+        lineas.push(`<line x1="${hx+hw}" y1="${hy}" x2="${hcx}" y2="${hy+hh}" ${traz}/>`);
+      } else {
+        // Eje inferior (default)
+        lineas.push(`<line x1="${hx}"    y1="${hy+hh}" x2="${hcx}" y2="${hy}" ${traz}/>`);
+        lineas.push(`<line x1="${hx+hw}" y1="${hy+hh}" x2="${hcx}" y2="${hy}" ${traz}/>`);
+      }
     } else if (tipoH.includes('corredera')) {
       // flecha indicando deslizamiento
       const ay = hy + hh - 6;
