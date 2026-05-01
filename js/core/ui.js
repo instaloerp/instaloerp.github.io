@@ -409,6 +409,8 @@ function goPage(id, opts){
   if(id==='laboratorio' && typeof loadLaboratorio==='function') loadLaboratorio();
   if(id==='partes') loadPartes();
   if(id==='planificador' && typeof initPlanificador==='function') initPlanificador();
+  if(id==='mediciones' && typeof loadMedicionesERP==='function') loadMedicionesERP();
+  if(id==='medicion-detalle' && typeof renderMedicionDetalleERP==='function') renderMedicionDetalleERP();
   if(id==='calendario' && typeof renderCalendario==='function') renderCalendario();
   if(id==='mistareas' && typeof cargarMisTareas==='function') cargarMisTareas();
   if(id==='articulos' && typeof renderArticulos==='function') renderArticulos(articulos);

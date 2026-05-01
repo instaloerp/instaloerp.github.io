@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 5</span>
+      <span id="erpBuildVersion">v1.1 · build 6</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1486,6 +1486,57 @@ try {
             <th>Número</th><th>Obra</th><th>Usuario</th><th>Fecha</th><th>Horas</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="ptTable"></tbody></table></div>
         </div>
+      </div>
+
+      <!-- MEDICIONES -->
+      <div class="page" id="page-mediciones">
+        <div class="card">
+          <div class="card-h">
+            <h3>📐 Mediciones</h3>
+            <div class="card-ha" style="display:flex;gap:8px;align-items:center">
+              <input type="search" id="medErpSearch" placeholder="🔍 Buscar cliente, nº…" oninput="medErpFiltrar()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;width:220px;outline:none">
+              <select id="medErpEstado" onchange="medErpFiltrar()" style="padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;outline:none">
+                <option value="">Todos los estados</option>
+                <option value="borrador">Borrador</option>
+                <option value="medido">Medido</option>
+                <option value="presupuestado">Presupuestado</option>
+              </select>
+              <select id="medErpTipo" onchange="medErpFiltrar()" style="padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;outline:none">
+                <option value="">Todos los tipos</option>
+                <option value="ventanas">🪟 Ventanas</option>
+                <option value="bano">🚿 Baño</option>
+                <option value="suelo">🟫 Suelo</option>
+                <option value="pintura">🎨 Pintura</option>
+                <option value="calefaccion">🔥 Calefacción</option>
+                <option value="climatizacion">❄️ Climatización</option>
+                <option value="fontaneria">🚰 Fontanería</option>
+                <option value="electrico">⚡ Eléctrico</option>
+                <option value="caldera_acs">🔄 Caldera/ACS</option>
+                <option value="ventilacion">💨 Ventilación</option>
+                <option value="puertas">🚪 Puertas</option>
+                <option value="otra">📦 Otra</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="loadMedicionesERP()">🔄</button>
+            </div>
+          </div>
+          <div class="card-b" style="padding:0">
+            <div style="padding:10px 18px;font-size:11.5px;color:var(--gris-400)" id="medErpCount">—</div>
+            <div class="tw"><table class="dt"><thead><tr>
+              <th>Tipo</th>
+              <th>Cliente</th>
+              <th>Fecha</th>
+              <th style="text-align:center">Items</th>
+              <th>Estado</th>
+              <th>Operario</th>
+              <th style="text-align:right">Acciones</th>
+            </tr></thead><tbody id="medErpTabla"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--gris-400)">Cargando…</td></tr></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETALLE DE UNA MEDICIÓN -->
+      <div class="page" id="page-medicion-detalle">
+        <div id="medErpDetalleCont"></div>
       </div>
 
       <!-- PLANIFICADOR SEMANAL -->
@@ -5531,6 +5582,7 @@ try {
     'js/obras/formularios.js',
     'js/obras/parte_formulario.js',
     'js/obras/planificador.js',
+    'js/obras/mediciones.js',
     'js/obras/calendario.js',
     // Personal
     'js/personal/fichajes.js',

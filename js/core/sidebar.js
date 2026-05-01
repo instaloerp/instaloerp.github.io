@@ -30,6 +30,7 @@ const ALL_PAGES = [
   {id:'mantenimientos',ico:'🔧',label:'Mantenimientos'},
   {id:'partes',ico:'📝',label:'Partes'},
   {id:'planificador',ico:'⏱️',label:'Planificador Semanal'},
+  {id:'mediciones',ico:'📐',label:'Mediciones'},
   {id:'calendario',ico:'📅',label:'Calendario'},
   {id:'mistareas',ico:'✅',label:'Tareas'},
   {id:'correo',ico:'📧',label:'Correo'},
