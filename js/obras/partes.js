@@ -2292,16 +2292,21 @@ async function _ptSeccionFirmas(parte) {
       ${selloEmpresa}
     </div>`;
 
-  // Bloque cliente: estado "firmado" (verde) si hay firma, "pendiente" si no
+  // Bloque cliente: estado "firmado" (verde) si hay firma, "pendiente" si no.
+  // Layout horizontal: texto a la izquierda (~38%), firma a la derecha grande.
   const bloqueCliente = hayCli ? `
     <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;padding:8px 10px">
-      <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">✓ Aceptado por el cliente</div>
-      <div style="font-size:9.5px;color:#475569;line-height:1.4">
-        <b style="color:#1e293b">${_ptEsc(parte.cliente_nombre_firma || '—')}</b>
-        ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
-        ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
+      <div style="font-size:9px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">✓ Aceptado por el cliente</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="flex:0 0 38%;font-size:9.5px;color:#475569;line-height:1.4">
+          <b style="color:#1e293b">${_ptEsc(parte.cliente_nombre_firma || '—')}</b>
+          ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
+          ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
+        </div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center">
+          <img src="${firmaCli}" style="max-width:100%;max-height:55px;width:auto;height:auto;display:block;mix-blend-mode:multiply">
+        </div>
       </div>
-      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:65px;margin:4px auto 0;display:block;mix-blend-mode:multiply">
     </div>` : `
     <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 10px">
       <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Aceptación del cliente</div>
