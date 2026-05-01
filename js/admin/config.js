@@ -274,11 +274,12 @@ function cfgCardClick(cardEl) {
   if (id) cfgTab(id, null);
 }
 
-// Inyecta una mini-barra "← Volver a Configuración" al inicio de la página
-// externa actual cuando se navegó desde una card de Configuración.
+// Inyecta la BARRA COMPLETA de pestañas (con Volver + categorías) al inicio
+// de la página externa cuando se accedió desde una card de Configuración.
+// Permite saltar a otra categoría o salir sin tener que pasar por el menú
+// intermedio.
 function _cfgInyectarBotonVolver() {
   if (!window._cfgDesdeConfig) return;
-  // Página visible (no usa class .active de páginas; busca .page sin display:none)
   const pages = document.querySelectorAll('.page');
   let activePage = null;
   for (const p of pages) {
@@ -286,12 +287,46 @@ function _cfgInyectarBotonVolver() {
     if (cs.display !== 'none' && p.id !== 'page-configuracion') { activePage = p; break; }
   }
   if (!activePage) return;
-  // Si ya existe la barra, no la duplicamos
-  if (activePage.querySelector('.cfg-volver-bar')) return;
+  if (activePage.querySelector('.cfg-tabs-bar.cfg-tabs-bar-injected')) return;
+
+  const cats = [
+    { id:'empresa',        label:'🏢 Mi empresa' },
+    { id:'almacen',        label:'📦 Almacén' },
+    { id:'partes',         label:'🔧 Partes y obras' },
+    { id:'facturacion',    label:'📜 Facturación' },
+    { id:'comunicaciones', label:'✉️ Comunicaciones' },
+    { id:'sistema',        label:'⚙️ Sistema' },
+  ];
+  // Mapea cada página externa a su categoría → resaltar la pestaña
+  const externasACategoria = {
+    'page-empresas':'empresa',
+    'page-usuarios':'empresa',
+    'page-etiquetas-qr':'almacen',
+    'page-audit-log':'sistema',
+    'page-papelera':'sistema',
+    'page-laboratorio':'sistema',
+  };
+  const catActiva = externasACategoria[activePage.id] || '';
+
   const bar = document.createElement('div');
-  bar.className = 'cfg-volver-bar';
-  bar.innerHTML = '<button onclick="window._cfgDesdeConfig=false;goPage(\'configuracion\')">← Volver a Configuración</button>';
+  bar.className = 'cfg-tabs-bar cfg-tabs-bar-injected';
+  let html = '<button class="cfg-back-btn" onclick="window._cfgDesdeConfig=false;cfgSalir()">← Volver</button>';
+  cats.forEach(c => {
+    const active = c.id === catActiva ? ' active' : '';
+    html += `<button class="cfg-tab${active}" onclick="cfgIrACategoria('${c.id}')">${c.label}</button>`;
+  });
+  bar.innerHTML = html;
   activePage.insertBefore(bar, activePage.firstChild);
+}
+
+// Click en pestaña inyectada → vuelve a Configuración y activa esa categoría.
+function cfgIrACategoria(cat) {
+  window._cfgDesdeConfig = false;
+  if (typeof goPage === 'function') goPage('configuracion');
+  setTimeout(() => {
+    const tab = document.querySelector('#page-configuracion .cfg-tab[data-cat="'+cat+'"]');
+    if (tab) cfgCat(cat, tab);
+  }, 80);
 }
 
 // Persistencia drag&drop: guarda y carga en localStorage el orden y categoría
@@ -421,8 +456,6 @@ function cfgCat(cat, el) {
 function cfgVolverACards() {
   document.getElementById('cfgCardsView').style.display = '';
   document.getElementById('cfgPanelView').style.display = 'none';
-  const tabsBar = document.querySelector('.cfg-tabs-bar');
-  if (tabsBar) tabsBar.style.display = '';
 }
 
 // Filtra cards por texto. Cuando se está buscando, mostramos cards de TODAS
@@ -448,16 +481,14 @@ function cfgFiltrarCards(q) {
 }
 
 function cfgTab(id, el) {
-  // Mostrar el panel correspondiente y la vista de panel
+  // Mostrar el panel correspondiente y la vista de panel.
+  // La barra de pestañas SE MANTIENE visible para que el user pueda saltar
+  // de una opción a otra sin volver al menú de cards.
   document.querySelectorAll('.cfg-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('cfg-' + id);
   if (panel) panel.classList.add('active');
   document.getElementById('cfgCardsView').style.display = 'none';
   document.getElementById('cfgPanelView').style.display = '';
-  // Ocultamos la barra de pestañas para unificar el look con las páginas
-  // externas (Usuarios, Papelera, etc.) — solo se ve "← Volver".
-  const tabsBar = document.querySelector('.cfg-tabs-bar');
-  if (tabsBar) tabsBar.style.display = 'none';
   // Cargar datos según pestaña
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();
