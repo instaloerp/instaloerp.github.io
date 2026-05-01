@@ -61,6 +61,15 @@ a{color:var(--azul);text-decoration:none}
 .btn-secondary{background:var(--gris-100);color:var(--gris-700)}
 .btn-danger{background:var(--rojo);color:#fff}
 .btn-sm{padding:8px 14px;font-size:12px;border-radius:8px;width:auto}
+/* Feedback de pulsación táctil — añade .tap a cualquier botón/clicable para dar sensación de "click físico" */
+.tap{transition:transform .08s ease, background-color .12s ease, box-shadow .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.tap:active{transform:scale(.96);filter:brightness(.92)}
+/* Variante para tarjetas (botones de selector de tipo) — hunde un pelo más */
+.tap-card{transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.tap-card:active{transform:scale(.97);background:#EFF6FF !important;border-color:#3B82F6 !important;box-shadow:inset 0 0 0 1px #3B82F6}
+/* Chips (multi-select) */
+.tap-chip{transition:transform .06s ease, background-color .1s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.tap-chip:active{transform:scale(.94)}
 .err{display:none;background:var(--rojo-light);color:var(--rojo);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:12px;text-align:center}
 
 /* ── APP SHELL ── */
@@ -3435,7 +3444,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 27
+      instaloERP v1.0 · build 29
     </div>
   `;
 }
@@ -4279,7 +4288,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 27
+      instaloERP v1.0 · build 29
     </div>
   `;
 }
@@ -4559,9 +4568,9 @@ function renderMedicionNuevaPaso1(el) {
         <div style="font-size:11px;color:var(--gris-500);margin-bottom:8px;font-weight:600;padding:0 4px">TIPO DE MEDICIÓN</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           ${Object.entries(MED_PLANTILLAS).map(([key, pl]) => `
-            <button onclick="_medElegirTipo('${key}')" style="padding:18px 8px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
-              <span style="font-size:28px">${pl.ico}</span>
-              <span>${pl.label}</span>
+            <button type="button" class="tap-card" onclick="_medElegirTipo('${key}')" style="padding:18px 8px;background:#fff;border:1.5px solid var(--gris-200);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <span style="font-size:28px;pointer-events:none">${pl.ico}</span>
+              <span style="pointer-events:none">${pl.label}</span>
             </button>
           `).join('')}
         </div>
@@ -4951,7 +4960,7 @@ function _medAbrirModalItem(it) {
       camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><select id="medi_${c.key}" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:14px;background:#fff;box-sizing:border-box"><option value=""></option>${c.opciones.map(o => `<option value="${o}" ${o===val?'selected':''}>${o}</option>`).join('')}</select></div>`;
     } else if (c.tipo === 'multiselect') {
       const sel = Array.isArray(val) ? val : (typeof val === 'string' && val ? val.split(',').map(s=>s.trim()) : []);
-      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><div id="medi_${c.key}" data-multiselect="1" style="display:flex;flex-wrap:wrap;gap:5px">${c.opciones.map(o => `<button type="button" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'#3B82F6':'#fff';this.style.color=this.classList.contains('on')?'#fff':'var(--gris-700)';this.style.borderColor=this.classList.contains('on')?'#3B82F6':'var(--gris-300)'" class="${sel.includes(o)?'on':''}" data-v="${o}" style="padding:6px 11px;border-radius:18px;font-size:11.5px;cursor:pointer;font-weight:600;border:1.5px solid ${sel.includes(o)?'#3B82F6':'var(--gris-300)'};background:${sel.includes(o)?'#3B82F6':'#fff'};color:${sel.includes(o)?'#fff':'var(--gris-700)'}">${o}</button>`).join('')}</div></div>`;
+      camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><div id="medi_${c.key}" data-multiselect="1" style="display:flex;flex-wrap:wrap;gap:5px">${c.opciones.map(o => `<button type="button" class="tap-chip ${sel.includes(o)?'on':''}" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'#3B82F6':'#fff';this.style.color=this.classList.contains('on')?'#fff':'var(--gris-700)';this.style.borderColor=this.classList.contains('on')?'#3B82F6':'var(--gris-300)'" data-v="${o}" style="padding:6px 11px;border-radius:18px;font-size:11.5px;cursor:pointer;font-weight:600;border:1.5px solid ${sel.includes(o)?'#3B82F6':'var(--gris-300)'};background:${sel.includes(o)?'#3B82F6':'#fff'};color:${sel.includes(o)?'#fff':'var(--gris-700)'}">${o}</button>`).join('')}</div></div>`;
     } else if (c.tipo === 'textarea') {
       camposHtml += `<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--gris-500);font-weight:600;margin-bottom:3px">${c.label}</label><textarea id="medi_${c.key}" placeholder="${c.placeholder||''}" style="width:100%;min-height:50px;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;font-family:var(--font);box-sizing:border-box;resize:vertical">${val}</textarea></div>`;
     } else if (c.tipo === 'number') {
@@ -5684,7 +5693,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 27
+        instaloERP v1.0 · build 29
       </div>
     </div>`;
 }
