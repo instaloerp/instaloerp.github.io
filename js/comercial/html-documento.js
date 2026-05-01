@@ -49,6 +49,10 @@
     const t = (tipo||'').toUpperCase();
     if (t.startsWith('FACTURA')) return 'Datos de la factura';
     if (t === 'ALBARÁN' || t === 'ALBARAN') return 'Datos del albarán';
+    if (t.startsWith('PARTE')) return 'Datos del parte';
+    if (t.startsWith('PEDIDO')) return 'Datos del pedido';
+    if (t.startsWith('RECEPCI')) return 'Datos de la recepción';
+    if (t.startsWith('TRASPASO')) return 'Datos del traspaso';
     return 'Datos del presupuesto';
   }
   function _agruparCapitulos(lineas){
@@ -397,6 +401,24 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     return `<div class="pie"><span>${_esc(partes)}</span><span class="pag"></span></div>`;
   }
 
+  // ─── Secciones HTML libres (para documentos sin "líneas" típicas, ej: parte) ──
+  function _renderSecciones(secciones, offsetIdx){
+    if (!secciones || !secciones.length) return '';
+    return secciones.map((sec, i) => {
+      const idx = (offsetIdx || 0) + i + 1;
+      const titulo = sec.titulo || '';
+      const html = sec.html || '';
+      return `
+<div class="capitulo">
+  <div class="cap-banda">
+    <div class="cap-num">${String(idx).padStart(2,'0')}</div>
+    <div class="cap-titulo">${_esc(titulo)}</div>
+  </div>
+  ${html}
+</div>`;
+    }).join('');
+  }
+
   // ─── API pública ──────────────────────────────────────────
   function _buildHtmlDocumento(cfg){
     const E = _empresa();
@@ -405,6 +427,8 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       ? capitulos.map((c,i) => _renderCapitulo(c, i+1)).join('')
         + (huerfanas.length ? _renderTablaPlana(huerfanas) : '')
       : _renderTablaPlana(huerfanas);
+    // Secciones libres adicionales (ej: parte de trabajo: trabajo realizado, mano de obra, formulario...)
+    const cuerpoSecciones = _renderSecciones(cfg.secciones_html, capitulos.length);
 
     const marcaAguaHtml = cfg.marca_agua
       ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:90px;font-weight:900;color:rgba(239,68,68,0.08);letter-spacing:12px;white-space:nowrap;pointer-events:none;z-index:0;user-select:none">${_esc(cfg.marca_agua)}</div>`
@@ -428,6 +452,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   ${_renderTitulo(cfg)}
   ${_renderTarjetas(cfg)}
   ${cuerpoLineas}
+  ${cuerpoSecciones}
   ${_renderResumen(cfg, capitulos)}
   ${_renderObservaciones(cfg.observaciones)}
   ${_renderCondiciones(cfg.condiciones)}

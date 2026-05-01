@@ -1962,75 +1962,288 @@ function exportPartes() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// EXPORTAR PARTE A PDF (versión simplificada)
+// EXPORTAR PARTE A PDF — formato unificado (html-documento.js)
 // ═══════════════════════════════════════════════════════════════════════
 
-async function exportarPartePDF(id) {
-  const parte = partesData.find(p => p.id === id);
-  if (!parte) return;
+function _ptEsc(s){
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-  try {
-    // Aquí irería integración con librería PDF (ej: jsPDF + html2canvas)
-    // Por ahora, abrimos en nueva ventana para imprimir
-    const contenido = document.getElementById('dtlPartesContent')?.innerHTML || '';
-    const ventana = window.open('', 'parte_pdf');
-    ventana.document.write(`
-      <html><head>
-        <title>Parte ${parte.numero}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background: #f5f5f5; font-weight: bold; }
-          @media print { body { margin: 0; } }
-        </style>
-      </head><body>
-        <h2>Parte de Trabajo: ${parte.numero}</h2>
-        <p><strong>Obra:</strong> ${parte.trabajo_titulo}</p>
-        <p><strong>Usuario:</strong> ${parte.usuario_nombre}</p>
-        <p><strong>Fecha:</strong> ${parte.fecha}</p>
-        <p><strong>Horas:</strong> ${parte.horas}</p>
-        ${contenido}
-      </body></html>
-    `);
-    ventana.document.close();
-    ventana.print();
+function _ptFmtE(n){ return (Number(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 
-    // Generar PDF con jsPDF y firmar
-    if (typeof firmarYGuardarPDF === 'function' && window.jspdf) {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF('p','mm','a4');
-      const ML=15,MR=15,W=210;
-      let y=20;
-      doc.setFontSize(16);doc.setFont(undefined,'bold');doc.setTextColor(0,123,255);
-      doc.text('Parte de Trabajo: '+(parte.numero||''),ML,y);y+=8;
-      doc.setFontSize(11);doc.setFont(undefined,'normal');doc.setTextColor(51,51,51);
-      doc.text('Obra: '+(parte.trabajo_titulo||'—'),ML,y);y+=6;
-      doc.text('Usuario: '+(parte.usuario_nombre||'—'),ML,y);y+=6;
-      doc.text('Fecha: '+(parte.fecha||'—'),ML,y);y+=6;
-      doc.text('Horas: '+(parte.horas||0),ML,y);y+=8;
-      if(parte.descripcion){
-        doc.setFontSize(10);
-        const descLines=doc.splitTextToSize(parte.descripcion,W-ML-MR);
-        doc.text(descLines,ML,y);y+=descLines.length*5+4;
-      }
-      if(parte.materiales_usados&&parte.materiales_usados.length){
-        doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('Materiales:',ML,y);y+=5;
-        const matHeaders=[['Material','Cantidad']];
-        const matRows=parte.materiales_usados.map(m=>[m.nombre||m.articulo_nombre||'',String(m.cantidad||0)]);
-        doc.autoTable({startY:y,head:matHeaders,body:matRows,styles:{fontSize:9},margin:{left:ML,right:MR}});
-        y=doc.lastAutoTable.finalY+6;
-      }
-      // Determinar entidad (obra o cliente)
-      const entidadTipo = parte.trabajo_id ? 'obra' : 'cliente';
-      const entidadId = parte.trabajo_id || parte.cliente_id || '';
-      const entidadNombre = parte.trabajo_titulo || '';
-      const pdfData=doc.output('arraybuffer');
-      firmarYGuardarPDF(pdfData,{tipo_documento:'parte_trabajo',documento_id:parte.id,numero:parte.numero,entidad_tipo:entidadTipo,entidad_id:entidadId,entidad_nombre:entidadNombre}).then(r=>{if(r&&r.success&&r.firma_info)toast('🔏 Parte firmado digitalmente ✓','success');else if(r&&!r.firmado)toast('📄 Parte guardado (sin firma digital)','info');}).catch(e=>{console.error('Error firmando parte:',e);toast('⚠️ Error al firmar parte','error');});
+// Construye los datos del cliente para el cfg unificado, desde obra o parte libre
+function _ptResolverCliente(parte) {
+  let cli = null;
+  if (parte.trabajo_id && typeof trabajos !== 'undefined') {
+    const trab = trabajos.find(t => t.id === parte.trabajo_id);
+    if (trab && trab.cliente_id && typeof clientes !== 'undefined') {
+      cli = clientes.find(c => c.id === trab.cliente_id) || null;
     }
+    return {
+      nombre: cli?.nombre || trab?.cliente_nombre || parte.trabajo_titulo || '—',
+      nif: cli?.nif || cli?.cif || '',
+      direccion: cli?.direccion || cli?.direccion_fiscal || trab?.direccion_obra_texto || parte.direccion || '',
+      cp: cli?.cp || cli?.cp_fiscal || '',
+      municipio: cli?.municipio || cli?.municipio_fiscal || '',
+      provincia: cli?.provincia || cli?.provincia_fiscal || '',
+      email: cli?.email || parte.cliente_email || '',
+      telefono: cli?.telefono || ''
+    };
+  }
+  if (parte.cliente_id && typeof clientes !== 'undefined') {
+    cli = clientes.find(c => c.id === parte.cliente_id) || null;
+  }
+  return {
+    nombre: cli?.nombre || parte.cliente_nombre || '—',
+    nif: cli?.nif || cli?.cif || '',
+    direccion: cli?.direccion || cli?.direccion_fiscal || parte.direccion || '',
+    cp: cli?.cp || cli?.cp_fiscal || '',
+    municipio: cli?.municipio || cli?.municipio_fiscal || '',
+    provincia: cli?.provincia || cli?.provincia_fiscal || '',
+    email: cli?.email || parte.cliente_email || '',
+    telefono: cli?.telefono || ''
+  };
+}
+
+function _ptSeccionTrabajoRealizado(parte) {
+  if (!parte.descripcion) return null;
+  return {
+    titulo: 'TRABAJO REALIZADO',
+    html: `<div style="padding:10px 14px 6px;font-size:11px;line-height:1.6;color:#334155;white-space:pre-wrap">${_ptEsc(parte.descripcion)}</div>`
+  };
+}
+
+function _ptSeccionPendientes(parte) {
+  if (!parte.trabajos_pendientes && !parte.gremios_pendientes) return null;
+  let html = '';
+  if (parte.trabajos_pendientes) {
+    html += `<div style="padding:8px 14px 4px;font-size:11px;color:#92400e">${_ptEsc(parte.trabajos_pendientes)}</div>`;
+  }
+  if (!html) return null;
+  return { titulo: 'TRABAJOS PENDIENTES', html };
+}
+
+function _ptSeccionManoObra(parte) {
+  if (!parte.mano_obra || !parte.mano_obra.length) return null;
+  const filas = parte.mano_obra.map(mo => {
+    const cant = mo.es_desplazamiento ? (mo.km||0)+' km' : (mo.minutos||0)+' min';
+    const precio = (mo.precio_hora||0).toFixed(2)+' €/'+(mo.es_desplazamiento?'km':'h');
+    return `<tr>
+      <td>${_ptEsc(mo.descripcion||'Trabajo')}</td>
+      <td class="r">${cant}</td>
+      <td class="r">${precio}</td>
+      <td class="r">${_ptFmtE(mo.total||0)}</td>
+    </tr>`;
+  }).join('');
+  const total = parte.mano_obra.reduce((s,mo) => s + (parseFloat(mo.total)||0), 0);
+  return {
+    titulo: 'MANO DE OBRA',
+    html: `
+      <table class="cap-lineas">
+        <thead><tr>
+          <th style="width:55%">Descripción</th>
+          <th class="r" style="width:15%">Cantidad</th>
+          <th class="r" style="width:15%">Precio</th>
+          <th class="r" style="width:15%">Importe</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="cap-importe">
+        <span class="lbl">Total mano de obra</span>
+        <span>${_ptFmtE(total)}</span>
+      </div>`
+  };
+}
+
+function _ptSeccionMateriales(parte) {
+  const mats = parte.materiales || [];
+  if (!mats.length) return null;
+  const filas = mats.map(m => {
+    const nom = m.articulo_nombre || m.nombre || '—';
+    const cant = m.cantidad || 0;
+    const precio = m.precio || 0;
+    const total = cant * precio;
+    return `<tr>
+      <td>${_ptEsc(nom)}</td>
+      <td class="r">${cant}</td>
+      <td class="r">${_ptFmtE(precio)}</td>
+      <td class="r">${_ptFmtE(total)}</td>
+    </tr>`;
+  }).join('');
+  const total = mats.reduce((s,m) => s + ((m.cantidad||0) * (m.precio||0)), 0);
+  return {
+    titulo: 'MATERIALES UTILIZADOS',
+    html: `
+      <table class="cap-lineas">
+        <thead><tr>
+          <th style="width:55%">Material</th>
+          <th class="r" style="width:15%">Cantidad</th>
+          <th class="r" style="width:15%">Precio</th>
+          <th class="r" style="width:15%">Importe</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      ${total > 0 ? `<div class="cap-importe"><span class="lbl">Total materiales</span><span>${_ptFmtE(total)}</span></div>` : ''}`
+  };
+}
+
+// Carga formulario asociado y devuelve sección renderizada (o null)
+async function _ptSeccionFormulario(parte) {
+  try {
+    const { data: pf } = await sb.from('partes_formulario')
+      .select('*').eq('parte_id', parte.id).maybeSingle();
+    if (!pf) return null;
+    const { data: campos } = await sb.from('form_plantilla_campos')
+      .select('*').eq('plantilla_id', pf.plantilla_id).order('orden');
+    const { data: plant } = await sb.from('form_plantillas')
+      .select('nombre, categoria').eq('id', pf.plantilla_id).single();
+    const respuestas = pf.respuestas || {};
+
+    // Filtrar campos visibles según mostrar_si
+    const evalMostrar = (c) => {
+      if (!c.mostrar_si) return true;
+      const cod = c.mostrar_si.codigo;
+      const valoresIn = c.mostrar_si.valor_in || [];
+      if (!cod) return true;
+      return valoresIn.includes(respuestas[cod]);
+    };
+    const visibles = (campos||[]).filter(evalMostrar);
+
+    const keyOf = (c) => c.codigo || ('id_'+c.id);
+    let html = '';
+    visibles.forEach(c => {
+      const key = keyOf(c);
+      const v = respuestas[key];
+      if (c.tipo === 'seccion') {
+        html += `<div style="font-size:9.5px;font-weight:700;color:#1e40af;background:#dbeafe;padding:5px 12px;margin:8px 0 0;text-transform:uppercase;letter-spacing:.5px">${_ptEsc(c.etiqueta)}</div>`;
+        return;
+      }
+      let valHtml = '';
+      const valStr = (v == null || v === '') ? '<span style="color:#94a3b8">—</span>' : '';
+      if (c.tipo === 'radio' || c.tipo === 'dropdown') {
+        const color = (v === 'Correcto') ? '#15803d' : (v === 'Incorrecto') ? '#a32d2d' : '#475569';
+        valHtml = v ? `<span style="color:${color};font-weight:700">${_ptEsc(v)}</span>` : valStr;
+      } else if (c.tipo === 'checkbox') {
+        valHtml = Array.isArray(v) && v.length ? v.map(x => _ptEsc(x)).join(', ') : valStr;
+      } else if (c.tipo === 'foto') {
+        const fotos = Array.isArray(v) ? v : [];
+        valHtml = fotos.length
+          ? fotos.map(u => `<img src="${_ptEsc(u)}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;margin:1px">`).join('')
+          : valStr;
+      } else if (c.tipo === 'firma') {
+        valHtml = '<span style="color:#94a3b8;font-style:italic">(firma)</span>';
+      } else {
+        valHtml = (v == null || v === '') ? valStr : _ptEsc(String(v)).replace(/\n/g,'<br>');
+      }
+      const oblig = c.obligatorio ? '<span style="color:#a32d2d">*</span> ' : '';
+      html += `
+        <div style="display:grid;grid-template-columns:55% 45%;gap:8px;padding:5px 12px;font-size:10px;border-bottom:0.5px solid #f1f5f9;align-items:start">
+          <div style="color:#475569;line-height:1.4">${oblig}${_ptEsc(c.etiqueta)}</div>
+          <div style="color:#1e293b;line-height:1.4">${valHtml}</div>
+        </div>`;
+    });
+    if (!html) {
+      html = '<div style="padding:10px 14px;font-size:10.5px;color:#94a3b8;font-style:italic">Formulario sin campos visibles para este tipo.</div>';
+    }
+    const tipoLabel = (() => {
+      const tm = respuestas['tipo_mantenimiento'];
+      return tm ? ' · ' + tm : '';
+    })();
+    const titulo = `FORMULARIO · ${(plant?.nombre||'').toUpperCase()}${tipoLabel} · v${pf.plantilla_version}`;
+    return { titulo, html };
   } catch (e) {
-    toast('Error al exportar', 'error');
+    console.warn('[_ptSeccionFormulario]', e);
+    return null;
+  }
+}
+
+function _ptSeccionFirmas(parte) {
+  const hayCli = !!parte.firma_url;
+  const hayOp  = !!parte.firma_operario_url;
+  if (!hayCli && !hayOp) return null;
+  const bloque = (titulo, nombre, dni, urlImg) => `
+    <div style="text-align:center">
+      <div style="font-size:8.5px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${titulo}</div>
+      ${urlImg ? `<img src="${_ptEsc(urlImg)}" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff">` : '<div style="height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>'}
+      ${nombre ? `<div style="font-size:10px;font-weight:600;color:#1e293b;margin-top:3px">${_ptEsc(nombre)}</div>` : ''}
+      ${dni ? `<div style="font-size:9px;color:#64748b">DNI: ${_ptEsc(dni)}</div>` : ''}
+    </div>`;
+  return {
+    titulo: 'CONFORMIDAD',
+    html: `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:10px 14px">
+        ${bloque('Persona responsable', parte.cliente_nombre_firma, parte.cliente_dni, parte.firma_url)}
+        ${bloque('Operario', parte.operario_nombre_firma || parte.usuario_nombre, '', parte.firma_operario_url)}
+      </div>`
+  };
+}
+
+// Construye el cfg para html-documento.js a partir de un parte
+async function partePdfBuildCfg(id) {
+  let parte = partesData.find(p => p.id === id);
+  if (!parte) {
+    const { data } = await sb.from('partes_trabajo').select('*').eq('id', id).single();
+    parte = data;
+  }
+  if (!parte) return null;
+
+  const cliente = _ptResolverCliente(parte);
+
+  const horario = (parte.hora_inicio && parte.hora_fin)
+    ? `${parte.hora_inicio.substring(0,5)} - ${parte.hora_fin.substring(0,5)}`
+    : '—';
+  const horas = parte.horas != null ? `${(parseFloat(parte.horas)||0).toFixed(1)} h` : '—';
+  const estadoLabel = (typeof PT_ESTADOS !== 'undefined' && PT_ESTADOS[parte.estado])
+    ? PT_ESTADOS[parte.estado].label : (parte.estado || '');
+
+  const datos_extra = [
+    ['Operario', parte.usuario_nombre || '—'],
+    ['Horario', horario],
+    ['Horas', horas],
+    ['Estado', estadoLabel],
+  ];
+  if (parte.trabajo_titulo) datos_extra.unshift(['Obra', parte.trabajo_titulo]);
+
+  // Construir secciones en orden
+  const secciones = [];
+  const addSec = (s) => { if (s) secciones.push(s); };
+  addSec(_ptSeccionTrabajoRealizado(parte));
+  addSec(_ptSeccionPendientes(parte));
+  addSec(_ptSeccionManoObra(parte));
+  addSec(_ptSeccionMateriales(parte));
+  addSec(await _ptSeccionFormulario(parte));
+  addSec(_ptSeccionFirmas(parte));
+
+  // Observaciones internas (si existen)
+  const observaciones = parte.observaciones || null;
+
+  return {
+    tipo: 'PARTE DE TRABAJO',
+    numero: parte.numero || '',
+    fecha: parte.fecha,
+    titulo: parte.trabajo_titulo || '',
+    cliente,
+    lineas: [],                  // el parte no usa el sistema de capítulos clásico
+    secciones_html: secciones,
+    observaciones,
+    documento_id: parte.id,
+    id: parte.id
+  };
+}
+
+async function exportarPartePDF(id) {
+  try {
+    const cfg = await partePdfBuildCfg(id);
+    if (!cfg) { toast('Parte no encontrado', 'error'); return; }
+    if (typeof window._imprimirDocumento !== 'function') {
+      toast('Renderer html-documento.js no cargado. Recarga la página.', 'error');
+      return;
+    }
+    window._imprimirDocumento(cfg);
+  } catch (e) {
+    console.error('[exportarPartePDF]', e);
+    toast('Error al exportar PDF: ' + (e.message || 'desconocido'), 'error');
   }
 }
 
