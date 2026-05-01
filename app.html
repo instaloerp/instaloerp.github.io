@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 42
+      instaloERP v1.0 · build 43
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 42
+      instaloERP v1.0 · build 43
     </div>
   `;
 }
@@ -5457,11 +5457,22 @@ async function _medGuardarItemVentana() {
 // ════════════════════════════════════════════════════════════════
 // MODAL CUSTOM DE BAÑO — formulario completo con bloques colapsables
 // ════════════════════════════════════════════════════════════════
+// Mapeo: cada tipo de trabajo activa estos bloques automáticamente
+const _MED_BANO_ACTIVAR_POR_TRABAJO = {
+  'reforma_completa':    { plato:true,  ban:true,  mam:true,  pav:true,  par:true,  tec:true,  san:true,  gri:true,  mue:true,  acc:true,  ins:true  },
+  'cambio_ban_plato':    { plato:true,  ban:false, mam:true,  pav:false, par:true,  tec:false, san:false, gri:true,  mue:false, acc:false, ins:false },
+  'cambio_plato_ducha':  { plato:true,  ban:false, mam:true,  pav:false, par:false, tec:false, san:false, gri:true,  mue:false, acc:false, ins:false },
+  'sustitucion_sanit':   { plato:false, ban:false, mam:false, pav:false, par:false, tec:false, san:true,  gri:true,  mue:true,  acc:true,  ins:true  },
+  'cambio_mampara':      { plato:false, ban:false, mam:true,  pav:false, par:false, tec:false, san:false, gri:false, mue:false, acc:false, ins:false },
+  'reforma_parcial':     { plato:false, ban:false, mam:false, pav:true,  par:true,  tec:true,  san:false, gri:false, mue:false, acc:false, ins:false },
+};
+
 function _medAbrirModalBano(it) {
   if (!_medActual) return;
   // State del modal
   window._medBanoState = {
-    bloques_abiertos: { dim:true, ref:false, pav:false, par:false, tec:false,
+    tipo_trabajo: it.tipo_trabajo || '',
+    bloques_abiertos: { trab:true, dim:true, ref:false, pav:false, par:false, tec:false,
                         plato:false, ban:false, mam:false, san:false, gri:false,
                         mue:false, acc:false, ins:false, obs:false },
     plato_activo:    !!it.plato,
@@ -5538,31 +5549,46 @@ function _medRenderBanoForm(it) {
   // ── Ubicación (siempre visible)
   html += field('mbUbic', 'Ubicación (Baño principal, aseo…)', it.ubicacion);
 
-  // ── Bloque 1: Dimensiones
+  // ── Bloque 0: Tipo de trabajo (PRIMERO — activa secciones)
+  const tiposTrabajo = [
+    {k:'reforma_completa',    l:'Reforma completa de baño',    ico:'🔨'},
+    {k:'cambio_ban_plato',    l:'Cambio bañera por plato',     ico:'↔'},
+    {k:'cambio_plato_ducha',  l:'Cambio de plato de ducha',    ico:'🚿'},
+    {k:'sustitucion_sanit',   l:'Sustitución de sanitarios',   ico:'🚽'},
+    {k:'cambio_mampara',      l:'Cambio de mampara',           ico:'🪞'},
+    {k:'reforma_parcial',     l:'Reforma parcial (suelos/paredes)', ico:'🟫'},
+  ];
+  let body0 = '';
+  body0 += `<div style="font-size:11px;color:#6B7280;margin-bottom:8px">Selecciona qué se va a hacer — se activan automáticamente las secciones relevantes:</div>`;
+  body0 += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">`;
+  for (const t of tiposTrabajo) {
+    const a = st.tipo_trabajo === t.k;
+    body0 += `<button type="button" class="tap" onclick="_medBanoSetTipoTrabajo('${t.k}')" style="padding:9px 7px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'500'};font-size:11px;line-height:1.3;text-align:left">${t.ico} ${t.l}</button>`;
+  }
+  body0 += `</div>`;
+  body0 += field('mbAlcanceLibre', 'Detalle / matiz del trabajo (libre)', it.alcance_libre, 'text', 'Ej. Sustituir bañera y mampara, dejar resto…');
+  body0 += check('mbDemolicion', 'Demolición previa necesaria', it.demolicion === 'Sí' || it.demolicion === true);
+  body0 += check('mbQuitarBide', 'Quitar bidé', it.quitar_bide);
+  html += _medBanoBloque('trab', '🛠️ Tipo de trabajo', body0);
+
+  // ── Bloque 1: Medidas
   let body1 = '';
   body1 += grid3(
     field('mbAncho', 'Ancho (mm)', it.ancho_mm, 'number', '0'),
     field('mbLargo', 'Largo (mm)', it.largo_mm, 'number', '0'),
     field('mbAlto',  'Alto (mm)',  it.alto_mm,  'number', '2400')
   );
-  body1 += `<div style="font-size:11px;color:#6B7280;margin:4px 0 8px"><strong id="mbM2">m²: —</strong> (calculado)</div>`;
-  // (Forma quitada — no aporta sin permitir más medidas)
-  html += _medBanoBloque('dim', '📐 Dimensiones', body1);
-
-  // ── Bloque 2: Reforma
-  let body2 = '';
-  body2 += select('mbAlcance', 'Tipo intervención', it.alcance, ['Reforma de baño','Sustitución bañera por plato','Cambio de sanitarios','Otra (especificar abajo)']);
-  body2 += field('mbAlcanceLibre', 'Detalle (libre)', it.alcance_libre, 'text', 'Ej. Sustituir bañera y mampara, dejar resto…');
-  body2 += select('mbDemolicion', 'Demolición previa', it.demolicion, ['Sí','No','Parcial']);
-  body2 += check('mbQuitarBide', 'Quitar bidé', it.quitar_bide);
-  html += _medBanoBloque('ref', '🔨 Tipo de reforma', body2);
+  body1 += `<div id="mbCalculos" style="background:#F0F9FF;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:11.5px;color:#0C4A6E;line-height:1.7">
+    <strong>Mediciones calculadas</strong><br>
+    Suelo / techo: <strong id="mbCalcSuelo">— m²</strong><br>
+    Paredes (alicatado): <strong id="mbCalcParedes">— m²</strong>
+  </div>`;
+  html += _medBanoBloque('dim', '📐 Medidas del baño', body1);
 
   // ── Bloque 3: Pavimento
   const pav = it.pavimento || {};
   let body3 = '';
-  body3 += select('mbPavTipo', 'Tipo', pav.tipo, ['Cerámico','Vinílico','Dejar el que hay']);
-  body3 += select('mbPavAntid', 'Antideslizante (clase)', pav.antideslizante, ['C1','C2','C3','No aplica']);
-  body3 += field('mbPavColor', 'Color / serie / observación', pav.color);
+  body3 += select('mbPavTipo', 'Tipo', pav.tipo, ['Cerámico','Vinílico']);
   html += _medBanoBloque('pav', '🟫 Pavimento', body3);
 
   // ── Bloque 4: Paredes (sin altura, con campo libre)
@@ -5592,54 +5618,51 @@ function _medRenderBanoForm(it) {
   body6 += select('mbPlatoTipo', 'Tipo', plato.tipo, ['Carga mineral','Loza sanitaria']);
   html += _medBanoBloque('plato', '🚿 Plato de ducha', body6, { toggle: st.plato_activo, toggleKey: 'plato_activo' });
 
-  // ── Bloque 7: Bañera (toggle) — sin alto
+  // ── Bloque 7: Bañera (toggle) — solo largo × ancho, sin color/faldón
   let body7 = '';
   body7 += grid2(
     field('mbBanLargo', 'Largo (mm)', banera.largo_mm, 'number'),
     field('mbBanAncho', 'Ancho (mm)', banera.ancho_mm, 'number')
   );
-  body7 += field('mbBanColor', 'Color', banera.color);
-  body7 += select('mbBanTipo', 'Tipo', banera.tipo, ['Acrílica','Hierro fundido']);
+  body7 += select('mbBanTipo', 'Tipo', banera.tipo, ['Acrílica','Chapa']);
   body7 += select('mbBanPos', 'Posición', banera.posicion, ['Pared','Esquina','Exenta']);
-  body7 += check('mbBanFaldon', 'Lleva faldón', banera.faldon);
   html += _medBanoBloque('ban', '🛁 Bañera', body7, { toggle: st.banera_activa, toggleKey: 'banera_activa' });
 
-  // ── Bloque 8: Mampara (toggle)
+  // ── Bloque 8: Mampara (toggle) — con lateral 2 si angular y semicircular
   let body8 = '';
+  const mamTipo = mampara.tipo || '';
+  const esAngular = mamTipo.toLowerCase().includes('angular') || mamTipo.toLowerCase().includes('semicircular');
   body8 += grid2(
-    field('mbMamAncho', 'Ancho (mm)', mampara.ancho_mm, 'number'),
-    field('mbMamAlto',  'Alto (mm)',  mampara.alto_mm,  'number')
+    field('mbMamAncho', 'Ancho frente (mm)', mampara.ancho_mm, 'number'),
+    field('mbMamAlto',  'Alto (mm)',         mampara.alto_mm,  'number')
   );
-  body8 += check('mbMamAntical', 'Tratamiento antical', mampara.antical);
-  body8 += select('mbMamTipo', 'Tipo', mampara.tipo, ['Frente fijo','Frente abatible','Frente corredera','Angular fijo','Angular corredera','Angular abatible','2 hojas correderas','Walk-in (sin perfil)','3 hojas','Angular 3 hojas']);
-  body8 += select('mbMamVidrio', 'Vidrio', mampara.vidrio_mm, ['Templado 6 mm','Templado 8 mm']);
-  body8 += select('mbMamCristal', 'Cristal', mampara.cristal, ['Transparente','Decorado']);
-  body8 += select('mbMamPerfil', 'Perfilería', mampara.perfileria, ['Cromo brillo','Cromo mate','Negro mate','Blanco','Oro','Inox','Sin perfil (Walk-in)']);
+  body8 += `<div id="mbMamLat2Wrap" style="${esAngular?'':'display:none'}">${field('mbMamLat2', 'Lateral 2 / fondo (mm)', mampara.lateral2_mm, 'number')}</div>`;
+  body8 += `<select id="mbMamTipo" onchange="_medBanoMamparaTipoChange(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;background:#fff;box-sizing:border-box;margin-bottom:8px"><option value=""></option>${['Frente fijo','Frente abatible','Frente corredera','Angular corredera','Angular abatible','2 hojas correderas','3 hojas','Angular 3 hojas','Semicircular'].map(o => `<option value="${e(o)}" ${mamTipo===o?'selected':''}>${e(o)}</option>`).join('')}</select>`;
+  body8 += `<div style="font-size:9.5px;color:var(--gris-500);margin:-4px 0 3px">Tipo</div>`;
+  body8 += select('mbMamPerfil', 'Perfilería (color)', mampara.perfileria, ['Cromo brillo','Cromo mate','Negro mate','Blanco','Oro','Inox']);
   html += _medBanoBloque('mam', '🪞 Mampara', body8, { toggle: st.mampara_activa, toggleKey: 'mampara_activa' });
 
-  // ── Bloque 9: Sanitarios
+  // ── Bloque 9: Sanitarios (sin tomas lavadora)
   let body9 = '';
   body9 += select('mbInodoro', 'Inodoro', it.inodoro, ['Suelo cisterna baja','Suspendido (cisterna empotrada)','Compacto','Mantener']);
-  body9 += select('mbLavabo',  'Lavabo',  it.lavabo,  ['Sobre encimera','Mueble baño (integrado)','Pedestal','Semipedestal','Suspendido','Pared','Mantener','Quitar']);
+  body9 += select('mbLavabo',  'Lavabo',  it.lavabo,  ['Sobre encimera','Mueble baño (integrado)','Pedestal','Suspendido','Mantener','Quitar']);
   body9 += select('mbBide',    'Bidé',    it.bide,    ['Nuevo','Mantener','Quitar']);
-  body9 += check('mbTomasLav', 'Tomas para lavadora', it.tomas_lavadora);
   html += _medBanoBloque('san', '🚽 Sanitarios', body9);
 
-  // ── Bloque 10: Grifería
+  // ── Bloque 10: Grifería (renombrados)
   const gri = it.griferia || {};
   let body10 = '';
-  body10 += select('mbGriDucha',  'Ducha',  gri.ducha,  ['Monomando exterior','Termostática exterior','Empotrada','Empotrada termostática']);
+  body10 += select('mbGriDucha',  'Ducha',  gri.ducha,  ['Monomando','Empotrada','Columna de ducha']);
   body10 += select('mbGriLavabo', 'Lavabo', gri.lavabo, ['Monomando','Vertical alto','Empotrada']);
-  body10 += select('mbGriAcab',   'Acabado', gri.acabado, ['Cromo brillo','Cromo mate','Negro mate','Blanco','Oro','Inox']);
+  body10 += select('mbGriAcab',   'Acabado', gri.acabado, ['Cromo','Negro mate','Blanco','Oro','Inox']);
   html += _medBanoBloque('gri', '🚰 Grifería', body10);
 
-  // ── Bloque 11: Mueble + espejo (toggle separado)
+  // ── Bloque 11: Mueble + espejo (sin alto del mueble)
   let body11 = '';
   body11 += `<div style="font-size:11px;color:#6B7280;margin-bottom:6px">— Mueble lavabo —</div>`;
-  body11 += grid3(
+  body11 += grid2(
     field('mbMueAncho', 'Ancho (mm)', mueble.ancho_mm, 'number'),
-    field('mbMueFondo', 'Fondo (mm)', mueble.fondo_mm, 'number'),
-    field('mbMueAlto',  'Alto (mm)',  mueble.alto_mm,  'number')
+    field('mbMueFondo', 'Fondo (mm)', mueble.fondo_mm, 'number')
   );
   body11 += select('mbMuePos', 'Posición', mueble.posicion, ['Suspendido','Suelo']);
   body11 += grid2(
@@ -5656,14 +5679,10 @@ function _medRenderBanoForm(it) {
   body11 += check('mbEspLED', 'LED integrado', espejo.led);
   html += _medBanoBloque('mue', '🪟 Mueble lavabo + espejo', body11, { toggle: st.mueble_activo, toggleKey: 'mueble_activo' });
 
-  // ── Bloque 12: Accesorios
+  // ── Bloque 12: Accesorios — solo los típicos
   let body12 = '';
-  body12 += chips('mbAccesorios', accesorios, ['Toallero','Toallero radiador','Portarrollos','Escobillero','Banco ducha','Asideros','Repisa cristal','Estantería ducha']);
-  body12 += grid2(
-    field('mbToalleroKw', 'Toallero radiador (kW)', it.toallero_radiador_kw, 'number'),
-    field('mbAsideros',   'Asideros (cantidad)', it.asideros, 'number')
-  );
-  html += _medBanoBloque('acc', '🪥 Accesorios / extras', body12);
+  body12 += chips('mbAccesorios', accesorios, ['Toallero','Portarrollos','Escobillero']);
+  html += _medBanoBloque('acc', '🪥 Accesorios', body12);
 
   // ── Bloque 13: Instalaciones
   let body13 = '';
@@ -5703,17 +5722,55 @@ function _medBanoToggleActivo(key) {
   st[key] = !st[key];
 }
 
-// Calcula m² automáticamente al teclear ancho/largo
+// Calcula m² suelo y m² paredes (alicatado) al teclear medidas
+function _medBanoRecalcular() {
+  const a = parseFloat(document.getElementById('mbAncho')?.value) || 0;
+  const l = parseFloat(document.getElementById('mbLargo')?.value) || 0;
+  const h = parseFloat(document.getElementById('mbAlto')?.value) || 0;
+  const suelo  = (a/1000) * (l/1000);
+  const paredes = h ? ((2*(a+l)/1000) * (h/1000)) : 0;
+  const out1 = document.getElementById('mbCalcSuelo');
+  const out2 = document.getElementById('mbCalcParedes');
+  if (out1) out1.textContent = suelo  ? suelo.toFixed(2)  + ' m²' : '— m²';
+  if (out2) out2.textContent = paredes ? paredes.toFixed(2) + ' m²' : '— m²';
+}
 document.addEventListener('input', e => {
   if (!window._medBanoState) return;
-  if (e.target.id === 'mbAncho' || e.target.id === 'mbLargo') {
-    const a = parseFloat(document.getElementById('mbAncho')?.value) || 0;
-    const l = parseFloat(document.getElementById('mbLargo')?.value) || 0;
-    const m2 = (a/1000) * (l/1000);
-    const out = document.getElementById('mbM2');
-    if (out) out.textContent = `m²: ${m2 ? m2.toFixed(2) : '—'}`;
-  }
+  if (['mbAncho','mbLargo','mbAlto'].includes(e.target.id)) _medBanoRecalcular();
 });
+
+// Selector tipo de trabajo — activa secciones automáticamente
+function _medBanoSetTipoTrabajo(k) {
+  const st = window._medBanoState;
+  st.tipo_trabajo = k;
+  const map = _MED_BANO_ACTIVAR_POR_TRABAJO[k] || {};
+  // Activar/desactivar bloques con toggle (plato, ban, mam, mue) según mapeo
+  if ('plato' in map) st.plato_activo    = !!map.plato;
+  if ('ban'   in map) st.banera_activa   = !!map.ban;
+  if ('mam'   in map) st.mampara_activa  = !!map.mam;
+  if ('mue'   in map) st.mueble_activo   = !!map.mue;
+  // Abrir/cerrar visualmente los bloques relevantes
+  Object.keys(map).forEach(blkKey => {
+    if (st.bloques_abiertos[blkKey] != null) st.bloques_abiertos[blkKey] = map[blkKey];
+  });
+  // Re-renderizar todo el form
+  const body = document.getElementById('medBanoBody');
+  if (body) {
+    // Recoger valores actuales antes de re-renderizar
+    const it = (_medItemEditIdx != null && _medActual?.items?.[_medItemEditIdx]) || {};
+    body.innerHTML = _medRenderBanoForm(it);
+    _medBanoRecalcular();
+  }
+}
+
+// Mostrar/ocultar lateral 2 al cambiar tipo de mampara
+function _medBanoMamparaTipoChange(tipo) {
+  const wrap = document.getElementById('mbMamLat2Wrap');
+  if (!wrap) return;
+  const t = (tipo || '').toLowerCase();
+  const esAng = t.includes('angular') || t.includes('semicircular');
+  wrap.style.display = esAng ? '' : 'none';
+}
 
 async function _medGuardarItemBano() {
   if (!_medActual) return;
@@ -5735,14 +5792,12 @@ async function _medGuardarItemBano() {
     largo_mm: largo,
     alto_mm:  n('mbAlto'),
     metros: m2,                  // compat con desc legacy
-    alcance: v('mbAlcance'),
+    tipo_trabajo: st.tipo_trabajo || '',
     alcance_libre: v('mbAlcanceLibre'),
-    demolicion: v('mbDemolicion'),
+    demolicion: c('mbDemolicion') ? 'Sí' : 'No',
     quitar_bide: c('mbQuitarBide'),
     pavimento: {
       tipo: v('mbPavTipo'),
-      antideslizante: v('mbPavAntid'),
-      color: v('mbPavColor'),
     },
     paredes: {
       tipo: v('mbParTipo'),
@@ -5755,30 +5810,24 @@ async function _medGuardarItemBano() {
     plato: !st.plato_activo ? null : {
       ancho_mm: n('mbPlatoAncho'),
       largo_mm: n('mbPlatoLargo'),
-      color: v('mbPlatoColor'),
       tipo: v('mbPlatoTipo'),
     },
     banera: !st.banera_activa ? null : {
       largo_mm: n('mbBanLargo'),
       ancho_mm: n('mbBanAncho'),
-      color: v('mbBanColor'),
       tipo: v('mbBanTipo'),
       posicion: v('mbBanPos'),
-      faldon: c('mbBanFaldon'),
     },
     mampara: !st.mampara_activa ? null : {
       ancho_mm: n('mbMamAncho'),
       alto_mm: n('mbMamAlto'),
-      antical: c('mbMamAntical'),
+      lateral2_mm: n('mbMamLat2'),
       tipo: v('mbMamTipo'),
-      vidrio_mm: v('mbMamVidrio'),
-      cristal: v('mbMamCristal'),
       perfileria: v('mbMamPerfil'),
     },
     inodoro: v('mbInodoro'),
     lavabo:  v('mbLavabo'),
     bide:    v('mbBide'),
-    tomas_lavadora: c('mbTomasLav'),
     griferia: {
       ducha: v('mbGriDucha'),
       lavabo: v('mbGriLavabo'),
@@ -5787,7 +5836,6 @@ async function _medGuardarItemBano() {
     mueble: !st.mueble_activo ? null : {
       ancho_mm: n('mbMueAncho'),
       fondo_mm: n('mbMueFondo'),
-      alto_mm:  n('mbMueAlto'),
       posicion: v('mbMuePos'),
       cajones:  n('mbMueCajones'),
       puertas:  n('mbMuePuertas'),
@@ -5799,8 +5847,6 @@ async function _medGuardarItemBano() {
       led: c('mbEspLED'),
     },
     accesorios: chips('mbAccesorios'),
-    toallero_radiador_kw: parseFloat(v('mbToalleroKw')) || null,
-    asideros: n('mbAsideros'),
     instalaciones: {
       puntos_luz: n('mbInsLuz'),
       enchufes: n('mbInsEnch'),
@@ -6568,7 +6614,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 42
+        instaloERP v1.0 · build 43
       </div>
     </div>`;
 }
