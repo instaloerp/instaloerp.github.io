@@ -169,11 +169,15 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 
 .pie{position:fixed;bottom:5mm;left:14mm;right:14mm;border-top:1px solid #e2e8f0;padding-top:4px;font-size:8px;color:#94a3b8;display:flex;justify-content:space-between}
 
-@page{size:A4;margin:0}
+/* Márgenes en @page se aplican A CADA página (incluida la 2ª, 3ª…). El padding
+   del .doc solo afecta al principio y al final del bloque, así que si el
+   contenido se parte entre páginas, las páginas intermedias salen sin margen
+   superior. Por eso movemos los márgenes principales aquí. */
+@page{size:A4;margin:14mm 12mm 18mm 12mm}
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
-  .doc{padding:14mm 16mm 20mm}
+  .doc{padding:0 4mm}  /* padding mínimo lateral; el grueso lo da @page */
   .pie{display:none!important}  /* en print, el navegador añade su propio pie; el position:fixed rompe la paginación */
 }
 `;
