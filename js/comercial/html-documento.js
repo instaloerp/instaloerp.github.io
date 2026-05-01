@@ -170,6 +170,25 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 
 .pie{position:fixed;bottom:5mm;left:14mm;right:14mm;border-top:1px solid #e2e8f0;padding-top:4px;font-size:8px;color:#94a3b8;display:flex;justify-content:space-between}
 
+/* Marca de agua de imagen: logo de empresa muy difuminado al fondo del
+   documento. position:fixed → Chrome la replica en cada página al imprimir.
+   pointer-events:none para que no interfiera con la selección de texto. */
+.marca-agua-fondo{
+  position:fixed;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:60%; max-width:130mm;
+  opacity:0.05;
+  z-index:0;
+  pointer-events:none;
+  user-select:none;
+  print-color-adjust:exact;
+  -webkit-print-color-adjust:exact;
+}
+.marca-agua-fondo img{width:100%;height:auto;display:block}
+.doc{z-index:1}                          /* asegura contexto de apilamiento sobre la marca */
+.doc > *{position:relative;z-index:1}    /* el contenido del doc por encima de la marca */
+
 /* Márgenes en @page se aplican A CADA página (incluida la 2ª, 3ª…). El padding
    del .doc solo afecta al principio y al final del bloque, así que si el
    contenido se parte entre páginas, las páginas intermedias salen sin margen
@@ -497,6 +516,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 <style>${cssFinal}</style>
 </head>
 <body>
+<div class="marca-agua-fondo" aria-hidden="true"><img src="${_esc(_logoSrc(E))}" alt="" onerror="this.style.display='none'"></div>
 <div class="doc" style="position:relative">
   ${marcaAguaHtml}
   ${_renderCabecera(E, cfg)}
@@ -519,10 +539,14 @@ ${_renderPie(E)}
     const html = _buildHtmlDocumento(cfg);
     const filename = `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`;
     const cfgJson = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+    // Ambos botones (Imprimir / Guardar PDF) usan window.print() — produce
+    // PDF nativo de texto (seleccionable, editable). En el diálogo del
+    // navegador el usuario elige "Guardar como PDF" en Destino, o imprime
+    // directamente. El antiguo flujo html2pdf generaba imagen, no editable.
     const barra = `
 <div class="no-print" style="position:sticky;top:0;background:#1e293b;padding:10px 16px;display:flex;gap:10px;justify-content:center;z-index:9999;box-shadow:0 2px 6px rgba(0,0,0,.2)">
   <button onclick="window.print()" style="padding:8px 18px;border:none;border-radius:6px;background:#1e40af;color:#fff;font-weight:700;cursor:pointer;font-size:13px">🖨️ Imprimir</button>
-  <button onclick="window.opener && window.opener._descargarDocumentoDesdeVentana && window.opener._descargarDocumentoDesdeVentana('${cfgJson}','${_esc(filename)}')" style="padding:8px 18px;border:none;border-radius:6px;background:#059669;color:#fff;font-weight:700;cursor:pointer;font-size:13px">⬇️ Descargar PDF</button>
+  <button onclick="window.print()" title="En el diálogo, elige Destino: Guardar como PDF" style="padding:8px 18px;border:none;border-radius:6px;background:#059669;color:#fff;font-weight:700;cursor:pointer;font-size:13px">💾 Guardar PDF</button>
   <button onclick="window.close()" style="padding:8px 18px;border:none;border-radius:6px;background:#475569;color:#fff;font-weight:700;cursor:pointer;font-size:13px">✕ Cerrar</button>
 </div>`;
     const htmlConBarra = html.replace('<body>', '<body>'+barra);
