@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 34
+      instaloERP v1.0 · build 35
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 34
+      instaloERP v1.0 · build 35
     </div>
   `;
 }
@@ -5156,30 +5156,62 @@ function _medRenderHojas(anchoTotal, altoTotal) {
   let html = '';
   if (st.hojas_simetricas && N > 1) {
     html += `<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px;font-size:11px;color:#166534;margin-bottom:8px">
-      ✓ ${N} hojas iguales · cada una ${anchoEqual||'?'} mm
+      ✓ ${N} hojas iguales · cada una ${anchoEqual||'?'} mm · mismo tipo, lado de bisagras independiente
     </div>`;
-    // Solo el primer bloque (los demás copian sus opciones)
-    html += _medRenderHojaBlock(0, anchoEqual, true);
+    // Hoja 1: bloque completo (ancho compartido + tipo + lado)
+    html += _medRenderHojaBlock(0, anchoEqual, true, 'full');
+    // Hojas 2..N: solo selector de lado de bisagras (porque el tipo y ancho son compartidos)
+    for (let i = 1; i < N; i++) {
+      html += _medRenderHojaBlock(i, anchoEqual, false, 'lado-only');
+    }
   } else {
     if (N > 1) html += `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;font-size:11px;color:#92400E;margin-bottom:8px">
       ℹ️ Cada hoja con dimensiones individuales. Suma esperada: ${anchoTotal||'?'} mm.
     </div>`;
     for (let i = 0; i < N; i++) {
-      html += _medRenderHojaBlock(i, st.hojas[i]?.ancho || (anchoTotal ? anchoEqual : ''), false);
+      html += _medRenderHojaBlock(i, st.hojas[i]?.ancho || (anchoTotal ? anchoEqual : ''), false, 'full');
     }
   }
   return html;
 }
 
-function _medRenderHojaBlock(i, anchoSugerido, soloPrimero) {
+function _medRenderHojaBlock(i, anchoSugerido, soloPrimero, modo) {
   const st = window._medVentanaState;
-  const h = st.hojas[i] || {tipo:'practicable', lado_bisagras:'izquierda'};
+  // Si modo='lado-only', heredamos tipo de la hoja 0
+  const h0 = st.hojas[0] || {tipo:'practicable', lado_bisagras:'izquierda'};
+  const h = st.hojas[i] || {tipo: h0.tipo, lado_bisagras: 'izquierda'};
+  // Sincronizar el tipo de hojas extras con el de la primera cuando son simétricas
+  if (modo === 'lado-only') h.tipo = h0.tipo;
   const tipos = ['practicable','oscilo-batiente','oscilo-paralela','corredera','elevable','plegable','abatible','proyectante','fija'];
   const lados = ['izquierda','derecha','arriba','abajo'];
-  const subtitle = soloPrimero ? `Tipo y bisagras se aplican a TODAS las ${st.num_hojas} hojas` : '';
+  const tipoEsFija = (modo === 'lado-only' ? h0.tipo : h.tipo) === 'fija';
+  const labelHoja = modo === 'lado-only'
+    ? `Hoja ${i+1} — bisagras`
+    : `Hoja ${i+1}${soloPrimero && st.num_hojas > 1 ? ' (mismo tipo)' : ''}`;
+  const subtitle = soloPrimero ? `Tipo aplicado a TODAS las ${st.num_hojas} hojas — el lado se ajusta por hoja abajo` : '';
+
+  // Modo lado-only: bloque mini con solo el selector de bisagras
+  if (modo === 'lado-only') {
+    if (tipoEsFija) {
+      return `<div style="border:1px dashed var(--gris-200);border-radius:9px;padding:8px 11px;margin-bottom:6px;background:#FAFBFC;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:11px;font-weight:600;color:var(--gris-500)">Hoja ${i+1}</div>
+        <div style="font-size:10.5px;color:#9CA3AF;font-style:italic">— Sin bisagras (fija) —</div>
+      </div>`;
+    }
+    return `<div style="border:1.5px solid var(--gris-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;background:#FAFBFC">
+      <div style="font-size:10.5px;font-weight:700;color:var(--gris-700);margin-bottom:6px">${labelHoja}</div>
+      <div style="display:flex;gap:5px">${lados.map(l => {
+        const a = h.lado_bisagras===l;
+        const ico = ({izquierda:'⬅',derecha:'➡',arriba:'⬆',abajo:'⬇'})[l];
+        return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:#fff;color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
+      }).join('')}</div>
+    </div>`;
+  }
+
+  // Modo full: bloque completo
   return `<div style="border:1.5px solid ${i===0?'#3B82F6':'var(--gris-200)'};border-radius:10px;padding:11px;margin-bottom:8px;background:${i===0?'#EFF6FF':'#FAFBFC'}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11.5px;font-weight:700;color:${i===0?'#1E40AF':'var(--gris-700)'}">Hoja ${i+1}${st.hojas_simetricas&&st.num_hojas>1?' (todas iguales)':''}</div>
+      <div style="font-size:11.5px;font-weight:700;color:${i===0?'#1E40AF':'var(--gris-700)'}">${labelHoja}</div>
     </div>
     ${subtitle?`<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${subtitle}</div>`:''}
     ${st.hojas_simetricas ? '' : `<div style="margin-bottom:7px"><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Ancho (mm)</div><input data-hoja="${i}" data-campo="ancho" oninput="_medVentanaHojaInput(${i},'ancho',this.value)" type="number" value="${h.ancho||anchoSugerido||''}" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box"></div>`}
@@ -5189,7 +5221,7 @@ function _medRenderHojaBlock(i, anchoSugerido, soloPrimero) {
     <div style="display:flex;gap:5px">${lados.map(l => {
       const a = h.lado_bisagras===l;
       const ico = ({izquierda:'⬅',derecha:'➡',arriba:'⬆',abajo:'⬇'})[l];
-      return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#fff':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
+      return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:#fff;color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
     }).join('')}</div></div>`}
   </div>`;
 }
@@ -5234,8 +5266,18 @@ function _medVentanaSetTipologia(tip) {
 function _medVentanaSetHojas(n) {
   const st = window._medVentanaState;
   st.num_hojas = n;
-  // Asegurar que el array hojas tiene N entradas
-  while (st.hojas.length < n) st.hojas.push({tipo:'practicable', lado_bisagras:'izquierda'});
+  // Asegurar que el array hojas tiene N entradas con defaults inteligentes
+  // (1ª izquierda, última derecha, intermedias alternando)
+  while (st.hojas.length < n) {
+    const i = st.hojas.length;
+    const tipoBase = st.hojas[0]?.tipo || 'practicable';
+    let lado;
+    if (i === 0)             lado = 'izquierda';
+    else if (i === n - 1)    lado = 'derecha';
+    else if (n === 3 && i === 1) lado = 'derecha';  // central tira a la derecha
+    else                     lado = (i % 2 === 0) ? 'izquierda' : 'derecha';
+    st.hojas.push({tipo: tipoBase, lado_bisagras: lado});
+  }
   st.hojas = st.hojas.slice(0, n);
   _medRefrescarVentanaForm();
 }
@@ -5288,7 +5330,12 @@ async function _medGuardarItemVentana() {
     num_hojas: st.num_hojas,
     hojas_simetricas: st.hojas_simetricas,
     hojas: st.hojas_simetricas
-      ? Array.from({length: st.num_hojas}, () => ({...st.hojas[0], ancho: Math.floor(ancho/st.num_hojas)}))
+      ? Array.from({length: st.num_hojas}, (_, i) => ({
+          // Hereda tipo, etc. de la hoja 0, pero respeta lado individual de cada hoja
+          ...st.hojas[0],
+          lado_bisagras: st.hojas[i]?.lado_bisagras || st.hojas[0]?.lado_bisagras || 'izquierda',
+          ancho: Math.floor(ancho/st.num_hojas),
+        }))
       : st.hojas.slice(0, st.num_hojas).map(h => ({...h, ancho: parseInt(h.ancho)||0})),
     cajon: st.cajon_tipo === 'ninguno' ? null : {
       tipo: st.cajon_tipo,
@@ -6074,7 +6121,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 34
+        instaloERP v1.0 · build 35
       </div>
     </div>`;
 }
