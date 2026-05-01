@@ -2293,7 +2293,7 @@ async function _ptSeccionFirmas(parte) {
         <b style="color:#1e293b">${_ptEsc(empresa.nombre || '')}</b>
         ${parte.usuario_nombre ? '<br>Operario: '+_ptEsc(parte.usuario_nombre) : ''}
       </div>
-      ${firmaOp ? `<img src="${firmaOp}" style="max-width:160px;max-height:55px;margin-top:6px;display:block;background:#fff;border:1px solid #e2e8f0;border-radius:4px">` : ''}
+      ${firmaOp ? `<img src="${firmaOp}" style="max-width:100%;width:auto;height:auto;max-height:80px;margin:6px auto 0;display:block">` : ''}
       ${selloEmpresa}
     </div>`;
 
@@ -2306,7 +2306,7 @@ async function _ptSeccionFirmas(parte) {
         ${parte.cliente_dni ? '<br>DNI: '+_ptEsc(parte.cliente_dni) : ''}
         ${fechaFirma ? '<br>Fecha: '+fechaFirma : ''}
       </div>
-      <img src="${firmaCli}" style="max-width:160px;max-height:55px;margin-top:6px;display:block;background:#fff;border:1px solid #e2e8f0;border-radius:4px">
+      <img src="${firmaCli}" style="max-width:100%;width:auto;height:auto;max-height:90px;margin:8px auto 0;display:block">
     </div>` : `
     <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:10px;min-height:90px">
       <div style="font-size:9px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Aceptación del cliente</div>
