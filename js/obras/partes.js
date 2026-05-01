@@ -2026,65 +2026,49 @@ function _ptSeccionPendientes(parte) {
 
 function _ptSeccionManoObra(parte) {
   if (!parte.mano_obra || !parte.mano_obra.length) return null;
+  // Los partes de trabajo NO se valoran: solo cantidades, sin precios ni totales.
   const filas = parte.mano_obra.map(mo => {
     const cant = mo.es_desplazamiento ? (mo.km||0)+' km' : (mo.minutos||0)+' min';
-    const precio = (mo.precio_hora||0).toFixed(2)+' €/'+(mo.es_desplazamiento?'km':'h');
     return `<tr>
       <td>${_ptEsc(mo.descripcion||'Trabajo')}</td>
       <td class="r">${cant}</td>
-      <td class="r">${precio}</td>
-      <td class="r">${_ptFmtE(mo.total||0)}</td>
     </tr>`;
   }).join('');
-  const total = parte.mano_obra.reduce((s,mo) => s + (parseFloat(mo.total)||0), 0);
   return {
     titulo: 'MANO DE OBRA',
     html: `
       <table class="cap-lineas">
         <thead><tr>
-          <th style="width:55%">Descripción</th>
-          <th class="r" style="width:15%">Cantidad</th>
-          <th class="r" style="width:15%">Precio</th>
-          <th class="r" style="width:15%">Importe</th>
+          <th style="width:75%">Descripción</th>
+          <th class="r" style="width:25%">Cantidad</th>
         </tr></thead>
         <tbody>${filas}</tbody>
-      </table>
-      <div class="cap-importe">
-        <span class="lbl">Total mano de obra</span>
-        <span>${_ptFmtE(total)}</span>
-      </div>`
+      </table>`
   };
 }
 
 function _ptSeccionMateriales(parte) {
   const mats = parte.materiales || [];
   if (!mats.length) return null;
+  // Los partes de trabajo NO se valoran: solo cantidades, sin precios ni totales.
   const filas = mats.map(m => {
     const nom = m.articulo_nombre || m.nombre || '—';
     const cant = m.cantidad || 0;
-    const precio = m.precio || 0;
-    const total = cant * precio;
     return `<tr>
       <td>${_ptEsc(nom)}</td>
       <td class="r">${cant}</td>
-      <td class="r">${_ptFmtE(precio)}</td>
-      <td class="r">${_ptFmtE(total)}</td>
     </tr>`;
   }).join('');
-  const total = mats.reduce((s,m) => s + ((m.cantidad||0) * (m.precio||0)), 0);
   return {
     titulo: 'MATERIALES UTILIZADOS',
     html: `
       <table class="cap-lineas">
         <thead><tr>
-          <th style="width:55%">Material</th>
-          <th class="r" style="width:15%">Cantidad</th>
-          <th class="r" style="width:15%">Precio</th>
-          <th class="r" style="width:15%">Importe</th>
+          <th style="width:75%">Material</th>
+          <th class="r" style="width:25%">Cantidad</th>
         </tr></thead>
         <tbody>${filas}</tbody>
-      </table>
-      ${total > 0 ? `<div class="cap-importe"><span class="lbl">Total materiales</span><span>${_ptFmtE(total)}</span></div>` : ''}`
+      </table>`
   };
 }
 
@@ -2305,20 +2289,27 @@ async function partePdfBuildCfg(id) {
 
   const cliente = _ptResolverCliente(parte);
 
-  const horario = (parte.hora_inicio && parte.hora_fin)
-    ? `${parte.hora_inicio.substring(0,5)} - ${parte.hora_fin.substring(0,5)}`
-    : '—';
+  // Hora REAL de inicio/fin: la guarda el operario al iniciar (inicio_at) y al
+  // completar (completado_at) el parte. Si no las hubiera (parte antiguo o no
+  // iniciado todavía), caemos a la hora programada como fallback.
+  const _fmtHoraIso = (iso) => {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+    } catch { return null; }
+  };
+  const horaIni = _fmtHoraIso(parte.inicio_at) || (parte.hora_inicio ? parte.hora_inicio.substring(0,5) : null);
+  const horaFin = _fmtHoraIso(parte.completado_at) || (parte.hora_fin ? parte.hora_fin.substring(0,5) : null);
+  const horario = (horaIni && horaFin) ? `${horaIni} - ${horaFin}` : (horaIni || '—');
   const horas = parte.horas != null ? `${(parseFloat(parte.horas)||0).toFixed(1)} h` : '—';
-  const estadoLabel = (typeof PT_ESTADOS !== 'undefined' && PT_ESTADOS[parte.estado])
-    ? PT_ESTADOS[parte.estado].label : (parte.estado || '');
 
+  // Datos del parte para la tarjeta lateral. NO incluimos Estado (irrelevante
+  // en el PDF) ni Obra (ya aparece como subtítulo del documento).
   const datos_extra = [
     ['Operario', parte.usuario_nombre || '—'],
     ['Horario', horario],
     ['Horas', horas],
-    ['Estado', estadoLabel],
   ];
-  if (parte.trabajo_titulo) datos_extra.unshift(['Obra', parte.trabajo_titulo]);
 
   // Construir secciones en orden
   const secciones = [];
