@@ -20,6 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -1481,6 +1482,29 @@ try {
             <th>Número</th><th>Obra</th><th>Usuario</th><th>Fecha</th><th>Horas</th><th style="text-align:center">Horas</th><th>Estado</th><th style="text-align:right">Acciones</th>
           </tr></thead><tbody id="ptTable"></tbody></table></div>
         </div>
+      </div>
+
+      <!-- FORMULARIOS -->
+      <div class="page" id="page-formularios">
+        <!-- Vista listado -->
+        <div id="formVista-lista">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;gap:14px;align-items:center">
+              <p style="font-size:11.5px;color:var(--gris-400)" id="formCount">—</p>
+              <label style="font-size:11.5px;color:var(--gris-500);display:flex;align-items:center;gap:5px;cursor:pointer">
+                <input type="checkbox" id="formMostrarInactivas" onchange="renderFormPlantillas()"> Mostrar inactivas
+              </label>
+            </div>
+            <button class="btn btn-primary" onclick="nuevaPlantillaForm()">+ Nueva plantilla</button>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="tw"><table class="dt"><thead><tr>
+              <th>Nombre</th><th>Categoría</th><th>Versión</th><th>Campos</th><th>Estado</th><th style="text-align:right">Acciones</th>
+            </tr></thead><tbody id="formPlantillasTable"></tbody></table></div>
+          </div>
+        </div>
+        <!-- Vista editor (renderizada por formularios.js) -->
+        <div id="formVista-editor" style="display:none"></div>
       </div>
 
       <!-- PLANIFICADOR SEMANAL -->
@@ -3450,6 +3474,10 @@ try {
       </div>
       <div class="fg" style="margin-bottom:11px"><label>Descripción del trabajo</label><textarea id="pt_desc" rows="3" placeholder="Detalla el trabajo realizado..." autocorrect="on" spellcheck="true"></textarea></div>
       <div class="fg" style="margin-bottom:11px"><label>Observaciones</label><textarea id="pt_observaciones" rows="2" placeholder="Notas internas, incidencias..." autocorrect="on" spellcheck="true"></textarea></div>
+
+      <!-- Formulario asociado al parte (gestionado por parte_formulario.js) -->
+      <div id="pf_wrap"></div>
+
       <div style="margin-bottom:11px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <label style="font-size:12px;font-weight:700;color:var(--gris-600)">🧱 Materiales utilizados</label>
@@ -5202,6 +5230,77 @@ try {
 
 <div id="toast"></div>
 
+<!-- ═══════════════════════════════════════════════
+     MODAL: editar campo de formulario
+     ═══════════════════════════════════════════════ -->
+<div class="overlay" id="mFormCampo">
+  <div class="modal modal-md">
+    <div class="modal-h">
+      <h2>Editar campo del formulario</h2>
+      <button class="btn-ghost" onclick="closeModal('mFormCampo')" style="margin-left:auto">✕</button>
+    </div>
+    <div class="modal-b">
+      <div class="fg-row" style="margin-bottom:11px">
+        <div class="fg">
+          <label>Tipo de campo *</label>
+          <select id="frmCampoTipo" onchange="_formActualizarVisibTipoModal()"></select>
+        </div>
+        <div class="fg">
+          <label>Código (estable, opcional)</label>
+          <input id="frmCampoCodigo" placeholder="ej: tipo_mantenimiento">
+          <span class="hint">Identificador para condiciones de visibilidad</span>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label>Etiqueta *</label>
+        <input id="frmCampoEtiqueta" placeholder="¿Qué pregunta el campo?">
+      </div>
+      <div class="fg" style="margin-bottom:11px">
+        <label style="font-weight:500;color:var(--gris-700);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="frmCampoOblig"> Campo obligatorio
+        </label>
+      </div>
+
+      <div class="fg" id="frmCampoOpcionesWrap" style="display:none;margin-bottom:11px">
+        <label>Opciones (una por línea) *</label>
+        <textarea id="frmCampoOpciones" rows="5" placeholder="Opción 1&#10;Opción 2&#10;Opción 3"></textarea>
+      </div>
+
+      <div class="fg" id="frmCampoMaxWrap" style="display:none;margin-bottom:11px">
+        <label>Máximo de fotos</label>
+        <input id="frmCampoMax" type="number" min="1" max="20" placeholder="ej: 6">
+      </div>
+
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--gris-100)">
+
+      <div class="fg" style="margin-bottom:8px">
+        <label>Visibilidad condicional</label>
+        <select id="frmCampoVisib" onchange="_formActualizarVisibCondModal()">
+          <option value="">Siempre visible</option>
+          <option value="cond">Solo si otro campo tiene cierto valor</option>
+        </select>
+      </div>
+      <div id="frmCampoCondWrap" style="display:none">
+        <div class="fg-row">
+          <div class="fg">
+            <label>Código del campo *</label>
+            <input id="frmCampoCondCodigo" placeholder="ej: tipo_mantenimiento">
+            <span class="hint">El campo del que depende</span>
+          </div>
+          <div class="fg">
+            <label>Valor(es) que activan *</label>
+            <input id="frmCampoCondValores" placeholder="MENSUAL, ANUAL">
+            <span class="hint">Separados por coma</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal('mFormCampo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCampoForm()">Guardar campo</button>
+    </div>
+  </div>
+</div>
 
 <!-- Dropdown global autocompletado artículos -->
 <div id="acArticulos" class="ac-dropdown"></div>
@@ -5266,6 +5365,8 @@ try {
     'js/obras/trabajos.js',
     'js/obras/mantenimientos.js',
     'js/obras/partes.js',
+    'js/obras/formularios.js',
+    'js/obras/parte_formulario.js',
     'js/obras/planificador.js',
     'js/obras/calendario.js',
     // Personal

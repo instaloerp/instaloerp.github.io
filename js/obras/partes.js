@@ -271,6 +271,8 @@ function nuevoParteModal(preselObraId) {
   pt_renderFotos();
   limpiarFirma();
   initFirmaCanvas();
+  // Selector de formulario para parte nuevo (sin parte_id aún) — parte_formulario.js
+  if (typeof pf_init === 'function') { pf_init(null).catch(e => console.warn('[pf_init]', e)); }
   openModal('mPartes');
 }
 
@@ -471,6 +473,9 @@ async function editarParte(id) {
     limpiarFirma();
     initFirmaCanvas();
   }
+
+  // Cargar formulario asociado (si lo hay) — parte_formulario.js
+  if (typeof pf_init === 'function') { try { await pf_init(id); } catch(e) { console.warn('[pf_init]', e); } }
 
   openModal('mPartes');
 }
@@ -826,6 +831,15 @@ async function guardarParte(estado = 'borrador') {
     if (!hora_inicio) { toast('Indica la hora de inicio', 'error'); return; }
     if (!hora_fin) { toast('Indica la hora de fin', 'error'); return; }
 
+    // Validar formulario (si está asignado y vamos a un estado que no sea borrador)
+    if (estado !== 'borrador' && typeof pf_validar === 'function') {
+      const _vForm = pf_validar();
+      if (!_vForm.ok) {
+        toast('Faltan campos obligatorios del formulario: ' + _vForm.faltantes.slice(0,3).join(', ') + (_vForm.faltantes.length>3 ? ` y ${_vForm.faltantes.length-3} más` : ''), 'error', 7000);
+        return;
+      }
+    }
+
     // Calcular horas
     const ini = new Date(`2000-01-01T${hora_inicio}`);
     const fin = new Date(`2000-01-01T${hora_fin}`);
@@ -929,6 +943,7 @@ async function guardarParte(estado = 'borrador') {
 
     // Insertar o actualizar
     let error;
+    let nuevoParteId = null;
     if (pt_edicion) {
       // Actualizar
       const numero = partesData.find(p => p.id === pt_edicion)?.numero;
@@ -940,13 +955,21 @@ async function guardarParte(estado = 'borrador') {
       // Crear nuevo - generar número
       const numero = `PRT-${new Date().getFullYear()}-${String(partesData.length + 1).padStart(4, '0')}`;
       payload.numero = numero;
-      ({ error } = await sb.from('partes_trabajo').insert(payload));
+      const _ins = await sb.from('partes_trabajo').insert(payload).select('id').single();
+      error = _ins.error;
+      nuevoParteId = _ins.data?.id || null;
       if (!error) toast(`Parte ${numero} creado ✓`, 'success');
     }
 
     if (error) {
       toast('Error: ' + error.message, 'error');
       return;
+    }
+
+    // Persistir formulario asociado (si lo hay) — parte_formulario.js
+    if (typeof pf_postCrearParte === 'function') {
+      try { await pf_postCrearParte(pt_edicion || nuevoParteId); }
+      catch(e) { console.warn('[pf_postCrearParte]', e); }
     }
 
     // Registrar en audit log de la obra
