@@ -403,14 +403,25 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   }
 
   // ─── Secciones HTML libres (para documentos sin "líneas" típicas, ej: parte) ──
+  // Cada sección admite:
+  //   sec.titulo              — texto banda azul
+  //   sec.html                — contenido HTML libre
+  //   sec.pageBreakBefore     — true para empezar en página nueva
+  //   sec.large               — true para PERMITIR partir el capítulo entre páginas
+  //                              (por defecto los capítulos se mantienen unidos)
   function _renderSecciones(secciones, offsetIdx){
     if (!secciones || !secciones.length) return '';
     return secciones.map((sec, i) => {
       const idx = (offsetIdx || 0) + i + 1;
       const titulo = sec.titulo || '';
       const html = sec.html || '';
+      const styles = [];
+      if (sec.pageBreakBefore) styles.push('page-break-before:always');
+      // Si es "large" no aplicamos page-break-inside:avoid, para permitir partir
+      if (sec.large) styles.push('page-break-inside:auto;break-inside:auto');
+      const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
       return `
-<div class="capitulo">
+<div class="capitulo"${styleAttr}>
   <div class="cap-banda">
     <div class="cap-num">${String(idx).padStart(2,'0')}</div>
     <div class="cap-titulo">${_esc(titulo)}</div>

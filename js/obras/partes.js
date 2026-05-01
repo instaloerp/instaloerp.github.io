@@ -2128,50 +2128,116 @@ async function _ptSeccionFormulario(parte) {
     });
     if (actual.campos.length || actual.seccion) grupos.push(actual);
 
+    // Renderiza el VALOR de un campo (radio/dropdown coloreados, fotos miniatura, etc.)
+    const renderValor = (c, v) => {
+      if (esVacio(v)) return '<span style="color:#94a3b8">—</span>';
+      if (c.tipo === 'radio' || c.tipo === 'dropdown') {
+        const color = (v === 'Correcto') ? '#15803d' : (v === 'Incorrecto') ? '#a32d2d' : '#475569';
+        return `<span style="color:${color};font-weight:700">${_ptEsc(v)}</span>`;
+      }
+      if (c.tipo === 'checkbox') {
+        return Array.isArray(v) && v.length ? v.map(x => _ptEsc(x)).join(', ') : '—';
+      }
+      if (c.tipo === 'foto') {
+        const fotos = Array.isArray(v) ? v : [];
+        return fotos.length
+          ? fotos.map(u => `<img src="${_ptEsc(u)}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;margin:1px">`).join('')
+          : '—';
+      }
+      if (c.tipo === 'firma') return '<span style="color:#94a3b8;font-style:italic">(firma)</span>';
+      return _ptEsc(String(v)).replace(/\n/g,'<br>');
+    };
+
+    // Render una fila simple etiqueta+valor (para campos sueltos: textos largos, fotos, etc.)
+    const renderFilaSimple = (c) => {
+      const v = respuestas[keyOf(c)];
+      const oblig = c.obligatorio ? '<span style="color:#a32d2d">*</span> ' : '';
+      return `
+        <div style="display:grid;grid-template-columns:55% 45%;gap:8px;padding:5px 12px;font-size:10px;border-bottom:0.5px solid #f1f5f9;align-items:start">
+          <div style="color:#475569;line-height:1.4">${oblig}${_ptEsc(c.etiqueta)}</div>
+          <div style="color:#1e293b;line-height:1.4">${renderValor(c, v)}</div>
+        </div>`;
+    };
+
     let html = '';
     grupos.forEach(g => {
-      // Sección sin campos a mostrar → omitir cabecera (evita "OBSERVACIONES" vacío)
+      // Sección sin campos a mostrar → omitir cabecera entera
       if (g.seccion && g.campos.length === 0) return;
       if (g.seccion) {
         html += `<div style="font-size:9.5px;font-weight:700;color:#1e40af;background:#dbeafe;padding:5px 12px;margin:8px 0 0;text-transform:uppercase;letter-spacing:.5px">${_ptEsc(g.seccion.etiqueta)}</div>`;
       }
-      g.campos.forEach(c => {
-      const key = keyOf(c);
-      const v = respuestas[key];
-      let valHtml = '';
-      const valStr = esVacio(v) ? '<span style="color:#94a3b8">—</span>' : '';
-      if (c.tipo === 'radio' || c.tipo === 'dropdown') {
-        const color = (v === 'Correcto') ? '#15803d' : (v === 'Incorrecto') ? '#a32d2d' : '#475569';
-        valHtml = v ? `<span style="color:${color};font-weight:700">${_ptEsc(v)}</span>` : valStr;
-      } else if (c.tipo === 'checkbox') {
-        valHtml = Array.isArray(v) && v.length ? v.map(x => _ptEsc(x)).join(', ') : valStr;
-      } else if (c.tipo === 'foto') {
-        const fotos = Array.isArray(v) ? v : [];
-        valHtml = fotos.length
-          ? fotos.map(u => `<img src="${_ptEsc(u)}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;margin:1px">`).join('')
-          : valStr;
-      } else if (c.tipo === 'firma') {
-        valHtml = '<span style="color:#94a3b8;font-style:italic">(firma)</span>';
-      } else {
-        valHtml = (v == null || v === '') ? valStr : _ptEsc(String(v)).replace(/\n/g,'<br>');
+
+      // Detectar pares "operación (radio/dropdown) + observaciones (texto_largo siguiente)"
+      const operaciones = [];   // [{ op, obs|null }]
+      const sueltos = [];       // campos que no encajan en operaciones
+      let i = 0;
+      while (i < g.campos.length) {
+        const c = g.campos[i];
+        if (c.tipo === 'radio' || c.tipo === 'dropdown') {
+          const sig = g.campos[i+1];
+          // Empareja con el siguiente texto_largo si su etiqueta es "Observaciones" o similar
+          if (sig && sig.tipo === 'texto_largo' && /observ/i.test(sig.etiqueta)) {
+            operaciones.push({ op: c, obs: sig });
+            i += 2;
+            continue;
+          }
+          operaciones.push({ op: c, obs: null });
+          i++;
+          continue;
+        }
+        sueltos.push(c);
+        i++;
       }
-      const oblig = c.obligatorio ? '<span style="color:#a32d2d">*</span> ' : '';
-      html += `
-        <div style="display:grid;grid-template-columns:55% 45%;gap:8px;padding:5px 12px;font-size:10px;border-bottom:0.5px solid #f1f5f9;align-items:start">
-          <div style="color:#475569;line-height:1.4">${oblig}${_ptEsc(c.etiqueta)}</div>
-          <div style="color:#1e293b;line-height:1.4">${valHtml}</div>
-        </div>`;
-      });  // cierra g.campos.forEach
-    });    // cierra grupos.forEach
+
+      // Si hay operaciones → tabla 3 columnas (Operación · Resultado · Observaciones)
+      if (operaciones.length) {
+        html += `
+          <table style="width:100%;border-collapse:collapse;font-size:10px;margin:0 0 4px">
+            <thead>
+              <tr style="background:#f1f5f9">
+                <th style="text-align:left;padding:6px 12px;font-weight:700;color:#1e40af;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #cbd5e1;width:55%">Operación</th>
+                <th style="text-align:center;padding:6px 8px;font-weight:700;color:#1e40af;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #cbd5e1;width:15%">Resultado</th>
+                <th style="text-align:left;padding:6px 12px;font-weight:700;color:#1e40af;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #cbd5e1;width:30%">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${operaciones.map(({ op, obs }) => {
+                const oblig = op.obligatorio ? '<span style="color:#a32d2d">*</span> ' : '';
+                const valOp = renderValor(op, respuestas[keyOf(op)]);
+                const valObs = obs ? (() => {
+                  const vo = respuestas[keyOf(obs)];
+                  return esVacio(vo) ? '' : _ptEsc(String(vo)).replace(/\n/g,'<br>');
+                })() : '';
+                return `<tr>
+                  <td style="padding:5px 12px;border-bottom:0.5px solid #f1f5f9;color:#475569;line-height:1.4;vertical-align:top">${oblig}${_ptEsc(op.etiqueta)}</td>
+                  <td style="padding:5px 8px;border-bottom:0.5px solid #f1f5f9;text-align:center;vertical-align:top">${valOp}</td>
+                  <td style="padding:5px 12px;border-bottom:0.5px solid #f1f5f9;color:#475569;line-height:1.4;vertical-align:top;font-size:9.5px">${valObs}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      }
+
+      // Campos sueltos detrás (textos largos sin radio asociado, fotos, etc.)
+      sueltos.forEach(c => { html += renderFilaSimple(c); });
+    });
+
     if (!html) {
       html = '<div style="padding:10px 14px;font-size:10.5px;color:#94a3b8;font-style:italic">Formulario sin campos visibles para este tipo.</div>';
     }
-    const tipoLabel = (() => {
-      const tm = respuestas['tipo_mantenimiento'];
-      return tm ? ' · ' + tm : '';
-    })();
-    const titulo = `FORMULARIO · ${(plant?.nombre||'').toUpperCase()}${tipoLabel} · v${pf.plantilla_version}`;
-    return { titulo, html };
+
+    // Título dinámico según TIPO DE MANTENIMIENTO (siguiendo convención antigua)
+    const tm = respuestas['tipo_mantenimiento'];
+    let titulo;
+    if (tm === 'CORRECTIVO') {
+      titulo = 'INFORME DE VISITA';
+    } else if (tm) {
+      titulo = `INFORME DE MANTENIMIENTO PREVENTIVO · ${tm}`;
+    } else {
+      titulo = 'INFORME TÉCNICO';
+    }
+    // El informe empieza en página propia y permite partirse si es muy largo.
+    return { titulo, html, pageBreakBefore: true, large: true };
   } catch (e) {
     console.warn('[_ptSeccionFormulario]', e);
     return null;
