@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 32
+      instaloERP v1.0 · build 34
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 32
+      instaloERP v1.0 · build 34
     </div>
   `;
 }
@@ -4316,18 +4316,18 @@ let _medItemEditIdx = null;     // índice del item en edición (null = nuevo)
 // Plantillas: campos por tipo de medición
 const MED_PLANTILLAS = {
   ventanas: {
-    label: 'Ventanas', ico: '🪟', color: '#0891B2',
+    label: 'Carpintería metálica', ico: '🪟', color: '#0891B2',
     campos: [
       { key: 'ubicacion', label: 'Ubicación', tipo: 'text', placeholder: 'Salón, cocina, dormitorio…' },
       { key: 'ancho',     label: 'Ancho (cm)', tipo: 'number' },
       { key: 'alto',      label: 'Alto (cm)',  tipo: 'number' },
       { key: 'cantidad',  label: 'Unidades', tipo: 'number', defecto: 1 },
-      { key: 'tipo_apertura', label: 'Tipo', tipo: 'select', opciones: ['Oscilo-batiente','Corredera','Practicable','Fija','Abatible'] },
-      { key: 'material',  label: 'Material', tipo: 'select', opciones: ['PVC','Aluminio','Madera','Mixta'] },
-      { key: 'cristal',   label: 'Cristal', tipo: 'select', opciones: ['Climalit estándar','Climalit bajo emisivo','Triple','Seguridad','Otro'] },
+      { key: 'tipo_apertura', label: 'Tipo', tipo: 'select', opciones: ['Oscilo-batiente','Corredera','Practicable','Fija','Abatible','Oscilo-paralela','Elevable','Plegable'] },
+      { key: 'material',  label: 'Material', tipo: 'select', opciones: ['PVC','Aluminio','Aluminio RPT','Hierro','Acero inox','Mixta'] },
+      { key: 'cristal',   label: 'Cristal', tipo: 'select', opciones: ['Climalit estándar','Climalit bajo emisivo','Triple','Seguridad','Translúcido','Otro'] },
       { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
     ],
-    descripcionItem: (it) => `${it.cantidad||1}× Ventana ${it.ancho||'?'}×${it.alto||'?'} cm${it.tipo_apertura ? ' ' + it.tipo_apertura : ''}${it.material ? ' · ' + it.material : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
+    descripcionItem: (it) => `${it.cantidad||1}× ${it.tipologia==='balconera'?'Balconera':it.tipologia==='puerta-entrada'?'Puerta':it.tipologia==='corredera'?'Corredera':it.tipologia==='elevable'?'Elevable':'Ventana'} ${it.ancho||'?'}×${it.alto||'?'} cm${it.tipo_apertura ? ' ' + it.tipo_apertura : ''}${it.material ? ' · ' + it.material : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
   },
   bano: {
     label: 'Baño', ico: '🚿', color: '#7C3AED',
@@ -4441,17 +4441,19 @@ const MED_PLANTILLAS = {
     descripcionItem: (it) => `${it.tipo||'Ventilación'}${it.estancia?' · '+it.estancia:''}${it.caudal?' · '+it.caudal+' m³/h':''}`,
   },
   puertas: {
-    label: 'Puertas', ico: '🚪', color: '#92400E',
+    label: 'Carpintería madera', ico: '🚪', color: '#92400E',
     campos: [
-      { key: 'ubicacion', label: 'Ubicación', tipo: 'text', placeholder: 'Entrada, dormitorio 1…' },
-      { key: 'tipo',      label: 'Tipo', tipo: 'select', opciones: ['Interior','Exterior','Blindada','Acorazada','Corredera','Plegable','Garaje','Otra'] },
+      { key: 'ubicacion', label: 'Ubicación', tipo: 'text', placeholder: 'Entrada, dormitorio, salón…' },
+      { key: 'elemento',  label: 'Elemento', tipo: 'select', opciones: ['Puerta paso','Puerta entrada','Puerta corredera','Puerta doble','Frente armario','Vestidor','Tarima','Rodapié','Friso/revestimiento','Mueble cocina','Otro'] },
       { key: 'ancho',     label: 'Ancho (cm)', tipo: 'number' },
       { key: 'alto',      label: 'Alto (cm)', tipo: 'number' },
-      { key: 'material',  label: 'Material', tipo: 'select', opciones: ['Madera maciza','Lacada','Melamina','Aluminio','PVC','Acero','Cristal','Otro'] },
-      { key: 'cerradura', label: 'Cerradura', tipo: 'select', opciones: ['Estándar','Multipunto','Antibumping','Electrónica','No aplica'] },
+      { key: 'material',  label: 'Material', tipo: 'select', opciones: ['Maciza','Lacada blanca','Lacada color','Chapada roble','Chapada nogal','Chapada wengué','Melamina','DM/MDF','Pino','Haya','Otro'] },
+      { key: 'acabado',   label: 'Acabado', tipo: 'select', opciones: ['Liso','Ranurado vertical','Ranurado horizontal','Vidriera 1','Vidriera 2','Vidriera 4','Casette','Moldurado','Otro'] },
+      { key: 'herrajes',  label: 'Herrajes', tipo: 'select', opciones: ['Estándar','Bisagra oculta','Manilla incluida','Cerradura WC','Cerradura llave','Sin herrajes','Otro'] },
+      { key: 'cantidad',  label: 'Unidades', tipo: 'number', defecto: 1 },
       { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
     ],
-    descripcionItem: (it) => `Puerta ${it.tipo||''}${it.ancho&&it.alto?' '+it.ancho+'×'+it.alto+' cm':''}${it.ubicacion?' · '+it.ubicacion:''}`,
+    descripcionItem: (it) => `${it.cantidad||1}× ${it.elemento||'Carpintería madera'}${it.ancho&&it.alto?' '+it.ancho+'×'+it.alto+' cm':''}${it.material?' · '+it.material:''}${it.ubicacion?' ('+it.ubicacion+')':''}`,
   },
   otra: {
     label: 'Otra', ico: '📦', color: '#64748B',
@@ -4957,11 +4959,376 @@ async function _medAsignarCliente(cliente_id) {
 }
 
 // ── Modal de item (añadir/editar) ──────────────────────────────────
-function _medAddItem() { _medItemEditIdx = null; _medAbrirModalItem({}); }
+function _medAddItem() {
+  _medItemEditIdx = null;
+  // Formulario custom para Ventanas (más rico que el genérico).
+  if (_medActual?.tipo === 'ventanas') return _medAbrirModalVentana({});
+  _medAbrirModalItem({});
+}
 function _medEditItem(i) {
   _medItemEditIdx = i;
   const it = (_medActual.items || [])[i] || {};
+  if (_medActual?.tipo === 'ventanas') return _medAbrirModalVentana(it);
   _medAbrirModalItem(it);
+}
+
+// ════════════════════════════════════════════════════════════════
+// MODAL CUSTOM DE VENTANAS — formulario rico con hojas múltiples
+// ════════════════════════════════════════════════════════════════
+function _medAbrirModalVentana(it) {
+  if (!_medActual) return;
+  const ubic = it.ubicacion || '';
+  // Compatibilidad con items antiguos que tenían ancho/alto en cm
+  const anchoMm = it.ancho_mm || (it.ancho ? Math.round(parseFloat(it.ancho)*10) : '');
+  const altoMm  = it.alto_mm  || (it.alto  ? Math.round(parseFloat(it.alto)*10)  : '');
+  const numHojas = it.num_hojas || 1;
+  const sim = it.hojas_simetricas !== false;  // default true
+  const hojas = it.hojas || [];
+  const cajon = it.cajon || {};
+  const cantidad = it.cantidad || 1;
+  const material = it.material || '';
+  const colorMarco = it.color_marco || 'blanco';
+  const cristal = it.cristal || '';
+  const observ = it.observaciones || '';
+  const tipologia = it.tipologia || 'ventana';
+  const balconera = it.balconera || {};
+
+  // Estado interno del modal — se persiste en window mientras está abierto
+  window._medVentanaState = {
+    tipologia: tipologia,
+    num_hojas: numHojas,
+    hojas_simetricas: sim,
+    hojas: hojas.length ? hojas : Array.from({length: numHojas}, () => ({tipo:'practicable', lado_bisagras:'izquierda'})),
+    cajon_tipo: cajon.tipo || 'ninguno',
+  };
+
+  const titulo = ({
+    'ventana':'Nueva ventana','balconera':'Nueva balconera',
+    'puerta-entrada':'Nueva puerta','corredera':'Nueva corredera','elevable':'Nueva elevable'
+  })[tipologia] || 'Nuevo elemento';
+
+  const ov = document.createElement('div');
+  ov.id = '_medModalItem';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:92vh;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:15px" id="mvTituloModal">🪟 ${_medItemEditIdx==null ? titulo : 'Editar elemento ' + (_medItemEditIdx+1)}</div>
+        <button onclick="document.getElementById('_medModalItem').remove()" class="tap" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer;padding:0">✕</button>
+      </div>
+      <div style="padding:14px 16px;overflow-y:auto;flex:1" id="medVentanaBody">
+        ${_medRenderVentanaForm({ubic, anchoMm, altoMm, numHojas, sim, cajon, cantidad, material, colorMarco, cristal, observ, tipologia, balconera, it})}
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--gris-100);display:flex;gap:8px">
+        ${_medItemEditIdx!=null ? '<button onclick="_medBorrarItem()" class="tap" style="padding:11px;background:#fff;border:1.5px solid #ef4444;color:#ef4444;border-radius:9px;font-weight:700;font-size:13px">Eliminar</button>' : ''}
+        <button onclick="_medGuardarItemVentana()" class="tap" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px">${_medItemEditIdx==null ? 'Añadir' : 'Guardar'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function _medRenderVentanaForm(d) {
+  const st = window._medVentanaState;
+  const labelGrupo = (txt) => `<div style="font-size:10px;color:#9CA3AF;font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin:14px 0 6px">${txt}</div>`;
+
+  let html = '';
+
+  // ── Tipología (ventana, balconera, puerta entrada, corredera, elevable)
+  html += labelGrupo('Tipología');
+  const tipologias = [
+    {k:'ventana', l:'Ventana', ico:'🪟'},
+    {k:'balconera', l:'Balconera', ico:'🚪🪟'},
+    {k:'puerta-entrada', l:'Puerta entrada', ico:'🚪'},
+    {k:'corredera', l:'Corredera', ico:'↔️'},
+    {k:'elevable', l:'Elevable (HS)', ico:'⬆↔'},
+  ];
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px">`;
+  for (const t of tipologias) {
+    const a = st.tipologia === t.k;
+    html += `<button type="button" class="tap" onclick="_medVentanaSetTipologia('${t.k}')" style="padding:9px 6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'500'};font-size:11px;line-height:1.25">${t.ico}<br>${t.l}</button>`;
+  }
+  html += `</div>`;
+
+  // Ubicación + medidas
+  html += labelGrupo('Ubicación y hueco');
+  html += `<input id="mvUbic" placeholder="Estancia (Salón, dormitorio…)" value="${_medEsc(d.ubic||'')}" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;margin-bottom:8px;box-sizing:border-box">`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Ancho hueco (mm)</div><input id="mvAncho" type="number" inputmode="numeric" value="${d.anchoMm||''}" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:18px;font-weight:700;text-align:center;box-sizing:border-box"></div>
+    <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Alto hueco (mm)</div><input id="mvAlto" type="number" inputmode="numeric" value="${d.altoMm||''}" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:18px;font-weight:700;text-align:center;box-sizing:border-box"></div>
+  </div>`;
+
+  // Número de hojas + simétricas
+  html += labelGrupo('Hojas');
+  html += `<div style="display:flex;gap:6px;margin-bottom:8px">`;
+  for (let i = 1; i <= 4; i++) {
+    const a = i === st.num_hojas;
+    html += `<button type="button" class="tap" onclick="_medVentanaSetHojas(${i})" style="flex:1;padding:9px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'400'};font-size:12.5px">${i}</button>`;
+  }
+  html += `</div>`;
+  html += `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gris-600);margin-bottom:10px;cursor:pointer">
+    <input type="checkbox" id="mvSim" ${st.hojas_simetricas?'checked':''} onchange="_medVentanaToggleSim(this.checked)" style="width:15px;height:15px">
+    <span>Hojas iguales (simétricas)</span>
+  </label>`;
+  html += `<div id="mvHojasCont">${_medRenderHojas(d.anchoMm, d.altoMm)}</div>`;
+
+  // ── Bloque específico balconera / puerta entrada
+  if (st.tipologia === 'balconera' || st.tipologia === 'puerta-entrada') {
+    const bal = d.balconera || {};
+    html += labelGrupo(st.tipologia === 'puerta-entrada' ? 'Detalles puerta entrada' : 'Detalles balconera');
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Umbral</div>
+        <select id="mvBalUmbral" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['Estándar','Enrasado','Enrasado RPT','Sin umbral','Otro'].map(o => `<option ${bal.umbral===o?'selected':''}>${o}</option>`).join('')}</select>
+      </div>
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Tirador exterior</div>
+        <select id="mvBalTirador" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['Manilla','Pomo','Barra inox','Embutido','Antipánico','No aplica'].map(o => `<option ${bal.tirador===o?'selected':''}>${o}</option>`).join('')}</select>
+      </div>
+    </div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Zócalo opaco (mm)</div>
+        <input id="mvBalZocalo" type="number" inputmode="numeric" value="${bal.zocalo_mm||''}" placeholder="0=no" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;text-align:center;box-sizing:border-box">
+      </div>
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Cerradura</div>
+        <select id="mvBalCerradura" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['Cilindro estándar','Multipunto','Antibumping','Embutida','Sin cerradura'].map(o => `<option ${bal.cerradura===o?'selected':''}>${o}</option>`).join('')}</select>
+      </div>
+    </div>`;
+    if (st.tipologia === 'puerta-entrada') {
+      html += `<div style="margin-bottom:8px">
+        <div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Panel</div>
+        <select id="mvBalPanel" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['Vidrio','Opaco','Mixto vidrio/opaco','Decorativo'].map(o => `<option ${bal.panel===o?'selected':''}>${o}</option>`).join('')}</select>
+      </div>`;
+    }
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <label class="tap" style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:11.5px;cursor:pointer">
+        <input type="checkbox" id="mvBalFijoLat" ${bal.fijo_lateral?'checked':''}> Fijo lateral
+      </label>
+      <label class="tap" style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:11.5px;cursor:pointer">
+        <input type="checkbox" id="mvBalMontante" ${bal.montante_sup?'checked':''}> Montante sup.
+      </label>
+    </div>`;
+  }
+
+  // Cajón persiana
+  html += labelGrupo('Cajón de persiana');
+  html += `<select id="mvCajonTipo" onchange="_medVentanaCajonChange(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;margin-bottom:8px;background:#fff;box-sizing:border-box">
+    ${['ninguno','compacto','monoblock','cajon_obra'].map(t => `<option value="${t}" ${st.cajon_tipo===t?'selected':''}>${({ninguno:'Sin cajón',compacto:'Compacto',monoblock:'Monoblock',cajon_obra:'Cajón obra'})[t]}</option>`).join('')}
+  </select>`;
+  html += `<div id="mvCajonExtras" style="${st.cajon_tipo==='ninguno'?'display:none':''}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Alto cajón (mm)</div><input id="mvCajonAlto" type="number" inputmode="numeric" value="${d.cajon.alto_mm||''}" placeholder="200" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:14px;text-align:center;box-sizing:border-box"></div>
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Accionamiento</div><select id="mvCajonAcc" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['Cinta','Manivela','Motor','Motor + domótica'].map(o => `<option ${d.cajon.accionamiento===o?'selected':''}>${o}</option>`).join('')}</select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Material persiana</div><select id="mvCajonMat" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">${['PVC','Aluminio','Madera','Térmica'].map(o => `<option ${d.cajon.material===o?'selected':''}>${o}</option>`).join('')}</select></div>
+      <div><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Color</div><input id="mvCajonColor" type="text" value="${_medEsc(d.cajon.color||'')}" placeholder="Blanco, antracita…" style="width:100%;padding:9px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12.5px;box-sizing:border-box"></div>
+    </div>
+  </div>`;
+
+  // Material y cristal
+  html += labelGrupo('Material y cristal');
+  html += `<select id="mvMaterial" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;margin-bottom:8px;background:#fff;box-sizing:border-box">${['','PVC','Aluminio','Madera','Mixta'].map(o => `<option value="${o}" ${d.material===o?'selected':''}>${o||'(elige material)'}</option>`).join('')}</select>`;
+  html += `<input id="mvColorMarco" type="text" value="${_medEsc(d.colorMarco||'blanco')}" placeholder="Color marco (blanco, antracita…)" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;margin-bottom:8px;box-sizing:border-box">`;
+  html += `<select id="mvCristal" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;margin-bottom:8px;background:#fff;box-sizing:border-box">${['','Climalit estándar','Climalit bajo emisivo','Triple','Seguridad','Translúcido','Otro'].map(o => `<option value="${o}" ${d.cristal===o?'selected':''}>${o||'(elige cristal)'}</option>`).join('')}</select>`;
+
+  // Cantidad
+  html += `<div style="margin-top:10px"><div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">Cantidad (unidades iguales)</div><input id="mvCantidad" type="number" inputmode="numeric" value="${d.cantidad||1}" style="width:100%;padding:11px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:18px;font-weight:700;text-align:center;box-sizing:border-box"></div>`;
+
+  // Extras
+  html += labelGrupo('Extras');
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">`;
+  for (const ext of [['mosquitera','Mosquitera'],['vierteaguas','Vierteaguas'],['tapajuntas','Tapajuntas'],['premarco','Premarco']]) {
+    const checked = (d['_'+ext[0]]) || (it=>it)(false);  // no usado, pero por si acaso
+    html += `<label class="tap" style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:11.5px;cursor:pointer"><input type="checkbox" id="mvExt_${ext[0]}"> ${ext[1]}</label>`;
+  }
+  html += `</div>`;
+
+  // Observaciones
+  html += labelGrupo('Observaciones');
+  html += `<textarea id="mvObserv" placeholder="Notas particulares de este hueco…" style="width:100%;min-height:50px;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:12.5px;font-family:var(--font);box-sizing:border-box;resize:vertical">${_medEsc(d.observ||'')}</textarea>`;
+
+  return html;
+}
+
+function _medRenderHojas(anchoTotal, altoTotal) {
+  const st = window._medVentanaState;
+  const N = st.num_hojas;
+  // Si simétricas y N>1, todas tienen el mismo ancho
+  const anchoEqual = anchoTotal ? Math.floor(parseFloat(anchoTotal) / N) : 0;
+  let html = '';
+  if (st.hojas_simetricas && N > 1) {
+    html += `<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px;font-size:11px;color:#166534;margin-bottom:8px">
+      ✓ ${N} hojas iguales · cada una ${anchoEqual||'?'} mm
+    </div>`;
+    // Solo el primer bloque (los demás copian sus opciones)
+    html += _medRenderHojaBlock(0, anchoEqual, true);
+  } else {
+    if (N > 1) html += `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;font-size:11px;color:#92400E;margin-bottom:8px">
+      ℹ️ Cada hoja con dimensiones individuales. Suma esperada: ${anchoTotal||'?'} mm.
+    </div>`;
+    for (let i = 0; i < N; i++) {
+      html += _medRenderHojaBlock(i, st.hojas[i]?.ancho || (anchoTotal ? anchoEqual : ''), false);
+    }
+  }
+  return html;
+}
+
+function _medRenderHojaBlock(i, anchoSugerido, soloPrimero) {
+  const st = window._medVentanaState;
+  const h = st.hojas[i] || {tipo:'practicable', lado_bisagras:'izquierda'};
+  const tipos = ['practicable','oscilo-batiente','oscilo-paralela','corredera','elevable','plegable','abatible','proyectante','fija'];
+  const lados = ['izquierda','derecha','arriba','abajo'];
+  const subtitle = soloPrimero ? `Tipo y bisagras se aplican a TODAS las ${st.num_hojas} hojas` : '';
+  return `<div style="border:1.5px solid ${i===0?'#3B82F6':'var(--gris-200)'};border-radius:10px;padding:11px;margin-bottom:8px;background:${i===0?'#EFF6FF':'#FAFBFC'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11.5px;font-weight:700;color:${i===0?'#1E40AF':'var(--gris-700)'}">Hoja ${i+1}${st.hojas_simetricas&&st.num_hojas>1?' (todas iguales)':''}</div>
+    </div>
+    ${subtitle?`<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${subtitle}</div>`:''}
+    ${st.hojas_simetricas ? '' : `<div style="margin-bottom:7px"><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Ancho (mm)</div><input data-hoja="${i}" data-campo="ancho" oninput="_medVentanaHojaInput(${i},'ancho',this.value)" type="number" value="${h.ancho||anchoSugerido||''}" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box"></div>`}
+    <div style="margin-bottom:7px"><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Tipo apertura</div><select data-hoja="${i}" data-campo="tipo" onchange="_medVentanaHojaInput(${i},'tipo',this.value)" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:11.5px;background:#fff;box-sizing:border-box">${tipos.map(t => `<option value="${t}" ${h.tipo===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
+    ${h.tipo==='fija'?'<div style="font-size:11px;color:#9CA3AF;font-style:italic">— Sin bisagras —</div>':`
+    <div><div style="font-size:9px;color:var(--gris-500);margin-bottom:2px">Lado bisagras</div>
+    <div style="display:flex;gap:5px">${lados.map(l => {
+      const a = h.lado_bisagras===l;
+      const ico = ({izquierda:'⬅',derecha:'➡',arriba:'⬆',abajo:'⬇'})[l];
+      return `<button type="button" class="tap" onclick="_medVentanaHojaInput(${i},'lado_bisagras','${l}')" style="flex:1;padding:6px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#fff':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:7px;font-size:11px;font-weight:${a?'700':'400'}">${ico} ${l.charAt(0).toUpperCase()+l.slice(1,3)}</button>`;
+    }).join('')}</div></div>`}
+  </div>`;
+}
+
+function _medVentanaSetTipologia(tip) {
+  const st = window._medVentanaState;
+  st.tipologia = tip;
+  // Sugerencias por tipología (no fuerza, solo defaults si todas las hojas están en default)
+  if (tip === 'corredera' || tip === 'elevable') {
+    // Cambiar tipo de todas las hojas a corredera/elevable si están en default
+    for (const h of st.hojas) {
+      if (h.tipo === 'practicable') h.tipo = (tip === 'elevable' ? 'elevable' : 'corredera');
+    }
+  }
+  // Re-render completo del form para refrescar sección balconera y título
+  const body = document.getElementById('medVentanaBody');
+  if (body) {
+    const it = (_medItemEditIdx != null && _medActual?.items?.[_medItemEditIdx]) || {};
+    body.innerHTML = _medRenderVentanaForm({
+      ubic: document.getElementById('mvUbic')?.value || '',
+      anchoMm: document.getElementById('mvAncho')?.value || '',
+      altoMm: document.getElementById('mvAlto')?.value || '',
+      cantidad: document.getElementById('mvCantidad')?.value || 1,
+      material: document.getElementById('mvMaterial')?.value || '',
+      colorMarco: document.getElementById('mvColorMarco')?.value || '',
+      cristal: document.getElementById('mvCristal')?.value || '',
+      observ: document.getElementById('mvObserv')?.value || '',
+      cajon: it.cajon || {},
+      tipologia: tip,
+      balconera: it.balconera || {},
+      it,
+    });
+  }
+  const titulo = ({
+    'ventana':'Nueva ventana','balconera':'Nueva balconera',
+    'puerta-entrada':'Nueva puerta','corredera':'Nueva corredera','elevable':'Nueva elevable'
+  })[tip] || 'Nuevo elemento';
+  const ttl = document.getElementById('mvTituloModal');
+  if (ttl && _medItemEditIdx == null) ttl.textContent = '🪟 ' + titulo;
+}
+
+function _medVentanaSetHojas(n) {
+  const st = window._medVentanaState;
+  st.num_hojas = n;
+  // Asegurar que el array hojas tiene N entradas
+  while (st.hojas.length < n) st.hojas.push({tipo:'practicable', lado_bisagras:'izquierda'});
+  st.hojas = st.hojas.slice(0, n);
+  _medRefrescarVentanaForm();
+}
+function _medVentanaToggleSim(checked) {
+  window._medVentanaState.hojas_simetricas = checked;
+  _medRefrescarVentanaForm();
+}
+function _medVentanaCajonChange(tipo) {
+  window._medVentanaState.cajon_tipo = tipo;
+  const ext = document.getElementById('mvCajonExtras');
+  if (ext) ext.style.display = tipo === 'ninguno' ? 'none' : '';
+}
+function _medVentanaHojaInput(i, campo, valor) {
+  const st = window._medVentanaState;
+  if (!st.hojas[i]) st.hojas[i] = {};
+  st.hojas[i][campo] = valor;
+  // Si cambia tipo o lado, re-render para refrescar UI (botones lado activos)
+  if (campo === 'tipo' || campo === 'lado_bisagras') _medRefrescarVentanaForm();
+}
+function _medRefrescarVentanaForm() {
+  // Re-renderiza solo la sección de hojas (no todo el form para no perder valores)
+  const cont = document.getElementById('mvHojasCont');
+  if (!cont) return;
+  const ancho = document.getElementById('mvAncho')?.value || '';
+  const alto = document.getElementById('mvAlto')?.value || '';
+  cont.innerHTML = _medRenderHojas(ancho, alto);
+  // Refrescar botones de num_hojas
+  const sim = document.getElementById('mvSim');
+  if (sim) sim.checked = window._medVentanaState.hojas_simetricas;
+}
+
+async function _medGuardarItemVentana() {
+  if (!_medActual) return;
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const st = window._medVentanaState;
+  const ancho = parseInt(v('mvAncho')) || null;
+  const alto  = parseInt(v('mvAlto')) || null;
+  if (!ancho || !alto) { toast('Faltan medidas del hueco', 'error'); return; }
+
+  const isBal = st.tipologia === 'balconera' || st.tipologia === 'puerta-entrada';
+  const obj = {
+    ubicacion: v('mvUbic'),
+    tipologia: st.tipologia || 'ventana',
+    ancho_mm: ancho,
+    alto_mm: alto,
+    // Compat: dejamos también ancho/alto en cm para items legados
+    ancho: (ancho/10).toFixed(1),
+    alto: (alto/10).toFixed(1),
+    cantidad: parseInt(v('mvCantidad')) || 1,
+    num_hojas: st.num_hojas,
+    hojas_simetricas: st.hojas_simetricas,
+    hojas: st.hojas_simetricas
+      ? Array.from({length: st.num_hojas}, () => ({...st.hojas[0], ancho: Math.floor(ancho/st.num_hojas)}))
+      : st.hojas.slice(0, st.num_hojas).map(h => ({...h, ancho: parseInt(h.ancho)||0})),
+    cajon: st.cajon_tipo === 'ninguno' ? null : {
+      tipo: st.cajon_tipo,
+      alto_mm: parseInt(v('mvCajonAlto')) || null,
+      accionamiento: v('mvCajonAcc'),
+      material: v('mvCajonMat'),
+      color: v('mvCajonColor'),
+    },
+    balconera: isBal ? {
+      umbral: v('mvBalUmbral'),
+      tirador: v('mvBalTirador'),
+      zocalo_mm: parseInt(v('mvBalZocalo')) || 0,
+      cerradura: v('mvBalCerradura'),
+      panel: v('mvBalPanel'),
+      fijo_lateral: document.getElementById('mvBalFijoLat')?.checked || false,
+      montante_sup: document.getElementById('mvBalMontante')?.checked || false,
+    } : null,
+    material: v('mvMaterial'),
+    color_marco: v('mvColorMarco'),
+    cristal: v('mvCristal'),
+    mosquitera:  document.getElementById('mvExt_mosquitera')?.checked || false,
+    vierteaguas: document.getElementById('mvExt_vierteaguas')?.checked || false,
+    tapajuntas:  document.getElementById('mvExt_tapajuntas')?.checked || false,
+    premarco:    document.getElementById('mvExt_premarco')?.checked || false,
+    observaciones: v('mvObserv'),
+    // Tipo de apertura "principal" — el de la primera hoja, para compat con desc legacy
+    tipo_apertura: st.hojas[0]?.tipo || '',
+  };
+
+  const items = [...(_medActual.items || [])];
+  if (_medItemEditIdx == null) items.push(obj);
+  else items[_medItemEditIdx] = obj;
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items, estado: 'medido' });
+  document.getElementById('_medModalItem')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+}
+
+function _medEsc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
 function _medAbrirModalItem(it) {
@@ -5707,7 +6074,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 32
+        instaloERP v1.0 · build 34
       </div>
     </div>`;
 }
