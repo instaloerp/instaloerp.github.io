@@ -249,6 +249,7 @@ function cfgTab(id,el){
   if (id === 'automatizaciones') { cargarAutomatizaciones().then(() => renderAutomatizaciones()); }
   if (id === 'ia') loadConfigIA();
   if (id === 'partes') { cargarCfgPartes(); cargarCalculadora(); cargarCalculadoraKm(); }
+  if (id === 'formularios' && typeof loadFormPlantillas === 'function') loadFormPlantillas();
   if (id === 'sistema') verificarInstalacion();
   if (id === 'plan') renderPlanConfig();
 }

@@ -1037,11 +1037,20 @@ function abrirCrearParteRapido(fecha, hora) {
       <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Instrucciones para el operario..."></textarea>
     </div>
 
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:12px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#6B7280">
         <input type="checkbox" id="planFirmaOpcional" style="width:16px;height:16px;cursor:pointer;accent-color:#F59E0B">
         <span style="font-weight:600">No requiere firma del cliente</span>
       </label>
+    </div>
+
+    <!-- Formulario asociado (opcional) -->
+    <div style="margin-bottom:16px;padding:10px;border:1px dashed #D1D5DB;border-radius:8px;background:#F9FAFB">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">📋 Formulario asociado <span style="font-weight:400;color:#9CA3AF">(opcional)</span></label>
+      <select id="planNuevoFormPlantilla" style="width:100%;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:12.5px;background:#fff;box-sizing:border-box">
+        <option value="">— Sin formulario —</option>
+      </select>
+      <div id="planFormPlantillaHint" style="font-size:10.5px;color:#9CA3AF;margin-top:4px;display:none">Se asignará a todos los partes creados</div>
     </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1057,6 +1066,28 @@ function abrirCrearParteRapido(fecha, hora) {
   document.getElementById('planCrearNo').onclick = () => overlay.remove();
   document.getElementById('planCrearBorrador').onclick = () => crearPartesDesdeModal('borrador');
   document.getElementById('planCrearProgramar').onclick = () => crearPartesDesdeModal('programado');
+
+  // Cargar plantillas activas para el selector de formulario
+  (async () => {
+    try {
+      const { data } = await sb.from('form_plantillas')
+        .select('id, nombre, categoria, version')
+        .eq('empresa_id', EMPRESA.id).eq('activa', true)
+        .order('nombre');
+      const sel = document.getElementById('planNuevoFormPlantilla');
+      if (sel && data && data.length) {
+        data.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.dataset.version = p.version;
+          opt.textContent = p.nombre + (p.categoria ? ' · ' + p.categoria : '') + ' · v' + p.version;
+          sel.appendChild(opt);
+        });
+        const hint = document.getElementById('planFormPlantillaHint');
+        sel.addEventListener('change', () => { if (hint) hint.style.display = sel.value ? '' : 'none'; });
+      }
+    } catch(e) { console.warn('[planificador] cargar plantillas form:', e); }
+  })();
 
   // ── Multi-día toggle ──
   const multiCheck = document.getElementById('planMultiDiaCheck');
@@ -1437,6 +1468,11 @@ async function crearPartesDesdeModal(estado) {
   const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
   const firmaOpcional = document.getElementById('planFirmaOpcional')?.checked || false;
 
+  // Formulario asociado (opcional) — se asignará a TODOS los partes creados
+  const _formSel = document.getElementById('planNuevoFormPlantilla');
+  const _plantillaId = _formSel?.value ? parseInt(_formSel.value, 10) : null;
+  const _plantillaVersion = _plantillaId ? parseInt(_formSel.options[_formSel.selectedIndex]?.dataset?.version || '1', 10) : null;
+
   // Título: si es libre usa la descripción; si es obra usa el título de la obra
   const trabajo_titulo = esLibre
     ? (document.getElementById('planLibreDescripcion')?.value.trim() || 'Parte libre')
@@ -1516,9 +1552,23 @@ async function crearPartesDesdeModal(estado) {
     }
 
     try {
-      const { error } = await sb.from('partes_trabajo').insert(payload);
+      const { data: ins, error } = await sb.from('partes_trabajo').insert(payload).select('id').single();
       if (error) { errores++; console.error('Error creando parte:', error); }
-      else creados++;
+      else {
+        creados++;
+        // Asociar formulario si se eligió plantilla
+        if (_plantillaId && ins?.id) {
+          try {
+            await sb.from('partes_formulario').insert({
+              empresa_id: EMPRESA.id,
+              parte_id: ins.id,
+              plantilla_id: _plantillaId,
+              plantilla_version: _plantillaVersion || 1,
+              respuestas: {}
+            });
+          } catch (eForm) { console.warn('[planif] partes_formulario:', eForm); }
+        }
+      }
     } catch (e) { errores++; console.error('Error:', e); }
 
     // Pequeña pausa entre inserts para números únicos

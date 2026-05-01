@@ -34,7 +34,6 @@ const FLYOUT_SECTIONS = {
     { id:'trabajos', ico:'🏗️', name:'Obras' },
     { id:'mantenimientos', ico:'🔧', name:'Mantenimientos', tag:'pronto' },
     { id:'partes', ico:'📝', name:'Partes', tag:'beta' },
-    { id:'formularios', ico:'📋', name:'Formularios' },
     { id:'planificador', ico:'⏱️', name:'Planificador Semanal', tag:'beta' },
     { id:'calendario', ico:'📅', name:'Calendario', tag:'beta' },
     { id:'mistareas', ico:'✅', name:'Tareas', tag:'beta', badgeId:'sbBadgeTareas' }

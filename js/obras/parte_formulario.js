@@ -86,7 +86,7 @@ function pf_render() {
 
 function pf_renderSelector() {
   if (!_pf.plantillasDisponibles.length) {
-    return `<div style="border:1px dashed var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-100);font-size:11.5px;color:var(--gris-500);text-align:center">📋 No hay plantillas activas. Crea una en <a onclick="closeModal('mPartes');goPage('formularios')" style="color:var(--azul);cursor:pointer;text-decoration:underline">Formularios</a>.</div>`;
+    return `<div style="border:1px dashed var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-100);font-size:11.5px;color:var(--gris-500);text-align:center">📋 No hay plantillas activas. Crea una en <strong>Configuración → Formularios</strong>.</div>`;
   }
   return `
     <div style="border:1px dashed var(--gris-200);border-radius:8px;padding:10px;background:var(--gris-100);margin-bottom:11px">
