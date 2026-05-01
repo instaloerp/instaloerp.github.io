@@ -236,6 +236,27 @@ async function reloadCfg(tipo) {
   renderConfigLists(); populateSelects();
 }
 
+// Tarea #8 — Botón "← Volver" arriba de la barra de pestañas. Vuelve a la
+// página del ERP donde estabas antes de abrir Configuración. Si no se
+// recuerda ninguna (recarga directa), va a dashboard.
+window._cfgPrevPage = window._cfgPrevPage || null;
+(function _hookGoPageParaConfig() {
+  if (typeof window === 'undefined' || window._cfgGoPageHooked) return;
+  const orig = window.goPage;
+  if (typeof orig !== 'function') return;
+  window._cfgGoPageHooked = true;
+  window.goPage = function(id, opts) {
+    if (id && id !== 'configuracion') window._cfgPrevPage = id;
+    return orig.apply(this, arguments);
+  };
+})();
+function cfgSalir() {
+  const dest = window._cfgPrevPage && window._cfgPrevPage !== 'configuracion'
+    ? window._cfgPrevPage
+    : 'dashboard';
+  if (typeof goPage === 'function') goPage(dest);
+}
+
 // Tarea #8 — Click en una card de Configuración. Si tiene data-cfg-action
 // (navegación a página externa o modal) lo ejecuta. Si no, abre el panel
 // interno de Configuración (cfgTab).
