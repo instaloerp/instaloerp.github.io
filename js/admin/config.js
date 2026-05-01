@@ -236,34 +236,58 @@ async function reloadCfg(tipo) {
   renderConfigLists(); populateSelects();
 }
 
-// Tarea #8 — filtra el menú lateral de Configuración por texto. Esconde los
-// items y los grupos cuya cabecera quede sin items visibles.
-function cfgFiltrarMenu(q){
-  const txt = (q||'').toLowerCase().trim();
-  const items = document.querySelectorAll('.cfg-menu-item');
-  items.forEach(it => {
-    const label = (it.textContent || '').toLowerCase();
-    const kw = (it.dataset.cfgKeywords || '').toLowerCase();
-    const match = !txt || label.includes(txt) || kw.includes(txt);
-    it.style.display = match ? '' : 'none';
+// Tarea #8 v2 — Cambiar de pestaña horizontal: muestra el grid de cards de la
+// categoría seleccionada y vuelve a la vista de cards si estaba en un panel.
+function cfgCat(cat, el) {
+  document.querySelectorAll('.cfg-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  // Mostrar grid de la categoría, ocultar las demás
+  document.querySelectorAll('.cfg-cards-grid').forEach(g => {
+    g.style.display = g.dataset.cat === cat ? '' : 'none';
   });
-  // Esconde headers de grupo que quedan sin items visibles después
-  document.querySelectorAll('.cfg-menu-group-label').forEach(lbl => {
-    let next = lbl.nextElementSibling;
-    let hayVisible = false;
-    while (next && !next.classList.contains('cfg-menu-group-label')) {
-      if (next.classList.contains('cfg-menu-item') && next.style.display !== 'none') { hayVisible = true; break; }
-      next = next.nextElementSibling;
-    }
-    lbl.classList.toggle('hidden', !hayVisible);
+  // Si venimos de un panel, volver a vista de cards
+  document.getElementById('cfgCardsView').style.display = '';
+  document.getElementById('cfgPanelView').style.display = 'none';
+  // Limpiar buscador
+  const s = document.getElementById('cfgSearch');
+  if (s) { s.value = ''; cfgFiltrarCards(''); }
+}
+
+// Volver a la vista de grid de cards desde un panel concreto.
+function cfgVolverACards() {
+  document.getElementById('cfgCardsView').style.display = '';
+  document.getElementById('cfgPanelView').style.display = 'none';
+}
+
+// Filtra cards por texto. Cuando se está buscando, mostramos cards de TODAS
+// las categorías a la vez (más útil que estar saltando entre pestañas).
+function cfgFiltrarCards(q) {
+  const txt = (q || '').toLowerCase().trim();
+  const grids = document.querySelectorAll('.cfg-cards-grid');
+  if (!txt) {
+    // Sin texto: solo muestra el grid de la pestaña activa
+    const catActiva = document.querySelector('.cfg-tab.active')?.dataset.cat;
+    grids.forEach(g => { g.style.display = g.dataset.cat === catActiva ? '' : 'none'; });
+    document.querySelectorAll('.cfg-card').forEach(c => c.classList.remove('hidden'));
+    return;
+  }
+  // Con texto: muestra TODOS los grids y oculta cards que no encajen
+  grids.forEach(g => { g.style.display = ''; });
+  document.querySelectorAll('.cfg-card').forEach(c => {
+    const label = (c.textContent || '').toLowerCase();
+    const kw = (c.dataset.cfgKeywords || '').toLowerCase();
+    const match = label.includes(txt) || kw.includes(txt);
+    c.classList.toggle('hidden', !match);
   });
 }
 
-function cfgTab(id,el){
-  document.querySelectorAll('.cfg-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.cfg-menu-item').forEach(b=>b.classList.remove('active'));
-  document.getElementById('cfg-'+id).classList.add('active');
-  el.classList.add('active');
+function cfgTab(id, el) {
+  // Mostrar el panel correspondiente y la vista de panel
+  document.querySelectorAll('.cfg-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('cfg-' + id);
+  if (panel) panel.classList.add('active');
+  document.getElementById('cfgCardsView').style.display = 'none';
+  document.getElementById('cfgPanelView').style.display = '';
   // Cargar datos según pestaña
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();

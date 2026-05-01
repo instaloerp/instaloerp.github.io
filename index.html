@@ -286,7 +286,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.1 · build 186</span>
+      <span id="erpBuildVersion">v1.1 · build 187</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2055,40 +2055,123 @@ try {
 
       <!-- CONFIGURACIÓN -->
       <div class="page" id="page-configuracion">
-        <div class="cfg-grid">
-          <div class="cfg-menu">
-            <input type="search" id="cfgSearch" placeholder="🔍 Buscar configuración..." style="width:100%;padding:8px 10px;border:1px solid var(--gris-200);border-radius:8px;font-size:12.5px;margin-bottom:10px;box-sizing:border-box" oninput="cfgFiltrarMenu(this.value)">
-            <div class="cfg-menu-group-label">Mi empresa</div>
-            <button class="cfg-menu-item active" data-cfg-keywords="empresa datos fiscales" onclick="cfgTab('empresa',this)"><span class="ico">🏢</span> Empresa</button>
-            <button class="cfg-menu-item" data-cfg-keywords="plan modulos suscripcion" onclick="cfgTab('plan',this)"><span class="ico">👑</span> Plan y módulos</button>
+        <!-- Pestañas horizontales arriba -->
+        <div class="cfg-tabs-bar">
+          <button class="cfg-tab active" data-cat="empresa" onclick="cfgCat('empresa',this)">🏢 Mi empresa</button>
+          <button class="cfg-tab" data-cat="almacen" onclick="cfgCat('almacen',this)">📦 Almacén</button>
+          <button class="cfg-tab" data-cat="partes" onclick="cfgCat('partes',this)">🔧 Partes y obras</button>
+          <button class="cfg-tab" data-cat="facturacion" onclick="cfgCat('facturacion',this)">📜 Facturación</button>
+          <button class="cfg-tab" data-cat="comunicaciones" onclick="cfgCat('comunicaciones',this)">✉️ Comunicaciones</button>
+          <button class="cfg-tab" data-cat="sistema" onclick="cfgCat('sistema',this)">⚙️ Sistema</button>
+          <input type="search" id="cfgSearch" placeholder="🔍 Buscar..." oninput="cfgFiltrarCards(this.value)">
+        </div>
 
-            <div class="cfg-menu-group-label">Almacén</div>
-            <button class="cfg-menu-item" data-cfg-keywords="familias articulos productos" onclick="cfgTab('familias',this)"><span class="ico">🗂️</span> Familias artículos</button>
-            <button class="cfg-menu-item" data-cfg-keywords="unidades medida" onclick="cfgTab('unidades',this)"><span class="ico">📏</span> Unidades de medida</button>
-
-            <div class="cfg-menu-group-label">Partes y obras</div>
-            <button class="cfg-menu-item" data-cfg-keywords="costes tarifas mano obra" onclick="cfgTab('partes',this)"><span class="ico">💰</span> Costes y tarifas</button>
-            <button class="cfg-menu-item" data-cfg-keywords="formularios plantillas rite" onclick="cfgTab('formularios',this)"><span class="ico">📋</span> Formularios</button>
-
-            <div class="cfg-menu-group-label">Facturación y contabilidad</div>
-            <button class="cfg-menu-item" data-cfg-keywords="series numeracion facturas" onclick="cfgTab('series',this)"><span class="ico">🔢</span> Series numeración</button>
-            <button class="cfg-menu-item" data-cfg-keywords="iva tipos impuestos" onclick="cfgTab('iva',this)"><span class="ico">💶</span> Tipos de IVA</button>
-            <button class="cfg-menu-item" data-cfg-keywords="formas pago cobro" onclick="cfgTab('formas-pago',this)"><span class="ico">💳</span> Formas de pago</button>
-            <button class="cfg-menu-item" data-cfg-keywords="bancos cuentas iban" onclick="cfgTab('bancos',this)"><span class="ico">🏦</span> Cuentas bancarias</button>
-            <button class="cfg-menu-item" data-cfg-keywords="facturacion electronica verifactu" onclick="cfgTab('facturacion',this)"><span class="ico">📜</span> Facturación electrónica</button>
-            <button class="cfg-menu-item" data-cfg-keywords="certificado digital firma fnmt" onclick="cfgTab('certificado',this)"><span class="ico">🔐</span> Certificado digital</button>
-
-            <div class="cfg-menu-group-label">Comunicaciones</div>
-            <button class="cfg-menu-item" data-cfg-keywords="correo email smtp" onclick="cfgTab('correo',this)"><span class="ico">✉️</span> Correo electrónico</button>
-            <button class="cfg-menu-item" data-cfg-keywords="automatizaciones reglas triggers" onclick="cfgTab('automatizaciones',this)"><span class="ico">⚡</span> Automatizaciones</button>
-            <button class="cfg-menu-item" data-cfg-keywords="ia inteligencia artificial chat" onclick="cfgTab('ia',this)"><span class="ico">🤖</span> Inteligencia Artificial</button>
-
-            <div class="cfg-menu-group-label">Sistema</div>
-            <button class="cfg-menu-item" data-cfg-keywords="sistema avanzado debug" onclick="cfgTab('sistema',this)"><span class="ico">🔧</span> Sistema</button>
+        <!-- Grid de cards (vista por defecto al entrar en una categoría) -->
+        <div id="cfgCardsView">
+          <div class="cfg-cards-grid" data-cat="empresa">
+            <button class="cfg-card" data-cfg-keywords="empresa datos fiscales" onclick="cfgTab('empresa',null)">
+              <div class="cfg-card-ico">🏢</div>
+              <div class="cfg-card-title">Empresa</div>
+              <div class="cfg-card-desc">Datos fiscales y de contacto</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="plan modulos suscripcion" onclick="cfgTab('plan',null)">
+              <div class="cfg-card-ico">👑</div>
+              <div class="cfg-card-title">Plan y módulos</div>
+              <div class="cfg-card-desc">Suscripción y add-ons</div>
+            </button>
           </div>
-          <div>
+
+          <div class="cfg-cards-grid" data-cat="almacen" style="display:none">
+            <button class="cfg-card" data-cfg-keywords="familias articulos productos" onclick="cfgTab('familias',null)">
+              <div class="cfg-card-ico">🗂️</div>
+              <div class="cfg-card-title">Familias artículos</div>
+              <div class="cfg-card-desc">Categorías de productos</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="unidades medida" onclick="cfgTab('unidades',null)">
+              <div class="cfg-card-ico">📏</div>
+              <div class="cfg-card-title">Unidades de medida</div>
+              <div class="cfg-card-desc">m, kg, h, ud…</div>
+            </button>
+          </div>
+
+          <div class="cfg-cards-grid" data-cat="partes" style="display:none">
+            <button class="cfg-card" data-cfg-keywords="costes tarifas mano obra" onclick="cfgTab('partes',null)">
+              <div class="cfg-card-ico">💰</div>
+              <div class="cfg-card-title">Costes y tarifas</div>
+              <div class="cfg-card-desc">Precio hora, kilometraje</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="formularios plantillas rite" onclick="cfgTab('formularios',null)">
+              <div class="cfg-card-ico">📋</div>
+              <div class="cfg-card-title">Formularios</div>
+              <div class="cfg-card-desc">Plantillas RITE y otras</div>
+            </button>
+          </div>
+
+          <div class="cfg-cards-grid" data-cat="facturacion" style="display:none">
+            <button class="cfg-card" data-cfg-keywords="series numeracion facturas" onclick="cfgTab('series',null)">
+              <div class="cfg-card-ico">🔢</div>
+              <div class="cfg-card-title">Series de numeración</div>
+              <div class="cfg-card-desc">Facturas, presupuestos</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="iva tipos impuestos" onclick="cfgTab('iva',null)">
+              <div class="cfg-card-ico">💶</div>
+              <div class="cfg-card-title">Tipos de IVA</div>
+              <div class="cfg-card-desc">21%, 10%, 4%, exento</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="formas pago cobro" onclick="cfgTab('formas-pago',null)">
+              <div class="cfg-card-ico">💳</div>
+              <div class="cfg-card-title">Formas de pago</div>
+              <div class="cfg-card-desc">Transferencia, recibo…</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="bancos cuentas iban" onclick="cfgTab('bancos',null)">
+              <div class="cfg-card-ico">🏦</div>
+              <div class="cfg-card-title">Cuentas bancarias</div>
+              <div class="cfg-card-desc">IBAN, banco preferido</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="facturacion electronica verifactu" onclick="cfgTab('facturacion',null)">
+              <div class="cfg-card-ico">📜</div>
+              <div class="cfg-card-title">Facturación electrónica</div>
+              <div class="cfg-card-desc">Verifactu, QR</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="certificado digital firma fnmt" onclick="cfgTab('certificado',null)">
+              <div class="cfg-card-ico">🔐</div>
+              <div class="cfg-card-title">Certificado digital</div>
+              <div class="cfg-card-desc">FNMT, firma de PDFs</div>
+            </button>
+          </div>
+
+          <div class="cfg-cards-grid" data-cat="comunicaciones" style="display:none">
+            <button class="cfg-card" data-cfg-keywords="correo email smtp" onclick="cfgTab('correo',null)">
+              <div class="cfg-card-ico">✉️</div>
+              <div class="cfg-card-title">Correo electrónico</div>
+              <div class="cfg-card-desc">Cuentas SMTP de envío</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="automatizaciones reglas triggers" onclick="cfgTab('automatizaciones',null)">
+              <div class="cfg-card-ico">⚡</div>
+              <div class="cfg-card-title">Automatizaciones</div>
+              <div class="cfg-card-desc">Reglas y disparadores</div>
+            </button>
+            <button class="cfg-card" data-cfg-keywords="ia inteligencia artificial chat" onclick="cfgTab('ia',null)">
+              <div class="cfg-card-ico">🤖</div>
+              <div class="cfg-card-title">Inteligencia Artificial</div>
+              <div class="cfg-card-desc">Asistente IA</div>
+            </button>
+          </div>
+
+          <div class="cfg-cards-grid" data-cat="sistema" style="display:none">
+            <button class="cfg-card" data-cfg-keywords="sistema avanzado debug" onclick="cfgTab('sistema',null)">
+              <div class="cfg-card-ico">🔧</div>
+              <div class="cfg-card-title">Sistema</div>
+              <div class="cfg-card-desc">Verificación e información</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Vista de panel (cuando se entra en una opción concreta) -->
+        <div id="cfgPanelView" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="cfgVolverACards()" style="margin-bottom:10px">← Volver</button>
             <!-- Empresa -->
-            <div class="cfg-panel active card" id="cfg-empresa">
+            <div class="cfg-panel card" id="cfg-empresa">
               <div class="card-h"><h3>🏢 Datos de la empresa</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="saveEmpresa()">💾 Guardar</button></div></div>
               <div class="card-b">
                 <div class="fg-row" style="margin-bottom:11px">
@@ -2706,9 +2789,8 @@ try {
               </div>
             </div>
 
-          </div>
-        </div>
-      </div>
+        </div><!-- /#cfgPanelView -->
+      </div><!-- /#page-configuracion -->
 
     </div>
   </div>
