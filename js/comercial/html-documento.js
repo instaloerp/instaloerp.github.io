@@ -539,7 +539,11 @@ ${_renderPie(E)}
     wrapper.style.cssText = 'position:absolute;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1;visibility:hidden';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
     const docClone = doc.cloneNode(true);
-    // Padding base del .doc en CSS = 12mm 16mm 18mm. No lo forzamos aquí.
+    // Anulamos padding vertical del .doc: el padding solo se aplica al inicio y
+    // final del bloque, así que la pág. 2+ se quedaría con menos margen que la
+    // pág. 1. Movemos todo el margen vertical al jsPDF.margin que sí se aplica
+    // a TODAS las páginas. Mantenemos el padding lateral.
+    docClone.style.padding = '0 16mm';
     wrapper.appendChild(docClone);
     document.body.appendChild(wrapper);
 
@@ -550,7 +554,7 @@ ${_renderPie(E)}
       // recorriendo el flujo completo. Forzar height limitaba la captura y
       // dejaba en blanco el contenido posterior al primer page-break.
       const opt = {
-        margin:       [10, 0, 16, 0],  // mm — top, right, bottom, left (margen externo PDF)
+        margin:       [16, 0, 16, 0],  // mm — top, right, bottom, left. Aplicado a TODAS las páginas. El padding vertical del .doc se anula en _renderToPdf para que pág. 1, 2, 3… queden iguales.
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff', scrollY: 0 },
