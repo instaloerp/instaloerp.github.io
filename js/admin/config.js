@@ -298,7 +298,9 @@ function cfgCardClick(cardEl) {
     // botón "← Volver a Configuración" en la página externa que se abra.
     window._cfgDesdeConfig = true;
     try { eval(action); } catch (e) { console.warn('[cfgCardClick]', e); }
-    setTimeout(_cfgInyectarBotonVolver, 250);
+    // Inyectamos en el siguiente frame (goPage es síncrono, basta esperar al
+    // próximo paint para evitar el parpadeo de "dos pasos").
+    requestAnimationFrame(() => requestAnimationFrame(_cfgInyectarBotonVolver));
     return;
   }
   if (id) cfgTab(id, null);
@@ -362,28 +364,12 @@ function _cfgInyectarBotonVolver() {
   };
   activePage.appendChild(volverInterno);
 
-  // Mapa de títulos por página (mostrados en el header de la card)
-  const titulosPagina = {
-    'page-usuarios':     '👷 Usuarios',
-    'page-etiquetas-qr': '🏷️ Etiquetas QR',
-    'page-audit-log':    '📜 Registro de actividad',
-    'page-papelera':     '🗑️ Papelera',
-    'page-laboratorio':  '🧪 Laboratorio',
-  };
-  const titulo = titulosPagina[activePage.id] || '';
-
-  // Wrapper card con header (igual estructura que los paneles internos: .card > .card-h + .card-b)
+  // Wrapper card SIN header (la página externa ya tiene su título arriba —
+  // duplicarlo aquí daría sensación de "dos pasos" / título repetido).
   const wrapper = document.createElement('div');
   wrapper.className = 'card cfg-external-card';
-  if (titulo) {
-    const header = document.createElement('div');
-    header.className = 'card-h';
-    header.innerHTML = `<h3>${titulo}</h3>`;
-    wrapper.appendChild(header);
-  }
   const body = document.createElement('div');
   body.className = 'card-b cfg-external-body';
-  // Mover el contenido restante (excepto barra y botón volver) al body
   const children = Array.from(activePage.children).filter(el => el !== bar && el !== volverInterno);
   children.forEach(c => body.appendChild(c));
   wrapper.appendChild(body);
