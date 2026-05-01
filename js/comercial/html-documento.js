@@ -173,12 +173,27 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
    del .doc solo afecta al principio y al final del bloque, así que si el
    contenido se parte entre páginas, las páginas intermedias salen sin margen
    superior. Por eso movemos los márgenes principales aquí. */
-@page{size:A4;margin:14mm 12mm 18mm 12mm}
+@page{size:A4;margin:14mm 12mm 14mm 12mm}
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
   .doc{padding:0 4mm}  /* padding mínimo lateral; el grueso lo da @page */
-  .pie{display:none!important}  /* en print, el navegador añade su propio pie; el position:fixed rompe la paginación */
+  /* Pie repetido en cada página al imprimir. position:fixed dentro de @media print
+     hace que Chrome lo replique en cada hoja. bottom:0 lo encaja contra el margen
+     inferior del @page (14mm de margen reservado abajo). */
+  .pie{
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    border-top:1px solid #e2e8f0;
+    padding:3px 12mm 0;
+    font-size:8px;
+    color:#94a3b8;
+    background:#fff;
+    display:flex!important;
+    justify-content:space-between;
+  }
 }
 `;
 
@@ -422,14 +437,18 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       const styles = [];
       // Si es "large" no aplicamos page-break-inside:avoid, para permitir partir
       if (sec.large) styles.push('page-break-inside:auto;break-inside:auto');
-      // Page break ANTES del capítulo: lo aplicamos directamente al .capitulo.
-      // IMPORTANTE: html2pdf en mode:['css'] sólo reconoce los valores
-      // `always|left|right` para break-before. `break-before:page` (CSS3) NO
-      // lo detecta y deja que la cabecera azul se cuele al final de la página
-      // anterior. Por eso usamos `always` (legacy) que sí entiende.
-      if (sec.pageBreakBefore) styles.push('page-break-before:always;break-before:always');
       const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
-      return `
+      // Page break ANTES del capítulo: usamos un <div> spacer con altura cero
+      // y break-before:always. El navegador rompe en el spacer y el .capitulo
+      // arranca fresco en la pág. siguiente. Esto evita que un sliver del
+      // border-radius / overflow:hidden de la .cap-banda se cuele al final de
+      // la página anterior (lo veíamos como una "línea azul cortada").
+      // html2pdf en mode:['css'] sólo reconoce los valores `always|left|right`,
+      // por eso usamos `always` y no `page`.
+      const pageBreak = sec.pageBreakBefore
+        ? '<div style="break-before:always;page-break-before:always;height:0;line-height:0;font-size:0">&nbsp;</div>'
+        : '';
+      return `${pageBreak}
 <div class="capitulo"${styleAttr}>
   <div class="cap-banda">
     <div class="cap-num">${String(idx).padStart(2,'0')}</div>
