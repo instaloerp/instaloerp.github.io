@@ -61,14 +61,24 @@ a{color:var(--azul);text-decoration:none}
 .btn-secondary{background:var(--gris-100);color:var(--gris-700)}
 .btn-danger{background:var(--rojo);color:#fff}
 .btn-sm{padding:8px 14px;font-size:12px;border-radius:8px;width:auto}
-/* Feedback de pulsación táctil — añade .tap a cualquier botón/clicable para dar sensación de "click físico" */
-.tap{transition:transform .08s ease, background-color .12s ease, box-shadow .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+
+/* ─── Feedback táctil GLOBAL ─────────────────────────────────────────
+   Todos los <button> de la PWA reciben sensación de "click físico":
+   - touch-action:manipulation → elimina el delay de 300ms en iOS.
+   - -webkit-tap-highlight-color:transparent → quita el halo gris feo de iOS.
+   - :active → leve achique + oscurecido para feedback visual.
+   Si un botón concreto ya tiene su propio :active más específico (ej. .btn-primary), ese gana por especificidad/orden. */
+button:not(:disabled){touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s ease, filter .12s ease}
+button:not(:disabled):active{transform:scale(.96);filter:brightness(.92)}
+
+/* Para divs/links que actúan como botones (onclick) — añade .tap */
+.tap{transition:transform .08s ease, background-color .12s ease, box-shadow .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;cursor:pointer}
 .tap:active{transform:scale(.96);filter:brightness(.92)}
-/* Variante para tarjetas (botones de selector de tipo) — hunde un pelo más */
-.tap-card{transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+/* Variante para tarjetas (selectores de tipo, cards de medición, etc.) */
+.tap-card{transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;cursor:pointer}
 .tap-card:active{transform:scale(.97);background:#EFF6FF !important;border-color:#3B82F6 !important;box-shadow:inset 0 0 0 1px #3B82F6}
 /* Chips (multi-select) */
-.tap-chip{transition:transform .06s ease, background-color .1s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.tap-chip{transition:transform .06s ease, background-color .1s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;cursor:pointer}
 .tap-chip:active{transform:scale(.94)}
 .err{display:none;background:var(--rojo-light);color:var(--rojo);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:12px;text-align:center}
 
@@ -3444,7 +3454,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 29
+      instaloERP v1.0 · build 30
     </div>
   `;
 }
@@ -4288,7 +4298,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 29
+      instaloERP v1.0 · build 30
     </div>
   `;
 }
@@ -5693,7 +5703,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 29
+        instaloERP v1.0 · build 30
       </div>
     </div>`;
 }
