@@ -116,6 +116,8 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .tarjeta-datos .fila .v{color:#1e293b;font-weight:700;text-align:right}
 
 .capitulo{margin-bottom:10px;page-break-inside:avoid;break-inside:avoid}
+.capitulo-newpage{padding-top:2mm}                  /* buffer extra para que el sliver del border-radius no se cuele en la página anterior */
+.capitulo-newpage .cap-banda{border-radius:0}        /* sin border-radius en la primera banda de página: elimina el artefacto azul */
 .cap-banda{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;margin-bottom:6px}
 .cap-num{background:#1e40af;color:#fff;font-weight:800;font-size:14px;padding:7px 0;width:42px;text-align:center;display:flex;align-items:center;justify-content:center}
 .cap-titulo{background:#dbeafe;color:#1e40af;font-weight:700;font-size:10.5px;padding:7px 12px;flex:1;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center}
@@ -173,14 +175,14 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
    del .doc solo afecta al principio y al final del bloque, así que si el
    contenido se parte entre páginas, las páginas intermedias salen sin margen
    superior. Por eso movemos los márgenes principales aquí. */
-@page{size:A4;margin:14mm 12mm 14mm 12mm}
+@page{size:A4;margin:14mm 12mm 16mm 12mm}
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
   .doc{padding:0 4mm}  /* padding mínimo lateral; el grueso lo da @page */
-  /* Pie repetido en cada página al imprimir. position:fixed dentro de @media print
-     hace que Chrome lo replique en cada hoja. bottom:0 lo encaja contra el margen
-     inferior del @page (14mm de margen reservado abajo). */
+  /* Pie repetido en cada página al imprimir. position:fixed + bottom:0 hace que
+     Chrome lo replique en cada hoja. Ahora centrado y con paginación añadida
+     vía CSS counter (Chrome soporta counter(page)/counter(pages) en print). */
   .pie{
     position:fixed;
     bottom:0;
@@ -191,8 +193,15 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
     font-size:8px;
     color:#94a3b8;
     background:#fff;
-    display:flex!important;
-    justify-content:space-between;
+    display:block!important;
+    text-align:center;
+  }
+  .pie .pag::before{
+    /* counter(page)/counter(pages) sólo se incrementa dentro de @page, pero
+       Chrome los expone también en pseudoelementos de elementos position:fixed
+       que se replican en cada página. Si el navegador no lo soporta, el span
+       queda vacío y el resto del pie sigue centrado. */
+    content: " · Página " counter(page) " de " counter(pages);
   }
 }
 `;
@@ -448,8 +457,13 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       const pageBreak = sec.pageBreakBefore
         ? '<div style="break-before:always;page-break-before:always;height:0;line-height:0;font-size:0">&nbsp;</div>'
         : '';
+      // Clase extra para el primer capítulo de una página nueva: añade buffer y
+      // anula el border-radius/overflow:hidden de la cap-banda. Esto evita que
+      // un sliver azul se cuele al final de la página anterior cuando html2pdf
+      // corta la imagen continua.
+      const cls = sec.pageBreakBefore ? 'capitulo capitulo-newpage' : 'capitulo';
       return `${pageBreak}
-<div class="capitulo"${styleAttr}>
+<div class="${cls}"${styleAttr}>
   <div class="cap-banda">
     <div class="cap-num">${String(idx).padStart(2,'0')}</div>
     <div class="cap-titulo">${_esc(titulo)}</div>
