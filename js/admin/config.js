@@ -276,8 +276,8 @@ function cfgCardClick(cardEl) {
 
 // Inyecta la BARRA COMPLETA de pestañas (con Volver + categorías) al inicio
 // de la página externa cuando se accedió desde una card de Configuración.
-// Permite saltar a otra categoría o salir sin tener que pasar por el menú
-// intermedio.
+// También aplica al body de la página un padding/wrapper coherente con el
+// panel interno de Configuración.
 function _cfgInyectarBotonVolver() {
   if (!window._cfgDesdeConfig) return;
   const pages = document.querySelectorAll('.page');
@@ -317,6 +317,11 @@ function _cfgInyectarBotonVolver() {
   });
   bar.innerHTML = html;
   activePage.insertBefore(bar, activePage.firstChild);
+
+  // Marcamos la página para aplicar estilos coherentes con el panel interno
+  // (padding lateral, separación, color de fondo). Quitamos la clase cuando
+  // sale (gestionado en cfgSalir / cfgIrACategoria si fuera necesario).
+  activePage.classList.add('cfg-external-wrapped');
 }
 
 // Click en pestaña inyectada → vuelve a Configuración y activa esa categoría.
