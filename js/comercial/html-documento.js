@@ -422,12 +422,12 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       const styles = [];
       // Si es "large" no aplicamos page-break-inside:avoid, para permitir partir
       if (sec.large) styles.push('page-break-inside:auto;break-inside:auto');
-      // Page break ANTES del capítulo: lo aplicamos directamente al .capitulo
-      // (modo CSS de html2pdf detecta break-before:page en cualquier elemento).
-      // Antes usábamos un <div class="html2pdf__page-break"> separado pero el
-      // modo legacy + css combinados hacía que el contenido posterior se
-      // perdiera en el render de html2canvas.
-      if (sec.pageBreakBefore) styles.push('page-break-before:always;break-before:page');
+      // Page break ANTES del capítulo: lo aplicamos directamente al .capitulo.
+      // IMPORTANTE: html2pdf en mode:['css'] sólo reconoce los valores
+      // `always|left|right` para break-before. `break-before:page` (CSS3) NO
+      // lo detecta y deja que la cabecera azul se cuele al final de la página
+      // anterior. Por eso usamos `always` (legacy) que sí entiende.
+      if (sec.pageBreakBefore) styles.push('page-break-before:always;break-before:always');
       const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
       return `
 <div class="capitulo"${styleAttr}>
