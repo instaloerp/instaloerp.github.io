@@ -421,6 +421,8 @@ function cfgCat(cat, el) {
 function cfgVolverACards() {
   document.getElementById('cfgCardsView').style.display = '';
   document.getElementById('cfgPanelView').style.display = 'none';
+  const tabsBar = document.querySelector('.cfg-tabs-bar');
+  if (tabsBar) tabsBar.style.display = '';
 }
 
 // Filtra cards por texto. Cuando se está buscando, mostramos cards de TODAS
@@ -452,6 +454,10 @@ function cfgTab(id, el) {
   if (panel) panel.classList.add('active');
   document.getElementById('cfgCardsView').style.display = 'none';
   document.getElementById('cfgPanelView').style.display = '';
+  // Ocultamos la barra de pestañas para unificar el look con las páginas
+  // externas (Usuarios, Papelera, etc.) — solo se ve "← Volver".
+  const tabsBar = document.querySelector('.cfg-tabs-bar');
+  if (tabsBar) tabsBar.style.display = 'none';
   // Cargar datos según pestaña
   if (id === 'bancos') cargarBancosConfig();
   if (id === 'facturacion') cargarCfgFacturacion();
