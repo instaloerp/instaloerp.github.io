@@ -1037,12 +1037,8 @@ function abrirCrearParteRapido(fecha, hora) {
       <textarea id="planNuevoInstrucciones" rows="2" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Instrucciones para el operario..."></textarea>
     </div>
 
-    <div style="margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#6B7280">
-        <input type="checkbox" id="planFirmaOpcional" style="width:16px;height:16px;cursor:pointer;accent-color:#F59E0B">
-        <span style="font-weight:600">No requiere firma del cliente</span>
-      </label>
-    </div>
+    <!-- (El checkbox "No requiere firma del cliente" se eliminó: ahora se
+         pregunta con un modal al pulsar Programar — Tarea #11) -->
 
     <!-- Formulario asociado (opcional) -->
     <div style="margin-bottom:16px;padding:10px;border:1px dashed #D1D5DB;border-radius:8px;background:#F9FAFB">
@@ -1065,7 +1061,19 @@ function abrirCrearParteRapido(fecha, hora) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.getElementById('planCrearNo').onclick = () => overlay.remove();
   document.getElementById('planCrearBorrador').onclick = () => crearPartesDesdeModal('borrador');
-  document.getElementById('planCrearProgramar').onclick = () => crearPartesDesdeModal('programado');
+  document.getElementById('planCrearProgramar').onclick = async () => {
+    // Tarea #11: SIEMPRE preguntamos si requiere firma al programar (ya no
+    // hay checkbox previo). La decisión queda en window._planFirmaOpcional
+    // para que crearPartesDesdeModal lo lea al construir el payload.
+    if (typeof pt_preguntarFirma === 'function') {
+      const decision = await pt_preguntarFirma();
+      if (decision === 'cancel') return;
+      window._planFirmaOpcional = (decision === 'no');
+    } else {
+      window._planFirmaOpcional = false;
+    }
+    crearPartesDesdeModal('programado');
+  };
 
   // Cargar plantillas activas para el selector de formulario
   (async () => {
@@ -1466,7 +1474,9 @@ async function crearPartesDesdeModal(estado) {
   const horaIni = esMultiDia ? '08:30:00' : ((document.getElementById('planNuevoHoraIni')?.value || '08:30') + ':00');
   const horaFin = esMultiDia ? '16:30:00' : ((document.getElementById('planNuevoHoraFin')?.value || '16:30') + ':00');
   const instrucciones = document.getElementById('planNuevoInstrucciones')?.value || null;
-  const firmaOpcional = document.getElementById('planFirmaOpcional')?.checked || false;
+  // firma_opcional viene de la decisión del modal preguntado al pulsar Programar.
+  // Para "Borrador" no preguntamos → firma_opcional queda en false por defecto.
+  const firmaOpcional = !!window._planFirmaOpcional;
 
   // Formulario asociado (opcional) — se asignará a TODOS los partes creados
   const _formSel = document.getElementById('planNuevoFormPlantilla');

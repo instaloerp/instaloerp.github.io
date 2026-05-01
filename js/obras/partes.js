@@ -808,6 +808,29 @@ function pt_toggleFirmaOpcional(checked) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// TAREA #11 — Modal "¿Requiere firma del cliente?" al programar parte
+// Se invoca desde el planificador (botón Programar) cuando se va a crear
+// un parte y NO se ha marcado el checkbox "No requiere firma del cliente".
+// Devuelve 'si' (requiere firma), 'no' (sin firma) o 'cancel'.
+// ═══════════════════════════════════════════════════════════════════════
+
+let _mfcResolve = null;
+function pt_preguntarFirma() {
+  return new Promise(resolve => {
+    _mfcResolve = resolve;
+    openModal('mFirmaConfirm');
+  });
+}
+function mfc_decision(decision) {
+  closeModal('mFirmaConfirm');
+  if (_mfcResolve) {
+    const r = _mfcResolve;
+    _mfcResolve = null;
+    r(decision);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // GUARDAR PARTE - BD
 // ═══════════════════════════════════════════════════════════════════════
 

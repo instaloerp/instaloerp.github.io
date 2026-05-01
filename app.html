@@ -3435,7 +3435,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 21
+      instaloERP v1.0 · build 23
     </div>
   `;
 }
@@ -4279,7 +4279,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 21
+      instaloERP v1.0 · build 23
     </div>
   `;
 }
@@ -5510,7 +5510,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 21
+        instaloERP v1.0 · build 23
       </div>
     </div>`;
 }
@@ -8138,10 +8138,8 @@ function _openParteFormFilled(fecha, horaIni, horaFin) {
         <input type="checkbox" id="qf_borrador" style="width:18px;height:18px;cursor:pointer;accent-color:var(--azul)">
         <span style="font-size:13px;color:var(--gris-600)">Guardar como borrador (pendiente de confirmar)</span>
       </label>
-      <label style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;cursor:pointer">
-        <input type="checkbox" id="qf_firma_opcional" style="width:18px;height:18px;cursor:pointer;accent-color:#F59E0B">
-        <span style="font-size:13px;color:#92400E">No requiere firma del cliente</span>
-      </label>
+      <!-- (El checkbox "No requiere firma del cliente" se eliminó: ahora se
+           pregunta con un modal al pulsar Crear parte — Tarea #11) -->
       <button class="btn btn-primary" onclick="_saveParteForm()" style="margin-top:10px">Crear parte</button>
     </div>
   `;
@@ -8383,6 +8381,40 @@ async function _qfGuardarDireccionCliente(clienteId) {
 }
 
 
+// Tarea #11 — Modal "¿Requiere firma del cliente?" para la PWA. Devuelve
+// promesa con 'si' / 'no' / 'cancel'. Se monta dinámicamente para no tener
+// que añadir HTML estático.
+function _pwaPreguntarFirma() {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,0.2)">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700;color:#111827">✍️ ¿Requiere firma del cliente?</h3>' +
+        '<p style="margin:0 0 16px;font-size:13.5px;color:#374151;line-height:1.5">¿Este parte requerirá firma del cliente cuando se complete?</p>' +
+        '<div style="display:flex;flex-direction:column;gap:8px">' +
+          '<button data-d="si" style="padding:12px;border-radius:10px;border:none;background:#3B82F6;color:#fff;font-weight:600;font-size:14px;cursor:pointer;text-align:left">' +
+            '✍️ Sí, requiere firma' +
+            '<div style="font-size:11.5px;font-weight:400;opacity:.85;margin-top:2px">Se pedirá al completar el parte</div>' +
+          '</button>' +
+          '<button data-d="no" style="padding:12px;border-radius:10px;border:1px solid #D1D5DB;background:#fff;color:#374151;font-weight:600;font-size:14px;cursor:pointer;text-align:left">' +
+            '📋 No, sin firma' +
+            '<div style="font-size:11.5px;font-weight:400;color:#9CA3AF;margin-top:2px">No saldrá la conformidad en el PDF</div>' +
+          '</button>' +
+          '<button data-d="cancel" style="padding:10px;border-radius:10px;border:none;background:transparent;color:#6B7280;font-weight:500;font-size:13px;cursor:pointer">Cancelar</button>' +
+        '</div>' +
+      '</div>';
+    overlay.querySelectorAll('button[data-d]').forEach(btn => {
+      btn.onclick = () => {
+        const d = btn.dataset.d;
+        overlay.remove();
+        resolve(d);
+      };
+    });
+    document.body.appendChild(overlay);
+  });
+}
+
 async function _saveParteForm() {
   if (!EMPRESA) { toast('Sin empresa activa','error'); return; }
   try {
@@ -8449,7 +8481,15 @@ async function _saveParteForm() {
 
     // Estado: programado por defecto (tiene fecha); borrador si el check está marcado
     const esBorrador = document.getElementById('qf_borrador')?.checked || false;
-    const firmaOpcional = document.getElementById('qf_firma_opcional')?.checked || false;
+
+    // Tarea #11: si NO es borrador, SIEMPRE preguntamos si requiere firma
+    // del cliente (ya no hay checkbox previo).
+    let firmaOpcional = false;
+    if (!esBorrador && typeof _pwaPreguntarFirma === 'function') {
+      const _decision = await _pwaPreguntarFirma();
+      if (_decision === 'cancel') return;
+      firmaOpcional = (_decision === 'no');
+    }
     const record = {
       empresa_id:     EMPRESA.id,
       estado:         esBorrador ? 'borrador' : 'programado',
