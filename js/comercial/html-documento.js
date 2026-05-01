@@ -91,7 +91,7 @@
   const CSS = `
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:#fff;line-height:1.45}
-.doc{max-width:210mm;margin:0 auto;padding:8mm 14mm 16mm;position:relative}
+.doc{max-width:210mm;margin:0 auto;padding:6mm 16mm 8mm;position:relative}
 .cabecera{position:relative;display:flex;justify-content:space-between;align-items:center;min-height:60px;margin-bottom:10px}
 .cab-logo{position:absolute;top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;background:#fff;padding:2px 6px 2px 0}
 .cab-logo img,.cab-logo-center img{height:80px;width:auto;max-width:220px;object-fit:contain;display:block}
@@ -173,7 +173,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
-  .doc{padding:14mm 14mm 18mm}
+  .doc{padding:14mm 16mm 20mm}
 }
 `;
 
@@ -515,7 +515,7 @@ ${_renderPie(E)}
     wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
     const docClone = doc.cloneNode(true);
-    docClone.style.setProperty('padding-top', '5mm', 'important');
+    // Padding base del .doc en CSS = 12mm 16mm 18mm. No lo forzamos aquí.
     wrapper.appendChild(docClone);
     document.body.appendChild(wrapper);
 
@@ -525,7 +525,7 @@ ${_renderPie(E)}
       const docEl = wrapper.querySelector('.doc');
       const fullHeight = docEl.scrollHeight || docEl.offsetHeight;
       const opt = {
-        margin:       [0, 0, 14, 0],   // mm — margen top en el padding del clon
+        margin:       [10, 0, 16, 0],  // mm — top, right, bottom, left (margen externo PDF)
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
         html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff',

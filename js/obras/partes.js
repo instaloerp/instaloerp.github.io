@@ -2111,6 +2111,7 @@ async function _ptSeccionFormulario(parte) {
     const visibles = (campos||[]).filter(evalMostrar);
 
     const keyOf = (c) => c.codigo || ('id_'+c.id);
+    const esVacio = (v) => (v == null || v === '' || (Array.isArray(v) && v.length === 0));
     let html = '';
     visibles.forEach(c => {
       const key = keyOf(c);
@@ -2119,8 +2120,10 @@ async function _ptSeccionFormulario(parte) {
         html += `<div style="font-size:9.5px;font-weight:700;color:#1e40af;background:#dbeafe;padding:5px 12px;margin:8px 0 0;text-transform:uppercase;letter-spacing:.5px">${_ptEsc(c.etiqueta)}</div>`;
         return;
       }
+      // Opcional vacío → no se imprime (reduce ruido visual)
+      if (!c.obligatorio && esVacio(v)) return;
       let valHtml = '';
-      const valStr = (v == null || v === '') ? '<span style="color:#94a3b8">—</span>' : '';
+      const valStr = esVacio(v) ? '<span style="color:#94a3b8">—</span>' : '';
       if (c.tipo === 'radio' || c.tipo === 'dropdown') {
         const color = (v === 'Correcto') ? '#15803d' : (v === 'Incorrecto') ? '#a32d2d' : '#475569';
         valHtml = v ? `<span style="color:${color};font-weight:700">${_ptEsc(v)}</span>` : valStr;
@@ -2162,17 +2165,22 @@ function _ptSeccionFirmas(parte) {
   const hayCli = !!parte.firma_url;
   const hayOp  = !!parte.firma_operario_url;
   if (!hayCli && !hayOp) return null;
-  const bloque = (titulo, nombre, dni, urlImg) => `
+  const bloque = (titulo, nombre, dni, urlImg) => {
+    const imgHtml = urlImg
+      ? `<img src="${_ptEsc(urlImg)}" crossorigin="anonymous" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;display:inline-block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div style="display:none;height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>`
+      : '<div style="height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>';
+    return `
     <div style="text-align:center">
       <div style="font-size:8.5px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${titulo}</div>
-      ${urlImg ? `<img src="${_ptEsc(urlImg)}" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff">` : '<div style="height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>'}
+      ${imgHtml}
       ${nombre ? `<div style="font-size:10px;font-weight:600;color:#1e293b;margin-top:3px">${_ptEsc(nombre)}</div>` : ''}
       ${dni ? `<div style="font-size:9px;color:#64748b">DNI: ${_ptEsc(dni)}</div>` : ''}
     </div>`;
+  };
   return {
     titulo: 'CONFORMIDAD',
     html: `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:10px 14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 18px">
         ${bloque('Persona responsable', parte.cliente_nombre_firma, parte.cliente_dni, parte.firma_url)}
         ${bloque('Operario', parte.operario_nombre_firma || parte.usuario_nombre, '', parte.firma_operario_url)}
       </div>`
@@ -2224,6 +2232,7 @@ async function partePdfBuildCfg(id) {
     fecha: parte.fecha,
     titulo: parte.trabajo_titulo || '',
     cliente,
+    datos_extra,                 // operario, horario, horas, estado, obra
     lineas: [],                  // el parte no usa el sistema de capítulos clásico
     secciones_html: secciones,
     observaciones,
