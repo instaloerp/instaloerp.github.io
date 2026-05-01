@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 40
+      instaloERP v1.0 · build 41
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 40
+      instaloERP v1.0 · build 41
     </div>
   `;
 }
@@ -4338,7 +4338,20 @@ const MED_PLANTILLAS = {
       { key: 'sanitarios', label: 'Sanitarios a sustituir', tipo: 'multiselect', opciones: ['Inodoro','Lavabo','Bidé','Ducha','Bañera','Mampara','Mueble baño','Grifería'] },
       { key: 'observaciones', label: 'Observaciones', tipo: 'textarea' },
     ],
-    descripcionItem: (it) => `Baño ${it.metros||'?'} m²${it.reformar ? ' · ' + it.reformar : ''}${it.ubicacion ? ' (' + it.ubicacion + ')' : ''}`,
+    descripcionItem: (it) => {
+      // Soporta modelo nuevo (ancho_mm + bloques) y legacy (metros + reformar)
+      const a = it.ancho_mm, l = it.largo_mm;
+      const m2 = it.metros || (a && l ? +((a/1000)*(l/1000)).toFixed(2) : null);
+      const dim = (a && l) ? `${a}×${l} mm${m2?' · '+m2+' m²':''}` : (m2 ? m2+' m²' : '?');
+      const partes = [`Baño ${dim}`];
+      if (it.alcance) partes.push(it.alcance);
+      else if (it.reformar) partes.push(it.reformar);
+      if (it.plato)   partes.push(`plato ${it.plato.tipo||''}`.trim());
+      if (it.banera)  partes.push(`bañera ${it.banera.tipo||''}`.trim());
+      if (it.mampara) partes.push(`mampara ${it.mampara.tipo||''}`.trim());
+      if (it.ubicacion) partes.push(`(${it.ubicacion})`);
+      return partes.filter(Boolean).join(' · ');
+    },
   },
   suelo: {
     label: 'Suelo', ico: '🟫', color: '#D97706',
@@ -6560,7 +6573,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 40
+        instaloERP v1.0 · build 41
       </div>
     </div>`;
 }

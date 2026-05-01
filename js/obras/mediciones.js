@@ -164,10 +164,10 @@ function renderMedicionDetalleERP() {
           ${items.length === 0
             ? `<div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Sin items registrados todavía.</div>`
             : items.map((it, i) => `
-              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border-bottom:1px solid var(--gris-100)">
-                <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">${i+1}</div>
+              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gris-100)">
+                <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${i+1}</div>
                 <div style="flex:1;font-size:12.5px;line-height:1.5">
-                  ${_medErpDescItem(m.tipo, it)}
+                  ${m.tipo === 'bano' ? _medErpDetalleBano(it) : _medErpDescItem(m.tipo, it)}
                 </div>
               </div>
             `).join('')}
@@ -299,6 +299,131 @@ function _medErpDescItem(tipo, it) {
 
 function _medErpEsc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ════════════════════════════════════════════════════════════════
+// DETALLE COMPLETO DE UN BAÑO — todos los bloques rellenados
+// ════════════════════════════════════════════════════════════════
+function _medErpDetalleBano(it) {
+  const e = _medErpEsc;
+  const linea = (icon, titulo, valor) =>
+    valor ? `<div style="display:flex;gap:6px;padding:3px 0"><span style="width:18px;flex-shrink:0">${icon}</span><span style="font-weight:600;color:#374151;min-width:90px">${titulo}</span><span style="color:#111827;flex:1">${valor}</span></div>` : '';
+  const join = arr => arr.filter(Boolean).join(' · ');
+
+  // Cabecera con dimensiones y ubicación
+  const a = it.ancho_mm, l = it.largo_mm, h = it.alto_mm;
+  const m2 = it.metros || (a && l ? +((a/1000)*(l/1000)).toFixed(2) : null);
+  const dimTxt = (a && l) ? `${a}×${l}${h?'×'+h:''} mm${m2?' · '+m2+' m²':''}` : (m2 ? `${m2} m²` : '—');
+
+  let html = `<div style="background:#FAFBFC;border-radius:8px;padding:10px 12px">`;
+  html += `<div style="font-size:13px;font-weight:700;color:#1F2937;margin-bottom:6px">${e(it.ubicacion || 'Baño')}</div>`;
+  html += `<div style="font-size:11.5px;color:#374151;display:grid;gap:1px">`;
+
+  // Dimensiones
+  html += linea('📐', 'Dimensiones', dimTxt + (it.forma ? ` · ${e(it.forma)}` : ''));
+
+  // Reforma
+  const refTxt = join([it.alcance, it.demolicion ? `demolición ${e(it.demolicion).toLowerCase()}` : '', it.quitar_bide ? 'quitar bidé' : '']);
+  html += linea('🔨', 'Reforma', refTxt);
+
+  // Pavimento
+  if (it.pavimento) {
+    const p = it.pavimento;
+    html += linea('🟫', 'Pavimento', join([e(p.tipo||''), p.antideslizante && p.antideslizante !== 'No aplica' ? `antid. ${e(p.antideslizante)}` : '', e(p.color||'')]));
+  }
+
+  // Paredes
+  if (it.paredes) {
+    const pa = it.paredes;
+    const altTxt = pa.altura === 'Otra (libre en mm)' && pa.altura_mm ? `${pa.altura_mm} mm` : e(pa.altura||'');
+    html += linea('🧱', 'Paredes', join([e(pa.tipo||''), altTxt, e(pa.observ||'')]));
+  }
+
+  // Techo
+  if (it.techo) {
+    const t = it.techo;
+    const luz = Array.isArray(t.iluminacion) && t.iluminacion.length ? `iluminación: ${t.iluminacion.map(e).join(', ')}` : '';
+    html += linea('☀️', 'Techo', join([e(t.tipo||''), luz]));
+  }
+
+  // Plato
+  if (it.plato) {
+    const p = it.plato;
+    const dim = (p.ancho_mm && p.largo_mm) ? `${p.ancho_mm}×${p.largo_mm} mm` : '';
+    html += linea('🚿', 'Plato', join([dim, e(p.tipo||''), e(p.color||''), p.desague?`desagüe ${e(p.desague)}`:'']));
+  }
+
+  // Bañera
+  if (it.banera) {
+    const b = it.banera;
+    const dim = (b.largo_mm && b.ancho_mm) ? `${b.largo_mm}×${b.ancho_mm}${b.alto_mm?'×'+b.alto_mm:''} mm` : '';
+    html += linea('🛁', 'Bañera', join([dim, e(b.tipo||''), e(b.posicion||''), e(b.color||''), b.faldon?'con faldón':'']));
+  }
+
+  // Mampara
+  if (it.mampara) {
+    const m = it.mampara;
+    const dim = (m.ancho_mm && m.alto_mm) ? `${m.ancho_mm}×${m.alto_mm} mm` : '';
+    html += linea('🪞', 'Mampara', join([e(m.tipo||''), dim, e(m.vidrio_mm||''), e(m.cristal||''), e(m.perfileria||''), m.antical?'antical':'']));
+  }
+
+  // Sanitarios
+  const sanArr = [];
+  if (it.inodoro) sanArr.push(`WC ${e(it.inodoro)}`);
+  if (it.lavabo)  sanArr.push(`lavabo ${e(it.lavabo)}`);
+  if (it.bide)    sanArr.push(`bidé ${e(it.bide)}`);
+  if (it.tomas_lavadora) sanArr.push('tomas lavadora');
+  if (sanArr.length) html += linea('🚽', 'Sanitarios', sanArr.join(' · '));
+
+  // Grifería
+  if (it.griferia) {
+    const g = it.griferia;
+    const gArr = [];
+    if (g.ducha)   gArr.push(`ducha ${e(g.ducha)}`);
+    if (g.lavabo)  gArr.push(`lavabo ${e(g.lavabo)}`);
+    if (g.acabado) gArr.push(`acabado ${e(g.acabado)}`);
+    if (gArr.length) html += linea('🚰', 'Grifería', gArr.join(' · '));
+  }
+
+  // Mueble + espejo
+  if (it.mueble) {
+    const mu = it.mueble;
+    const dim = (mu.ancho_mm) ? `${mu.ancho_mm}${mu.fondo_mm?'×'+mu.fondo_mm:''}${mu.alto_mm?'×'+mu.alto_mm:''} mm` : '';
+    const cajPue = [mu.cajones?`${mu.cajones} cajones`:'', mu.puertas?`${mu.puertas} puertas`:''].filter(Boolean).join(', ');
+    html += linea('🪟', 'Mueble', join([dim, e(mu.posicion||''), cajPue, e(mu.material||'')]));
+  }
+  if (it.espejo) {
+    const es = it.espejo;
+    const dim = (es.ancho_mm && es.alto_mm) ? `${es.ancho_mm}×${es.alto_mm} mm` : '';
+    html += linea('🪞', 'Espejo', join([dim, es.led?'con LED':'']));
+  }
+
+  // Accesorios
+  const accArr = Array.isArray(it.accesorios) ? it.accesorios.slice() : [];
+  if (it.toallero_radiador_kw) accArr.push(`toallero radiador ${it.toallero_radiador_kw} kW`);
+  if (it.asideros) accArr.push(`${it.asideros} asideros`);
+  if (accArr.length) html += linea('🪥', 'Accesorios', accArr.map(e).join(', '));
+
+  // Instalaciones
+  if (it.instalaciones) {
+    const i = it.instalaciones;
+    const insArr = [];
+    if (i.puntos_luz)        insArr.push(`${i.puntos_luz} luces`);
+    if (i.enchufes)          insArr.push(`${i.enchufes} enchufes`);
+    if (i.extractor_tipo && i.extractor_tipo !== 'Sin extractor') insArr.push(e(i.extractor_tipo));
+    if (i.modif_bajantes)    insArr.push('modif. bajantes');
+    if (i.modif_tomas_agua)  insArr.push('modif. tomas agua');
+    if (i.bote_sifonico && i.bote_sifonico !== 'No aplica') insArr.push(`bote sif. ${e(i.bote_sifonico).toLowerCase()}`);
+    if (insArr.length) html += linea('⚡', 'Instalaciones', insArr.join(' · '));
+  }
+
+  // Observaciones
+  if (it.observaciones) {
+    html += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #E5E7EB;font-size:11px;color:#6B7280;font-style:italic">📝 ${e(it.observaciones)}</div>`;
+  }
+
+  html += `</div></div>`;
+  return html;
 }
 
 // Generar presupuesto desde una medición (placeholder — la lógica completa
@@ -612,8 +737,16 @@ async function exportarMedicionPDF(id) {
   // Sección: items medidos
   const filasItems = items.map((it, i) => {
     const svg = (m.tipo === 'ventanas') ? _medSvgVentana(it) : '';
-    const desc = _medErpDescItem(m.tipo, it);
     const ubic = it.ubicacion || it.estancia || '';
+    // Para baño usamos la vista detallada (todas las secciones)
+    if (m.tipo === 'bano') {
+      return `
+        <div style="padding:10px 0;border-bottom:1px dashed #E5E7EB;page-break-inside:avoid">
+          <div style="font-weight:500;color:#111827;font-size:12px;margin-bottom:5px">${i+1}. ${ubic ? _medErpEsc(ubic) : pl.label}</div>
+          ${_medErpDetalleBano(it)}
+        </div>`;
+    }
+    const desc = _medErpDescItem(m.tipo, it);
     return `
       <div style="display:grid;grid-template-columns:${svg ? '180px' : '0px'} 1fr;gap:14px;padding:10px 0;border-bottom:1px dashed #E5E7EB;page-break-inside:avoid">
         ${svg ? `<div style="display:flex;flex-direction:column;align-items:center">${svg}<div style="font-size:8px;color:#1E40AF;font-weight:500;margin-top:2px;text-transform:uppercase;letter-spacing:.4px">${_medErpEsc((it.tipo_apertura || pl.label).toString())}</div></div>` : ''}
