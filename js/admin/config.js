@@ -348,12 +348,18 @@ function _cfgInyectarBotonVolver() {
   bar.innerHTML = html;
   activePage.insertBefore(bar, activePage.firstChild);
 
-  // Botón "← Volver" interno bajo la barra (igual al de los paneles internos).
+  // Botón "← Volver" interno bajo la barra. Vuelve al MENÚ DE CARDS de
+  // Configuración (igual que el "← Volver" del panel interno hace
+  // cfgVolverACards). El "← Volver" de la BARRA de pestañas sigue siendo
+  // quien sale del todo (cfgSalir).
   const volverInterno = document.createElement('button');
   volverInterno.className = 'btn btn-ghost btn-sm cfg-external-volver';
   volverInterno.textContent = '← Volver';
   volverInterno.style.margin = '0 0 12px 4px';
-  volverInterno.onclick = () => { window._cfgDesdeConfig = false; cfgSalir(); };
+  volverInterno.onclick = () => {
+    window._cfgDesdeConfig = false;
+    if (typeof goPage === 'function') goPage('configuracion');
+  };
   activePage.appendChild(volverInterno);
 
   // Mapa de títulos por página (mostrados en el header de la card)
