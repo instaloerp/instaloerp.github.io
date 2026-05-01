@@ -2112,16 +2112,32 @@ async function _ptSeccionFormulario(parte) {
 
     const keyOf = (c) => c.codigo || ('id_'+c.id);
     const esVacio = (v) => (v == null || v === '' || (Array.isArray(v) && v.length === 0));
-    let html = '';
+
+    // Agrupar campos por sección. Solo se emite una sección si tiene al menos un campo a mostrar.
+    const grupos = []; // [{ seccion, campos:[] }]
+    let actual = { seccion: null, campos: [] };
     visibles.forEach(c => {
-      const key = keyOf(c);
-      const v = respuestas[key];
       if (c.tipo === 'seccion') {
-        html += `<div style="font-size:9.5px;font-weight:700;color:#1e40af;background:#dbeafe;padding:5px 12px;margin:8px 0 0;text-transform:uppercase;letter-spacing:.5px">${_ptEsc(c.etiqueta)}</div>`;
+        if (actual.campos.length || actual.seccion) grupos.push(actual);
+        actual = { seccion: c, campos: [] };
         return;
       }
       // Opcional vacío → no se imprime (reduce ruido visual)
-      if (!c.obligatorio && esVacio(v)) return;
+      if (!c.obligatorio && esVacio(respuestas[keyOf(c)])) return;
+      actual.campos.push(c);
+    });
+    if (actual.campos.length || actual.seccion) grupos.push(actual);
+
+    let html = '';
+    grupos.forEach(g => {
+      // Sección sin campos a mostrar → omitir cabecera (evita "OBSERVACIONES" vacío)
+      if (g.seccion && g.campos.length === 0) return;
+      if (g.seccion) {
+        html += `<div style="font-size:9.5px;font-weight:700;color:#1e40af;background:#dbeafe;padding:5px 12px;margin:8px 0 0;text-transform:uppercase;letter-spacing:.5px">${_ptEsc(g.seccion.etiqueta)}</div>`;
+      }
+      g.campos.forEach(c => {
+      const key = keyOf(c);
+      const v = respuestas[key];
       let valHtml = '';
       const valStr = esVacio(v) ? '<span style="color:#94a3b8">—</span>' : '';
       if (c.tipo === 'radio' || c.tipo === 'dropdown') {
@@ -2145,7 +2161,8 @@ async function _ptSeccionFormulario(parte) {
           <div style="color:#475569;line-height:1.4">${oblig}${_ptEsc(c.etiqueta)}</div>
           <div style="color:#1e293b;line-height:1.4">${valHtml}</div>
         </div>`;
-    });
+      });  // cierra g.campos.forEach
+    });    // cierra grupos.forEach
     if (!html) {
       html = '<div style="padding:10px 14px;font-size:10.5px;color:#94a3b8;font-style:italic">Formulario sin campos visibles para este tipo.</div>';
     }
@@ -2161,13 +2178,37 @@ async function _ptSeccionFormulario(parte) {
   }
 }
 
-function _ptSeccionFirmas(parte) {
+// Carga una imagen remota y la convierte a data: URL (base64).
+// Esto evita problemas de CORS / carga asíncrona en html2pdf y window.print.
+async function _ptUrlToDataUrl(url) {
+  if (!url) return null;
+  try {
+    const resp = await fetch(url, { mode: 'cors' });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return await new Promise(res => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => res(null);
+      r.readAsDataURL(blob);
+    });
+  } catch (e) { console.warn('[_ptUrlToDataUrl]', url, e); return null; }
+}
+
+async function _ptSeccionFirmas(parte) {
   const hayCli = !!parte.firma_url;
   const hayOp  = !!parte.firma_operario_url;
   if (!hayCli && !hayOp) return null;
-  const bloque = (titulo, nombre, dni, urlImg) => {
-    const imgHtml = urlImg
-      ? `<img src="${_ptEsc(urlImg)}" crossorigin="anonymous" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;display:inline-block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div style="display:none;height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>`
+
+  // Precargar firmas como base64 (evita problemas de CORS y de carga tardía)
+  const [firmaCli, firmaOp] = await Promise.all([
+    hayCli ? _ptUrlToDataUrl(parte.firma_url) : null,
+    hayOp  ? _ptUrlToDataUrl(parte.firma_operario_url) : null,
+  ]);
+
+  const bloque = (titulo, nombre, dni, dataUrl) => {
+    const imgHtml = dataUrl
+      ? `<img src="${dataUrl}" style="max-width:160px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;display:inline-block">`
       : '<div style="height:48px;border-bottom:1px solid #94a3b8;margin:0 8px"></div>';
     return `
     <div style="text-align:center">
@@ -2181,8 +2222,8 @@ function _ptSeccionFirmas(parte) {
     titulo: 'CONFORMIDAD',
     html: `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 18px">
-        ${bloque('Persona responsable', parte.cliente_nombre_firma, parte.cliente_dni, parte.firma_url)}
-        ${bloque('Operario', parte.operario_nombre_firma || parte.usuario_nombre, '', parte.firma_operario_url)}
+        ${bloque('Persona responsable', parte.cliente_nombre_firma, parte.cliente_dni, firmaCli)}
+        ${bloque('Operario', parte.operario_nombre_firma || parte.usuario_nombre, '', firmaOp)}
       </div>`
   };
 }
@@ -2221,7 +2262,7 @@ async function partePdfBuildCfg(id) {
   addSec(_ptSeccionManoObra(parte));
   addSec(_ptSeccionMateriales(parte));
   addSec(await _ptSeccionFormulario(parte));
-  addSec(_ptSeccionFirmas(parte));
+  addSec(await _ptSeccionFirmas(parte));
 
   // Observaciones internas (si existen)
   const observaciones = parte.observaciones || null;

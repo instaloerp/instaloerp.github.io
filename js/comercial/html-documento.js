@@ -174,6 +174,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   body{background:#fff}
   .no-print{display:none!important}
   .doc{padding:14mm 16mm 20mm}
+  .pie{display:none!important}  /* en print, el navegador añade su propio pie; el position:fixed rompe la paginación */
 }
 `;
 
