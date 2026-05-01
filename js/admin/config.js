@@ -264,10 +264,34 @@ function cfgCardClick(cardEl) {
   const action = cardEl.dataset.cfgAction;
   const id = cardEl.dataset.cfgId;
   if (action) {
+    // Marcamos que venimos desde Configuración para inyectar luego el
+    // botón "← Volver a Configuración" en la página externa que se abra.
+    window._cfgDesdeConfig = true;
     try { eval(action); } catch (e) { console.warn('[cfgCardClick]', e); }
+    setTimeout(_cfgInyectarBotonVolver, 250);
     return;
   }
   if (id) cfgTab(id, null);
+}
+
+// Inyecta una mini-barra "← Volver a Configuración" al inicio de la página
+// externa actual cuando se navegó desde una card de Configuración.
+function _cfgInyectarBotonVolver() {
+  if (!window._cfgDesdeConfig) return;
+  // Página visible (no usa class .active de páginas; busca .page sin display:none)
+  const pages = document.querySelectorAll('.page');
+  let activePage = null;
+  for (const p of pages) {
+    const cs = window.getComputedStyle(p);
+    if (cs.display !== 'none' && p.id !== 'page-configuracion') { activePage = p; break; }
+  }
+  if (!activePage) return;
+  // Si ya existe la barra, no la duplicamos
+  if (activePage.querySelector('.cfg-volver-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'cfg-volver-bar';
+  bar.innerHTML = '<button onclick="window._cfgDesdeConfig=false;goPage(\'configuracion\')">← Volver a Configuración</button>';
+  activePage.insertBefore(bar, activePage.firstChild);
 }
 
 // Persistencia drag&drop: guarda y carga en localStorage el orden y categoría
