@@ -177,15 +177,23 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   position:fixed;
   top:50%; left:50%;
   transform:translate(-50%,-50%);
-  width:60%; max-width:130mm;
-  opacity:0.05;
+  width:90%; max-width:180mm;       /* ocupa casi toda la hoja A4 */
+  max-height:240mm;                  /* limita verticalmente para no salirse */
+  opacity:0.10;                      /* difuminado pero visible */
   z-index:0;
   pointer-events:none;
   user-select:none;
   print-color-adjust:exact;
   -webkit-print-color-adjust:exact;
 }
-.marca-agua-fondo img{width:100%;height:auto;display:block}
+.marca-agua-fondo img{
+  max-width:100%;
+  max-height:240mm;
+  width:auto;
+  height:auto;
+  display:block;
+  margin:0 auto;
+}
 .doc{z-index:1}                          /* asegura contexto de apilamiento sobre la marca */
 .doc > *{position:relative;z-index:1}    /* el contenido del doc por encima de la marca */
 
@@ -516,7 +524,12 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 <style>${cssFinal}</style>
 </head>
 <body>
-<div class="marca-agua-fondo" aria-hidden="true"><img src="${_esc(_logoSrc(E))}" alt="" onerror="this.style.display='none'"></div>
+<div class="marca-agua-fondo" aria-hidden="true">
+  <!-- Si existe assets/marca-agua.png (isotipo aislado) se usa esa; si no,
+       se cae al logo de empresa completo. onerror cambia el src una vez. -->
+  <img src="assets/marca-agua.png" alt=""
+       onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${_esc(_logoSrc(E))}';}else{this.style.display='none';}">
+</div>
 <div class="doc" style="position:relative">
   ${marcaAguaHtml}
   ${_renderCabecera(E, cfg)}
