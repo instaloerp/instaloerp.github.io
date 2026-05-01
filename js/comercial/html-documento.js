@@ -418,14 +418,14 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
       const styles = [];
       // Si es "large" no aplicamos page-break-inside:avoid, para permitir partir
       if (sec.large) styles.push('page-break-inside:auto;break-inside:auto');
+      // Page break ANTES del capítulo: lo aplicamos directamente al .capitulo
+      // (modo CSS de html2pdf detecta break-before:page en cualquier elemento).
+      // Antes usábamos un <div class="html2pdf__page-break"> separado pero el
+      // modo legacy + css combinados hacía que el contenido posterior se
+      // perdiera en el render de html2canvas.
+      if (sec.pageBreakBefore) styles.push('page-break-before:always;break-before:page');
       const styleAttr = styles.length ? ` style="${styles.join(';')}"` : '';
-      // Page break ANTES del capítulo: usamos un elemento dedicado, más robusto
-      // tanto para html2pdf (clase 'html2pdf__page-break') como para window.print()
-      const pageBreak = sec.pageBreakBefore
-        ? '<div class="html2pdf__page-break" style="page-break-before:always;break-before:page;height:0;line-height:0;font-size:0"></div>'
-        : '';
       return `
-${pageBreak}
 <div class="capitulo"${styleAttr}>
   <div class="cap-banda">
     <div class="cap-num">${String(idx).padStart(2,'0')}</div>
@@ -529,7 +529,10 @@ ${_renderPie(E)}
     if (!doc) throw new Error('Documento mal formado');
 
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1';
+    // position:absolute (no fixed) para que el wrapper crezca con el contenido
+    // y scrollHeight refleje toda la altura, incluido lo que viene tras un
+    // page-break. visibility:hidden mantiene el offscreen sin afectar layout.
+    wrapper.style.cssText = 'position:absolute;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1;visibility:hidden';
     if (styleNode) wrapper.appendChild(styleNode.cloneNode(true));
     const docClone = doc.cloneNode(true);
     // Padding base del .doc en CSS = 12mm 16mm 18mm. No lo forzamos aquí.
@@ -538,20 +541,20 @@ ${_renderPie(E)}
 
     try {
       await _esperarImagenes(wrapper);
-      // Forzar layout y obtener la altura real del contenido
       const docEl = wrapper.querySelector('.doc');
-      const fullHeight = docEl.scrollHeight || docEl.offsetHeight;
+      // No forzamos `html2canvas.height` — html2canvas calcula por sí mismo
+      // recorriendo el flujo completo. Forzar height limitaba la captura y
+      // dejaba en blanco el contenido posterior al primer page-break.
       const opt = {
         margin:       [10, 0, 16, 0],  // mm — top, right, bottom, left (margen externo PDF)
         filename:     `${cfg.tipo||'Documento'}_${(cfg.numero||'').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf`,
         image:        { type:'jpeg', quality:0.96 },
-        html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff',
-                        scrollY: 0, height: fullHeight, windowHeight: fullHeight + 200 },
+        html2canvas:  { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff', scrollY: 0 },
         jsPDF:        { unit:'mm', format:'a4', orientation:'portrait' },
-        // CSS gestiona los avoids vía .capitulo (page-break-inside:avoid). Las secciones
-        // marcadas como "large" sobrescriben con style inline. Las clases legacy
-        // 'html2pdf__page-break' fuerzan saltos donde se necesiten.
-        pagebreak:    { mode:['css','legacy'], avoid:['.resumen-bloque','.firma-bloque'] }
+        // Solo modo 'css': el .capitulo con style="break-before:page" provoca
+        // el salto. Combinar con 'legacy' duplicaba el procesamiento y
+        // descartaba el contenido posterior.
+        pagebreak:    { mode:['css'], avoid:['.resumen-bloque','.firma-bloque'] }
       };
       const worker = window.html2pdf().set(opt).from(docEl);
       const pdf = await worker.toPdf().get('pdf');
