@@ -2301,14 +2301,13 @@ async function partePdfBuildCfg(id) {
   const horaIni = _fmtHoraIso(parte.inicio_at) || (parte.hora_inicio ? parte.hora_inicio.substring(0,5) : null);
   const horaFin = _fmtHoraIso(parte.completado_at) || (parte.hora_fin ? parte.hora_fin.substring(0,5) : null);
   const horario = (horaIni && horaFin) ? `${horaIni} - ${horaFin}` : (horaIni || '—');
-  const horas = parte.horas != null ? `${(parseFloat(parte.horas)||0).toFixed(1)} h` : '—';
 
   // Datos del parte para la tarjeta lateral. NO incluimos Estado (irrelevante
-  // en el PDF) ni Obra (ya aparece como subtítulo del documento).
+  // en el PDF), ni Obra (ya aparece como subtítulo), ni Horas (redundante con
+  // el horario, calculable a ojo).
   const datos_extra = [
     ['Operario', parte.usuario_nombre || '—'],
     ['Horario', horario],
-    ['Horas', horas],
   ];
 
   // Construir secciones en orden
