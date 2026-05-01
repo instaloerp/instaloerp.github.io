@@ -9887,12 +9887,24 @@ function openParteDetail(id) {
 // Pasos: 1) Descripción  2) Fotos  3) Materiales  4) Firma
 // ═══════════════════════════════════════════════════════════════
 
-const WIZ_STEPS = [
+let WIZ_STEPS = [
   { id:'desc',  ico:'📝', label:'Descripción' },
   { id:'fotos', ico:'📷', label:'Fotos' },
   { id:'mat',   ico:'🔧', label:'Materiales' },
   { id:'firma', ico:'✍️', label:'Firma' },
 ];
+
+// Reconstruye WIZ_STEPS según si el parte tiene formulario asociado.
+// El paso 'formulario' va entre 'desc' y 'fotos'.
+function _wizSetSteps(tieneFormulario) {
+  WIZ_STEPS = [
+    { id:'desc',  ico:'📝', label:'Descripción' },
+    ...(tieneFormulario ? [{ id:'formulario', ico:'📋', label:'Formulario' }] : []),
+    { id:'fotos', ico:'📷', label:'Fotos' },
+    { id:'mat',   ico:'🔧', label:'Materiales' },
+    { id:'firma', ico:'✍️', label:'Firma' },
+  ];
+}
 
 function openCompletarWizard(id) {
   // Legacy — redirigir a openInformarWizard
@@ -9915,9 +9927,10 @@ function renderWizStep() {
   }).join('');
 
   let content = '';
+  const stepId = WIZ_STEPS[step]?.id;
 
   // ── STEP 1: Descripción ──
-  if (step === 0) {
+  if (stepId === 'desc') {
     content = `
       <div class="field">
         <label>🔧 Trabajo realizado *</label>
@@ -9954,8 +9967,13 @@ function renderWizStep() {
     `;
   }
 
+  // ── STEP: Formulario (solo si el parte tiene plantilla asociada) ──
+  if (stepId === 'formulario') {
+    content = `<div id="pfApp_wrap_wiz"></div>`;
+  }
+
   // ── STEP 2: Fotos ──
-  if (step === 1) {
+  if (stepId === 'fotos') {
     const allFotos = [..._wiz.fotos, ..._wiz.fotosNuevas];
     content = `
       <div style="margin-bottom:12px">
@@ -9978,7 +9996,7 @@ function renderWizStep() {
   }
 
   // ── STEP 3: Materiales + Mano de obra ──
-  if (step === 2) {
+  if (stepId === 'mat') {
     const manoObra = _wiz.manoObra || [];
     const totalMat = _wiz.materiales.reduce((s,m) => s + (parseFloat(m.total)||0), 0);
     const totalMO = manoObra.reduce((s,mo) => s + (parseFloat(mo.total)||0), 0);
@@ -10033,7 +10051,7 @@ function renderWizStep() {
   }
 
   // ── STEP 4: Firma ──
-  if (step === 3) {
+  if (stepId === 'firma') {
     const operarioNombre = CP?.nombre || 'Operario';
     // Si el parte tiene firma_opcional, mostrar aviso y no pedir firmas
     const _parteActual = misPartes.find(x => x.id === _wiz.parteId);
@@ -10183,13 +10201,18 @@ function renderWizStep() {
   // Canvas firma se inicializa al abrir cada panel (toggleFirmaPanel)
 
   // Cerrar búsqueda materiales al hacer click fuera + fix iOS focus
-  if (step === 2) {
+  if (stepId === 'mat') {
     setTimeout(() => {
       document.addEventListener('click', _closeMaterialSearch);
       // Fix iOS: scroll al input de búsqueda para que el cursor entre bien
       const matInput = document.getElementById('wz_mat_buscar');
       if (matInput) matInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 150);
+  }
+
+  // Cargar y renderizar formulario en el step correspondiente
+  if (stepId === 'formulario' && typeof pfApp_init === 'function') {
+    pfApp_init(_wiz.parteId, p.estado, 'wizard').catch(e => console.warn('[wiz pfApp_init]', e));
   }
 }
 
@@ -10229,7 +10252,8 @@ function _buildPendientesText() {
 }
 
 function wizSaveCurrentStep() {
-  if (_wiz.step === 0) {
+  const _stepId = WIZ_STEPS[_wiz.step]?.id;
+  if (_stepId === 'desc') {
     _wiz.desc = document.getElementById('wz_desc')?.value || '';
     _wiz.pendientes_checked = document.getElementById('wz_pend_check')?.checked || false;
     _wiz.observaciones = document.getElementById('wz_obs')?.value || '';
@@ -10247,11 +10271,16 @@ function wizSaveCurrentStep() {
     // Generar texto plano de pendientes para compatibilidad
     _wiz.pendientes = _buildPendientesText();
   }
-  if (_wiz.step === 3) {
+  if (_stepId === 'firma') {
     _wiz.clienteNombre = document.getElementById('wz_cli_nombre')?.value || '';
     _wiz.clienteDni = document.getElementById('wz_cli_dni')?.value?.toUpperCase()?.trim() || '';
     // Email se gestiona en el modal de envío post-completado, no aquí
     // Firmas se capturan en cerrarFirmaFullscreen()
+  }
+  // Paso formulario: las respuestas se autoguardan via pfApp_save (debounce).
+  // Forzamos un save final inmediato al avanzar.
+  if (_stepId === 'formulario' && typeof pfApp_save === 'function') {
+    pfApp_save().catch(()=>{});
   }
 }
 
@@ -10280,10 +10309,19 @@ function _wizLoadAutoSave(parteId) {
 
 function wizNext() {
   wizSaveCurrentStep();
+  const _stepId = WIZ_STEPS[_wiz.step]?.id;
   // Validar paso actual (obligatorio en modo informar, no en edición)
-  if (_wiz.step === 0) {
+  if (_stepId === 'desc') {
     if (!_wiz.desc.trim()) {
       toast('⚠️ Debes describir el trabajo realizado', 'error'); return;
+    }
+  }
+  // Validar paso formulario: bloquear si quedan obligatorios visibles vacíos
+  if (_stepId === 'formulario' && typeof pfApp_validar === 'function') {
+    const v = pfApp_validar();
+    if (!v.ok) {
+      toast('⚠️ Faltan campos obligatorios: ' + v.faltantes.slice(0,2).join(', ') + (v.faltantes.length>2 ? ` y ${v.faltantes.length-2} más` : ''), 'error', 5500);
+      return;
     }
   }
   document.removeEventListener('click', _closeMaterialSearch);
@@ -13226,9 +13264,19 @@ async function iniciarParteConGPS(id) {
 }
 
 // ── ABRIR WIZARD INFORMAR ──
-function openInformarWizard(id) {
+async function openInformarWizard(id) {
   const p = misPartes.find(x => x.id === id);
   if (!p) return;
+
+  // ── Detectar si el parte tiene formulario asociado para insertar el step ──
+  let _tieneFormulario = false;
+  try {
+    const { count } = await sb.from('partes_formulario')
+      .select('id', { count: 'exact', head: true })
+      .eq('parte_id', id);
+    _tieneFormulario = (count || 0) > 0;
+  } catch(e) { console.warn('[wizard] check formulario:', e); }
+  _wizSetSteps(_tieneFormulario);
 
   // Auto-calcular minutos trabajados desde inicio_at
   let autoManoObra = p.mano_obra ? [...p.mano_obra] : [];
@@ -13820,12 +13868,15 @@ function _pfAppEsc(s) {
 }
 function _pfAppKey(c) { return c.codigo || ('id_' + c.id); }
 
-async function pfApp_init(parteId, estadoParte) {
+async function pfApp_init(parteId, estadoParte, contexto) {
+  contexto = contexto || 'detail';
   _pfApp = {
     parteId: parteId || null, estado: estadoParte || null,
     partesFormularioId: null, plantillaId: null, plantillaVersion: null,
     campos: [], respuestas: {}, plantillasDisponibles: [], debTimer: null,
-    readonly: ['completado','revisado','facturado','pendiente_firma_cliente'].includes(estadoParte)
+    contexto: contexto,
+    // En el wizard siempre es editable; en detail depende del estado
+    readonly: contexto === 'wizard' ? false : ['completado','revisado','facturado','pendiente_firma_cliente'].includes(estadoParte)
   };
   if (typeof EMPRESA === 'undefined' || !EMPRESA?.id) { pfApp_render(); return; }
   try {
@@ -13853,14 +13904,36 @@ async function pfApp_init(parteId, estadoParte) {
 }
 
 function pfApp_render() {
-  const wrap = document.getElementById('pfApp_wrap');
+  // El wrap depende del contexto: 'wizard' usa #pfApp_wrap_wiz; 'detail' usa #pfApp_wrap
+  const wrapId = _pfApp.contexto === 'wizard' ? 'pfApp_wrap_wiz' : 'pfApp_wrap';
+  const wrap = document.getElementById(wrapId);
   if (!wrap) return;
-  if (!_pfApp.plantillaId) {
-    if (_pfApp.readonly) { wrap.innerHTML = ''; return; }
-    wrap.innerHTML = pfApp_renderSelector();
+  if (_pfApp.contexto === 'wizard') {
+    // En el wizard siempre se renderiza (editable). Si no hay plantilla aún, mostrar selector.
+    if (!_pfApp.plantillaId) { wrap.innerHTML = pfApp_renderSelector(); return; }
+    wrap.innerHTML = pfApp_renderCampos();
     return;
   }
+  // Contexto 'detail': solo si readonly y hay plantilla
+  if (!_pfApp.readonly) { wrap.innerHTML = ''; return; }
+  if (!_pfApp.plantillaId) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = pfApp_renderCampos();
+}
+
+// Validación de obligatorios visibles vacíos. Devuelve {ok, faltantes:[etiquetas]}
+function pfApp_validar() {
+  if (!_pfApp.plantillaId) return { ok: true, faltantes: [] };
+  const valores = _pfApp.respuestas;
+  const faltantes = [];
+  for (const c of _pfApp.campos) {
+    if (!c.obligatorio || c.tipo === 'seccion') continue;
+    if (!pfApp_evalMostrarSi(c, valores)) continue;
+    const key = _pfAppKey(c);
+    const v = valores[key];
+    const vacio = (v == null || v === '' || (Array.isArray(v) && v.length === 0));
+    if (vacio) faltantes.push(c.etiqueta);
+  }
+  return { ok: faltantes.length === 0, faltantes };
 }
 
 function pfApp_renderSelector() {
