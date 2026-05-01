@@ -116,8 +116,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 .tarjeta-datos .fila .v{color:#1e293b;font-weight:700;text-align:right}
 
 .capitulo{margin-bottom:10px;page-break-inside:avoid;break-inside:avoid}
-.capitulo-newpage{padding-top:2mm}                  /* buffer extra para que el sliver del border-radius no se cuele en la página anterior */
-.capitulo-newpage .cap-banda{border-radius:0}        /* sin border-radius en la primera banda de página: elimina el artefacto azul */
+.capitulo-newpage{padding-top:5mm}  /* buffer generoso para que el sliver del border-radius de la cap-banda no se cuele en la página anterior. Mantenemos las esquinas redondeadas. */
 .cap-banda{display:flex;align-items:stretch;border-radius:6px;overflow:hidden;margin-bottom:6px}
 .cap-num{background:#1e40af;color:#fff;font-weight:800;font-size:14px;padding:7px 0;width:42px;text-align:center;display:flex;align-items:center;justify-content:center}
 .cap-titulo{background:#dbeafe;color:#1e40af;font-weight:700;font-size:10.5px;padding:7px 12px;flex:1;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center}
