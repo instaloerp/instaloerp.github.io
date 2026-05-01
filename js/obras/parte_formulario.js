@@ -18,8 +18,11 @@ let _pf = {
   campos: [],
   respuestas: {},                 // { codigo|"id_<nº>" : valor }
   plantillasDisponibles: [],
-  debTimer: null
+  debTimer: null,
+  readonly: false
 };
+
+const _PF_READONLY_ESTADOS = ['completado', 'revisado', 'facturado', 'pendiente_firma_cliente'];
 
 function _pfEsc(s) {
   if (s == null) return '';
@@ -29,7 +32,7 @@ function _pfEsc(s) {
 function _pfKey(c) { return c.codigo || ('id_' + c.id); }
 
 // ─── 1. INIT al abrir mPartes ──────────────────────────────────
-async function pf_init(parteId) {
+async function pf_init(parteId, estado) {
   _pf = {
     parteId: parteId || null,
     partesFormularioId: null,
@@ -39,7 +42,8 @@ async function pf_init(parteId) {
     campos: [],
     respuestas: {},
     plantillasDisponibles: [],
-    debTimer: null
+    debTimer: null,
+    readonly: _PF_READONLY_ESTADOS.includes(estado)
   };
 
   if (typeof EMPRESA === 'undefined' || !EMPRESA?.id) { pf_render(); return; }
@@ -74,10 +78,15 @@ async function pf_init(parteId) {
 
 // ─── 2. RENDER ─────────────────────────────────────────────────
 function pf_render() {
-  const wrap = document.getElementById('pf_wrap');
+  // Buscar el wrap dentro del modal abierto (mPartes o dtlPartes).
+  // Fallback al getElementById por compatibilidad si alguien lo usa con id legacy.
+  const overlayAbierto = document.querySelector('.overlay.open');
+  const wrap = (overlayAbierto && overlayAbierto.querySelector('.pf_wrap')) || document.getElementById('pf_wrap');
   if (!wrap) return;
 
   if (!_pf.plantillaId) {
+    // En modo readonly sin plantilla no mostramos nada
+    if (_pf.readonly) { wrap.innerHTML = ''; return; }
     wrap.innerHTML = pf_renderSelector();
     return;
   }
@@ -109,13 +118,13 @@ function pf_renderCampos() {
   const visibles = _pf.campos.filter(c => pf_evalMostrarSi(c, valores));
   const plantNombre = _pf.plantillasDisponibles.find(p => p.id === _pf.plantillaId)?.nombre || 'Formulario';
 
+  const lockBadge = _pf.readonly ? '<span style="font-size:10px;font-weight:700;color:var(--gris-500);background:var(--gris-100);padding:2px 8px;border-radius:4px;margin-left:8px">🔒 Solo lectura</span>' : '';
+  const btnQuitar = _pf.readonly ? '' : '<button class="btn btn-ghost btn-sm" onclick="pf_quitar()" title="Quitar formulario">🗑️ Quitar</button>';
   return `<div class="card" style="margin-bottom:11px">
     <div class="card-h">
       <span>📋</span>
-      <h3>${_pfEsc(plantNombre)} · v${_pf.plantillaVersion}</h3>
-      <div class="card-ha">
-        <button class="btn btn-ghost btn-sm" onclick="pf_quitar()" title="Quitar formulario">🗑️ Quitar</button>
-      </div>
+      <h3>${_pfEsc(plantNombre)} · v${_pf.plantillaVersion}${lockBadge}</h3>
+      <div class="card-ha">${btnQuitar}</div>
     </div>
     <div class="card-b">
       ${visibles.length ? visibles.map(c => pf_renderCampo(c, valores)).join('') : '<p style="text-align:center;color:var(--gris-400);font-size:12px;padding:10px">Selecciona el TIPO DE MANTENIMIENTO para ver las operaciones.</p>'}
@@ -127,6 +136,7 @@ function pf_renderCampo(c, valores) {
   const key = _pfKey(c);
   const val = valores[key] ?? '';
   const oblig = c.obligatorio ? '<span style="color:var(--rojo);font-weight:700">*</span> ' : '';
+  const ro = _pf.readonly ? 'disabled' : '';
 
   if (c.tipo === 'seccion') {
     return `<h4 style="font-size:12.5px;font-weight:800;background:var(--gris-100);color:var(--gris-700);padding:7px 11px;margin:14px -8px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em">${_pfEsc(c.etiqueta)}</h4>`;
@@ -135,26 +145,26 @@ function pf_renderCampo(c, valores) {
   let input = '';
   switch (c.tipo) {
     case 'texto':
-      input = `<input type="text" value="${_pfEsc(val)}" oninput="pf_onInput('${key}', this.value)">`;
+      input = `<input type="text" value="${_pfEsc(val)}" oninput="pf_onInput('${key}', this.value)" ${ro}>`;
       break;
     case 'texto_largo':
-      input = `<textarea rows="3" oninput="pf_onInput('${key}', this.value)" autocorrect="on" spellcheck="true">${_pfEsc(val)}</textarea>`;
+      input = `<textarea rows="3" oninput="pf_onInput('${key}', this.value)" autocorrect="on" spellcheck="true" ${ro}>${_pfEsc(val)}</textarea>`;
       break;
     case 'numero':
-      input = `<input type="number" value="${_pfEsc(val)}" oninput="pf_onInput('${key}', this.value)">`;
+      input = `<input type="number" value="${_pfEsc(val)}" oninput="pf_onInput('${key}', this.value)" ${ro}>`;
       break;
     case 'fecha':
-      input = `<input type="date" value="${_pfEsc(val)}" onchange="pf_onInput('${key}', this.value)">`;
+      input = `<input type="date" value="${_pfEsc(val)}" onchange="pf_onInput('${key}', this.value)" ${ro}>`;
       break;
     case 'hora':
-      input = `<input type="time" value="${_pfEsc(val)}" onchange="pf_onInput('${key}', this.value)">`;
+      input = `<input type="time" value="${_pfEsc(val)}" onchange="pf_onInput('${key}', this.value)" ${ro}>`;
       break;
     case 'radio': {
       const ops = c.config?.opciones || [];
       input = `<div style="display:flex;flex-wrap:wrap;gap:6px">${ops.map(op => {
         const sel = (val === op);
-        return `<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid ${sel?'var(--azul)':'var(--gris-200)'};border-radius:6px;cursor:pointer;font-size:12px;font-weight:${sel?'700':'500'};color:${sel?'var(--azul)':'var(--gris-700)'};background:${sel?'#eff6ff':'#fff'}">
-          <input type="radio" name="pf_${key}" value="${_pfEsc(op)}" ${sel?'checked':''} onchange="pf_onInput('${key}', this.value)" style="margin:0;accent-color:var(--azul)">
+        return `<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid ${sel?'var(--azul)':'var(--gris-200)'};border-radius:6px;${_pf.readonly?'cursor:default;':'cursor:pointer;'}font-size:12px;font-weight:${sel?'700':'500'};color:${sel?'var(--azul)':'var(--gris-700)'};background:${sel?'#eff6ff':'#fff'}">
+          <input type="radio" name="pf_${key}" value="${_pfEsc(op)}" ${sel?'checked':''} ${ro} onchange="pf_onInput('${key}', this.value)" style="margin:0;accent-color:var(--azul)">
           ${_pfEsc(op)}
         </label>`;
       }).join('')}</div>`;
@@ -162,7 +172,7 @@ function pf_renderCampo(c, valores) {
     }
     case 'dropdown': {
       const ops = c.config?.opciones || [];
-      input = `<select onchange="pf_onInput('${key}', this.value)"><option value="">—</option>${ops.map(op => `<option value="${_pfEsc(op)}" ${val===op?'selected':''}>${_pfEsc(op)}</option>`).join('')}</select>`;
+      input = `<select onchange="pf_onInput('${key}', this.value)" ${ro}><option value="">—</option>${ops.map(op => `<option value="${_pfEsc(op)}" ${val===op?'selected':''}>${_pfEsc(op)}</option>`).join('')}</select>`;
       break;
     }
     case 'checkbox': {
@@ -170,8 +180,8 @@ function pf_renderCampo(c, valores) {
       const valArr = Array.isArray(val) ? val : (val ? [val] : []);
       input = `<div style="display:flex;flex-wrap:wrap;gap:6px">${ops.map(op => {
         const sel = valArr.includes(op);
-        return `<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid ${sel?'var(--azul)':'var(--gris-200)'};border-radius:6px;cursor:pointer;font-size:12px;background:${sel?'#eff6ff':'#fff'}">
-          <input type="checkbox" value="${_pfEsc(op)}" ${sel?'checked':''} onchange="pf_onCheckbox('${key}', '${_pfEsc(op).replace(/'/g,'&#39;')}', this.checked)" style="margin:0;accent-color:var(--azul)">
+        return `<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid ${sel?'var(--azul)':'var(--gris-200)'};border-radius:6px;${_pf.readonly?'cursor:default;':'cursor:pointer;'}font-size:12px;background:${sel?'#eff6ff':'#fff'}">
+          <input type="checkbox" value="${_pfEsc(op)}" ${sel?'checked':''} ${ro} onchange="pf_onCheckbox('${key}', '${_pfEsc(op).replace(/'/g,'&#39;')}', this.checked)" style="margin:0;accent-color:var(--azul)">
           ${_pfEsc(op)}
         </label>`;
       }).join('')}</div>`;
@@ -180,14 +190,14 @@ function pf_renderCampo(c, valores) {
     case 'foto': {
       const fotos = Array.isArray(val) ? val : [];
       const max = c.config?.max || 10;
-      const puedeAdir = fotos.length < max;
+      const puedeAdir = !_pf.readonly && fotos.length < max;
       input = `<div>
         ${fotos.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${fotos.map((u,i)=>`<div style="position:relative;display:inline-block">
           <img src="${_pfEsc(u)}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--gris-200)">
-          <button onclick="pf_quitarFoto('${key}', ${i})" style="position:absolute;top:-5px;right:-5px;background:var(--rojo);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1;padding:0">×</button>
+          ${!_pf.readonly ? `<button onclick="pf_quitarFoto('${key}', ${i})" style="position:absolute;top:-5px;right:-5px;background:var(--rojo);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1;padding:0">×</button>` : ''}
         </div>`).join('')}</div>` : ''}
         ${puedeAdir ? `<input type="file" multiple accept="image/*" onchange="pf_onFotos('${key}', this.files, ${max})" style="font-size:11px">
-        <span class="hint">${fotos.length}/${max} foto${max===1?'':'s'}</span>` : `<span class="hint">Máximo ${max} fotos alcanzado</span>`}
+        <span class="hint">${fotos.length}/${max} foto${max===1?'':'s'}</span>` : (_pf.readonly ? '' : `<span class="hint">Máximo ${max} fotos alcanzado</span>`)}
       </div>`;
       break;
     }
@@ -212,6 +222,7 @@ function pf_evalMostrarSi(c, valores) {
 
 // ─── 3. EVENTOS ────────────────────────────────────────────────
 function pf_onInput(key, valor) {
+  if (_pf.readonly) return;
   _pf.respuestas[key] = valor;
   // Si cambia un campo con código, puede afectar a condicionales → re-render
   const campoMod = _pf.campos.find(c => c.codigo === key);
@@ -220,6 +231,7 @@ function pf_onInput(key, valor) {
 }
 
 function pf_onCheckbox(key, op, marcado) {
+  if (_pf.readonly) return;
   let arr = _pf.respuestas[key];
   if (!Array.isArray(arr)) arr = [];
   if (marcado) {

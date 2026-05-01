@@ -475,7 +475,7 @@ async function editarParte(id) {
   }
 
   // Cargar formulario asociado (si lo hay) — parte_formulario.js
-  if (typeof pf_init === 'function') { try { await pf_init(id); } catch(e) { console.warn('[pf_init]', e); } }
+  if (typeof pf_init === 'function') { try { await pf_init(id, parte.estado); } catch(e) { console.warn('[pf_init]', e); } }
 
   openModal('mPartes');
 }
@@ -1455,10 +1455,15 @@ async function verDetalleParte(id) {
         </select>
       ` : ''}
     </div>
+    <!-- Formulario asociado (modo lectura) -->
+    <div class="pf_wrap" style="margin-top:14px"></div>
   </div>`;
 
   document.getElementById('dtlPartesContent').innerHTML = html;
   openModal('dtlPartes');
+
+  // Cargar formulario asociado en modo lectura — parte_formulario.js
+  if (typeof pf_init === 'function') { pf_init(parte.id, parte.estado).catch(e => console.warn('[pf_init dtlPartes]', e)); }
 }
 
 // ── Reenviar firma remota desde ERP escritorio ──
