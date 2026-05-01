@@ -247,9 +247,24 @@ window._cfgPrevPage = window._cfgPrevPage || null;
   window._cfgGoPageHooked = true;
   window.goPage = function(id, opts) {
     if (id && id !== 'configuracion') window._cfgPrevPage = id;
+    // Si NO venimos desde Configuración, des-envolvemos páginas externas
+    // (limpia el wrap card / barra inyectada que dejó una visita anterior).
+    if (!window._cfgDesdeConfig) {
+      document.querySelectorAll('.page.cfg-external-wrapped').forEach(_cfgDesenvolverPagina);
+    }
     return orig.apply(this, arguments);
   };
 })();
+function _cfgDesenvolverPagina(page) {
+  page.classList.remove('cfg-external-wrapped');
+  const bar = page.querySelector('.cfg-tabs-bar.cfg-tabs-bar-injected');
+  if (bar) bar.remove();
+  const card = page.querySelector('.cfg-external-card');
+  if (card) {
+    while (card.firstChild) page.appendChild(card.firstChild);
+    card.remove();
+  }
+}
 function cfgSalir() {
   const dest = window._cfgPrevPage && window._cfgPrevPage !== 'configuracion'
     ? window._cfgPrevPage
@@ -318,9 +333,16 @@ function _cfgInyectarBotonVolver() {
   bar.innerHTML = html;
   activePage.insertBefore(bar, activePage.firstChild);
 
+  // Envolver TODO el contenido restante en una card visual igual a las del
+  // panel interno de Configuración (Datos de la empresa, IVA, etc.).
+  const wrapper = document.createElement('div');
+  wrapper.className = 'card cfg-external-card';
+  // Mover todos los hijos posteriores al wrapper (la barra ya está fuera)
+  const children = Array.from(activePage.children).filter(el => el !== bar);
+  children.forEach(c => wrapper.appendChild(c));
+  activePage.appendChild(wrapper);
+
   // Marcamos la página para aplicar estilos coherentes con el panel interno
-  // (padding lateral, separación, color de fondo). Quitamos la clase cuando
-  // sale (gestionado en cfgSalir / cfgIrACategoria si fuera necesario).
   activePage.classList.add('cfg-external-wrapped');
 }
 
