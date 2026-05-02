@@ -1055,7 +1055,18 @@ function _medSvgVentana(item) {
 // EXPORTAR PDF DE LA MEDICIÓN — formato unificado vía html-documento.js
 // ════════════════════════════════════════════════════════════════
 async function exportarMedicionPDF(id) {
-  const m = (id ? _medErpData.find(x => x.id === id) : _medErpActual);
+  // Preferir _medErpActual (siempre tiene los cambios in-memory más recientes)
+  // sobre _medErpData (puede estar desactualizado tras cambios de estrategia, etc.)
+  let m;
+  if (id) {
+    if (_medErpActual && _medErpActual.id === id) {
+      m = _medErpActual;
+    } else {
+      m = _medErpData.find(x => x.id === id);
+    }
+  } else {
+    m = _medErpActual;
+  }
   if (!m) {
     if (typeof toast === 'function') toast('Medición no encontrada', 'error');
     return;
