@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 14
+      instaloERP v1.0 · build 15
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 14
+      instaloERP v1.0 · build 15
     </div>
   `;
 }
@@ -5522,8 +5522,9 @@ function _medAbrirModalBano(it) {
   let footerHtml;
   if (validado) {
     footerHtml = `
-      <button onclick="document.getElementById('_medModalItem').remove()" class="tap" style="padding:11px 14px;background:#fff;border:1.5px solid var(--gris-300);color:var(--gris-700);border-radius:9px;font-weight:700;font-size:13px">Cerrar</button>
-      <button onclick="_medCrearCopiaBano(${_medItemEditIdx})" class="tap" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px">📋 Crear copia editable</button>`;
+      <button onclick="document.getElementById('_medModalItem').remove()" class="tap" style="padding:11px 12px;background:#fff;border:1.5px solid var(--gris-300);color:var(--gris-700);border-radius:9px;font-weight:700;font-size:12.5px">Cerrar</button>
+      <button onclick="_medArchivarItem(${_medItemEditIdx})" class="tap" style="padding:11px 12px;background:#fff;border:1.5px solid #F59E0B;color:#92400E;border-radius:9px;font-weight:700;font-size:12.5px">📥 Archivar</button>
+      <button onclick="_medCrearCopiaBano(${_medItemEditIdx})" class="tap" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px">📋 Crear copia editable</button>`;
   } else {
     footerHtml = `
       ${_medItemEditIdx!=null ? '<button onclick="_medBorrarItem()" class="tap" style="padding:11px;background:#fff;border:1.5px solid #ef4444;color:#ef4444;border-radius:9px;font-weight:700;font-size:12.5px">Eliminar</button>' : ''}
@@ -5589,6 +5590,24 @@ async function _medCrearCopiaBano(idx) {
   document.getElementById('_medModalItem')?.remove();
   renderMedicionDetalle(document.getElementById('appBody'));
   setTimeout(() => _medEditItem(items.length - 1), 100);
+}
+
+// Archivar manualmente un item (lo oculta de la lista activa)
+async function _medArchivarItem(idx) {
+  if (!_medActual) return;
+  if (!confirm('¿Archivar este baño? Quedará oculto de la lista pero podrás recuperarlo desde "Versiones anteriores".')) return;
+  const items = [...(_medActual.items || [])];
+  if (!items[idx]) return;
+  // Si no tiene grupo, asignarle uno (para poder verlo después en historial)
+  if (!items[idx].version_grupo) {
+    items[idx].version_grupo = 'g' + Date.now() + Math.random().toString(36).slice(2,5);
+  }
+  items[idx].archivado = true;
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items });
+  document.getElementById('_medModalItem')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+  toast('Baño archivado', 'ok');
 }
 
 // Restaurar una versión archivada (la convierte en activa, archiva la actual)
@@ -6389,6 +6408,8 @@ async function _medGuardarItemBano(validar) {
     validado: validar === true,
     version: itemPrev.version || 1,
     version_de: itemPrev.version_de,
+    version_grupo: itemPrev.version_grupo,
+    archivado: false,  // un item que se guarda es la versión activa
     ancho_cm: anchoCm, largo_cm: largoCm, alto_cm: altoCm,
     ancho_mm: anchoCm * 10, largo_mm: largoCm * 10, alto_mm: altoCm ? altoCm * 10 : null,
     metros: m2,                  // compat con desc legacy
@@ -7236,7 +7257,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 14
+        instaloERP v1.0 · build 15
       </div>
     </div>`;
 }
