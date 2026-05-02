@@ -163,16 +163,28 @@ function renderMedicionDetalleERP() {
         <div class="card-b" style="padding:6px">
           ${(function(){
             const activos = items.filter(it => !it.archivado);
+            // Contar archivadas por grupo
+            const archivCount = {};
+            items.forEach(it => {
+              if (it.archivado && it.version_grupo) {
+                archivCount[it.version_grupo] = (archivCount[it.version_grupo]||0) + 1;
+              }
+            });
             if (!activos.length) return `<div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Sin items registrados todavía.</div>`;
-            return activos.map((it, n) => `
-              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gris-100)">
-                <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${n+1}</div>
-                <div style="flex:1;font-size:12.5px;line-height:1.5">
-                  ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">🔒 v'+(it.version||1)+'</span>' : (it.version&&it.version>1?'<span style="background:#F3F4F6;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">v'+it.version+'</span>':'')}
-                  ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : _medErpDescItem(m.tipo, it)}
+            return activos.map((it, n) => {
+              const archivados = it.version_grupo ? (archivCount[it.version_grupo]||0) : 0;
+              return `
+              <div style="border-bottom:1px solid var(--gris-100)">
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px">
+                  <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${n+1}</div>
+                  <div style="flex:1;font-size:12.5px;line-height:1.5">
+                    ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">🔒 v'+(it.version||1)+'</span>' : (it.version&&it.version>1?'<span style="background:#F3F4F6;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">v'+it.version+'</span>':'')}
+                    ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : _medErpDescItem(m.tipo, it)}
+                  </div>
                 </div>
+                ${archivados ? `<div onclick="_medErpVerHistorial('${it.version_grupo}')" style="padding:6px 12px;border-top:1px dashed var(--gris-200);font-size:11.5px;color:#3B82F6;cursor:pointer;background:#FAFBFC;font-weight:600">📜 ${archivados} versión${archivados>1?'es':''} anterior${archivados>1?'es':''} ›</div>` : ''}
               </div>
-            `).join('');
+            `}).join('');
           })()}
         </div>
       </div>
@@ -356,6 +368,38 @@ function _medErpCalcPanelesSpc(paredes, modo) {
     total += paneles;
   }
   return { porColor, total, estrategia: modo };
+}
+
+// Ver versiones anteriores (archivadas) de un grupo en el ERP
+function _medErpVerHistorial(grupo) {
+  if (!_medErpActual) return;
+  const e = _medErpEsc;
+  const items = _medErpActual.items || [];
+  const archivadas = items.map((it, i) => ({...it, _idx: i})).filter(it => it.version_grupo === grupo && it.archivado);
+  if (!archivadas.length) { if (typeof toast === 'function') toast('No hay versiones anteriores', 'info'); return; }
+  archivadas.sort((a,b) => (b.version||1) - (a.version||1));
+  const filas = archivadas.map(it => {
+    return `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:10px;margin-bottom:14px;overflow:hidden">
+      <div style="padding:10px 14px;background:#F3F4F6;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--gris-200)">
+        <span style="background:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;color:var(--gris-700)">v${it.version||1}</span>
+        ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700">🔒 validado</span>' : ''}
+        <span style="font-size:12.5px;color:var(--gris-500);flex:1">${e(it.ubicacion || 'Baño')}</span>
+      </div>
+      <div style="padding:14px">${_medErpDetalleBano(it, false)}</div>
+    </div>`;
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = '_medErpHistorialModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:780px;width:100%;max-height:88vh;display:flex;flex-direction:column">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--gris-200);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:16px">📜 Versiones anteriores (${archivadas.length})</div>
+        <button onclick="document.getElementById('_medErpHistorialModal').remove()" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer;padding:0;line-height:1">✕</button>
+      </div>
+      <div style="padding:16px 20px;overflow-y:auto;flex:1">${filas}</div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // Cambiar estrategia desde el detalle ERP (interactivo)
