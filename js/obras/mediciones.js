@@ -427,13 +427,14 @@ function _medErpCalcPanelesSpc(paredes, modo) {
   return { porColor, total, estrategia: modo };
 }
 
-// Renderiza HTML visual del despiece (para modal y PDF)
+// Renderiza HTML visual del despiece (para modal y PDF) — solo 3 colores (leyenda)
 function _medErpRenderDespieceSpc(spcCalc) {
   if (!spcCalc || !spcCalc.porColor) return '';
   const PANEL_CM = 117.5;
-  // Paleta de colores por paño (cíclica)
-  const COLORES = ['#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#F97316','#84CC16'];
-  const colorPaño = (n) => COLORES[(n-1) % COLORES.length];
+  // Solo 3 colores que coinciden con la leyenda
+  const COLOR_CORTE      = '#3B82F6';   // azul
+  const COLOR_REAPROV    = '#FEF3C7';   // amarillo claro
+  const COLOR_SOBRANTE   = '#E5E7EB';   // gris
   let html = '';
   for (const acabado in spcCalc.porColor) {
     const d = spcCalc.porColor[acabado];
@@ -444,15 +445,12 @@ function _medErpRenderDespieceSpc(spcCalc) {
       const segs = panel.segmentos.map(seg => {
         const pct = (seg.ancho / PANEL_CM) * 100;
         let bg, txt;
-        if (seg.tipo === 'sobrante') { bg = '#E5E7EB'; txt = '#374151'; }
-        else if (seg.tipo === 'reaprovechado') { bg = '#FEF3C7'; txt = '#92400E'; }
-        else { bg = colorPaño(seg.paño || 1); txt = '#fff'; }
+        if (seg.tipo === 'sobrante')        { bg = COLOR_SOBRANTE;  txt = '#374151'; }
+        else if (seg.tipo === 'reaprovechado') { bg = COLOR_REAPROV; txt = '#92400E'; }
+        else                                 { bg = COLOR_CORTE;    txt = '#fff'; }
         return `<div title="${seg.label} · ${seg.ancho}cm" style="width:${pct}%;background:${bg};color:${txt};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;padding:6px 2px;overflow:hidden;white-space:nowrap;border-right:1px solid #fff">${seg.ancho}cm</div>`;
       }).join('');
-      const segsTxt = panel.segmentos.map(seg => {
-        const tipoTxt = seg.tipo === 'sobrante' ? 'sobrante' : (seg.tipo === 'reaprovechado' ? 'reaprov.' : 'corte');
-        return `${seg.ancho}cm (${seg.label})`;
-      }).join(' + ');
+      const segsTxt = panel.segmentos.map(seg => `${seg.ancho}cm (${seg.label})`).join(' + ');
       html += `<div style="margin-bottom:6px">
         <div style="font-size:10.5px;color:#374151;font-weight:600;margin-bottom:2px">Panel ${panel.panelN}: ${segsTxt}</div>
         <div style="display:flex;border:1.5px solid #1E40AF;border-radius:5px;overflow:hidden;height:30px;background:#fff">${segs}</div>
@@ -533,9 +531,8 @@ function _medErpVerHistorial(grupo) {
   document.body.appendChild(ov);
 }
 
-// Cambiar estrategia desde el detalle ERP (interactivo)
-function _medErpCambiarEstrategiaSpc(itemId, modo) {
-  // Buscar item por id
+// Cambiar estrategia desde el detalle ERP (interactivo) — persiste en BD
+async function _medErpCambiarEstrategiaSpc(itemId, modo) {
   const m = _medErpActual;
   if (!m) return;
   const item = (m.items || []).find(it => it._uid === itemId);
@@ -544,6 +541,19 @@ function _medErpCambiarEstrategiaSpc(itemId, modo) {
   const calc = _medErpCalcPanelesSpc(item.paredes.paredes_spc, modo);
   item.paredes.spc_calc = calc;
   item.paredes.spc_estrategia = modo;
+  // Persistir en BD: guardar el array items completo (sin _uid que es solo para el DOM)
+  try {
+    const itemsLimpios = (m.items || []).map(it => {
+      const { _uid, ...rest } = it;
+      return rest;
+    });
+    const { error } = await sb.from('mediciones').update({ items: itemsLimpios }).eq('id', m.id);
+    if (error) throw error;
+    if (typeof toast === 'function') toast('Estrategia: ' + (modo==='esteticas'?'menos uniones':'menos paneles'), 'ok', 1500);
+  } catch (e) {
+    console.error('[mediciones] error al guardar estrategia SPC:', e);
+    if (typeof toast === 'function') toast('Error al guardar estrategia', 'error');
+  }
   // Re-renderizar el detalle
   renderMedicionDetalleERP();
 }
