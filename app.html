@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 10
+      instaloERP v1.0 · build 12
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 10
+      instaloERP v1.0 · build 12
     </div>
   `;
 }
@@ -4850,9 +4850,9 @@ async function renderMedicionDetalle(el) {
         ${items.length === 0
           ? `<div style="text-align:center;padding:30px 16px;color:var(--gris-400);background:#fff;border:1px dashed var(--gris-300);border-radius:10px"><div style="font-size:32px;margin-bottom:6px">${pl.ico}</div><div style="font-size:13px;font-weight:600">Aún no hay medidas</div><div style="font-size:11px;margin-top:4px">Pulsa "+ Añadir" para empezar</div></div>`
           : items.map((it, i) => `
-            <div onclick="_medEditItem(${i})" style="background:#fff;border:1px solid var(--gris-200);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">
+            <div onclick="_medEditItem(${i})" style="background:#fff;border:1px solid ${it.validado?'#10B981':'var(--gris-200)'};border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">
               <div style="width:28px;height:28px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${i+1}</div>
-              <div style="flex:1;font-size:12.5px;line-height:1.4">${pl.descripcionItem(it)}</div>
+              <div style="flex:1;font-size:12.5px;line-height:1.4">${pl.descripcionItem(it)}${it.version&&it.version>1?` <span style="font-size:10px;color:#6B7280;background:#F3F4F6;padding:1px 6px;border-radius:8px;margin-left:4px">v${it.version}</span>`:''}${it.validado?` <span style="font-size:10px;color:#fff;background:#10B981;padding:1px 6px;border-radius:8px;margin-left:4px">🔒 validado</span>`:''}</div>
               <span style="color:var(--gris-400);font-size:16px">›</span>
             </div>`).join('')}
       </div>
@@ -5470,6 +5470,7 @@ const _MED_BANO_ACTIVAR_POR_TRABAJO = {
 function _medAbrirModalBano(it) {
   if (!_medActual) return;
   const inst = it.instalaciones || {};
+  const par  = it.paredes || {};
   // State del modal
   window._medBanoState = {
     tipo_trabajo: it.tipo_trabajo || '',
@@ -5481,33 +5482,76 @@ function _medAbrirModalBano(it) {
     mampara_activa:  !!it.mampara,
     mueble_activo:   !!it.mueble,
     espejo_activo:   !!it.espejo,
-    sanit_activo:    it.sanit_activo !== false && (!!it.inodoro || !!it.lavabo || !!it.bide),
-    gri_activo:      !!(it.griferia && (it.griferia.ducha || it.griferia.lavabo || it.griferia.acabado)),
-    acc_activo:      !!(it.accesorios && it.accesorios.length),
-    esquineros_activo: !!(it.paredes && it.paredes.esquineros_n),
-    inst_elec_activo: !!(inst.elec_n || (inst.iluminacion && inst.iluminacion.length)),
-    inst_font_activo: !!inst.font_n,
-    inst_des_activo:  !!inst.des_n,
+    // Toggles que también guardan flag explícito (para no perderse si vacíos)
+    sanit_activo:    it.sanit_activo === true  || !!(it.inodoro || it.lavabo || it.bide),
+    gri_activo:      it.gri_activo   === true  || !!(it.griferia && (it.griferia.ducha || it.griferia.lavabo || it.griferia.acabado)),
+    acc_activo:      it.acc_activo   === true  || !!(it.accesorios && it.accesorios.length) || !!it.acc_observ,
+    esquineros_activo: !!(par.esquineros_n),
+    inst_elec_activo:  !!(inst.elec_n || (inst.iluminacion && inst.iluminacion.length)),
+    inst_font_activo:  !!(inst.font_n || (inst.font_puntos && inst.font_puntos.length)),
+    inst_des_activo:   !!(inst.des_n  || (inst.des_puntos  && inst.des_puntos.length)),
+    // SPC: cargar paños del item (si los hay) o crear array vacío
+    paredes_spc: (par.paredes_spc && par.paredes_spc.length) ? par.paredes_spc.map(p => ({...p})) : [{},{},{},{}],
+    spc_estrategia: par.spc_estrategia || (par.spc_calc && par.spc_calc.estrategia) || 'aprovechar',
+    aviso_carpintero_visto: !!par.tipo, // si ya tenía revestimiento, no muestres aviso al editar
   };
+
+  const validado = it.validado === true;
+  const tituloModal = _medItemEditIdx==null
+    ? '🛁 Nuevo baño'
+    : (validado ? `🔒 Baño ${_medItemEditIdx+1} (validado v${it.version||1})` : `🛁 Editar baño ${_medItemEditIdx+1}`);
+
+  // Footer según estado
+  let footerHtml;
+  if (validado) {
+    footerHtml = `
+      <button onclick="document.getElementById('_medModalItem').remove()" class="tap" style="padding:11px 14px;background:#fff;border:1.5px solid var(--gris-300);color:var(--gris-700);border-radius:9px;font-weight:700;font-size:13px">Cerrar</button>
+      <button onclick="_medCrearCopiaBano(${_medItemEditIdx})" class="tap" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px">📋 Crear copia editable</button>`;
+  } else {
+    footerHtml = `
+      ${_medItemEditIdx!=null ? '<button onclick="_medBorrarItem()" class="tap" style="padding:11px;background:#fff;border:1.5px solid #ef4444;color:#ef4444;border-radius:9px;font-weight:700;font-size:12.5px">Eliminar</button>' : ''}
+      <button onclick="_medGuardarItemBano(false)" class="tap" style="flex:1;padding:11px;background:#fff;color:#3B82F6;border:1.5px solid #3B82F6;border-radius:9px;font-weight:700;font-size:13px">${_medItemEditIdx==null ? 'Guardar borrador' : 'Guardar'}</button>
+      <button onclick="_medGuardarItemBano(true)" class="tap" style="flex:1;padding:11px;background:#10B981;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px">✓ Validar</button>`;
+  }
 
   const ov = document.createElement('div');
   ov.id = '_medModalItem';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
   ov.innerHTML = `
     <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:92vh;display:flex;flex-direction:column">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
-        <div style="font-weight:700;font-size:15px">🛁 ${_medItemEditIdx==null ? 'Nuevo baño' : 'Editar baño ' + (_medItemEditIdx+1)}</div>
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between;${validado?'background:#ECFDF5':''}">
+        <div style="font-weight:700;font-size:15px">${tituloModal}</div>
         <button onclick="document.getElementById('_medModalItem').remove()" class="tap" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer;padding:0">✕</button>
       </div>
-      <div style="padding:14px 16px;overflow-y:auto;flex:1" id="medBanoBody">
+      <div style="padding:14px 16px;overflow-y:auto;flex:1;${validado?'pointer-events:none;opacity:.85':''}" id="medBanoBody">
         ${_medRenderBanoForm(it)}
       </div>
-      <div style="padding:12px 16px;border-top:1px solid var(--gris-100);display:flex;gap:8px">
-        ${_medItemEditIdx!=null ? '<button onclick="_medBorrarItem()" class="tap" style="padding:11px;background:#fff;border:1.5px solid #ef4444;color:#ef4444;border-radius:9px;font-weight:700;font-size:13px">Eliminar</button>' : ''}
-        <button onclick="_medGuardarItemBano()" class="tap" style="flex:1;padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px">${_medItemEditIdx==null ? 'Añadir' : 'Guardar'}</button>
-      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--gris-100);display:flex;gap:7px">${footerHtml}</div>
     </div>`;
   document.body.appendChild(ov);
+}
+
+// Crear copia editable de un baño validado
+async function _medCrearCopiaBano(idx) {
+  if (!_medActual) return;
+  const items = [...(_medActual.items || [])];
+  const original = items[idx];
+  if (!original) return;
+  // Calcular siguiente versión
+  const baseUbic = (original.ubicacion || '').replace(/\s+v\d+$/, '');
+  const versionesPrevias = items.filter(x => (x.ubicacion||'').replace(/\s+v\d+$/, '') === baseUbic).map(x => x.version || 1);
+  const nuevaVer = Math.max(...versionesPrevias, 1) + 1;
+  const copia = JSON.parse(JSON.stringify(original));
+  copia.validado = false;
+  copia.version = nuevaVer;
+  copia.version_de = original.version_de || idx;
+  items.push(copia);
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items });
+  // Cerrar modal y abrir la copia para editar
+  document.getElementById('_medModalItem')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+  setTimeout(() => _medEditItem(items.length - 1), 100);
 }
 
 function _medBanoBloque(key, titulo, bodyHtml, opts = {}) {
@@ -5668,10 +5712,9 @@ function _medRenderBanoForm(it) {
   let body5 = '';
   body5 += btnOpts('mbParTipo','Revestimiento',par.tipo,['Alicatado cerámico','Forrado con paneles SPC'],'_medBanoParTipoChange');
   body5 += field('mbParObserv','Notas / detalle libre',par.observ);
-  // Sub-bloque "Medidas por pared" — solo si Forrado con paneles SPC. Dinámico (añadir/quitar)
+  // Sub-bloque "Medidas por pared" — solo si Forrado con paneles SPC.
   const showSpc = par.tipo === 'Forrado con paneles SPC';
-  // State: lista de paredes dinámica
-  if (!st.paredes_spc) st.paredes_spc = (par.paredes_spc && par.paredes_spc.length) ? par.paredes_spc.slice() : [{},{},{},{}];
+  // (paredes_spc ya se carga en _medAbrirModalBano)
   body5 += `<div id="mbSpcWrap" style="${showSpc?'':'display:none'};margin-top:8px;background:#F0F9FF;border-radius:9px;padding:10px 12px">
     <div style="font-size:11px;color:#0C4A6E;font-weight:700;margin-bottom:6px">📏 Paños SPC — panel 1175 mm de ancho</div>
     <div id="mbSpcLista">${_medBanoRenderSpcLista()}</div>
@@ -6223,7 +6266,7 @@ function _medBanoAvisoCarpintero() {
   document.body.appendChild(ov);
 }
 
-async function _medGuardarItemBano() {
+async function _medGuardarItemBano(validar) {
   if (!_medActual) return;
   const v = id => (document.getElementById(id)?.value || '').trim();
   const c = id => document.getElementById(id)?.checked || false;
@@ -6232,6 +6275,8 @@ async function _medGuardarItemBano() {
   // Para selección única (botones data-singleselect): leemos data-value del contenedor
   const single = id => document.getElementById(id)?.dataset?.value || '';
   const st = window._medBanoState;
+  // Para mantener version del item original (si edita)
+  const itemPrev = (_medItemEditIdx != null && _medActual.items?.[_medItemEditIdx]) || {};
 
   const anchoCm = n('mbAncho');
   const largoCm = n('mbLargo');
@@ -6249,6 +6294,9 @@ async function _medGuardarItemBano() {
 
   const obj = {
     ubicacion: v('mbUbic'),
+    validado: validar === true,
+    version: itemPrev.version || 1,
+    version_de: itemPrev.version_de,
     ancho_cm: anchoCm, largo_cm: largoCm, alto_cm: altoCm,
     ancho_mm: anchoCm * 10, largo_mm: largoCm * 10, alto_mm: altoCm ? altoCm * 10 : null,
     metros: m2,                  // compat con desc legacy
@@ -6303,6 +6351,8 @@ async function _medGuardarItemBano() {
       perfileria:    single('mbMamPerfil'),
     },
     sanit_activo: st.sanit_activo,
+    gri_activo:   st.gri_activo,
+    acc_activo:   st.acc_activo,
     inodoro:               !st.sanit_activo ? '' : single('mbInodoro'),
     inodoro_tipo:          (!st.sanit_activo || single('mbInodoro') !== 'Suelo') ? null : single('mbInoSueloTipo'),
     inodoro_salida:        (!st.sanit_activo || single('mbInodoro') !== 'Suelo') ? null : single('mbInoSalida'),
@@ -7094,7 +7144,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 10
+        instaloERP v1.0 · build 12
       </div>
     </div>`;
 }
