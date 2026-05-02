@@ -302,126 +302,192 @@ function _medErpEsc(s) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// DETALLE COMPLETO DE UN BAÑO — todos los bloques rellenados
+// DETALLE COMPLETO DE UN BAÑO — todos los bloques (modelo nuevo)
 // ════════════════════════════════════════════════════════════════
 function _medErpDetalleBano(it) {
   const e = _medErpEsc;
   const linea = (icon, titulo, valor) =>
-    valor ? `<div style="display:flex;gap:6px;padding:3px 0"><span style="width:18px;flex-shrink:0">${icon}</span><span style="font-weight:600;color:#374151;min-width:90px">${titulo}</span><span style="color:#111827;flex:1">${valor}</span></div>` : '';
+    valor ? `<div style="display:flex;gap:6px;padding:3px 0"><span style="width:18px;flex-shrink:0">${icon}</span><span style="font-weight:600;color:#374151;min-width:100px">${titulo}</span><span style="color:#111827;flex:1">${valor}</span></div>` : '';
   const join = arr => arr.filter(Boolean).join(' · ');
 
-  // Cabecera con dimensiones y ubicación
-  const a = it.ancho_mm, l = it.largo_mm, h = it.alto_mm;
-  const m2 = it.metros || (a && l ? +((a/1000)*(l/1000)).toFixed(2) : null);
-  const dimTxt = (a && l) ? `${a}×${l}${h?'×'+h:''} mm${m2?' · '+m2+' m²':''}` : (m2 ? `${m2} m²` : '—');
+  // Mapeo de tipo_trabajo a etiqueta legible
+  const tiposLabel = {
+    'reforma_completa':    'Reforma completa de baño',
+    'cambio_ban_plato':    'Cambio bañera por plato',
+    'cambio_plato_ducha':  'Cambio de plato de ducha',
+    'sustitucion_sanit':   'Sustitución de sanitarios',
+    'cambio_mampara':      'Cambio de mampara',
+    'reforma_parcial':     'Reforma parcial (suelos/paredes)',
+  };
+
+  // Dimensiones (cm preferido sobre mm; convertir si necesario)
+  const aCm = it.ancho_cm != null ? it.ancho_cm : (it.ancho_mm ? Math.round(it.ancho_mm/10) : null);
+  const lCm = it.largo_cm != null ? it.largo_cm : (it.largo_mm ? Math.round(it.largo_mm/10) : null);
+  const hCm = it.alto_cm  != null ? it.alto_cm  : (it.alto_mm  ? Math.round(it.alto_mm/10)  : null);
+  const m2suelo  = (aCm && lCm) ? +((aCm/100)*(lCm/100)).toFixed(2) : null;
+  const m2par    = (aCm && lCm && hCm) ? +((2*(aCm+lCm)/100) * (hCm/100)).toFixed(2) : null;
+  const dimTxt = (aCm && lCm) ? `${aCm}×${lCm}${hCm?'×'+hCm:''} cm${m2suelo?' · '+m2suelo+' m² suelo':''}${m2par?' · '+m2par+' m² alicat.':''}` : '—';
 
   let html = `<div style="background:#FAFBFC;border-radius:8px;padding:10px 12px">`;
   html += `<div style="font-size:13px;font-weight:700;color:#1F2937;margin-bottom:6px">${e(it.ubicacion || 'Baño')}</div>`;
   html += `<div style="font-size:11.5px;color:#374151;display:grid;gap:1px">`;
 
+  // Tipo de trabajo
+  const trabajoLabel = tiposLabel[it.tipo_trabajo] || (it.alcance || '');
+  const trabTxt = join([trabajoLabel, it.alcance_libre, (it.demolicion === 'Sí' || it.demolicion === true) ? 'demolición previa' : '']);
+  if (trabTxt) html += linea('🛠️', 'Trabajo', trabTxt);
+
   // Dimensiones
   html += linea('📐', 'Dimensiones', dimTxt);
 
-  // Reforma
-  const refTxt = join([
-    it.alcance,
-    it.alcance_libre,
-    it.demolicion ? `demolición ${e(it.demolicion).toLowerCase()}` : '',
-    it.quitar_bide ? 'quitar bidé' : ''
-  ]);
-  html += linea('🔨', 'Reforma', refTxt);
-
-  // Pavimento
-  if (it.pavimento) {
-    const p = it.pavimento;
-    html += linea('🟫', 'Pavimento', join([e(p.tipo||''), p.antideslizante && p.antideslizante !== 'No aplica' ? `antid. ${e(p.antideslizante)}` : '', e(p.color||'')]));
+  // Instalaciones (al principio según el orden actual)
+  if (it.instalaciones) {
+    const i = it.instalaciones;
+    const arr = [];
+    if (i.elec_n)     arr.push(`${i.elec_n} pts. eléctricos`);
+    if (Array.isArray(i.iluminacion) && i.iluminacion.length) arr.push(`luz: ${i.iluminacion.map(e).join(', ')}`);
+    if (Array.isArray(i.font_puntos) && i.font_puntos.length) arr.push(`fontanería: ${i.font_puntos.map(e).join(', ')}`);
+    if (Array.isArray(i.des_puntos)  && i.des_puntos.length)  arr.push(`desagües: ${i.des_puntos.map(e).join(', ')}`);
+    // Compat con modelo viejo
+    if (i.puntos_luz) arr.push(`${i.puntos_luz} luces`);
+    if (i.enchufes)   arr.push(`${i.enchufes} enchufes`);
+    if (i.extractor_tipo && i.extractor_tipo !== 'Sin extractor') arr.push(e(i.extractor_tipo));
+    if (i.modif_bajantes)   arr.push('modif. bajantes');
+    if (i.modif_tomas_agua) arr.push('modif. tomas agua');
+    if (arr.length) html += linea('⚡', 'Instalaciones', arr.join(' · '));
   }
 
-  // Paredes
+  // Pavimento
+  if (it.pavimento && it.pavimento.tipo) {
+    html += linea('🟫', 'Pavimento', e(it.pavimento.tipo));
+  }
+
+  // Paredes (incluye paneles SPC + esquineros)
   if (it.paredes) {
     const pa = it.paredes;
-    html += linea('🧱', 'Paredes', join([e(pa.tipo||''), e(pa.observ||'')]));
+    let val = e(pa.tipo || '');
+    if (pa.observ) val += (val ? ' · ' : '') + e(pa.observ);
+    // Paneles SPC: agrupar paños por acabado
+    if (Array.isArray(pa.paredes_spc) && pa.paredes_spc.length) {
+      const porColor = {};
+      pa.paredes_spc.forEach(p => {
+        const w = parseFloat(p.ancho) || 0;
+        if (!w) return;
+        const c = (p.color || 'Sin acabado').trim() || 'Sin acabado';
+        porColor[c] = (porColor[c] || 0) + w;
+      });
+      const sub = Object.entries(porColor).map(([c,w]) => `${c}: ${w} cm`).join(' · ');
+      if (sub) val += `<br><span style="font-size:10.5px;color:#0C4A6E"> ↳ paños: ${sub}</span>`;
+    }
+    if (pa.esquineros_n) {
+      val += `<br><span style="font-size:10.5px;color:#374151"> ↳ ${pa.esquineros_n} esquineros${pa.esquineros_color?' '+e(pa.esquineros_color).toLowerCase():''}</span>`;
+    }
+    if (val) html += linea('🧱', 'Paredes', val);
   }
 
   // Techo
   if (it.techo) {
     const t = it.techo;
-    const luz = Array.isArray(t.iluminacion) && t.iluminacion.length ? `iluminación: ${t.iluminacion.map(e).join(', ')}` : '';
-    html += linea('☀️', 'Techo', join([e(t.tipo||''), luz]));
+    const arr = [];
+    if (t.tipo) arr.push(e(t.tipo));
+    if (t.pintar === true) arr.push('+ pintar');
+    if (arr.length) html += linea('☀️', 'Techo', arr.join(' '));
   }
 
   // Plato
   if (it.plato) {
     const p = it.plato;
-    const dim = (p.ancho_mm && p.largo_mm) ? `${p.ancho_mm}×${p.largo_mm} mm` : '';
-    html += linea('🚿', 'Plato', join([dim, e(p.tipo||''), e(p.color||'')]));
+    const aP = p.ancho_cm != null ? p.ancho_cm : (p.ancho_mm ? Math.round(p.ancho_mm/10) : null);
+    const lP = p.largo_cm != null ? p.largo_cm : (p.largo_mm ? Math.round(p.largo_mm/10) : null);
+    const dim = (aP && lP) ? `${aP}×${lP} cm` : '';
+    html += linea('🚿', 'Plato', join([dim, e(p.tipo || ''), p.color ? `color ${e(p.color)}` : '']));
   }
 
   // Bañera
   if (it.banera) {
     const b = it.banera;
-    const dim = (b.largo_mm && b.ancho_mm) ? `${b.largo_mm}×${b.ancho_mm} mm` : '';
-    html += linea('🛁', 'Bañera', join([dim, e(b.tipo||''), e(b.posicion||''), e(b.color||''), b.faldon?'con faldón':'']));
+    const lB = b.largo_cm != null ? b.largo_cm : (b.largo_mm ? Math.round(b.largo_mm/10) : null);
+    const aB = b.ancho_cm != null ? b.ancho_cm : (b.ancho_mm ? Math.round(b.ancho_mm/10) : null);
+    const dim = (lB && aB) ? `${lB}×${aB} cm` : '';
+    html += linea('🛁', 'Bañera', join([dim, e(b.tipo||''), e(b.posicion||''), b.hidromasaje === true ? 'hidromasaje' : '']));
   }
 
-  // Mampara
+  // Mampara (modelo nuevo: uso/posición/configs)
   if (it.mampara) {
     const m = it.mampara;
-    const dim = (m.ancho_mm && m.alto_mm) ? `${m.ancho_mm}×${m.alto_mm} mm` : '';
-    html += linea('🪞', 'Mampara', join([e(m.tipo||''), dim, e(m.vidrio_mm||''), e(m.cristal||''), e(m.perfileria||''), m.antical?'antical':'']));
+    const aM = m.ancho_cm != null ? m.ancho_cm : (m.ancho_mm ? Math.round(m.ancho_mm/10) : null);
+    const hM = m.alto_cm  != null ? m.alto_cm  : (m.alto_mm  ? Math.round(m.alto_mm/10)  : null);
+    const l1 = m.lateral1_cm != null ? m.lateral1_cm : (m.lateral1_mm ? Math.round(m.lateral1_mm/10) : null);
+    const l2 = m.lateral2_cm != null ? m.lateral2_cm : (m.lateral2_mm ? Math.round(m.lateral2_mm/10) : null);
+    const cabecera = join([e(m.uso||''), e(m.posicion||''), e(m.perfileria||''), hM ? `${hM} cm alto` : 'altura estándar']);
+    const dimFrente = aM ? `frente ${aM} cm${m.config_frente?' ('+e(m.config_frente)+')':''}` : (m.config_frente?e(m.config_frente):'');
+    const dimL1 = l1 ? `lat1 ${l1} cm${m.config_lat1?' ('+e(m.config_lat1)+')':''}` : (m.config_lat1?e(m.config_lat1):'');
+    const dimL2 = l2 ? `lat2 ${l2} cm${m.config_lat2?' ('+e(m.config_lat2)+')':''}` : (m.config_lat2?e(m.config_lat2):'');
+    let val = cabecera;
+    if (dimFrente) val += `<br><span style="font-size:10.5px"> ↳ ${dimFrente}</span>`;
+    if (dimL1)     val += `<br><span style="font-size:10.5px"> ↳ ${dimL1}</span>`;
+    if (dimL2)     val += `<br><span style="font-size:10.5px"> ↳ ${dimL2}</span>`;
+    // Compat con modelo viejo
+    if (!aM && !m.uso && m.tipo) val = join([e(m.tipo), e(m.perfileria||'')]);
+    html += linea('🪞', 'Mampara', val);
   }
 
   // Sanitarios
   const sanArr = [];
-  if (it.inodoro) sanArr.push(`WC ${e(it.inodoro)}`);
-  if (it.lavabo)  sanArr.push(`lavabo ${e(it.lavabo)}`);
-  if (it.bide)    sanArr.push(`bidé ${e(it.bide)}`);
-  if (it.tomas_lavadora) sanArr.push('tomas lavadora');
+  if (it.inodoro) {
+    let txt = `WC ${e(it.inodoro)}`;
+    if (it.inodoro === 'Suelo') {
+      const sub = [];
+      if (it.inodoro_tipo)         sub.push(e(it.inodoro_tipo));
+      if (it.inodoro_salida)       sub.push(`salida ${e(it.inodoro_salida).toLowerCase()}`);
+      if (it.inodoro_alimentacion) sub.push(`alim. ${e(it.inodoro_alimentacion).toLowerCase()}`);
+      if (sub.length) txt += ` (${sub.join(', ')})`;
+    }
+    sanArr.push(txt);
+  }
+  if (it.lavabo) sanArr.push(`lavabo ${e(it.lavabo)}`);
+  if (it.bide)   sanArr.push(`bidé ${e(it.bide)}`);
   if (sanArr.length) html += linea('🚽', 'Sanitarios', sanArr.join(' · '));
 
   // Grifería
   if (it.griferia) {
     const g = it.griferia;
-    const gArr = [];
-    if (g.ducha)   gArr.push(`ducha ${e(g.ducha)}`);
-    if (g.lavabo)  gArr.push(`lavabo ${e(g.lavabo)}`);
-    if (g.acabado) gArr.push(`acabado ${e(g.acabado)}`);
-    if (gArr.length) html += linea('🚰', 'Grifería', gArr.join(' · '));
+    const arr = [];
+    if (g.ducha)   arr.push(`ducha ${e(g.ducha)}`);
+    if (g.lavabo)  arr.push(`lavabo ${e(g.lavabo)}`);
+    if (g.acabado) arr.push(`acabado ${e(g.acabado)}`);
+    if (arr.length) html += linea('🚰', 'Grifería', arr.join(' · '));
   }
 
-  // Mueble + espejo
+  // Mueble lavabo
   if (it.mueble) {
     const mu = it.mueble;
-    const dim = (mu.ancho_mm) ? `${mu.ancho_mm}${mu.fondo_mm?'×'+mu.fondo_mm:''}${mu.alto_mm?'×'+mu.alto_mm:''} mm` : '';
-    const cajPue = [mu.cajones?`${mu.cajones} cajones`:'', mu.puertas?`${mu.puertas} puertas`:''].filter(Boolean).join(', ');
-    html += linea('🪟', 'Mueble', join([dim, e(mu.posicion||''), cajPue, e(mu.material||'')]));
+    const aMu = mu.ancho_cm != null ? mu.ancho_cm : (mu.ancho_mm ? Math.round(mu.ancho_mm/10) : null);
+    const fMu = mu.fondo_cm != null ? mu.fondo_cm : (mu.fondo_mm ? Math.round(mu.fondo_mm/10) : null);
+    const dim = aMu ? `${aMu}${fMu?'×'+fMu:''} cm` : '';
+    const aper = mu.apertura_tipo && mu.apertura_n ? `${mu.apertura_n} ${e(mu.apertura_tipo).toLowerCase()}` : '';
+    html += linea('🪟', 'Mueble', join([dim, e(mu.posicion||''), aper, mu.gama ? `gama ${e(mu.gama).toLowerCase()}` : '']));
   }
+
+  // Espejo
   if (it.espejo) {
     const es = it.espejo;
-    const dim = (es.ancho_mm && es.alto_mm) ? `${es.ancho_mm}×${es.alto_mm} mm` : '';
-    html += linea('🪞', 'Espejo', join([dim, es.led?'con LED':'']));
+    const aE = es.ancho_cm != null ? es.ancho_cm : (es.ancho_mm ? Math.round(es.ancho_mm/10) : null);
+    const hE = es.alto_cm  != null ? es.alto_cm  : (es.alto_mm  ? Math.round(es.alto_mm/10)  : null);
+    const dim = (aE && hE) ? `${aE}×${hE} cm` : '';
+    const extras = (es.extras && es.extras.length) ? es.extras.map(e).join(', ') : (es.led ? 'LED' : '');
+    html += linea('🪞', 'Espejo', join([dim, extras]));
   }
 
   // Accesorios
-  const accArr = Array.isArray(it.accesorios) ? it.accesorios.slice() : [];
-  if (it.toallero_radiador_kw) accArr.push(`toallero radiador ${it.toallero_radiador_kw} kW`);
-  if (it.asideros) accArr.push(`${it.asideros} asideros`);
-  if (accArr.length) html += linea('🪥', 'Accesorios', accArr.map(e).join(', '));
-
-  // Instalaciones
-  if (it.instalaciones) {
-    const i = it.instalaciones;
-    const insArr = [];
-    if (i.puntos_luz)        insArr.push(`${i.puntos_luz} luces`);
-    if (i.enchufes)          insArr.push(`${i.enchufes} enchufes`);
-    if (i.extractor_tipo && i.extractor_tipo !== 'Sin extractor') insArr.push(e(i.extractor_tipo));
-    if (i.modif_bajantes)    insArr.push('modif. bajantes');
-    if (i.modif_tomas_agua)  insArr.push('modif. tomas agua');
-    if (i.bote_sifonico && i.bote_sifonico !== 'No aplica') insArr.push(`bote sif. ${e(i.bote_sifonico).toLowerCase()}`);
-    if (insArr.length) html += linea('⚡', 'Instalaciones', insArr.join(' · '));
+  if (Array.isArray(it.accesorios) && it.accesorios.length) {
+    html += linea('🪥', 'Accesorios', it.accesorios.map(e).join(', '));
+  }
+  if (it.acc_observ) {
+    html += linea('', '', `<em style="color:#6B7280;font-size:11px">${e(it.acc_observ)}</em>`);
   }
 
-  // Observaciones
+  // Observaciones generales
   if (it.observaciones) {
     html += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #E5E7EB;font-size:11px;color:#6B7280;font-style:italic">📝 ${e(it.observaciones)}</div>`;
   }

@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 8
+      instaloERP v1.0 · build 9
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 8
+      instaloERP v1.0 · build 9
     </div>
   `;
 }
@@ -6087,7 +6087,8 @@ function _medBanoCalcSpc() {
   let totalPaneles = 0;
   let detalle = '';
   for (const color in porColor) {
-    const paños = porColor[color].slice().sort((x,y) => x - y);
+    // Respetar el orden de instalación (machihembrado): NO reordenamos
+    const paños = porColor[color].slice();
     const totalAncho = paños.reduce((s,x) => s+x, 0);
     let paneles = 0;
     const sobrantes = [];
@@ -7030,7 +7031,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 8
+        instaloERP v1.0 · build 9
       </div>
     </div>`;
 }
