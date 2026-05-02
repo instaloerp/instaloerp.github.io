@@ -158,19 +158,22 @@ function renderMedicionDetalleERP() {
 
       <div class="card">
         <div class="card-h">
-          <h3>Items medidos (${items.length})</h3>
+          <h3>Items medidos (${items.filter(it => !it.archivado).length})</h3>
         </div>
         <div class="card-b" style="padding:6px">
-          ${items.length === 0
-            ? `<div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Sin items registrados todavía.</div>`
-            : items.map((it, i) => `
+          ${(function(){
+            const activos = items.filter(it => !it.archivado);
+            if (!activos.length) return `<div style="text-align:center;padding:30px;color:var(--gris-400);font-size:13px">Sin items registrados todavía.</div>`;
+            return activos.map((it, n) => `
               <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gris-100)">
-                <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${i+1}</div>
+                <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${n+1}</div>
                 <div style="flex:1;font-size:12.5px;line-height:1.5">
+                  ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">🔒 v'+(it.version||1)+'</span>' : (it.version&&it.version>1?'<span style="background:#F3F4F6;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">v'+it.version+'</span>':'')}
                   ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : _medErpDescItem(m.tipo, it)}
                 </div>
               </div>
-            `).join('')}
+            `).join('');
+          })()}
         </div>
       </div>
 
@@ -881,7 +884,8 @@ async function exportarMedicionPDF(id) {
   const usuario = (typeof todosUsuarios !== 'undefined' && Array.isArray(todosUsuarios))
     ? todosUsuarios.find(u => u.id === m.usuario_id)?.nombre
     : null;
-  const items = m.items || [];
+  // Solo items activos (excluir versiones archivadas)
+  const items = (m.items || []).filter(it => !it.archivado);
 
   // Sección: items medidos
   const filasItems = items.map((it, i) => {

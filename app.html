@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 13
+      instaloERP v1.0 · build 14
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 13
+      instaloERP v1.0 · build 14
     </div>
   `;
 }
@@ -4847,14 +4847,31 @@ async function renderMedicionDetalle(el) {
         <button onclick="_medAddItem()" style="padding:8px 14px;background:#3B82F6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">+ Añadir</button>
       </div>
       <div id="medItemsCont">
-        ${items.length === 0
-          ? `<div style="text-align:center;padding:30px 16px;color:var(--gris-400);background:#fff;border:1px dashed var(--gris-300);border-radius:10px"><div style="font-size:32px;margin-bottom:6px">${pl.ico}</div><div style="font-size:13px;font-weight:600">Aún no hay medidas</div><div style="font-size:11px;margin-top:4px">Pulsa "+ Añadir" para empezar</div></div>`
-          : items.map((it, i) => `
-            <div onclick="_medEditItem(${i})" style="background:#fff;border:1px solid ${it.validado?'#10B981':'var(--gris-200)'};border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">
-              <div style="width:28px;height:28px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${i+1}</div>
-              <div style="flex:1;font-size:12.5px;line-height:1.4">${pl.descripcionItem(it)}${it.version&&it.version>1?` <span style="font-size:10px;color:#6B7280;background:#F3F4F6;padding:1px 6px;border-radius:8px;margin-left:4px">v${it.version}</span>`:''}${it.validado?` <span style="font-size:10px;color:#fff;background:#10B981;padding:1px 6px;border-radius:8px;margin-left:4px">🔒 validado</span>`:''}</div>
-              <span style="color:var(--gris-400);font-size:16px">›</span>
-            </div>`).join('')}
+        ${(function(){
+          // Solo items activos (no archivados). Calcular cuántas versiones archivadas hay por grupo.
+          const activos = items.map((it,i)=>({...it,_idx:i})).filter(it => !it.archivado);
+          const archivCount = {};
+          items.forEach(it => {
+            if (it.archivado && it.version_grupo) {
+              archivCount[it.version_grupo] = (archivCount[it.version_grupo]||0) + 1;
+            }
+          });
+          if (!activos.length) {
+            return `<div style="text-align:center;padding:30px 16px;color:var(--gris-400);background:#fff;border:1px dashed var(--gris-300);border-radius:10px"><div style="font-size:32px;margin-bottom:6px">${pl.ico}</div><div style="font-size:13px;font-weight:600">Aún no hay medidas</div><div style="font-size:11px;margin-top:4px">Pulsa "+ Añadir" para empezar</div></div>`;
+          }
+          return activos.map((it, n) => {
+            const archivados = it.version_grupo ? (archivCount[it.version_grupo]||0) : 0;
+            return `
+              <div style="background:#fff;border:1px solid ${it.validado?'#10B981':'var(--gris-200)'};border-radius:10px;margin-bottom:6px;overflow:hidden">
+                <div onclick="_medEditItem(${it._idx})" style="padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px">
+                  <div style="width:28px;height:28px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${n+1}</div>
+                  <div style="flex:1;font-size:12.5px;line-height:1.4">${pl.descripcionItem(it)}${it.version&&it.version>1?` <span style="font-size:10px;color:#6B7280;background:#F3F4F6;padding:1px 6px;border-radius:8px;margin-left:4px">v${it.version}</span>`:''}${it.validado?` <span style="font-size:10px;color:#fff;background:#10B981;padding:1px 6px;border-radius:8px;margin-left:4px">🔒 validado</span>`:''}</div>
+                  <span style="color:var(--gris-400);font-size:16px">›</span>
+                </div>
+                ${archivados ? `<div onclick="_medVerHistorial('${it.version_grupo}')" style="padding:6px 12px;border-top:1px dashed var(--gris-200);font-size:11px;color:#6B7280;cursor:pointer;background:#FAFBFC">📜 ${archivados} versión${archivados>1?'es':''} anterior${archivados>1?'es':''} ›</div>` : ''}
+              </div>`;
+          }).join('');
+        })()}
       </div>
     </div>
     <div style="padding:8px 16px">
@@ -5547,27 +5564,86 @@ function _medAbrirModalBano(it) {
   }, 30);
 }
 
-// Crear copia editable de un baño validado
+// Crear copia editable de un baño validado (archiva el original)
 async function _medCrearCopiaBano(idx) {
   if (!_medActual) return;
   const items = [...(_medActual.items || [])];
   const original = items[idx];
   if (!original) return;
-  // Calcular siguiente versión
-  const baseUbic = (original.ubicacion || '').replace(/\s+v\d+$/, '');
-  const versionesPrevias = items.filter(x => (x.ubicacion||'').replace(/\s+v\d+$/, '') === baseUbic).map(x => x.version || 1);
-  const nuevaVer = Math.max(...versionesPrevias, 1) + 1;
+  // Asignar grupo de versiones si no existe
+  const grupo = original.version_grupo || ('g' + Date.now() + Math.random().toString(36).slice(2,5));
+  if (!original.version_grupo) original.version_grupo = grupo;
+  // Calcular siguiente versión dentro del grupo
+  const versiones = items.filter(x => x.version_grupo === grupo).map(x => x.version || 1);
+  const nuevaVer = Math.max(...versiones, 1) + 1;
+  // Archivar la versión actual y crear la nueva
+  original.archivado = true;
   const copia = JSON.parse(JSON.stringify(original));
   copia.validado = false;
+  copia.archivado = false;   // la nueva es la activa
   copia.version = nuevaVer;
-  copia.version_de = original.version_de || idx;
+  copia.version_grupo = grupo;
   items.push(copia);
   _medActual.items = items;
   await _medGuardar(_medActual.id, { items });
-  // Cerrar modal y abrir la copia para editar
   document.getElementById('_medModalItem')?.remove();
   renderMedicionDetalle(document.getElementById('appBody'));
   setTimeout(() => _medEditItem(items.length - 1), 100);
+}
+
+// Restaurar una versión archivada (la convierte en activa, archiva la actual)
+async function _medRestaurarVersion(idx) {
+  if (!_medActual) return;
+  if (!confirm('¿Restaurar esta versión? La versión actual quedará archivada.')) return;
+  const items = [...(_medActual.items || [])];
+  const versionRestaurar = items[idx];
+  if (!versionRestaurar) return;
+  const grupo = versionRestaurar.version_grupo;
+  // Archivar la versión activa actual del mismo grupo
+  items.forEach(it => {
+    if (it.version_grupo === grupo && !it.archivado) it.archivado = true;
+  });
+  versionRestaurar.archivado = false;
+  _medActual.items = items;
+  await _medGuardar(_medActual.id, { items });
+  document.getElementById('_medHistorialModal')?.remove();
+  renderMedicionDetalle(document.getElementById('appBody'));
+  toast('Versión restaurada', 'ok');
+}
+
+// Ver versiones archivadas de un grupo
+function _medVerHistorial(grupo) {
+  if (!_medActual) return;
+  const items = _medActual.items || [];
+  const archivadas = items.map((it, i) => ({...it, _idx: i})).filter(it => it.version_grupo === grupo && it.archivado);
+  if (!archivadas.length) { toast('No hay versiones anteriores', 'info'); return; }
+  archivadas.sort((a,b) => (b.version||1) - (a.version||1));
+  const html = archivadas.map(it => {
+    const desc = (window.MED_PLANTILLAS?.bano?.descripcionItem)?.(it) || it.ubicacion || '';
+    return `<div style="padding:11px 12px;border:1px solid var(--gris-200);border-radius:9px;margin-bottom:6px;background:#FAFBFC">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="background:#F3F4F6;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:var(--gris-700)">v${it.version||1}</span>
+        ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700">🔒 validado</span>' : ''}
+        <span style="flex:1;font-size:12.5px;color:var(--gris-700)">${_medEsc(desc)}</span>
+      </div>
+      <div style="display:flex;gap:5px">
+        <button onclick="_medEditItem(${it._idx});document.getElementById('_medHistorialModal').remove()" class="tap" style="flex:1;padding:8px;background:#fff;border:1.5px solid var(--gris-300);color:var(--gris-700);border-radius:7px;font-size:11.5px;font-weight:600">👁 Ver</button>
+        <button onclick="_medRestaurarVersion(${it._idx})" class="tap" style="flex:1;padding:8px;background:#3B82F6;color:#fff;border:none;border-radius:7px;font-size:11.5px;font-weight:700">↺ Restaurar</button>
+      </div>
+    </div>`;
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = '_medHistorialModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:80vh;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-weight:700;font-size:14px">📜 Versiones anteriores (${archivadas.length})</div>
+        <button onclick="document.getElementById('_medHistorialModal').remove()" class="tap" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer">✕</button>
+      </div>
+      <div style="padding:12px 14px;overflow-y:auto;flex:1">${html}</div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 function _medBanoBloque(key, titulo, bodyHtml, opts = {}) {
@@ -7160,7 +7236,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 13
+        instaloERP v1.0 · build 14
       </div>
     </div>`;
 }
