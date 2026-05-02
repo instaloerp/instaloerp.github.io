@@ -368,10 +368,23 @@ function _medErpCalcPanelesSpc(paredes, modo) {
     const cortes = [];
     const sobrantes = []; // {ancho, panelN, segIdx}
 
+    // Reemplaza un segmento sobrante por reaprovechamiento + desperdicio (si el sobrante era mayor que lo necesario)
+    const consumirSobrante = (sob, anchoUsado, paño) => {
+      const panelOrig = cortes[sob.panelN - 1];
+      if (!panelOrig) return 0;
+      const sobranteSegIdx = sob.segIdx;
+      const desperdicio = +(sob.ancho - anchoUsado).toFixed(2);
+      const labelPaño = `Paño ${paño}`;
+      // Sustituir el segmento original por dos: uso real + desperdicio (si lo hay)
+      const nuevos = [{ ancho: anchoUsado, label: `Reaprov. → ${labelPaño}`, tipo: 'reaprovechado', paño }];
+      if (desperdicio > 0.01) nuevos.push({ ancho: desperdicio, label: 'Desperdicio (recorte)', tipo: 'sobrante' });
+      panelOrig.segmentos.splice(sobranteSegIdx, 1, ...nuevos);
+      return desperdicio;
+    };
+
     paños.forEach((ancho, i) => {
       const labelPaño = `Paño ${pIdx[i]}`;
       if (modo === 'esteticas') {
-        // Best-fit: sobrante completo
         let bestIdx = -1, bestSize = Infinity;
         for (let j = 0; j < sobrantes.length; j++) {
           if (sobrantes[j].ancho >= ancho && sobrantes[j].ancho < bestSize) {
@@ -380,16 +393,12 @@ function _medErpCalcPanelesSpc(paredes, modo) {
         }
         if (bestIdx >= 0) {
           const sob = sobrantes.splice(bestIdx, 1)[0];
-          const panelOrig = cortes[sob.panelN - 1];
-          if (panelOrig) {
-            panelOrig.segmentos[sob.segIdx] = { ancho: sob.ancho, label: `Reaprov. → ${labelPaño} (${ancho}cm)`, tipo: 'reaprovechado', paño: pIdx[i] };
-          }
+          consumirSobrante(sob, ancho, pIdx[i]);
           return;
         }
         const r = procesarRestoPaño(ancho, labelPaño, pIdx[i], paneles, cortes, sobrantes);
         paneles = r.paneles;
       } else {
-        // Aprovechar: opciones con/sin sobrante
         const opciones = [{ ...calcCoste(ancho), idx: -1 }];
         for (let j = 0; j < sobrantes.length; j++) {
           const aEff = +(ancho - sobrantes[j].ancho).toFixed(2);
@@ -400,11 +409,10 @@ function _medErpCalcPanelesSpc(paredes, modo) {
         let aEff = ancho;
         if (mejor.idx >= 0) {
           const sob = sobrantes.splice(mejor.idx, 1)[0];
-          const panelOrig = cortes[sob.panelN - 1];
-          if (panelOrig) {
-            panelOrig.segmentos[sob.segIdx] = { ancho: sob.ancho, label: `Reaprov. → ${labelPaño}`, tipo: 'reaprovechado', paño: pIdx[i] };
-          }
-          aEff = +(ancho - sob.ancho).toFixed(2);
+          // Cuánto del sobrante usamos realmente
+          const usadoDelSobrante = Math.min(sob.ancho, ancho);
+          consumirSobrante(sob, usadoDelSobrante, pIdx[i]);
+          aEff = +(ancho - usadoDelSobrante).toFixed(2);
         }
         const r = procesarRestoPaño(aEff, labelPaño, pIdx[i], paneles, cortes, sobrantes);
         paneles = r.paneles;
