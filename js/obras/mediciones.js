@@ -316,17 +316,19 @@ function _medErpEsc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-// Función PURA: replica _medBanoCalcPanelesSpc de la PWA para usar en el ERP
+// Función PURA: calcula paneles SPC + plan de corte (despiece) por acabado
+// Devuelve cortes[]: lista de paneles, cada uno con segmentos (corte, sobrante, reaprovechado)
 function _medErpCalcPanelesSpc(paredes, modo) {
   const PANEL_CM = 117.5;
   modo = modo || 'aprovechar';
   const porColor = {};
-  paredes.forEach(p => {
+  paredes.forEach((p, idxOrig) => {
     const a = parseFloat(p.ancho) || 0;
     if (!a) return;
     const c = (p.color || 'Sin acabado').trim() || 'Sin acabado';
-    if (!porColor[c]) porColor[c] = { paños: [], ancho_total: 0 };
+    if (!porColor[c]) porColor[c] = { paños: [], pIdx: [], ancho_total: 0 };
     porColor[c].paños.push(a);
+    porColor[c].pIdx.push(idxOrig + 1);
     porColor[c].ancho_total += a;
   });
   let total = 0;
@@ -337,37 +339,158 @@ function _medErpCalcPanelesSpc(paredes, modo) {
     if (resto < 0.01) return { paneles: enteros, nuevoSob: 0 };
     return { paneles: enteros + 1, nuevoSob: +(PANEL_CM - resto).toFixed(2) };
   };
+
+  // Función auxiliar: añade paneles enteros + recorte final, registra cortes
+  const procesarRestoPaño = (aEff, labelPaño, paño_idx, paneles, cortes, sobrantes) => {
+    let p = paneles;
+    if (aEff <= 0.01) return { paneles: p };
+    const enteros = Math.floor(aEff / PANEL_CM);
+    const resto = +(aEff - enteros * PANEL_CM).toFixed(2);
+    for (let k = 0; k < enteros; k++) {
+      p++;
+      cortes.push({ panelN: p, segmentos: [{ ancho: PANEL_CM, label: `${labelPaño} (entero)`, tipo: 'corte', paño: paño_idx }] });
+    }
+    if (resto > 0.01) {
+      p++;
+      const sob = +(PANEL_CM - resto).toFixed(2);
+      const segs = [{ ancho: resto, label: labelPaño, tipo: 'corte', paño: paño_idx }];
+      if (sob > 0.01) segs.push({ ancho: sob, label: 'Sobrante', tipo: 'sobrante' });
+      cortes.push({ panelN: p, segmentos: segs });
+      if (sob > 0.01) sobrantes.push({ ancho: sob, panelN: p, segIdx: 1 });
+    }
+    return { paneles: p };
+  };
+
   for (const color in porColor) {
     const paños = porColor[color].paños;
+    const pIdx = porColor[color].pIdx;
     let paneles = 0;
-    const sobrantes = [];
-    paños.forEach(ancho => {
+    const cortes = [];
+    const sobrantes = []; // {ancho, panelN, segIdx}
+
+    paños.forEach((ancho, i) => {
+      const labelPaño = `Paño ${pIdx[i]}`;
       if (modo === 'esteticas') {
+        // Best-fit: sobrante completo
         let bestIdx = -1, bestSize = Infinity;
-        for (let i = 0; i < sobrantes.length; i++) {
-          if (sobrantes[i] >= ancho && sobrantes[i] < bestSize) { bestIdx = i; bestSize = sobrantes[i]; }
+        for (let j = 0; j < sobrantes.length; j++) {
+          if (sobrantes[j].ancho >= ancho && sobrantes[j].ancho < bestSize) {
+            bestIdx = j; bestSize = sobrantes[j].ancho;
+          }
         }
-        if (bestIdx >= 0) { sobrantes.splice(bestIdx, 1); return; }
-        const c = calcCoste(ancho);
-        paneles += c.paneles;
-        if (c.nuevoSob > 0.01) sobrantes.push(c.nuevoSob);
+        if (bestIdx >= 0) {
+          const sob = sobrantes.splice(bestIdx, 1)[0];
+          const panelOrig = cortes[sob.panelN - 1];
+          if (panelOrig) {
+            panelOrig.segmentos[sob.segIdx] = { ancho: sob.ancho, label: `Reaprov. → ${labelPaño} (${ancho}cm)`, tipo: 'reaprovechado', paño: pIdx[i] };
+          }
+          return;
+        }
+        const r = procesarRestoPaño(ancho, labelPaño, pIdx[i], paneles, cortes, sobrantes);
+        paneles = r.paneles;
       } else {
+        // Aprovechar: opciones con/sin sobrante
         const opciones = [{ ...calcCoste(ancho), idx: -1 }];
-        for (let i = 0; i < sobrantes.length; i++) {
-          opciones.push({ ...calcCoste(+(ancho - sobrantes[i]).toFixed(2)), idx: i });
+        for (let j = 0; j < sobrantes.length; j++) {
+          const aEff = +(ancho - sobrantes[j].ancho).toFixed(2);
+          opciones.push({ ...calcCoste(aEff), idx: j });
         }
         opciones.sort((a,b) => a.paneles - b.paneles || b.nuevoSob - a.nuevoSob);
-        const m = opciones[0];
-        paneles += m.paneles;
-        if (m.idx >= 0) sobrantes.splice(m.idx, 1);
-        if (m.nuevoSob > 0.01) sobrantes.push(m.nuevoSob);
+        const mejor = opciones[0];
+        let aEff = ancho;
+        if (mejor.idx >= 0) {
+          const sob = sobrantes.splice(mejor.idx, 1)[0];
+          const panelOrig = cortes[sob.panelN - 1];
+          if (panelOrig) {
+            panelOrig.segmentos[sob.segIdx] = { ancho: sob.ancho, label: `Reaprov. → ${labelPaño}`, tipo: 'reaprovechado', paño: pIdx[i] };
+          }
+          aEff = +(ancho - sob.ancho).toFixed(2);
+        }
+        const r = procesarRestoPaño(aEff, labelPaño, pIdx[i], paneles, cortes, sobrantes);
+        paneles = r.paneles;
       }
     });
+
     porColor[color].paneles = paneles;
-    porColor[color].sobrantes = sobrantes;
+    porColor[color].cortes = cortes;
+    porColor[color].sobrantes = sobrantes.map(s => s.ancho);
     total += paneles;
   }
   return { porColor, total, estrategia: modo };
+}
+
+// Renderiza HTML visual del despiece (para modal y PDF)
+function _medErpRenderDespieceSpc(spcCalc) {
+  if (!spcCalc || !spcCalc.porColor) return '';
+  const PANEL_CM = 117.5;
+  // Paleta de colores por paño (cíclica)
+  const COLORES = ['#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#F97316','#84CC16'];
+  const colorPaño = (n) => COLORES[(n-1) % COLORES.length];
+  let html = '';
+  for (const acabado in spcCalc.porColor) {
+    const d = spcCalc.porColor[acabado];
+    if (!d.cortes || !d.cortes.length) continue;
+    html += `<div style="margin-bottom:18px">
+      <div style="font-weight:700;font-size:13px;color:#0C4A6E;margin-bottom:6px;padding:6px 10px;background:#DBEAFE;border-radius:7px">📋 ${acabado} — ${d.paneles} panel${d.paneles>1?'es':''} · ${d.ancho_total} cm de paño total</div>`;
+    d.cortes.forEach(panel => {
+      const segs = panel.segmentos.map(seg => {
+        const pct = (seg.ancho / PANEL_CM) * 100;
+        let bg, txt;
+        if (seg.tipo === 'sobrante') { bg = '#E5E7EB'; txt = '#374151'; }
+        else if (seg.tipo === 'reaprovechado') { bg = '#FEF3C7'; txt = '#92400E'; }
+        else { bg = colorPaño(seg.paño || 1); txt = '#fff'; }
+        return `<div title="${seg.label} · ${seg.ancho}cm" style="width:${pct}%;background:${bg};color:${txt};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;padding:6px 2px;overflow:hidden;white-space:nowrap;border-right:1px solid #fff">${seg.ancho}cm</div>`;
+      }).join('');
+      const segsTxt = panel.segmentos.map(seg => {
+        const tipoTxt = seg.tipo === 'sobrante' ? 'sobrante' : (seg.tipo === 'reaprovechado' ? 'reaprov.' : 'corte');
+        return `${seg.ancho}cm (${seg.label})`;
+      }).join(' + ');
+      html += `<div style="margin-bottom:6px">
+        <div style="font-size:10.5px;color:#374151;font-weight:600;margin-bottom:2px">Panel ${panel.panelN}: ${segsTxt}</div>
+        <div style="display:flex;border:1.5px solid #1E40AF;border-radius:5px;overflow:hidden;height:30px;background:#fff">${segs}</div>
+      </div>`;
+    });
+    if (d.sobrantes && d.sobrantes.length) {
+      html += `<div style="font-size:10.5px;color:#92400E;margin-top:4px;font-style:italic">⚠ Sobrantes finales: ${d.sobrantes.map(x=>x+'cm').join(', ')} (descartables)</div>`;
+    }
+  }
+  return html;
+}
+
+// Modal del despiece (interactivo desde ERP)
+function _medErpVerDespiece(itemId) {
+  const m = _medErpActual;
+  if (!m) return;
+  const item = (m.items||[]).find(it => it._uid === itemId);
+  if (!item || !item.paredes) return;
+  const estrategia = (item.paredes.spc_calc && item.paredes.spc_calc.estrategia) || item.paredes.spc_estrategia || 'aprovechar';
+  const calc = _medErpCalcPanelesSpc(item.paredes.paredes_spc || [], estrategia);
+  const ov = document.createElement('div');
+  ov.id = '_medErpDespieceModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9100;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:780px;width:100%;max-height:90vh;display:flex;flex-direction:column">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--gris-200);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-weight:700;font-size:16px">📋 Despiece de paneles SPC</div>
+          <div style="font-size:11px;color:#6B7280">Estrategia: ${estrategia==='esteticas'?'menos uniones':'menos paneles'} · Total: ${calc.total} paneles</div>
+        </div>
+        <button onclick="document.getElementById('_medErpDespieceModal').remove()" style="background:none;border:none;font-size:22px;color:#9CA3AF;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div style="padding:16px 20px;overflow-y:auto;flex:1">
+        ${_medErpRenderDespieceSpc(calc)}
+        <div style="margin-top:14px;padding:10px;background:#F9FAFB;border-radius:8px;font-size:11px;color:#6B7280">
+          <strong>Leyenda:</strong>
+          <span style="display:inline-block;width:14px;height:10px;background:#3B82F6;vertical-align:middle;margin:0 4px"></span> corte para paño ·
+          <span style="display:inline-block;width:14px;height:10px;background:#FEF3C7;border:1px solid #F59E0B;vertical-align:middle;margin:0 4px"></span> reaprovechado en otro paño ·
+          <span style="display:inline-block;width:14px;height:10px;background:#E5E7EB;vertical-align:middle;margin:0 4px"></span> sobrante final
+        </div>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid var(--gris-200);display:flex;justify-content:flex-end;gap:8px">
+        <button onclick="window.print()" style="padding:9px 16px;background:#3B82F6;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">🖨 Imprimir</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // Ver versiones anteriores (archivadas) de un grupo en el ERP
@@ -499,10 +622,10 @@ function _medErpDetalleBano(it, interactivo) {
         return `<div style="font-size:10.5px;color:#0C4A6E"> ↳ <strong>${e(color)}</strong>: ${d.ancho_total} cm → <strong>${d.paneles}</strong> panel${d.paneles>1?'es':''}${sob}</div>`;
       }).join('');
       if (filas) val += `<br>${filas}<div style="font-size:10.5px;color:#0C4A6E;font-weight:700;margin-top:1px"> ↳ Total paneles: ${calc.total} (estrategia: ${calc.estrategia==='esteticas'?'menos uniones':'menos paneles'})</div>`;
-      // Botones de estrategia (solo en vista web interactiva)
+      // Botones de estrategia + despiece (solo en vista web interactiva)
       if (interactivo) {
         const isAprov = calc.estrategia !== 'esteticas';
-        val += `<div style="margin-top:6px;display:flex;gap:5px"><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','aprovechar')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${isAprov?'700':'500'};border:${isAprov?'2px':'1px'} solid ${isAprov?'#0C4A6E':'#93C5FD'};background:${isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos paneles</button><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','esteticas')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${!isAprov?'700':'500'};border:${!isAprov?'2px':'1px'} solid ${!isAprov?'#0C4A6E':'#93C5FD'};background:${!isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos uniones</button></div>`;
+        val += `<div style="margin-top:6px;display:flex;gap:5px"><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','aprovechar')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${isAprov?'700':'500'};border:${isAprov?'2px':'1px'} solid ${isAprov?'#0C4A6E':'#93C5FD'};background:${isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos paneles</button><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','esteticas')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${!isAprov?'700':'500'};border:${!isAprov?'2px':'1px'} solid ${!isAprov?'#0C4A6E':'#93C5FD'};background:${!isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos uniones</button><button type="button" onclick="event.stopPropagation();_medErpVerDespiece('${it._uid}')" style="flex:1.2;padding:5px;border-radius:6px;font-size:10.5px;font-weight:700;border:1.5px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer">📋 Despiece</button></div>`;
       }
     }
     if (pa.esquineros_n) {
@@ -935,12 +1058,26 @@ async function exportarMedicionPDF(id) {
   const filasItems = items.map((it, i) => {
     const svg = (m.tipo === 'ventanas') ? _medSvgVentana(it) : '';
     const ubic = it.ubicacion || it.estancia || '';
-    // Para baño usamos la vista detallada (todas las secciones)
+    // Para baño usamos la vista detallada (todas las secciones) + despiece SPC si aplica
     if (m.tipo === 'bano') {
+      let despieceHtml = '';
+      const par = it.paredes || {};
+      if (par.paredes_spc && par.paredes_spc.length) {
+        const estrategia = (par.spc_calc && par.spc_calc.estrategia) || par.spc_estrategia || 'aprovechar';
+        const calc = _medErpCalcPanelesSpc(par.paredes_spc, estrategia);
+        const dp = _medErpRenderDespieceSpc(calc);
+        if (dp) {
+          despieceHtml = `<div style="margin-top:12px;padding-top:8px;border-top:2px solid #DBEAFE;page-break-inside:avoid">
+            <div style="font-weight:700;font-size:11.5px;color:#0C4A6E;margin-bottom:6px">📋 DESPIECE DE PANELES SPC (${calc.total} paneles · ${estrategia==='esteticas'?'menos uniones':'menos paneles'})</div>
+            ${dp}
+          </div>`;
+        }
+      }
       return `
         <div style="padding:10px 0;border-bottom:1px dashed #E5E7EB;page-break-inside:avoid">
           <div style="font-weight:500;color:#111827;font-size:12px;margin-bottom:5px">${i+1}. ${ubic ? _medErpEsc(ubic) : pl.label}</div>
           ${_medErpDetalleBano(it)}
+          ${despieceHtml}
         </div>`;
     }
     const desc = _medErpDescItem(m.tipo, it);
