@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 43
+      instaloERP v1.0 · build 44
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 43
+      instaloERP v1.0 · build 44
     </div>
   `;
 }
@@ -5469,17 +5469,25 @@ const _MED_BANO_ACTIVAR_POR_TRABAJO = {
 
 function _medAbrirModalBano(it) {
   if (!_medActual) return;
+  const inst = it.instalaciones || {};
   // State del modal
   window._medBanoState = {
     tipo_trabajo: it.tipo_trabajo || '',
-    bloques_abiertos: { trab:true, dim:true, ref:false, pav:false, par:false, tec:false,
+    bloques_abiertos: { trab:true, dim:true, ins:false, pav:false, par:false, tec:false,
                         plato:false, ban:false, mam:false, san:false, gri:false,
-                        mue:false, acc:false, ins:false, obs:false },
+                        mue:false, acc:false, obs:false },
     plato_activo:    !!it.plato,
     banera_activa:   !!it.banera,
     mampara_activa:  !!it.mampara,
     mueble_activo:   !!it.mueble,
     espejo_activo:   !!it.espejo,
+    sanit_activo:    it.sanit_activo !== false && (!!it.inodoro || !!it.lavabo || !!it.bide),
+    gri_activo:      !!(it.griferia && (it.griferia.ducha || it.griferia.lavabo || it.griferia.acabado)),
+    acc_activo:      !!(it.accesorios && it.accesorios.length),
+    esquineros_activo: !!(it.paredes && it.paredes.esquineros_n),
+    inst_elec_activo: !!(inst.elec_n || (inst.iluminacion && inst.iluminacion.length)),
+    inst_font_activo: !!inst.font_n,
+    inst_des_activo:  !!inst.des_n,
   };
 
   const ov = document.createElement('div');
@@ -5543,6 +5551,33 @@ function _medRenderBanoForm(it) {
     const a = (Array.isArray(val) ? val : []).includes(o);
     return `<button type="button" class="tap-chip" data-v="${e(o)}" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'#3B82F6':'#fff';this.style.color=this.classList.contains('on')?'#fff':'var(--gris-700)';this.style.borderColor=this.classList.contains('on')?'#3B82F6':'var(--gris-300)'" style="padding:6px 11px;border-radius:18px;font-size:11.5px;cursor:pointer;font-weight:600;border:1.5px solid ${a?'#3B82F6':'var(--gris-300)'};background:${a?'#3B82F6':'#fff'};color:${a?'#fff':'var(--gris-700)'};${a?'':''}">${e(o)}</button>`;
   }).join('')}</div>`;
+  // Botones selección ÚNICA (sustituye desplegables) — funciona vía data-attribute
+  const btnOpts = (id, label, val, opts, cb='') => {
+    const labelHtml = label ? `<div style="font-size:9.5px;color:var(--gris-500);margin-bottom:3px">${label}</div>` : '';
+    const onclickAttr = cb ? `_medBanoSelOpt(this, '${cb}')` : `_medBanoSelOpt(this)`;
+    return `${labelHtml}<div id="${id}" data-singleselect="1" data-value="${e(val||'')}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">${opts.map(o => {
+      const a = val === o;
+      return `<button type="button" data-v="${e(o)}" onclick="${onclickAttr}" style="padding:7px 12px;border-radius:8px;font-size:11.5px;cursor:pointer;font-weight:${a?'700':'500'};border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'}">${e(o)}</button>`;
+    }).join('')}</div>`;
+  };
+  // Paleta visual de colores (solo plato — colores estándar)
+  const paletaColor = (id, val) => {
+    const colores = [
+      {n:'Blanco',     ral:'9003', hex:'#F5F5F0', txt:'#374151'},
+      {n:'Gris claro', ral:'7035', hex:'#C5C7C4', txt:'#374151'},
+      {n:'Gris',       ral:'7037', hex:'#7D7F7D', txt:'#fff'},
+      {n:'Grafito',    ral:'7016', hex:'#363B3F', txt:'#fff'},
+      {n:'Crema',      ral:'1013', hex:'#E3D9C6', txt:'#374151'},
+      {n:'Moka',       ral:'1001', hex:'#C2A878', txt:'#fff'},
+    ];
+    return `<div style="font-size:9.5px;color:var(--gris-500);margin-bottom:5px">Color (estándar Express)</div>
+      <div id="${id}" data-singleselect="1" data-value="${e(val||'Blanco')}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">
+        ${colores.map(c => {
+          const a = (val||'Blanco') === c.n;
+          return `<button type="button" data-v="${e(c.n)}" onclick="_medBanoSelOpt(this)" style="padding:8px 4px;border-radius:8px;cursor:pointer;border:${a?'2.5px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${c.hex};color:${c.txt};font-size:11px;font-weight:${a?'700':'600'};text-align:center;line-height:1.25">${c.n}<br><span style="font-size:9px;opacity:.85;font-weight:400">RAL ${c.ral}</span></button>`;
+        }).join('')}
+      </div>`;
+  };
 
   let html = '';
 
@@ -5568,10 +5603,9 @@ function _medRenderBanoForm(it) {
   body0 += `</div>`;
   body0 += field('mbAlcanceLibre', 'Detalle / matiz del trabajo (libre)', it.alcance_libre, 'text', 'Ej. Sustituir bañera y mampara, dejar resto…');
   body0 += check('mbDemolicion', 'Demolición previa necesaria', it.demolicion === 'Sí' || it.demolicion === true);
-  body0 += check('mbQuitarBide', 'Quitar bidé', it.quitar_bide);
   html += _medBanoBloque('trab', '🛠️ Tipo de trabajo', body0);
 
-  // ── Bloque 1: Medidas
+  // ── Bloque 2: Medidas
   let body1 = '';
   body1 += grid3(
     field('mbAncho', 'Ancho (mm)', it.ancho_mm, 'number', '0'),
@@ -5585,116 +5619,135 @@ function _medRenderBanoForm(it) {
   </div>`;
   html += _medBanoBloque('dim', '📐 Medidas del baño', body1);
 
-  // ── Bloque 3: Pavimento
-  const pav = it.pavimento || {};
+  // ── Bloque 3: Instalaciones (3 sub-toggles)
   let body3 = '';
-  body3 += select('mbPavTipo', 'Tipo', pav.tipo, ['Cerámico','Vinílico']);
-  html += _medBanoBloque('pav', '🟫 Pavimento', body3);
+  // Eléctrica
+  body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_elec_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_elec_activo?'#EFF6FF':'#fff'}">
+    <input type="checkbox" id="mbInstElecToggle" ${st.inst_elec_activo?'checked':''} onchange="_medBanoToggleSubInst('elec',this.checked)" style="width:16px;height:16px"> ⚡ Instalación eléctrica
+  </label>
+  <div id="mbInstElecBody" style="${st.inst_elec_activo?'':'display:none'};margin-bottom:8px;padding-left:8px">
+    ${field('mbInsElecN','Nº de puntos',inst.elec_n,'number')}
+    <div style="font-size:9.5px;color:var(--gris-500);margin:6px 0 4px">Iluminación</div>
+    ${chips('mbTecLuz', inst.iluminacion || it.techo?.iluminacion || [], ['Downlights','Dejar las que hay','Lineal LED'])}
+  </div>`;
+  // Fontanería
+  body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_font_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_font_activo?'#EFF6FF':'#fff'}">
+    <input type="checkbox" id="mbInstFontToggle" ${st.inst_font_activo?'checked':''} onchange="_medBanoToggleSubInst('font',this.checked)" style="width:16px;height:16px"> 🚰 Instalación de fontanería
+  </label>
+  <div id="mbInstFontBody" style="${st.inst_font_activo?'':'display:none'};margin-bottom:8px;padding-left:8px">
+    ${field('mbInsFontN','Nº de puntos',inst.font_n,'number')}
+  </div>`;
+  // Desagües
+  body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_des_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_des_activo?'#EFF6FF':'#fff'}">
+    <input type="checkbox" id="mbInstDesToggle" ${st.inst_des_activo?'checked':''} onchange="_medBanoToggleSubInst('des',this.checked)" style="width:16px;height:16px"> 🚿 Instalación de desagües
+  </label>
+  <div id="mbInstDesBody" style="${st.inst_des_activo?'':'display:none'};padding-left:8px">
+    ${field('mbInsDesN','Nº de puntos',inst.des_n,'number')}
+  </div>`;
+  html += _medBanoBloque('ins', '⚡ Instalaciones', body3);
 
-  // ── Bloque 4: Paredes (sin altura, con campo libre)
-  const par = it.paredes || {};
+  // ── Bloque 4: Pavimento (botones)
+  const pav = it.pavimento || {};
   let body4 = '';
-  body4 += select('mbParTipo', 'Revestimiento', par.tipo, ['Alicatado cerámico','Forrado con paneles SPC']);
-  body4 += field('mbParObserv', 'Notas / detalle libre', par.observ);
-  html += _medBanoBloque('par', '🧱 Paredes / revestimiento', body4);
+  body4 += btnOpts('mbPavTipo','Tipo',pav.tipo,['Cerámico','Vinílico','Tarima']);
+  html += _medBanoBloque('pav', '🟫 Pavimento', body4);
 
-  // ── Bloque 5: Techo
-  const tec = it.techo || {};
+  // ── Bloque 5: Paredes (botones + esquineros)
+  const par = it.paredes || {};
   let body5 = '';
-  body5 += select('mbTecTipo', 'Tipo', tec.tipo, ['Sustituir techo','Mantener','Pintar','Poner falso techo de Pladur']);
-  body5 += `<div style="font-size:9.5px;color:var(--gris-500);margin:8px 0 4px">Iluminación</div>`;
-  body5 += chips('mbTecLuz', tec.iluminacion || [], ['Downlights','Dejar las que hay','Lineal LED']);
-  html += _medBanoBloque('tec', '☀️ Techo', body5);
+  body5 += btnOpts('mbParTipo','Revestimiento',par.tipo,['Alicatado cerámico','Forrado con paneles SPC']);
+  body5 += field('mbParObserv','Notas / detalle libre',par.observ);
+  // Sub-toggle Esquineros
+  body5 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.esquineros_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-top:6px;background:${st.esquineros_activo?'#EFF6FF':'#fff'}">
+    <input type="checkbox" id="mbEsqToggle" ${st.esquineros_activo?'checked':''} onchange="_medBanoToggleEsq(this.checked)" style="width:16px;height:16px"> 🟦 Esquineros
+  </label>
+  <div id="mbEsqBody" style="${st.esquineros_activo?'':'display:none'};margin-top:6px;padding-left:8px">
+    ${field('mbEsqN','Nº de esquineros',par.esquineros_n,'number')}
+  </div>`;
+  html += _medBanoBloque('par', '🧱 Paredes / revestimiento', body5);
 
-  // ── Bloque 6: Plato (toggle) — sin desagüe, color default Blanco
+  // ── Bloque 6: Techo (sin iluminación, botones)
+  const tec = it.techo || {};
   let body6 = '';
-  body6 += grid2(
+  body6 += btnOpts('mbTecTipo','Tipo',tec.tipo,['Sustituir techo','Mantener','Pintar','Falso techo de Pladur']);
+  html += _medBanoBloque('tec', '☀️ Techo', body6);
+
+  // ── Bloque 7: Plato (toggle, botones, paleta visual)
+  let body7 = '';
+  body7 += grid2(
     field('mbPlatoAncho', 'Ancho (mm)', plato.ancho_mm, 'number'),
     field('mbPlatoLargo', 'Largo (mm)', plato.largo_mm, 'number')
   );
-  // Color: si edita item con valor → ese; si nuevo (sin valor) → 'Blanco' por defecto
-  const colorPlatoDefault = (plato.color != null && plato.color !== '') ? plato.color : (_medItemEditIdx == null ? 'Blanco' : '');
-  body6 += field('mbPlatoColor', 'Color', colorPlatoDefault);
-  body6 += select('mbPlatoTipo', 'Tipo', plato.tipo, ['Carga mineral','Loza sanitaria']);
-  html += _medBanoBloque('plato', '🚿 Plato de ducha', body6, { toggle: st.plato_activo, toggleKey: 'plato_activo' });
+  body7 += paletaColor('mbPlatoColor', plato.color || (_medItemEditIdx==null?'Blanco':''));
+  body7 += btnOpts('mbPlatoTipo','Tipo',plato.tipo,['Carga mineral','Loza sanitaria']);
+  html += _medBanoBloque('plato', '🚿 Plato de ducha', body7, { toggle: st.plato_activo, toggleKey: 'plato_activo' });
 
-  // ── Bloque 7: Bañera (toggle) — solo largo × ancho, sin color/faldón
-  let body7 = '';
-  body7 += grid2(
+  // ── Bloque 8: Bañera (toggle, botones + Solid surface)
+  let body8 = '';
+  body8 += grid2(
     field('mbBanLargo', 'Largo (mm)', banera.largo_mm, 'number'),
     field('mbBanAncho', 'Ancho (mm)', banera.ancho_mm, 'number')
   );
-  body7 += select('mbBanTipo', 'Tipo', banera.tipo, ['Acrílica','Chapa']);
-  body7 += select('mbBanPos', 'Posición', banera.posicion, ['Pared','Esquina','Exenta']);
-  html += _medBanoBloque('ban', '🛁 Bañera', body7, { toggle: st.banera_activa, toggleKey: 'banera_activa' });
+  body8 += btnOpts('mbBanTipo','Tipo',banera.tipo,['Acrílica','Chapa','Solid surface']);
+  body8 += btnOpts('mbBanPos','Posición',banera.posicion,['Pared','Esquina','Exenta']);
+  html += _medBanoBloque('ban', '🛁 Bañera', body8, { toggle: st.banera_activa, toggleKey: 'banera_activa' });
 
-  // ── Bloque 8: Mampara (toggle) — con lateral 2 si angular y semicircular
-  let body8 = '';
+  // ── Bloque 9: Mampara (toggle, botones)
+  let body9 = '';
   const mamTipo = mampara.tipo || '';
   const esAngular = mamTipo.toLowerCase().includes('angular') || mamTipo.toLowerCase().includes('semicircular');
-  body8 += grid2(
+  body9 += grid2(
     field('mbMamAncho', 'Ancho frente (mm)', mampara.ancho_mm, 'number'),
     field('mbMamAlto',  'Alto (mm)',         mampara.alto_mm,  'number')
   );
-  body8 += `<div id="mbMamLat2Wrap" style="${esAngular?'':'display:none'}">${field('mbMamLat2', 'Lateral 2 / fondo (mm)', mampara.lateral2_mm, 'number')}</div>`;
-  body8 += `<select id="mbMamTipo" onchange="_medBanoMamparaTipoChange(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:13px;background:#fff;box-sizing:border-box;margin-bottom:8px"><option value=""></option>${['Frente fijo','Frente abatible','Frente corredera','Angular corredera','Angular abatible','2 hojas correderas','3 hojas','Angular 3 hojas','Semicircular'].map(o => `<option value="${e(o)}" ${mamTipo===o?'selected':''}>${e(o)}</option>`).join('')}</select>`;
-  body8 += `<div style="font-size:9.5px;color:var(--gris-500);margin:-4px 0 3px">Tipo</div>`;
-  body8 += select('mbMamPerfil', 'Perfilería (color)', mampara.perfileria, ['Cromo brillo','Cromo mate','Negro mate','Blanco','Oro','Inox']);
-  html += _medBanoBloque('mam', '🪞 Mampara', body8, { toggle: st.mampara_activa, toggleKey: 'mampara_activa' });
+  body9 += `<div id="mbMamLat2Wrap" style="${esAngular?'':'display:none'}">${field('mbMamLat2', 'Lateral 2 / fondo (mm)', mampara.lateral2_mm, 'number')}</div>`;
+  body9 += btnOpts('mbMamTipo','Tipo',mamTipo,['Frente fijo','Frente abatible','Frente corredera','Angular corredera','Angular abatible','2 hojas correderas','3 hojas','Angular 3 hojas','Semicircular'],'_medBanoMamparaTipoChange');
+  body9 += btnOpts('mbMamPerfil','Perfilería',mampara.perfileria,['Cromo brillo','Cromo mate','Negro mate','Blanco','Oro','Inox']);
+  html += _medBanoBloque('mam', '🪞 Mampara', body9, { toggle: st.mampara_activa, toggleKey: 'mampara_activa' });
 
-  // ── Bloque 9: Sanitarios (sin tomas lavadora)
-  let body9 = '';
-  body9 += select('mbInodoro', 'Inodoro', it.inodoro, ['Suelo cisterna baja','Suspendido (cisterna empotrada)','Compacto','Mantener']);
-  body9 += select('mbLavabo',  'Lavabo',  it.lavabo,  ['Sobre encimera','Mueble baño (integrado)','Pedestal','Suspendido','Mantener','Quitar']);
-  body9 += select('mbBide',    'Bidé',    it.bide,    ['Nuevo','Mantener','Quitar']);
-  html += _medBanoBloque('san', '🚽 Sanitarios', body9);
-
-  // ── Bloque 10: Grifería (renombrados)
-  const gri = it.griferia || {};
+  // ── Bloque 10: Sanitarios (toggle, botones, sin Suelo cisterna baja)
   let body10 = '';
-  body10 += select('mbGriDucha',  'Ducha',  gri.ducha,  ['Monomando','Empotrada','Columna de ducha']);
-  body10 += select('mbGriLavabo', 'Lavabo', gri.lavabo, ['Monomando','Vertical alto','Empotrada']);
-  body10 += select('mbGriAcab',   'Acabado', gri.acabado, ['Cromo','Negro mate','Blanco','Oro','Inox']);
-  html += _medBanoBloque('gri', '🚰 Grifería', body10);
+  body10 += btnOpts('mbInodoro','Inodoro',it.inodoro,['Suspendido (cisterna empotrada)','Compacto','Mantener']);
+  body10 += btnOpts('mbLavabo','Lavabo',it.lavabo,['Sobre encimera','Mueble baño (integrado)','Pedestal','Suspendido','Mantener','Quitar']);
+  body10 += btnOpts('mbBide','Bidé',it.bide,['Nuevo','Mantener','Quitar']);
+  html += _medBanoBloque('san', '🚽 Sanitarios', body10, { toggle: st.sanit_activo, toggleKey: 'sanit_activo' });
 
-  // ── Bloque 11: Mueble + espejo (sin alto del mueble)
+  // ── Bloque 11: Grifería (toggle, botones)
+  const gri = it.griferia || {};
   let body11 = '';
-  body11 += `<div style="font-size:11px;color:#6B7280;margin-bottom:6px">— Mueble lavabo —</div>`;
-  body11 += grid2(
+  body11 += btnOpts('mbGriDucha','Ducha',gri.ducha,['Monomando','Empotrada','Columna de ducha']);
+  body11 += btnOpts('mbGriLavabo','Lavabo',gri.lavabo,['Monomando','Vertical alto','Empotrada']);
+  body11 += btnOpts('mbGriAcab','Acabado',gri.acabado,['Cromo','Negro mate','Blanco','Oro','Inox']);
+  html += _medBanoBloque('gri', '🚰 Grifería', body11, { toggle: st.gri_activo, toggleKey: 'gri_activo' });
+
+  // ── Bloque 12: Mueble + espejo (toggle, botones)
+  let body12 = '';
+  body12 += `<div style="font-size:11px;color:#6B7280;margin-bottom:6px">— Mueble lavabo —</div>`;
+  body12 += grid2(
     field('mbMueAncho', 'Ancho (mm)', mueble.ancho_mm, 'number'),
     field('mbMueFondo', 'Fondo (mm)', mueble.fondo_mm, 'number')
   );
-  body11 += select('mbMuePos', 'Posición', mueble.posicion, ['Suspendido','Suelo']);
-  body11 += grid2(
+  body12 += btnOpts('mbMuePos','Posición',mueble.posicion,['Suspendido','Suelo']);
+  body12 += grid2(
     field('mbMueCajones', 'Cajones', mueble.cajones, 'number'),
     field('mbMuePuertas', 'Puertas', mueble.puertas, 'number')
   );
-  body11 += select('mbMueMat', 'Material', mueble.material, ['Lacado','Melamina','Madera']);
-  body11 += `<div style="font-size:11px;color:#6B7280;margin:10px 0 6px">— Espejo —</div>`;
-  body11 += check('mbEspActivo', 'Lleva espejo', !!it.espejo);
-  body11 += grid2(
+  body12 += btnOpts('mbMueMat','Material',mueble.material,['Lacado','Melamina','Madera']);
+  body12 += `<div style="font-size:11px;color:#6B7280;margin:10px 0 6px">— Espejo —</div>`;
+  body12 += check('mbEspActivo', 'Lleva espejo', !!it.espejo);
+  body12 += grid2(
     field('mbEspAncho', 'Ancho (mm)', espejo.ancho_mm, 'number'),
     field('mbEspAlto',  'Alto (mm)',  espejo.alto_mm,  'number')
   );
-  body11 += check('mbEspLED', 'LED integrado', espejo.led);
-  html += _medBanoBloque('mue', '🪟 Mueble lavabo + espejo', body11, { toggle: st.mueble_activo, toggleKey: 'mueble_activo' });
+  body12 += check('mbEspLED', 'LED integrado', espejo.led);
+  html += _medBanoBloque('mue', '🪟 Mueble lavabo + espejo', body12, { toggle: st.mueble_activo, toggleKey: 'mueble_activo' });
 
-  // ── Bloque 12: Accesorios — solo los típicos
-  let body12 = '';
-  body12 += chips('mbAccesorios', accesorios, ['Toallero','Portarrollos','Escobillero']);
-  html += _medBanoBloque('acc', '🪥 Accesorios', body12);
-
-  // ── Bloque 13: Instalaciones
+  // ── Bloque 13: Accesorios (toggle, chips ampliados + observaciones)
   let body13 = '';
-  body13 += grid2(
-    field('mbInsLuz', 'Puntos luz nuevos (cant.)', inst.puntos_luz, 'number'),
-    field('mbInsEnch', 'Enchufes nuevos (cant.)', inst.enchufes, 'number')
-  );
-  body13 += select('mbInsExtractor', 'Extractor (tipo)', inst.extractor_tipo, ['Sin extractor','Extractor baño','Extractor a fachada','VMC simple flujo','VMC doble flujo (MVHR)']);
-  body13 += check('mbInsBajantes', 'Modificación de bajantes', inst.modif_bajantes);
-  body13 += check('mbInsTomas',    'Modificación de tomas de agua', inst.modif_tomas_agua);
-  body13 += select('mbInsBote',    'Bote sifónico', inst.bote_sifonico, ['Mantener','Sustituir','Crear nuevo','No aplica']);
-  html += _medBanoBloque('ins', '⚡ Instalaciones', body13);
+  body13 += chips('mbAccesorios', accesorios, ['Toallero','Portarrollos','Escobillero','Perchas','Toallero bidé']);
+  body13 += `<div style="font-size:9.5px;color:var(--gris-500);margin:8px 0 3px">Observaciones de accesorios</div>
+    <textarea id="mbAccObserv" placeholder="Notas extras de accesorios…" style="width:100%;min-height:50px;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:12.5px;font-family:var(--font);box-sizing:border-box;resize:vertical">${e(it.acc_observ||'')}</textarea>`;
+  html += _medBanoBloque('acc', '🪥 Accesorios', body13, { toggle: st.acc_activo, toggleKey: 'acc_activo' });
 
   // ── Bloque 14: Observaciones
   let body14 = '';
@@ -5702,6 +5755,48 @@ function _medRenderBanoForm(it) {
   html += _medBanoBloque('obs', '📝 Observaciones', body14);
 
   return html;
+}
+
+// Helper: selección única en grupo de botones (data-singleselect)
+function _medBanoSelOpt(btn, callback) {
+  const grupo = btn.closest('[data-singleselect="1"]');
+  if (!grupo) return;
+  const valor = btn.dataset.v;
+  grupo.dataset.value = valor;
+  // Repintar todos los botones del grupo
+  grupo.querySelectorAll('button[data-v]').forEach(b => {
+    const a = b.dataset.v === valor;
+    if (b.textContent.includes('RAL')) {
+      // Es un botón de paleta de color: solo cambia el borde
+      b.style.borderWidth = a ? '2.5px' : '1.5px';
+      b.style.borderColor = a ? '#3B82F6' : '#E5E7EB';
+      b.style.fontWeight = a ? '700' : '600';
+    } else {
+      b.style.borderWidth = a ? '2px' : '1.5px';
+      b.style.borderColor = a ? '#3B82F6' : '#E5E7EB';
+      b.style.background  = a ? '#EFF6FF' : '#fff';
+      b.style.color       = a ? '#1E40AF' : 'var(--gris-700)';
+      b.style.fontWeight  = a ? '700' : '500';
+    }
+  });
+  if (callback && typeof window[callback] === 'function') window[callback](valor);
+}
+
+// Toggle sub-bloques de Instalaciones
+function _medBanoToggleSubInst(key, val) {
+  const map = { elec: 'inst_elec_activo', font: 'inst_font_activo', des: 'inst_des_activo' };
+  const stKey = map[key];
+  if (!stKey) return;
+  window._medBanoState[stKey] = val;
+  const body = document.getElementById('mbInst' + (key==='elec'?'Elec':key==='font'?'Font':'Des') + 'Body');
+  if (body) body.style.display = val ? '' : 'none';
+}
+
+// Toggle Esquineros
+function _medBanoToggleEsq(val) {
+  window._medBanoState.esquineros_activo = val;
+  const body = document.getElementById('mbEsqBody');
+  if (body) body.style.display = val ? '' : 'none';
 }
 
 function _medBanoToggleBloque(key) {
@@ -5778,6 +5873,8 @@ async function _medGuardarItemBano() {
   const c = id => document.getElementById(id)?.checked || false;
   const n = id => parseInt(v(id)) || null;
   const chips = id => Array.from(document.getElementById(id)?.querySelectorAll('.on') || []).map(b => b.dataset.v);
+  // Para selección única (botones data-singleselect): leemos data-value del contenedor
+  const single = id => document.getElementById(id)?.dataset?.value || '';
   const st = window._medBanoState;
 
   const ancho = n('mbAncho');
@@ -5795,65 +5892,65 @@ async function _medGuardarItemBano() {
     tipo_trabajo: st.tipo_trabajo || '',
     alcance_libre: v('mbAlcanceLibre'),
     demolicion: c('mbDemolicion') ? 'Sí' : 'No',
-    quitar_bide: c('mbQuitarBide'),
     pavimento: {
-      tipo: v('mbPavTipo'),
+      tipo: single('mbPavTipo'),
     },
     paredes: {
-      tipo: v('mbParTipo'),
+      tipo: single('mbParTipo'),
       observ: v('mbParObserv'),
+      esquineros_n: st.esquineros_activo ? n('mbEsqN') : null,
     },
     techo: {
-      tipo: v('mbTecTipo'),
-      iluminacion: chips('mbTecLuz'),
+      tipo: single('mbTecTipo'),
     },
     plato: !st.plato_activo ? null : {
       ancho_mm: n('mbPlatoAncho'),
       largo_mm: n('mbPlatoLargo'),
-      tipo: v('mbPlatoTipo'),
+      color: single('mbPlatoColor') || 'Blanco',
+      tipo: single('mbPlatoTipo'),
     },
     banera: !st.banera_activa ? null : {
       largo_mm: n('mbBanLargo'),
       ancho_mm: n('mbBanAncho'),
-      tipo: v('mbBanTipo'),
-      posicion: v('mbBanPos'),
+      tipo: single('mbBanTipo'),
+      posicion: single('mbBanPos'),
     },
     mampara: !st.mampara_activa ? null : {
       ancho_mm: n('mbMamAncho'),
       alto_mm: n('mbMamAlto'),
       lateral2_mm: n('mbMamLat2'),
-      tipo: v('mbMamTipo'),
-      perfileria: v('mbMamPerfil'),
+      tipo: single('mbMamTipo'),
+      perfileria: single('mbMamPerfil'),
     },
-    inodoro: v('mbInodoro'),
-    lavabo:  v('mbLavabo'),
-    bide:    v('mbBide'),
-    griferia: {
-      ducha: v('mbGriDucha'),
-      lavabo: v('mbGriLavabo'),
-      acabado: v('mbGriAcab'),
+    sanit_activo: st.sanit_activo,
+    inodoro: !st.sanit_activo ? '' : single('mbInodoro'),
+    lavabo:  !st.sanit_activo ? '' : single('mbLavabo'),
+    bide:    !st.sanit_activo ? '' : single('mbBide'),
+    griferia: !st.gri_activo ? null : {
+      ducha:   single('mbGriDucha'),
+      lavabo:  single('mbGriLavabo'),
+      acabado: single('mbGriAcab'),
     },
     mueble: !st.mueble_activo ? null : {
       ancho_mm: n('mbMueAncho'),
       fondo_mm: n('mbMueFondo'),
-      posicion: v('mbMuePos'),
+      posicion: single('mbMuePos'),
       cajones:  n('mbMueCajones'),
       puertas:  n('mbMuePuertas'),
-      material: v('mbMueMat'),
+      material: single('mbMueMat'),
     },
     espejo: !c('mbEspActivo') ? null : {
       ancho_mm: n('mbEspAncho'),
       alto_mm:  n('mbEspAlto'),
       led: c('mbEspLED'),
     },
-    accesorios: chips('mbAccesorios'),
+    accesorios: !st.acc_activo ? [] : chips('mbAccesorios'),
+    acc_observ: !st.acc_activo ? '' : v('mbAccObserv'),
     instalaciones: {
-      puntos_luz: n('mbInsLuz'),
-      enchufes: n('mbInsEnch'),
-      extractor_tipo: v('mbInsExtractor'),
-      modif_bajantes: c('mbInsBajantes'),
-      modif_tomas_agua: c('mbInsTomas'),
-      bote_sifonico: v('mbInsBote'),
+      elec_n:        st.inst_elec_activo ? n('mbInsElecN') : null,
+      iluminacion:   st.inst_elec_activo ? chips('mbTecLuz') : [],
+      font_n:        st.inst_font_activo ? n('mbInsFontN') : null,
+      des_n:         st.inst_des_activo  ? n('mbInsDesN')  : null,
     },
     observaciones: v('mbObserv'),
   };
@@ -6614,7 +6711,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 43
+        instaloERP v1.0 · build 44
       </div>
     </div>`;
 }
