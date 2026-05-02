@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 1
+      instaloERP v1.0 · build 8
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 1
+      instaloERP v1.0 · build 8
     </div>
   `;
 }
@@ -5628,7 +5628,7 @@ function _medRenderBanoForm(it) {
   </div>`;
   html += _medBanoBloque('dim', '📐 Medidas del baño', body1);
 
-  // ── Bloque 3: Instalaciones (3 sub-toggles)
+  // ── Bloque 3: Instalaciones (3 sub-toggles con chips de elementos)
   let body3 = '';
   // Eléctrica
   body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_elec_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_elec_activo?'#EFF6FF':'#fff'}">
@@ -5639,19 +5639,21 @@ function _medRenderBanoForm(it) {
     <div style="font-size:9.5px;color:var(--gris-500);margin:6px 0 4px">Iluminación</div>
     ${chips('mbTecLuz', inst.iluminacion || it.techo?.iluminacion || [], ['Downlights','Dejar las que hay','Lineal LED'])}
   </div>`;
-  // Fontanería
+  // Fontanería — chips de puntos de agua
   body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_font_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_font_activo?'#EFF6FF':'#fff'}">
     <input type="checkbox" id="mbInstFontToggle" ${st.inst_font_activo?'checked':''} onchange="_medBanoToggleSubInst('font',this.checked)" style="width:16px;height:16px"> 🚰 Instalación de fontanería
   </label>
   <div id="mbInstFontBody" style="${st.inst_font_activo?'':'display:none'};margin-bottom:8px;padding-left:8px">
-    ${field('mbInsFontN','Nº de puntos',inst.font_n,'number')}
+    <div style="font-size:9.5px;color:var(--gris-500);margin:0 0 4px">Puntos de agua a instalar</div>
+    ${chips('mbInsFontPuntos', inst.font_puntos || [], ['Inodoro','Bidé','Grifo sanitario','Lavabo monomando','Lavabo empotrado','Ducha monomando','Ducha empotrada','Bañera monomando','Bañera empotrada'])}
   </div>`;
-  // Desagües
+  // Desagües — chips
   body3 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.inst_des_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-bottom:6px;background:${st.inst_des_activo?'#EFF6FF':'#fff'}">
     <input type="checkbox" id="mbInstDesToggle" ${st.inst_des_activo?'checked':''} onchange="_medBanoToggleSubInst('des',this.checked)" style="width:16px;height:16px"> 🚿 Instalación de desagües
   </label>
   <div id="mbInstDesBody" style="${st.inst_des_activo?'':'display:none'};padding-left:8px">
-    ${field('mbInsDesN','Nº de puntos',inst.des_n,'number')}
+    <div style="font-size:9.5px;color:var(--gris-500);margin:0 0 4px">Desagües a instalar</div>
+    ${chips('mbInsDesPuntos', inst.des_puntos || [], ['Inodoro','Lavabo','Bidé','Ducha','Bañera','Bote sifónico'])}
   </div>`;
   html += _medBanoBloque('ins', '⚡ Instalaciones', body3);
 
@@ -5661,25 +5663,45 @@ function _medRenderBanoForm(it) {
   body4 += btnOpts('mbPavTipo','Tipo',pav.tipo,['Cerámico','Vinílico','Tarima']);
   html += _medBanoBloque('pav', '🟫 Pavimento', body4);
 
-  // ── Bloque 5: Paredes (botones + esquineros + aviso carpintero)
+  // ── Bloque 5: Paredes (botones + paneles SPC con medidas + esquineros + aviso carpintero)
   const par = it.paredes || {};
   let body5 = '';
   body5 += btnOpts('mbParTipo','Revestimiento',par.tipo,['Alicatado cerámico','Forrado con paneles SPC'],'_medBanoParTipoChange');
   body5 += field('mbParObserv','Notas / detalle libre',par.observ);
-  // Sub-toggle Esquineros
+  // Sub-bloque "Medidas por pared" — solo si Forrado con paneles SPC. Dinámico (añadir/quitar)
+  const showSpc = par.tipo === 'Forrado con paneles SPC';
+  // State: lista de paredes dinámica
+  if (!st.paredes_spc) st.paredes_spc = (par.paredes_spc && par.paredes_spc.length) ? par.paredes_spc.slice() : [{},{},{},{}];
+  body5 += `<div id="mbSpcWrap" style="${showSpc?'':'display:none'};margin-top:8px;background:#F0F9FF;border-radius:9px;padding:10px 12px">
+    <div style="font-size:11px;color:#0C4A6E;font-weight:700;margin-bottom:6px">📏 Paños SPC — panel 1175 mm de ancho</div>
+    <div id="mbSpcLista">${_medBanoRenderSpcLista()}</div>
+    <button type="button" onclick="_medBanoAddPared()" style="width:100%;padding:7px;background:#fff;color:#3B82F6;border:1.5px dashed #3B82F6;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;margin-top:4px">+ Añadir paño</button>
+    <div style="border-top:1px dashed #93C5FD;padding-top:8px;margin-top:8px">
+      <div style="font-size:10px;color:#0C4A6E;font-weight:700;margin-bottom:4px;text-transform:uppercase">Estrategia de corte</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px">
+        <button type="button" id="mbSpcEstAprov" onclick="_medBanoSpcEstrategia('aprovechar')" style="flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:${(st.spc_estrategia||'aprovechar')==='aprovechar'?'700':'500'};border:${(st.spc_estrategia||'aprovechar')==='aprovechar'?'2px':'1.5px'} solid ${(st.spc_estrategia||'aprovechar')==='aprovechar'?'#0C4A6E':'#93C5FD'};background:${(st.spc_estrategia||'aprovechar')==='aprovechar'?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer;line-height:1.2">Menos paneles<br><span style="font-size:9px;font-weight:400">aprovecha sobrantes</span></button>
+        <button type="button" id="mbSpcEstEst" onclick="_medBanoSpcEstrategia('esteticas')" style="flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:${st.spc_estrategia==='esteticas'?'700':'500'};border:${st.spc_estrategia==='esteticas'?'2px':'1.5px'} solid ${st.spc_estrategia==='esteticas'?'#0C4A6E':'#93C5FD'};background:${st.spc_estrategia==='esteticas'?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer;line-height:1.2">Menos uniones<br><span style="font-size:9px;font-weight:400">paneles enteros</span></button>
+      </div>
+    </div>
+    <div id="mbSpcDetalle" style="border-top:1px dashed #93C5FD;padding-top:6px;margin-top:6px;font-size:11.5px;color:#0C4A6E;line-height:1.6">—</div>
+    <div style="font-size:12px;color:#0C4A6E;margin-top:4px;font-weight:700">Total paneles: <span id="mbSpcPaneles">—</span></div>
+    <span id="mbSpcTotal" style="display:none"></span>
+  </div>`;
+  // Sub-toggle Esquineros con color
   body5 += `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid ${st.esquineros_activo?'#3B82F6':'var(--gris-200)'};border-radius:9px;font-size:12.5px;cursor:pointer;margin-top:6px;background:${st.esquineros_activo?'#EFF6FF':'#fff'}">
     <input type="checkbox" id="mbEsqToggle" ${st.esquineros_activo?'checked':''} onchange="_medBanoToggleEsq(this.checked)" style="width:16px;height:16px"> 🟦 Esquineros
   </label>
   <div id="mbEsqBody" style="${st.esquineros_activo?'':'display:none'};margin-top:6px;padding-left:8px">
     ${field('mbEsqN','Nº de esquineros',par.esquineros_n,'number')}
+    ${btnOpts('mbEsqColor','Color',par.esquineros_color,['Plata','Blanco','Negro'])}
   </div>`;
   html += _medBanoBloque('par', '🧱 Paredes / revestimiento', body5);
 
-  // ── Bloque 6: Techo — botones (Mantener/Sustituir/Instalar) + check Pintar
+  // ── Bloque 6: Techo — botones (Mantener/Sustituir/Instalar) + Pintar (botones Sí/No)
   const tec = it.techo || {};
   let body6 = '';
   body6 += btnOpts('mbTecTipo','Tipo',tec.tipo,['Mantener','Sustituir','Instalar']);
-  body6 += check('mbTecPintar', 'Pintar', tec.pintar);
+  body6 += btnOpts('mbTecPintar','Pintar', tec.pintar === true ? 'Sí' : (tec.pintar === false ? 'No' : ''), ['Sí','No']);
   html += _medBanoBloque('tec', '☀️ Techo', body6);
 
   // ── Bloque 7: Plato (toggle, botones, paleta solo si Carga mineral)
@@ -5706,7 +5728,7 @@ function _medRenderBanoForm(it) {
   );
   body8 += btnOpts('mbBanTipo','Tipo',banera.tipo,['Acrílica','Chapa','Solid surface']);
   body8 += btnOpts('mbBanPos','Posición',banera.posicion,['1 pared','En esquina','Entre 3 paredes']);
-  body8 += check('mbBanHidro','Hidromasaje',banera.hidromasaje);
+  body8 += btnOpts('mbBanHidro','Hidromasaje', banera.hidromasaje === true ? 'Sí' : (banera.hidromasaje === false ? 'No' : ''),['Sí','No']);
   html += _medBanoBloque('ban', '🛁 Bañera', body8, { toggle: st.banera_activa, toggleKey: 'banera_activa' });
 
   // ── Bloque 9: Mampara (cascada: uso → posición → configs)
@@ -5746,9 +5768,17 @@ function _medRenderBanoForm(it) {
 
   // ── Bloque 10: Sanitarios (toggle, botones)
   let body10 = '';
-  body10 += btnOpts('mbInodoro','Inodoro',it.inodoro,['Suspendido (cisterna empotrada)','Compacto','Mantener']);
+  body10 += btnOpts('mbInodoro','Inodoro',it.inodoro,['Suspendido (cisterna empotrada)','Suelo','Mantener'],'_medBanoInodoroChange');
+  // Sub-opciones inodoro Suelo
+  const showInoSuelo = it.inodoro === 'Suelo';
+  body10 += `<div id="mbInoSueloWrap" style="${showInoSuelo?'':'display:none'};background:#F9FAFB;border-radius:8px;padding:8px 10px;margin-top:-2px;margin-bottom:8px">
+    <div style="font-size:10px;color:#6B7280;font-weight:700;text-transform:uppercase;margin-bottom:5px">Detalles inodoro suelo</div>
+    ${btnOpts('mbInoSueloTipo','Tipo',it.inodoro_tipo,['Adosado a pared','Normal'])}
+    ${btnOpts('mbInoSalida','Salida',it.inodoro_salida,['Vertical','Horizontal'])}
+    ${btnOpts('mbInoAlim','Alimentación',it.inodoro_alimentacion,['Lateral','Inferior'])}
+  </div>`;
   body10 += btnOpts('mbLavabo','Lavabo',it.lavabo,['Sobre encimera','Pedestal','Suspendido','Mantener','Quitar']);
-  body10 += btnOpts('mbBide','Bidé',it.bide,['Suspendido (mecanismo empotrado)','Compacto','Mantener','Quitar']);
+  body10 += btnOpts('mbBide','Bidé',it.bide,['Suspendido (mecanismo empotrado)','Suelo','Mantener','Quitar']);
   html += _medBanoBloque('san', '🚽 Sanitarios', body10, { toggle: st.sanit_activo, toggleKey: 'sanit_activo' });
 
   // ── Bloque 11: Grifería (toggle, botones)
@@ -5953,14 +5983,171 @@ function _medBanoMueAperturaChange(tipo) {
   if (wrap) wrap.style.display = tipo ? '' : 'none';
 }
 
-// Paredes: al elegir Alicatado o Forrado SPC, mostrar aviso carpintero
+// Inodoro: al elegir Suelo, mostrar sub-opciones (tipo, salida, alimentación)
+function _medBanoInodoroChange(tipo) {
+  const wrap = document.getElementById('mbInoSueloWrap');
+  if (wrap) wrap.style.display = (tipo === 'Suelo') ? '' : 'none';
+}
+
+// Paredes: al elegir tipo, mostrar/ocultar sub-bloque SPC + aviso carpintero
 function _medBanoParTipoChange(tipo) {
   const st = window._medBanoState;
-  if (!st || st.aviso_carpintero_visto) return;
-  if (tipo === 'Alicatado cerámico' || tipo === 'Forrado con paneles SPC') {
+  // Mostrar/ocultar bloque SPC
+  const spcWrap = document.getElementById('mbSpcWrap');
+  if (spcWrap) spcWrap.style.display = (tipo === 'Forrado con paneles SPC') ? '' : 'none';
+  // Aviso carpintero (solo una vez)
+  if (st && !st.aviso_carpintero_visto && (tipo === 'Alicatado cerámico' || tipo === 'Forrado con paneles SPC')) {
     _medBanoAvisoCarpintero();
     st.aviso_carpintero_visto = true;
   }
+}
+
+// Render lista de paños SPC dinámica (con color)
+function _medBanoRenderSpcLista() {
+  const st = window._medBanoState;
+  const paredes = st.paredes_spc || [];
+  const escapeHtml = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  return paredes.map((p, i) => `
+    <div style="background:#fff;border-radius:7px;padding:6px;margin-bottom:5px">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+        <div style="font-size:11px;color:#374151;font-weight:700;flex:1">Paño ${i+1}</div>
+        <button type="button" onclick="_medBanoRemPared(${i})" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:5px;font-size:12px;cursor:pointer" title="Quitar paño">✕</button>
+      </div>
+      <div style="margin-bottom:4px">
+        <div style="font-size:9px;color:#6B7280">Ancho (cm)</div>
+        <input type="number" oninput="_medBanoSpcInput(${i},'ancho',this.value);_medBanoCalcSpc()" value="${p.ancho||''}" style="width:100%;padding:6px;border:1.5px solid var(--gris-200);border-radius:5px;font-size:13px;font-weight:700;text-align:center;box-sizing:border-box">
+      </div>
+      <div><div style="font-size:9px;color:#6B7280">Acabado</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${['Acabado 1','Acabado 2','Acabado 3','Acabado 4','Acabado 5'].map(c => {
+            const a = p.color === c;
+            return `<button type="button" onclick="_medBanoSpcInput(${i},'color','${c}');_medBanoCalcSpc();_medBanoRefreshSpc()" style="padding:5px 9px;border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};cursor:pointer">${c}</button>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+function _medBanoSpcInput(i, campo, val) {
+  if (!window._medBanoState.paredes_spc[i]) window._medBanoState.paredes_spc[i] = {};
+  window._medBanoState.paredes_spc[i][campo] = (campo === 'color') ? val : (parseFloat(val) || 0);
+}
+function _medBanoAddPared() {
+  window._medBanoState.paredes_spc.push({});
+  document.getElementById('mbSpcLista').innerHTML = _medBanoRenderSpcLista();
+  _medBanoCalcSpc();
+}
+function _medBanoRemPared(i) {
+  window._medBanoState.paredes_spc.splice(i, 1);
+  document.getElementById('mbSpcLista').innerHTML = _medBanoRenderSpcLista();
+  _medBanoCalcSpc();
+}
+// Re-render lista (para reflejar selección de acabado)
+function _medBanoRefreshSpc() {
+  document.getElementById('mbSpcLista').innerHTML = _medBanoRenderSpcLista();
+}
+// Cambiar estrategia y recalcular
+function _medBanoSpcEstrategia(modo) {
+  if (!window._medBanoState) return;
+  window._medBanoState.spc_estrategia = modo;
+  // Repintar botones
+  const a = document.getElementById('mbSpcEstAprov');
+  const b = document.getElementById('mbSpcEstEst');
+  if (a && b) {
+    const isAprov = modo === 'aprovechar';
+    a.style.borderWidth = isAprov ? '2px' : '1.5px';
+    a.style.borderColor = isAprov ? '#0C4A6E' : '#93C5FD';
+    a.style.background  = isAprov ? '#DBEAFE' : '#fff';
+    a.style.fontWeight  = isAprov ? '700' : '500';
+    b.style.borderWidth = !isAprov ? '2px' : '1.5px';
+    b.style.borderColor = !isAprov ? '#0C4A6E' : '#93C5FD';
+    b.style.background  = !isAprov ? '#DBEAFE' : '#fff';
+    b.style.fontWeight  = !isAprov ? '700' : '500';
+  }
+  _medBanoCalcSpc();
+}
+
+// Cálculo de paneles SPC con dos estrategias:
+//   'aprovechar': minimiza paneles usando sobrantes al inicio del paño (más uniones)
+//   'esteticas':  minimiza uniones — sobrantes solo cubren paño completo, sin combinarlos
+function _medBanoCalcSpc() {
+  const PANEL_CM = 117.5;
+  const st = window._medBanoState;
+  const modo = (st && st.spc_estrategia) || 'aprovechar';
+  const paredes = st?.paredes_spc || [];
+  const porColor = {};
+  paredes.forEach(p => {
+    const a = parseFloat(p.ancho) || 0;
+    if (!a) return;
+    const c = (p.color || 'Sin acabado').trim() || 'Sin acabado';
+    if (!porColor[c]) porColor[c] = [];
+    porColor[c].push(a);
+  });
+
+  let totalPaneles = 0;
+  let detalle = '';
+  for (const color in porColor) {
+    const paños = porColor[color].slice().sort((x,y) => x - y);
+    const totalAncho = paños.reduce((s,x) => s+x, 0);
+    let paneles = 0;
+    const sobrantes = [];
+
+    const calcCoste = (aEff) => {
+      if (aEff <= 0.01) return { paneles: 0, nuevoSob: 0 };
+      const enteros = Math.floor(aEff / PANEL_CM);
+      const resto = +(aEff - enteros * PANEL_CM).toFixed(2);
+      if (resto < 0.01) return { paneles: enteros, nuevoSob: 0 };
+      return { paneles: enteros + 1, nuevoSob: +(PANEL_CM - resto).toFixed(2) };
+    };
+
+    paños.forEach(ancho => {
+      if (modo === 'esteticas') {
+        // Solo permitir sobrante que cubra COMPLETO el paño (best-fit)
+        let bestIdx = -1, bestSize = Infinity;
+        for (let i = 0; i < sobrantes.length; i++) {
+          if (sobrantes[i] >= ancho && sobrantes[i] < bestSize) {
+            bestIdx = i; bestSize = sobrantes[i];
+          }
+        }
+        if (bestIdx >= 0) {
+          sobrantes.splice(bestIdx, 1);
+          return;
+        }
+        // Si no, paneles enteros + recorte final (solo 1 unión visible máximo)
+        const c = calcCoste(ancho);
+        paneles += c.paneles;
+        if (c.nuevoSob > 0.01) sobrantes.push(c.nuevoSob);
+      } else {
+        // Modo aprovechamiento: sobrante al inicio + paneles enteros + recorte final
+        const opciones = [];
+        const c0 = calcCoste(ancho);
+        opciones.push({ ...c0, idx: -1 });
+        for (let i = 0; i < sobrantes.length; i++) {
+          const S = sobrantes[i];
+          const aEff = +(ancho - S).toFixed(2);
+          const c = calcCoste(aEff);
+          opciones.push({ ...c, idx: i });
+        }
+        opciones.sort((a,b) => a.paneles - b.paneles || b.nuevoSob - a.nuevoSob);
+        const mejor = opciones[0];
+        paneles += mejor.paneles;
+        if (mejor.idx >= 0) sobrantes.splice(mejor.idx, 1);
+        if (mejor.nuevoSob > 0.01) sobrantes.push(mejor.nuevoSob);
+      }
+    });
+
+    totalPaneles += paneles;
+    const sobMostrar = sobrantes.length ? ` (sobra: ${sobrantes.map(x => x+'cm').join(', ')})` : '';
+    detalle += `<div style="display:flex;justify-content:space-between;align-items:flex-start"><span>· <strong>${color}</strong>: ${totalAncho} cm<span style="font-size:10px;color:#6B7280;display:block">${sobMostrar}</span></span><span><strong>${paneles}</strong> panel${paneles>1?'es':''}</span></div>`;
+  }
+
+  if (!detalle) detalle = '<div style="color:#6B7280;font-style:italic">Añade paños para calcular…</div>';
+  const out  = document.getElementById('mbSpcDetalle');
+  const out2 = document.getElementById('mbSpcTotal');
+  const out3 = document.getElementById('mbSpcPaneles');
+  if (out)  out.innerHTML = detalle;
+  if (out2) out2.style.display = 'none';
+  if (out3) out3.textContent = totalPaneles ? totalPaneles : '—';
 }
 
 // Modal de aviso superpuesto
@@ -6018,11 +6205,13 @@ async function _medGuardarItemBano() {
     paredes: {
       tipo: single('mbParTipo'),
       observ: v('mbParObserv'),
+      paredes_spc: (single('mbParTipo') === 'Forrado con paneles SPC') ? (st.paredes_spc || []).filter(p => p.ancho || p.alto) : null,
       esquineros_n: st.esquineros_activo ? n('mbEsqN') : null,
+      esquineros_color: st.esquineros_activo ? single('mbEsqColor') : null,
     },
     techo: {
       tipo: single('mbTecTipo'),
-      pintar: c('mbTecPintar'),
+      pintar: single('mbTecPintar') === 'Sí' ? true : (single('mbTecPintar') === 'No' ? false : null),
     },
     plato: !st.plato_activo ? null : {
       ancho_cm: dPlatoA.cm, ancho_mm: dPlatoA.mm,
@@ -6035,7 +6224,7 @@ async function _medGuardarItemBano() {
       ancho_cm: dBanA.cm, ancho_mm: dBanA.mm,
       tipo: single('mbBanTipo'),
       posicion: single('mbBanPos'),
-      hidromasaje: c('mbBanHidro'),
+      hidromasaje: single('mbBanHidro') === 'Sí' ? true : (single('mbBanHidro') === 'No' ? false : null),
     },
     mampara: !st.mampara_activa ? null : {
       uso: single('mbMamUso'),
@@ -6050,9 +6239,12 @@ async function _medGuardarItemBano() {
       perfileria:    single('mbMamPerfil'),
     },
     sanit_activo: st.sanit_activo,
-    inodoro: !st.sanit_activo ? '' : single('mbInodoro'),
-    lavabo:  !st.sanit_activo ? '' : single('mbLavabo'),
-    bide:    !st.sanit_activo ? '' : single('mbBide'),
+    inodoro:               !st.sanit_activo ? '' : single('mbInodoro'),
+    inodoro_tipo:          (!st.sanit_activo || single('mbInodoro') !== 'Suelo') ? null : single('mbInoSueloTipo'),
+    inodoro_salida:        (!st.sanit_activo || single('mbInodoro') !== 'Suelo') ? null : single('mbInoSalida'),
+    inodoro_alimentacion:  (!st.sanit_activo || single('mbInodoro') !== 'Suelo') ? null : single('mbInoAlim'),
+    lavabo: !st.sanit_activo ? '' : single('mbLavabo'),
+    bide:   !st.sanit_activo ? '' : single('mbBide'),
     griferia: !st.gri_activo ? null : {
       ducha:   single('mbGriDucha'),
       lavabo:  single('mbGriLavabo'),
@@ -6076,8 +6268,8 @@ async function _medGuardarItemBano() {
     instalaciones: {
       elec_n:        st.inst_elec_activo ? n('mbInsElecN') : null,
       iluminacion:   st.inst_elec_activo ? chips('mbTecLuz') : [],
-      font_n:        st.inst_font_activo ? n('mbInsFontN') : null,
-      des_n:         st.inst_des_activo  ? n('mbInsDesN')  : null,
+      font_puntos:   st.inst_font_activo ? chips('mbInsFontPuntos') : [],
+      des_puntos:    st.inst_des_activo  ? chips('mbInsDesPuntos')  : [],
     },
     observaciones: v('mbObserv'),
   };
@@ -6838,7 +7030,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 1
+        instaloERP v1.0 · build 8
       </div>
     </div>`;
 }
