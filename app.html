@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 15
+      instaloERP v1.0 · build 16
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 15
+      instaloERP v1.0 · build 16
     </div>
   `;
 }
@@ -4999,9 +4999,33 @@ function _medAddItem() {
 function _medEditItem(i) {
   _medItemEditIdx = i;
   const it = (_medActual.items || [])[i] || {};
+  // Si es baño validado y NO está archivado (es decir, lo abres desde la lista activa)
+  // → preguntar directamente si modificar (crear v2) o solo ver
+  if (_medActual?.tipo === 'bano' && it.validado && !it.archivado) {
+    return _medPreguntarModificarBano(i, it);
+  }
   if (_medActual?.tipo === 'ventanas') return _medAbrirModalVentana(it);
   if (_medActual?.tipo === 'bano')     return _medAbrirModalBano(it);
   _medAbrirModalItem(it);
+}
+
+// Modal de elección al pulsar un baño validado
+function _medPreguntarModificarBano(idx, it) {
+  const ov = document.createElement('div');
+  ov.id = '_medChoiceModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:340px;width:100%;padding:20px">
+      <div style="text-align:center;font-size:32px;margin-bottom:6px">🔒</div>
+      <div style="font-weight:700;font-size:15px;color:#065F46;text-align:center;margin-bottom:6px">Baño validado v${it.version||1}</div>
+      <div style="font-size:12.5px;color:#374151;text-align:center;margin-bottom:14px;line-height:1.5">Esta medición está bloqueada. ¿Qué quieres hacer?</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <button onclick="document.getElementById('_medChoiceModal').remove();_medCrearCopiaBano(${idx})" class="tap" style="padding:11px;background:#3B82F6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13.5px">📋 Modificar (crear v${(it.version||1)+1})</button>
+        <button onclick="document.getElementById('_medChoiceModal').remove();_medAbrirModalBano(_medActual.items[${idx}])" class="tap" style="padding:11px;background:#fff;border:1.5px solid var(--gris-300);color:var(--gris-700);border-radius:9px;font-weight:700;font-size:13px">👁 Solo ver detalle</button>
+        <button onclick="document.getElementById('_medChoiceModal').remove()" class="tap" style="padding:9px;background:none;border:none;color:var(--gris-500);font-size:12px">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -7257,7 +7281,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 15
+        instaloERP v1.0 · build 16
       </div>
     </div>`;
 }
