@@ -167,7 +167,7 @@ function renderMedicionDetalleERP() {
               <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gris-100)">
                 <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${i+1}</div>
                 <div style="flex:1;font-size:12.5px;line-height:1.5">
-                  ${m.tipo === 'bano' ? _medErpDetalleBano(it) : _medErpDescItem(m.tipo, it)}
+                  ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : _medErpDescItem(m.tipo, it)}
                 </div>
               </div>
             `).join('')}
@@ -301,11 +301,84 @@ function _medErpEsc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
+// Función PURA: replica _medBanoCalcPanelesSpc de la PWA para usar en el ERP
+function _medErpCalcPanelesSpc(paredes, modo) {
+  const PANEL_CM = 117.5;
+  modo = modo || 'aprovechar';
+  const porColor = {};
+  paredes.forEach(p => {
+    const a = parseFloat(p.ancho) || 0;
+    if (!a) return;
+    const c = (p.color || 'Sin acabado').trim() || 'Sin acabado';
+    if (!porColor[c]) porColor[c] = { paños: [], ancho_total: 0 };
+    porColor[c].paños.push(a);
+    porColor[c].ancho_total += a;
+  });
+  let total = 0;
+  const calcCoste = (aEff) => {
+    if (aEff <= 0.01) return { paneles: 0, nuevoSob: 0 };
+    const enteros = Math.floor(aEff / PANEL_CM);
+    const resto = +(aEff - enteros * PANEL_CM).toFixed(2);
+    if (resto < 0.01) return { paneles: enteros, nuevoSob: 0 };
+    return { paneles: enteros + 1, nuevoSob: +(PANEL_CM - resto).toFixed(2) };
+  };
+  for (const color in porColor) {
+    const paños = porColor[color].paños;
+    let paneles = 0;
+    const sobrantes = [];
+    paños.forEach(ancho => {
+      if (modo === 'esteticas') {
+        let bestIdx = -1, bestSize = Infinity;
+        for (let i = 0; i < sobrantes.length; i++) {
+          if (sobrantes[i] >= ancho && sobrantes[i] < bestSize) { bestIdx = i; bestSize = sobrantes[i]; }
+        }
+        if (bestIdx >= 0) { sobrantes.splice(bestIdx, 1); return; }
+        const c = calcCoste(ancho);
+        paneles += c.paneles;
+        if (c.nuevoSob > 0.01) sobrantes.push(c.nuevoSob);
+      } else {
+        const opciones = [{ ...calcCoste(ancho), idx: -1 }];
+        for (let i = 0; i < sobrantes.length; i++) {
+          opciones.push({ ...calcCoste(+(ancho - sobrantes[i]).toFixed(2)), idx: i });
+        }
+        opciones.sort((a,b) => a.paneles - b.paneles || b.nuevoSob - a.nuevoSob);
+        const m = opciones[0];
+        paneles += m.paneles;
+        if (m.idx >= 0) sobrantes.splice(m.idx, 1);
+        if (m.nuevoSob > 0.01) sobrantes.push(m.nuevoSob);
+      }
+    });
+    porColor[color].paneles = paneles;
+    porColor[color].sobrantes = sobrantes;
+    total += paneles;
+  }
+  return { porColor, total, estrategia: modo };
+}
+
+// Cambiar estrategia desde el detalle ERP (interactivo)
+function _medErpCambiarEstrategiaSpc(itemId, modo) {
+  // Buscar item por id
+  const m = _medErpActual;
+  if (!m) return;
+  const item = (m.items || []).find(it => it._uid === itemId);
+  if (!item || !item.paredes || !item.paredes.paredes_spc) return;
+  // Recalcular
+  const calc = _medErpCalcPanelesSpc(item.paredes.paredes_spc, modo);
+  item.paredes.spc_calc = calc;
+  item.paredes.spc_estrategia = modo;
+  // Re-renderizar el detalle
+  renderMedicionDetalleERP();
+}
+
 // ════════════════════════════════════════════════════════════════
 // DETALLE COMPLETO DE UN BAÑO — todos los bloques (modelo nuevo)
+// interactivo=true → muestra botones de estrategia (vista web ERP)
+// interactivo=false → vista estática (PDF)
 // ════════════════════════════════════════════════════════════════
-function _medErpDetalleBano(it) {
+function _medErpDetalleBano(it, interactivo) {
   const e = _medErpEsc;
+  // Asignar id único al item para callbacks (solo en interactivo)
+  if (interactivo && !it._uid) it._uid = 'b' + Math.random().toString(36).slice(2, 9);
   const linea = (icon, titulo, valor) =>
     valor ? `<div style="display:flex;gap:6px;padding:3px 0"><span style="width:18px;flex-shrink:0">${icon}</span><span style="font-weight:600;color:#374151;min-width:100px">${titulo}</span><span style="color:#111827;flex:1">${valor}</span></div>` : '';
   const join = arr => arr.filter(Boolean).join(' · ');
@@ -362,13 +435,25 @@ function _medErpDetalleBano(it) {
     html += linea('🟫', 'Pavimento', e(it.pavimento.tipo));
   }
 
-  // Paredes (incluye paneles SPC + esquineros)
+  // Paredes (incluye paneles SPC con cálculo + esquineros)
   if (it.paredes) {
     const pa = it.paredes;
     let val = e(pa.tipo || '');
     if (pa.observ) val += (val ? ' · ' : '') + e(pa.observ);
-    // Paneles SPC: agrupar paños por acabado
-    if (Array.isArray(pa.paredes_spc) && pa.paredes_spc.length) {
+    // Paneles SPC: mostrar el cálculo guardado (paneles + sobrantes por acabado)
+    if (pa.spc_calc && pa.spc_calc.porColor) {
+      const filas = Object.entries(pa.spc_calc.porColor).map(([color, d]) => {
+        const sob = (d.sobrantes && d.sobrantes.length) ? ` <span style="color:#92400E">(sobra ${d.sobrantes.map(s=>s+'cm').join(', ')})</span>` : '';
+        return `<div style="font-size:10.5px;color:#0C4A6E"> ↳ <strong>${e(color)}</strong>: ${d.ancho_total} cm → <strong>${d.paneles}</strong> panel${d.paneles>1?'es':''}${sob}</div>`;
+      }).join('');
+      if (filas) val += `<br>${filas}<div style="font-size:10.5px;color:#0C4A6E;font-weight:700;margin-top:1px"> ↳ Total paneles: ${pa.spc_calc.total} (estrategia: ${pa.spc_calc.estrategia==='esteticas'?'menos uniones':'menos paneles'})</div>`;
+      // Botones de estrategia (solo en vista web interactiva)
+      if (interactivo) {
+        const isAprov = pa.spc_calc.estrategia !== 'esteticas';
+        val += `<div style="margin-top:6px;display:flex;gap:5px"><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','aprovechar')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${isAprov?'700':'500'};border:${isAprov?'2px':'1px'} solid ${isAprov?'#0C4A6E':'#93C5FD'};background:${isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos paneles</button><button type="button" onclick="event.stopPropagation();_medErpCambiarEstrategiaSpc('${it._uid}','esteticas')" style="flex:1;padding:5px;border-radius:6px;font-size:10.5px;font-weight:${!isAprov?'700':'500'};border:${!isAprov?'2px':'1px'} solid ${!isAprov?'#0C4A6E':'#93C5FD'};background:${!isAprov?'#DBEAFE':'#fff'};color:#0C4A6E;cursor:pointer">Menos uniones</button></div>`;
+      }
+    } else if (Array.isArray(pa.paredes_spc) && pa.paredes_spc.length) {
+      // Fallback: items antiguos sin spc_calc
       const porColor = {};
       pa.paredes_spc.forEach(p => {
         const w = parseFloat(p.ancho) || 0;

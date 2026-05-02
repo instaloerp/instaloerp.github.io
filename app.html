@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 9
+      instaloERP v1.0 · build 10
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 9
+      instaloERP v1.0 · build 10
     </div>
   `;
 }
@@ -6046,6 +6046,61 @@ function _medBanoRemPared(i) {
 function _medBanoRefreshSpc() {
   document.getElementById('mbSpcLista').innerHTML = _medBanoRenderSpcLista();
 }
+// Función PURA reutilizable: calcula paneles SPC por acabado.
+// Devuelve { porColor: { 'Acabado X': {ancho_total, paneles, sobrantes:[]} }, total: N }
+function _medBanoCalcPanelesSpc(paredes, modo) {
+  const PANEL_CM = 117.5;
+  modo = modo || 'aprovechar';
+  const porColor = {};
+  paredes.forEach(p => {
+    const a = parseFloat(p.ancho) || 0;
+    if (!a) return;
+    const c = (p.color || 'Sin acabado').trim() || 'Sin acabado';
+    if (!porColor[c]) porColor[c] = { paños: [], ancho_total: 0 };
+    porColor[c].paños.push(a);
+    porColor[c].ancho_total += a;
+  });
+  let total = 0;
+  const calcCoste = (aEff) => {
+    if (aEff <= 0.01) return { paneles: 0, nuevoSob: 0 };
+    const enteros = Math.floor(aEff / PANEL_CM);
+    const resto = +(aEff - enteros * PANEL_CM).toFixed(2);
+    if (resto < 0.01) return { paneles: enteros, nuevoSob: 0 };
+    return { paneles: enteros + 1, nuevoSob: +(PANEL_CM - resto).toFixed(2) };
+  };
+  for (const color in porColor) {
+    const paños = porColor[color].paños; // orden de entrada
+    let paneles = 0;
+    const sobrantes = [];
+    paños.forEach(ancho => {
+      if (modo === 'esteticas') {
+        let bestIdx = -1, bestSize = Infinity;
+        for (let i = 0; i < sobrantes.length; i++) {
+          if (sobrantes[i] >= ancho && sobrantes[i] < bestSize) { bestIdx = i; bestSize = sobrantes[i]; }
+        }
+        if (bestIdx >= 0) { sobrantes.splice(bestIdx, 1); return; }
+        const c = calcCoste(ancho);
+        paneles += c.paneles;
+        if (c.nuevoSob > 0.01) sobrantes.push(c.nuevoSob);
+      } else {
+        const opciones = [{ ...calcCoste(ancho), idx: -1 }];
+        for (let i = 0; i < sobrantes.length; i++) {
+          opciones.push({ ...calcCoste(+(ancho - sobrantes[i]).toFixed(2)), idx: i });
+        }
+        opciones.sort((a,b) => a.paneles - b.paneles || b.nuevoSob - a.nuevoSob);
+        const m = opciones[0];
+        paneles += m.paneles;
+        if (m.idx >= 0) sobrantes.splice(m.idx, 1);
+        if (m.nuevoSob > 0.01) sobrantes.push(m.nuevoSob);
+      }
+    });
+    porColor[color].paneles = paneles;
+    porColor[color].sobrantes = sobrantes;
+    total += paneles;
+  }
+  return { porColor, total, estrategia: modo };
+}
+
 // Cambiar estrategia y recalcular
 function _medBanoSpcEstrategia(modo) {
   if (!window._medBanoState) return;
@@ -6203,13 +6258,21 @@ async function _medGuardarItemBano() {
     pavimento: {
       tipo: single('mbPavTipo'),
     },
-    paredes: {
-      tipo: single('mbParTipo'),
-      observ: v('mbParObserv'),
-      paredes_spc: (single('mbParTipo') === 'Forrado con paneles SPC') ? (st.paredes_spc || []).filter(p => p.ancho || p.alto) : null,
-      esquineros_n: st.esquineros_activo ? n('mbEsqN') : null,
-      esquineros_color: st.esquineros_activo ? single('mbEsqColor') : null,
-    },
+    paredes: (function(){
+      const tipo = single('mbParTipo');
+      const esSpc = tipo === 'Forrado con paneles SPC';
+      const paredesSpc = esSpc ? (st.paredes_spc || []).filter(p => p.ancho) : null;
+      const calcSpc = esSpc && paredesSpc?.length ? _medBanoCalcPanelesSpc(paredesSpc, st.spc_estrategia || 'aprovechar') : null;
+      return {
+        tipo,
+        observ: v('mbParObserv'),
+        paredes_spc: paredesSpc,
+        spc_estrategia: esSpc ? (st.spc_estrategia || 'aprovechar') : null,
+        spc_calc: calcSpc,  // {porColor:{...}, total, estrategia}
+        esquineros_n: st.esquineros_activo ? n('mbEsqN') : null,
+        esquineros_color: st.esquineros_activo ? single('mbEsqColor') : null,
+      };
+    })(),
     techo: {
       tipo: single('mbTecTipo'),
       pintar: single('mbTecPintar') === 'Sí' ? true : (single('mbTecPintar') === 'No' ? false : null),
@@ -7031,7 +7094,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 9
+        instaloERP v1.0 · build 10
       </div>
     </div>`;
 }
