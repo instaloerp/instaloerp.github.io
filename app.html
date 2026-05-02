@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 45
+      instaloERP v1.0 · build 46
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 45
+      instaloERP v1.0 · build 46
     </div>
   `;
 }
@@ -5724,8 +5724,9 @@ function _medRenderBanoForm(it) {
   body9 += `<div style="font-size:11px;color:#6B7280;margin:8px 0 4px"><strong>Frente</strong></div>`;
   body9 += grid2(
     field('mbMamAncho', 'Ancho frente (cm)', mamAnchoCm, 'number'),
-    field('mbMamAlto',  'Alto (cm)',         mamAltoCm,  'number')
+    field('mbMamAlto',  'Alto (cm) — vacío = estándar', mamAltoCm,  'number')
   );
+  body9 += `<div id="mbMamAltoTxt" style="font-size:10.5px;color:${mamAltoCm?'#92400E':'#065F46'};margin:-4px 0 8px;font-weight:600">${mamAltoCm?'⚠ A medida':'✓ Altura estándar'}</div>`;
   body9 += btnOpts('mbMamFrente','Configuración frente',mampara.config_frente,
     ['Fijo','1 fijo + 1 corredera','2 fijos laterales + 2 correderas','2 puertas correderas','3 puertas correderas','1 abatible','1 fijo + 1 abatible']);
   // Lateral 1 (esquina o U)
@@ -5746,7 +5747,7 @@ function _medRenderBanoForm(it) {
   // ── Bloque 10: Sanitarios (toggle, botones)
   let body10 = '';
   body10 += btnOpts('mbInodoro','Inodoro',it.inodoro,['Suspendido (cisterna empotrada)','Compacto','Mantener']);
-  body10 += btnOpts('mbLavabo','Lavabo',it.lavabo,['Sobre encimera','Mueble baño (integrado)','Pedestal','Suspendido','Mantener','Quitar']);
+  body10 += btnOpts('mbLavabo','Lavabo',it.lavabo,['Sobre encimera','Pedestal','Suspendido','Mantener','Quitar']);
   body10 += btnOpts('mbBide','Bidé',it.bide,['Suspendido (mecanismo empotrado)','Compacto','Mantener','Quitar']);
   html += _medBanoBloque('san', '🚽 Sanitarios', body10, { toggle: st.sanit_activo, toggleKey: 'sanit_activo' });
 
@@ -5771,7 +5772,7 @@ function _medRenderBanoForm(it) {
   // Cajones o puertas (selección única) → al activarse aparece Nº
   body12 += btnOpts('mbMueAperturaTipo','Apertura',mueble.apertura_tipo,['Cajones','Puertas'],'_medBanoMueAperturaChange');
   body12 += `<div id="mbMueNumWrap" style="${(mueble.apertura_tipo)?'':'display:none'}">${field('mbMueNum', 'Nº', mueble.apertura_n, 'number')}</div>`;
-  body12 += btnOpts('mbMueMat','Material',mueble.material,['Lacado','Melamina','Madera']);
+  body12 += btnOpts('mbMueGama','Gama',mueble.gama,['Baja','Media','Alta']);
   body12 += `<div style="font-size:11px;color:#6B7280;margin:10px 0 6px">— Espejo —</div>`;
   body12 += check('mbEspActivo', 'Lleva espejo', !!it.espejo);
   const espAnchoCm = espejo.ancho_cm != null ? espejo.ancho_cm : (espejo.ancho_mm ? Math.round(espejo.ancho_mm/10) : '');
@@ -5897,6 +5898,13 @@ function _medBanoRecalcular() {
 document.addEventListener('input', e => {
   if (!window._medBanoState) return;
   if (['mbAncho','mbLargo','mbAlto'].includes(e.target.id)) _medBanoRecalcular();
+  if (e.target.id === 'mbMamAlto') {
+    const txt = document.getElementById('mbMamAltoTxt');
+    if (!txt) return;
+    const v = parseFloat(e.target.value) || 0;
+    txt.textContent = v ? '⚠ A medida' : '✓ Altura estándar';
+    txt.style.color = v ? '#92400E' : '#065F46';
+  }
 });
 
 // Selector tipo de trabajo — activa secciones automáticamente
@@ -6056,7 +6064,7 @@ async function _medGuardarItemBano() {
       posicion: single('mbMuePos'),
       apertura_tipo: single('mbMueAperturaTipo'),
       apertura_n:    n('mbMueNum'),
-      material: single('mbMueMat'),
+      gama: single('mbMueGama'),
     },
     espejo: !c('mbEspActivo') ? null : {
       ancho_cm: dEspA.cm, ancho_mm: dEspA.mm,
@@ -6830,7 +6838,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 45
+        instaloERP v1.0 · build 46
       </div>
     </div>`;
 }
