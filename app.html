@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 65
+      instaloERP v1.0 · build 69
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 65
+      instaloERP v1.0 · build 69
     </div>
   `;
 }
@@ -7977,6 +7977,121 @@ function _medDistSaltoHidraulico(generador) {
   return 10;
 }
 
+// ── CÁLCULO DE VASOS DE EXPANSIÓN ────────────────────────────────
+// Volumen unitario interior (L/m) por material y diámetro nominal
+const _MED_VOL_TUBERIA = {
+  'Multicapa Gerpex': { '16':0.113, '20':0.201, '26':0.314, '32':0.531, '40':0.855 },
+  'PPR':              { '20':0.137, '25':0.222, '32':0.353, '40':0.565, '50':0.866, '63':1.376 },
+  'Inox presfitting': { '15':0.133, '18':0.201, '22':0.314, '28':0.531, '35':0.804, '42':1.195 },
+  'Cobre':            { '15':0.133, '18':0.201, '22':0.314, '28':0.531, '35':0.804, '42':1.195 },
+};
+// Vasos de expansión COMERCIALES (Ibaiondo, Zilmet, Elbi, Escoda…) — siempre se redondea al siguiente
+const _MED_VASOS_COMERCIALES = [5, 8, 12, 18, 24, 35, 50, 80, 100, 150, 200, 300, 500];
+
+// Contenido aproximado de agua por radiador (L)
+function _medAguaPorRadiador(rad_calc) {
+  if (!rad_calc) return 0;
+  if (rad_calc.tipo === 'baxi') {
+    // Buscar contenido oficial en el catálogo
+    const C = window.RADIADORES_CAT;
+    const m = C?.BAXI?.modelos?.[rad_calc.modelo];
+    const altura = m?.alturas?.[rad_calc.altura_cm];
+    const aguaPorElem = altura?.agua || 0.4; // L por elemento
+    return (rad_calc.elementos || 0) * aguaPorElem;
+  }
+  if (rad_calc.tipo === 'jaga') {
+    // Aprox 0.04 L/cm de longitud (Jaga tiene baja capacidad — Low-H2O)
+    return (rad_calc.longitud_cm || 0) * 0.04;
+  }
+  if (rad_calc.tipo === 'aquabit') {
+    return (rad_calc.ancho_cm || 0) * 0.04;
+  }
+  return 0;
+}
+
+// Volumen total de agua de la instalación (L) — tubería + emisores + generador
+function _medCalcVolumenInstalacion(st) {
+  if (!st) return { total: 0, tuberia: 0, radiadores: 0, sueloRadiante: 0, generador: 0 };
+  const d = st.distribucion || {};
+  const ml = d.tuberia_ml || 0;
+  const material = d.material;
+  const diametros = d.diametros || [];
+  // Tubería: media de los diámetros usados, en L/m
+  let lpm = 0.3;
+  if (material && _MED_VOL_TUBERIA[material] && diametros.length) {
+    const tabla = _MED_VOL_TUBERIA[material];
+    let suma = 0, n = 0;
+    diametros.forEach(diam => {
+      if (tabla[diam]) { suma += tabla[diam]; n++; }
+    });
+    if (n > 0) lpm = suma / n;
+  }
+  const volTuberia = ml * lpm;
+  // Radiadores
+  let volRad = 0;
+  st.estancias.forEach(es => {
+    volRad += _medAguaPorRadiador(es.rad_calc);
+    (es.rad_adicionales || []).forEach(adi => {
+      if (adi.calc) volRad += _medAguaPorRadiador(adi.calc);
+      else if (adi.kw) volRad += adi.kw * 0.5;
+    });
+  });
+  // Suelo radiante: m² × ml/m² × L/m del tubo 16
+  let volSR = 0;
+  st.estancias.forEach(es => {
+    const cfgP = st.config_plantas?.[es.planta || st.plantas?.[0]];
+    if (cfgP?.sistema !== 'suelo_radiante') return;
+    const m2 = ((parseFloat(es.ancho_cm)||0)*(parseFloat(es.largo_cm)||0)) / 10000;
+    if (m2 <= 0) return;
+    const paso = es.sr_paso || cfgP.sr_paso || 15;
+    volSR += m2 * (100/paso) * 0.113; // ~0.75 L/m² a paso 15
+  });
+  // Generador (caldera/BdC + circuito interior): ~5 L
+  const volGen = 5;
+  // Acumulador de inercia (si está marcado): forma parte del circuito de calefacción
+  const volInercia = (d.acumulador_inercia && d.acumulador_inercia_l) ? parseFloat(d.acumulador_inercia_l) : 0;
+  // Intercambiador de placas: ~1 L estimado
+  const volIntercambiador = (d.intercambiador_placas) ? 1 : 0;
+  return {
+    total: +(volTuberia + volRad + volSR + volGen + volInercia + volIntercambiador).toFixed(1),
+    tuberia: +volTuberia.toFixed(1),
+    radiadores: +volRad.toFixed(1),
+    sueloRadiante: +volSR.toFixed(1),
+    generador: volGen,
+    inercia: volInercia,
+    intercambiador: volIntercambiador,
+  };
+}
+
+// Vaso de expansión calefacción · fórmula CTE/RITE
+//   V = (Vt × n) / (1 - Pi/Pf)
+//   n = coeficiente de expansión según T máx (50→0.0121 ... 90→0.0359)
+//   Pi = 1 bar (presión llenado)  ·  Pf = 2.5 bar (vál. seg. 3 bar - 0.5)
+function _medCalcVasoCalefaccion(st) {
+  const vol = _medCalcVolumenInstalacion(st);
+  const tImp = st.generador?.t_impulsion || 60;
+  let n;
+  if (tImp <= 50)      n = 0.0121;
+  else if (tImp <= 60) n = 0.0171;
+  else if (tImp <= 70) n = 0.0227;
+  else if (tImp <= 80) n = 0.0290;
+  else                  n = 0.0359;
+  const Pi = 1, Pf = 2.5;
+  const factor = 1 - Pi / Pf;
+  const V_min = vol.total * n / factor;
+  const recomendado = _MED_VASOS_COMERCIALES.find(v => v >= V_min) || _MED_VASOS_COMERCIALES[_MED_VASOS_COMERCIALES.length - 1];
+  return { recomendado, V_min: +V_min.toFixed(1), vol, n, tImp };
+}
+
+// Vaso de expansión ACS · estimación práctica = 12% del acumulador (regla de oficio)
+function _medCalcVasoACS(st) {
+  const litrosACS = st.distribucion?.acumulador_acs_l || 0;
+  if (litrosACS <= 0) return null;
+  const V_min = litrosACS * 0.12;
+  const recomendado = _MED_VASOS_COMERCIALES.find(v => v >= V_min) || _MED_VASOS_COMERCIALES[_MED_VASOS_COMERCIALES.length - 1];
+  return { recomendado, V_min: +V_min.toFixed(1) };
+}
+
 // Modo de instalación = "vista" si el tipo de trabajo es vista o el modo de distribución es vista
 function _medDistEsModoVisto(st) {
   return st.tipo_trabajo === 'instalacion_vista' || st.distribucion?.modo === 'vista';
@@ -8194,40 +8309,94 @@ function _medClimaRenderDistribucion(st) {
     });
   }
 
-  // 4) Componentes hidráulicos
+  // 4) Componentes hidráulicos · agrupados en categorías
+  // Helper para renderizar un toggle + opcional input numérico/select
+  const tog = (key, label, opts) => {
+    opts = opts || {};
+    const checked = !!d[key];
+    let html = `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:6px 5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="window._medClimaState.distribucion.${key}=this.checked;_medRefrescarClimaForm()">
+      <span style="flex:1">${label}</span>`;
+    if (checked && opts.numKey) {
+      html += `<input type="number" ${opts.min!=null?`min="${opts.min}"`:''} ${opts.step?`step="${opts.step}"`:''} placeholder="${opts.placeholder||''}" value="${d[opts.numKey]||''}" onchange="window._medClimaState.distribucion.${opts.numKey}=parseFloat(this.value)||0;window._medClimaState.distribucion.${opts.numKey}_user_set=true;_medRefrescarClimaForm()" style="width:${opts.width||60}px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box" onclick="event.stopPropagation();event.preventDefault()"><span style="font-size:11px;color:#6B7280">${opts.unit||''}</span>`;
+    }
+    if (checked && opts.selectKey) {
+      html += `<select onchange="window._medClimaState.distribucion.${opts.selectKey}=this.value" onclick="event.stopPropagation()" style="padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11px;background:#fff">${opts.selectOpts.map(o => `<option value="${e(o)}" ${d[opts.selectKey]===o?'selected':''}>${e(o)}</option>`).join('')}</select>`;
+    }
+    html += `</label>`;
+    return html;
+  };
+  const subTit = (txt) => `<div style="font-size:9.5px;color:#6B7280;font-weight:700;padding:6px 5px 4px;background:#F3F4F6;letter-spacing:0.3px">${txt}</div>`;
   html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">⚙️ COMPONENTES HIDRÁULICOS</div>
-    <div style="background:#F9FAFB;border:1px solid var(--gris-200);border-radius:7px;padding:8px;margin-bottom:10px">
-      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
-        <input type="checkbox" ${d.separador_hidraulico?'checked':''} onchange="window._medClimaState.distribucion.separador_hidraulico=this.checked;_medRefrescarClimaForm()">
-        <span style="flex:1">Separador hidráulico</span>
-      </label>
-      <div style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100)">
-        <label class="tap" style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;font-size:11.5px">
-          <input type="checkbox" ${d.vaso_expansion?'checked':''} onchange="window._medClimaState.distribucion.vaso_expansion=this.checked;_medRefrescarClimaForm()">
-          Vaso de expansión
-        </label>
-        ${d.vaso_expansion ? `<input type="number" placeholder="L" value="${d.vaso_expansion_litros||''}" oninput="window._medClimaState.distribucion.vaso_expansion_litros=parseInt(this.value)||0" style="width:60px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box"><span style="font-size:11px;color:#6B7280">L</span>`:''}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100)">
-        <label class="tap" style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;font-size:11.5px">
-          <input type="checkbox" ${d.bomba_aux?'checked':''} onchange="window._medClimaState.distribucion.bomba_aux=this.checked;_medRefrescarClimaForm()">
-          Bomba circulador auxiliar
-        </label>
-        ${d.bomba_aux ? `<input type="number" min="1" placeholder="ud" value="${d.bomba_aux_n||1}" oninput="window._medClimaState.distribucion.bomba_aux_n=parseInt(this.value)||1" style="width:50px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box"><span style="font-size:11px;color:#6B7280">ud</span>`:''}
-      </div>
-      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
-        <input type="checkbox" ${d.filtro_decantador?'checked':''} onchange="window._medClimaState.distribucion.filtro_decantador=this.checked">
-        <span style="flex:1">Filtro decantador / desfangador magnético</span>
-      </label>
-      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
-        <input type="checkbox" ${d.purgador_auto?'checked':''} onchange="window._medClimaState.distribucion.purgador_auto=this.checked">
-        <span style="flex:1">Purgador automático principal</span>
-      </label>
-      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;font-size:11.5px;cursor:pointer">
-        <input type="checkbox" ${d.llaves_corte?'checked':''} onchange="window._medClimaState.distribucion.llaves_corte=this.checked;_medRefrescarClimaForm()">
-        <span style="flex:1">Llaves de corte por planta</span>
-      </label>
-      ${d.llaves_corte?`<div style="padding:5px"><input type="number" min="2" placeholder="Nº llaves" value="${d.llaves_corte_n||''}" oninput="window._medClimaState.distribucion.llaves_corte_n=parseInt(this.value)||0" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:4px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box"></div>`:''}
+    <div style="background:#fff;border:1px solid var(--gris-200);border-radius:7px;overflow:hidden;margin-bottom:10px">
+      ${subTit('💧 HIDRÁULICA PRINCIPAL')}
+      ${tog('separador_hidraulico', 'Separador hidráulico')}
+      ${(()=>{
+        const vc = _medCalcVasoCalefaccion(st);
+        // Auto-rellenar litros si no hay valor manual
+        if (d.vaso_expansion && !d.vaso_expansion_litros_user_set && vc.recomendado) d.vaso_expansion_litros = vc.recomendado;
+        let html = tog('vaso_expansion', 'Vaso de expansión', { numKey:'vaso_expansion_litros', placeholder:'L', unit:'L', min:0 });
+        if (d.vaso_expansion && vc.vol.total > 0) {
+          // Desglose Vt
+          const partes = [];
+          if (vc.vol.tuberia) partes.push(`tub. ${vc.vol.tuberia}`);
+          if (vc.vol.radiadores) partes.push(`rad. ${vc.vol.radiadores}`);
+          if (vc.vol.sueloRadiante) partes.push(`SR ${vc.vol.sueloRadiante}`);
+          if (vc.vol.inercia) partes.push(`inercia ${vc.vol.inercia}`);
+          if (vc.vol.intercambiador) partes.push(`int. ${vc.vol.intercambiador}`);
+          partes.push(`gen. ${vc.vol.generador}`);
+          html += `<div style="font-size:10px;color:#1E40AF;background:#EFF6FF;padding:5px 9px;border-bottom:1px solid var(--gris-100);line-height:1.4">💡 Recomendado: <strong>${vc.recomendado} L</strong> (Vt <strong>${vc.vol.total} L</strong> · n=${vc.n} a ${vc.tImp}º · Pf 2.5 bar)<div style="font-size:9px;color:#6B7280;margin-top:1px">${partes.join(' + ')}</div></div>`;
+        }
+        return html;
+      })()}
+      ${tog('soporte_vaso', 'Soporte para vaso de expansión', { numKey:'soporte_vaso_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('colectores_adic', 'Colectores adicionales (no SR)', { numKey:'colectores_adic_salidas', placeholder:'salidas', unit:'sal.', min:2, width:60 })}
+      ${tog('bomba_aux', 'Bomba circulador auxiliar', { numKey:'bomba_aux_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('bomba_alta_efic', 'Bomba alta eficiencia (clase A)')}
+      ${tog('filtro_decantador', 'Filtro decantador / desfangador magnético')}
+      ${tog('purgador_auto', 'Purgador automático principal')}
+      ${tog('llaves_corte', 'Llaves de corte por planta', { numKey:'llaves_corte_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('antivibracion', 'Antivibración / latiguillos flexibles')}
+      ${tog('bypass_diferencial', 'Bypass diferencial / by-pass automático')}
+
+      ${subTit('🛡️ SEGURIDAD Y CONTROL')}
+      ${tog('valvula_seguridad', 'Válvula de seguridad (3 bar)')}
+      ${tog('manometro', 'Manómetro', { numKey:'manometro_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('termometro', 'Termómetro', { numKey:'termometro_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('llave_general', 'Llave esfera de corte general')}
+      ${tog('llave_llenado', 'Llave de llenado', { selectKey:'llave_llenado_tipo', selectOpts:['Manual','Automática'] })}
+      ${tog('kit_llenado_auto', 'Kit llenado automático (con desconexión)')}
+      ${tog('antirretorno', 'Antirretorno / válvula check')}
+      ${tog('filtro_y', 'Filtro Y (antiarena)')}
+      ${tog('valv_reguladora_caudal', 'Válvula reguladora de caudal')}
+
+      ${subTit('🏠 ZONAS Y GRUPOS DE IMPULSIÓN')}
+      ${tog('grupo_impulsion', 'Grupo de impulsión premontado', { selectKey:'grupo_impulsion_tipo', selectOpts:['Punto fijo','Punto variable (mezcladora)'] })}
+      ${tog('grupo_impulsion_n', 'Nº de grupos de impulsión', { numKey:'grupo_impulsion_uds', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('valvula_3vias', 'Válvula 3 vías motorizada (suelta)')}
+      ${tog('valvulas_zona', 'Válvulas de zona', { numKey:'valvulas_zona_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('centralita_multizona', 'Centralita multi-zona')}
+      ${tog('termostatos', 'Termostatos por estancia', { numKey:'termostatos_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('sonda_exterior', 'Sonda exterior')}
+      ${tog('sondas_imp_ret', 'Sondas impulsión / retorno', { numKey:'sondas_imp_ret_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
+      ${tog('termostato_wifi', 'Termostato / programador wifi')}
+
+      ${subTit('🔥 ACUMULACIÓN Y ACS')}
+      ${tog('acumulador_inercia', 'Acumulador de inercia', { numKey:'acumulador_inercia_l', placeholder:'L', unit:'L', min:0, width:65 })}
+      ${tog('acumulador_acs', 'Acumulador ACS', { numKey:'acumulador_acs_l', placeholder:'L', unit:'L', min:0, width:65 })}
+      ${tog('intercambiador_placas', 'Intercambiador de placas (ACS rápida)', { numKey:'intercambiador_placas_kw', placeholder:'kW', unit:'kW', min:0, step:'0.1', width:55 })}
+      ${tog('bomba_recirc_acs', 'Bomba recirculación ACS')}
+      ${(()=>{
+        const va = _medCalcVasoACS(st);
+        if (d.vaso_expansion_acs && va && !d.vaso_expansion_acs_l_user_set) d.vaso_expansion_acs_l = va.recomendado;
+        let html = tog('vaso_expansion_acs', 'Vaso expansión ACS', { numKey:'vaso_expansion_acs_l', placeholder:'L', unit:'L', min:0, width:55 });
+        if (d.vaso_expansion_acs && va) {
+          html += `<div style="font-size:10px;color:#1E40AF;background:#EFF6FF;padding:5px 9px;line-height:1.4">💡 Recomendado: <strong>${va.recomendado} L</strong> (12% del acumulador ${d.acumulador_acs_l} L)</div>`;
+        } else if (d.vaso_expansion_acs && !va) {
+          html += `<div style="font-size:10px;color:#92400E;background:#FEF3C7;padding:5px 9px;line-height:1.4">⚠️ Marca primero el acumulador ACS y sus litros para calcular el vaso</div>`;
+        }
+        return html;
+      })()}
     </div>`;
 
   // 5) BdC aire/aire específico (tubería frigorífica)
@@ -9093,7 +9262,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 65
+        instaloERP v1.0 · build 69
       </div>
     </div>`;
 }
