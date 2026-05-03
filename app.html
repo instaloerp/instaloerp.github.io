@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 22
+      instaloERP v1.0 · build 24
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 22
+      instaloERP v1.0 · build 24
     </div>
   `;
 }
@@ -6718,14 +6718,17 @@ function _medRenderClimaForm(it) {
     } else {
       st.estancias.forEach((es, i) => {
         body4 += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:8px 10px;margin-bottom:5px">
-          <div style="font-size:11.5px;font-weight:700;margin-bottom:5px">${e(es.nombre || 'Estancia '+(i+1))}</div>
-          <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:5px">
-            <select onchange="window._medClimaState.estancias[${i}].rejilla_tipo=this.value" style="padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:11.5px;background:#fff;box-sizing:border-box">
-              <option value="">— tipo —</option>
-              ${['Rejilla rectangular','Rejilla lineal','Difusor circular','Difusor cuadrado','Toma + retorno'].map(t => `<option value="${e(t)}" ${es.rejilla_tipo===t?'selected':''}>${e(t)}</option>`).join('')}
-            </select>
-            <input type="number" placeholder="Nº" value="${es.rejilla_n||1}" oninput="window._medClimaState.estancias[${i}].rejilla_n=parseInt(this.value)||1" style="padding:7px;border:1px solid var(--gris-200);border-radius:6px;font-size:11.5px;text-align:center;font-weight:700">
-            <input type="number" placeholder="m³/h" value="${es.caudal||''}" oninput="window._medClimaState.estancias[${i}].caudal=parseFloat(this.value)||0" style="padding:7px;border:1px solid var(--gris-200);border-radius:6px;font-size:11.5px;text-align:center;font-weight:700">
+          <div style="font-size:11.5px;font-weight:700;margin-bottom:6px">${e(es.nombre || 'Estancia '+(i+1))}</div>
+          <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Tipo</div>
+          <select onchange="window._medClimaState.estancias[${i}].rejilla_tipo=this.value" style="width:100%;padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;background:#fff;box-sizing:border-box;margin-bottom:5px">
+            <option value="">— elegir —</option>
+            ${['Rejilla rectangular','Rejilla lineal','Difusor circular','Difusor cuadrado','Toma + retorno'].map(t => `<option value="${e(t)}" ${es.rejilla_tipo===t?'selected':''}>${e(t)}</option>`).join('')}
+          </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Cantidad</div>
+              <input type="number" value="${es.rejilla_n||1}" oninput="window._medClimaState.estancias[${i}].rejilla_n=parseInt(this.value)||1" style="width:100%;padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+            <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Caudal m³/h</div>
+              <input type="number" placeholder="0" value="${es.caudal||''}" oninput="window._medClimaState.estancias[${i}].caudal=parseFloat(this.value)||0" style="width:100%;padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
           </div>
         </div>`;
       });
@@ -6764,40 +6767,68 @@ function _medRenderClimaForm(it) {
   return html;
 }
 
-// Render estancias (lista dinámica)
+// Render estancias (lista dinámica) — agrupadas por planta
 function _medClimaRenderEstancias() {
   const st = window._medClimaState;
+  const e = _medEsc;
   if (!st.estancias.length) {
     return '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:11.5px;font-style:italic">Sin estancias. Pulsa "+ Añadir estancia" para empezar.</div>';
   }
-  return st.estancias.map((es, i) => {
-    const m2 = (parseFloat(es.ancho_cm)||0) * (parseFloat(es.largo_cm)||0) / 10000;
-    return `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:9px;padding:10px;margin-bottom:6px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <input type="text" placeholder="Estancia ${i+1}" value="${_medEsc(es.nombre||'')}" oninput="window._medClimaState.estancias[${i}].nombre=this.value" style="flex:1;padding:6px 9px;border:1px solid var(--gris-200);border-radius:6px;font-size:12.5px;font-weight:600">
-        <button type="button" onclick="_medClimaRemEstancia(${i})" style="width:24px;height:24px;background:#FEE2E2;color:#DC2626;border:none;border-radius:5px;font-size:13px;cursor:pointer">✕</button>
+  // Agrupar por planta (mantiene orden de inserción)
+  const gruposOrden = [];
+  const grupos = {};
+  st.estancias.forEach((es, idx) => {
+    const p = es.planta || 'Vivienda';
+    if (!grupos[p]) { grupos[p] = []; gruposOrden.push(p); }
+    grupos[p].push({ ...es, _idx: idx });
+  });
+  let html = '';
+  for (const planta of gruposOrden) {
+    const ests = grupos[planta];
+    html += `<div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;padding:6px 10px;border-radius:7px 7px 0 0;font-size:11.5px;font-weight:700">
+        🏢 ${e(planta)} <span style="font-weight:400;opacity:.85;font-size:10.5px">· ${ests.length} estancia${ests.length>1?'s':''}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:5px">
-        <div><div style="font-size:9px;color:#6B7280">Ancho cm</div><input type="number" value="${es.ancho_cm||''}" oninput="window._medClimaState.estancias[${i}].ancho_cm=parseFloat(this.value)||0;_medClimaRecalcularTotales()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:12px;text-align:center;font-weight:600"></div>
-        <div><div style="font-size:9px;color:#6B7280">Largo cm</div><input type="number" value="${es.largo_cm||''}" oninput="window._medClimaState.estancias[${i}].largo_cm=parseFloat(this.value)||0;_medClimaRecalcularTotales()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:12px;text-align:center;font-weight:600"></div>
-        <div><div style="font-size:9px;color:#6B7280">m² calc.</div><div style="padding:6px;background:#F3F4F6;border-radius:5px;font-size:12px;text-align:center;font-weight:700;color:#1E40AF" id="mcM2_${i}">${m2?m2.toFixed(2):'—'}</div></div>
-      </div>
-      <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Aislamiento</div>
-      <div style="display:flex;gap:4px;margin-bottom:6px">${['Bueno','Normal','Malo'].map(x => {
-        const a = (es.aislamiento||'Normal') === x;
-        return `<button type="button" onclick="window._medClimaState.estancias[${i}].aislamiento='${x}';_medClimaRecalcularTotales();document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()" style="flex:1;padding:5px;border-radius:5px;font-size:10.5px;font-weight:${a?'700':'500'};border:${a?'2px':'1px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};cursor:pointer">${x}</button>`;
-      }).join('')}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
-        <label class="tap" style="display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;cursor:pointer"><input type="checkbox" ${es.calor!==false?'checked':''} onchange="window._medClimaState.estancias[${i}].calor=this.checked;_medClimaRecalcularTotales()"> 🔥 Calor</label>
-        <label class="tap" style="display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;cursor:pointer"><input type="checkbox" ${es.frio?'checked':''} onchange="window._medClimaState.estancias[${i}].frio=this.checked;_medClimaRecalcularTotales()"> ❄️ Frío</label>
-      </div>
-      <div id="mcCargas_${i}" style="background:#F0F9FF;border-radius:6px;padding:6px 9px;font-size:10.5px;color:#0C4A6E;line-height:1.55">—</div>
-    </div>`;
-  }).join('');
+      <div style="border:1px solid #1E40AF;border-top:none;border-radius:0 0 7px 7px;padding:6px;background:#fff">`;
+    ests.forEach(es => {
+      const i = es._idx;
+      const m2 = (parseFloat(es.ancho_cm)||0) * (parseFloat(es.largo_cm)||0) / 10000;
+      html += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:9px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+          <input type="text" placeholder="Estancia ${i+1}" value="${e(es.nombre||'')}" oninput="window._medClimaState.estancias[${i}].nombre=this.value" style="flex:1;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:12px;font-weight:600;box-sizing:border-box">
+          <input type="text" placeholder="Planta" value="${e(es.planta||'')}" list="mcPlantasList" oninput="window._medClimaState.estancias[${i}].planta=this.value" onblur="document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()" style="width:90px;padding:5px 7px;border:1px solid #93C5FD;border-radius:5px;font-size:11px;background:#EFF6FF;color:#1E40AF;font-weight:700;text-align:center;box-sizing:border-box">
+          <button type="button" onclick="_medClimaRemEstancia(${i})" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:12px;cursor:pointer">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:5px">
+          <div><div style="font-size:9px;color:#6B7280">Ancho cm</div><input type="number" value="${es.ancho_cm||''}" oninput="window._medClimaState.estancias[${i}].ancho_cm=parseFloat(this.value)||0;_medClimaRecalcularTotales()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:4px;font-size:12px;text-align:center;font-weight:600;box-sizing:border-box"></div>
+          <div><div style="font-size:9px;color:#6B7280">Largo cm</div><input type="number" value="${es.largo_cm||''}" oninput="window._medClimaState.estancias[${i}].largo_cm=parseFloat(this.value)||0;_medClimaRecalcularTotales()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:4px;font-size:12px;text-align:center;font-weight:600;box-sizing:border-box"></div>
+          <div><div style="font-size:9px;color:#6B7280">m²</div><div style="padding:5px;background:#F3F4F6;border-radius:4px;font-size:12px;text-align:center;font-weight:700;color:#1E40AF" id="mcM2_${i}">${m2?m2.toFixed(2):'—'}</div></div>
+        </div>
+        <div style="display:flex;gap:3px;margin-bottom:5px">${['Bueno','Normal','Malo'].map(x => {
+          const a = (es.aislamiento||'Normal') === x;
+          return `<button type="button" onclick="window._medClimaState.estancias[${i}].aislamiento='${x}';document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()" style="flex:1;padding:4px;border-radius:4px;font-size:10.5px;font-weight:${a?'700':'500'};border:${a?'2px':'1px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};cursor:pointer">${x}</button>`;
+        }).join('')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:5px">
+          <label class="tap" style="display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid var(--gris-200);border-radius:4px;font-size:10.5px;cursor:pointer"><input type="checkbox" ${es.calor!==false?'checked':''} onchange="window._medClimaState.estancias[${i}].calor=this.checked;_medClimaRecalcularTotales()"> 🔥 Calor</label>
+          <label class="tap" style="display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid var(--gris-200);border-radius:4px;font-size:10.5px;cursor:pointer"><input type="checkbox" ${es.frio?'checked':''} onchange="window._medClimaState.estancias[${i}].frio=this.checked;_medClimaRecalcularTotales()"> ❄️ Frío</label>
+        </div>
+        <div id="mcCargas_${i}" style="background:#F0F9FF;border-radius:5px;padding:5px 8px;font-size:10.5px;color:#0C4A6E;line-height:1.5">—</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+  // Datalist con plantas comunes para autocompletar
+  html += `<datalist id="mcPlantasList">
+    <option value="Sótano"><option value="Planta baja"><option value="Planta 1"><option value="Planta 2"><option value="Planta 3"><option value="Ático"><option value="Bajo cubierta">
+  </datalist>`;
+  return html;
 }
 
 function _medClimaAddEstancia() {
-  window._medClimaState.estancias.push({ nombre:'', ancho_cm:0, largo_cm:0, aislamiento:'Normal', calor:true, frio:false });
+  // Heredar planta de la última estancia (si existe) o usar 'Vivienda' por defecto
+  const st = window._medClimaState;
+  const ultimaPlanta = st.estancias.length ? (st.estancias[st.estancias.length-1].planta || 'Vivienda') : 'Vivienda';
+  st.estancias.push({ nombre:'', planta: ultimaPlanta, ancho_cm:0, largo_cm:0, aislamiento:'Normal', calor:true, frio:false });
   document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
   _medClimaRecalcularTotales();
 }
@@ -7645,7 +7676,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 22
+        instaloERP v1.0 · build 24
       </div>
     </div>`;
 }
