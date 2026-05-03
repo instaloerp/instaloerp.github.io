@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 55
+      instaloERP v1.0 · build 56
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 55
+      instaloERP v1.0 · build 56
     </div>
   `;
 }
@@ -6609,6 +6609,8 @@ function _medAbrirModalClima(it) {
   const plantasGuardadas = it.plantas || [];
   const plantasDerivadas = [...new Set(estancias0.map(e => e.planta || 'Vivienda'))];
   const plantas = plantasGuardadas.length ? plantasGuardadas : (plantasDerivadas.length ? plantasDerivadas : ['Vivienda']);
+  // Asegurar que cada estancia tiene su planta asignada explícitamente (para que el reset por planta funcione)
+  estancias0.forEach(es => { if (!es.planta) es.planta = plantas[0]; });
   // Migración legacy: si hay sistema_emisor en estancias y no config_plantas, construirlo
   let configPlantas = it.config_plantas ? {...it.config_plantas} : {};
   if (Object.keys(configPlantas).length === 0) {
@@ -7433,8 +7435,13 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
 function _medClimaResetEstanciasPlanta(planta, camposRad) {
   const st = window._medClimaState;
   if (!st || !st.estancias) return;
+  const fallback = (st.plantas && st.plantas[0]) || 'Vivienda';
   st.estancias.forEach(es => {
-    if (es.planta !== planta) return;
+    // Match con fallback: si es.planta está vacío y mostramos como st.plantas[0], coincide
+    const esPlanta = es.planta || fallback;
+    if (esPlanta !== planta) return;
+    // Asegurar que es.planta tenga valor explícito a partir de ahora
+    es.planta = planta;
     camposRad.forEach(c => delete es[c]);
     // También resetear los campos en cada radiador adicional de la estancia
     if (Array.isArray(es.rad_adicionales)) {
@@ -8680,7 +8687,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 55
+        instaloERP v1.0 · build 56
       </div>
     </div>`;
 }
