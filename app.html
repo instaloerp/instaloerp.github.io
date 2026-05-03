@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 39
+      instaloERP v1.0 · build 40
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 39
+      instaloERP v1.0 · build 40
     </div>
   `;
 }
@@ -7237,16 +7237,12 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
   else if (tec === 'Baja temperatura') marcasFiltro = marcasFiltro.filter(m => m.tipo === 'baja_temp');
   // Heredar de cfgPlanta si la estancia no tiene valor propio
   const marcaK = es.rad_marca || cfgPlanta.rad_marca || marcasFiltro[0]?.k || '';
-  // Default ΔT según tecnología: Aluminio → 40 (régimen 65/55) · Baja temp → desde generador
-  const dtDef = (tec === 'Aluminio') ? 40 : dtRec;
-  const dt = es.rad_dt || cfgPlanta.rad_dt || dtDef;
-  html += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:5px;margin-bottom:5px">
-    <select onchange="window._medClimaState.estancias[${i}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_altura;delete window._medClimaState.estancias[${i}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+  // ΔT viene del generador (T impulsión + T ambiente) — ya no es editable por radiador
+  const dt = dtRec;
+  html += `<div style="margin-bottom:5px">
+    <select onchange="window._medClimaState.estancias[${i}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_altura;delete window._medClimaState.estancias[${i}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
       <option value="">— marca / modelo —</option>
       ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
-    </select>
-    <select onchange="window._medClimaState.estancias[${i}].rad_dt=parseFloat(this.value);_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff" title="ΔT medio (EN442)">
-      ${[22.5,27.5,30,40,50].map(d => `<option value="${d}" ${dt===d?'selected':''}>ΔT ${d}</option>`).join('')}
     </select>
   </div>`;
   if (!marcaK) { html += `<div style="font-size:10.5px;color:#6B7280;font-style:italic">Selecciona marca</div></div>`; return html; }
@@ -7313,9 +7309,8 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
   else marcasFiltro = [];
   if (!cfg.rad_marca && marcasFiltro[0]) cfg.rad_marca = marcasFiltro[0].k;
   const marcaK = cfg.rad_marca || '';
-  // Default ΔT según tecnología: Aluminio → 40 (régimen 65/55) · Baja temp → desde generador
-  const dtDef = (tec === 'Aluminio') ? 40 : dtRec;
-  const dt = cfg.rad_dt || dtDef;
+  // ΔT viene del generador — ya no es editable
+  const dt = dtRec;
   let html = `<div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-bottom:8px">
     <div style="font-size:9px;color:#1E40AF;font-weight:700;margin-bottom:5px">RADIADOR · DEFAULT PLANTA (cada estancia hereda salvo override)</div>
     <div style="display:flex;gap:4px;margin-bottom:6px">
@@ -7328,12 +7323,9 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     html += `<div style="font-size:10.5px;color:#6B7280;font-style:italic">Cada estancia define marca/modelo manualmente.</div></div>`;
     return html;
   }
-  html += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:5px;margin-bottom:5px">
-    <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_marca=this.value;delete window._medClimaState.config_plantas['${e(planta)}'].rad_altura;delete window._medClimaState.config_plantas['${e(planta)}'].rad_modelo_aquabit;_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+  html += `<div style="margin-bottom:5px">
+    <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_marca=this.value;delete window._medClimaState.config_plantas['${e(planta)}'].rad_altura;delete window._medClimaState.config_plantas['${e(planta)}'].rad_modelo_aquabit;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
       ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
-    </select>
-    <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_dt=parseFloat(this.value);_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff" title="ΔT medio (EN442)">
-      ${[22.5,27.5,30,40,50].map(d => `<option value="${d}" ${dt===d?'selected':''}>ΔT ${d}</option>`).join('')}
     </select>
   </div>`;
   // Altura por marca
@@ -7504,14 +7496,11 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
   if (tec === 'Aluminio') marcasFiltro = marcasFiltro.filter(m => m.tipo === 'aluminio');
   else if (tec === 'Baja temperatura') marcasFiltro = marcasFiltro.filter(m => m.tipo === 'baja_temp');
   const marcaK = rad.rad_marca || cfgPlanta.rad_marca || marcasFiltro[0]?.k || '';
-  const dtDef = (tec === 'Aluminio') ? 40 : dtRec;
-  const dt = rad.rad_dt || cfgPlanta.rad_dt || dtDef;
-  html += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:5px;margin-bottom:5px">
-    <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_altura;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+  // ΔT viene del generador — ya no es editable por radiador
+  const dt = dtRec;
+  html += `<div style="margin-bottom:5px">
+    <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_altura;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
       ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
-    </select>
-    <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_dt=parseFloat(this.value);_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
-      ${[22.5,27.5,30,40,50].map(d => `<option value="${d}" ${dt===d?'selected':''}>ΔT ${d}</option>`).join('')}
     </select>
   </div>`;
   let opts = {};
@@ -8477,7 +8466,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 39
+        instaloERP v1.0 · build 40
       </div>
     </div>`;
 }
