@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 46
+      instaloERP v1.0 · build 47
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 46
+      instaloERP v1.0 · build 47
     </div>
   `;
 }
@@ -7289,10 +7289,9 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
     const alturasCm = [...new Set(Object.keys(modeloObj.alturas).map(k => parseInt(k.split('_')[0])))].sort((a,b)=>a-b);
     // Tipo (profundidad) disponible para esta variante
     const tiposDisp = altObj.tipos_disponibles;
-    // Default del medio: tipo 15 estándar, tipo 16 twin
-    const tipoDef = twin ? (tiposDisp.includes('16') ? '16' : tiposDisp[Math.floor(tiposDisp.length/2)]) : (tiposDisp.includes('15') ? '15' : tiposDisp[Math.floor(tiposDisp.length/2)]);
-    const tipoSel = es.rad_tipo || cfgPlanta.rad_tipo || tipoDef;
-    const tipoFijo = tiposDisp.includes(tipoSel) ? tipoSel : tipoDef;
+    // Default "auto" (calcula la profundidad óptima automáticamente)
+    const tipoSel = es.rad_tipo != null ? es.rad_tipo : (cfgPlanta.rad_tipo != null ? cfgPlanta.rad_tipo : '');
+    const tipoFijo = tiposDisp.includes(tipoSel) ? tipoSel : null; // null/empty → Auto
     opts.alturaKey = alturaKey;
     opts.tipoFijo = tipoFijo;
     // UI: altura (cm) · Estándar/Twin · profundidad
@@ -7304,6 +7303,7 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
       </div>
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Profundidad (tipo)</div>
         <select onchange="window._medClimaState.estancias[${i}].rad_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+          <option value="" ${!tipoFijo?'selected':''}>Auto (óptimo)</option>
           ${tiposDisp.map(t => `<option value="${t}" ${tipoFijo===t?'selected':''}>Tipo ${t}</option>`).join('')}
         </select>
       </div>
@@ -7402,8 +7402,8 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     const twin = !!altObj.twin;
     const alturasCm = [...new Set(Object.keys(modeloObj.alturas).map(k => parseInt(k.split('_')[0])))].sort((a,b)=>a-b);
     const tiposDisp = altObj.tipos_disponibles;
-    const tipoDef = twin ? (tiposDisp.includes('16') ? '16' : tiposDisp[Math.floor(tiposDisp.length/2)]) : (tiposDisp.includes('15') ? '15' : tiposDisp[Math.floor(tiposDisp.length/2)]);
-    if (!tiposDisp.includes(cfg.rad_tipo)) cfg.rad_tipo = tipoDef;
+    // Auto por defecto · si el tipo guardado no es válido para esta variante, limpiar
+    if (cfg.rad_tipo && !tiposDisp.includes(cfg.rad_tipo)) cfg.rad_tipo = '';
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Altura</div>
         <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_altura=this.value+'_${twin?'twin':'est'}';delete window._medClimaState.config_plantas['${e(planta)}'].rad_tipo;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
@@ -7412,6 +7412,7 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
       </div>
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Profundidad</div>
         <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+          <option value="" ${!cfg.rad_tipo?'selected':''}>Auto (óptimo)</option>
           ${tiposDisp.map(t => `<option value="${t}" ${cfg.rad_tipo===t?'selected':''}>Tipo ${t}</option>`).join('')}
         </select>
       </div>
@@ -7605,8 +7606,9 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
     const twin = !!altObj.twin;
     const alturasCm = [...new Set(Object.keys(modeloObj.alturas).map(k => parseInt(k.split('_')[0])))].sort((a,b)=>a-b);
     const tiposDisp = altObj.tipos_disponibles;
-    const tipoDef = twin ? (tiposDisp.includes('16') ? '16' : tiposDisp[Math.floor(tiposDisp.length/2)]) : (tiposDisp.includes('15') ? '15' : tiposDisp[Math.floor(tiposDisp.length/2)]);
-    const tipoFijo = tiposDisp.includes(rad.rad_tipo) ? rad.rad_tipo : (tiposDisp.includes(cfgPlanta.rad_tipo) ? cfgPlanta.rad_tipo : tipoDef);
+    // Default Auto · usuario puede fijar
+    const tipoSel = rad.rad_tipo != null ? rad.rad_tipo : (cfgPlanta.rad_tipo != null ? cfgPlanta.rad_tipo : '');
+    const tipoFijo = tiposDisp.includes(tipoSel) ? tipoSel : null;
     opts.alturaKey = alturaKey;
     opts.tipoFijo = tipoFijo;
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
@@ -7617,6 +7619,7 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
       </div>
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Profundidad</div>
         <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+          <option value="" ${!tipoFijo?'selected':''}>Auto (óptimo)</option>
           ${tiposDisp.map(t => `<option value="${t}" ${tipoFijo===t?'selected':''}>Tipo ${t}</option>`).join('')}
         </select>
       </div>
@@ -8580,7 +8583,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 46
+        instaloERP v1.0 · build 47
       </div>
     </div>`;
 }

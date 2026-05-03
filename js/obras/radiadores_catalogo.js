@@ -879,12 +879,14 @@ function deltaTDesdeImpulsion(tImp) {
 }
 
 // Busca la configuración Jaga MÁS PEQUEÑA que cubra `potencia_w` en un modelo+altura
-// Si tipoFijo se pasa → solo varía longitud (mantiene esa profundidad/intercambiador).
-// Si dbh=true se aplica el factor DBH/DBE (multiplica la potencia del radiador estático).
+// tipoFijo: si se pasa, solo varía longitud manteniendo ese tipo. Si null/undefined → "Auto".
+//   En modo Auto, prioriza MENOR sobredimensionamiento (no la longitud más corta).
+// dbh: aplica el factor DBH/DBE (multiplica la potencia del radiador estático).
 function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, tipoFijo, dbh) {
   const altura = modelo.alturas[alturaKey];
   if (!altura) return null;
   const longs = Object.keys(altura.potencias).sort((a,b) => parseInt(a) - parseInt(b));
+  const auto = !tipoFijo;
   const tiposBuscar = tipoFijo ? [tipoFijo] : altura.tipos_disponibles;
   const fDBH = dbh ? factorDBH(dt) : 1;
   let mejor = null;
@@ -895,13 +897,16 @@ function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, tipoFijo, dbh) {
       const wEstatico = jagaPotenciaInterpolada(arr, dt);
       const w = Math.round(wEstatico * fDBH);
       if (w >= potencia_w) {
-        const score = parseInt(lon) * 100 + parseInt(tipo);
+        const sobre = ((w - potencia_w) / potencia_w);
+        // En modo Auto: el score es el sobredimensionamiento absoluto (queremos minimizarlo)
+        // En modo tipo fijo: minimizar longitud (lo que ya hacíamos)
+        const score = auto ? sobre : (parseInt(lon) * 100 + parseInt(tipo));
         if (!mejor || score < mejor.score) {
           mejor = {
             longitud: lon, tipo, potencia_real: w,
             potencia_estatica: wEstatico,
             factor_dbh: fDBH,
-            sobre_dim_pct: Math.round(((w - potencia_w) / potencia_w) * 100),
+            sobre_dim_pct: Math.round(sobre * 100),
             score,
           };
         }
