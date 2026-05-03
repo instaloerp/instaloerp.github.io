@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 34
+      instaloERP v1.0 · build 35
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 34
+      instaloERP v1.0 · build 35
     </div>
   `;
 }
@@ -6946,13 +6946,28 @@ function _medRenderClimaForm(it) {
                 ${potNeed?`<span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${cargas.calor_kw} kW</span>`:''}
               </div>`;
             // Render según sistema de la planta
-            // Reparto automático: si hay extras, main cubre potNeed/(1+N)
-            const potMain = _medClimaPotAsignadaMain(es, potNeed);
-            if (cfg.sistema === 'radiador')       body4 += _medClimaRenderRadiador(es, i, dtRec, potMain, cfg);
-            else if (cfg.sistema === 'suelo_radiante') body4 += _medClimaRenderSueloRadianteEstancia(es, i, cfg);
-            else if (cfg.sistema === 'fancoil')   body4 += _medClimaRenderFancoil(es, i, cargas);
-            // Extras (siempre disponibles, especialmente útiles con suelo radiante)
-            body4 += _medClimaRenderExtras(es, i, dtRec, potNeed);
+            // Render según sistema de la planta
+            if (cfg.sistema === 'radiador') {
+              // Radiador: main + adicionales con reparto de potencia
+              const adicionales = es.rad_adicionales || [];
+              const nRads = 1 + adicionales.length;
+              const potShareDef = Math.round(potNeed / nRads);
+              const potMain = es.pot_main_w != null ? es.pot_main_w : potShareDef;
+              body4 += _medClimaRenderRadiador(es, i, dtRec, potMain, cfg, nRads);
+              // Adicionales
+              adicionales.forEach((rad, idx) => {
+                const potAdic = rad.pot_w != null ? rad.pot_w : potShareDef;
+                body4 += _medClimaRenderRadiadorAdicional(es, i, idx, dtRec, potAdic, cfg, nRads);
+              });
+              // Botón añadir otro radiador
+              body4 += `<button type="button" onclick="(window._medClimaState.estancias[${i}].rad_adicionales=window._medClimaState.estancias[${i}].rad_adicionales||[]).push({});_medRefrescarClimaForm()" style="width:100%;padding:7px;background:#fff;border:1px dashed #BFDBFE;color:#1E40AF;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:5px">+ Añadir otro radiador</button>`;
+            } else if (cfg.sistema === 'suelo_radiante') {
+              body4 += _medClimaRenderSueloRadianteEstancia(es, i, cfg);
+              // Extras solo para suelo radiante (toallero, fancoil aux, radiador aux, split aux)
+              body4 += _medClimaRenderExtras(es, i, dtRec, potNeed);
+            } else if (cfg.sistema === 'fancoil') {
+              body4 += _medClimaRenderFancoil(es, i, cargas);
+            }
             body4 += `</div>`;
           });
         }
@@ -7170,18 +7185,19 @@ function _medClimaCalcSueloRadiante(es) {
   return { m2:+m2.toFixed(2), perim:+perim.toFixed(1), paso, tuboML, planchas, circuitos };
 }
 
-// ── RENDER: Radiador (selector marca/modelo + auto-cálculo)
+// ── RENDER: Radiador principal (selector marca/modelo + auto-cálculo)
 // cfgPlanta = config compartida de la planta (defaults heredables)
-function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta) {
+// nRads = número total de radiadores en la estancia (1 + adicionales). Si >1 muestra banner reparto.
+function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
   cfgPlanta = cfgPlanta || {};
+  nRads = nRads || 1;
   const e = _medEsc;
-  // Banner de potencia asignada si hay extras
-  const nExtras = (es.extras || []).length;
+  // Banner de potencia asignada si hay >1 radiador en la estancia
   let potBanner = '';
-  if (nExtras > 0) {
+  if (nRads > 1) {
     const potKw = +(potNeed/1000).toFixed(2);
     potBanner = `<div style="background:#FEF3C7;color:#92400E;padding:5px 8px;border-radius:5px;font-size:10.5px;margin-bottom:5px;display:flex;align-items:center;gap:6px">
-      <span style="flex:1">Reparto automático ${nExtras+1} emisores</span>
+      <span style="flex:1">Radiador 1 de ${nRads} · reparto auto</span>
       <input type="number" step="0.1" value="${potKw}" oninput="window._medClimaState.estancias[${i}].pot_main_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
     </div>`;
   }
@@ -7438,6 +7454,87 @@ function _medClimaRenderExtras(es, i, dtRec, potNeed) {
   }
   html += `<button type="button" onclick="(window._medClimaState.estancias[${i}].extras=window._medClimaState.estancias[${i}].extras||[]).push({tipo:'toallero'});_medRefrescarClimaForm()" style="width:100%;padding:6px;background:#fff;border:1px dashed #FDE68A;color:#92400E;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer">+ Añadir extra (toallero, fancoil aux…)</button>
   </div>`;
+  return html;
+}
+
+// ── RENDER: Radiador adicional dentro de la misma estancia (mismo selector que main)
+// Escribe en es.rad_adicionales[idxAdic] y persiste el cálculo
+function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPlanta, nRads) {
+  cfgPlanta = cfgPlanta || {};
+  const e = _medEsc;
+  const rad = es.rad_adicionales[idxAdic] || {};
+  const tecnologias = ['Aluminio', 'Baja temperatura', 'Otro'];
+  const tec = rad.rad_tecnologia || cfgPlanta.rad_tecnologia || 'Aluminio';
+  const potKw = +(potShare/1000).toFixed(2);
+  let html = `<div style="background:#fff;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-top:5px">
+    <div style="background:#FEF3C7;color:#92400E;padding:5px 8px;border-radius:5px;font-size:10.5px;margin-bottom:5px;display:flex;align-items:center;gap:6px">
+      <span style="flex:1">Radiador ${idxAdic+2} de ${nRads}</span>
+      <input type="number" step="0.1" value="${potKw}" oninput="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].pot_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
+      <button type="button" onclick="window._medClimaState.estancias[${i}].rad_adicionales.splice(${idxAdic},1);_medRefrescarClimaForm()" title="Quitar" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:6px">
+      ${tecnologias.map(t => {
+        const a = tec === t;
+        return `<button type="button" onclick="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_tecnologia='${t}';delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_marca;_medRefrescarClimaForm()" style="flex:1;padding:6px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#EFF6FF':'#fff'};color:#1E40AF;border-radius:5px;font-size:10.5px;font-weight:${a?'700':'500'};cursor:pointer">${e(t)}</button>`;
+      }).join('')}
+    </div>`;
+  if (tec === 'Otro') {
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+      <input type="text" placeholder="Marca/modelo" value="${e(rad.modelo||'')}" oninput="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].modelo=this.value" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px">
+      <input type="number" step="0.1" placeholder="kW" value="${rad.kw||''}" oninput="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].kw=parseFloat(this.value)||0" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;text-align:center;font-weight:700">
+    </div></div>`;
+    return html;
+  }
+  if (!window.RADIADORES_CAT) return html + '</div>';
+  const C = window.RADIADORES_CAT;
+  let marcasFiltro = C.marcas();
+  if (tec === 'Aluminio') marcasFiltro = marcasFiltro.filter(m => m.tipo === 'aluminio');
+  else if (tec === 'Baja temperatura') marcasFiltro = marcasFiltro.filter(m => m.tipo === 'baja_temp');
+  const marcaK = rad.rad_marca || cfgPlanta.rad_marca || marcasFiltro[0]?.k || '';
+  const dt = rad.rad_dt || cfgPlanta.rad_dt || dtRec;
+  html += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:5px;margin-bottom:5px">
+    <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_altura;delete window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+      ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
+    </select>
+    <select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_dt=parseFloat(this.value);_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+      ${[22.5,27.5,30,50].map(d => `<option value="${d}" ${dt===d?'selected':''}>ΔT ${d}</option>`).join('')}
+    </select>
+  </div>`;
+  let opts = {};
+  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_condal') {
+    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+    const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
+    const alturaSel = rad.rad_altura || cfgPlanta.rad_altura || C.BAXI.modelos[modeloKey].altura_default;
+    opts.altura = parseInt(alturaSel);
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span style="font-size:10px;color:#6B7280">Altura</span><select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_altura=parseInt(this.value);_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${alturasDisp.map(a => `<option value="${a}" ${parseInt(alturaSel)===parseInt(a)?'selected':''}>${a} cm</option>`).join('')}</select></div>`;
+  } else if (marcaK === 'jaga_strada' || marcaK === 'jaga_tempo') {
+    const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
+    const alturasDisp = Object.keys(modeloObj.alturas);
+    const alturaSel = rad.rad_altura || cfgPlanta.rad_altura || '050_est';
+    opts.alturaKey = alturaSel;
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span style="font-size:10px;color:#6B7280">Altura</span><select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_altura=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${alturasDisp.map(a => {const ao = modeloObj.alturas[a]; return `<option value="${a}" ${alturaSel===a?'selected':''}>H${ao.altura_cm} ${ao.twin?'Twin':'Estándar'}</option>`;}).join('')}</select></div>`;
+  } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
+    const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
+    const modelosDisp = Object.keys(C.AQUABIT.modelos).filter(k => k.startsWith(prefijo));
+    const modSel = rad.rad_modelo_aquabit || cfgPlanta.rad_modelo_aquabit || modelosDisp[0];
+    opts.modeloKey = modSel;
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span style="font-size:10px;color:#6B7280">Modelo</span><select onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_modelo_aquabit=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${modelosDisp.map(m => `<option value="${e(m)}" ${modSel===m?'selected':''}>${e(m)}</option>`).join('')}</select></div>`;
+  }
+  const auto = _medClimaAutoCalcEmisor(marcaK, potShare, dt, opts);
+  if (auto) {
+    const colorBg = auto.insuficiente ? '#FEE2E2' : '#DCFCE7';
+    const colorTx = auto.insuficiente ? '#991B1B' : '#15803D';
+    let info = '';
+    if (auto.tipo === 'baxi') info = `<strong>${auto.elementos} elementos</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
+    else if (auto.tipo === 'jaga') info = `<strong>L${auto.longitud_cm} · Tipo ${auto.tipo_intercambiador}</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
+    else if (auto.tipo === 'aquabit') info = `<strong>Ancho ${auto.ancho_cm} cm</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
+    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}</div>`;
+    setTimeout(() => {
+      const stE = window._medClimaState?.estancias?.[i]?.rad_adicionales?.[idxAdic];
+      if (stE) { stE.calc = auto; stE.modelo = auto.descripcion; stE.kw = +(auto.w_real/1000).toFixed(2); }
+    }, 0);
+  }
+  html += `</div>`;
   return html;
 }
 
@@ -8366,7 +8463,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 34
+        instaloERP v1.0 · build 35
       </div>
     </div>`;
 }
