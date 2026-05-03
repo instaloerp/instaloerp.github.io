@@ -1070,6 +1070,276 @@ function _medSvgVentana(item) {
 // ════════════════════════════════════════════════════════════════
 // EXPORTAR PDF DE LA MEDICIÓN — formato unificado vía html-documento.js
 // ════════════════════════════════════════════════════════════════
+// ── Render del DETALLE de una climatización para el PDF ──
+function _medErpDetalleClima(it) {
+  const e = _medErpEsc;
+  if (!it) return '';
+  const tt = ({vivienda_nueva:'Vivienda nueva', rehabilitacion:'Rehabilitación', instalacion_vista:'Instalación vista'})[it.tipo_trabajo] || it.tipo_trabajo || '';
+  const tImp = it.generador?.t_impulsion || '';
+  const tAmb = it.t_ambiente != null ? it.t_ambiente : 21;
+  const facSeg = it.factor_seg != null ? it.factor_seg : 15;
+  let h = '';
+
+  // ── 1) Datos generales ──
+  h += `<div style="margin:8px 0 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:10px">
+    <div style="background:#F0F9FF;padding:6px 8px;border-radius:5px"><div style="color:#6B7280;font-size:8.5px">Tipo trabajo</div><div style="font-weight:700;color:#0C4A6E">${e(tt)}</div></div>
+    <div style="background:#F0F9FF;padding:6px 8px;border-radius:5px"><div style="color:#6B7280;font-size:8.5px">Factor seguridad</div><div style="font-weight:700;color:#0C4A6E">+${facSeg}%</div></div>
+    <div style="background:#F0F9FF;padding:6px 8px;border-radius:5px"><div style="color:#6B7280;font-size:8.5px">T impulsión</div><div style="font-weight:700;color:#0C4A6E">${tImp}ºC</div></div>
+    <div style="background:#F0F9FF;padding:6px 8px;border-radius:5px"><div style="color:#6B7280;font-size:8.5px">T ambiente</div><div style="font-weight:700;color:#0C4A6E">${tAmb}ºC</div></div>
+  </div>`;
+
+  // ── 2) Plantas y estancias (tabla) ──
+  if (it.estancias && it.estancias.length) {
+    const totales = it.totales || {};
+    h += `<div style="margin:10px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">🏠 PLANTAS Y ESTANCIAS</div>
+      <table style="width:100%;border-collapse:collapse;font-size:9.5px">
+        <thead>
+          <tr style="background:#EFF6FF;color:#1E40AF;font-weight:700">
+            <th style="padding:5px 6px;text-align:left;border:1px solid #BFDBFE">Planta</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #BFDBFE">Estancia</th>
+            <th style="padding:5px 6px;text-align:right;border:1px solid #BFDBFE">Dim. (cm)</th>
+            <th style="padding:5px 6px;text-align:right;border:1px solid #BFDBFE">m²</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #BFDBFE">Aisl.</th>
+            <th style="padding:5px 6px;text-align:right;border:1px solid #BFDBFE">🔥 kW</th>
+          </tr>
+        </thead>
+        <tbody>`;
+    it.estancias.forEach(es => {
+      const dim = `${es.ancho_cm||'?'}×${es.largo_cm||'?'}`;
+      const m2 = es.m2 != null ? Number(es.m2).toFixed(1) : '—';
+      const calorKw = es.calor_kw != null ? Number(es.calor_kw).toFixed(2) : '—';
+      h += `<tr>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB;color:#1E40AF;font-weight:600">${e(es.planta||'—')}</td>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB">${e(es.nombre||'—')}</td>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB;text-align:right">${dim}</td>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB;text-align:right">${m2}</td>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB;text-align:center">${e(es.aislamiento||'Normal')}</td>
+        <td style="padding:4px 6px;border:1px solid #E5E7EB;text-align:right;font-weight:600">${calorKw}</td>
+      </tr>`;
+    });
+    h += `</tbody>`;
+    if (totales.calor_kw || totales.frio_kw) {
+      h += `<tfoot><tr style="background:#FEF3C7;font-weight:700">
+        <td colspan="5" style="padding:5px 6px;border:1px solid #FDE68A;text-align:right">TOTAL</td>
+        <td style="padding:5px 6px;border:1px solid #FDE68A;text-align:right">${(totales.calor_kw||0).toFixed(2)} kW${totales.frio_kw?` · ❄️ ${(totales.frio_kw||0).toFixed(2)}`:''}</td>
+      </tr></tfoot>`;
+    }
+    h += `</table>`;
+  }
+
+  // ── 3) Generador ──
+  if (it.generador && it.generador.tipo) {
+    const g = it.generador;
+    const gMap = {bdc_aire_aire:'BdC aire/aire', bdc_aire_agua:'BdC aire/agua', geotermia:'Geotermia', biomasa:'Biomasa', caldera_combust:'Caldera combustible'};
+    const gTxt = gMap[g.tipo] || g.tipo;
+    const partes = [gTxt];
+    if (g.bdc_aa_tipo) partes.push(g.bdc_aa_tipo);
+    if (g.caldera_combustible) partes.push(g.caldera_combustible);
+    if (g.caldera_gas_tipo) partes.push(g.caldera_gas_tipo);
+    h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">🔧 GENERADOR</div>
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:8px 10px;font-size:10px;line-height:1.5">
+        <div><strong>${e(partes.join(' · '))}</strong></div>
+        ${(g.marca || g.modelo) ? `<div>Marca/modelo: <strong>${e(g.marca||'')} ${e(g.modelo||'')}</strong></div>` : ''}
+        ${g.kw ? `<div>Potencia: <strong>${g.kw} kW${g.kcal?` · ${g.kcal} kcal/h`:''}</strong></div>` : ''}
+        ${g.t_impulsion ? `<div>T. impulsión: <strong>${g.t_impulsion}ºC</strong></div>` : ''}
+      </div>`;
+  }
+
+  // ── 4) Emisores por planta ──
+  if (it.config_plantas && Object.keys(it.config_plantas).length) {
+    h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">🔥 EMISORES</div>`;
+    const sisLab = { radiador:'📻 Radiador', suelo_radiante:'🟫 Suelo radiante', fancoil:'🌬️ Fancoil' };
+    Object.entries(it.config_plantas).forEach(([planta, cfg]) => {
+      if (!cfg.sistema) return;
+      h += `<div style="margin:6px 0;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:7px 10px;font-size:10px">
+        <div style="font-weight:700;color:#1E40AF;margin-bottom:4px">🏢 ${e(planta)} · ${e(sisLab[cfg.sistema]||cfg.sistema)}</div>`;
+      if (cfg.sistema === 'suelo_radiante') {
+        h += `<div style="color:#6B7280;line-height:1.4">Paso default: <strong>${cfg.sr_paso||15} cm</strong> · Plancha: <strong>${e(cfg.sr_plancha||'PN45_50')}</strong> · Tubo: <strong>${e(cfg.sr_tubo||'16x2.0')}</strong></div>`;
+      } else if (cfg.sistema === 'radiador') {
+        const tec = cfg.rad_tecnologia||'Aluminio';
+        h += `<div style="color:#6B7280">Tecnología default: <strong>${e(tec)}</strong>${cfg.rad_marca?` · Marca: <strong>${e(cfg.rad_marca)}</strong>`:''}${cfg.rad_dbh?' · DBH/DBE':''}</div>`;
+      }
+      // Estancias de esta planta
+      const ests = (it.estancias||[]).filter(es => (es.planta||'') === planta);
+      if (ests.length) {
+        h += `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:9.5px">
+          <thead><tr style="background:#F3F4F6;color:#374151">
+            <th style="padding:4px 5px;text-align:left;border:1px solid #E5E7EB">Estancia</th>
+            <th style="padding:4px 5px;text-align:left;border:1px solid #E5E7EB">Configuración</th>
+          </tr></thead><tbody>`;
+        ests.forEach(es => {
+          let descCfg = '';
+          if (cfg.sistema === 'radiador' && es.rad_calc) {
+            const rc = es.rad_calc;
+            if (rc.tipo === 'baxi') descCfg = `${e(rc.descripcion||`${rc.modelo} H${rc.altura_cm} · ${rc.elementos} elem · ${rc.w_real} W`)}`;
+            else if (rc.tipo === 'jaga') descCfg = e(rc.descripcion||`${rc.modelo} H${rc.altura_cm} L${rc.longitud_cm} T${rc.tipo_intercambiador} · ${rc.w_real} W`);
+            else if (rc.tipo === 'aquabit') descCfg = e(rc.descripcion||`${rc.modelo} L${rc.ancho_cm} · ${rc.w_real} W`);
+            else descCfg = e(es.emisor_modelo||'—');
+          } else if (cfg.sistema === 'suelo_radiante' && es.sr_calc) {
+            const sr = es.sr_calc;
+            descCfg = `Paso ${sr.paso} cm · ${sr.tuboML} ml tubo · ${sr.planchas} planchas · ${sr.perim} ml cinta perim.${sr.circuitos>1?` · ⚠️ ${sr.circuitos} circ.`:''}`;
+          } else if (cfg.sistema === 'fancoil') {
+            descCfg = `${e(es.fc_tipo||'—')}${es.fc_modelo?` · ${e(es.fc_modelo)}`:''}${es.fc_kw_frio?` · ${es.fc_kw_frio} kW frío`:''}${es.fc_kw_calor?` · ${es.fc_kw_calor} kW calor`:''}`;
+          }
+          // Adicionales (radiador)
+          (es.rad_adicionales||[]).forEach(a => {
+            if (a.calc) descCfg += `<br>+ ${e(a.calc.descripcion||'rad. adicional')}`;
+            else if (a.modelo) descCfg += `<br>+ ${e(a.modelo)}${a.kw?` · ${a.kw} kW`:''}`;
+          });
+          // Extras (suelo radiante)
+          (es.extras||[]).forEach(ex => {
+            const extLab = {toallero:'🚿 Toallero',fancoil_aux:'🌬️ Fancoil aux',radiador_aux:'📻 Radiador aux',split_aux:'❄️ Split aux',otro:'Otro'}[ex.tipo]||ex.tipo;
+            descCfg += `<br>+ ${e(extLab)}${ex.modelo?` · ${e(ex.modelo)}`:''}${ex.kw?` · ${ex.kw} kW`:''}`;
+          });
+          h += `<tr><td style="padding:4px 5px;border:1px solid #E5E7EB;font-weight:600">${e(es.nombre||'—')}</td><td style="padding:4px 5px;border:1px solid #E5E7EB">${descCfg||'—'}</td></tr>`;
+        });
+        h += `</tbody></table>`;
+      }
+      h += `</div>`;
+    });
+  }
+
+  // ── 5) Distribución ──
+  if (it.distribucion && Object.keys(it.distribucion).length) {
+    const d = it.distribucion;
+    const modoLab = ({empotrada:'🧱 Empotrada',vista:'👁️ Vista',mixta:'🔀 Mixta'})[d.modo] || d.modo || '';
+    const partes = [];
+    if (modoLab) partes.push(modoLab);
+    if (d.material) partes.push(d.material);
+    if ((d.diametros||[]).length) partes.push(`Ø ${d.diametros.join('/')} mm`);
+    if (d.tuberia_ml) partes.push(`${d.tuberia_ml} ml`);
+    if (d.aislamiento) partes.push(`aislamiento ${d.aislamiento_mm||9} mm`);
+    if (partes.length) {
+      h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">🔌 DISTRIBUCIÓN</div>
+        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:7px 10px;font-size:10px;line-height:1.5">
+          ${e(partes.join(' · '))}`;
+      // Colectores
+      if (d.colectores && Object.keys(d.colectores).length) {
+        h += `<div style="margin-top:5px"><strong>Colectores SR:</strong> `;
+        const cols = Object.entries(d.colectores).map(([p,c]) => `${e(p)}: ${c.salidas||0} salidas${c.ubicacion?` (${e(c.ubicacion)})`:''}`);
+        h += cols.join(' · ') + `</div>`;
+      }
+      if (d.frig_liquido_ml || d.frig_gas_ml) {
+        h += `<div style="margin-top:5px"><strong>Tubería frigorífica:</strong> ${d.frig_liquido_ml||0} ml líquido · ${d.frig_gas_ml||0} ml gas</div>`;
+      }
+      if (d.notas) h += `<div style="margin-top:5px;font-style:italic;color:#6B7280">${e(d.notas)}</div>`;
+      h += `</div>`;
+    }
+  }
+
+  // ── 6) Componentes hidráulicos ──
+  if (it.distribucion) {
+    const d = it.distribucion;
+    // Lista de claves de componentes (similar a _MED_COMP_CATALOGO)
+    const comps = [
+      {k:'grupo_seguridad', n:'Grupo de seguridad'},
+      {k:'soporte_vaso', n:'Soporte vaso expansión', input:'soporte_vaso_n', unit:'ud'},
+      {k:'vaso_expansion', n:'Vaso de expansión', input:'vaso_expansion_litros', unit:'L'},
+      {k:'separador_hidraulico', n:'Aguja hidráulica'},
+      {k:'acumulador_inercia', n:'Depósito de inercia', input:'acumulador_inercia_l', unit:'L'},
+      {k:'filtro_decantador', n:'Filtro desfangador'},
+      {k:'purgador_auto', n:'Purgador automático principal'},
+      {k:'kit_llenado_auto', n:'Kit llenado automático'},
+      {k:'filtro_y', n:'Filtro Y (antiarena)'},
+      {k:'bypass_diferencial', n:'Válvula presión diferencial'},
+      {k:'termometro', n:'Termómetro', input:'termometro_n', unit:'ud'},
+      {k:'manometro', n:'Manómetro', input:'manometro_n', unit:'ud'},
+      {k:'valv_reguladora_caudal', n:'Válvula reguladora caudal'},
+      {k:'colectores_adic', n:'Colector premontado', input:'colectores_adic_salidas', unit:'sal.'},
+      {k:'grupo_impulsion', n:'Grupo impulsión premontado'},
+      {k:'valvula_3vias', n:'Válvula 3 vías motorizada'},
+      {k:'valvulas_zona', n:'Válvulas de zona', input:'valvulas_zona_n', unit:'ud'},
+      {k:'termostato_general', n:'Termostato general'},
+      {k:'cronotermostato', n:'Cronotermostato semanal'},
+      {k:'termostato_wifi', n:'Termostato wifi'},
+      {k:'termostatos', n:'Termostatos por estancia', input:'termostatos_n', unit:'ud'},
+      {k:'sonda_exterior', n:'Sonda exterior'},
+      {k:'sondas_imp_ret', n:'Sondas impulsión / retorno', input:'sondas_imp_ret_n', unit:'ud'},
+      {k:'acumulador_acs', n:'Acumulador ACS', input:'acumulador_acs_l', unit:'L'},
+      {k:'vaso_expansion_acs', n:'Vaso expansión ACS', input:'vaso_expansion_acs_l', unit:'L'},
+      {k:'soporte_vaso_acs', n:'Soporte vaso ACS', input:'soporte_vaso_acs_n', unit:'ud'},
+      {k:'bomba_recirc_acs', n:'Bomba recirculación ACS'},
+      {k:'intercambiador_placas', n:'Intercambiador de placas (ACS)', input:'intercambiador_placas_kw', unit:'kW'},
+    ];
+    const seleccionados = comps.filter(c => d[c.k]);
+    if (seleccionados.length) {
+      h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">🚰 COMPONENTES HIDRÁULICOS</div>
+        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:7px 10px;font-size:10px;line-height:1.6;columns:2;column-gap:14px">`;
+      seleccionados.forEach(c => {
+        let txt = `• ${e(c.n)}`;
+        if (c.input && d[c.input]) txt += ` <strong>${d[c.input]}${c.unit?' '+c.unit:''}</strong>`;
+        h += `<div>${txt}</div>`;
+      });
+      h += `</div>`;
+    }
+  }
+
+  // ── 7) Trabajos de obra ──
+  if (it.obra) {
+    const o = it.obra;
+    const obras = [
+      {k:'regatas', n:'Regatas en pared', input:'regatas_ml', unit:'ml'},
+      {k:'pasos_tuberia', n:'Pasos de tubería', input:'pasos_tuberia_n', unit:'ud'},
+      {k:'recrecido_sr', n:'Recrecido suelo radiante', input:'recrecido_sr_m2', unit:'m²'},
+      {k:'levantar_pavim', n:'Levantar pavimento', input:'levantar_pavim_m2', unit:'m²'},
+      {k:'retirada_equipos', n:'Retirada equipos antiguos'},
+      {k:'pintura_acabados', n:'Pintura / acabados', input:'pintura_acabados_m2', unit:'m²'},
+      {k:'falso_techo', n:'Falso techo', input:'falso_techo_m2', unit:'m²'},
+      {k:'soporte_bdc_ext', n:'Soporte BdC exterior'},
+      {k:'transporte_escom', n:'Carga y transporte escombros'},
+    ];
+    const obrasSel = obras.filter(x => o[x.k]);
+    if (obrasSel.length || o.notas) {
+      h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">📐 TRABAJOS DE OBRA</div>
+        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:7px 10px;font-size:10px;line-height:1.5">`;
+      obrasSel.forEach(c => {
+        let txt = `• ${e(c.n)}`;
+        if (c.input && o[c.input]) txt += `: <strong>${o[c.input]} ${c.unit||''}</strong>`;
+        h += `<div>${txt}</div>`;
+      });
+      if (o.notas) h += `<div style="margin-top:5px;font-style:italic;color:#6B7280">${e(o.notas)}</div>`;
+      h += `</div>`;
+    }
+  }
+
+  // ── 8) Permisos y certificados ──
+  if (it.permisos) {
+    const p = it.permisos;
+    const perms = [
+      {k:'memoria_rite', n:'Memoria técnica RITE'},
+      {k:'proyecto_tecnico', n:'Proyecto técnico'},
+      {k:'cert_rite', n:'Certificado RITE'},
+      {k:'cert_gas', n:'Certificado instalación de gas'},
+      {k:'cert_electrico', n:'Certificado eléctrico'},
+      {k:'pruebas_estanq', n:'Pruebas estanqueidad / presión'},
+      {k:'lic_obra', n:'Licencia de obra'},
+      {k:'com_industria', n:'Comunicación a Industria'},
+      {k:'boletin_gas', n:'Boletín instalación de gas'},
+      {k:'alta_suministro', n:'Alta de suministro'},
+      {k:'manual_cliente', n:'Manual al cliente'},
+      {k:'garantias', n:'Garantías equipos'},
+      {k:'etiquetas_energ', n:'Etiquetas energéticas'},
+      {k:'contrato_mant', n:'Contrato mantenimiento'},
+    ];
+    const permsSel = perms.filter(x => p[x.k]);
+    if (permsSel.length || p.notas) {
+      h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">⚠️ PERMISOS Y CERTIFICADOS</div>
+        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:5px;padding:7px 10px;font-size:10px;line-height:1.6;columns:2;column-gap:14px">
+          ${permsSel.map(c => `<div>✓ ${e(c.n)}</div>`).join('')}
+        </div>`;
+      if (p.notas) h += `<div style="background:#F9FAFB;border-top:none;border:1px solid #E5E7EB;border-radius:0 0 5px 5px;padding:5px 10px;font-size:10px;font-style:italic;color:#6B7280;margin-top:-1px">${e(p.notas)}</div>`;
+    }
+  }
+
+  // ── 9) Observaciones generales ──
+  if (it.observaciones) {
+    h += `<div style="margin:14px 0 4px;font-weight:700;font-size:11px;color:#1E40AF">📝 OBSERVACIONES</div>
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:5px;padding:7px 10px;font-size:10px;line-height:1.5;color:#374151;white-space:pre-wrap">${e(it.observaciones)}</div>`;
+  }
+
+  return h;
+}
+
 async function exportarMedicionPDF(id) {
   // Preferir _medErpActual (siempre tiene los cambios in-memory más recientes)
   // sobre _medErpData (puede estar desactualizado tras cambios de estrategia, etc.)
@@ -1123,6 +1393,14 @@ async function exportarMedicionPDF(id) {
           <div style="font-weight:500;color:#111827;font-size:12px;margin-bottom:5px">${i+1}. ${ubic ? _medErpEsc(ubic) : pl.label}</div>
           ${_medErpDetalleBano(it)}
           ${despieceHtml}
+        </div>`;
+    }
+    // Climatización: detalle completo (tabla estancias, generador, emisores, distribución, componentes, obra, permisos)
+    if (m.tipo === 'climatizacion') {
+      return `
+        <div style="padding:10px 0;border-bottom:1px dashed #E5E7EB">
+          <div style="font-weight:500;color:#111827;font-size:12px;margin-bottom:5px">${i+1}. ${ubic ? _medErpEsc(ubic) : pl.label}</div>
+          ${_medErpDetalleClima(it)}
         </div>`;
     }
     const desc = _medErpDescItem(m.tipo, it);
