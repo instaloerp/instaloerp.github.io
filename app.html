@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 56
+      instaloERP v1.0 · build 57
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 56
+      instaloERP v1.0 · build 57
     </div>
   `;
 }
@@ -6640,6 +6640,7 @@ function _medAbrirModalClima(it) {
     estancias:     estancias0,
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
+    distribucion:  it.distribucion ? {...it.distribucion} : {},
     bloques_abiertos: _bloquesAb,
     validados: _val,
   };
@@ -7074,7 +7075,10 @@ function _medRenderClimaForm(it) {
   })();
   html += _medClimaBloque('gen', tituloBloque4, body4, { resumen: _resEm });
 
-  html += _medClimaBloque('dist','🔌 Distribución',          '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente — siguiente paso de implementación</div>');
+  // Bloque distribución
+  if (!st.distribucion) st.distribucion = {};
+  const _resDist = _medClimaResumenDistribucion(st);
+  html += _medClimaBloque('dist','🔌 Distribución', _medClimaRenderDistribucion(st), { resumen: _resDist });
   html += _medClimaBloque('ctrl','🎛️ Control y accesorios',  '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   html += _medClimaBloque('obra','📐 Trabajos de obra',      '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   html += _medClimaBloque('perm','⚠️ Permisos y certificados','<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
@@ -7845,6 +7849,157 @@ function _medClimaRenderFancoil(es, i, cargas) {
   </div>`;
 }
 
+// ── DISTRIBUCIÓN ────────────────────────────────────────────────
+// Constantes para selectores
+const _MED_DIST_MATERIALES = ['Multicapa REHAU','PEX','Cobre','Acero negro','Acero galvanizado'];
+const _MED_DIST_DIAMETROS = ['16','20','25','32','40','50'];
+const _MED_DIST_MODOS = [
+  { k:'empotrada', l:'🧱 Empotrada' },
+  { k:'vista',     l:'👁️ Vista' },
+  { k:'mixta',     l:'🔀 Mixta' },
+];
+
+// Resumen breve para cabecera validada
+function _medClimaResumenDistribucion(st) {
+  const d = st.distribucion || {};
+  if (!d.modo && !d.material && !(d.diametros||[]).length && !d.tuberia_ml) return 'Sin configurar';
+  const partes = [];
+  if (d.modo) partes.push((_MED_DIST_MODOS.find(m=>m.k===d.modo)||{}).l || d.modo);
+  if (d.material) partes.push(d.material);
+  if (d.tuberia_ml) partes.push(`${d.tuberia_ml} ml`);
+  if (d.aislamiento) partes.push(`aisl. ${d.aislamiento_mm||9}mm`);
+  return partes.join(' · ');
+}
+
+// Render del bloque distribución
+function _medClimaRenderDistribucion(st) {
+  const e = _medEsc;
+  const d = st.distribucion;
+  // Cuántos circuitos suelo radiante hay por planta (auto)
+  const circuitosPorPlanta = {};
+  (st.plantas||[]).forEach(p => circuitosPorPlanta[p] = 0);
+  st.estancias.forEach(es => {
+    const cfg = st.config_plantas?.[es.planta || st.plantas[0]];
+    if (cfg?.sistema === 'suelo_radiante' && es.sr_calc?.circuitos) {
+      circuitosPorPlanta[es.planta || st.plantas[0]] += es.sr_calc.circuitos;
+    }
+  });
+  let html = '';
+
+  // 1) Modo
+  html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">MODO DE INSTALACIÓN</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px">
+      ${_MED_DIST_MODOS.map(m => {
+        const a = d.modo === m.k;
+        return `<button type="button" onclick="window._medClimaState.distribucion.modo='${m.k}';_medRefrescarClimaForm()" style="padding:8px 4px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${e(m.l)}</button>`;
+      }).join('')}
+    </div>`;
+
+  // 2) Tubería
+  html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">🚰 TUBERÍA PRINCIPAL</div>
+    <div style="background:#F9FAFB;border:1px solid var(--gris-200);border-radius:7px;padding:8px;margin-bottom:10px">
+      <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Material</div>
+      <select onchange="window._medClimaState.distribucion.material=this.value;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;background:#fff;box-sizing:border-box;margin-bottom:6px">
+        <option value="">— elegir —</option>
+        ${_MED_DIST_MATERIALES.map(m => `<option value="${e(m)}" ${d.material===m?'selected':''}>${e(m)}</option>`).join('')}
+      </select>
+      <div style="font-size:9px;color:#6B7280;margin-bottom:3px">Diámetros usados (mm) — múltiple</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:6px">
+        ${_MED_DIST_DIAMETROS.map(diam => {
+          const a = (d.diametros||[]).includes(diam);
+          return `<button type="button" onclick="(()=>{const dd=window._medClimaState.distribucion;if(!dd.diametros)dd.diametros=[];const i=dd.diametros.indexOf('${diam}');if(i>=0)dd.diametros.splice(i,1);else dd.diametros.push('${diam}');_medRefrescarClimaForm()})()" style="padding:6px 2px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:5px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${diam}</button>`;
+        }).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">ml totales (estimado)</div>
+          <input type="number" value="${d.tuberia_ml||''}" oninput="window._medClimaState.distribucion.tuberia_ml=parseFloat(this.value)||0" placeholder="0" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+        <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Aislante mm</div>
+          <input type="number" value="${d.aislamiento_mm||''}" oninput="window._medClimaState.distribucion.aislamiento_mm=parseFloat(this.value)||0;if(parseFloat(this.value)>0)window._medClimaState.distribucion.aislamiento=true" placeholder="9" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+      </div>
+      <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;cursor:pointer">
+        <input type="checkbox" ${d.aislamiento?'checked':''} onchange="window._medClimaState.distribucion.aislamiento=this.checked;_medRefrescarClimaForm()">
+        Tubería con aislante (coquilla Armaflex/similar)
+      </label>
+    </div>`;
+
+  // 3) Colectores (uno por planta con suelo radiante)
+  const plantasConSR = (st.plantas||[]).filter(p => st.config_plantas?.[p]?.sistema === 'suelo_radiante');
+  if (plantasConSR.length) {
+    if (!d.colectores) d.colectores = {};
+    html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">📦 COLECTORES SUELO RADIANTE</div>`;
+    plantasConSR.forEach(p => {
+      if (!d.colectores[p]) d.colectores[p] = {};
+      const col = d.colectores[p];
+      const salidasAuto = circuitosPorPlanta[p] || 0;
+      if (col.salidas == null) col.salidas = salidasAuto;
+      html += `<div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-bottom:6px">
+        <div style="font-size:11px;color:#1E40AF;font-weight:700;margin-bottom:5px">🏢 ${e(p)} <span style="font-weight:400;font-size:10px;opacity:.7">(auto: ${salidasAuto} circuitos)</span></div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:5px">
+          <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Nº salidas</div>
+            <input type="number" min="2" value="${col.salidas||salidasAuto}" oninput="window._medClimaState.distribucion.colectores['${e(p)}'].salidas=parseInt(this.value)||0" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:12.5px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+          <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Ubicación</div>
+            <input type="text" placeholder="Armario pasillo / sala técnica..." value="${e(col.ubicacion||'')}" oninput="window._medClimaState.distribucion.colectores['${e(p)}'].ubicacion=this.value" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;box-sizing:border-box"></div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // 4) Componentes hidráulicos
+  html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">⚙️ COMPONENTES HIDRÁULICOS</div>
+    <div style="background:#F9FAFB;border:1px solid var(--gris-200);border-radius:7px;padding:8px;margin-bottom:10px">
+      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
+        <input type="checkbox" ${d.separador_hidraulico?'checked':''} onchange="window._medClimaState.distribucion.separador_hidraulico=this.checked;_medRefrescarClimaForm()">
+        <span style="flex:1">Separador hidráulico</span>
+      </label>
+      <div style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100)">
+        <label class="tap" style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;font-size:11.5px">
+          <input type="checkbox" ${d.vaso_expansion?'checked':''} onchange="window._medClimaState.distribucion.vaso_expansion=this.checked;_medRefrescarClimaForm()">
+          Vaso de expansión
+        </label>
+        ${d.vaso_expansion ? `<input type="number" placeholder="L" value="${d.vaso_expansion_litros||''}" oninput="window._medClimaState.distribucion.vaso_expansion_litros=parseInt(this.value)||0" style="width:60px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box"><span style="font-size:11px;color:#6B7280">L</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100)">
+        <label class="tap" style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;font-size:11.5px">
+          <input type="checkbox" ${d.bomba_aux?'checked':''} onchange="window._medClimaState.distribucion.bomba_aux=this.checked;_medRefrescarClimaForm()">
+          Bomba circulador auxiliar
+        </label>
+        ${d.bomba_aux ? `<input type="number" min="1" placeholder="ud" value="${d.bomba_aux_n||1}" oninput="window._medClimaState.distribucion.bomba_aux_n=parseInt(this.value)||1" style="width:50px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box"><span style="font-size:11px;color:#6B7280">ud</span>`:''}
+      </div>
+      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
+        <input type="checkbox" ${d.filtro_decantador?'checked':''} onchange="window._medClimaState.distribucion.filtro_decantador=this.checked">
+        <span style="flex:1">Filtro decantador / desfangador magnético</span>
+      </label>
+      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
+        <input type="checkbox" ${d.purgador_auto?'checked':''} onchange="window._medClimaState.distribucion.purgador_auto=this.checked">
+        <span style="flex:1">Purgador automático principal</span>
+      </label>
+      <label class="tap" style="display:flex;align-items:center;gap:8px;padding:5px;font-size:11.5px;cursor:pointer">
+        <input type="checkbox" ${d.llaves_corte?'checked':''} onchange="window._medClimaState.distribucion.llaves_corte=this.checked;_medRefrescarClimaForm()">
+        <span style="flex:1">Llaves de corte por planta</span>
+      </label>
+      ${d.llaves_corte?`<div style="padding:5px"><input type="number" min="2" placeholder="Nº llaves" value="${d.llaves_corte_n||''}" oninput="window._medClimaState.distribucion.llaves_corte_n=parseInt(this.value)||0" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:4px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box"></div>`:''}
+    </div>`;
+
+  // 5) BdC aire/aire específico (tubería frigorífica)
+  if (st.generador?.tipo === 'bdc_aire_aire') {
+    html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">❄️ TUBERÍA FRIGORÍFICA (cobre)</div>
+      <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:7px;padding:8px;margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+          <div><div style="font-size:9px;color:#92400E;margin-bottom:2px">Línea líquido (ml)</div>
+            <input type="number" value="${d.frig_liquido_ml||''}" oninput="window._medClimaState.distribucion.frig_liquido_ml=parseFloat(this.value)||0" placeholder="0" style="width:100%;padding:5px;border:1px solid #FDE68A;border-radius:5px;font-size:12.5px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+          <div><div style="font-size:9px;color:#92400E;margin-bottom:2px">Línea gas (ml)</div>
+            <input type="number" value="${d.frig_gas_ml||''}" oninput="window._medClimaState.distribucion.frig_gas_ml=parseFloat(this.value)||0" placeholder="0" style="width:100%;padding:5px;border:1px solid #FDE68A;border-radius:5px;font-size:12.5px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+        </div>
+      </div>`;
+  }
+
+  // 6) Observaciones específicas
+  html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">📝 NOTAS DE DISTRIBUCIÓN</div>
+    <textarea placeholder="Detalles particulares del recorrido, pasos, dificultades…" oninput="window._medClimaState.distribucion.notas=this.value" style="width:100%;min-height:50px;padding:8px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;font-family:var(--font);box-sizing:border-box;resize:vertical">${e(d.notas||'')}</textarea>`;
+
+  return html;
+}
+
 // Cálculo de carga térmica por estancia + totales
 function _medClimaCalcCargasEstancia(es, factorSegPct) {
   const m2 = (parseFloat(es.ancho_cm)||0) * (parseFloat(es.largo_cm)||0) / 10000;
@@ -7920,6 +8075,7 @@ async function _medGuardarItemClima() {
     estancias: estanciasGuardar,
     sistema: st.sistema || '',
     generador: st.generador || {},
+    distribucion: st.distribucion || {},
     validados: st.validados || {},
     totales: {
       calor_w:  totalCalorW,
@@ -8687,7 +8843,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 56
+        instaloERP v1.0 · build 57
       </div>
     </div>`;
 }
