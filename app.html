@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 70
+      instaloERP v1.0 · build 73
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 70
+      instaloERP v1.0 · build 73
     </div>
   `;
 }
@@ -7987,50 +7987,41 @@ function _medDistSaltoHidraulico(generador) {
 //   input?: { key, unit, auto? }  ← campo numérico (cantidad/L/kW)
 //   select?: { key, opts }         ← selector opciones
 const _MED_COMP_CATALOGO = [
-  // HIDRÁULICA
-  { k:'separador_hidraulico',  n:'Separador hidráulico',                   cat:'Hidráulica', ico:'💧' },
-  { k:'vaso_expansion',        n:'Vaso de expansión',                      cat:'Hidráulica', ico:'🛢️', input:{ key:'vaso_expansion_litros', unit:'L', auto:'vasoCalefaccion' } },
+  // HIDRÁULICA (incluye seguridad, manómetros, depósito inercia)
+  { k:'grupo_seguridad',       n:'Grupo de seguridad',                     cat:'Hidráulica', ico:'🛡️' },
   { k:'soporte_vaso',          n:'Soporte para vaso de expansión',         cat:'Hidráulica', ico:'🔩', input:{ key:'soporte_vaso_n', unit:'ud' } },
-  { k:'colectores_adic',       n:'Colectores adicionales (no SR)',         cat:'Hidráulica', ico:'📦', input:{ key:'colectores_adic_salidas', unit:'sal.' } },
-  { k:'bomba_aux',             n:'Bomba circulador auxiliar',              cat:'Hidráulica', ico:'⚙️', input:{ key:'bomba_aux_n', unit:'ud' } },
-  { k:'bomba_alta_efic',       n:'Bomba alta eficiencia (clase A)',        cat:'Hidráulica', ico:'⭐' },
-  { k:'filtro_decantador',     n:'Filtro decantador / desfangador',        cat:'Hidráulica', ico:'🧲' },
+  { k:'vaso_expansion',        n:'Vaso de expansión',                      cat:'Hidráulica', ico:'🛢️', input:{ key:'vaso_expansion_litros', unit:'L', auto:'vasoCalefaccion' } },
+  { k:'separador_hidraulico',  n:'Aguja hidráulica',                       cat:'Hidráulica', ico:'💧' },
+  { k:'acumulador_inercia',    n:'Depósito de inercia',                    cat:'Hidráulica', ico:'🔥', input:{ key:'acumulador_inercia_l', unit:'L' } },
+  { k:'filtro_decantador',     n:'Filtro desfangador',                     cat:'Hidráulica', ico:'🧲' },
   { k:'purgador_auto',         n:'Purgador automático principal',          cat:'Hidráulica', ico:'💨' },
-  { k:'llaves_corte',          n:'Llaves de corte por planta',             cat:'Hidráulica', ico:'🔵', input:{ key:'llaves_corte_n', unit:'ud' } },
-  { k:'antivibracion',         n:'Antivibración / latiguillos flexibles',  cat:'Hidráulica', ico:'🌀' },
-  { k:'bypass_diferencial',    n:'Bypass diferencial / by-pass automático',cat:'Hidráulica', ico:'🔁' },
-  // SEGURIDAD
-  { k:'valvula_seguridad',     n:'Válvula de seguridad (3 bar)',           cat:'Seguridad',  ico:'🛡️' },
-  { k:'manometro',             n:'Manómetro',                              cat:'Seguridad',  ico:'📊', input:{ key:'manometro_n', unit:'ud' } },
-  { k:'termometro',            n:'Termómetro',                             cat:'Seguridad',  ico:'🌡️', input:{ key:'termometro_n', unit:'ud' } },
-  { k:'llave_general',         n:'Llave esfera de corte general',          cat:'Seguridad',  ico:'🔑' },
-  { k:'llave_llenado',         n:'Llave de llenado',                       cat:'Seguridad',  ico:'💦', select:{ key:'llave_llenado_tipo', opts:['Manual','Automática'] } },
-  { k:'kit_llenado_auto',      n:'Kit llenado automático (desconexión)',   cat:'Seguridad',  ico:'🚰' },
-  { k:'antirretorno',          n:'Antirretorno / válvula check',           cat:'Seguridad',  ico:'⏪' },
-  { k:'filtro_y',              n:'Filtro Y (antiarena)',                   cat:'Seguridad',  ico:'🪤' },
-  { k:'valv_reguladora_caudal',n:'Válvula reguladora de caudal',           cat:'Seguridad',  ico:'🎚️' },
-  // ZONAS Y GRUPOS
+  { k:'kit_llenado_auto',      n:'Kit llenado automático',                 cat:'Hidráulica', ico:'🚰' },
+  { k:'filtro_y',              n:'Filtro Y (antiarena)',                   cat:'Hidráulica', ico:'🪤' },
+  { k:'bypass_diferencial',    n:'Válvula presión diferencial',            cat:'Hidráulica', ico:'🔁' },
+  { k:'termometro',            n:'Termómetro',                             cat:'Hidráulica', ico:'🌡️', input:{ key:'termometro_n', unit:'ud' } },
+  { k:'manometro',             n:'Manómetro',                              cat:'Hidráulica', ico:'📊', input:{ key:'manometro_n', unit:'ud' } },
+  { k:'valv_reguladora_caudal',n:'Válvula reguladora de caudal',           cat:'Hidráulica', ico:'🎚️' },
+  // ZONAS
+  { k:'colectores_adic',       n:'Colector premontado',                    cat:'Zonas',      ico:'📦', input:{ key:'colectores_adic_salidas', unit:'sal.' } },
   { k:'grupo_impulsion',       n:'Grupo de impulsión premontado',          cat:'Zonas',      ico:'🏭', select:{ key:'grupo_impulsion_tipo', opts:['Punto fijo','Punto variable (mezcladora)'] } },
-  { k:'grupo_impulsion_n',     n:'Nº de grupos de impulsión',              cat:'Zonas',      ico:'#️⃣', input:{ key:'grupo_impulsion_uds', unit:'ud' } },
   { k:'valvula_3vias',         n:'Válvula 3 vías motorizada (suelta)',     cat:'Zonas',      ico:'🔀' },
   { k:'valvulas_zona',         n:'Válvulas de zona',                       cat:'Zonas',      ico:'🚪', input:{ key:'valvulas_zona_n', unit:'ud' } },
-  { k:'centralita_multizona',  n:'Centralita multi-zona',                  cat:'Zonas',      ico:'🎛️' },
   // TERMOSTATOS Y SONDAS
   { k:'termostato_general',    n:'Termostato general (cableado/inalámbrico)', cat:'Termostatos', ico:'🌡️' },
   { k:'cronotermostato',       n:'Cronotermostato semanal',                cat:'Termostatos', ico:'⏰' },
+  { k:'termostato_wifi',       n:'Termostato / programador wifi',          cat:'Termostatos', ico:'📱' },
   { k:'termostatos',           n:'Termostatos por estancia',               cat:'Termostatos', ico:'🏠', input:{ key:'termostatos_n', unit:'ud' } },
   { k:'sonda_exterior',        n:'Sonda exterior',                         cat:'Termostatos', ico:'🌤️' },
   { k:'sondas_imp_ret',        n:'Sondas impulsión / retorno',             cat:'Termostatos', ico:'📡', input:{ key:'sondas_imp_ret_n', unit:'ud' } },
-  { k:'termostato_wifi',       n:'Termostato / programador wifi',          cat:'Termostatos', ico:'📱' },
   // ACUMULACIÓN Y ACS
-  { k:'acumulador_inercia',    n:'Acumulador de inercia',                  cat:'Acumulación', ico:'🔥', input:{ key:'acumulador_inercia_l', unit:'L' } },
   { k:'acumulador_acs',        n:'Acumulador ACS',                         cat:'Acumulación', ico:'🚿', input:{ key:'acumulador_acs_l', unit:'L' } },
-  { k:'intercambiador_placas', n:'Intercambiador de placas (ACS rápida)',  cat:'Acumulación', ico:'📚', input:{ key:'intercambiador_placas_kw', unit:'kW' } },
-  { k:'bomba_recirc_acs',      n:'Bomba recirculación ACS',                cat:'Acumulación', ico:'🔄' },
   { k:'vaso_expansion_acs',    n:'Vaso expansión ACS',                     cat:'Acumulación', ico:'🛢️', input:{ key:'vaso_expansion_acs_l', unit:'L', auto:'vasoACS' } },
+  { k:'soporte_vaso_acs',      n:'Soporte para vaso de expansión',         cat:'Acumulación', ico:'🔧', input:{ key:'soporte_vaso_acs_n', unit:'ud' } },
+  { k:'bomba_recirc_acs',      n:'Bomba recirculación ACS',                cat:'Acumulación', ico:'🔄' },
+  { k:'intercambiador_placas', n:'Intercambiador de placas (ACS rápida)',  cat:'Acumulación', ico:'📚', input:{ key:'intercambiador_placas_kw', unit:'kW' } },
 ];
-const _MED_COMP_CATEGORIAS = ['Hidráulica','Seguridad','Zonas','Termostatos','Acumulación'];
-const _MED_COMP_CAT_ICONOS = { 'Hidráulica':'💧', 'Seguridad':'🛡️', 'Zonas':'🏠', 'Termostatos':'🌡️', 'Acumulación':'🔥' };
+const _MED_COMP_CATEGORIAS = ['Hidráulica','Zonas','Termostatos','Acumulación'];
+const _MED_COMP_CAT_ICONOS = { 'Hidráulica':'💧', 'Zonas':'🏠', 'Termostatos':'🌡️', 'Acumulación':'🔥' };
 
 // ── CÁLCULO DE VASOS DE EXPANSIÓN ────────────────────────────────
 // Volumen unitario interior (L/m) por material y diámetro nominal
@@ -9387,7 +9378,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 70
+        instaloERP v1.0 · build 73
       </div>
     </div>`;
 }
