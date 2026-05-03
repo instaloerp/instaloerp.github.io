@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 24
+      instaloERP v1.0 · build 25
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 24
+      instaloERP v1.0 · build 25
     </div>
   `;
 }
@@ -6796,7 +6796,14 @@ function _medClimaRenderEstancias() {
       html += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:9px;margin-bottom:5px">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
           <input type="text" placeholder="Estancia ${i+1}" value="${e(es.nombre||'')}" oninput="window._medClimaState.estancias[${i}].nombre=this.value" style="flex:1;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:12px;font-weight:600;box-sizing:border-box">
-          <input type="text" placeholder="Planta" value="${e(es.planta||'')}" list="mcPlantasList" oninput="window._medClimaState.estancias[${i}].planta=this.value" onblur="document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()" style="width:90px;padding:5px 7px;border:1px solid #93C5FD;border-radius:5px;font-size:11px;background:#EFF6FF;color:#1E40AF;font-weight:700;text-align:center;box-sizing:border-box">
+          <select onchange="_medClimaCambiarPlanta(${i},this.value)" style="width:110px;padding:5px 6px;border:1.5px solid #93C5FD;border-radius:5px;font-size:11px;background:#EFF6FF;color:#1E40AF;font-weight:700;box-sizing:border-box">
+            ${['Vivienda','Sótano','Planta baja','Planta 1','Planta 2','Planta 3','Ático','Bajo cubierta','__OTRA__'].map(p => {
+              const lab = p === '__OTRA__' ? '+ Otra…' : p;
+              const sel = (es.planta || 'Vivienda') === p ? 'selected' : '';
+              return `<option value="${e(p)}" ${sel}>${e(lab)}</option>`;
+            }).join('')}
+            ${(es.planta && !['Vivienda','Sótano','Planta baja','Planta 1','Planta 2','Planta 3','Ático','Bajo cubierta'].includes(es.planta)) ? `<option value="${e(es.planta)}" selected>${e(es.planta)}</option>` : ''}
+          </select>
           <button type="button" onclick="_medClimaRemEstancia(${i})" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:12px;cursor:pointer">✕</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:5px">
@@ -6817,11 +6824,25 @@ function _medClimaRenderEstancias() {
     });
     html += `</div></div>`;
   }
-  // Datalist con plantas comunes para autocompletar
-  html += `<datalist id="mcPlantasList">
-    <option value="Sótano"><option value="Planta baja"><option value="Planta 1"><option value="Planta 2"><option value="Planta 3"><option value="Ático"><option value="Bajo cubierta">
-  </datalist>`;
   return html;
+}
+
+// Cambia la planta de una estancia (con prompt si elige "Otra…")
+function _medClimaCambiarPlanta(idx, valor) {
+  if (valor === '__OTRA__') {
+    const nueva = prompt('Nombre de la planta:', 'Anejo');
+    if (!nueva || !nueva.trim()) {
+      // Cancelar: re-render para revertir el select
+      document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
+      _medClimaRecalcularTotales();
+      return;
+    }
+    window._medClimaState.estancias[idx].planta = nueva.trim();
+  } else {
+    window._medClimaState.estancias[idx].planta = valor;
+  }
+  document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
+  _medClimaRecalcularTotales();
 }
 
 function _medClimaAddEstancia() {
@@ -7676,7 +7697,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 24
+        instaloERP v1.0 · build 25
       </div>
     </div>`;
 }
