@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 48
+      instaloERP v1.0 · build 49
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 48
+      instaloERP v1.0 · build 49
     </div>
   `;
 }
@@ -6662,22 +6662,21 @@ function _medAbrirModalClima(it) {
 function _medClimaBloque(key, titulo, bodyHtml, opciones) {
   const st = window._medClimaState;
   opciones = opciones || {};
-  const validado = !!st.validados?.[key];
-  // Si validado, contraído por defecto. Si abierto en estado, mostrar normal.
-  const abierto = !validado && st.bloques_abiertos[key];
+  const validado = !!(st.validados && st.validados[key]);
+  // El estado bloques_abiertos manda siempre (independiente de validación)
+  const abierto = !!st.bloques_abiertos[key];
   const resumen = opciones.resumen || '';
   const headerBg = validado ? '#DCFCE7' : '#F3F4F6';
   const headerColor = validado ? '#065F46' : '#1F2937';
-  const headerIcon = validado ? '✓' : (abierto?'▾':'▸');
+  const headerIcon = validado ? (abierto?'▾ ✓':'✓') : (abierto?'▾':'▸');
   const headerIconColor = validado ? '#16A34A' : '#6B7280';
-  // Si no validable explícitamente false, asumir true
   const validable = opciones.validable !== false;
   const bodyExtra = (validable && !validado) ? `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gris-200)">
-      <button type="button" onclick="_medClimaValidarBloque('${key}')" class="tap" style="width:100%;padding:9px;background:#16A34A;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer">✓ Validar bloque</button>
+      <button type="button" onclick="event.stopPropagation();_medClimaValidarBloque('${key}')" class="tap" style="width:100%;padding:9px;background:#16A34A;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer">✓ Validar bloque</button>
     </div>` : (validable && validado) ? `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #BBF7D0">
-      <button type="button" onclick="_medClimaInvalidarBloque('${key}')" class="tap" style="width:100%;padding:7px;background:#fff;color:#16A34A;border:1.5px solid #16A34A;border-radius:7px;font-weight:700;font-size:11.5px;cursor:pointer">↻ Modificar</button>
+      <button type="button" onclick="event.stopPropagation();_medClimaInvalidarBloque('${key}')" class="tap" style="width:100%;padding:7px;background:#fff;color:#16A34A;border:1.5px solid #16A34A;border-radius:7px;font-weight:700;font-size:11.5px;cursor:pointer">↻ Modificar (volver a editar)</button>
     </div>` : '';
   return `<div style="border:1px solid ${validado?'#86EFAC':'var(--gris-200)'};border-radius:10px;margin-bottom:8px;overflow:hidden">
     <div onclick="_medClimaToggleBloque('${key}')" class="tap" style="padding:11px 14px;background:${headerBg};display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -6689,19 +6688,8 @@ function _medClimaBloque(key, titulo, bodyHtml, opciones) {
 }
 function _medClimaToggleBloque(key) {
   const st = window._medClimaState;
-  // Si está validado y se hace click → reabrir + desvalidar implícito (mantener validación, solo abrir)
-  if (st.validados?.[key]) {
-    st.bloques_abiertos[key] = !st.bloques_abiertos[key];
-  } else {
-    st.bloques_abiertos[key] = !st.bloques_abiertos[key];
-  }
-  const body = document.getElementById('mc_body_' + key);
-  if (body) body.style.display = st.bloques_abiertos[key] ? '' : 'none';
-  const head = body?.previousElementSibling;
-  if (head && !st.validados?.[key]) {
-    const arrow = head.querySelector('span:last-child');
-    if (arrow) arrow.textContent = st.bloques_abiertos[key] ? '▾' : '▸';
-  }
+  st.bloques_abiertos[key] = !st.bloques_abiertos[key];
+  _medRefrescarClimaForm();
 }
 function _medClimaValidarBloque(key) {
   const st = window._medClimaState;
@@ -8653,7 +8641,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 48
+        instaloERP v1.0 · build 49
       </div>
     </div>`;
 }
