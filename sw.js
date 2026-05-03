@@ -2,7 +2,7 @@
 // CACHE_NAME debe coincidir con el "build" mostrado en el footer de app.html.
 // Subir SIEMPRE este número cuando se modifique app.html o sw.js — si no, los
 // móviles no detectarán cambio y seguirán sirviendo la versión vieja desde caché.
-const CACHE_NAME = 'instalo-app-v53';
+const CACHE_NAME = 'instalo-app-v54';
 const STATIC_ASSETS = [
   '/app.html',
   '/assets/icon.svg',
