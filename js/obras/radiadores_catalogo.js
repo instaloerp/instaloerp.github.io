@@ -748,12 +748,56 @@ function aquabitDtIndex(dt) {
   return 2;
 }
 
-// ΔT recomendado según generador
-function deltaTRecomendado(generadorTipo, calderaCondensacion) {
-  if (generadorTipo === 'bdc_aire_agua' || generadorTipo === 'geotermia') return 22.5;
-  if (generadorTipo === 'caldera_combust' && calderaCondensacion) return 30;
-  if (generadorTipo === 'biomasa') return 30;
-  return 50; // caldera tradicional
+// Temperatura de impulsión predeterminada según generador (ºC)
+//   · BdC aire/agua + geotermia: 45º MÁX (no más alto, daña COP)
+//   · Caldera (gas/gasoil) + biomasa: 60º predeterminado
+function impulsionRecomendada(generadorTipo) {
+  if (generadorTipo === 'bdc_aire_agua' || generadorTipo === 'geotermia' || generadorTipo === 'aerotermia') return 45;
+  return 60; // caldera + biomasa
+}
+
+// Salto hidráulico estándar (T_imp − T_ret) según generador (ºC)
+//   · BdC: 5º   · Caldera/biomasa: 10º
+function saltoHidraulicoEstandar(generadorTipo) {
+  if (generadorTipo === 'bdc_aire_agua' || generadorTipo === 'geotermia' || generadorTipo === 'aerotermia') return 5;
+  return 10;
+}
+
+// Temperatura ambiente de diseño RITE (zona habitable invierno = 21ºC)
+const T_AMBIENTE_RITE_DEFAULT = 21;
+
+// ΔT medio del catálogo a partir de T. impulsión y T. ambiente
+//   ΔT_m = (T_imp + T_ret) / 2 - T_amb     con T_ret = T_imp − salto_hidráulico
+//   Devuelve la columna más cercana del catálogo: 22.5 / 27.5 / 30 / 50
+function deltaTDesdeTemperaturas(tImp, tAmb, saltoHidr) {
+  if (tAmb == null) tAmb = T_AMBIENTE_RITE_DEFAULT;
+  if (saltoHidr == null) saltoHidr = (tImp <= 47) ? 5 : 10;
+  const tRet = tImp - saltoHidr;
+  const dtReal = (tImp + tRet) / 2 - tAmb;
+  // Mapear al ΔT más cercano del catálogo
+  if (dtReal <= 25) return 22.5;
+  if (dtReal <= 28.75) return 27.5;
+  if (dtReal <= 40) return 30;
+  return 50;
+}
+
+// ΔT real numérico (sin redondear a columna catálogo)
+function deltaTReal(tImp, tAmb, saltoHidr) {
+  if (tAmb == null) tAmb = T_AMBIENTE_RITE_DEFAULT;
+  if (saltoHidr == null) saltoHidr = (tImp <= 47) ? 5 : 10;
+  const tRet = tImp - saltoHidr;
+  return +((tImp + tRet) / 2 - tAmb).toFixed(1);
+}
+
+// Compat: ΔT recomendado según generador (RITE 21ºC)
+function deltaTRecomendado(generadorTipo) {
+  return deltaTDesdeTemperaturas(impulsionRecomendada(generadorTipo), T_AMBIENTE_RITE_DEFAULT, saltoHidraulicoEstandar(generadorTipo));
+}
+
+// Compat: ΔT desde solo impulsión (asume RITE 21º + salto estándar)
+function deltaTDesdeImpulsion(tImp) {
+  const salto = (tImp <= 47) ? 5 : 10;
+  return deltaTDesdeTemperaturas(tImp, T_AMBIENTE_RITE_DEFAULT, salto);
 }
 
 // Busca la configuración Jaga MÁS PEQUEÑA que cubra `potencia_w` en un modelo+altura
@@ -834,6 +878,9 @@ function buscarMinimoBaxi(modeloKey, alturaKey, dt, potencia_w) {
 return {
   BAXI, JAGA_STRADA, JAGA_TEMPO, AQUABIT,
   jagaDtIndex, aquabitDtIndex, deltaTRecomendado,
+  impulsionRecomendada, saltoHidraulicoEstandar,
+  T_AMBIENTE_RITE_DEFAULT,
+  deltaTDesdeImpulsion, deltaTDesdeTemperaturas, deltaTReal,
   buscarMinimoJaga, buscarMinimoAquabit, buscarMinimoBaxi,
   // Lista de marcas/modelos disponibles para selectores en UI
   marcas: () => ([
