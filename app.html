@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 32
+      instaloERP v1.0 · build 33
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 32
+      instaloERP v1.0 · build 33
     </div>
   `;
 }
@@ -6598,11 +6598,27 @@ function _medAbrirModalClima(it) {
   const plantasGuardadas = it.plantas || [];
   const plantasDerivadas = [...new Set(estancias0.map(e => e.planta || 'Vivienda'))];
   const plantas = plantasGuardadas.length ? plantasGuardadas : (plantasDerivadas.length ? plantasDerivadas : ['Vivienda']);
+  // Migración legacy: si hay sistema_emisor en estancias y no config_plantas, construirlo
+  let configPlantas = it.config_plantas ? {...it.config_plantas} : {};
+  if (Object.keys(configPlantas).length === 0) {
+    estancias0.forEach(es => {
+      const p = es.planta || plantas[0] || 'Vivienda';
+      if (!configPlantas[p] && es.sistema_emisor) {
+        configPlantas[p] = {
+          sistema: es.sistema_emisor,
+          sr_paso: es.sr_paso || 15,
+          sr_plancha: es.sr_plancha || 'PN45_50',
+          sr_tubo: es.sr_tubo || '16x2.0',
+        };
+      }
+    });
+  }
   window._medClimaState = {
     tipo_trabajo:  it.tipo_trabajo || 'vivienda_nueva',
     factor_seg:    it.factor_seg != null ? it.factor_seg : _MED_CLIMA_FACTOR_SEG_DEFAULT,
     t_ambiente:    it.t_ambiente != null ? it.t_ambiente : 21, // RITE
     plantas:       plantas,
+    config_plantas: configPlantas,
     estancias:     estancias0,
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
@@ -6870,8 +6886,7 @@ function _medRenderClimaForm(it) {
       });
     }
   } else {
-    // ── SISTEMAS HIDRÁULICOS (agua): Radiador / Suelo radiante / Fancoil
-    // ΔT derivado de T. impulsión + T. ambiente (RITE 21º default)
+    // ── SISTEMAS HIDRÁULICOS: sistema POR PLANTA · estancias agrupadas + extras
     const gObj = GENERADORES.find(g => g.k === st.generador.tipo);
     const tImpRec = (window.RADIADORES_CAT?.impulsionRecomendada?.(st.generador.tipo)) || 60;
     const tImp = (st.generador.t_impulsion != null) ? st.generador.t_impulsion : tImpRec;
@@ -6879,36 +6894,65 @@ function _medRenderClimaForm(it) {
     const tAmb = (st.t_ambiente != null) ? st.t_ambiente : tAmbDef;
     const dtRec = (window.RADIADORES_CAT?.deltaTDesdeTemperaturas?.(tImp, tAmb)) || 30;
     const dtRealNum = (window.RADIADORES_CAT?.deltaTReal?.(tImp, tAmb)) || dtRec;
-    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${gObj.l} · T. impulsión <strong>${tImp}º</strong> · ambiente <strong>${tAmb}º</strong> → ΔT ${dtRealNum} (cat. ${dtRec})</div>`;
-    if (!st.estancias.length) {
-      body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">No hay estancias todavía.</div>`;
+    // Filtrar sistemas según tipo de trabajo (instalación vista NO permite suelo radiante)
+    const esVista = st.tipo_trabajo === 'instalacion_vista';
+    const sistemasFiltrados = Object.entries(TIPOS_EMISOR_HIDRAULICOS).filter(([k]) => !(esVista && k === 'suelo_radiante'));
+    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${gObj.l} · T. impulsión <strong>${tImp}º</strong> · ambiente <strong>${tAmb}º</strong> → ΔT ${dtRealNum} (cat. ${dtRec})${esVista?' · ⚠️ instalación vista: sin suelo radiante':''}</div>`;
+    if (!st.plantas || !st.plantas.length) {
+      body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">Añade plantas y estancias en el bloque anterior.</div>`;
     } else {
-      st.estancias.forEach((es, i) => {
-        const cargas = _medClimaCalcCargasEstancia(es, st.factor_seg);
-        const potNeed = cargas.calor_w;
-        // Compat: si hay datos antiguos en emisor_tipo y no hay sistema_emisor, deducirlo
-        if (!es.sistema_emisor && es.emisor_tipo) {
-          const t = (es.emisor_tipo || '').toLowerCase();
-          if (t.includes('suelo')) es.sistema_emisor = 'suelo_radiante';
-          else if (t.includes('fancoil')) es.sistema_emisor = 'fancoil';
-          else if (_medClimaEsRadiador(es.emisor_tipo)) es.sistema_emisor = 'radiador';
+      // Agrupar estancias por planta
+      const grupos = {};
+      st.estancias.forEach((es, idx) => {
+        const p = es.planta || st.plantas[0];
+        if (!grupos[p]) grupos[p] = [];
+        grupos[p].push({ ...es, _idx: idx });
+      });
+      st.plantas.forEach(p => { if (!grupos[p]) grupos[p] = []; });
+      // Render por planta
+      st.plantas.forEach(planta => {
+        if (!st.config_plantas[planta]) st.config_plantas[planta] = {};
+        const cfg = st.config_plantas[planta];
+        const ests = grupos[planta] || [];
+        body4 += `<div style="border:1px solid #1E40AF;border-radius:8px;margin-bottom:8px;overflow:hidden">
+          <div style="background:#1E40AF;color:#fff;padding:7px 10px;font-size:11.5px;font-weight:700">🏢 ${e(planta)}</div>
+          <div style="padding:8px;background:#fff">
+            <div style="font-size:9px;color:#6B7280;margin-bottom:3px">Sistema de toda la planta</div>
+            <div style="display:grid;grid-template-columns:repeat(${sistemasFiltrados.length},1fr);gap:4px;margin-bottom:8px">
+              ${sistemasFiltrados.map(([k,v]) => {
+                const a = cfg.sistema === k;
+                return `<button type="button" onclick="window._medClimaState.config_plantas['${e(planta)}'].sistema='${k}';_medRefrescarClimaForm()" style="padding:8px 4px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:6px;font-size:11.5px;font-weight:${a?'700':'500'};cursor:pointer">${e(v.l)}</button>`;
+              }).join('')}
+            </div>`;
+        // Si la planta es suelo radiante → config compartida arriba (paso/plancha/tubo)
+        if (cfg.sistema === 'suelo_radiante') {
+          body4 += _medClimaRenderSrConfigPlanta(planta, cfg, st.generador);
         }
-        body4 += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:8px 10px;margin-bottom:5px">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-            <span style="font-size:11.5px;font-weight:700;flex:1">${e(es.nombre || 'Estancia '+(i+1))}</span>
-            ${potNeed?`<span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${cargas.calor_kw} kW</span>`:''}
-          </div>
-          <div style="font-size:9px;color:#6B7280;margin-bottom:3px">Sistema emisor</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px">
-            ${Object.entries(TIPOS_EMISOR_HIDRAULICOS).map(([k,v]) => {
-              const a = es.sistema_emisor === k;
-              return `<button type="button" onclick="window._medClimaState.estancias[${i}].sistema_emisor='${k}';delete window._medClimaState.estancias[${i}].emisor_tipo;_medRefrescarClimaForm()" style="padding:7px 4px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${e(v.l)}</button>`;
-            }).join('')}
-          </div>
-          ${es.sistema_emisor === 'radiador'       ? _medClimaRenderRadiador(es, i, dtRec, potNeed)        : ''}
-          ${es.sistema_emisor === 'suelo_radiante' ? _medClimaRenderSueloRadiante(es, i, st.generador, cargas) : ''}
-          ${es.sistema_emisor === 'fancoil'        ? _medClimaRenderFancoil(es, i, cargas)                  : ''}
-        </div>`;
+        // Listar estancias de la planta
+        if (!ests.length) {
+          body4 += `<div style="text-align:center;padding:10px;color:#9CA3AF;font-size:11px;font-style:italic">Sin estancias en esta planta</div>`;
+        } else if (!cfg.sistema) {
+          body4 += `<div style="font-size:11px;color:#9CA3AF;font-style:italic;padding:6px">Selecciona el sistema arriba para configurar las ${ests.length} estancia${ests.length===1?'':'s'}.</div>`;
+        } else {
+          ests.forEach(es => {
+            const i = es._idx;
+            const cargas = _medClimaCalcCargasEstancia(es, st.factor_seg);
+            const potNeed = cargas.calor_w;
+            body4 += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:7px;padding:8px;margin-bottom:5px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <span style="font-size:11.5px;font-weight:700;flex:1">${e(es.nombre || 'Estancia '+(i+1))}</span>
+                ${potNeed?`<span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${cargas.calor_kw} kW</span>`:''}
+              </div>`;
+            // Render según sistema de la planta
+            if (cfg.sistema === 'radiador')       body4 += _medClimaRenderRadiador(es, i, dtRec, potNeed);
+            else if (cfg.sistema === 'suelo_radiante') body4 += _medClimaRenderSueloRadianteEstancia(es, i, cfg);
+            else if (cfg.sistema === 'fancoil')   body4 += _medClimaRenderFancoil(es, i, cargas);
+            // Extras (siempre disponibles, especialmente útiles con suelo radiante)
+            body4 += _medClimaRenderExtras(es, i, dtRec, potNeed);
+            body4 += `</div>`;
+          });
+        }
+        body4 += `</div></div>`;
       });
     }
   }
@@ -7209,7 +7253,103 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed) {
   return html;
 }
 
-// ── RENDER: Suelo radiante (paso, plancha, tubo + cálculos)
+// ── RENDER: Config compartida del suelo radiante a nivel PLANTA (paso/plancha/tubo)
+// Se renderiza una sola vez por planta. Las estancias usan estos defaults.
+function _medClimaRenderSrConfigPlanta(planta, cfg, generador) {
+  const e = _medEsc;
+  if (cfg.sr_paso == null) cfg.sr_paso = 15; // default planta general
+  if (!cfg.sr_plancha) cfg.sr_plancha = 'PN45_50';
+  if (!cfg.sr_tubo)    cfg.sr_tubo = '16x2.0';
+  return `<div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-bottom:8px">
+    <div style="font-size:9px;color:#1E40AF;font-weight:700;margin-bottom:5px">SUELO RADIANTE REHAU PN · CONFIG PLANTA</div>
+    <div style="font-size:10px;color:#6B7280;margin-bottom:3px">Paso (cm) · default planta · cada estancia hereda salvo override</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 70px;gap:5px;margin-bottom:6px;align-items:center">
+      ${_MED_SR_PASOS.map(p => {
+        const a = cfg.sr_paso === p;
+        const lab = p === 10 ? `${p} · baños` : `${p} · general`;
+        return `<button type="button" onclick="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=${p};_medRefrescarClimaForm()" style="padding:7px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
+      }).join('')}
+      <input type="number" min="5" max="40" step="5" value="${cfg.sr_paso}" oninput="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso planta" style="padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+      <div>
+        <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Plancha</div>
+        <select onchange="window._medClimaState.config_plantas['${e(planta)}'].sr_plancha=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;background:#fff;box-sizing:border-box">
+          ${_MED_SR_PLANCHAS.map(p => `<option value="${p.k}" ${cfg.sr_plancha===p.k?'selected':''}>${e(p.l)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Tubería</div>
+        <select onchange="window._medClimaState.config_plantas['${e(planta)}'].sr_tubo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;background:#fff;box-sizing:border-box">
+          ${_MED_SR_TUBOS.map(t => `<option value="${t.k}" ${cfg.sr_tubo===t.k?'selected':''}>${e(t.l)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── RENDER: estancia con suelo radiante (hereda paso de planta · permite override + auto baño)
+function _medClimaRenderSueloRadianteEstancia(es, i, cfgPlanta) {
+  const e = _medEsc;
+  const esBano = _medClimaEsBano(es.nombre);
+  // Si el usuario no ha forzado nada y es baño → paso 10 por defecto en la estancia
+  if (es.sr_paso == null && esBano) es.sr_paso = 10;
+  // Heredar de planta si la estancia no tiene paso propio
+  const pasoUsado = es.sr_paso != null ? es.sr_paso : (cfgPlanta.sr_paso || 15);
+  const calc = _medClimaCalcSueloRadiante({ ...es, sr_paso: pasoUsado });
+  // Persistir
+  setTimeout(() => {
+    const stE = window._medClimaState?.estancias?.[i];
+    if (stE) {
+      stE.sr_calc = calc;
+      stE.sr_paso = pasoUsado;
+      stE.sistema_emisor = 'suelo_radiante';
+      stE.emisor_modelo = `Suelo radiante PN paso ${calc.paso} · ${calc.tuboML} ml`;
+    }
+  }, 0);
+  return `<div style="background:#F0F9FF;border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.5;color:#0C4A6E">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <span style="font-size:10px;color:#1E40AF;font-weight:700;flex:1">SUELO RADIANTE${esBano?' · baño (paso 10)':''}</span>
+      <span style="font-size:10px;color:#6B7280">paso:</span>
+      <input type="number" min="5" max="40" step="5" value="${pasoUsado}" oninput="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||${pasoUsado};_medRefrescarClimaForm()" style="width:50px;padding:3px;border:1px solid #BFDBFE;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
+    </div>
+    <div><strong>${calc.tuboML} ml</strong> tubo · <strong>${calc.planchas}</strong> planchas · <strong>${calc.perim} ml</strong> cinta perim.${calc.circuitos>1?` · <span style="color:#92400E;font-weight:700">⚠️ ${calc.circuitos} circ. (máx 100ml)</span>`:''}</div>
+  </div>`;
+}
+
+// ── RENDER: extras por estancia (toallero, fancoil aux, etc.) — botón "+ añadir"
+function _medClimaRenderExtras(es, i, dtRec, potNeed) {
+  const e = _medEsc;
+  const extras = es.extras || [];
+  let html = `<div style="margin-top:6px">`;
+  if (extras.length) {
+    extras.forEach((ex, idx) => {
+      html += `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:6px 8px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+          <select onchange="window._medClimaState.estancias[${i}].extras[${idx}].tipo=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;background:#fff">
+            ${[
+              {k:'toallero',     l:'🚿 Toallero (baño)'},
+              {k:'fancoil_aux',  l:'🌬️ Fancoil aux (refrigeración)'},
+              {k:'radiador_aux', l:'📻 Radiador aux'},
+              {k:'split_aux',    l:'❄️ Split aux'},
+              {k:'otro',         l:'… otro'},
+            ].map(t => `<option value="${t.k}" ${ex.tipo===t.k?'selected':''}>${e(t.l)}</option>`).join('')}
+          </select>
+          <button type="button" onclick="window._medClimaState.estancias[${i}].extras.splice(${idx},1);_medRefrescarClimaForm()" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:5px">
+          <input type="text" placeholder="Marca / modelo" value="${e(ex.modelo||'')}" oninput="window._medClimaState.estancias[${i}].extras[${idx}].modelo=this.value" style="padding:5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;box-sizing:border-box">
+          <input type="number" step="0.1" placeholder="kW" value="${ex.kw||''}" oninput="window._medClimaState.estancias[${i}].extras[${idx}].kw=parseFloat(this.value)||0" style="padding:5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;box-sizing:border-box">
+        </div>
+      </div>`;
+    });
+  }
+  html += `<button type="button" onclick="(window._medClimaState.estancias[${i}].extras=window._medClimaState.estancias[${i}].extras||[]).push({tipo:'toallero'});_medRefrescarClimaForm()" style="width:100%;padding:6px;background:#fff;border:1px dashed #FDE68A;color:#92400E;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer">+ Añadir extra (toallero, fancoil aux…)</button>
+  </div>`;
+  return html;
+}
+
+// ── RENDER: Suelo radiante (legacy compat — modo per-estancia, ya no se usa pero mantenido por compat datos viejos)
 function _medClimaRenderSueloRadiante(es, i, generador, cargas) {
   const e = _medEsc;
   const esBano = _medClimaEsBano(es.nombre);
@@ -7364,6 +7504,7 @@ async function _medGuardarItemClima() {
     factor_seg: st.factor_seg,
     t_ambiente: st.t_ambiente != null ? st.t_ambiente : 21,
     plantas: st.plantas || ['Vivienda'],
+    config_plantas: st.config_plantas || {},
     estancias: estanciasGuardar,
     sistema: st.sistema || '',
     generador: st.generador || {},
@@ -8133,7 +8274,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 32
+        instaloERP v1.0 · build 33
       </div>
     </div>`;
 }
