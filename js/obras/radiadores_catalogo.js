@@ -794,6 +794,18 @@ function potenciaConN(p_ref, dt_ref, dt_obj, n) {
   return Math.round(p_ref * Math.pow(dt_obj / dt_ref, n || 1.30));
 }
 
+// ── DBH / DBE (Dynamic Boost Hybrid) — set ventilador opcional Jaga ────
+// Multiplica la potencia del radiador estático según el ΔT.
+// Factor más alto a baja temperatura (ideal BdC), más bajo a alta temperatura.
+// Valores aproximados publicados por Jaga (Strada Hybrid · Tempo DBH · Play DBE):
+//   ΔT 15 → ×3.5     ΔT 22.5 → ×2.7     ΔT 30 → ×2.2     ΔT 50 → ×1.6
+function factorDBH(dt) {
+  if (dt <= 15) return 3.5;
+  if (dt >= 50) return 1.6;
+  // Interpolación lineal entre extremos
+  return +(3.5 - (dt - 15) * (3.5 - 1.6) / (50 - 15)).toFixed(2);
+}
+
 // Devuelve el índice de columna Aquabit ([22.5, 30, 40])
 function aquabitDtIndex(dt) {
   if (dt <= 25) return 0;
@@ -868,23 +880,27 @@ function deltaTDesdeImpulsion(tImp) {
 
 // Busca la configuración Jaga MÁS PEQUEÑA que cubra `potencia_w` en un modelo+altura
 // Si tipoFijo se pasa → solo varía longitud (mantiene esa profundidad/intercambiador).
-// Si no → minimiza longitud y luego tipo.
-function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, tipoFijo) {
+// Si dbh=true se aplica el factor DBH/DBE (multiplica la potencia del radiador estático).
+function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, tipoFijo, dbh) {
   const altura = modelo.alturas[alturaKey];
   if (!altura) return null;
   const longs = Object.keys(altura.potencias).sort((a,b) => parseInt(a) - parseInt(b));
   const tiposBuscar = tipoFijo ? [tipoFijo] : altura.tipos_disponibles;
+  const fDBH = dbh ? factorDBH(dt) : 1;
   let mejor = null;
   for (const lon of longs) {
     for (const tipo of tiposBuscar) {
       const arr = altura.potencias[lon]?.[tipo];
       if (!arr) continue;
-      const w = jagaPotenciaInterpolada(arr, dt);
+      const wEstatico = jagaPotenciaInterpolada(arr, dt);
+      const w = Math.round(wEstatico * fDBH);
       if (w >= potencia_w) {
         const score = parseInt(lon) * 100 + parseInt(tipo);
         if (!mejor || score < mejor.score) {
           mejor = {
             longitud: lon, tipo, potencia_real: w,
+            potencia_estatica: wEstatico,
+            factor_dbh: fDBH,
             sobre_dim_pct: Math.round(((w - potencia_w) / potencia_w) * 100),
             score,
           };
@@ -951,7 +967,7 @@ function buscarMinimoBaxi(modeloKey, alturaKey, dt, potencia_w) {
 return {
   BAXI, JAGA_STRADA, JAGA_TEMPO, AQUABIT,
   jagaDtIndex, jagaPotenciaInterpolada, aquabitDtIndex, aquabitPotenciaInterpolada,
-  exponenteN, potenciaConN, deltaTRecomendado,
+  exponenteN, potenciaConN, factorDBH, deltaTRecomendado,
   impulsionRecomendada, saltoHidraulicoEstandar,
   T_AMBIENTE_RITE_DEFAULT,
   deltaTDesdeImpulsion, deltaTDesdeTemperaturas, deltaTReal,

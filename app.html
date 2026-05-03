@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 45
+      instaloERP v1.0 · build 46
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 45
+      instaloERP v1.0 · build 46
     </div>
   `;
 }
@@ -6566,7 +6566,7 @@ function _medClimaAutoCalcEmisor(marcaKey, potencia_w, dt, opts) {
     const modelo = (marcaKey === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
     // Default H65 (Strada no tiene H60) o H60 (Tempo)
     const alturaKey = opts.alturaKey || (marcaKey === 'jaga_strada' ? '065_est' : '060_est');
-    const r = C.buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, opts.tipoFijo);
+    const r = C.buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, opts.tipoFijo, !!opts.dbh);
     const altObj = modelo.alturas[alturaKey];
     if (!r) {
       const altLab = altObj ? `H${altObj.altura_cm}${altObj.twin?' Twin':''}` : alturaKey;
@@ -6575,15 +6575,16 @@ function _medClimaAutoCalcEmisor(marcaKey, potencia_w, dt, opts) {
         modelo: marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo',
         altura_cm: altObj?.altura_cm,
         insuficiente: true,
-        descripcion: `${altLab} no cubre ${(potencia_w/1000).toFixed(2)} kW`,
+        descripcion: `${altLab} no cubre ${(potencia_w/1000).toFixed(2)} kW${opts.dbh?' (incluso con DBH)':''}`,
       };
     }
     return {
       tipo: 'jaga', marca: 'Jaga', modelo: marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo',
       altura_cm: altObj.altura_cm, twin: altObj.twin, alturaKey,
       longitud_cm: parseInt(r.longitud), tipo_intercambiador: r.tipo,
-      w_real: r.potencia_real, sobre_dim_pct: r.sobre_dim_pct,
-      descripcion: `Jaga ${marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo'} H${altObj.altura_cm}${altObj.twin?' Twin':''} L${r.longitud} T${r.tipo} · ${r.potencia_real} W`,
+      w_real: r.potencia_real, w_estatico: r.potencia_estatica, factor_dbh: r.factor_dbh,
+      sobre_dim_pct: r.sobre_dim_pct, dbh: !!opts.dbh,
+      descripcion: `Jaga ${marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo'} H${altObj.altura_cm}${altObj.twin?' Twin':''} L${r.longitud} T${r.tipo}${opts.dbh?' + DBH':''} · ${r.potencia_real} W`,
     };
   }
   // AQUABIT
@@ -7307,10 +7308,15 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
         </select>
       </div>
     </div>
-    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:5px">
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:4px">
       <input type="checkbox" ${twin?'checked':''} onchange="(()=>{const stE=window._medClimaState.estancias[${i}];const cur=stE.rad_altura||'${alturaKey}';const cm=cur.split('_')[0];stE.rad_altura=cm+(this.checked?'_twin':'_est');delete stE.rad_tipo;_medRefrescarClimaForm()})()">
       Twin (doble batería · permite refrigeración)
+    </label>
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" ${(es.rad_dbh != null ? es.rad_dbh : cfgPlanta.rad_dbh)?'checked':''} onchange="window._medClimaState.estancias[${i}].rad_dbh=this.checked;_medRefrescarClimaForm()">
+      DBH/DBE (boost ventilador · aprox. ×${(window.RADIADORES_CAT?.factorDBH?.(dt)||2.2).toFixed(1)} a ΔT ${dt})
     </label>`;
+    opts.dbh = !!(es.rad_dbh != null ? es.rad_dbh : cfgPlanta.rad_dbh);
   } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
     const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
     const modelosDisp = Object.keys(C.AQUABIT.modelos).filter(k => k.startsWith(prefijo));
@@ -7410,9 +7416,13 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
         </select>
       </div>
     </div>
-    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer">
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:4px">
       <input type="checkbox" ${twin?'checked':''} onchange="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];const cm=(cf.rad_altura||'${cfg.rad_altura}').split('_')[0];cf.rad_altura=cm+(this.checked?'_twin':'_est');delete cf.rad_tipo;_medRefrescarClimaForm()})()">
       Twin (refrigeración)
+    </label>
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer">
+      <input type="checkbox" ${cfg.rad_dbh?'checked':''} onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_dbh=this.checked;_medRefrescarClimaForm()">
+      DBH/DBE por defecto en la planta
     </label>`;
   } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
     const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
@@ -7611,10 +7621,15 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
         </select>
       </div>
     </div>
-    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:5px">
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:4px">
       <input type="checkbox" ${twin?'checked':''} onchange="(()=>{const stE=window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}];const cur=stE.rad_altura||'${alturaKey}';const cm=cur.split('_')[0];stE.rad_altura=cm+(this.checked?'_twin':'_est');delete stE.rad_tipo;_medRefrescarClimaForm()})()">
       Twin (refrigeración)
+    </label>
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" ${(rad.rad_dbh != null ? rad.rad_dbh : cfgPlanta.rad_dbh)?'checked':''} onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].rad_dbh=this.checked;_medRefrescarClimaForm()">
+      DBH/DBE (boost ventilador · ×${(window.RADIADORES_CAT?.factorDBH?.(dt)||2.2).toFixed(1)} a ΔT ${dt})
     </label>`;
+    opts.dbh = !!(rad.rad_dbh != null ? rad.rad_dbh : cfgPlanta.rad_dbh);
   } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
     const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
     const modelosDisp = Object.keys(C.AQUABIT.modelos).filter(k => k.startsWith(prefijo));
@@ -8565,7 +8580,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 45
+        instaloERP v1.0 · build 46
       </div>
     </div>`;
 }
