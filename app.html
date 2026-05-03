@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 54
+      instaloERP v1.0 · build 55
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 54
+      instaloERP v1.0 · build 55
     </div>
   `;
 }
@@ -6624,6 +6624,11 @@ function _medAbrirModalClima(it) {
       }
     });
   }
+  // Inicializar bloques_abiertos: TODOS cerrados, salvo el primer NO validado
+  const _ord = ['trab','est','sis','gen','dist','ctrl','obra','perm','obs'];
+  const _val = it.validados ? {...it.validados} : {};
+  const _bloquesAb = Object.fromEntries(_ord.map(k => [k, false]));
+  for (const k of _ord) { if (!_val[k]) { _bloquesAb[k] = true; break; } }
   window._medClimaState = {
     tipo_trabajo:  it.tipo_trabajo || 'vivienda_nueva',
     factor_seg:    it.factor_seg != null ? it.factor_seg : _MED_CLIMA_FACTOR_SEG_DEFAULT,
@@ -6633,8 +6638,8 @@ function _medAbrirModalClima(it) {
     estancias:     estancias0,
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
-    bloques_abiertos: { trab:true, est:true, sis:true, gen:false, dist:false, ctrl:false, obra:false, perm:false, obs:false },
-    validados: it.validados ? {...it.validados} : {},
+    bloques_abiertos: _bloquesAb,
+    validados: _val,
   };
   const ov = document.createElement('div');
   ov.id = '_medModalItem';
@@ -7422,6 +7427,28 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
   return html;
 }
 
+// Propaga un cambio de config-planta a TODAS las estancias de esa planta:
+// limpia los campos individuales para que vuelvan a heredar del default-planta.
+// camposRad = campos de radiador a borrar de cada estancia (incluye sus rad_adicionales)
+function _medClimaResetEstanciasPlanta(planta, camposRad) {
+  const st = window._medClimaState;
+  if (!st || !st.estancias) return;
+  st.estancias.forEach(es => {
+    if (es.planta !== planta) return;
+    camposRad.forEach(c => delete es[c]);
+    // También resetear los campos en cada radiador adicional de la estancia
+    if (Array.isArray(es.rad_adicionales)) {
+      es.rad_adicionales.forEach(rad => camposRad.forEach(c => delete rad[c]));
+    }
+  });
+}
+// Atajos para borrar packs habituales
+const _MED_CAMPOS_RAD_TODOS = ['rad_tecnologia','rad_marca','rad_altura','rad_modelo_aquabit','rad_tipo','rad_dbh'];
+const _MED_CAMPOS_RAD_DESDE_TEC = ['rad_marca','rad_altura','rad_modelo_aquabit','rad_tipo'];
+const _MED_CAMPOS_RAD_DESDE_MARCA = ['rad_altura','rad_modelo_aquabit','rad_tipo'];
+const _MED_CAMPOS_RAD_DESDE_ALTURA = ['rad_tipo'];
+const _MED_CAMPOS_SR_TODOS = ['sr_paso','sr_plancha','sr_tubo'];
+
 // ── RENDER: Config compartida de RADIADOR a nivel PLANTA (marca/modelo/altura por defecto)
 function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
   const e = _medEsc;
@@ -7444,7 +7471,7 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     <div style="display:flex;gap:4px;margin-bottom:6px">
       ${['Aluminio', 'Baja temperatura', 'Otro'].map(t => {
         const a = tec === t;
-        return `<button type="button" onclick="window._medClimaState.config_plantas['${e(planta)}'].rad_tecnologia='${t}';delete window._medClimaState.config_plantas['${e(planta)}'].rad_marca;_medRefrescarClimaForm()" style="flex:1;padding:6px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:5px;font-size:10.5px;font-weight:${a?'700':'500'};cursor:pointer">${e(t)}</button>`;
+        return `<button type="button" onclick="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];cf.rad_tecnologia='${t}';delete cf.rad_marca;delete cf.rad_altura;delete cf.rad_modelo_aquabit;delete cf.rad_tipo;_medClimaResetEstanciasPlanta('${e(planta)}',_MED_CAMPOS_RAD_TODOS);_medRefrescarClimaForm()})()" style="flex:1;padding:6px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:5px;font-size:10.5px;font-weight:${a?'700':'500'};cursor:pointer">${e(t)}</button>`;
       }).join('')}
     </div>`;
   if (tec === 'Otro') {
@@ -7452,7 +7479,7 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     return html;
   }
   html += `<div style="margin-bottom:5px">
-    <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_marca=this.value;delete window._medClimaState.config_plantas['${e(planta)}'].rad_altura;delete window._medClimaState.config_plantas['${e(planta)}'].rad_modelo_aquabit;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+    <select onchange="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];cf.rad_marca=this.value;delete cf.rad_altura;delete cf.rad_modelo_aquabit;delete cf.rad_tipo;_medClimaResetEstanciasPlanta('${e(planta)}',_MED_CAMPOS_RAD_DESDE_TEC);_medRefrescarClimaForm()})()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
       ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
     </select>
   </div>`;
@@ -7461,7 +7488,7 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : (marcaK === 'baxi_astral' ? 'ASTRAL' : 'CONDAL');
     const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
     if (cfg.rad_altura == null) cfg.rad_altura = C.BAXI.modelos[modeloKey].altura_default;
-    html += `<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#6B7280">Altura</span><select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_altura=parseInt(this.value);_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${alturasDisp.map(a => `<option value="${a}" ${parseInt(cfg.rad_altura)===parseInt(a)?'selected':''}>${a} cm</option>`).join('')}</select></div>`;
+    html += `<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#6B7280">Altura</span><select onchange="(()=>{window._medClimaState.config_plantas['${e(planta)}'].rad_altura=parseInt(this.value);_medClimaResetEstanciasPlanta('${e(planta)}',['rad_altura']);_medRefrescarClimaForm()})()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${alturasDisp.map(a => `<option value="${a}" ${parseInt(cfg.rad_altura)===parseInt(a)?'selected':''}>${a} cm</option>`).join('')}</select></div>`;
   } else if (marcaK === 'jaga_strada' || marcaK === 'jaga_tempo') {
     const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
     const alturaDef = (marcaK === 'jaga_strada') ? '065_est' : '060_est';
@@ -7475,30 +7502,30 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     if (cfg.rad_tipo && !tiposDisp.includes(cfg.rad_tipo)) cfg.rad_tipo = '';
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Altura</div>
-        <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_altura=this.value+'_${twin?'twin':'est'}';delete window._medClimaState.config_plantas['${e(planta)}'].rad_tipo;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+        <select onchange="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];cf.rad_altura=this.value+'_${twin?'twin':'est'}';delete cf.rad_tipo;_medClimaResetEstanciasPlanta('${e(planta)}',['rad_altura','rad_tipo']);_medRefrescarClimaForm()})()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
           ${alturasCm.map(cm => `<option value="${String(cm).padStart(3,'0')}" ${altCm===cm?'selected':''}>H${cm} cm</option>`).join('')}
         </select>
       </div>
       <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Profundidad</div>
-        <select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
+        <select onchange="(()=>{window._medClimaState.config_plantas['${e(planta)}'].rad_tipo=this.value;_medClimaResetEstanciasPlanta('${e(planta)}',['rad_tipo']);_medRefrescarClimaForm()})()" style="width:100%;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff;box-sizing:border-box">
           <option value="" ${!cfg.rad_tipo?'selected':''}>Auto (óptimo)</option>
           ${tiposDisp.map(t => `<option value="${t}" ${cfg.rad_tipo===t?'selected':''}>Tipo ${t}</option>`).join('')}
         </select>
       </div>
     </div>
     <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:4px">
-      <input type="checkbox" ${twin?'checked':''} onchange="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];const cm=(cf.rad_altura||'${cfg.rad_altura}').split('_')[0];cf.rad_altura=cm+(this.checked?'_twin':'_est');delete cf.rad_tipo;_medRefrescarClimaForm()})()">
+      <input type="checkbox" ${twin?'checked':''} onchange="(()=>{const cf=window._medClimaState.config_plantas['${e(planta)}'];const cm=(cf.rad_altura||'${cfg.rad_altura}').split('_')[0];cf.rad_altura=cm+(this.checked?'_twin':'_est');delete cf.rad_tipo;_medClimaResetEstanciasPlanta('${e(planta)}',['rad_altura','rad_tipo']);_medRefrescarClimaForm()})()">
       Twin (refrigeración)
     </label>
     <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer">
-      <input type="checkbox" ${cfg.rad_dbh?'checked':''} onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_dbh=this.checked;_medRefrescarClimaForm()">
+      <input type="checkbox" ${cfg.rad_dbh?'checked':''} onchange="(()=>{window._medClimaState.config_plantas['${e(planta)}'].rad_dbh=this.checked;_medClimaResetEstanciasPlanta('${e(planta)}',['rad_dbh']);_medRefrescarClimaForm()})()">
       DBH/DBE por defecto en la planta
     </label>`;
   } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
     const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
     const modelosDisp = Object.keys(C.AQUABIT.modelos).filter(k => k.startsWith(prefijo));
     if (!cfg.rad_modelo_aquabit) cfg.rad_modelo_aquabit = modelosDisp[0];
-    html += `<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#6B7280">Modelo</span><select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_modelo_aquabit=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${modelosDisp.map(m => `<option value="${e(m)}" ${cfg.rad_modelo_aquabit===m?'selected':''}>${e(m)}</option>`).join('')}</select></div>`;
+    html += `<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#6B7280">Modelo</span><select onchange="(()=>{window._medClimaState.config_plantas['${e(planta)}'].rad_modelo_aquabit=this.value;_medClimaResetEstanciasPlanta('${e(planta)}',['rad_modelo_aquabit']);_medRefrescarClimaForm()})()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${modelosDisp.map(m => `<option value="${e(m)}" ${cfg.rad_modelo_aquabit===m?'selected':''}>${e(m)}</option>`).join('')}</select></div>`;
   }
   html += `</div>`;
   return html;
@@ -7535,9 +7562,9 @@ function _medClimaRenderSrConfigPlanta(planta, cfg, generador) {
       ${_MED_SR_PASOS.map(p => {
         const a = cfg.sr_paso === p;
         const lab = p === 10 ? `${p} · baños` : `${p} · general`;
-        return `<button type="button" onclick="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=${p};_medRefrescarClimaForm()" style="padding:7px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
+        return `<button type="button" onclick="(()=>{window._medClimaState.config_plantas['${e(planta)}'].sr_paso=${p};_medClimaResetEstanciasPlanta('${e(planta)}',['sr_paso']);_medRefrescarClimaForm()})()" style="padding:7px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
       }).join('')}
-      <input type="number" min="5" max="40" step="5" value="${cfg.sr_paso}" onchange="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso planta" style="padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
+      <input type="number" min="5" max="40" step="5" value="${cfg.sr_paso}" onchange="(()=>{window._medClimaState.config_plantas['${e(planta)}'].sr_paso=parseInt(this.value)||15;_medClimaResetEstanciasPlanta('${e(planta)}',['sr_paso']);_medRefrescarClimaForm()})()" title="Paso planta" style="padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
       <div>
@@ -8653,7 +8680,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 54
+        instaloERP v1.0 · build 55
       </div>
     </div>`;
 }
