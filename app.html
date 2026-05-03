@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 69
+      instaloERP v1.0 · build 70
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 69
+      instaloERP v1.0 · build 70
     </div>
   `;
 }
@@ -7079,7 +7079,8 @@ function _medRenderClimaForm(it) {
   if (!st.distribucion) st.distribucion = {};
   const _resDist = _medClimaResumenDistribucion(st);
   html += _medClimaBloque('dist','🔌 Distribución', _medClimaRenderDistribucion(st), { resumen: _resDist });
-  html += _medClimaBloque('ctrl','🎛️ Control y accesorios',  '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
+  // Bloque componentes hidráulicos (antes "control y accesorios")
+  html += _medClimaBloque('ctrl', '🚰 Componentes hidráulicos', _medClimaRenderComponentes(st), { resumen: _medClimaResumenComponentes(st) });
   html += _medClimaBloque('obra','📐 Trabajos de obra',      '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   html += _medClimaBloque('perm','⚠️ Permisos y certificados','<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   // Observaciones
@@ -7977,6 +7978,60 @@ function _medDistSaltoHidraulico(generador) {
   return 10;
 }
 
+// ── CATÁLOGO DE COMPONENTES HIDRÁULICOS ──────────────────────────
+// Cada componente tiene:
+//   k: clave en el state
+//   n: nombre legible
+//   cat: categoría
+//   ico: emoji
+//   input?: { key, unit, auto? }  ← campo numérico (cantidad/L/kW)
+//   select?: { key, opts }         ← selector opciones
+const _MED_COMP_CATALOGO = [
+  // HIDRÁULICA
+  { k:'separador_hidraulico',  n:'Separador hidráulico',                   cat:'Hidráulica', ico:'💧' },
+  { k:'vaso_expansion',        n:'Vaso de expansión',                      cat:'Hidráulica', ico:'🛢️', input:{ key:'vaso_expansion_litros', unit:'L', auto:'vasoCalefaccion' } },
+  { k:'soporte_vaso',          n:'Soporte para vaso de expansión',         cat:'Hidráulica', ico:'🔩', input:{ key:'soporte_vaso_n', unit:'ud' } },
+  { k:'colectores_adic',       n:'Colectores adicionales (no SR)',         cat:'Hidráulica', ico:'📦', input:{ key:'colectores_adic_salidas', unit:'sal.' } },
+  { k:'bomba_aux',             n:'Bomba circulador auxiliar',              cat:'Hidráulica', ico:'⚙️', input:{ key:'bomba_aux_n', unit:'ud' } },
+  { k:'bomba_alta_efic',       n:'Bomba alta eficiencia (clase A)',        cat:'Hidráulica', ico:'⭐' },
+  { k:'filtro_decantador',     n:'Filtro decantador / desfangador',        cat:'Hidráulica', ico:'🧲' },
+  { k:'purgador_auto',         n:'Purgador automático principal',          cat:'Hidráulica', ico:'💨' },
+  { k:'llaves_corte',          n:'Llaves de corte por planta',             cat:'Hidráulica', ico:'🔵', input:{ key:'llaves_corte_n', unit:'ud' } },
+  { k:'antivibracion',         n:'Antivibración / latiguillos flexibles',  cat:'Hidráulica', ico:'🌀' },
+  { k:'bypass_diferencial',    n:'Bypass diferencial / by-pass automático',cat:'Hidráulica', ico:'🔁' },
+  // SEGURIDAD
+  { k:'valvula_seguridad',     n:'Válvula de seguridad (3 bar)',           cat:'Seguridad',  ico:'🛡️' },
+  { k:'manometro',             n:'Manómetro',                              cat:'Seguridad',  ico:'📊', input:{ key:'manometro_n', unit:'ud' } },
+  { k:'termometro',            n:'Termómetro',                             cat:'Seguridad',  ico:'🌡️', input:{ key:'termometro_n', unit:'ud' } },
+  { k:'llave_general',         n:'Llave esfera de corte general',          cat:'Seguridad',  ico:'🔑' },
+  { k:'llave_llenado',         n:'Llave de llenado',                       cat:'Seguridad',  ico:'💦', select:{ key:'llave_llenado_tipo', opts:['Manual','Automática'] } },
+  { k:'kit_llenado_auto',      n:'Kit llenado automático (desconexión)',   cat:'Seguridad',  ico:'🚰' },
+  { k:'antirretorno',          n:'Antirretorno / válvula check',           cat:'Seguridad',  ico:'⏪' },
+  { k:'filtro_y',              n:'Filtro Y (antiarena)',                   cat:'Seguridad',  ico:'🪤' },
+  { k:'valv_reguladora_caudal',n:'Válvula reguladora de caudal',           cat:'Seguridad',  ico:'🎚️' },
+  // ZONAS Y GRUPOS
+  { k:'grupo_impulsion',       n:'Grupo de impulsión premontado',          cat:'Zonas',      ico:'🏭', select:{ key:'grupo_impulsion_tipo', opts:['Punto fijo','Punto variable (mezcladora)'] } },
+  { k:'grupo_impulsion_n',     n:'Nº de grupos de impulsión',              cat:'Zonas',      ico:'#️⃣', input:{ key:'grupo_impulsion_uds', unit:'ud' } },
+  { k:'valvula_3vias',         n:'Válvula 3 vías motorizada (suelta)',     cat:'Zonas',      ico:'🔀' },
+  { k:'valvulas_zona',         n:'Válvulas de zona',                       cat:'Zonas',      ico:'🚪', input:{ key:'valvulas_zona_n', unit:'ud' } },
+  { k:'centralita_multizona',  n:'Centralita multi-zona',                  cat:'Zonas',      ico:'🎛️' },
+  // TERMOSTATOS Y SONDAS
+  { k:'termostato_general',    n:'Termostato general (cableado/inalámbrico)', cat:'Termostatos', ico:'🌡️' },
+  { k:'cronotermostato',       n:'Cronotermostato semanal',                cat:'Termostatos', ico:'⏰' },
+  { k:'termostatos',           n:'Termostatos por estancia',               cat:'Termostatos', ico:'🏠', input:{ key:'termostatos_n', unit:'ud' } },
+  { k:'sonda_exterior',        n:'Sonda exterior',                         cat:'Termostatos', ico:'🌤️' },
+  { k:'sondas_imp_ret',        n:'Sondas impulsión / retorno',             cat:'Termostatos', ico:'📡', input:{ key:'sondas_imp_ret_n', unit:'ud' } },
+  { k:'termostato_wifi',       n:'Termostato / programador wifi',          cat:'Termostatos', ico:'📱' },
+  // ACUMULACIÓN Y ACS
+  { k:'acumulador_inercia',    n:'Acumulador de inercia',                  cat:'Acumulación', ico:'🔥', input:{ key:'acumulador_inercia_l', unit:'L' } },
+  { k:'acumulador_acs',        n:'Acumulador ACS',                         cat:'Acumulación', ico:'🚿', input:{ key:'acumulador_acs_l', unit:'L' } },
+  { k:'intercambiador_placas', n:'Intercambiador de placas (ACS rápida)',  cat:'Acumulación', ico:'📚', input:{ key:'intercambiador_placas_kw', unit:'kW' } },
+  { k:'bomba_recirc_acs',      n:'Bomba recirculación ACS',                cat:'Acumulación', ico:'🔄' },
+  { k:'vaso_expansion_acs',    n:'Vaso expansión ACS',                     cat:'Acumulación', ico:'🛢️', input:{ key:'vaso_expansion_acs_l', unit:'L', auto:'vasoACS' } },
+];
+const _MED_COMP_CATEGORIAS = ['Hidráulica','Seguridad','Zonas','Termostatos','Acumulación'];
+const _MED_COMP_CAT_ICONOS = { 'Hidráulica':'💧', 'Seguridad':'🛡️', 'Zonas':'🏠', 'Termostatos':'🌡️', 'Acumulación':'🔥' };
+
 // ── CÁLCULO DE VASOS DE EXPANSIÓN ────────────────────────────────
 // Volumen unitario interior (L/m) por material y diámetro nominal
 const _MED_VOL_TUBERIA = {
@@ -8081,6 +8136,164 @@ function _medCalcVasoCalefaccion(st) {
   const V_min = vol.total * n / factor;
   const recomendado = _MED_VASOS_COMERCIALES.find(v => v >= V_min) || _MED_VASOS_COMERCIALES[_MED_VASOS_COMERCIALES.length - 1];
   return { recomendado, V_min: +V_min.toFixed(1), vol, n, tImp };
+}
+
+// ── RENDER COMPONENTES HIDRÁULICOS (Cards + Modal selector, Opción A) ───
+function _medClimaResumenComponentes(st) {
+  const d = st.distribucion || {};
+  const sel = _MED_COMP_CATALOGO.filter(c => d[c.k]);
+  if (!sel.length) return 'Sin componentes';
+  return `${sel.length} componente${sel.length===1?'':'s'} configurado${sel.length===1?'':'s'}`;
+}
+
+function _medClimaRenderComponentes(st) {
+  const e = _medEsc;
+  const d = st.distribucion || {};
+  const sel = _MED_COMP_CATALOGO.filter(c => d[c.k]);
+  let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <button type="button" onclick="_medCompAbrirSelector()" style="flex:1;padding:11px;background:#1B4FD8;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">➕ Añadir componentes</button>
+    <span style="font-size:11px;color:#6B7280">${sel.length} añadido${sel.length===1?'':'s'}</span>
+  </div>`;
+  if (!sel.length) {
+    html += `<div style="text-align:center;padding:30px 16px;color:#9CA3AF;font-size:12.5px;font-style:italic;background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:9px">Aún no has añadido ningún componente.<br>Pulsa "Añadir componentes" para empezar.</div>`;
+    return html;
+  }
+  // Agrupar por categoría
+  const porCat = {};
+  sel.forEach(c => { (porCat[c.cat]=porCat[c.cat]||[]).push(c); });
+  _MED_COMP_CATEGORIAS.forEach(cat => {
+    if (!porCat[cat]) return;
+    html += `<div style="font-size:9.5px;color:#6B7280;font-weight:700;letter-spacing:0.4px;margin:8px 0 4px;padding:0 2px">${_MED_COMP_CAT_ICONOS[cat]||''} ${cat.toUpperCase()}</div>`;
+    porCat[cat].forEach(c => {
+      // Aviso especial para vaso expansión calefacción
+      let aviso = '';
+      if (c.k === 'vaso_expansion') {
+        const vc = _medCalcVasoCalefaccion(st);
+        if (!d.vaso_expansion_litros_user_set && vc.recomendado) d[c.input.key] = vc.recomendado;
+        if (vc.vol.total > 0) aviso = `💡 Recomendado ${vc.recomendado} L (Vt ${vc.vol.total} L)`;
+      } else if (c.k === 'vaso_expansion_acs') {
+        const va = _medCalcVasoACS(st);
+        if (va) {
+          if (!d.vaso_expansion_acs_l_user_set) d[c.input.key] = va.recomendado;
+          aviso = `💡 Recomendado ${va.recomendado} L (12% acum. ${d.acumulador_acs_l||0} L)`;
+        } else {
+          aviso = `⚠️ Define litros del acumulador ACS`;
+        }
+      }
+      // Construir input/select extra
+      let extra = '';
+      if (c.input) {
+        const v = d[c.input.key] || '';
+        extra = `<div style="display:flex;align-items:center;gap:5px"><input type="number" min="0" ${c.input.step?`step="${c.input.step}"`:''} value="${v}" onchange="window._medClimaState.distribucion['${c.input.key}']=parseFloat(this.value)||0;window._medClimaState.distribucion['${c.input.key}_user_set']=true;_medRefrescarClimaForm()" style="width:65px;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"><span style="font-size:11px;color:#6B7280;font-weight:700">${c.input.unit||''}</span></div>`;
+      } else if (c.select) {
+        extra = `<select onchange="window._medClimaState.distribucion['${c.select.key}']=this.value" style="padding:5px 7px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;background:#fff">${c.select.opts.map(o => `<option value="${e(o)}" ${d[c.select.key]===o?'selected':''}>${e(o)}</option>`).join('')}</select>`;
+      }
+      html += `<div style="background:#fff;border:1px solid var(--gris-200);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px;flex-shrink:0">${c.ico}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:600;color:#1F2937">${e(c.n)}</div>
+          ${aviso ? `<div style="font-size:10px;color:#1E40AF;margin-top:2px">${aviso}</div>` : ''}
+        </div>
+        ${extra}
+        <button type="button" onclick="_medCompQuitar('${c.k}')" title="Quitar" style="width:26px;height:26px;background:#FEE2E2;color:#DC2626;border:none;border-radius:5px;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
+      </div>`;
+    });
+  });
+  return html;
+}
+
+function _medCompQuitar(key) {
+  const st = window._medClimaState;
+  if (!st?.distribucion) return;
+  delete st.distribucion[key];
+  _medRefrescarClimaForm();
+}
+
+// Modal selector de componentes
+function _medCompAbrirSelector() {
+  const st = window._medClimaState;
+  if (!st || !st.distribucion) return;
+  const e = _medEsc;
+  // Cerrar si ya existe
+  document.getElementById('mcCompSelector')?.remove();
+  // Estado temporal: copiamos los marcados actuales
+  const seleccion = {};
+  _MED_COMP_CATALOGO.forEach(c => { if (st.distribucion[c.k]) seleccion[c.k] = true; });
+  window._medCompSelTmp = seleccion;
+  const ov = document.createElement('div');
+  ov.id = 'mcCompSelector';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#fff;width:100%;max-width:480px;border-radius:14px 14px 0 0;max-height:88vh;display:flex;flex-direction:column">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--gris-100);display:flex;align-items:center;gap:8px">
+        <div style="font-weight:700;font-size:15px;flex:1">➕ Añadir componentes</div>
+        <button type="button" onclick="document.getElementById('mcCompSelector').remove()" style="background:none;border:none;font-size:22px;color:var(--gris-400);cursor:pointer">✕</button>
+      </div>
+      <div style="padding:10px 14px;border-bottom:1px solid var(--gris-100)">
+        <input type="text" id="mcCompBuscar" placeholder="🔍 Buscar..." oninput="_medCompFiltrar(this.value)" style="width:100%;padding:9px;border:1px solid var(--gris-200);border-radius:7px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div id="mcCompLista" style="flex:1;overflow-y:auto;padding:8px 14px">
+        ${_medCompRenderLista('')}
+      </div>
+      <div style="padding:11px 14px;border-top:1px solid var(--gris-100);display:flex;gap:8px">
+        <button type="button" onclick="document.getElementById('mcCompSelector').remove()" style="flex:1;padding:10px;background:#fff;color:var(--gris-700);border:1.5px solid var(--gris-200);border-radius:7px;font-weight:700;font-size:13px;cursor:pointer">Cancelar</button>
+        <button type="button" onclick="_medCompAceptarSel()" id="mcCompBtnOk" style="flex:2;padding:10px;background:#1B4FD8;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:13px;cursor:pointer">Aceptar (${Object.keys(seleccion).length})</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function _medCompRenderLista(filtro) {
+  const e = _medEsc;
+  const sel = window._medCompSelTmp || {};
+  const f = (filtro||'').toLowerCase().trim();
+  let html = '';
+  _MED_COMP_CATEGORIAS.forEach(cat => {
+    const items = _MED_COMP_CATALOGO.filter(c => c.cat === cat && (!f || c.n.toLowerCase().includes(f) || cat.toLowerCase().includes(f)));
+    if (!items.length) return;
+    const nSel = items.filter(c => sel[c.k]).length;
+    html += `<div style="font-size:10.5px;color:#6B7280;font-weight:700;letter-spacing:0.3px;margin:10px 2px 4px">${_MED_COMP_CAT_ICONOS[cat]||''} ${cat.toUpperCase()} ${nSel?`<span style="color:#16A34A">(${nSel})</span>`:''}</div>`;
+    items.forEach(c => {
+      const a = !!sel[c.k];
+      html += `<label class="tap" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid ${a?'#86EFAC':'var(--gris-200)'};background:${a?'#F0FDF4':'#fff'};border-radius:6px;margin-bottom:4px;cursor:pointer">
+        <input type="checkbox" ${a?'checked':''} onchange="_medCompToggleSel('${c.k}',this.checked)" style="margin:0;width:18px;height:18px">
+        <span style="font-size:15px;width:22px;text-align:center">${c.ico}</span>
+        <span style="flex:1;font-size:12.5px;color:#1F2937">${e(c.n)}</span>
+      </label>`;
+    });
+  });
+  if (!html) html = `<div style="text-align:center;padding:40px;color:#9CA3AF;font-size:12px">Sin resultados</div>`;
+  return html;
+}
+
+function _medCompFiltrar(filtro) {
+  document.getElementById('mcCompLista').innerHTML = _medCompRenderLista(filtro);
+}
+
+function _medCompToggleSel(key, marcado) {
+  const sel = window._medCompSelTmp || {};
+  if (marcado) sel[key] = true; else delete sel[key];
+  window._medCompSelTmp = sel;
+  // Actualizar contador del botón
+  const btn = document.getElementById('mcCompBtnOk');
+  if (btn) btn.textContent = `Aceptar (${Object.keys(sel).length})`;
+}
+
+function _medCompAceptarSel() {
+  const st = window._medClimaState;
+  if (!st?.distribucion) return;
+  const sel = window._medCompSelTmp || {};
+  // Aplicar selección al state: añadir nuevos, quitar des-marcados
+  _MED_COMP_CATALOGO.forEach(c => {
+    if (sel[c.k]) {
+      if (!st.distribucion[c.k]) st.distribucion[c.k] = true;
+    } else {
+      if (st.distribucion[c.k]) delete st.distribucion[c.k];
+    }
+  });
+  document.getElementById('mcCompSelector')?.remove();
+  delete window._medCompSelTmp;
+  _medRefrescarClimaForm();
 }
 
 // Vaso de expansión ACS · estimación práctica = 12% del acumulador (regla de oficio)
@@ -8309,95 +8522,7 @@ function _medClimaRenderDistribucion(st) {
     });
   }
 
-  // 4) Componentes hidráulicos · agrupados en categorías
-  // Helper para renderizar un toggle + opcional input numérico/select
-  const tog = (key, label, opts) => {
-    opts = opts || {};
-    const checked = !!d[key];
-    let html = `<label class="tap" style="display:flex;align-items:center;gap:8px;padding:6px 5px;border-bottom:1px solid var(--gris-100);font-size:11.5px;cursor:pointer">
-      <input type="checkbox" ${checked?'checked':''} onchange="window._medClimaState.distribucion.${key}=this.checked;_medRefrescarClimaForm()">
-      <span style="flex:1">${label}</span>`;
-    if (checked && opts.numKey) {
-      html += `<input type="number" ${opts.min!=null?`min="${opts.min}"`:''} ${opts.step?`step="${opts.step}"`:''} placeholder="${opts.placeholder||''}" value="${d[opts.numKey]||''}" onchange="window._medClimaState.distribucion.${opts.numKey}=parseFloat(this.value)||0;window._medClimaState.distribucion.${opts.numKey}_user_set=true;_medRefrescarClimaForm()" style="width:${opts.width||60}px;padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11.5px;text-align:center;font-weight:700;box-sizing:border-box" onclick="event.stopPropagation();event.preventDefault()"><span style="font-size:11px;color:#6B7280">${opts.unit||''}</span>`;
-    }
-    if (checked && opts.selectKey) {
-      html += `<select onchange="window._medClimaState.distribucion.${opts.selectKey}=this.value" onclick="event.stopPropagation()" style="padding:4px;border:1px solid var(--gris-200);border-radius:4px;font-size:11px;background:#fff">${opts.selectOpts.map(o => `<option value="${e(o)}" ${d[opts.selectKey]===o?'selected':''}>${e(o)}</option>`).join('')}</select>`;
-    }
-    html += `</label>`;
-    return html;
-  };
-  const subTit = (txt) => `<div style="font-size:9.5px;color:#6B7280;font-weight:700;padding:6px 5px 4px;background:#F3F4F6;letter-spacing:0.3px">${txt}</div>`;
-  html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">⚙️ COMPONENTES HIDRÁULICOS</div>
-    <div style="background:#fff;border:1px solid var(--gris-200);border-radius:7px;overflow:hidden;margin-bottom:10px">
-      ${subTit('💧 HIDRÁULICA PRINCIPAL')}
-      ${tog('separador_hidraulico', 'Separador hidráulico')}
-      ${(()=>{
-        const vc = _medCalcVasoCalefaccion(st);
-        // Auto-rellenar litros si no hay valor manual
-        if (d.vaso_expansion && !d.vaso_expansion_litros_user_set && vc.recomendado) d.vaso_expansion_litros = vc.recomendado;
-        let html = tog('vaso_expansion', 'Vaso de expansión', { numKey:'vaso_expansion_litros', placeholder:'L', unit:'L', min:0 });
-        if (d.vaso_expansion && vc.vol.total > 0) {
-          // Desglose Vt
-          const partes = [];
-          if (vc.vol.tuberia) partes.push(`tub. ${vc.vol.tuberia}`);
-          if (vc.vol.radiadores) partes.push(`rad. ${vc.vol.radiadores}`);
-          if (vc.vol.sueloRadiante) partes.push(`SR ${vc.vol.sueloRadiante}`);
-          if (vc.vol.inercia) partes.push(`inercia ${vc.vol.inercia}`);
-          if (vc.vol.intercambiador) partes.push(`int. ${vc.vol.intercambiador}`);
-          partes.push(`gen. ${vc.vol.generador}`);
-          html += `<div style="font-size:10px;color:#1E40AF;background:#EFF6FF;padding:5px 9px;border-bottom:1px solid var(--gris-100);line-height:1.4">💡 Recomendado: <strong>${vc.recomendado} L</strong> (Vt <strong>${vc.vol.total} L</strong> · n=${vc.n} a ${vc.tImp}º · Pf 2.5 bar)<div style="font-size:9px;color:#6B7280;margin-top:1px">${partes.join(' + ')}</div></div>`;
-        }
-        return html;
-      })()}
-      ${tog('soporte_vaso', 'Soporte para vaso de expansión', { numKey:'soporte_vaso_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('colectores_adic', 'Colectores adicionales (no SR)', { numKey:'colectores_adic_salidas', placeholder:'salidas', unit:'sal.', min:2, width:60 })}
-      ${tog('bomba_aux', 'Bomba circulador auxiliar', { numKey:'bomba_aux_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('bomba_alta_efic', 'Bomba alta eficiencia (clase A)')}
-      ${tog('filtro_decantador', 'Filtro decantador / desfangador magnético')}
-      ${tog('purgador_auto', 'Purgador automático principal')}
-      ${tog('llaves_corte', 'Llaves de corte por planta', { numKey:'llaves_corte_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('antivibracion', 'Antivibración / latiguillos flexibles')}
-      ${tog('bypass_diferencial', 'Bypass diferencial / by-pass automático')}
-
-      ${subTit('🛡️ SEGURIDAD Y CONTROL')}
-      ${tog('valvula_seguridad', 'Válvula de seguridad (3 bar)')}
-      ${tog('manometro', 'Manómetro', { numKey:'manometro_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('termometro', 'Termómetro', { numKey:'termometro_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('llave_general', 'Llave esfera de corte general')}
-      ${tog('llave_llenado', 'Llave de llenado', { selectKey:'llave_llenado_tipo', selectOpts:['Manual','Automática'] })}
-      ${tog('kit_llenado_auto', 'Kit llenado automático (con desconexión)')}
-      ${tog('antirretorno', 'Antirretorno / válvula check')}
-      ${tog('filtro_y', 'Filtro Y (antiarena)')}
-      ${tog('valv_reguladora_caudal', 'Válvula reguladora de caudal')}
-
-      ${subTit('🏠 ZONAS Y GRUPOS DE IMPULSIÓN')}
-      ${tog('grupo_impulsion', 'Grupo de impulsión premontado', { selectKey:'grupo_impulsion_tipo', selectOpts:['Punto fijo','Punto variable (mezcladora)'] })}
-      ${tog('grupo_impulsion_n', 'Nº de grupos de impulsión', { numKey:'grupo_impulsion_uds', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('valvula_3vias', 'Válvula 3 vías motorizada (suelta)')}
-      ${tog('valvulas_zona', 'Válvulas de zona', { numKey:'valvulas_zona_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('centralita_multizona', 'Centralita multi-zona')}
-      ${tog('termostatos', 'Termostatos por estancia', { numKey:'termostatos_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('sonda_exterior', 'Sonda exterior')}
-      ${tog('sondas_imp_ret', 'Sondas impulsión / retorno', { numKey:'sondas_imp_ret_n', placeholder:'ud', unit:'ud', min:1, width:50 })}
-      ${tog('termostato_wifi', 'Termostato / programador wifi')}
-
-      ${subTit('🔥 ACUMULACIÓN Y ACS')}
-      ${tog('acumulador_inercia', 'Acumulador de inercia', { numKey:'acumulador_inercia_l', placeholder:'L', unit:'L', min:0, width:65 })}
-      ${tog('acumulador_acs', 'Acumulador ACS', { numKey:'acumulador_acs_l', placeholder:'L', unit:'L', min:0, width:65 })}
-      ${tog('intercambiador_placas', 'Intercambiador de placas (ACS rápida)', { numKey:'intercambiador_placas_kw', placeholder:'kW', unit:'kW', min:0, step:'0.1', width:55 })}
-      ${tog('bomba_recirc_acs', 'Bomba recirculación ACS')}
-      ${(()=>{
-        const va = _medCalcVasoACS(st);
-        if (d.vaso_expansion_acs && va && !d.vaso_expansion_acs_l_user_set) d.vaso_expansion_acs_l = va.recomendado;
-        let html = tog('vaso_expansion_acs', 'Vaso expansión ACS', { numKey:'vaso_expansion_acs_l', placeholder:'L', unit:'L', min:0, width:55 });
-        if (d.vaso_expansion_acs && va) {
-          html += `<div style="font-size:10px;color:#1E40AF;background:#EFF6FF;padding:5px 9px;line-height:1.4">💡 Recomendado: <strong>${va.recomendado} L</strong> (12% del acumulador ${d.acumulador_acs_l} L)</div>`;
-        } else if (d.vaso_expansion_acs && !va) {
-          html += `<div style="font-size:10px;color:#92400E;background:#FEF3C7;padding:5px 9px;line-height:1.4">⚠️ Marca primero el acumulador ACS y sus litros para calcular el vaso</div>`;
-        }
-        return html;
-      })()}
-    </div>`;
+  // (Los componentes hidráulicos están ahora en el bloque "🚰 Componentes hidráulicos")
 
   // 5) BdC aire/aire específico (tubería frigorífica)
   if (st.generador?.tipo === 'bdc_aire_aire') {
@@ -9262,7 +9387,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 69
+        instaloERP v1.0 · build 70
       </div>
     </div>`;
 }
