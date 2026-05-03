@@ -3458,7 +3458,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 19
+      instaloERP v1.0 · build 21
     </div>
   `;
 }
@@ -4302,7 +4302,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 19
+      instaloERP v1.0 · build 21
     </div>
   `;
 }
@@ -6525,7 +6525,9 @@ function _medAbrirModalClima(it) {
     tipo_trabajo:  it.tipo_trabajo || 'vivienda_nueva',
     factor_seg:    it.factor_seg != null ? it.factor_seg : _MED_CLIMA_FACTOR_SEG_DEFAULT,
     estancias:     (it.estancias && it.estancias.length) ? it.estancias.map(e => ({...e})) : [],
-    bloques_abiertos: { trab:true, est:true, sis:false, gen:false, dist:false, ctrl:false, obra:false, perm:false, obs:false },
+    sistema:       it.sistema || '',
+    generador:     it.generador ? {...it.generador} : {},
+    bloques_abiertos: { trab:true, est:true, sis:true, gen:false, dist:false, ctrl:false, obra:false, perm:false, obs:false },
   };
   const ov = document.createElement('div');
   ov.id = '_medModalItem';
@@ -6613,10 +6615,82 @@ function _medRenderClimaForm(it) {
     </div>`;
   html += _medClimaBloque('est', '🏠 Estancias y carga térmica', body2);
 
-  // Resto de bloques (placeholder por ahora)
-  html += _medClimaBloque('sis', '⚙️ Sistema principal',     '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente — siguiente paso de implementación</div>');
-  html += _medClimaBloque('gen', '🔧 Generador / equipo',    '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
-  html += _medClimaBloque('dist','🔌 Distribución',          '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
+  // ── Bloque 3: Generador
+  // 5 generadores principales + tipos compatibles de emisor
+  const GENERADORES = [
+    {k:'bdc_aire_aire',  l:'Bomba de calor aire / aire',       f:'❄️🔥',   emisores:['split_cassette_conductos']},
+    {k:'bdc_aire_agua',  l:'Bomba de calor aire / agua',       f:'❄️🔥💧', emisores:['fancoils','suelo_radiante','radiadores_baja_temp']},
+    {k:'geotermia',      l:'Geotermia',                         f:'❄️🔥💧', emisores:['fancoils','suelo_radiante','radiadores_baja_temp']},
+    {k:'biomasa',        l:'Biomasa (leña / pellets)',          f:'🔥💧',   emisores:['suelo_radiante','radiadores','fancoils']},
+    {k:'caldera_combust',l:'Caldera gas / propano / gasóleo',   f:'🔥💧',   emisores:['suelo_radiante','radiadores','fancoils']},
+  ];
+  // Calcular potencia sugerida
+  let totalCalor = 0, totalFrio = 0;
+  st.estancias.forEach(es => {
+    const c = _medClimaCalcCargasEstancia(es, st.factor_seg);
+    totalCalor += c.calor_w; totalFrio += c.frio_w;
+  });
+  let body3 = '';
+  if (totalCalor || totalFrio) {
+    const sug = Math.max(totalCalor, totalFrio) / 1000;
+    body3 += `<div style="background:#ECFDF5;border:1px solid #86EFAC;border-radius:7px;padding:7px 10px;margin-bottom:8px;font-size:11.5px;color:#065F46">💡 Potencia sugerida: <strong>${sug.toFixed(1)} kW</strong> (con factor seg.)</div>`;
+  }
+  body3 += `<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">`;
+  for (const g of GENERADORES) {
+    const a = (st.generador?.tipo) === g.k;
+    body3 += `<button type="button" class="tap" onclick="window._medClimaState.generador=window._medClimaState.generador||{};window._medClimaState.generador.tipo='${g.k}';_medRefrescarClimaForm()" style="padding:10px 12px;border:${a?'2px':'1.5px'} solid ${a?'#3B82F6':'var(--gris-200)'};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:8px;font-weight:${a?'700':'500'};font-size:12px;text-align:left;display:flex;align-items:center;gap:8px"><span style="flex:1">${g.l}</span><span style="font-size:11px">${g.f}</span></button>`;
+  }
+  body3 += `</div>`;
+  // Sub-detalle generador (marca/modelo/potencia) — solo si hay tipo elegido
+  if (st.generador?.tipo) {
+    const gen = st.generador;
+    body3 += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+      <input type="text" placeholder="Marca" value="${e(gen.marca||'')}" oninput="window._medClimaState.generador.marca=this.value" style="padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12.5px;box-sizing:border-box">
+      <input type="text" placeholder="Modelo" value="${e(gen.modelo||'')}" oninput="window._medClimaState.generador.modelo=this.value" style="padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:12.5px;box-sizing:border-box">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Potencia (kW)</div>
+        <input type="number" step="0.1" id="mcGenKw" value="${gen.kw||''}" oninput="window._medClimaState.generador.kw=parseFloat(this.value)||0;document.getElementById('mcGenKcal').value=Math.round((parseFloat(this.value)||0)*860);window._medClimaState.generador.kcal=parseInt(document.getElementById('mcGenKcal').value)" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;font-weight:700;text-align:center;box-sizing:border-box"></div>
+      <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Potencia (kcal/h)</div>
+        <input type="number" id="mcGenKcal" value="${gen.kcal||''}" oninput="window._medClimaState.generador.kcal=parseInt(this.value)||0;document.getElementById('mcGenKw').value=((parseInt(this.value)||0)/860).toFixed(2);window._medClimaState.generador.kw=parseFloat(document.getElementById('mcGenKw').value)" style="width:100%;padding:8px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;font-weight:700;text-align:center;box-sizing:border-box"></div>
+    </div>`;
+  }
+  html += _medClimaBloque('sis', '🔧 Generador', body3);
+
+  // ── Bloque 4: Emisores (filtrados según generador)
+  const TIPOS_EMISOR = {
+    'split_cassette_conductos': { l:'Split / Cassette / Conductos', subtipos:['Split pared','Cassette','Conductos'] },
+    'fancoils':                  { l:'Fancoils',                     subtipos:['Fancoil pared','Fancoil techo','Fancoil suelo'] },
+    'suelo_radiante':            { l:'Suelo radiante',               subtipos:['Suelo radiante'] },
+    'radiadores':                { l:'Radiadores',                   subtipos:['Fundición','Chapa','Aluminio','Baja temperatura'] },
+    'radiadores_baja_temp':      { l:'Radiadores baja temperatura',  subtipos:['Aluminio baja T','Acero baja T'] },
+  };
+  let body4 = '';
+  if (!st.generador?.tipo) {
+    body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">Selecciona primero un generador para ver los emisores compatibles.</div>`;
+  } else {
+    const gObj = GENERADORES.find(g => g.k === st.generador.tipo);
+    const compat = gObj ? gObj.emisores : [];
+    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">Emisores compatibles con <strong>${gObj.l}</strong>. Asigna uno a cada estancia:</div>`;
+    if (!st.estancias.length) {
+      body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">No hay estancias todavía. Añade estancias en el bloque anterior.</div>`;
+    } else {
+      st.estancias.forEach((es, i) => {
+        body4 += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:8px 10px;margin-bottom:5px">
+          <div style="font-size:11.5px;font-weight:700;margin-bottom:5px">${e(es.nombre || 'Estancia '+(i+1))}</div>
+          <div style="font-size:9px;color:#6B7280;margin-bottom:3px">Tipo emisor</div>
+          <select onchange="window._medClimaState.estancias[${i}].emisor_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;background:#fff;box-sizing:border-box;margin-bottom:5px">
+            <option value="">— elegir —</option>
+            ${compat.flatMap(cKey => TIPOS_EMISOR[cKey].subtipos.map(st2 => `<option value="${e(st2)}" ${es.emisor_tipo===st2?'selected':''}>${e(st2)}</option>`)).join('')}
+          </select>
+          ${es.emisor_tipo ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px"><input type="text" placeholder="Marca/modelo" value="${e(es.emisor_modelo||'')}" oninput="window._medClimaState.estancias[${i}].emisor_modelo=this.value" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px"><input type="number" step="0.1" placeholder="kW" value="${es.emisor_kw||''}" oninput="window._medClimaState.estancias[${i}].emisor_kw=parseFloat(this.value)||0" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;text-align:center;font-weight:700"></div>` : ''}
+        </div>`;
+      });
+    }
+  }
+  html += _medClimaBloque('gen', '🔥 Emisores por estancia', body4);
+
+  html += _medClimaBloque('dist','🔌 Distribución',          '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente — siguiente paso de implementación</div>');
   html += _medClimaBloque('ctrl','🎛️ Control y accesorios',  '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   html += _medClimaBloque('obra','📐 Trabajos de obra',      '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
   html += _medClimaBloque('perm','⚠️ Permisos y certificados','<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
@@ -6740,6 +6814,8 @@ async function _medGuardarItemClima() {
     tipo_trabajo: st.tipo_trabajo,
     factor_seg: st.factor_seg,
     estancias: estanciasGuardar,
+    sistema: st.sistema || '',
+    generador: st.generador || {},
     totales: {
       calor_w:  totalCalorW,
       calor_kw: +(totalCalorW/1000).toFixed(2),
@@ -7506,7 +7582,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 19
+        instaloERP v1.0 · build 21
       </div>
     </div>`;
 }
