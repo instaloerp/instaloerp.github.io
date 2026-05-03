@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 38
+      instaloERP v1.0 · build 39
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 38
+      instaloERP v1.0 · build 39
     </div>
   `;
 }
@@ -6693,10 +6693,10 @@ function _medRenderClimaForm(it) {
   body1 += `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;margin-top:6px">
     <div style="font-size:10.5px;color:#92400E;font-weight:700;margin-bottom:4px">⚙️ Factor de seguridad (potencia)</div>
     <div style="display:flex;align-items:center;gap:8px">
-      <input type="range" id="mcFactorSegRange" min="0" max="30" value="${st.factor_seg}" oninput="window._medClimaState.factor_seg=parseInt(this.value);document.getElementById('mcFactorSegVal').textContent='+'+this.value+'%';_medClimaRecalcularTotales()" style="flex:1">
+      <input type="range" id="mcFactorSegRange" min="0" max="30" value="${st.factor_seg}" oninput="window._medClimaState.factor_seg=parseInt(this.value);document.getElementById('mcFactorSegVal').textContent='+'+this.value+'%';_medClimaRecalcularTotales()" onchange="_medRefrescarClimaForm()" style="flex:1">
       <span id="mcFactorSegVal" style="font-weight:700;color:#92400E;min-width:42px;text-align:right">+${st.factor_seg}%</span>
     </div>
-    <div style="font-size:10px;color:#6B7280;margin-top:3px">Aplicado a cada emisor y al total del generador</div>
+    <div style="font-size:10px;color:#6B7280;margin-top:3px">Aplicado a cada estancia y a cada radiador (recalcula al soltar el slider)</div>
   </div>`;
   html += _medClimaBloque('trab', '🛠️ Tipo de trabajo', body1);
 
@@ -8477,7 +8477,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 38
+        instaloERP v1.0 · build 39
       </div>
     </div>`;
 }
