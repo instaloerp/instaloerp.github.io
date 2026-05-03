@@ -2,7 +2,7 @@
 // CACHE_NAME debe coincidir con el "build" mostrado en el footer de app.html.
 // Subir SIEMPRE este número cuando se modifique app.html o sw.js — si no, los
 // móviles no detectarán cambio y seguirán sirviendo la versión vieja desde caché.
-const CACHE_NAME = 'instalo-app-v49';
+const CACHE_NAME = 'instalo-app-v51';
 const STATIC_ASSETS = [
   '/app.html',
   '/assets/icon.svg',
@@ -10,22 +10,28 @@ const STATIC_ASSETS = [
   '/js/obras/radiadores_catalogo.js',
 ];
 
-// Install: cache shell
+// Install: cache shell · NO hace skipWaiting automático
+// Esperamos a que el cliente envíe SKIP_WAITING (banner "Actualizar")
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   );
-  self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: clean old caches y tomar control de las pestañas abiertas
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+// Mensaje desde la app → activar el nuevo SW al instante (botón "Actualizar")
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch: network-first for API (with offline fallback), cache-first for assets

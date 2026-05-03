@@ -992,11 +992,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Inicializar IndexedDB para offline
   try { await openOfflineDB(); } catch(e) { console.warn('[IDB] No disponible:', e); }
 
-  // Registrar Service Worker
+  // Registrar Service Worker con detección de nuevas versiones
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(r => {
-      console.log('[SW] Registrado:', r.scope);
-    }).catch(e => console.warn('[SW] Error:', e));
+    registerSWWithUpdates();
   }
 
   // Enter key on login
@@ -3459,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 49
+      instaloERP v1.0 · build 51
     </div>
   `;
 }
@@ -4303,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 49
+      instaloERP v1.0 · build 51
     </div>
   `;
 }
@@ -8641,7 +8639,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 49
+        instaloERP v1.0 · build 51
       </div>
     </div>`;
 }
@@ -16710,10 +16708,67 @@ function hideLoading() {
 }
 
 // ═══════════════════════════════════════════════
-// PWA: Service Worker & Install
+// PWA: Service Worker & Install — con detección de nuevas versiones
 // ═══════════════════════════════════════════════
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
+async function registerSWWithUpdates() {
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    console.log('[SW] Registrado');
+
+    // Detectar SW nuevo descargando
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      if (!newSW) return;
+      newSW.addEventListener('statechange', () => {
+        // Cuando el nuevo SW está instalado y ya hay un SW activo controlando → mostrar banner
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          mostrarBannerActualizacion(reg);
+        }
+      });
+    });
+
+    // Si al cargar la página ya hay un SW esperando → banner
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      mostrarBannerActualizacion(reg);
+    }
+
+    // Comprobar si hay nueva versión SOLO al volver a la app desde background
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) reg.update().catch(() => {});
+    });
+
+    // Cuando el nuevo SW toma el control → recargar la página automáticamente
+    let _swReloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_swReloading) return;
+      _swReloading = true;
+      window.location.reload();
+    });
+  } catch (e) { console.warn('[SW] Error:', e); }
+}
+
+function mostrarBannerActualizacion(reg) {
+  if (document.getElementById('swUpdateBanner')) return;
+  const div = document.createElement('div');
+  div.id = 'swUpdateBanner';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1B4FD8;color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-family:var(--font),sans-serif';
+  div.innerHTML = `
+    <span style="font-size:18px">🔄</span>
+    <div style="flex:1;line-height:1.3">
+      <div style="font-weight:700;font-size:13px">Nueva versión disponible</div>
+      <div style="font-size:11px;opacity:.85">Pulsa Actualizar para aplicarla</div>
+    </div>
+    <button id="swUpdateLater" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);padding:6px 10px;border-radius:5px;font-size:11px;cursor:pointer">Más tarde</button>
+    <button id="swUpdateNow" style="background:#fff;color:#1B4FD8;border:none;padding:7px 14px;border-radius:5px;font-weight:700;font-size:12px;cursor:pointer">Actualizar</button>
+  `;
+  document.body.appendChild(div);
+  document.getElementById('swUpdateLater').onclick = () => div.remove();
+  document.getElementById('swUpdateNow').onclick = () => {
+    document.getElementById('swUpdateNow').textContent = 'Actualizando…';
+    document.getElementById('swUpdateNow').disabled = true;
+    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    // El controllerchange listener recargará la página automáticamente
+  };
 }
 
 let deferredPrompt = null;
