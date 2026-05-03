@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 52
+      instaloERP v1.0 · build 53
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 52
+      instaloERP v1.0 · build 53
     </div>
   `;
 }
@@ -7337,7 +7337,9 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
   } else if (marcaK === 'jaga_strada' || marcaK === 'jaga_tempo') {
     const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
     const alturaDef = (marcaK === 'jaga_strada') ? '065_est' : '060_est';
-    const alturaKey0 = es.rad_altura || cfgPlanta.rad_altura || alturaDef;
+    // Convertir a string y validar (puede venir un número de versión Baxi anterior)
+    let alturaKey0 = es.rad_altura || cfgPlanta.rad_altura || alturaDef;
+    if (typeof alturaKey0 !== 'string' || !alturaKey0.includes('_')) alturaKey0 = alturaDef;
     // Parsear alturaKey: "065_est" → cm=65, twin=false
     const [cmStr, modo] = alturaKey0.split('_');
     let altCm = parseInt(cmStr);
@@ -7463,7 +7465,7 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
   } else if (marcaK === 'jaga_strada' || marcaK === 'jaga_tempo') {
     const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
     const alturaDef = (marcaK === 'jaga_strada') ? '065_est' : '060_est';
-    if (!cfg.rad_altura || !modeloObj.alturas[cfg.rad_altura]) cfg.rad_altura = alturaDef;
+    if (typeof cfg.rad_altura !== 'string' || !modeloObj.alturas[cfg.rad_altura]) cfg.rad_altura = alturaDef;
     const altObj = modeloObj.alturas[cfg.rad_altura];
     const altCm = altObj.altura_cm;
     const twin = !!altObj.twin;
@@ -7667,7 +7669,7 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
     const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
     const alturaDef = (marcaK === 'jaga_strada') ? '065_est' : '060_est';
     let alturaKey = rad.rad_altura || cfgPlanta.rad_altura || alturaDef;
-    if (!modeloObj.alturas[alturaKey]) alturaKey = alturaDef;
+    if (typeof alturaKey !== 'string' || !modeloObj.alturas[alturaKey]) alturaKey = alturaDef;
     const altObj = modeloObj.alturas[alturaKey];
     const altCm = altObj.altura_cm;
     const twin = !!altObj.twin;
@@ -8651,7 +8653,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 52
+        instaloERP v1.0 · build 53
       </div>
     </div>`;
 }
