@@ -13,9 +13,7 @@ let _medErpActual = null; // medición abierta en detalle
 const MED_ERP_TIPOS = {
   ventanas:     { label:'Carpintería metálica', ico:'🪟', color:'#0891B2' },
   bano:         { label:'Baño',                  ico:'🚿', color:'#7C3AED' },
-  suelo:        { label:'Suelo',                 ico:'🟫', color:'#D97706' },
   pintura:      { label:'Pintura',               ico:'🎨', color:'#059669' },
-  calefaccion:  { label:'Calefacción',           ico:'🔥', color:'#DC2626' },
   climatizacion:{ label:'Climatización',         ico:'❄️', color:'#0EA5E9' },
   fontaneria:   { label:'Fontanería',            ico:'🚰', color:'#0891B2' },
   electrico:    { label:'Eléctrico',             ico:'⚡', color:'#EAB308' },
@@ -287,14 +285,8 @@ function _medErpDescItem(tipo, it) {
       if (it.ubicacion)           partes.push(`(${e(it.ubicacion)})`);
       return partes.filter(Boolean).join(' · ');
     }
-    case 'suelo': {
-      const m2 = (it.largo && it.ancho) ? (parseFloat(it.largo)*parseFloat(it.ancho)).toFixed(2)+' m²' : '?';
-      return `Suelo ${m2}${it.tipo?' · '+e(it.tipo):''}${it.ubicacion?' ('+e(it.ubicacion)+')':''}`;
-    }
     case 'pintura':
       return `Pintura ${it.metros||'?'} m² · ${it.manos||2} manos${it.tipo?' · '+e(it.tipo):''}${it.ubicacion?' ('+e(it.ubicacion)+')':''}`;
-    case 'calefaccion':
-      return `${e(it.tipo||'Radiador')}${it.estancia?' · '+e(it.estancia):''}${it.m2?' · '+it.m2+' m²':''}${it.combustible?' · '+e(it.combustible):''}`;
     case 'climatizacion':
       return `${e(it.unidad||'Split')}${it.estancia?' · '+e(it.estancia):''}${it.btu?' · '+it.btu+' BTU':''}`;
     case 'fontaneria':
