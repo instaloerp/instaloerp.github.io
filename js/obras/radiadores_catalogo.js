@@ -37,30 +37,48 @@ function tablaPotencias(longs, valores) {
 
 // ════════════════════════════════════════════════════════════════
 // BAXI — Radiadores de aluminio (cálculo por elementos)
+// Datos OFICIALES del fabricante (catálogo Baxi):
+//   - Potencia por elemento a ΔT 30/40/50 (UNE EN-442)
+//   - Exponente "n" oficial de la curva característica
+//   - Dimensiones en mm: alto, entrecentros, ancho, fondo
+//   - Peso (kg) y capacidad de agua (L) por elemento
 // ════════════════════════════════════════════════════════════════
 const BAXI = {
   label: 'Baxi',
   tipo_calculo: 'aluminio_elementos',
   modelos: {
+    // DUBAL — frontal con aberturas (estética estándar)
     'DUBAL': {
       label: 'DUBAL (aluminio)',
-      // [altura_cm]: { entrecentros, w_por_elemento por ΔT }
+      // [altura_cm]: { ec, ancho, fondo, peso, agua, w_por_elem por ΔT, n oficial }
       alturas: {
-        30: { ec: 218, w: { 30: 46.2, 40: 62.0,  50: 82.9,  60: 105.6 } },
-        45: { ec: 350, w: { 30: 51.3, 40: 68.4,  50: 92.4,  60: 117.5 } },
-        60: { ec: 500, w: { 30: 67.1, 40: 89.4,  50: 120.8, 60: 153.6 } },
-        70: { ec: 600, w: { 30: 77.0, 40: 102.7, 50: 138.5, 60: 176.0 } },
-        80: { ec: 700, w: { 30: 86.6, 40: 115.5, 50: 155.5, 60: 197.6 } },
+        30: { ec: 218, ancho: 80, fondo: 147, peso: 1.45, agua: 0.27, w: { 30: 42.7, 40: 62.8,  50: 82.9  }, n: 1.30 },
+        45: { ec: 350, ancho: 80, fondo: 82,  peso: 1.13, agua: 0.29, w: { 30: 46.3, 40: 69.4,  50: 92.4  }, n: 1.36 },
+        60: { ec: 500, ancho: 80, fondo: 82,  peso: 1.49, agua: 0.39, w: { 30: 61.5, 40: 91.5,  50: 121.5 }, n: 1.33 },
+        70: { ec: 600, ancho: 80, fondo: 82,  peso: 1.70, agua: 0.44, w: { 30: 70.2, 40: 104.6, 50: 139.0 }, n: 1.34 },
+        80: { ec: 700, ancho: 80, fondo: 82,  peso: 1.92, agua: 0.49, w: { 30: 79.0, 40: 117.5, 50: 156.1 }, n: 1.33 },
       },
       altura_default: 60,
     },
+    // ASTRAL — radiador aluminio, fondo 95 mm
+    'ASTRAL': {
+      label: 'ASTRAL (aluminio)',
+      alturas: {
+        45: { ec: 350, ancho: 80, fondo: 95, peso: 1.04, agua: 0.25, w: { 30: 44.5, 40: 64.1, 50: 85.1  }, n: 1.27 },
+        60: { ec: 500, ancho: 80, fondo: 95, peso: 1.26, agua: 0.30, w: { 30: 55.6, 40: 80.3, 50: 106.9 }, n: 1.28 },
+        70: { ec: 600, ancho: 80, fondo: 95, peso: 1.44, agua: 0.34, w: { 30: 64.2, 40: 92.9, 50: 124.0 }, n: 1.29 },
+        80: { ec: 700, ancho: 80, fondo: 95, peso: 1.61, agua: 0.38, w: { 30: 71.7, 40: 104.6,50: 140.1 }, n: 1.31 },
+      },
+      altura_default: 60,
+    },
+    // CONDAL — radiador aluminio premium, fondo 95 mm, presión 20 bar
     'CONDAL': {
       label: 'CONDAL (aluminio)',
       alturas: {
-        45: { ec: 350, w: { 30: 50.4, 40: 67.1,  50: 89.6,  60: 113.8 } },
-        60: { ec: 500, w: { 30: 63.6, 40: 84.8,  50: 113.3, 60: 143.9 } },
-        70: { ec: 600, w: { 30: 73.5, 40: 98.0,  50: 131.4, 60: 167.0 } },
-        80: { ec: 700, w: { 30: 82.7, 40: 110.3, 50: 147.7, 60: 187.8 } },
+        45: { ec: 350, ancho: 80, fondo: 95, peso: 1.08, agua: 0.26, w: { 30: 46.1, 40: 67.1, 50: 89.6  }, n: 1.30 },
+        60: { ec: 500, ancho: 80, fondo: 95, peso: 1.36, agua: 0.33, w: { 30: 58.3, 40: 84.8, 50: 113.3 }, n: 1.30 },
+        70: { ec: 600, ancho: 80, fondo: 95, peso: 1.53, agua: 0.35, w: { 30: 67.3, 40: 98.0, 50: 131.4 }, n: 1.31 },
+        80: { ec: 700, ancho: 80, fondo: 95, peso: 1.69, agua: 0.40, w: { 30: 75.6, 40: 110.3,50: 147.7 }, n: 1.31 },
       },
       altura_default: 60,
     },
@@ -900,35 +918,31 @@ function buscarMinimoAquabit(modeloKey, dt, potencia_w) {
 }
 
 // Busca nº mínimo de elementos (Baxi aluminio) para una potencia dada
-// Usa la fórmula del exponente N para obtener la potencia exacta al ΔT pedido,
-// derivando N de los puntos del catálogo (cols 30, 40, 50, 60).
+// Usa el exponente N OFICIAL del fabricante (guardado en altura.n) con la fórmula EN-442:
+//   P_real = P_ref × (ΔT_real / ΔT_ref)^n        usando ΔT 50 como referencia
 function buscarMinimoBaxi(modeloKey, alturaKey, dt, potencia_w) {
   const m = BAXI.modelos[modeloKey];
   if (!m) return null;
   const altura = m.alturas[alturaKey];
   if (!altura) return null;
-  // Si dt cae en una columna exacta, usar directamente
+  // Si dt cae en una columna tabulada, usar el valor directo del fabricante
   let wEl = altura.w[Math.round(dt)];
   if (!wEl) {
-    // Calcular con N derivado de cols 30 y 50 (más estables)
-    const p30 = altura.w[30], p50 = altura.w[50];
-    if (p30 && p50) {
-      const n = exponenteN(p30, 30, p50, 50);
-      wEl = potenciaConN(p50, 50, dt, n);
-    } else {
-      // Fallback: mapeo a la columna más cercana
-      let key = 50;
-      if (dt <= 35) key = 30;
-      else if (dt <= 45) key = 40;
-      else if (dt <= 55) key = 50;
-      else key = 60;
-      wEl = altura.w[key];
+    // Usar el exponente N oficial. Si no está, derivarlo de cols 30 y 50.
+    const p50 = altura.w[50];
+    let n = altura.n;
+    if (!n) {
+      const p30 = altura.w[30];
+      n = (p30 && p50) ? exponenteN(p30, 30, p50, 50) : 1.30;
     }
+    if (!p50) return null;
+    wEl = potenciaConN(p50, 50, dt, n);
   }
   if (!wEl) return null;
   const elementos = Math.max(2, Math.ceil(potencia_w / wEl));
   return {
     elementos, w_real: Math.round(elementos * wEl), w_elem: +wEl.toFixed(1),
+    n_oficial: altura.n || null,
     sobre_dim_pct: Math.round(((elementos * wEl - potencia_w) / potencia_w) * 100),
   };
 }
@@ -944,6 +958,7 @@ return {
   // Lista de marcas/modelos disponibles para selectores en UI
   marcas: () => ([
     { k: 'baxi_dubal',   marca: 'Baxi',   modelo: 'DUBAL',         tipo: 'aluminio' },
+    { k: 'baxi_astral',  marca: 'Baxi',   modelo: 'ASTRAL',        tipo: 'aluminio' },
     { k: 'baxi_condal',  marca: 'Baxi',   modelo: 'CONDAL',        tipo: 'aluminio' },
     { k: 'jaga_strada',  marca: 'Jaga',   modelo: 'Strada',        tipo: 'baja_temp' },
     { k: 'jaga_tempo',   marca: 'Jaga',   modelo: 'Tempo',         tipo: 'baja_temp' },

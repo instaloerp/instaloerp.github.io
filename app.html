@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 42
+      instaloERP v1.0 · build 44
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 42
+      instaloERP v1.0 · build 44
     </div>
   `;
 }
@@ -6546,15 +6546,17 @@ function _medClimaAutoCalcEmisor(marcaKey, potencia_w, dt, opts) {
   if (!window.RADIADORES_CAT || !potencia_w) return null;
   opts = opts || {};
   const C = window.RADIADORES_CAT;
-  // BAXI ALUMINIO
-  if (marcaKey === 'baxi_dubal' || marcaKey === 'baxi_condal') {
-    const modeloKey = marcaKey === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
-    const altura = opts.altura || (modeloKey === 'DUBAL' ? 60 : 60);
+  // BAXI ALUMINIO (DUBAL · ASTRAL · CONDAL)
+  const baxiMap = { 'baxi_dubal':'DUBAL', 'baxi_astral':'ASTRAL', 'baxi_condal':'CONDAL' };
+  if (baxiMap[marcaKey]) {
+    const modeloKey = baxiMap[marcaKey];
+    const altura = opts.altura || 60;
     const r = C.buscarMinimoBaxi(modeloKey, altura, dt, potencia_w);
     if (!r) return null;
     return {
       tipo: 'baxi', marca: 'Baxi', modelo: modeloKey, altura_cm: altura,
       elementos: r.elementos, w_real: r.w_real, w_elem: r.w_elem,
+      n_oficial: r.n_oficial,
       sobre_dim_pct: r.sobre_dim_pct,
       descripcion: `Baxi ${modeloKey} H${altura} · ${r.elementos} elem · ${r.w_real} W`,
     };
@@ -6892,12 +6894,13 @@ function _medRenderClimaForm(it) {
     const tImp = (st.generador.t_impulsion != null) ? st.generador.t_impulsion : tImpRec;
     const tAmbDef = window.RADIADORES_CAT?.T_AMBIENTE_RITE_DEFAULT || 21;
     const tAmb = (st.t_ambiente != null) ? st.t_ambiente : tAmbDef;
-    const dtRec = (window.RADIADORES_CAT?.deltaTDesdeTemperaturas?.(tImp, tAmb)) || 30;
-    const dtRealNum = (window.RADIADORES_CAT?.deltaTReal?.(tImp, tAmb)) || dtRec;
+    // ΔT REAL (no redondeado) — el cálculo de radiadores usa este valor con el exponente N
+    const dtReal = (window.RADIADORES_CAT?.deltaTReal?.(tImp, tAmb)) || 35;
+    const dtRec = dtReal; // alias para compat con renderRadiador (el "dt" que pasamos al cálculo)
     // Filtrar sistemas según tipo de trabajo (instalación vista NO permite suelo radiante)
     const esVista = st.tipo_trabajo === 'instalacion_vista';
     const sistemasFiltrados = Object.entries(TIPOS_EMISOR_HIDRAULICOS).filter(([k]) => !(esVista && k === 'suelo_radiante'));
-    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${gObj.l} · T. impulsión <strong>${tImp}º</strong> · ambiente <strong>${tAmb}º</strong> → ΔT ${dtRealNum} (cat. ${dtRec})${esVista?' · ⚠️ instalación vista: sin suelo radiante':''}</div>`;
+    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">${gObj.l} · T. impulsión <strong>${tImp}º</strong> · ambiente <strong>${tAmb}º</strong> → ΔT real <strong>${dtReal}</strong>${esVista?' · ⚠️ instalación vista: sin suelo radiante':''}</div>`;
     if (!st.plantas || !st.plantas.length) {
       body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">Añade plantas y estancias en el bloque anterior.</div>`;
     } else {
@@ -7247,8 +7250,8 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
   </div>`;
   if (!marcaK) { html += `<div style="font-size:10.5px;color:#6B7280;font-style:italic">Selecciona marca</div></div>`; return html; }
   let opts = {};
-  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_condal') {
-    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_astral' || marcaK === 'baxi_condal') {
+    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : (marcaK === 'baxi_astral' ? 'ASTRAL' : 'CONDAL');
     const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
     const alturaSel = es.rad_altura || cfgPlanta.rad_altura || C.BAXI.modelos[modeloKey].altura_default;
     opts.altura = parseInt(alturaSel);
@@ -7329,8 +7332,8 @@ function _medClimaRenderRadConfigPlanta(planta, cfg, dtRec) {
     </select>
   </div>`;
   // Altura por marca
-  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_condal') {
-    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_astral' || marcaK === 'baxi_condal') {
+    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : (marcaK === 'baxi_astral' ? 'ASTRAL' : 'CONDAL');
     const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
     if (cfg.rad_altura == null) cfg.rad_altura = C.BAXI.modelos[modeloKey].altura_default;
     html += `<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#6B7280">Altura</span><select onchange="window._medClimaState.config_plantas['${e(planta)}'].rad_altura=parseInt(this.value);_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">${alturasDisp.map(a => `<option value="${a}" ${parseInt(cfg.rad_altura)===parseInt(a)?'selected':''}>${a} cm</option>`).join('')}</select></div>`;
@@ -7504,8 +7507,8 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
     </select>
   </div>`;
   let opts = {};
-  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_condal') {
-    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_astral' || marcaK === 'baxi_condal') {
+    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : (marcaK === 'baxi_astral' ? 'ASTRAL' : 'CONDAL');
     const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
     const alturaSel = rad.rad_altura || cfgPlanta.rad_altura || C.BAXI.modelos[modeloKey].altura_default;
     opts.altura = parseInt(alturaSel);
@@ -8466,7 +8469,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 42
+        instaloERP v1.0 · build 44
       </div>
     </div>`;
 }
