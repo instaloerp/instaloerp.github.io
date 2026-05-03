@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/mensajeria/chat.js"></script>
+<script src="js/obras/radiadores_catalogo.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -3458,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 25
+      instaloERP v1.0 · build 27
     </div>
   `;
 }
@@ -4302,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 25
+      instaloERP v1.0 · build 27
     </div>
   `;
 }
@@ -6518,13 +6519,90 @@ const _MED_CLIMA_W_AISLAMIENTO = { 'Bueno': 55, 'Normal': 75, 'Malo': 95 };
 const _MED_CLIMA_W_FRIO_BASE = 80; // W/m²
 const _MED_CLIMA_FACTOR_SEG_DEFAULT = 15; // %
 
+// Catálogo de radiadores — cargado de window.RADIADORES_CAT (js/obras/radiadores_catalogo.js)
+// Estructura: BAXI (aluminio por elementos) · JAGA_STRADA · JAGA_TEMPO · AQUABIT (paneles baja T)
+
+// Devuelve ΔT medio recomendado según generador (en ºC, EN442)
+function _medClimaDtRecomendado(generadorTipo, calderaCondensacion) {
+  if (window.RADIADORES_CAT) return window.RADIADORES_CAT.deltaTRecomendado(generadorTipo, calderaCondensacion);
+  // Fallback básico
+  if (['bdc_aire_agua','geotermia','aerotermia'].includes(generadorTipo)) return 22.5;
+  if (generadorTipo === 'caldera_combust' && calderaCondensacion) return 30;
+  if (generadorTipo === 'biomasa') return 30;
+  return 50;
+}
+
+// Devuelve etiqueta legible del ΔT
+function _medClimaDtLabel(dt) {
+  if (dt <= 23) return 'ΔT 22.5 (45/40 ºC)';
+  if (dt <= 28) return 'ΔT 27.5 (50/45 ºC)';
+  if (dt <= 35) return 'ΔT 30 (55/45 ºC)';
+  return 'ΔT 50 (75/65 ºC)';
+}
+
+// Cálculo automático de configuración óptima según marca/modelo/potencia/ΔT
+// Retorna {tipo:'baxi'|'jaga'|'aquabit', ...detalles, descripcion}
+function _medClimaAutoCalcEmisor(marcaKey, potencia_w, dt, opts) {
+  if (!window.RADIADORES_CAT || !potencia_w) return null;
+  opts = opts || {};
+  const C = window.RADIADORES_CAT;
+  // BAXI ALUMINIO
+  if (marcaKey === 'baxi_dubal' || marcaKey === 'baxi_condal') {
+    const modeloKey = marcaKey === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+    const altura = opts.altura || (modeloKey === 'DUBAL' ? 60 : 60);
+    const r = C.buscarMinimoBaxi(modeloKey, altura, dt, potencia_w);
+    if (!r) return null;
+    return {
+      tipo: 'baxi', marca: 'Baxi', modelo: modeloKey, altura_cm: altura,
+      elementos: r.elementos, w_real: r.w_real, w_elem: r.w_elem,
+      sobre_dim_pct: r.sobre_dim_pct,
+      descripcion: `Baxi ${modeloKey} H${altura} · ${r.elementos} elem · ${r.w_real} W`,
+    };
+  }
+  // JAGA STRADA / TEMPO
+  if (marcaKey === 'jaga_strada' || marcaKey === 'jaga_tempo') {
+    const modelo = (marcaKey === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
+    const alturaKey = opts.alturaKey || (marcaKey === 'jaga_strada' ? '050_est' : '050_est');
+    const r = C.buscarMinimoJaga(modelo, alturaKey, dt, potencia_w);
+    if (!r) return { tipo: 'jaga', insuficiente: true, descripcion: 'Sin configuración suficiente en esta altura' };
+    const altObj = modelo.alturas[alturaKey];
+    return {
+      tipo: 'jaga', marca: 'Jaga', modelo: marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo',
+      altura_cm: altObj.altura_cm, twin: altObj.twin, alturaKey,
+      longitud_cm: parseInt(r.longitud), tipo_intercambiador: r.tipo,
+      w_real: r.potencia_real, sobre_dim_pct: r.sobre_dim_pct,
+      descripcion: `Jaga ${marcaKey === 'jaga_strada' ? 'Strada' : 'Tempo'} H${altObj.altura_cm}${altObj.twin?' Twin':''} L${r.longitud} T${r.tipo} · ${r.potencia_real} W`,
+    };
+  }
+  // AQUABIT
+  if (marcaKey === 'aquabit_landro' || marcaKey === 'aquabit_eume') {
+    const modeloKey = opts.modeloKey;
+    if (!modeloKey) return null;
+    const r = C.buscarMinimoAquabit(modeloKey, dt, potencia_w);
+    if (!r) return null;
+    return {
+      tipo: 'aquabit', marca: 'Aquabit', modelo: modeloKey, ancho_cm: r.ancho,
+      w_real: r.potencia_real, sobre_dim_pct: r.sobre_dim_pct,
+      insuficiente: r.insuficiente,
+      kit_dinamico: !!opts.kit_dinamico,
+      descripcion: `Aquabit ${modeloKey} L${r.ancho} · ${r.potencia_real} W${opts.kit_dinamico?' + kit dinámico':''}${r.insuficiente?' ⚠️ insuficiente':''}`,
+    };
+  }
+  return null;
+}
+
 function _medAbrirModalClima(it) {
   if (!_medActual) return;
-  // State del modal
+  const estancias0 = (it.estancias && it.estancias.length) ? it.estancias.map(e => ({...e})) : [];
+  // Derivar plantas existentes + permitir plantas vacías
+  const plantasGuardadas = it.plantas || [];
+  const plantasDerivadas = [...new Set(estancias0.map(e => e.planta || 'Vivienda'))];
+  const plantas = plantasGuardadas.length ? plantasGuardadas : (plantasDerivadas.length ? plantasDerivadas : ['Vivienda']);
   window._medClimaState = {
     tipo_trabajo:  it.tipo_trabajo || 'vivienda_nueva',
     factor_seg:    it.factor_seg != null ? it.factor_seg : _MED_CLIMA_FACTOR_SEG_DEFAULT,
-    estancias:     (it.estancias && it.estancias.length) ? it.estancias.map(e => ({...e})) : [],
+    plantas:       plantas,
+    estancias:     estancias0,
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
     bloques_abiertos: { trab:true, est:true, sis:true, gen:false, dist:false, ctrl:false, obra:false, perm:false, obs:false },
@@ -6605,15 +6683,15 @@ function _medRenderClimaForm(it) {
   </div>`;
   html += _medClimaBloque('trab', '🛠️ Tipo de trabajo', body1);
 
-  // ── Bloque 2: Estancias (lista dinámica)
+  // ── Bloque 2: Plantas y estancias (jerarquía: plantas → estancias dentro)
   let body2 = `<div id="mcEstanciasLista">${_medClimaRenderEstancias()}</div>
-    <button type="button" onclick="_medClimaAddEstancia()" style="width:100%;padding:9px;background:#fff;color:#3B82F6;border:1.5px dashed #3B82F6;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px">+ Añadir estancia</button>
+    <button type="button" onclick="_medClimaAddPlanta()" style="width:100%;padding:9px;background:#fff;color:#10B981;border:1.5px dashed #10B981;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px">+ Añadir planta</button>
     <div id="mcTotales" style="background:#EFF6FF;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:11.5px;color:#1E40AF;line-height:1.7">
       <strong>Resumen total</strong><br>
       Calor: <strong id="mcTotCalor">— kW / — kcal/h</strong><br>
       Frío: <strong id="mcTotFrio">— kW / — kcal/h</strong>
     </div>`;
-  html += _medClimaBloque('est', '🏠 Estancias y carga térmica', body2);
+  html += _medClimaBloque('est', '🏠 Plantas y estancias', body2);
 
   // ── Bloque 3: Generador
   // 5 generadores principales + tipos compatibles de emisor
@@ -6737,19 +6815,27 @@ function _medRenderClimaForm(it) {
     // ── FLUJO NORMAL: emisor por estancia (multi-split, VRV, fancoils, suelo radiante, radiadores…)
     const gObj = GENERADORES.find(g => g.k === st.generador.tipo);
     const compat = gObj ? gObj.emisores : [];
-    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">Emisores compatibles con <strong>${gObj.l}${st.generador.bdc_aa_tipo?' ('+st.generador.bdc_aa_tipo+')':''}</strong>. Asigna uno a cada estancia:</div>`;
+    // ΔT recomendado según generador
+    const calderaCondens = (st.generador.tipo === 'caldera_combust') && st.generador.caldera_condensacion !== false;
+    const dtRec = _medClimaDtRecomendado(st.generador.tipo, calderaCondens);
+    body4 += `<div style="font-size:10.5px;color:#6B7280;margin-bottom:6px">Emisores compatibles con <strong>${gObj.l}${st.generador.bdc_aa_tipo?' ('+st.generador.bdc_aa_tipo+')':''}</strong>. ΔT recomendado: <strong>${_medClimaDtLabel(dtRec)}</strong></div>`;
     if (!st.estancias.length) {
       body4 += `<div style="font-size:11.5px;color:#9CA3AF;font-style:italic">No hay estancias todavía.</div>`;
     } else {
       st.estancias.forEach((es, i) => {
+        const cargas = _medClimaCalcCargasEstancia(es, st.factor_seg);
+        const potNeed = cargas.calor_w; // Los radiadores cubren calor
         body4 += `<div style="background:#FAFBFC;border:1px solid var(--gris-200);border-radius:8px;padding:8px 10px;margin-bottom:5px">
-          <div style="font-size:11.5px;font-weight:700;margin-bottom:5px">${e(es.nombre || 'Estancia '+(i+1))}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+            <span style="font-size:11.5px;font-weight:700;flex:1">${e(es.nombre || 'Estancia '+(i+1))}</span>
+            ${potNeed?`<span style="background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">${cargas.calor_kw} kW</span>`:''}
+          </div>
           <div style="font-size:9px;color:#6B7280;margin-bottom:3px">Tipo emisor</div>
           <select onchange="window._medClimaState.estancias[${i}].emisor_tipo=this.value;_medRefrescarClimaForm()" style="width:100%;padding:7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;background:#fff;box-sizing:border-box;margin-bottom:5px">
             <option value="">— elegir —</option>
             ${compat.flatMap(cKey => TIPOS_EMISOR[cKey].subtipos.map(st2 => `<option value="${e(st2)}" ${es.emisor_tipo===st2?'selected':''}>${e(st2)}</option>`)).join('')}
           </select>
-          ${es.emisor_tipo ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px"><input type="text" placeholder="Marca/modelo" value="${e(es.emisor_modelo||'')}" oninput="window._medClimaState.estancias[${i}].emisor_modelo=this.value" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px"><input type="number" step="0.1" placeholder="kW" value="${es.emisor_kw||''}" oninput="window._medClimaState.estancias[${i}].emisor_kw=parseFloat(this.value)||0" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;text-align:center;font-weight:700"></div>` : ''}
+          ${es.emisor_tipo ? _medClimaRenderEmisorDetalle(es, i, dtRec, potNeed) : ''}
         </div>`;
       });
     }
@@ -6767,29 +6853,35 @@ function _medRenderClimaForm(it) {
   return html;
 }
 
-// Render estancias (lista dinámica) — agrupadas por planta
+// Render estancias agrupadas por plantas (incluso plantas vacías)
 function _medClimaRenderEstancias() {
   const st = window._medClimaState;
   const e = _medEsc;
-  if (!st.estancias.length) {
-    return '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:11.5px;font-style:italic">Sin estancias. Pulsa "+ Añadir estancia" para empezar.</div>';
+  if (!st.plantas || !st.plantas.length) {
+    return '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:11.5px;font-style:italic">Pulsa "+ Añadir planta" para empezar.</div>';
   }
-  // Agrupar por planta (mantiene orden de inserción)
-  const gruposOrden = [];
+  // Agrupar estancias por planta
   const grupos = {};
   st.estancias.forEach((es, idx) => {
-    const p = es.planta || 'Vivienda';
-    if (!grupos[p]) { grupos[p] = []; gruposOrden.push(p); }
+    const p = es.planta || st.plantas[0];
+    if (!grupos[p]) grupos[p] = [];
     grupos[p].push({ ...es, _idx: idx });
   });
+  // Asegurar que toda planta del array tenga entrada (aunque vacía)
+  st.plantas.forEach(p => { if (!grupos[p]) grupos[p] = []; });
   let html = '';
-  for (const planta of gruposOrden) {
-    const ests = grupos[planta];
+  st.plantas.forEach((planta, plantaIdx) => {
+    const ests = grupos[planta] || [];
     html += `<div style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;padding:6px 10px;border-radius:7px 7px 0 0;font-size:11.5px;font-weight:700">
-        🏢 ${e(planta)} <span style="font-weight:400;opacity:.85;font-size:10.5px">· ${ests.length} estancia${ests.length>1?'s':''}</span>
+      <div style="display:flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;padding:7px 10px;border-radius:7px 7px 0 0;font-size:11.5px;font-weight:700">
+        <span style="flex:1">🏢 ${e(planta)} <span style="font-weight:400;opacity:.85;font-size:10.5px">· ${ests.length} estancia${ests.length===1?'':'s'}</span></span>
+        <button type="button" onclick="_medClimaRenombrarPlanta(${plantaIdx})" title="Renombrar planta" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:4px;padding:3px 7px;font-size:10.5px;cursor:pointer">✏️</button>
+        <button type="button" onclick="_medClimaQuitarPlanta(${plantaIdx})" title="Quitar planta" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:4px;padding:3px 7px;font-size:10.5px;cursor:pointer">✕</button>
       </div>
       <div style="border:1px solid #1E40AF;border-top:none;border-radius:0 0 7px 7px;padding:6px;background:#fff">`;
+    if (!ests.length) {
+      html += `<div style="text-align:center;padding:10px 6px;color:#9CA3AF;font-size:11px;font-style:italic">Sin estancias en esta planta</div>`;
+    }
     ests.forEach(es => {
       const i = es._idx;
       const m2 = (parseFloat(es.ancho_cm)||0) * (parseFloat(es.largo_cm)||0) / 10000;
@@ -6822,9 +6914,51 @@ function _medClimaRenderEstancias() {
         <div id="mcCargas_${i}" style="background:#F0F9FF;border-radius:5px;padding:5px 8px;font-size:10.5px;color:#0C4A6E;line-height:1.5">—</div>
       </div>`;
     });
+    // Botón añadir estancia DENTRO de esta planta
+    html += `<button type="button" onclick="_medClimaAddEstanciaPlanta('${e(planta).replace(/'/g,'&#39;')}')" style="width:100%;margin-top:5px;padding:7px;background:#fff;color:#3B82F6;border:1px dashed #3B82F6;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Añadir estancia</button>`;
     html += `</div></div>`;
-  }
+  });
   return html;
+}
+
+// Añadir planta nueva
+function _medClimaAddPlanta() {
+  const sugeridas = ['Planta baja','Planta 1','Planta 2','Planta 3','Sótano','Ático','Bajo cubierta'];
+  const usadas = window._medClimaState.plantas || [];
+  const sugerida = sugeridas.find(s => !usadas.includes(s)) || `Planta ${usadas.length+1}`;
+  const nombre = prompt('Nombre de la planta:', sugerida);
+  if (!nombre || !nombre.trim()) return;
+  window._medClimaState.plantas.push(nombre.trim());
+  document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
+  _medClimaRecalcularTotales();
+}
+
+// Renombrar planta (afecta también a las estancias que la usaban)
+function _medClimaRenombrarPlanta(plantaIdx) {
+  const st = window._medClimaState;
+  const actual = st.plantas[plantaIdx];
+  if (!actual) return;
+  const nuevo = prompt('Nuevo nombre de la planta:', actual);
+  if (!nuevo || !nuevo.trim() || nuevo.trim() === actual) return;
+  st.plantas[plantaIdx] = nuevo.trim();
+  st.estancias.forEach(es => { if (es.planta === actual) es.planta = nuevo.trim(); });
+  document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
+  _medClimaRecalcularTotales();
+}
+
+// Quitar planta (con sus estancias)
+function _medClimaQuitarPlanta(plantaIdx) {
+  const st = window._medClimaState;
+  const planta = st.plantas[plantaIdx];
+  if (!planta) return;
+  const nEst = st.estancias.filter(es => es.planta === planta).length;
+  if (nEst > 0 && !confirm(`La planta "${planta}" tiene ${nEst} estancia${nEst>1?'s':''}. ¿Quitar planta y estancias?`)) return;
+  if (nEst === 0 && st.plantas.length === 1) { toast?.('Tiene que quedar al menos una planta', 'error'); return; }
+  st.estancias = st.estancias.filter(es => es.planta !== planta);
+  st.plantas.splice(plantaIdx, 1);
+  if (!st.plantas.length) st.plantas.push('Vivienda');
+  document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
+  _medClimaRecalcularTotales();
 }
 
 // Cambia la planta de una estancia (con prompt si elige "Otra…")
@@ -6846,10 +6980,16 @@ function _medClimaCambiarPlanta(idx, valor) {
 }
 
 function _medClimaAddEstancia() {
-  // Heredar planta de la última estancia (si existe) o usar 'Vivienda' por defecto
+  // Compat: añadir a la primera planta disponible
   const st = window._medClimaState;
-  const ultimaPlanta = st.estancias.length ? (st.estancias[st.estancias.length-1].planta || 'Vivienda') : 'Vivienda';
-  st.estancias.push({ nombre:'', planta: ultimaPlanta, ancho_cm:0, largo_cm:0, aislamiento:'Normal', calor:true, frio:false });
+  const planta = st.plantas?.[0] || 'Vivienda';
+  _medClimaAddEstanciaPlanta(planta);
+}
+
+// Añadir estancia a una planta concreta
+function _medClimaAddEstanciaPlanta(planta) {
+  const st = window._medClimaState;
+  st.estancias.push({ nombre:'', planta, ancho_cm:0, largo_cm:0, aislamiento:'Normal', calor:true, frio:false });
   document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
   _medClimaRecalcularTotales();
 }
@@ -6857,6 +6997,134 @@ function _medClimaRemEstancia(i) {
   window._medClimaState.estancias.splice(i, 1);
   document.getElementById('mcEstanciasLista').innerHTML = _medClimaRenderEstancias();
   _medClimaRecalcularTotales();
+}
+
+// Devuelve true si el subtipo de emisor corresponde a un radiador (Aluminio, BT, Fundición, Chapa…)
+function _medClimaEsRadiador(emisorTipo) {
+  if (!emisorTipo) return false;
+  const t = emisorTipo.toLowerCase();
+  return t.includes('aluminio') || t.includes('baja temperatura') || t.includes('baja t') ||
+         t.includes('acero') || t.includes('fundición') || t.includes('fundicion') || t.includes('chapa');
+}
+
+// Render del detalle del emisor (calculador para radiadores, input simple para el resto)
+function _medClimaRenderEmisorDetalle(es, i, dtRec, potNeed) {
+  const e = _medEsc;
+  const esRad = _medClimaEsRadiador(es.emisor_tipo);
+  // Si NO es radiador → input simple marca/modelo/kW
+  if (!esRad) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+      <input type="text" placeholder="Marca/modelo" value="${e(es.emisor_modelo||'')}" oninput="window._medClimaState.estancias[${i}].emisor_modelo=this.value" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px">
+      <input type="number" step="0.1" placeholder="kW" value="${es.emisor_kw||''}" oninput="window._medClimaState.estancias[${i}].emisor_kw=parseFloat(this.value)||0" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;text-align:center;font-weight:700">
+    </div>`;
+  }
+  // ── ES RADIADOR → calculador con marca/modelo/auto-config
+  if (!window.RADIADORES_CAT) {
+    return '<div style="font-size:10.5px;color:#9CA3AF;font-style:italic">Catálogo no cargado</div>';
+  }
+  const C = window.RADIADORES_CAT;
+  // Filtrar marcas según tipo de emisor: aluminio → Baxi solo · baja temp → Jaga + Aquabit
+  const tEmis = (es.emisor_tipo || '').toLowerCase();
+  const esAlum = tEmis.includes('aluminio') && !tEmis.includes('baja');
+  const esBT   = tEmis.includes('baja') || tEmis.includes('aluminio baja') || tEmis.includes('acero baja');
+  let marcasFiltro = C.marcas();
+  if (esAlum) marcasFiltro = marcasFiltro.filter(m => m.tipo === 'aluminio');
+  else if (esBT) marcasFiltro = marcasFiltro.filter(m => m.tipo === 'baja_temp');
+  // Si es Aluminio puro permite también baja-T por si el instalador quiere usarlos como tradicionales
+  // Modelo seleccionado
+  const marcaK = es.rad_marca || marcasFiltro[0]?.k || '';
+  const dt = es.rad_dt || dtRec;
+  // Bloque selector marca
+  let html = `<div style="background:#fff;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-top:4px">
+    <div style="font-size:9px;color:#1E40AF;font-weight:700;margin-bottom:4px">CALCULADOR</div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:5px;margin-bottom:5px">
+      <select onchange="window._medClimaState.estancias[${i}].rad_marca=this.value;delete window._medClimaState.estancias[${i}].rad_altura;delete window._medClimaState.estancias[${i}].rad_modelo_aquabit;_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+        <option value="">— marca / modelo —</option>
+        ${marcasFiltro.map(m => `<option value="${m.k}" ${marcaK===m.k?'selected':''}>${e(m.marca+' '+m.modelo)}</option>`).join('')}
+      </select>
+      <select onchange="window._medClimaState.estancias[${i}].rad_dt=parseFloat(this.value);_medRefrescarClimaForm()" style="padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff" title="ΔT medio (EN442)">
+        ${[22.5,27.5,30,50].map(d => `<option value="${d}" ${dt===d?'selected':''}>ΔT ${d}</option>`).join('')}
+      </select>
+    </div>`;
+  if (!marcaK) {
+    html += `<div style="font-size:10.5px;color:#6B7280;font-style:italic">Selecciona marca/modelo para auto-calcular</div></div>`;
+    return html;
+  }
+  // Configurador específico por marca
+  let opts = {};
+  if (marcaK === 'baxi_dubal' || marcaK === 'baxi_condal') {
+    const modeloKey = marcaK === 'baxi_dubal' ? 'DUBAL' : 'CONDAL';
+    const alturasDisp = Object.keys(C.BAXI.modelos[modeloKey].alturas);
+    const alturaSel = es.rad_altura || C.BAXI.modelos[modeloKey].altura_default;
+    opts.altura = parseInt(alturaSel);
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+      <span style="font-size:10px;color:#6B7280">Altura</span>
+      <select onchange="window._medClimaState.estancias[${i}].rad_altura=parseInt(this.value);_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+        ${alturasDisp.map(a => `<option value="${a}" ${parseInt(alturaSel)===parseInt(a)?'selected':''}>${a} cm (entrec. ${C.BAXI.modelos[modeloKey].alturas[a].ec} mm)</option>`).join('')}
+      </select>
+    </div>`;
+  } else if (marcaK === 'jaga_strada' || marcaK === 'jaga_tempo') {
+    const modeloObj = (marcaK === 'jaga_strada') ? C.JAGA_STRADA : C.JAGA_TEMPO;
+    const alturasDisp = Object.keys(modeloObj.alturas);
+    const alturaSel = es.rad_altura || (marcaK === 'jaga_strada' ? '050_est' : '050_est');
+    opts.alturaKey = alturaSel;
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+      <span style="font-size:10px;color:#6B7280">Altura</span>
+      <select onchange="window._medClimaState.estancias[${i}].rad_altura=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+        ${alturasDisp.map(a => {
+          const ao = modeloObj.alturas[a];
+          const lab = `H${ao.altura_cm} ${ao.twin?'Twin':'Estándar'}`;
+          return `<option value="${a}" ${alturaSel===a?'selected':''}>${e(lab)}</option>`;
+        }).join('')}
+      </select>
+    </div>`;
+  } else if (marcaK === 'aquabit_landro' || marcaK === 'aquabit_eume') {
+    const prefijo = marcaK === 'aquabit_landro' ? 'LANDRO' : 'EUME';
+    const modelosDisp = Object.keys(C.AQUABIT.modelos).filter(k => k.startsWith(prefijo));
+    const modSel = es.rad_modelo_aquabit || modelosDisp[0];
+    opts.modeloKey = modSel;
+    opts.kit_dinamico = !!es.rad_kit_dinamico;
+    html += `<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+      <span style="font-size:10px;color:#6B7280">Modelo</span>
+      <select onchange="window._medClimaState.estancias[${i}].rad_modelo_aquabit=this.value;_medRefrescarClimaForm()" style="flex:1;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:11px;background:#fff">
+        ${modelosDisp.map(m => `<option value="${e(m)}" ${modSel===m?'selected':''}>${e(m)}</option>`).join('')}
+      </select>
+    </div>
+    <label class="tap" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:10.5px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" ${es.rad_kit_dinamico?'checked':''} onchange="window._medClimaState.estancias[${i}].rad_kit_dinamico=this.checked;_medRefrescarClimaForm()">
+      Con kit dinámico DBH (refrigeración + breeze)
+    </label>`;
+  }
+  // Auto-cálculo
+  const auto = _medClimaAutoCalcEmisor(marcaK, potNeed, dt, opts);
+  if (auto) {
+    const colorBg = auto.insuficiente ? '#FEE2E2' : '#DCFCE7';
+    const colorTx = auto.insuficiente ? '#991B1B' : '#15803D';
+    let info = '';
+    if (auto.tipo === 'baxi') {
+      info = `<strong>${auto.elementos} elementos</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
+    } else if (auto.tipo === 'jaga') {
+      info = `<strong>L${auto.longitud_cm} · Tipo ${auto.tipo_intercambiador}</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
+    } else if (auto.tipo === 'aquabit') {
+      info = `<strong>Ancho ${auto.ancho_cm} cm</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%${auto.kit_dinamico?' · kit DBH':''}`;
+    }
+    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}</div>`;
+    // Guardar resultado en la estancia para que se persista
+    setTimeout(() => {
+      const stE = window._medClimaState?.estancias?.[i];
+      if (stE) {
+        stE.rad_calc = auto;
+        stE.emisor_modelo = auto.descripcion;
+        stE.emisor_kw = +(auto.w_real / 1000).toFixed(2);
+      }
+    }, 0);
+  } else if (potNeed) {
+    html += `<div style="background:#FEF3C7;color:#92400E;border-radius:6px;padding:7px 9px;font-size:11px">Selecciona altura/modelo para auto-calcular</div>`;
+  } else {
+    html += `<div style="font-size:10.5px;color:#9CA3AF;font-style:italic">Define ancho/largo de la estancia para calcular potencia</div>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 // Cálculo de carga térmica por estancia + totales
@@ -6928,6 +7196,7 @@ async function _medGuardarItemClima() {
     ubicacion: v('mcUbic'),
     tipo_trabajo: st.tipo_trabajo,
     factor_seg: st.factor_seg,
+    plantas: st.plantas || ['Vivienda'],
     estancias: estanciasGuardar,
     sistema: st.sistema || '',
     generador: st.generador || {},
@@ -7697,7 +7966,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 25
+        instaloERP v1.0 · build 27
       </div>
     </div>`;
 }

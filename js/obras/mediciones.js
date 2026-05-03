@@ -287,8 +287,32 @@ function _medErpDescItem(tipo, it) {
     }
     case 'pintura':
       return `Pintura ${it.metros||'?'} m² · ${it.manos||2} manos${it.tipo?' · '+e(it.tipo):''}${it.ubicacion?' ('+e(it.ubicacion)+')':''}`;
-    case 'climatizacion':
+    case 'climatizacion': {
+      // Modelo nuevo: plantas[] + estancias[] + generador + totales · Legacy: unidad/estancia/btu
+      if (it.totales || it.estancias || it.generador) {
+        const tt = it.tipo_trabajo || 'vivienda_nueva';
+        const ttLabel = ({vivienda_nueva:'Vivienda nueva', rehabilitacion:'Rehabilitación', vista:'Instalación vista'})[tt] || tt;
+        const partes = [ttLabel];
+        const nE = (it.estancias || []).length;
+        const nP = (it.plantas || []).length;
+        if (nP) partes.push(`${nP} planta${nP===1?'':'s'}`);
+        if (nE) partes.push(`${nE} estancia${nE===1?'':'s'}`);
+        if (it.generador?.tipo) {
+          const gMap = {bdc_aire_aire:'BdC aire/aire', bdc_aire_agua:'BdC aire/agua', geotermia:'Geotermia', biomasa:'Biomasa', caldera_combust:'Caldera'};
+          let gTxt = gMap[it.generador.tipo] || it.generador.tipo;
+          if (it.generador.bdc_aa_tipo) gTxt += ' '+it.generador.bdc_aa_tipo;
+          if (it.generador.caldera_combustible) gTxt += ' '+it.generador.caldera_combustible.toLowerCase();
+          partes.push(gTxt);
+        }
+        if (it.totales?.calor_kw) partes.push(`🔥 ${it.totales.calor_kw} kW`);
+        if (it.totales?.frio_kw)  partes.push(`❄️ ${it.totales.frio_kw} kW`);
+        // Resumen radiadores (si los hay)
+        const rads = (it.estancias || []).filter(es => es.rad_calc).map(es => es.rad_calc.descripcion);
+        if (rads.length) partes.push(`📻 ${rads.length} radiador${rads.length===1?'':'es'}`);
+        return partes.join(' · ');
+      }
       return `${e(it.unidad||'Split')}${it.estancia?' · '+e(it.estancia):''}${it.btu?' · '+it.btu+' BTU':''}`;
+    }
     case 'fontaneria':
       return `${e(it.punto||'Punto')}${it.ubicacion?' · '+e(it.ubicacion):''}${it.diametro?' · '+e(it.diametro):''}`;
     case 'electrico':
