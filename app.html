@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 58
+      instaloERP v1.0 · build 60
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 58
+      instaloERP v1.0 · build 60
     </div>
   `;
 }
@@ -7887,6 +7887,55 @@ function _medDistSaltoHidraulico(generador) {
   return 10;
 }
 
+// Cálculo automático de ml de tubería: tronco principal por planta + derivaciones por emisor
+//   1) Tronco principal por planta = perímetro/2 × 2 (ida+vuelta) × 1.15 (curvas)
+//        perímetro = 4 × √m²_planta × 1.2 (factor elongación de planta residencial)
+//   2) Derivación por estancia con radiador/fancoil = √m² × 2 (i+v) × 1.15 (curvas)
+//   3) Suelo radiante: tubo en suelo ya contado en bloque emisores → solo deriva al colector
+//        derivación SR por estancia = √m² × 1.5
+//   4) Subida vertical entre plantas = (n_plantas - 1) × 6 ml (3 m altura × i+v)
+// Devuelve { total, desglose } para mostrar al usuario
+function _medDistMlAuto(st) {
+  if (!st || !st.estancias?.length) return { total: 0, desglose: null };
+  // Agrupar m² por planta y por sistema
+  const porPlanta = {};
+  st.estancias.forEach(es => {
+    const m2 = ((parseFloat(es.ancho_cm)||0) * (parseFloat(es.largo_cm)||0)) / 10000;
+    if (m2 <= 0) return;
+    const p = es.planta || st.plantas?.[0] || 'Vivienda';
+    const cfg = st.config_plantas?.[p];
+    const sistema = cfg?.sistema || 'radiador';
+    if (!porPlanta[p]) porPlanta[p] = { m2: 0, estancias: [] };
+    porPlanta[p].m2 += m2;
+    porPlanta[p].sistema = sistema;
+    porPlanta[p].estancias.push({ m2, sistema });
+  });
+  let troncoTotal = 0;
+  let derivacionesTotal = 0;
+  Object.values(porPlanta).forEach(planta => {
+    if (planta.m2 <= 0) return;
+    // Tronco que rodea la planta hasta zona más alejada
+    const perimetro = 4 * Math.sqrt(planta.m2) * 1.2; // 1.2 = factor de elongación residencial
+    const tronco = (perimetro / 2) * 2 * 1.15; // mitad del perímetro × ida+vuelta × curvas
+    troncoTotal += tronco;
+    // Derivación a cada estancia
+    planta.estancias.forEach(({m2, sistema}) => {
+      const factor = sistema === 'suelo_radiante' ? 1.5 : 2.3;
+      derivacionesTotal += Math.sqrt(m2) * factor;
+    });
+  });
+  const subidaVertical = Math.max(0, ((st.plantas?.length || 1) - 1)) * 6;
+  const total = Math.round(troncoTotal + derivacionesTotal + subidaVertical);
+  return {
+    total,
+    desglose: {
+      tronco: Math.round(troncoTotal),
+      derivaciones: Math.round(derivacionesTotal),
+      subida: subidaVertical,
+    },
+  };
+}
+
 // Resumen breve para cabecera validada
 function _medClimaResumenDistribucion(st) {
   const d = st.distribucion || {};
@@ -7961,8 +8010,20 @@ function _medClimaRenderDistribucion(st) {
         }).join('')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-        <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">ml totales (estimado)</div>
-          <input type="number" value="${d.tuberia_ml||''}" oninput="window._medClimaState.distribucion.tuberia_ml=parseFloat(this.value)||0" placeholder="0" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
+        <div>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
+            <span style="font-size:9px;color:#6B7280;flex:1">ml totales</span>
+            ${d.tuberia_ml_user_set ? `<button type="button" onclick="delete window._medClimaState.distribucion.tuberia_ml_user_set;delete window._medClimaState.distribucion.tuberia_ml;_medRefrescarClimaForm()" style="background:#fff;color:#1E40AF;border:1px solid #BFDBFE;border-radius:3px;font-size:9px;padding:2px 5px;cursor:pointer">↻ Auto</button>` : `<span style="font-size:8.5px;color:#16A34A;font-weight:700">✨ AUTO</span>`}
+          </div>
+          ${(()=>{
+            const auto = _medDistMlAuto(st);
+            const valor = d.tuberia_ml_user_set ? (d.tuberia_ml||0) : auto.total;
+            // Persistir el auto cuando no hay override
+            if (!d.tuberia_ml_user_set && auto.total > 0) d.tuberia_ml = auto.total;
+            const desg = auto.desglose;
+            return `<input type="number" value="${valor||''}" onchange="window._medClimaState.distribucion.tuberia_ml=parseFloat(this.value)||0;window._medClimaState.distribucion.tuberia_ml_user_set=true;_medRefrescarClimaForm()" placeholder="0" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box">${desg && !d.tuberia_ml_user_set ? `<div style="font-size:9.5px;color:#6B7280;margin-top:3px;line-height:1.35">Tronco ${desg.tronco} + deriv. ${desg.derivaciones}${desg.subida?' + subida '+desg.subida:''}</div>` : ''}`;
+          })()}
+        </div>
         <div><div style="font-size:9px;color:#6B7280;margin-bottom:2px">Aislante mm</div>
           <input type="number" value="${d.aislamiento_mm||''}" oninput="window._medClimaState.distribucion.aislamiento_mm=parseFloat(this.value)||0;if(parseFloat(this.value)>0)window._medClimaState.distribucion.aislamiento=true" placeholder="9" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box"></div>
       </div>
@@ -8893,7 +8954,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 58
+        instaloERP v1.0 · build 60
       </div>
     </div>`;
 }
