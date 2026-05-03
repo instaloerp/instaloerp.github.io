@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 35
+      instaloERP v1.0 · build 36
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 35
+      instaloERP v1.0 · build 36
     </div>
   `;
 }
@@ -6805,7 +6805,7 @@ function _medRenderClimaForm(it) {
           <div>
             <div style="font-size:10px;color:#1E40AF;font-weight:700;margin-bottom:3px">🌡️ T. impulsión</div>
             <div style="display:flex;align-items:center;gap:4px">
-              <input type="number" min="20" max="${maxT}" value="${tImp}" oninput="window._medClimaState.generador.t_impulsion=parseInt(this.value)||${tImpDef};_medRefrescarClimaForm()" style="flex:1;padding:6px;border:1px solid #93C5FD;border-radius:5px;font-size:13px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
+              <input type="number" min="20" max="${maxT}" value="${tImp}" onchange="window._medClimaState.generador.t_impulsion=parseInt(this.value)||${tImpDef};_medRefrescarClimaForm()" style="flex:1;padding:6px;border:1px solid #93C5FD;border-radius:5px;font-size:13px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
               <span style="font-size:11px;color:#1E40AF;font-weight:700">ºC</span>
             </div>
             <div style="font-size:9.5px;color:#6B7280;margin-top:2px">${aviso}</div>
@@ -6813,7 +6813,7 @@ function _medRenderClimaForm(it) {
           <div>
             <div style="font-size:10px;color:#1E40AF;font-weight:700;margin-bottom:3px">🏠 T. ambiente</div>
             <div style="display:flex;align-items:center;gap:4px">
-              <input type="number" min="15" max="25" value="${tAmb}" oninput="window._medClimaState.t_ambiente=parseInt(this.value)||${tAmbDef};_medRefrescarClimaForm()" style="flex:1;padding:6px;border:1px solid #93C5FD;border-radius:5px;font-size:13px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
+              <input type="number" min="15" max="25" value="${tAmb}" onchange="window._medClimaState.t_ambiente=parseInt(this.value)||${tAmbDef};_medRefrescarClimaForm()" style="flex:1;padding:6px;border:1px solid #93C5FD;border-radius:5px;font-size:13px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
               <span style="font-size:11px;color:#1E40AF;font-weight:700">ºC</span>
             </div>
             <div style="font-size:9.5px;color:#6B7280;margin-top:2px">RITE: 21º hab. / 17º servicios</div>
@@ -7198,7 +7198,7 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
     const potKw = +(potNeed/1000).toFixed(2);
     potBanner = `<div style="background:#FEF3C7;color:#92400E;padding:5px 8px;border-radius:5px;font-size:10.5px;margin-bottom:5px;display:flex;align-items:center;gap:6px">
       <span style="flex:1">Radiador 1 de ${nRads} · reparto auto</span>
-      <input type="number" step="0.1" value="${potKw}" oninput="window._medClimaState.estancias[${i}].pot_main_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
+      <input type="number" step="0.1" value="${potKw}" onchange="window._medClimaState.estancias[${i}].pot_main_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
     </div>`;
   }
   // Tecnología (Aluminio / Baja temperatura / Otro) — heredar de planta
@@ -7377,7 +7377,7 @@ function _medClimaRenderSrConfigPlanta(planta, cfg, generador) {
         const lab = p === 10 ? `${p} · baños` : `${p} · general`;
         return `<button type="button" onclick="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=${p};_medRefrescarClimaForm()" style="padding:7px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#fff':'#F0F9FF'};color:#1E40AF;border-radius:6px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
       }).join('')}
-      <input type="number" min="5" max="40" step="5" value="${cfg.sr_paso}" oninput="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso planta" style="padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
+      <input type="number" min="5" max="40" step="5" value="${cfg.sr_paso}" onchange="window._medClimaState.config_plantas['${e(planta)}'].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso planta" style="padding:6px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
       <div>
@@ -7419,7 +7419,7 @@ function _medClimaRenderSueloRadianteEstancia(es, i, cfgPlanta) {
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
       <span style="font-size:10px;color:#1E40AF;font-weight:700;flex:1">SUELO RADIANTE${esBano?' · baño (paso 10)':''}</span>
       <span style="font-size:10px;color:#6B7280">paso:</span>
-      <input type="number" min="5" max="40" step="5" value="${pasoUsado}" oninput="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||${pasoUsado};_medRefrescarClimaForm()" style="width:50px;padding:3px;border:1px solid #BFDBFE;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
+      <input type="number" min="5" max="40" step="5" value="${pasoUsado}" onchange="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||${pasoUsado};_medRefrescarClimaForm()" style="width:50px;padding:3px;border:1px solid #BFDBFE;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#1E40AF;box-sizing:border-box">
     </div>
     <div><strong>${calc.tuboML} ml</strong> tubo · <strong>${calc.planchas}</strong> planchas · <strong>${calc.perim} ml</strong> cinta perim.${calc.circuitos>1?` · <span style="color:#92400E;font-weight:700">⚠️ ${calc.circuitos} circ. (máx 100ml)</span>`:''}</div>
   </div>`;
@@ -7469,7 +7469,7 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
   let html = `<div style="background:#fff;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-top:5px">
     <div style="background:#FEF3C7;color:#92400E;padding:5px 8px;border-radius:5px;font-size:10.5px;margin-bottom:5px;display:flex;align-items:center;gap:6px">
       <span style="flex:1">Radiador ${idxAdic+2} de ${nRads}</span>
-      <input type="number" step="0.1" value="${potKw}" oninput="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].pot_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
+      <input type="number" step="0.1" value="${potKw}" onchange="window._medClimaState.estancias[${i}].rad_adicionales[${idxAdic}].pot_w=Math.round((parseFloat(this.value)||0)*1000);_medRefrescarClimaForm()" style="width:60px;padding:3px 5px;border:1px solid #FDE68A;border-radius:4px;font-size:11px;text-align:center;font-weight:700;color:#92400E;box-sizing:border-box"> kW
       <button type="button" onclick="window._medClimaState.estancias[${i}].rad_adicionales.splice(${idxAdic},1);_medRefrescarClimaForm()" title="Quitar" style="width:22px;height:22px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>
     </div>
     <div style="display:flex;gap:4px;margin-bottom:6px">
@@ -7555,7 +7555,7 @@ function _medClimaRenderSueloRadiante(es, i, generador, cargas) {
         const lab = p === 10 ? `${p} · baños` : `${p} · general`;
         return `<button type="button" onclick="window._medClimaState.estancias[${i}].sr_paso=${p};_medRefrescarClimaForm()" style="padding:8px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#EFF6FF':'#fff'};color:#1E40AF;border-radius:6px;font-size:11.5px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
       }).join('')}
-      <input type="number" min="5" max="40" step="5" value="${es.sr_paso}" oninput="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso personalizado" style="padding:7px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
+      <input type="number" min="5" max="40" step="5" value="${es.sr_paso}" onchange="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso personalizado" style="padding:7px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
       <div>
@@ -8463,7 +8463,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 35
+        instaloERP v1.0 · build 36
       </div>
     </div>`;
 }
