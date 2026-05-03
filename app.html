@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 64
+      instaloERP v1.0 · build 65
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 64
+      instaloERP v1.0 · build 65
     </div>
   `;
 }
@@ -7169,7 +7169,7 @@ function _medClimaRenderEstancias() {
           const x0 = 15, y0 = 15;
           const grosor = 8;
           const colMarcada = '#92400E', colNormal = '#FDE68A', fillMarcada = '#FEF3C7', fillNormal = '#fff';
-          const onClickP = (idx) => `(()=>{const e2=window._medClimaState.estancias[${i}];if(!e2.distrib_paredes)e2.distrib_paredes=[false,false,false,false];e2.distrib_paredes[${idx}]=!e2.distrib_paredes[${idx}];document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()})()`;
+          const onClickP = (idx) => `_medClimaTogglePared(${i}, ${idx})`;
           return `<div style="margin-top:5px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:5px;padding:6px;display:flex;align-items:center;gap:8px">
             <svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="flex-shrink:0;display:block">
               <!-- Cuerpo de la habitación -->
@@ -7191,7 +7191,7 @@ function _medClimaRenderEstancias() {
               <div style="font-size:9.5px;color:#92400E;font-weight:700">📐 PAREDES POR DONDE PASA EL TUBO</div>
               <div style="font-size:10px;color:#6B7280;margin-top:2px">Pulsa las paredes que recorre el tubo</div>
               <div style="font-size:13px;color:#92400E;font-weight:700;margin-top:5px">${totalEs.toFixed(1)} m</div>
-              ${totalEs > 0 ? `<button type="button" onclick="(()=>{window._medClimaState.estancias[${i}].distrib_paredes=[false,false,false,false];document.getElementById('mcEstanciasLista').innerHTML=_medClimaRenderEstancias();_medClimaRecalcularTotales()})()" style="background:#fff;color:#92400E;border:1px solid #FDE68A;border-radius:3px;font-size:9.5px;padding:2px 6px;cursor:pointer;margin-top:3px">Limpiar</button>` : ''}
+              ${totalEs > 0 ? `<button type="button" onclick="_medClimaLimpiarParedes(${i})" style="background:#fff;color:#92400E;border:1px solid #FDE68A;border-radius:3px;font-size:9.5px;padding:2px 6px;cursor:pointer;margin-top:3px">Limpiar</button>` : ''}
             </div>
           </div>`;
         })()}
@@ -8049,6 +8049,25 @@ function _medDistAutoMarcarParedes(st) {
     if (cfg?.sistema === 'suelo_radiante') return;
     if (!es.distrib_paredes) es.distrib_paredes = [true, false, true, false];
   });
+}
+
+// Toggle de una pared concreta. Refresca todo el form para que también se actualicen
+// los ml de tubería del bloque Distribución.
+function _medClimaTogglePared(idxEstancia, idxPared) {
+  const st = window._medClimaState;
+  const es = st?.estancias?.[idxEstancia];
+  if (!es) return;
+  if (!es.distrib_paredes) es.distrib_paredes = [false, false, false, false];
+  es.distrib_paredes[idxPared] = !es.distrib_paredes[idxPared];
+  _medRefrescarClimaForm();
+}
+// Limpiar todas las paredes de una estancia
+function _medClimaLimpiarParedes(idxEstancia) {
+  const st = window._medClimaState;
+  const es = st?.estancias?.[idxEstancia];
+  if (!es) return;
+  es.distrib_paredes = [false, false, false, false];
+  _medRefrescarClimaForm();
 }
 
 // Resumen breve para cabecera validada
@@ -9074,7 +9093,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 64
+        instaloERP v1.0 · build 65
       </div>
     </div>`;
 }
