@@ -741,20 +741,39 @@ function jagaDtIndex(dt) {
   return 3;
 }
 
-// Interpolación lineal de potencia Jaga entre las 4 columnas ΔT
-//   arr = [w_22.5, w_27.5, w_30, w_50]
+// ── Cálculo de potencia mediante el EXPONENTE N (EN442) ────────
+// Formula: P_real = P_ref × (ΔT_real / ΔT_ref)^n
+// Donde n se deriva de dos puntos conocidos del catálogo:
+//   n = ln(P1/P2) / ln(ΔT1/ΔT2)
+// Valores típicos: aluminio 1.25-1.30 · acero/BT 1.30-1.35 · fundición 1.28
+//
+// Aplicado a Jaga (4 cols): tomamos la pareja 30 y 50 para derivar n
+// y extrapolamos con la fórmula a cualquier ΔT.
 function jagaPotenciaInterpolada(arr, dt) {
   if (!arr) return 0;
   const dtCols = [22.5, 27.5, 30, 50];
-  if (dt <= dtCols[0]) return arr[0];
-  if (dt >= dtCols[3]) return arr[3];
-  for (let i = 0; i < 3; i++) {
-    if (dt >= dtCols[i] && dt <= dtCols[i+1]) {
-      const t = (dt - dtCols[i]) / (dtCols[i+1] - dtCols[i]);
-      return Math.round(arr[i] + t * (arr[i+1] - arr[i]));
-    }
+  // Si cae en una columna exacta, devolver directamente
+  for (let i = 0; i < 4; i++) {
+    if (Math.abs(dt - dtCols[i]) < 0.01) return arr[i];
   }
-  return arr[3];
+  // Derivar n de los dos puntos más estables (col 30 y col 50)
+  const p30 = arr[2], p50 = arr[3];
+  if (!p30 || !p50) return arr[3];
+  const n = Math.log(p30 / p50) / Math.log(30 / 50);
+  // P_real = P_ref × (ΔT_real / ΔT_ref)^n   (usando ΔT 50 como ref)
+  return Math.round(p50 * Math.pow(dt / 50, n));
+}
+
+// Calcula el exponente N de un radiador a partir de dos puntos
+function exponenteN(p1, dt1, p2, dt2) {
+  if (!p1 || !p2 || dt1 === dt2) return 1.30;
+  return Math.log(p1 / p2) / Math.log(dt1 / dt2);
+}
+
+// Calcula potencia a un ΔT objetivo usando un punto de referencia y un exponente
+function potenciaConN(p_ref, dt_ref, dt_obj, n) {
+  if (!p_ref) return 0;
+  return Math.round(p_ref * Math.pow(dt_obj / dt_ref, n || 1.30));
 }
 
 // Devuelve el índice de columna Aquabit ([22.5, 30, 40])
@@ -762,6 +781,19 @@ function aquabitDtIndex(dt) {
   if (dt <= 25) return 0;
   if (dt <= 35) return 1;
   return 2;
+}
+
+// Aquabit: usa el exponente N derivado de las cols 22.5 y 40 para extrapolar a cualquier ΔT
+function aquabitPotenciaInterpolada(arr, dt) {
+  if (!arr) return 0;
+  const dtCols = [22.5, 30, 40];
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(dt - dtCols[i]) < 0.01) return arr[i];
+  }
+  const p22 = arr[0], p40 = arr[2];
+  if (!p22 || !p40) return arr[1] || arr[2];
+  const n = Math.log(p22 / p40) / Math.log(22.5 / 40);
+  return Math.round(p40 * Math.pow(dt / 40, n));
 }
 
 // Temperatura de impulsión predeterminada según generador (ºC)
@@ -844,14 +876,13 @@ function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w) {
   return mejor;
 }
 
-// Busca el ancho Aquabit MÁS PEQUEÑO que cubra
+// Busca el ancho Aquabit MÁS PEQUEÑO que cubra (con interpolación por exponente N)
 function buscarMinimoAquabit(modeloKey, dt, potencia_w) {
   const m = AQUABIT.modelos[modeloKey];
   if (!m) return null;
-  const dtIdx = aquabitDtIndex(dt);
   const anchos = Object.keys(m.anchos).map(Number).sort((a,b)=>a-b);
   for (const a of anchos) {
-    const w = m.anchos[a][dtIdx];
+    const w = aquabitPotenciaInterpolada(m.anchos[a], dt);
     if (w >= potencia_w) {
       return {
         ancho: a, potencia_real: w,
@@ -859,39 +890,53 @@ function buscarMinimoAquabit(modeloKey, dt, potencia_w) {
       };
     }
   }
-  // Si no hay ninguno suficiente → devolver el mayor con aviso
   const aMax = anchos[anchos.length - 1];
+  const wMax = aquabitPotenciaInterpolada(m.anchos[aMax], dt);
   return {
-    ancho: aMax, potencia_real: m.anchos[aMax][dtIdx],
-    sobre_dim_pct: Math.round(((m.anchos[aMax][dtIdx] - potencia_w) / potencia_w) * 100),
+    ancho: aMax, potencia_real: wMax,
+    sobre_dim_pct: Math.round(((wMax - potencia_w) / potencia_w) * 100),
     insuficiente: true,
   };
 }
 
 // Busca nº mínimo de elementos (Baxi aluminio) para una potencia dada
+// Usa la fórmula del exponente N para obtener la potencia exacta al ΔT pedido,
+// derivando N de los puntos del catálogo (cols 30, 40, 50, 60).
 function buscarMinimoBaxi(modeloKey, alturaKey, dt, potencia_w) {
   const m = BAXI.modelos[modeloKey];
   if (!m) return null;
   const altura = m.alturas[alturaKey];
   if (!altura) return null;
-  // Mapear ΔT a entrada en altura.w (claves: 30, 40, 50, 60)
-  let key = 50;
-  if (dt <= 35) key = 30;
-  else if (dt <= 45) key = 40;
-  else if (dt <= 55) key = 50;
-  else key = 60;
-  const wEl = altura.w[key];
+  // Si dt cae en una columna exacta, usar directamente
+  let wEl = altura.w[Math.round(dt)];
+  if (!wEl) {
+    // Calcular con N derivado de cols 30 y 50 (más estables)
+    const p30 = altura.w[30], p50 = altura.w[50];
+    if (p30 && p50) {
+      const n = exponenteN(p30, 30, p50, 50);
+      wEl = potenciaConN(p50, 50, dt, n);
+    } else {
+      // Fallback: mapeo a la columna más cercana
+      let key = 50;
+      if (dt <= 35) key = 30;
+      else if (dt <= 45) key = 40;
+      else if (dt <= 55) key = 50;
+      else key = 60;
+      wEl = altura.w[key];
+    }
+  }
   if (!wEl) return null;
   const elementos = Math.max(2, Math.ceil(potencia_w / wEl));
   return {
-    elementos, w_real: Math.round(elementos * wEl), w_elem: wEl,
+    elementos, w_real: Math.round(elementos * wEl), w_elem: +wEl.toFixed(1),
     sobre_dim_pct: Math.round(((elementos * wEl - potencia_w) / potencia_w) * 100),
   };
 }
 
 return {
   BAXI, JAGA_STRADA, JAGA_TEMPO, AQUABIT,
-  jagaDtIndex, jagaPotenciaInterpolada, aquabitDtIndex, deltaTRecomendado,
+  jagaDtIndex, jagaPotenciaInterpolada, aquabitDtIndex, aquabitPotenciaInterpolada,
+  exponenteN, potenciaConN, deltaTRecomendado,
   impulsionRecomendada, saltoHidraulicoEstandar,
   T_AMBIENTE_RITE_DEFAULT,
   deltaTDesdeImpulsion, deltaTDesdeTemperaturas, deltaTReal,

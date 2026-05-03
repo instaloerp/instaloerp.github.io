@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 40
+      instaloERP v1.0 · build 42
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 40
+      instaloERP v1.0 · build 42
     </div>
   `;
 }
@@ -7276,7 +7276,7 @@ function _medClimaRenderRadiador(es, i, dtRec, potNeed, cfgPlanta, nRads) {
     if (auto.tipo === 'baxi')    info = `<strong>${auto.elementos} elementos</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
     else if (auto.tipo === 'jaga') info = `<strong>L${auto.longitud_cm} · Tipo ${auto.tipo_intercambiador}</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
     else if (auto.tipo === 'aquabit') info = `<strong>Ancho ${auto.ancho_cm} cm</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%${auto.kit_dinamico?' · kit DBH':''}`;
-    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}</div>`;
+    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}<div style="font-size:9.5px;opacity:.8;margin-top:2px">Calculado a ΔT ${dt} (T. impulsión actual)</div></div>`;
     setTimeout(() => {
       const stE = window._medClimaState?.estancias?.[i];
       if (stE) {
@@ -7531,7 +7531,7 @@ function _medClimaRenderRadiadorAdicional(es, i, idxAdic, dtRec, potShare, cfgPl
     if (auto.tipo === 'baxi') info = `<strong>${auto.elementos} elementos</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
     else if (auto.tipo === 'jaga') info = `<strong>L${auto.longitud_cm} · Tipo ${auto.tipo_intercambiador}</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
     else if (auto.tipo === 'aquabit') info = `<strong>Ancho ${auto.ancho_cm} cm</strong> · ${auto.w_real} W · sobredim. ${auto.sobre_dim_pct}%`;
-    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}</div>`;
+    html += `<div style="background:${colorBg};color:${colorTx};border-radius:6px;padding:7px 9px;font-size:11px;line-height:1.4">${info}<div style="font-size:9.5px;opacity:.8;margin-top:2px">Calculado a ΔT ${dt} (T. impulsión actual)</div></div>`;
     setTimeout(() => {
       const stE = window._medClimaState?.estancias?.[i]?.rad_adicionales?.[idxAdic];
       if (stE) { stE.calc = auto; stE.modelo = auto.descripcion; stE.kw = +(auto.w_real/1000).toFixed(2); }
@@ -8466,7 +8466,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 40
+        instaloERP v1.0 · build 42
       </div>
     </div>`;
 }
