@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 73
+      instaloERP v1.0 · build 75
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 73
+      instaloERP v1.0 · build 75
     </div>
   `;
 }
@@ -6641,6 +6641,8 @@ function _medAbrirModalClima(it) {
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
     distribucion:  it.distribucion ? {...it.distribucion} : {},
+    obra:          it.obra ? {...it.obra} : {},
+    permisos:      it.permisos ? {...it.permisos} : {},
     bloques_abiertos: _bloquesAb,
     validados: _val,
   };
@@ -7081,8 +7083,12 @@ function _medRenderClimaForm(it) {
   html += _medClimaBloque('dist','🔌 Distribución', _medClimaRenderDistribucion(st), { resumen: _resDist });
   // Bloque componentes hidráulicos (antes "control y accesorios")
   html += _medClimaBloque('ctrl', '🚰 Componentes hidráulicos', _medClimaRenderComponentes(st), { resumen: _medClimaResumenComponentes(st) });
-  html += _medClimaBloque('obra','📐 Trabajos de obra',      '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
-  html += _medClimaBloque('perm','⚠️ Permisos y certificados','<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
+  // Bloque Trabajos de obra
+  if (!st.obra) st.obra = {};
+  html += _medClimaBloque('obra', '📐 Trabajos de obra', _medClimaRenderObra(st), { resumen: _medClimaResumenObra(st) });
+  // Bloque Permisos y certificados
+  if (!st.permisos) st.permisos = {};
+  html += _medClimaBloque('perm', '⚠️ Permisos y certificados', _medClimaRenderPermisos(st), { resumen: _medClimaResumenPermisos(st) });
   // Observaciones
   let body9 = `<textarea id="mcObserv" placeholder="Notas particulares…" style="width:100%;min-height:55px;padding:10px;border:1.5px solid var(--gris-200);border-radius:9px;font-size:12.5px;font-family:var(--font);box-sizing:border-box;resize:vertical">${e(it.observaciones||'')}</textarea>`;
   html += _medClimaBloque('obs', '📝 Observaciones', body9);
@@ -8287,6 +8293,118 @@ function _medCompAceptarSel() {
   _medRefrescarClimaForm();
 }
 
+// ── BLOQUE PERMISOS Y CERTIFICADOS ────────────────────────────────
+const _MED_PERM_ITEMS = [
+  // Documentación técnica
+  { k:'memoria_rite',     n:'Memoria técnica RITE',                       ico:'📄', destacado:true },
+  { k:'proyecto_tecnico', n:'Proyecto técnico (instalaciones >70 kW)',    ico:'📐' },
+  { k:'cert_rite',        n:'Certificado de instalación RITE (obligatorio)', ico:'✅', destacado:true },
+  { k:'cert_gas',         n:'Certificado instalación de gas',             ico:'🔥' },
+  { k:'cert_electrico',   n:'Certificado eléctrico (BdC / cuadro nuevo)', ico:'⚡' },
+  { k:'pruebas_estanq',   n:'Pruebas de estanqueidad / presión',          ico:'💧' },
+  // Permisos administrativos
+  { k:'lic_obra',         n:'Licencia de obra (Ayuntamiento)',            ico:'🏛️' },
+  { k:'com_industria',    n:'Comunicación a Industria (Xunta)',           ico:'📋' },
+  { k:'boletin_gas',      n:'Boletín de instalación de gas',              ico:'🟦' },
+  { k:'alta_suministro',  n:'Alta de suministro gas / electricidad',      ico:'🔌' },
+  // Documentación al cliente
+  { k:'manual_cliente',   n:'Manual de uso al cliente',                   ico:'📖' },
+  { k:'garantias',        n:'Garantías y documentación de equipos',       ico:'🛡️' },
+  { k:'etiquetas_energ',  n:'Etiquetas energéticas',                      ico:'🏷️' },
+  // Mantenimiento
+  { k:'contrato_mant',    n:'Contrato de mantenimiento posterior',        ico:'🔧' },
+];
+
+function _medClimaResumenPermisos(st) {
+  const p = st.permisos || {};
+  const n = _MED_PERM_ITEMS.filter(i => p[i.k]).length;
+  if (!n) return 'Sin marcar';
+  return `${n} documento${n===1?'':'s'}`;
+}
+
+function _medClimaRenderPermisos(st) {
+  const e = _medEsc;
+  const p = st.permisos;
+  // Auto-marcar lo obligatorio según contexto:
+  //   - cert_rite siempre obligatorio si hay generador
+  //   - cert_gas / boletin_gas si caldera de gas
+  //   - cert_electrico si BdC
+  if (st.generador?.tipo) {
+    // Solo aviso visual, no marca automático para no sorprender al usuario
+  }
+  let html = `<div style="background:#fff;border:1px solid var(--gris-200);border-radius:7px;overflow:hidden;margin-bottom:8px">`;
+  _MED_PERM_ITEMS.forEach((it, idx) => {
+    const checked = !!p[it.k];
+    const last = idx === _MED_PERM_ITEMS.length - 1;
+    const bgRow = it.destacado && !checked ? 'background:#FEF3C7;' : '';
+    html += `<label class="tap" style="display:flex;align-items:center;gap:9px;padding:9px 10px;${last?'':'border-bottom:1px solid var(--gris-100);'}${bgRow}font-size:12.5px;cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="window._medClimaState.permisos['${it.k}']=this.checked;_medRefrescarClimaForm()" style="width:17px;height:17px">
+      <span style="font-size:16px;width:22px;text-align:center">${it.ico}</span>
+      <span style="flex:1">${e(it.n)}${it.destacado?' <span style=\"color:#92400E;font-size:10px;font-weight:700\">★ obligatorio</span>':''}</span>
+    </label>`;
+  });
+  html += `</div>
+    <div style="font-size:9.5px;color:#6B7280;margin-bottom:4px;font-weight:700">📝 OBSERVACIONES PERMISOS</div>
+    <textarea placeholder="Nº de expediente, fechas previstas, gestor encargado…" oninput="window._medClimaState.permisos.notas=this.value" style="width:100%;min-height:55px;padding:8px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;font-family:var(--font);box-sizing:border-box;resize:vertical">${e(p.notas||'')}</textarea>`;
+  return html;
+}
+
+// ── BLOQUE TRABAJOS DE OBRA (lista simple con cantidades opcionales) ────
+const _MED_OBRA_ITEMS = [
+  { k:'regatas',         n:'Regatas en pared',                          ico:'🪨', input:{ key:'regatas_ml', unit:'ml' } },
+  { k:'pasos_tuberia',   n:'Pasos de tubería en muro / forjado',        ico:'🕳️', input:{ key:'pasos_tuberia_n', unit:'ud' } },
+  { k:'recrecido_sr',    n:'Recrecido / mortero suelo radiante',         ico:'🏗️', input:{ key:'recrecido_sr_m2', unit:'m²', auto:'sr_m2' } },
+  { k:'levantar_pavim',  n:'Levantar pavimento existente',               ico:'⛏️', input:{ key:'levantar_pavim_m2', unit:'m²' } },
+  { k:'retirada_equipos',n:'Retirada de equipos antiguos (radiadores/caldera/acumulador)', ico:'🗑️' },
+  { k:'pintura_acabados',n:'Pintura / restitución de acabados',          ico:'🎨', input:{ key:'pintura_acabados_m2', unit:'m²' } },
+  { k:'falso_techo',     n:'Falso techo para tubería empotrada',         ico:'🔲', input:{ key:'falso_techo_m2', unit:'m²' } },
+  { k:'soporte_bdc_ext', n:'Soporte / bancada BdC exterior',             ico:'🛠️' },
+  { k:'transporte_escom',n:'Carga y transporte de escombros',            ico:'🚛' },
+];
+
+function _medClimaResumenObra(st) {
+  const o = st.obra || {};
+  const n = _MED_OBRA_ITEMS.filter(i => o[i.k]).length;
+  if (!n) return 'Sin trabajos';
+  return `${n} trabajo${n===1?'':'s'} marcado${n===1?'':'s'}`;
+}
+
+function _medClimaRenderObra(st) {
+  const e = _medEsc;
+  const o = st.obra;
+  // Auto: m² de suelo radiante (suma de estancias con SR)
+  let m2SR = 0;
+  st.estancias.forEach(es => {
+    const cfg = st.config_plantas?.[es.planta || st.plantas?.[0]];
+    if (cfg?.sistema !== 'suelo_radiante') return;
+    const m2 = ((parseFloat(es.ancho_cm)||0)*(parseFloat(es.largo_cm)||0)) / 10000;
+    if (m2 > 0) m2SR += m2;
+  });
+  // Si recrecido_sr está marcado y no se ha tocado manualmente, autocalcular
+  if (o.recrecido_sr && !o.recrecido_sr_m2_user_set && m2SR > 0) {
+    o.recrecido_sr_m2 = +m2SR.toFixed(1);
+  }
+  let html = `<div style="background:#fff;border:1px solid var(--gris-200);border-radius:7px;overflow:hidden;margin-bottom:8px">`;
+  _MED_OBRA_ITEMS.forEach((it, idx) => {
+    const checked = !!o[it.k];
+    const last = idx === _MED_OBRA_ITEMS.length - 1;
+    html += `<label class="tap" style="display:flex;align-items:center;gap:9px;padding:9px 10px;${last?'':'border-bottom:1px solid var(--gris-100)'};font-size:12.5px;cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="window._medClimaState.obra['${it.k}']=this.checked;_medRefrescarClimaForm()" style="width:17px;height:17px">
+      <span style="font-size:16px;width:22px;text-align:center">${it.ico}</span>
+      <span style="flex:1">${e(it.n)}</span>`;
+    if (checked && it.input) {
+      const v = o[it.input.key] || '';
+      const auto = (it.input.auto === 'sr_m2' && !o[it.input.key+'_user_set']) ? '✨' : '';
+      html += `<input type="number" min="0" step="0.1" value="${v}" placeholder="${it.input.unit}" onchange="window._medClimaState.obra['${it.input.key}']=parseFloat(this.value)||0;window._medClimaState.obra['${it.input.key}_user_set']=true;_medRefrescarClimaForm()" style="width:70px;padding:5px;border:1px solid var(--gris-200);border-radius:5px;font-size:13px;text-align:center;font-weight:700;box-sizing:border-box" onclick="event.stopPropagation();event.preventDefault()"><span style="font-size:11px;color:#6B7280;font-weight:700">${it.input.unit}${auto?' '+auto:''}</span>`;
+    }
+    html += `</label>`;
+  });
+  html += `</div>
+    <div style="font-size:9.5px;color:#6B7280;margin-bottom:4px;font-weight:700">📝 NOTAS DE OBRA</div>
+    <textarea placeholder="Detalles particulares, observaciones de obra, estado actual de la vivienda…" oninput="window._medClimaState.obra.notas=this.value" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--gris-200);border-radius:7px;font-size:12px;font-family:var(--font);box-sizing:border-box;resize:vertical">${e(o.notas||'')}</textarea>`;
+  return html;
+}
+
 // Vaso de expansión ACS · estimación práctica = 12% del acumulador (regla de oficio)
 function _medCalcVasoACS(st) {
   const litrosACS = st.distribucion?.acumulador_acs_l || 0;
@@ -8611,6 +8729,8 @@ async function _medGuardarItemClima() {
     sistema: st.sistema || '',
     generador: st.generador || {},
     distribucion: st.distribucion || {},
+    obra: st.obra || {},
+    permisos: st.permisos || {},
     validados: st.validados || {},
     totales: {
       calor_w:  totalCalorW,
@@ -9378,7 +9498,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 73
+        instaloERP v1.0 · build 75
       </div>
     </div>`;
 }
