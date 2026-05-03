@@ -3457,7 +3457,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 60
+      instaloERP v1.0 · build 61
     </div>
   `;
 }
@@ -4301,7 +4301,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 60
+      instaloERP v1.0 · build 61
     </div>
   `;
 }
@@ -7852,32 +7852,75 @@ function _medClimaRenderFancoil(es, i, cargas) {
 // ── DISTRIBUCIÓN ────────────────────────────────────────────────
 // Materiales habituales en instalaciones residenciales/terciario
 const _MED_DIST_MATERIALES = ['Multicapa Gerpex','PPR','Inox presfitting','Cobre'];
-const _MED_DIST_DIAMETROS = ['16','20','25','32','40','50'];
+// Diámetros NOMINALES exteriores por material (mm)
+const _MED_DIST_DIAMS_POR_MATERIAL = {
+  'Multicapa Gerpex':  ['16','20','26','32','40'],
+  'PPR':               ['20','25','32','40','50','63'],
+  'Inox presfitting':  ['15','18','22','28','35','42'],
+  'Cobre':             ['15','18','22','28','35','42'],
+};
+// Diámetro INTERIOR aproximado por (material, diámetro nominal) — para cálculos de velocidad
+const _MED_DIST_DIAM_INTERIOR = {
+  'Multicapa Gerpex': { '16':12, '20':16, '26':20, '32':26, '40':33 },
+  'PPR':              { '20':13, '25':17, '32':21, '40':27, '50':33, '63':42 },
+  'Inox presfitting': { '15':13, '18':16, '22':20, '28':26, '35':32, '42':39 },
+  'Cobre':            { '15':13, '18':16, '22':20, '28':26, '35':32, '42':39 },
+};
 const _MED_DIST_MODOS = [
   { k:'empotrada', l:'🧱 Empotrada' },
   { k:'vista',     l:'👁️ Vista' },
   { k:'mixta',     l:'🔀 Mixta' },
 ];
 
-// Calcula el diámetro mínimo recomendado (mm) para una potencia (kW) y un salto térmico hidráulico (ºC)
-// Basado en velocidad máxima 0.7 m/s para tubería interior (limita pérdidas y ruido).
-// Tabla a ΔT 10ºC (caldera estándar); se escala por (dt_real/10) para otros saltos.
-function _medDistDiametroPorPotencia(potencia_kW, dt_hidraulico) {
-  if (!potencia_kW || potencia_kW <= 0) return null;
+// Calcula el diámetro NOMINAL recomendado para una potencia (kW), salto térmico (ºC) y material
+// Fórmula física: Q (m³/s) = P × 860 / ΔT / 3600 / 1000
+//   D_int_min = √(4 × Q / (π × v_max))  con v_max = 0.7 m/s
+// Devuelve el menor diámetro nominal del material cuyo interior cubra el mínimo necesario
+const _MED_DIST_VEL_MAX = 0.7; // m/s (límite recomendado tubería interior residencial)
+function _medDistDiametroPorPotencia(potencia_kW, dt_hidraulico, material) {
+  if (!potencia_kW || potencia_kW <= 0 || !material) return null;
+  const diams = _MED_DIST_DIAMS_POR_MATERIAL[material];
+  if (!diams) return null;
   const dt = dt_hidraulico || 10;
-  const limites_dt10 = [
-    { max: 4,  d: 16 },
-    { max: 8,  d: 20 },
-    { max: 14, d: 25 },
-    { max: 24, d: 32 },
-    { max: 40, d: 40 },
-    { max: 65, d: 50 },
-  ];
-  const factor = dt / 10;
-  for (const l of limites_dt10) {
-    if (potencia_kW <= l.max * factor) return l.d;
+  // Caudal en l/h
+  const caudal_lh = potencia_kW * 860 / dt;
+  // m³/s
+  const Q = caudal_lh / 3600 / 1000;
+  // Área mínima a v_max
+  const A_min = Q / _MED_DIST_VEL_MAX;
+  // Diámetro interior mínimo necesario (mm)
+  const dIntMin_mm = 1000 * Math.sqrt(4 * A_min / Math.PI);
+  // Buscar el menor diámetro nominal cuyo interior cubra
+  for (const d of diams) {
+    const dInt = _MED_DIST_DIAM_INTERIOR[material]?.[d];
+    if (dInt && dInt >= dIntMin_mm) return d;
   }
-  return 50; // > 65×factor → 50 mm con aviso
+  return diams[diams.length - 1]; // el mayor con aviso (insuficiente)
+}
+
+// Calcula los diámetros necesarios por TRAMO (tronco + derivaciones por estancia)
+// Devuelve { tronco, derivaciones: { '16': nº_estancias, '20': ..., }, listaUnica: ['16','20','25'] }
+function _medDistDiametrosPorTramo(st, dt_hidraulico, material) {
+  const result = { tronco: null, derivaciones: {}, listaUnica: [] };
+  if (!st || !st.estancias?.length || !material) return result;
+  let potTotalW = 0;
+  st.estancias.forEach(es => {
+    const c = _medClimaCalcCargasEstancia(es, st.factor_seg);
+    potTotalW += c.calor_w;
+    const cfg = st.config_plantas?.[es.planta || st.plantas?.[0]];
+    const sistema = cfg?.sistema;
+    if (sistema === 'suelo_radiante') return;
+    const kwEs = c.calor_w / 1000;
+    if (kwEs <= 0) return;
+    const dEs = _medDistDiametroPorPotencia(kwEs, dt_hidraulico, material);
+    if (dEs) result.derivaciones[String(dEs)] = (result.derivaciones[String(dEs)] || 0) + 1;
+  });
+  result.tronco = _medDistDiametroPorPotencia(potTotalW / 1000, dt_hidraulico, material);
+  const set = new Set();
+  if (result.tronco) set.add(String(result.tronco));
+  Object.keys(result.derivaciones).forEach(d => set.add(d));
+  result.listaUnica = [...set].sort((a,b) => parseInt(a) - parseInt(b));
+  return result;
 }
 
 // Salto hidráulico estándar según el generador (5 BdC, 10 caldera)
@@ -7972,8 +8015,7 @@ function _medClimaRenderDistribucion(st) {
       }).join('')}
     </div>`;
 
-  // 2) Tubería · cálculo automático de diámetro según potencia
-  // Potencia total de calor (todas las estancias × factor seg)
+  // 2) Tubería · cálculo automático de diámetros por tramo según material
   let potTotalW = 0;
   st.estancias.forEach(es => {
     const c = _medClimaCalcCargasEstancia(es, st.factor_seg);
@@ -7981,34 +8023,41 @@ function _medClimaRenderDistribucion(st) {
   });
   const potKw = +(potTotalW/1000).toFixed(2);
   const saltoHidr = _medDistSaltoHidraulico(st.generador);
-  const diamRec = _medDistDiametroPorPotencia(potKw, saltoHidr);
-  // Si el usuario no ha tocado los diámetros, marcar el recomendado por defecto
-  if (potKw > 0 && diamRec && !d.diametros_user_set) {
-    d.diametros = [String(diamRec)];
+  // Diámetros por tramo (tronco + derivaciones) según material
+  const tramos = _medDistDiametrosPorTramo(st, saltoHidr, d.material);
+  // Auto-marcar los diámetros usados (si el usuario no ha tocado nada)
+  if (d.material && tramos.listaUnica.length && !d.diametros_user_set) {
+    d.diametros = [...tramos.listaUnica];
   }
+  // Diámetros disponibles para esta material
+  const diametrosDispMat = d.material ? (_MED_DIST_DIAMS_POR_MATERIAL[d.material] || []) : [];
   html += `<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:4px">🚰 TUBERÍA PRINCIPAL</div>
     <div style="background:#F9FAFB;border:1px solid var(--gris-200);border-radius:7px;padding:8px;margin-bottom:10px">
       <div style="font-size:9px;color:#6B7280;margin-bottom:2px">Material</div>
-      <select onchange="window._medClimaState.distribucion.material=this.value;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;background:#fff;box-sizing:border-box;margin-bottom:8px">
-        <option value="">— elegir —</option>
+      <select onchange="window._medClimaState.distribucion.material=this.value;delete window._medClimaState.distribucion.diametros;delete window._medClimaState.distribucion.diametros_user_set;_medRefrescarClimaForm()" style="width:100%;padding:6px;border:1px solid var(--gris-200);border-radius:5px;font-size:11.5px;background:#fff;box-sizing:border-box;margin-bottom:8px">
+        <option value="">— elegir material primero —</option>
         ${_MED_DIST_MATERIALES.map(m => `<option value="${e(m)}" ${d.material===m?'selected':''}>${e(m)}</option>`).join('')}
       </select>
-      ${potKw > 0 ? `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:6px 9px;margin-bottom:6px;font-size:10.5px;color:#1E40AF;line-height:1.4">
-        💡 <strong>Diámetro recomendado para principal: ${diamRec || '—'} mm</strong><br>
-        <span style="font-size:9.5px;color:#6B7280">Potencia ${potKw} kW · salto hidráulico ${saltoHidr}º · velocidad máx 0.7 m/s</span>
-      </div>` : '<div style="font-size:10.5px;color:#9CA3AF;font-style:italic;margin-bottom:6px">(define las cargas de estancias para ver el diámetro recomendado)</div>'}
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-        <span style="font-size:9px;color:#6B7280;flex:1">Diámetros usados (mm) — múltiple</span>
-        ${d.diametros_user_set ? `<button type="button" onclick="delete window._medClimaState.distribucion.diametros_user_set;delete window._medClimaState.distribucion.diametros;_medRefrescarClimaForm()" style="background:#fff;color:#1E40AF;border:1px solid #BFDBFE;border-radius:4px;font-size:10px;padding:3px 7px;cursor:pointer">↻ Auto</button>`:''}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:6px">
-        ${_MED_DIST_DIAMETROS.map(diam => {
-          const a = (d.diametros||[]).includes(diam);
-          const esRec = String(diamRec) === diam;
-          const borderRec = esRec && !a ? '#86EFAC' : (a?'#1E40AF':'var(--gris-200)');
-          return `<button type="button" onclick="(()=>{const dd=window._medClimaState.distribucion;if(!dd.diametros)dd.diametros=[];const i=dd.diametros.indexOf('${diam}');if(i>=0)dd.diametros.splice(i,1);else dd.diametros.push('${diam}');dd.diametros_user_set=true;_medRefrescarClimaForm()})()" style="padding:6px 2px;border:${a?'2px':'1px'} solid ${borderRec};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:5px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer;position:relative" title="${esRec?'Recomendado':''}">${diam}${esRec?'<span style=\"position:absolute;top:-4px;right:-4px;font-size:8px;color:#16A34A\">●</span>':''}</button>`;
-        }).join('')}
-      </div>
+      ${!d.material ? '<div style="font-size:10.5px;color:#9CA3AF;font-style:italic">Selecciona material para ver diámetros disponibles</div>' : (potKw <= 0 ? '<div style="font-size:10.5px;color:#9CA3AF;font-style:italic">(define las cargas de estancias para ver los diámetros recomendados)</div>' : `
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:7px 9px;margin-bottom:7px;font-size:10.5px;color:#1E40AF;line-height:1.5">
+          <div style="font-weight:700;margin-bottom:3px">💡 Diámetros recomendados (${e(d.material)})</div>
+          <div>· <strong>Tronco principal: Ø${tramos.tronco || '—'} mm</strong> (${potKw} kW total)</div>
+          ${Object.entries(tramos.derivaciones).sort((a,b)=>parseInt(a[0])-parseInt(b[0])).map(([dm,n]) => `<div>· Derivaciones <strong>Ø${dm} mm</strong>: ${n} estancia${n===1?'':'s'}</div>`).join('')}
+          <div style="font-size:9.5px;color:#6B7280;margin-top:3px">salto hidr. ${saltoHidr}º · velocidad máx 0.7 m/s</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-size:9px;color:#6B7280;flex:1">Diámetros usados (mm) — múltiple</span>
+          ${d.diametros_user_set ? `<button type="button" onclick="delete window._medClimaState.distribucion.diametros_user_set;delete window._medClimaState.distribucion.diametros;_medRefrescarClimaForm()" style="background:#fff;color:#1E40AF;border:1px solid #BFDBFE;border-radius:4px;font-size:10px;padding:3px 7px;cursor:pointer">↻ Auto</button>` : '<span style="font-size:8.5px;color:#16A34A;font-weight:700">✨ AUTO</span>'}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(${Math.min(diametrosDispMat.length,6)},1fr);gap:4px;margin-bottom:6px">
+          ${diametrosDispMat.map(diam => {
+            const a = (d.diametros||[]).includes(diam);
+            const recomendado = tramos.listaUnica.includes(diam);
+            const borderColor = a ? '#1E40AF' : (recomendado ? '#86EFAC' : 'var(--gris-200)');
+            return `<button type="button" onclick="(()=>{const dd=window._medClimaState.distribucion;if(!dd.diametros)dd.diametros=[];const i=dd.diametros.indexOf('${diam}');if(i>=0)dd.diametros.splice(i,1);else dd.diametros.push('${diam}');dd.diametros_user_set=true;_medRefrescarClimaForm()})()" style="padding:6px 2px;border:${a?'2px':'1px'} solid ${borderColor};background:${a?'#EFF6FF':'#fff'};color:${a?'#1E40AF':'var(--gris-700)'};border-radius:5px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer;position:relative" title="${recomendado?'Recomendado':''}">${diam}${recomendado&&!a?'<span style=\"position:absolute;top:-4px;right:-4px;font-size:8px;color:#16A34A\">●</span>':''}</button>`;
+          }).join('')}
+        </div>
+      `)}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <div>
           <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
@@ -8954,7 +9003,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 60
+        instaloERP v1.0 · build 61
       </div>
     </div>`;
 }
