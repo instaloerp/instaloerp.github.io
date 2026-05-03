@@ -867,16 +867,17 @@ function deltaTDesdeImpulsion(tImp) {
 }
 
 // Busca la configuración Jaga MÁS PEQUEÑA que cubra `potencia_w` en un modelo+altura
-// Estrategia: minimizar LONGITUD (ancho de pared) y luego TIPO (profundidad).
-// Usa interpolación lineal entre columnas ΔT cuando el valor no coincide con una columna estándar.
-function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w) {
+// Si tipoFijo se pasa → solo varía longitud (mantiene esa profundidad/intercambiador).
+// Si no → minimiza longitud y luego tipo.
+function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w, tipoFijo) {
   const altura = modelo.alturas[alturaKey];
   if (!altura) return null;
   const longs = Object.keys(altura.potencias).sort((a,b) => parseInt(a) - parseInt(b));
+  const tiposBuscar = tipoFijo ? [tipoFijo] : altura.tipos_disponibles;
   let mejor = null;
   for (const lon of longs) {
-    for (const tipo of altura.tipos_disponibles) {
-      const arr = altura.potencias[lon][tipo];
+    for (const tipo of tiposBuscar) {
+      const arr = altura.potencias[lon]?.[tipo];
       if (!arr) continue;
       const w = jagaPotenciaInterpolada(arr, dt);
       if (w >= potencia_w) {
