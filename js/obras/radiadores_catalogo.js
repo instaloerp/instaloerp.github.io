@@ -733,12 +733,28 @@ const AQUABIT = {
 // ════════════════════════════════════════════════════════════════
 
 // Devuelve el índice de columna ΔT (4 columnas Jaga: [45/40, 50/45, 55/45, 75/65])
+// Para uso "exacto" (cuando el ΔT cae justo en una columna). Si está entre, prefiere interpolación.
 function jagaDtIndex(dt) {
-  // dt = ΔT medio en ºC. Aprox: 22.5→0, 27.5→1, 30→2, 50→3
   if (dt <= 23) return 0;
   if (dt <= 28) return 1;
   if (dt <= 35) return 2;
   return 3;
+}
+
+// Interpolación lineal de potencia Jaga entre las 4 columnas ΔT
+//   arr = [w_22.5, w_27.5, w_30, w_50]
+function jagaPotenciaInterpolada(arr, dt) {
+  if (!arr) return 0;
+  const dtCols = [22.5, 27.5, 30, 50];
+  if (dt <= dtCols[0]) return arr[0];
+  if (dt >= dtCols[3]) return arr[3];
+  for (let i = 0; i < 3; i++) {
+    if (dt >= dtCols[i] && dt <= dtCols[i+1]) {
+      const t = (dt - dtCols[i]) / (dtCols[i+1] - dtCols[i]);
+      return Math.round(arr[i] + t * (arr[i+1] - arr[i]));
+    }
+  }
+  return arr[3];
 }
 
 // Devuelve el índice de columna Aquabit ([22.5, 30, 40])
@@ -802,20 +818,18 @@ function deltaTDesdeImpulsion(tImp) {
 
 // Busca la configuración Jaga MÁS PEQUEÑA que cubra `potencia_w` en un modelo+altura
 // Estrategia: minimizar LONGITUD (ancho de pared) y luego TIPO (profundidad).
-// Retorna {longitud, tipo, potencia_real, sobre_dim_pct} o null si no cubre ninguna
+// Usa interpolación lineal entre columnas ΔT cuando el valor no coincide con una columna estándar.
 function buscarMinimoJaga(modelo, alturaKey, dt, potencia_w) {
   const altura = modelo.alturas[alturaKey];
   if (!altura) return null;
-  const dtIdx = jagaDtIndex(dt);
   const longs = Object.keys(altura.potencias).sort((a,b) => parseInt(a) - parseInt(b));
   let mejor = null;
   for (const lon of longs) {
     for (const tipo of altura.tipos_disponibles) {
       const arr = altura.potencias[lon][tipo];
       if (!arr) continue;
-      const w = arr[dtIdx];
+      const w = jagaPotenciaInterpolada(arr, dt);
       if (w >= potencia_w) {
-        // Score: longitud×100 + tipo (longitud manda; en empate, tipo más estrecho)
         const score = parseInt(lon) * 100 + parseInt(tipo);
         if (!mejor || score < mejor.score) {
           mejor = {
@@ -877,7 +891,7 @@ function buscarMinimoBaxi(modeloKey, alturaKey, dt, potencia_w) {
 
 return {
   BAXI, JAGA_STRADA, JAGA_TEMPO, AQUABIT,
-  jagaDtIndex, aquabitDtIndex, deltaTRecomendado,
+  jagaDtIndex, jagaPotenciaInterpolada, aquabitDtIndex, deltaTRecomendado,
   impulsionRecomendada, saltoHidraulicoEstandar,
   T_AMBIENTE_RITE_DEFAULT,
   deltaTDesdeImpulsion, deltaTDesdeTemperaturas, deltaTReal,
