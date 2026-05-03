@@ -177,7 +177,7 @@ function renderMedicionDetalleERP() {
                   <div style="width:30px;height:30px;border-radius:50%;background:${pl.color}15;color:${pl.color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;margin-top:2px">${n+1}</div>
                   <div style="flex:1;font-size:12.5px;line-height:1.5">
                     ${it.validado ? '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">🔒 v'+(it.version||1)+'</span>' : (it.version&&it.version>1?'<span style="background:#F3F4F6;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:6px">v'+it.version+'</span>':'')}
-                    ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : _medErpDescItem(m.tipo, it)}
+                    ${m.tipo === 'bano' ? _medErpDetalleBano(it, true) : (m.tipo === 'climatizacion' ? _medErpDetalleClima(it) : _medErpDescItem(m.tipo, it))}
                   </div>
                 </div>
                 ${archivados ? `<div onclick="_medErpVerHistorial('${it.version_grupo}')" style="padding:6px 12px;border-top:1px dashed var(--gris-200);font-size:11.5px;color:#3B82F6;cursor:pointer;background:#FAFBFC;font-weight:600">📜 ${archivados} versión${archivados>1?'es':''} anterior${archivados>1?'es':''} ›</div>` : ''}
