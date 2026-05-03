@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 47
+      instaloERP v1.0 · build 48
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 47
+      instaloERP v1.0 · build 48
     </div>
   `;
 }
@@ -6636,6 +6636,7 @@ function _medAbrirModalClima(it) {
     sistema:       it.sistema || '',
     generador:     it.generador ? {...it.generador} : {},
     bloques_abiertos: { trab:true, est:true, sis:true, gen:false, dist:false, ctrl:false, obra:false, perm:false, obs:false },
+    validados: it.validados ? {...it.validados} : {},
   };
   const ov = document.createElement('div');
   ov.id = '_medModalItem';
@@ -6658,27 +6659,71 @@ function _medAbrirModalClima(it) {
   setTimeout(() => _medClimaRecalcularTotales(), 30);
 }
 
-function _medClimaBloque(key, titulo, bodyHtml) {
+function _medClimaBloque(key, titulo, bodyHtml, opciones) {
   const st = window._medClimaState;
-  const abierto = st.bloques_abiertos[key];
-  return `<div style="border:1px solid var(--gris-200);border-radius:10px;margin-bottom:8px;overflow:hidden">
-    <div onclick="_medClimaToggleBloque('${key}')" class="tap" style="padding:11px 14px;background:#F3F4F6;display:flex;align-items:center;gap:8px;cursor:pointer">
-      <div style="font-weight:700;font-size:13px;flex:1;color:#1F2937">${titulo}</div>
-      <span style="color:#6B7280;font-size:13px">${abierto?'▾':'▸'}</span>
+  opciones = opciones || {};
+  const validado = !!st.validados?.[key];
+  // Si validado, contraído por defecto. Si abierto en estado, mostrar normal.
+  const abierto = !validado && st.bloques_abiertos[key];
+  const resumen = opciones.resumen || '';
+  const headerBg = validado ? '#DCFCE7' : '#F3F4F6';
+  const headerColor = validado ? '#065F46' : '#1F2937';
+  const headerIcon = validado ? '✓' : (abierto?'▾':'▸');
+  const headerIconColor = validado ? '#16A34A' : '#6B7280';
+  // Si no validable explícitamente false, asumir true
+  const validable = opciones.validable !== false;
+  const bodyExtra = (validable && !validado) ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gris-200)">
+      <button type="button" onclick="_medClimaValidarBloque('${key}')" class="tap" style="width:100%;padding:9px;background:#16A34A;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer">✓ Validar bloque</button>
+    </div>` : (validable && validado) ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #BBF7D0">
+      <button type="button" onclick="_medClimaInvalidarBloque('${key}')" class="tap" style="width:100%;padding:7px;background:#fff;color:#16A34A;border:1.5px solid #16A34A;border-radius:7px;font-weight:700;font-size:11.5px;cursor:pointer">↻ Modificar</button>
+    </div>` : '';
+  return `<div style="border:1px solid ${validado?'#86EFAC':'var(--gris-200)'};border-radius:10px;margin-bottom:8px;overflow:hidden">
+    <div onclick="_medClimaToggleBloque('${key}')" class="tap" style="padding:11px 14px;background:${headerBg};display:flex;align-items:center;gap:8px;cursor:pointer">
+      <div style="font-weight:700;font-size:13px;flex:1;color:${headerColor}">${titulo}${validado&&resumen?`<div style="font-weight:400;font-size:11.5px;color:#15803D;margin-top:2px">${resumen}</div>`:''}</div>
+      <span style="color:${headerIconColor};font-size:14px;font-weight:700">${headerIcon}</span>
     </div>
-    <div id="mc_body_${key}" style="${abierto?'':'display:none;'}padding:12px 14px;background:#fff">${bodyHtml}</div>
+    <div id="mc_body_${key}" style="${abierto?'':'display:none;'}padding:12px 14px;background:#fff">${bodyHtml}${bodyExtra}</div>
   </div>`;
 }
 function _medClimaToggleBloque(key) {
   const st = window._medClimaState;
-  st.bloques_abiertos[key] = !st.bloques_abiertos[key];
+  // Si está validado y se hace click → reabrir + desvalidar implícito (mantener validación, solo abrir)
+  if (st.validados?.[key]) {
+    st.bloques_abiertos[key] = !st.bloques_abiertos[key];
+  } else {
+    st.bloques_abiertos[key] = !st.bloques_abiertos[key];
+  }
   const body = document.getElementById('mc_body_' + key);
   if (body) body.style.display = st.bloques_abiertos[key] ? '' : 'none';
   const head = body?.previousElementSibling;
-  if (head) {
+  if (head && !st.validados?.[key]) {
     const arrow = head.querySelector('span:last-child');
     if (arrow) arrow.textContent = st.bloques_abiertos[key] ? '▾' : '▸';
   }
+}
+function _medClimaValidarBloque(key) {
+  const st = window._medClimaState;
+  if (!st.validados) st.validados = {};
+  st.validados[key] = true;
+  st.bloques_abiertos[key] = false;
+  // Auto-abrir el siguiente bloque no validado
+  const orden = ['trab','est','sis','gen','dist','ctrl','obra','perm','obs'];
+  const idx = orden.indexOf(key);
+  for (let j = idx + 1; j < orden.length; j++) {
+    if (!st.validados[orden[j]]) {
+      st.bloques_abiertos[orden[j]] = true;
+      break;
+    }
+  }
+  _medRefrescarClimaForm();
+}
+function _medClimaInvalidarBloque(key) {
+  const st = window._medClimaState;
+  if (st.validados) delete st.validados[key];
+  st.bloques_abiertos[key] = true;
+  _medRefrescarClimaForm();
 }
 
 function _medRenderClimaForm(it) {
@@ -6711,7 +6756,9 @@ function _medRenderClimaForm(it) {
     </div>
     <div style="font-size:10px;color:#6B7280;margin-top:3px">Aplicado a cada estancia y a cada radiador (recalcula al soltar el slider)</div>
   </div>`;
-  html += _medClimaBloque('trab', '🛠️ Tipo de trabajo', body1);
+  // Resumen para vista validada
+  const tipoTrabLab = ({vivienda_nueva:'Vivienda nueva', rehabilitacion:'Rehabilitación', instalacion_vista:'Instalación vista'})[st.tipo_trabajo] || st.tipo_trabajo;
+  html += _medClimaBloque('trab', '🛠️ Tipo de trabajo', body1, { resumen: `${tipoTrabLab} · factor seguridad +${st.factor_seg}%` });
 
   // ── Bloque 2: Plantas y estancias (jerarquía: plantas → estancias dentro)
   let body2 = `<div id="mcEstanciasLista">${_medClimaRenderEstancias()}</div>
@@ -6721,7 +6768,14 @@ function _medRenderClimaForm(it) {
       Calor: <strong id="mcTotCalor">— kW / — kcal/h</strong><br>
       Frío: <strong id="mcTotFrio">— kW / — kcal/h</strong>
     </div>`;
-  html += _medClimaBloque('est', '🏠 Plantas y estancias', body2);
+  // Resumen plantas/estancias
+  let _totCalorW = 0, _totFrioW = 0;
+  st.estancias.forEach(es => {
+    const c = _medClimaCalcCargasEstancia(es, st.factor_seg);
+    _totCalorW += c.calor_w; _totFrioW += c.frio_w;
+  });
+  const _resPE = `${(st.plantas||[]).length} planta${(st.plantas||[]).length===1?'':'s'} · ${st.estancias.length} estancia${st.estancias.length===1?'':'s'}${_totCalorW?` · 🔥 ${(_totCalorW/1000).toFixed(2)} kW`:''}${_totFrioW?` · ❄️ ${(_totFrioW/1000).toFixed(2)} kW`:''}`;
+  html += _medClimaBloque('est', '🏠 Plantas y estancias', body2, { resumen: _resPE });
 
   // ── Bloque 3: Generador
   // 5 generadores principales + tipos compatibles de emisor
@@ -6838,7 +6892,13 @@ function _medRenderClimaForm(it) {
       </div>`;
     }
   }
-  html += _medClimaBloque('sis', '🔧 Generador', body3);
+  // Resumen generador
+  const gMap = {bdc_aire_aire:'BdC aire/aire', bdc_aire_agua:'BdC aire/agua', geotermia:'Geotermia', biomasa:'Biomasa', caldera_combust:'Caldera'};
+  const _gTxt = st.generador?.tipo ? (gMap[st.generador.tipo] || st.generador.tipo) : '';
+  const _tImpRes = st.generador?.t_impulsion || (window.RADIADORES_CAT?.impulsionRecomendada?.(st.generador?.tipo)) || 60;
+  const _tAmbRes = st.t_ambiente != null ? st.t_ambiente : 21;
+  const _resGen = _gTxt ? `${_gTxt} · imp. ${_tImpRes}º · amb. ${_tAmbRes}º${st.generador.kw?` · ${st.generador.kw} kW`:''}` : 'Sin configurar';
+  html += _medClimaBloque('sis', '🔧 Generador', body3, { resumen: _resGen });
 
   // ── Bloque 4: Emisores (filtrados según generador)
   // 3 categorías de emisores hidráulicos (Radiador / Suelo radiante / Fancoil)
@@ -6998,7 +7058,16 @@ function _medRenderClimaForm(it) {
       });
     }
   }
-  html += _medClimaBloque('gen', tituloBloque4, body4);
+  // Resumen emisores: nº plantas con sistema configurado
+  const _resEm = (() => {
+    if (!st.config_plantas) return 'Sin configurar';
+    const sistemas = (st.plantas||[]).map(p => st.config_plantas[p]?.sistema).filter(Boolean);
+    if (!sistemas.length) return 'Sin configurar';
+    const lblMap = {radiador:'Radiador', suelo_radiante:'Suelo radiante', fancoil:'Fancoil'};
+    const counts = sistemas.reduce((a,s) => (a[s]=(a[s]||0)+1, a), {});
+    return Object.entries(counts).map(([s,n]) => `${n}× ${lblMap[s]||s}`).join(' · ');
+  })();
+  html += _medClimaBloque('gen', tituloBloque4, body4, { resumen: _resEm });
 
   html += _medClimaBloque('dist','🔌 Distribución',          '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente — siguiente paso de implementación</div>');
   html += _medClimaBloque('ctrl','🎛️ Control y accesorios',  '<div style="font-size:11.5px;color:#6B7280;font-style:italic">Pendiente</div>');
@@ -7817,6 +7886,7 @@ async function _medGuardarItemClima() {
     estancias: estanciasGuardar,
     sistema: st.sistema || '',
     generador: st.generador || {},
+    validados: st.validados || {},
     totales: {
       calor_w:  totalCalorW,
       calor_kw: +(totalCalorW/1000).toFixed(2),
@@ -8583,7 +8653,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 47
+        instaloERP v1.0 · build 48
       </div>
     </div>`;
 }
