@@ -3459,7 +3459,7 @@ async function renderOperarioMas(el) {
     </div>
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 31
+      instaloERP v1.0 · build 32
     </div>
   `;
 }
@@ -4303,7 +4303,7 @@ async function renderJefeMas(el) {
     ${CP?.es_superadmin ? _renderTestFichajePanel() : ''}
 
     <div style="text-align:center;padding:24px;color:var(--gris-300);font-size:11px">
-      instaloERP v1.0 · build 31
+      instaloERP v1.0 · build 32
     </div>
   `;
 }
@@ -7087,7 +7087,9 @@ function _medClimaEsBano(nombre) {
 }
 
 // Constantes REHAU PN para suelo radiante
-const _MED_SR_PASOS = [5, 10, 15, 20, 25, 30]; // múltiplos de 5 cm
+// Pasos prácticos en obra con panel PN: 15 (general) y 10 (baños / zonas frías)
+// Si en el futuro se usa otro panel que admita 7.5, se ajustará a [15, 7.5]
+const _MED_SR_PASOS = [15, 10];
 const _MED_SR_TUBOS = [
   { k:'16x1.5', l:'RAUTHERM 16×1.5' },
   { k:'16x2.0', l:'RAUTHERM 16×2.0' },
@@ -7103,11 +7105,10 @@ const _MED_SR_PANEL_M2 = 1.2 * 0.7; // 1200×700 mm = 0.84 m² útil
 const _MED_SR_FACTOR_CURVAS = 1.10; // +10% por curvas y conexión a colector
 const _MED_SR_TUBO_MAX_CIRCUITO = 100; // ml
 
-// Paso por defecto según generador y tipo de estancia (baño / general)
+// Paso por defecto según tipo de estancia: baño → 10 (paso reducido), resto → 15
+// Con panel REHAU PN solo hay 2 pasos prácticos: 15 (general) y 10 (baños)
 function _medClimaPasoDefault(generadorTipo, esBano) {
-  const esBdC = ['bdc_aire_agua','geotermia','aerotermia'].includes(generadorTipo);
-  if (esBdC) return 10; // BdC siempre 10 (no se puede 7.5 con PN)
-  return esBano ? 10 : 15; // Caldera: 15 general, 10 baños
+  return esBano ? 10 : 15;
 }
 
 // Cálculo suelo radiante por estancia
@@ -7218,12 +7219,14 @@ function _medClimaRenderSueloRadiante(es, i, generador, cargas) {
   const calc = _medClimaCalcSueloRadiante(es);
   let html = `<div style="background:#fff;border:1px solid #BFDBFE;border-radius:7px;padding:8px;margin-top:4px">
     <div style="font-size:9px;color:#1E40AF;font-weight:700;margin-bottom:5px">SUELO RADIANTE REHAU PN${esBano?' · BAÑO':''}</div>
-    <div style="font-size:10px;color:#6B7280;margin-bottom:3px">Paso entre tubos</div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:6px">
+    <div style="font-size:10px;color:#6B7280;margin-bottom:3px">Paso entre tubos (cm) — editable</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 70px;gap:5px;margin-bottom:6px;align-items:center">
       ${_MED_SR_PASOS.map(p => {
         const a = es.sr_paso === p;
-        return `<button type="button" onclick="window._medClimaState.estancias[${i}].sr_paso=${p};_medRefrescarClimaForm()" style="padding:6px 2px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#EFF6FF':'#fff'};color:#1E40AF;border-radius:5px;font-size:11px;font-weight:${a?'700':'500'};cursor:pointer">${p}</button>`;
+        const lab = p === 10 ? `${p} · baños` : `${p} · general`;
+        return `<button type="button" onclick="window._medClimaState.estancias[${i}].sr_paso=${p};_medRefrescarClimaForm()" style="padding:8px 4px;border:${a?'2px':'1px'} solid ${a?'#1E40AF':'#BFDBFE'};background:${a?'#EFF6FF':'#fff'};color:#1E40AF;border-radius:6px;font-size:11.5px;font-weight:${a?'700':'500'};cursor:pointer">${lab}</button>`;
       }).join('')}
+      <input type="number" min="5" max="40" step="5" value="${es.sr_paso}" oninput="window._medClimaState.estancias[${i}].sr_paso=parseInt(this.value)||15;_medRefrescarClimaForm()" title="Paso personalizado" style="padding:7px;border:1px solid var(--gris-200);border-radius:6px;font-size:12px;text-align:center;font-weight:700;box-sizing:border-box">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
       <div>
@@ -8130,7 +8133,7 @@ function renderAlmacenMas(el) {
         </div>
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--gris-400);font-weight:600">
-        instaloERP v1.0 · build 31
+        instaloERP v1.0 · build 32
       </div>
     </div>`;
 }
