@@ -679,33 +679,63 @@ async function _completarMandatoFirmado(tipo, entityId, firmaUrl) {
 // ═══════════════════════════════════════════════
 
 async function generarRemesaSEPA() {
-  // Obtener facturas pendientes de cobro con IBAN del cliente
-  const facturasPendientes = (typeof facLocalData !== 'undefined' ? facLocalData : [])
+  // Filtrar facturas que vayan por DOMICILIACIÓN BANCARIA (por nombre de la forma de pago)
+  // Las de transferencia, efectivo, etc. NO van en remesa SEPA
+  const fps = (typeof formasPago !== 'undefined' && Array.isArray(formasPago)) ? formasPago : [];
+  const fpsDomiciliacion = new Set(fps.filter(fp => /domicilia/i.test(fp.nombre || '')).map(fp => fp.id));
+
+  const todasPendientes = (typeof facLocalData !== 'undefined' ? facLocalData : [])
     .filter(f => f.estado === 'enviada' || f.estado === 'pendiente' || f.estado === 'vencida');
 
-  if (!facturasPendientes.length) {
-    toast('No hay facturas pendientes de cobro para la remesa', 'info');
+  if (!todasPendientes.length) {
+    toast('No hay facturas pendientes de cobro', 'info');
     return;
   }
 
-  // Verificar que tienen IBAN
+  // Solo facturas con forma de pago Domiciliación
+  const facturasPendientes = todasPendientes.filter(f => fpsDomiciliacion.has(parseInt(f.forma_pago_id)));
+  const excluidasNoDom = todasPendientes.length - facturasPendientes.length;
+
+  if (!facturasPendientes.length) {
+    toast(`No hay facturas con forma de pago "Domiciliación" pendientes (${excluidasNoDom} pendientes con otra forma)`, 'info');
+    return;
+  }
+
+  // Verificar que tienen IBAN del cliente (campo legacy o cuentas_bancarias_entidad)
   let sinIban = 0;
   const facturasValidas = [];
+  const cbeAll = (typeof cuentasBancariasEntidad !== 'undefined' ? cuentasBancariasEntidad : []) || [];
   for (const f of facturasPendientes) {
     const cli = clientes.find(c => c.id === f.cliente_id);
-    if (cli?.iban) {
-      facturasValidas.push({ ...f, _cliente: cli });
+    // Buscar IBAN: legacy en cliente, o cuenta predeterminada en cuentas_bancarias_entidad
+    let iban = cli?.iban;
+    if (!iban && cli) {
+      const cbe = cbeAll.filter(x => x.tipo_entidad === 'cliente' && x.entidad_id === cli.id);
+      const pred = cbe.find(x => x.predeterminada) || cbe[0];
+      iban = pred?.iban;
+    }
+    if (iban) {
+      facturasValidas.push({ ...f, _cliente: cli, _iban: iban });
     } else {
       sinIban++;
     }
   }
 
   if (!facturasValidas.length) {
-    toast(`Ninguna factura tiene IBAN del cliente (${sinIban} sin IBAN)`, 'error');
+    toast(`Ninguna factura domiciliada tiene IBAN del cliente (${sinIban} sin IBAN)`, 'error');
     return;
   }
 
-  const okSepa = await confirmModal({titulo:'Generar remesa SEPA',mensaje:`¿Generar remesa SEPA con ${facturasValidas.length} factura(s)?`,aviso:sinIban > 0 ? `${sinIban} factura(s) excluidas por no tener IBAN del cliente.` : '',btnOk:'Generar remesa'}); if (!okSepa) return;
+  const avisos = [];
+  if (excluidasNoDom > 0) avisos.push(`${excluidasNoDom} factura(s) pendientes con otra forma de pago — no entran en remesa.`);
+  if (sinIban > 0) avisos.push(`${sinIban} factura(s) excluidas por no tener IBAN del cliente.`);
+
+  const okSepa = await confirmModal({
+    titulo:'Generar remesa SEPA',
+    mensaje:`¿Generar remesa SEPA con ${facturasValidas.length} adeudo(s) domiciliado(s)?`,
+    aviso: avisos.join(' '),
+    btnOk:'Generar remesa'
+  }); if (!okSepa) return;
 
   const cuentaEmpresa = (cuentasBancarias||[]).find(b => b.predeterminada) || (cuentasBancarias||[])[0];
   if (!cuentaEmpresa?.iban) {
