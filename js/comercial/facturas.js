@@ -158,7 +158,7 @@ async function loadFacturas() {
     .select('*').eq('empresa_id', EMPRESA.id)
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false })
-    .limit(500);
+    .limit(10000);
   facLocalData = data || [];
   window.facturasData = facLocalData;
 

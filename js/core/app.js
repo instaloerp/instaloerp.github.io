@@ -1141,21 +1141,21 @@ function showRealtimeNotif(ico, titulo, msg, color, parteId) {
 async function cargarTodos() {
   const eid = EMPRESA.id;
   const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe,cb] = await Promise.all([
-    sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre').limit(1000),
-    sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre').limit(500),
-    sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo').limit(2000),
+    sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre').limit(10000),
+    sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre').limit(5000),
+    sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo').limit(10000),
     sb.from('almacenes').select('*').eq('empresa_id',eid).order('nombre'),
-    sb.from('trabajos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(500),
+    sb.from('trabajos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5000),
     sb.from('tipos_iva').select('*').eq('empresa_id',eid).order('porcentaje'),
     sb.from('unidades_medida').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('formas_pago').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('familias_articulos').select('*').eq('empresa_id',eid).order('orden'),
     sb.from('series_numeracion').select('*').eq('empresa_id',eid).order('tipo'),
     sb.from('empresas').select('id,nombre').eq('id',eid),
-    sb.from('facturas').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(500),
-    sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(500),
+    sb.from('facturas').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(10000),
+    sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5000),
     sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
-    sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(500),
+    sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5000),
     sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias_entidad:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
     sb.from('cuentas_bancarias').select('*').eq('empresa_id',eid).eq('activa',true).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
   ]);

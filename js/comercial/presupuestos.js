@@ -183,7 +183,7 @@ async function loadPresupuestos() {
     .select('*').eq('empresa_id', EMPRESA.id)
     .neq('estado', 'eliminado')
     .order('created_at', { ascending: false })
-    .limit(500);
+    .limit(5000);
   presupuestos = data || [];
   // Por defecto: último año (hoy - 1 año → hoy), máx 500 resultados
   const _hoy = new Date();
