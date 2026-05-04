@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 32</span>
+      <span id="erpBuildVersion">v1.0 · build 34</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -5719,6 +5719,20 @@ try {
         </div>
         <input type="file" id="impSICIFile" accept=".xls,.html" style="display:none" onchange="impSICIHandleFile(this.files[0])">
       </div>
+      <!-- Paso 1.5: Mapeo de columnas -->
+      <div id="impSICIPasoMap" style="display:none">
+        <div style="background:var(--azul-light);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--azul);line-height:1.5">
+          <strong>📋 Mapeo de columnas</strong> — el sistema ha detectado automáticamente qué columna corresponde a cada campo. Revisa y ajusta lo que haga falta. Puedes cambiar cualquier mapeo o marcarlo como "No mapear" si no quieres importar ese dato.
+        </div>
+        <!-- Vista previa de las primeras 3 filas -->
+        <details style="margin-bottom:14px;border:1px solid var(--gris-200);border-radius:8px">
+          <summary style="cursor:pointer;padding:10px 12px;background:var(--gris-50);font-weight:600;font-size:12px">👀 Ver muestra de las primeras 3 filas del fichero</summary>
+          <div style="overflow:auto;max-height:240px"><table id="impMapPreview" style="width:100%;border-collapse:collapse;font-size:11px"></table></div>
+        </details>
+        <!-- Tabla de mapeo -->
+        <div id="impMapTabla" style="border:1px solid var(--gris-200);border-radius:8px;overflow:hidden"></div>
+      </div>
+
       <!-- Paso 2: preview -->
       <div id="impSICIPaso2" style="display:none">
         <div id="impSICIResumen" style="background:var(--azul-light);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px"></div>
@@ -5771,6 +5785,7 @@ try {
     <div class="modal-f" style="justify-content:flex-end;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mImportarSICI')">Cerrar</button>
       <button class="btn btn-secondary" id="impSICIBtnVolver" onclick="impSICIVolverPaso1()" style="display:none">← Subir otro</button>
+      <button class="btn btn-primary" id="impSICIBtnAplicarMap" onclick="impSICIAplicarMapeo()" style="display:none;background:#2563EB;border:none">→ Aplicar mapeo y previsualizar</button>
       <button class="btn btn-primary" id="impSICIBtnImportar" onclick="impSICIImportar()" disabled style="background:#10B981;border:none">📥 Confirmar e importar</button>
     </div>
   </div>
