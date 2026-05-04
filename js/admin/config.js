@@ -34,14 +34,23 @@ function renderConfigLists() {
     </div>`).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin unidades</div>';
 
   // Formas de pago
+  const _fpDefId = (EMPRESA?.config?.forma_pago_default_id) ? parseInt(EMPRESA.config.forma_pago_default_id) : null;
   document.getElementById('formasPagoList').innerHTML = formasPago.length ?
-    formasPago.map(f=>`<div class="cfg-row">
-      <div class="cr-main"><strong>${f.nombre}</strong><small>${f.dias_vencimiento} días de vencimiento</small></div>
-      <div class="cr-actions">
-        <button class="btn btn-ghost btn-sm" onclick="editFormaPago(${f.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="delCfg('formas_pago',${f.id},'formas-pago')">🗑️</button>
-      </div>
-    </div>`).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin formas de pago</div>';
+    formasPago.map(f => {
+      const esDef = f.id === _fpDefId;
+      const starBtn = esDef
+        ? `<button class="btn btn-ghost btn-sm" title="Predeterminada del sistema" style="color:#D97706" onclick="setFormaPagoDefault(null)">⭐</button>`
+        : `<button class="btn btn-ghost btn-sm" title="Marcar como predeterminada" style="color:var(--gris-400)" onclick="setFormaPagoDefault(${f.id})">☆</button>`;
+      const tag = esDef ? ' <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:#FEF3C7;color:#92400E;margin-left:6px">PREDETERMINADA</span>' : '';
+      return `<div class="cfg-row">
+        <div class="cr-main"><strong>${f.nombre}${tag}</strong><small>${f.dias_vencimiento} días de vencimiento</small></div>
+        <div class="cr-actions">
+          ${starBtn}
+          <button class="btn btn-ghost btn-sm" onclick="editFormaPago(${f.id})">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="delCfg('formas_pago',${f.id},'formas-pago')">🗑️</button>
+        </div>
+      </div>`;
+    }).join('') : '<div style="padding:16px;color:var(--gris-400);font-size:13px;text-align:center">Sin formas de pago</div>';
 
   // Familias (dos columnas: padres | hijos)
   renderFamiliasPadres();
@@ -177,6 +186,19 @@ function nuevaFormaPagoModal() {
   // Abrir modal limpio para crear forma de pago nueva (resetea fp_id)
   openModal('mFormaPago');
   setVal({fp_nombre:'', fp_dias:0});
+}
+
+// Marcar (o desmarcar con null) una forma de pago como predeterminada del sistema
+async function setFormaPagoDefault(id) {
+  if (!EMPRESA) return;
+  const config = EMPRESA.config || {};
+  if (id) config.forma_pago_default_id = id;
+  else delete config.forma_pago_default_id;
+  const { error } = await sb.from('empresas').update({ config }).eq('id', EMPRESA.id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  EMPRESA.config = config;
+  await reloadCfg('formas-pago');
+  toast(id ? 'Forma de pago predeterminada actualizada ✓' : 'Predeterminada eliminada', 'success');
 }
 
 async function saveFormaPago() {

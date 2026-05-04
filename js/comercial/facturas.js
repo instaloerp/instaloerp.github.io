@@ -1233,10 +1233,17 @@ async function nuevaFacturaRapida() {
   fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
     formasPago.map(f => `<option value="${f.id}">${f.nombre}</option>`).join('');
 
+  // Aplicar forma de pago: cliente > predeterminada del sistema
+  const _fpDef = EMPRESA?.config?.forma_pago_default_id || null;
   if (cliActualId) {
     const c = clientes.find(x => x.id === cliActualId);
     if (c?.forma_pago_id) fpSel.value = c.forma_pago_id;
+    else if (_fpDef) fpSel.value = _fpDef;
+  } else if (_fpDef) {
+    fpSel.value = _fpDef;
   }
+  // Recalcular fecha de vencimiento desde la forma de pago aplicada
+  _frActualizarVencimiento();
 
   // Cuentas bancarias para cobro
   const cuentas = (typeof EMPRESA !== 'undefined' && EMPRESA?.config?.cuentas_bancarias) || [];
@@ -1283,7 +1290,26 @@ async function fr_generarNumero(serieId) {
 function fr_actualizarCliente(id) {
   frClienteActual = id ? parseInt(id) : null;
   const c = clientes.find(x => x.id === frClienteActual);
+  const _fpDef = EMPRESA?.config?.forma_pago_default_id || null;
   if (c?.forma_pago_id) document.getElementById('fr_fpago').value = c.forma_pago_id;
+  else if (_fpDef) document.getElementById('fr_fpago').value = _fpDef;
+  _frActualizarVencimiento();
+}
+
+// Recalcula fr_vence = fr_fecha + dias_vencimiento de la forma de pago seleccionada
+function _frActualizarVencimiento() {
+  const fechaInp = document.getElementById('fr_fecha');
+  const venceInp = document.getElementById('fr_vence');
+  const fpSel    = document.getElementById('fr_fpago');
+  if (!fechaInp || !venceInp || !fpSel) return;
+  const fechaStr = fechaInp.value;
+  if (!fechaStr) return;
+  const fpId = parseInt(fpSel.value) || null;
+  const fp = (formasPago || []).find(f => f.id === fpId);
+  const dias = fp ? (fp.dias_vencimiento || 0) : 30;
+  const d = new Date(fechaStr);
+  d.setDate(d.getDate() + dias);
+  venceInp.value = d.toISOString().split('T')[0];
 }
 
 // ═══════════════════════════════════════════════

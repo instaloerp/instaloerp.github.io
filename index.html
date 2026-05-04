@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 21</span>
+      <span id="erpBuildVersion">v1.0 · build 22</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1976,7 +1976,7 @@ try {
                   <input id="de_numero" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;background:var(--gris-50);outline:none;font-family:monospace">
                 </div>
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600">Fecha</label>
-                <input type="date" id="de_fecha" onchange="de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
+                <input type="date" id="de_fecha" onchange="_deActualizarFecha2();de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_fecha2_label">Válido hasta</label>
                 <input type="date" id="de_fecha2" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_version_label">Versión</label>
@@ -1990,7 +1990,7 @@ try {
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600">Título/Ref.</label>
                 <input id="de_titulo" placeholder="Ej: Instalación caldera..." onchange="de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_fpago_label">Forma pago</label>
-                <select id="de_fpago" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none"></select>
+                <select id="de_fpago" onchange="_deActualizarFecha2();de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none"></select>
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600;display:none" id="de_cuenta_label">Cuenta cobro</label>
                 <select id="de_cuenta" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;display:none"></select>
                 <label id="de_regimen_label" style="font-size:11px;color:var(--gris-500);font-weight:600;display:none">Régimen fiscal</label>
@@ -4788,9 +4788,9 @@ try {
         </div>
       </div>
       <div class="fg-row" style="margin-bottom:12px">
-        <div class="fg"><label>Fecha *</label><input type="date" id="fr_fecha"></div>
+        <div class="fg"><label>Fecha *</label><input type="date" id="fr_fecha" onchange="_frActualizarVencimiento()"></div>
         <div class="fg"><label>Fecha vencimiento</label><input type="date" id="fr_vence"></div>
-        <div class="fg"><label>Forma de pago</label><select id="fr_fpago"></select></div>
+        <div class="fg"><label>Forma de pago</label><select id="fr_fpago" onchange="_frActualizarVencimiento()"></select></div>
       </div>
       <div class="fg" style="margin-bottom:12px"><label>Cuenta de cobro <small style="color:var(--gris-400);font-weight:normal">(aparece al pie del PDF)</small></label><select id="fr_cuenta"></select></div>
 

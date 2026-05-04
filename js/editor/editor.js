@@ -96,6 +96,9 @@ async function abrirEditor(tipo, editId) {
   if (cfg.conFpago) {
     document.getElementById('de_fpago').innerHTML = '<option value="">— Sin especificar —</option>' +
       formasPago.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
+    // Aplicar predeterminada del sistema (se sobreescribirá luego si el doc existente tiene una)
+    const _fpDef = EMPRESA?.config?.forma_pago_default_id || null;
+    if (_fpDef && !editId) document.getElementById('de_fpago').value = _fpDef;
   }
 
   // Cuenta de cobro (solo facturas)
@@ -610,13 +613,37 @@ function de_actualizarCliente(id) {
     if (dir) dir.textContent = loc || '—';
     if (tel) tel.textContent = c.telefono || '—';
     if (email) email.textContent = c.email || '—';
-    if (deConfig.conFpago && c.forma_pago_id) document.getElementById('de_fpago').value = c.forma_pago_id;
+    if (deConfig.conFpago) {
+      const _fpDef = EMPRESA?.config?.forma_pago_default_id || null;
+      if (c.forma_pago_id) document.getElementById('de_fpago').value = c.forma_pago_id;
+      else if (_fpDef) document.getElementById('de_fpago').value = _fpDef;
+      _deActualizarFecha2();
+    }
   } else {
     if (nif) nif.textContent = '—';
     if (dir) dir.textContent = '—';
     if (tel) tel.textContent = '—';
     if (email) email.textContent = '—';
   }
+}
+
+// Recalcula de_fecha2 (vencimiento factura) según dias_vencimiento de la forma de pago seleccionada
+function _deActualizarFecha2() {
+  if (deConfig?.tipo !== 'factura') return; // Solo facturas usan vencimiento por días
+  const fechaInp = document.getElementById('de_fecha');
+  const venceInp = document.getElementById('de_fecha2');
+  const fpSel    = document.getElementById('de_fpago');
+  if (!fechaInp || !venceInp || !fpSel) return;
+  // Si el documento ya tiene id (existente) y se está solo navegando, no pisar
+  if (deConfig.editId && deConfig._mode === 'view') return;
+  const fechaStr = fechaInp.value;
+  if (!fechaStr) return;
+  const fpId = parseInt(fpSel.value) || null;
+  const fp = (formasPago || []).find(f => f.id === fpId);
+  const dias = fp ? (fp.dias_vencimiento || 0) : 30;
+  const d = new Date(fechaStr);
+  d.setDate(d.getDate() + dias);
+  venceInp.value = d.toISOString().split('T')[0];
 }
 
 function de_addCapitulo() {
