@@ -1599,7 +1599,8 @@ function _tesCuentaOpenBankingBtns(cuenta) {
 // Reusa el institution_id (banco) y psu_type guardados de la conexión anterior.
 // Para el usuario es 1 click: se va al banco, autoriza y vuelve.
 async function obRenovar(cuentaId) {
-  const cuenta = tesCuentas.find(c => c.id === cuentaId);
+  // OJO: cuentaId llega como string desde HTML; tesCuentas[].id es number en BD.
+  const cuenta = tesCuentas.find(c => String(c.id) === String(cuentaId));
   if (!cuenta) { toast('Cuenta no encontrada', 'error'); return; }
 
   // Detectar institution_id: usar la entidad o el nombre como fallback
