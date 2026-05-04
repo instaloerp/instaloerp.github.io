@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 28</span>
+      <span id="erpBuildVersion">v1.0 · build 29</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2208,6 +2208,11 @@ try {
               <div class="cfg-card-ico">🔐</div>
               <div class="cfg-card-title">Certificado digital</div>
               <div class="cfg-card-desc">FNMT, firma de PDFs</div>
+            </button>
+            <button class="cfg-card" data-cfg-id="_importar_sici" data-cfg-action="openModal('mImportarSICI')" data-cfg-keywords="importar sici historico facturas migracion" onclick="cfgCardClick(this)">
+              <div class="cfg-card-ico">📥</div>
+              <div class="cfg-card-title">Importar histórico SICI</div>
+              <div class="cfg-card-desc">Migrar facturas desde SICI</div>
             </button>
           </div>
 
@@ -5066,12 +5071,27 @@ try {
     </div>
     <div class="modal-b">
       <input type="hidden" id="facDetId">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px">
-        <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="facDetFecha" style="font-weight:600">—</div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Vencimiento</span><div style="margin-top:2px"><input type="date" id="facDetVenceInp" onchange="actualizarVenceFactura(this.value)" style="font-weight:600;padding:4px 6px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;outline:none;background:#fff;width:100%"></div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Forma de pago</span><div style="margin-top:2px"><select id="facDetFpagoSel" onchange="actualizarFpagoFactura(this.value)" style="font-weight:600;padding:4px 6px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;outline:none;background:#fff;width:100%"></select></div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Cuenta cobro</span><div style="margin-top:2px"><select id="facDetCuentaSel" onchange="actualizarCuentaFactura(this.value)" style="font-weight:600;padding:4px 6px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;outline:none;background:#fff;width:100%"></select></div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Estado</span><div id="facDetEstado">—</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">
+        <div style="min-width:0">
+          <span style="font-size:11px;color:var(--gris-400);display:block;margin-bottom:2px">Fecha</span>
+          <div id="facDetFecha" style="font-weight:600;font-size:13px">—</div>
+        </div>
+        <div style="min-width:0">
+          <span style="font-size:11px;color:var(--gris-400);display:block;margin-bottom:2px">Vencimiento</span>
+          <input type="date" id="facDetVenceInp" onchange="actualizarVenceFactura(this.value)" style="font-weight:600;padding:5px 7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;background:#fff;width:100%;box-sizing:border-box">
+        </div>
+        <div style="min-width:0">
+          <span style="font-size:11px;color:var(--gris-400);display:block;margin-bottom:2px">Forma de pago</span>
+          <select id="facDetFpagoSel" onchange="actualizarFpagoFactura(this.value)" style="font-weight:600;padding:5px 7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;background:#fff;width:100%;box-sizing:border-box;text-overflow:ellipsis"></select>
+        </div>
+        <div style="min-width:0">
+          <span style="font-size:11px;color:var(--gris-400);display:block;margin-bottom:2px">Cuenta cobro</span>
+          <select id="facDetCuentaSel" onchange="actualizarCuentaFactura(this.value)" style="font-weight:600;padding:5px 7px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;background:#fff;width:100%;box-sizing:border-box;text-overflow:ellipsis"></select>
+        </div>
+        <div style="min-width:0">
+          <span style="font-size:11px;color:var(--gris-400);display:block;margin-bottom:2px">Estado</span>
+          <div id="facDetEstado" style="padding-top:3px">—</div>
+        </div>
       </div>
       <!-- FACe status (visible solo si aplica) -->
       <div id="facDetFaceWrap" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:8px;border:1.5px solid var(--gris-200);background:var(--gris-50)">
@@ -5608,6 +5628,7 @@ try {
     'js/admin/papelera.js',
     'js/admin/ocr.js',
     'js/admin/demo.js',
+    'js/admin/import_sici.js',
     // Mensajería
     'js/mensajeria/chat.js',
     'js/mensajeria/chat-desktop.js',
@@ -5654,6 +5675,93 @@ try {
     <div class="modal-f" style="justify-content:flex-end;gap:8px">
       <button class="btn btn-secondary" onclick="closeModal('mImportarIA')">Cancelar</button>
       <button class="btn btn-primary" id="iaBtnProcesar" onclick="iaProcesarDocumento()" disabled style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none">🤖 Procesar con IA</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  MODAL: Importar histórico desde SICI            -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="overlay" id="mImportarSICI">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-h"><span>📥</span><h2>Importar histórico de facturas desde SICI</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('mImportarSICI')">✕</button></div>
+    <div class="modal-b" style="padding:20px">
+      <!-- Paso 1: subir fichero -->
+      <div id="impSICIPaso1">
+        <div style="background:var(--azul-light);border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--azul);line-height:1.5">
+          <strong>Cómo funciona:</strong> sube el listado de SICI (formato .xls — listadoBuscadorFacturas). El importador analizará todas las facturas, te enseñará un preview y luego puedes confirmar la importación.
+          <ul style="margin:10px 0 0 18px;padding:0">
+            <li>Las facturas <strong>JI</strong> (particulares) se importan como <strong>Pendientes</strong> con forma de pago Transferencia 15 días.</li>
+            <li>Las facturas <strong>ASI / AXA / SH / COB</strong> (aseguradoras y Elecnor) se importan como <strong>Cobradas</strong>.</li>
+            <li>Las facturas <strong>AASI / AAXA</strong> se importan como <strong>rectificativas</strong> con total negativo.</li>
+            <li>Los clientes nuevos se crean automáticamente por NIF; si ya existen, se reutilizan.</li>
+          </ul>
+        </div>
+        <div id="impSICIDrop" style="border:2px dashed var(--gris-300);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gris-50)"
+             onclick="document.getElementById('impSICIFile').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--azul)';this.style.background='rgba(37,99,235,0.05)'"
+             ondragleave="this.style.borderColor='var(--gris-300)';this.style.background='var(--gris-50)'"
+             ondrop="event.preventDefault();this.style.borderColor='var(--gris-300)';this.style.background='var(--gris-50)';impSICIHandleFile(event.dataTransfer.files[0])">
+          <div style="font-size:48px;margin-bottom:12px">📊</div>
+          <div style="font-weight:600;font-size:15px;margin-bottom:6px">Arrastra aquí el listado de SICI</div>
+          <div style="color:var(--gris-400);font-size:12px">o haz clic para seleccionar — fichero .xls de SICI</div>
+          <div id="impSICIFileName" style="margin-top:12px;font-weight:700;color:var(--azul);display:none"></div>
+        </div>
+        <input type="file" id="impSICIFile" accept=".xls,.html" style="display:none" onchange="impSICIHandleFile(this.files[0])">
+      </div>
+      <!-- Paso 2: preview -->
+      <div id="impSICIPaso2" style="display:none">
+        <div id="impSICIResumen" style="background:var(--azul-light);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+          <input type="search" id="impSICIBuscar" placeholder="🔍 Filtrar por nº, cliente, NIF..." oninput="impSICIFiltrar(this.value)" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none">
+          <select id="impSICIFiltroPref" onchange="impSICIFiltrar()" style="padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none">
+            <option value="">Todos los prefijos</option>
+            <option value="JI">JI (Particulares)</option>
+            <option value="ASI">ASI (Asitur)</option>
+            <option value="AXA">AXA</option>
+            <option value="SH">SH (Servihogar)</option>
+            <option value="COB">COB (Elecnor)</option>
+            <option value="AASI">AASI (Abono Asitur)</option>
+            <option value="AAXA">AAXA (Abono AXA)</option>
+          </select>
+        </div>
+        <div style="max-height:380px;overflow:auto;border:1px solid var(--gris-200);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="position:sticky;top:0;background:var(--gris-100);z-index:1">
+              <tr style="text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">Nº Factura</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">Fecha</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">Cliente</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">NIF</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200);text-align:right">Total</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">Estado</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--gris-200)">Cliente nuevo</th>
+              </tr>
+            </thead>
+            <tbody id="impSICITbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Paso 3: progreso de importación -->
+      <div id="impSICIPaso3" style="display:none">
+        <div style="text-align:center;padding:20px">
+          <div class="spinner" style="margin:0 auto 16px;width:36px;height:36px;border-width:3px"></div>
+          <div id="impSICIProgresoTxt" style="font-weight:600;font-size:14px;margin-bottom:8px">Importando...</div>
+          <div style="background:var(--gris-100);border-radius:8px;height:8px;overflow:hidden;max-width:400px;margin:0 auto">
+            <div id="impSICIProgresoBar" style="background:linear-gradient(90deg,#2563EB,#10B981);height:100%;width:0%;transition:width .3s ease;border-radius:8px"></div>
+          </div>
+          <div id="impSICIProgresoDetalle" style="margin-top:12px;font-size:12px;color:var(--gris-500)"></div>
+        </div>
+      </div>
+      <!-- Paso 4: resultado final -->
+      <div id="impSICIPaso4" style="display:none">
+        <div id="impSICIResultado" style="padding:20px;border-radius:12px"></div>
+      </div>
+    </div>
+    <div class="modal-f" style="justify-content:flex-end;gap:8px">
+      <button class="btn btn-secondary" onclick="closeModal('mImportarSICI')">Cerrar</button>
+      <button class="btn btn-secondary" id="impSICIBtnVolver" onclick="impSICIVolverPaso1()" style="display:none">← Subir otro</button>
+      <button class="btn btn-primary" id="impSICIBtnImportar" onclick="impSICIImportar()" disabled style="background:#10B981;border:none">📥 Confirmar e importar</button>
     </div>
   </div>
 </div>
