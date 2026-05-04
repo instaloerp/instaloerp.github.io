@@ -50,7 +50,14 @@ function renderConfigLists() {
 
   // Empresa
   if(EMPRESA) {
-    setVal({emp_nombre:EMPRESA.nombre||'',emp_razon:EMPRESA.razon_social||'',emp_cif:EMPRESA.cif||'',emp_tel:EMPRESA.telefono||'',emp_email:EMPRESA.email||'',emp_web:EMPRESA.web||'',emp_dir:EMPRESA.direccion||'',emp_muni:EMPRESA.municipio||'',emp_cp:EMPRESA.cp||'',emp_prov:EMPRESA.provincia||'',cfg_email_gestoria:(EMPRESA.config?.email_gestoria)||''});
+    const c = EMPRESA.config || {};
+    setVal({
+      emp_nombre:EMPRESA.nombre||'', emp_razon:EMPRESA.razon_social||'', emp_cif:EMPRESA.cif||'',
+      emp_tel:EMPRESA.telefono||'', emp_email:EMPRESA.email||'', emp_web:EMPRESA.web||'',
+      emp_dir:EMPRESA.direccion||'', emp_muni:EMPRESA.municipio||'', emp_cp:EMPRESA.cp||'', emp_prov:EMPRESA.provincia||'',
+      emp_banco: c.banco_entidad || '', emp_iban: c.iban || '', emp_titular: c.titular_cuenta || '',
+      cfg_email_gestoria: c.email_gestoria || ''
+    });
   }
 }
 

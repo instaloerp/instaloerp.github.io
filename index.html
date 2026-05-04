@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 18</span>
+      <span id="erpBuildVersion">v1.0 · build 19</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -2288,6 +2288,15 @@ try {
                     </div>
                   </div>
                 </div>
+                <div style="border-top:1px solid var(--gris-200);padding-top:14px;margin-top:6px">
+                  <div style="font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:8px">🏦 Datos bancarios para facturas</div>
+                  <div class="fg-row" style="margin-bottom:11px">
+                    <div class="fg"><label>Entidad / Banco</label><input id="emp_banco" placeholder="Banco Santander, ABANCA, BBVA…"></div>
+                    <div class="fg"><label>Titular cuenta</label><input id="emp_titular" placeholder="Si está vacío usa la razón social"></div>
+                  </div>
+                  <div class="fg" style="margin-bottom:6px"><label>IBAN</label><input id="emp_iban" placeholder="ES00 0000 0000 0000 0000 0000" style="font-family:ui-monospace,monospace;text-transform:uppercase"><div class="hint">Aparecerá en el bloque "DATOS PARA EL PAGO" al pie de cada factura</div></div>
+                </div>
+
                 <div style="border-top:1px solid var(--gris-200);padding-top:14px;margin-top:6px">
                   <div style="font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:8px">💰 Automatización de nóminas</div>
                   <div class="fg-row">

@@ -397,6 +397,29 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
 </div>`;
   }
 
+  // Bloque "DATOS PARA EL PAGO" (al pie del documento, antes de la firma)
+  function _renderDatosPago(dp){
+    if (!dp || !dp.iban) return '';
+    const filas = [
+      ['Entidad',  dp.entidad],
+      ['IBAN',     dp.iban],
+      ['Titular',  dp.titular],
+      ['Concepto', dp.concepto],
+    ].filter(([k,v]) => v);
+    if (!filas.length) return '';
+    return `
+<div class="resumen-bloque" style="margin-top:14px;border:1.5px solid #1B4FD8;border-radius:8px;background:#F0F7FF;page-break-inside:avoid">
+  <div style="background:#1B4FD8;color:#fff;padding:7px 12px;font-size:11.5px;font-weight:700;letter-spacing:0.5px;border-radius:6px 6px 0 0">DATOS PARA EL PAGO</div>
+  <div style="padding:10px 12px">
+    ${filas.map(([k,v]) => `
+      <div style="display:grid;grid-template-columns:90px 1fr;gap:8px;padding:3px 0;font-size:11px;line-height:1.5">
+        <div style="color:#6B7280;font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${_esc(k)}</div>
+        <div style="color:#1F2937;font-weight:${k==='IBAN'?'700':'600'};${k==='IBAN'?'font-family:ui-monospace,monospace;color:#1B4FD8':''}">${_esc(v)}</div>
+      </div>`).join('')}
+  </div>
+</div>`;
+  }
+
   function _renderFirma(cfg, E){
     if (!cfg.firma_zona) return '';
     const firmado = cfg.firma_aceptada;
@@ -540,6 +563,7 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#1e293b;background:
   ${_renderResumen(cfg, capitulos)}
   ${_renderObservaciones(cfg.observaciones)}
   ${_renderCondiciones(cfg.condiciones)}
+  ${_renderDatosPago(cfg.datos_pago)}
   ${_renderFirma(cfg, E)}
 </div>
 ${_renderPie(E)}

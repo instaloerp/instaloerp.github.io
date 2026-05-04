@@ -2180,7 +2180,21 @@ function _cfgFactura(f) {
     firma_zona: false,
     verifactu_qr_url: f.verifactu_qr_url || null,
     verifactu_csv: f.verifactu_csv || null,
-    verifactu_estado: f.verifactu_estado || null
+    verifactu_estado: f.verifactu_estado || null,
+    // Bloque "DATOS PARA EL PAGO" (al pie del documento) si la empresa tiene IBAN configurado
+    datos_pago: (() => {
+      const c = (typeof EMPRESA !== 'undefined' && EMPRESA?.config) || {};
+      if (!c.iban) return null;
+      const ibanFmt = c.iban.replace(/(.{4})/g, '$1 ').trim();
+      const exp = f.expediente_numero || f.referencia || '';
+      const concepto = `Factura ${f.numero || ''}${exp ? ' — Expte. '+exp : ''}`.trim();
+      return {
+        entidad:  c.banco_entidad || '',
+        iban:     ibanFmt,
+        titular:  c.titular_cuenta || EMPRESA?.razon_social || EMPRESA?.nombre || '',
+        concepto: concepto,
+      };
+    })(),
   };
 }
 

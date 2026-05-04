@@ -80,10 +80,16 @@ async function saveEmpresa() {
     }
     logoFile = null;
   }
-  // Guardar email gestoría en config
+  // Guardar email gestoría + datos bancarios en config
   const emailGestoria = document.getElementById('cfg_email_gestoria')?.value?.trim() || '';
+  const banco = document.getElementById('emp_banco')?.value?.trim() || '';
+  const iban  = (document.getElementById('emp_iban')?.value || '').replace(/\s+/g,'').toUpperCase();
+  const titular = document.getElementById('emp_titular')?.value?.trim() || '';
   const config = EMPRESA.config || {};
   config.email_gestoria = emailGestoria || null;
+  config.banco_entidad = banco || null;
+  config.iban = iban || null;
+  config.titular_cuenta = titular || null;
   obj.config = config;
 
   await sb.from('empresas').update(obj).eq('id',EMPRESA.id);
