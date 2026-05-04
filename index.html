@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 34</span>
+      <span id="erpBuildVersion">v1.0 · build 36</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -972,6 +972,9 @@ try {
               <option value="vencida">⚠️ Vencida</option>
               <option value="anulada">🚫 Anulada</option>
             </select>
+            <select id="fSerie" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" title="Filtrar por serie">
+              <option value="">Todas las series</option>
+            </select>
             <select id="fAnio" onchange="filtrarFacturas()" style="padding:7px 11px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;outline:none" title="Filtrar por año">
               <option value="">Todos los años</option>
             </select>
@@ -999,7 +1002,8 @@ try {
             <table class="dt">
               <thead>
                 <tr>
-                  <th data-sort="numero">Número</th>
+                  <th data-sort="serie" style="width:70px">Serie</th>
+                  <th data-sort="numero">Nº</th>
                   <th data-sort="cliente">Cliente</th>
                   <th data-sort="fecha" data-sort-type="date">Fecha</th>
                   <th data-sort="vencimiento" data-sort-type="date">Vencimiento</th>

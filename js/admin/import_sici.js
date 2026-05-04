@@ -411,6 +411,13 @@ function impSICIMostrarPreview() {
   const rects = _impSICIFacturas.filter(f => f.es_rectificativa).length;
   const cliNuevos = _impSICIClientesNuevos.size;
   const conDireccion = Array.from(_impSICIClientesNuevos.values()).filter(c => c.direccion_fiscal).length;
+  // Detectar series que se crearán
+  const prefijosUsados = [...new Set(_impSICIFacturas.map(f => f.prefijo).filter(p => p && p !== '?'))];
+  const seriesActuales = (typeof series !== 'undefined' ? series : []).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
+  const seriesACrear = prefijosUsados.filter(pref => !seriesActuales.find(s =>
+    String(s.serie || '').toUpperCase() === pref ||
+    String(s.prefijo || '').toUpperCase().startsWith(pref)
+  ));
 
   document.getElementById('impSICIResumen').innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
@@ -423,6 +430,11 @@ function impSICIMostrarPreview() {
     <div style="margin-top:10px;text-align:center;font-size:12px;color:var(--gris-600)">
       ${cliNuevos > 0 ? `🆕 Se crearán <strong>${cliNuevos}</strong> clientes nuevos · ${conDireccion} con dirección completa` : '✅ Todos los clientes ya existen en tu ERP'}
     </div>
+    ${seriesACrear.length ? `
+      <div style="margin-top:8px;text-align:center;font-size:12px;color:var(--gris-600)">
+        🏷️ Se crearán <strong>${seriesACrear.length}</strong> series nuevas: ${seriesACrear.map(p => `<span style="background:#fff;border:1px solid var(--gris-200);padding:1px 7px;border-radius:4px;font-weight:700;color:var(--azul);margin:0 3px">${p}</span>`).join('')}
+      </div>
+    ` : ''}
   `;
   impSICIRenderTabla(_impSICIFacturas);
 }
@@ -506,7 +518,7 @@ async function impSICIImportar() {
   };
 
   const errores = [];
-  const stats = { facturasOk: 0, facturasFallo: 0, clientesCreados: 0, omitidas: 0 };
+  const stats = { facturasOk: 0, facturasFallo: 0, clientesCreados: 0, seriesCreadas: 0, omitidas: 0 };
 
   // 1) Crear clientes nuevos
   setProg(5, 'Creando clientes nuevos...', `${_impSICIClientesNuevos.size} clientes`);
@@ -568,6 +580,7 @@ async function impSICIImportar() {
       errores.push(`Serie ${pref}: ${errSer.message}`);
     } else if (serNew) {
       prefijoASerieId.set(pref, serNew.id);
+      stats.seriesCreadas++;
       if (typeof series !== 'undefined') series.push(serNew);
     }
   }
@@ -589,9 +602,11 @@ async function impSICIImportar() {
     if (numExistentes.has(f.numero)) { stats.omitidas++; continue; }
     let cliId = f.cliente_id;
     if (!cliId && f.cliente_nif) cliId = cifAId.get(_impNorm(f.cliente_nif));
+    // Resolver serie según prefijo (sino, default)
+    const _serieParaEsta = prefijoASerieId.get(f.prefijo) || serieIdDefault || null;
     const obj = {
       empresa_id: EMPRESA.id,
-      numero: f.numero, serie_id: serieId,
+      numero: f.numero, serie_id: _serieParaEsta,
       cliente_id: cliId || null, cliente_nombre: f.cliente_nombre,
       fecha: f.fecha, fecha_vencimiento: f.fecha_vencimiento,
       forma_pago_id: f.forma_pago_id,
@@ -626,6 +641,7 @@ async function impSICIImportar() {
     <div style="font-size:14px;line-height:1.7">
       <div>✓ Facturas creadas: <strong>${stats.facturasOk}</strong></div>
       <div>👥 Clientes creados: <strong>${stats.clientesCreados}</strong></div>
+      <div>🏷️ Series creadas: <strong>${stats.seriesCreadas}</strong></div>
       ${stats.omitidas ? `<div>⏭ Omitidas (ya existían): <strong>${stats.omitidas}</strong></div>` : ''}
       ${stats.facturasFallo ? `<div style="color:#DC2626">✗ Fallos: <strong>${stats.facturasFallo}</strong></div>` : ''}
     </div>

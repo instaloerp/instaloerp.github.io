@@ -200,6 +200,38 @@ async function loadFacturas() {
   filtrarFacturas();
 }
 
+// Separa Serie y Número de una factura
+//   ASI98/2026  →  { serie: 'ASI', numero: '98/2026' }
+//   F-V2-0002   →  { serie: 'F-V2', numero: '0002' }
+//   BORR-12345  →  { serie: 'BORR', numero: '12345' }
+//   Si tiene serie_id válido en BD, prevalece la serie de tabla.
+function _separarSerieYNumero(f) {
+  const numero = f.numero || '';
+  // 1) Si tiene serie_id, intentar coger el nombre de la serie en la tabla `series`
+  if (f.serie_id && typeof series !== 'undefined') {
+    const s = series.find(x => x.id === f.serie_id);
+    if (s) {
+      const sName = (s.serie || (s.prefijo || '').replace(/-$/, '')).toUpperCase();
+      if (sName) {
+        // Quitar el prefijo del número si lo tiene
+        let restoNum = numero;
+        const re = new RegExp('^' + sName + '-?', 'i');
+        restoNum = restoNum.replace(re, '');
+        return { serie: sName, numero: restoNum || numero };
+      }
+    }
+  }
+  // 2) Heurística por patrón: ABC123/AAAA, ABC-AAAA-####, ABC-####, etc.
+  let m = numero.match(/^([A-Z]+)(\d+\/\d{4})$/i);                         // ASI98/2026
+  if (m) return { serie: m[1].toUpperCase(), numero: m[2] };
+  m = numero.match(/^([A-Z]+(?:-[A-Z0-9]+)*)-(\d+)$/i);                    // F-V2-0002 → F-V2 / 0002
+  if (m) return { serie: m[1].toUpperCase(), numero: m[2] };
+  m = numero.match(/^([A-Z]+)-?(\d+)$/i);                                  // FAC123 → FAC / 123
+  if (m) return { serie: m[1].toUpperCase(), numero: m[2] };
+  // Fallback
+  return { serie: '—', numero };
+}
+
 function renderFacturas(list) {
   const ESTADOS = {
     borrador:     { label:'Borrador',     ico:'✏️', color:'var(--gris-400)',   bg:'var(--gris-100)' },
@@ -275,8 +307,11 @@ function renderFacturas(list) {
     const _fVer = _facVerMap[f.id] || 0;
     const _fVerBadge = _fVer > 1 ? `<button onclick="event.stopPropagation();toggleFacVersiones(${f.id},this)" style="font-size:10px;background:var(--azul-light);color:var(--azul);padding:2px 8px;border-radius:10px;font-weight:700;border:1.5px solid var(--azul);cursor:pointer;margin-left:4px" title="Ver versiones anteriores">v${_fVer} ▾</button>` : '';
 
+    // Separar SERIE y Nº visualmente
+    const _separado = _separarSerieYNumero(f);
     return `<tr data-fac-row="${f.id}" style="${rowStyle}" onclick="verDetalleFactura(${f.id})">
-      <td style="font-weight:700;font-family:monospace;font-size:12.5px"><div style="display:flex;align-items:center;gap:2px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : (f.numero || '—')}${_fVerBadge}${lockBadge}</div></td>
+      <td style="font-weight:700;font-family:monospace;font-size:11px;color:var(--azul);text-align:center"><span style="background:var(--azul-light);padding:2px 7px;border-radius:5px">${_separado.serie}</span></td>
+      <td style="font-weight:700;font-family:monospace;font-size:12.5px"><div style="display:flex;align-items:center;gap:2px">${(f.numero || '').startsWith('BORR-') ? '<span style="color:var(--gris-400);font-style:italic">' + f.numero + '</span>' : _separado.numero}${_fVerBadge}${lockBadge}</div></td>
       <td><div style="font-weight:600">${f.cliente_nombre || '—'}</div></td>
       <td style="font-size:12px">${f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—'}</td>
       <td style="font-size:12px">${f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—'}</td>
@@ -310,7 +345,7 @@ function renderFacturas(list) {
       </td>
     </tr>`;
   }).join('') :
-  '<tr><td colspan="9"><div class="empty"><div class="ei">🧾</div><h3>Sin facturas</h3><p>Crea la primera con el botón "+ Nueva factura"</p></div></td></tr>';
+  '<tr><td colspan="10"><div class="empty"><div class="ei">🧾</div><h3>Sin facturas</h3><p>Crea la primera con el botón "+ Nueva factura"</p></div></td></tr>';
 
   // Inyectar badges de tracking (enviado/visto) de forma asíncrona
   _inyectarBadgesTracking(list, 'factura');
@@ -320,11 +355,15 @@ function renderFacturas(list) {
 //  FILTRADO Y BÚSQUEDA
 // ═══════════════════════════════════════════════
 function filtrarFacturas() {
-  const q    = (document.getElementById('fSearch')?.value || '').toLowerCase();
-  const est  = document.getElementById('fEstado')?.value || '';
-  const anio = document.getElementById('fAnio')?.value || '';
-  const des  = document.getElementById('fDesde')?.value || '';
-  const has  = document.getElementById('fHasta')?.value || '';
+  // Poblar selector de series (lazy: si no se ha poblado o si han cambiado las series)
+  _poblarSelectorSeriesFacturas();
+
+  const q     = (document.getElementById('fSearch')?.value || '').toLowerCase();
+  const est   = document.getElementById('fEstado')?.value || '';
+  const anio  = document.getElementById('fAnio')?.value || '';
+  const des   = document.getElementById('fDesde')?.value || '';
+  const has   = document.getElementById('fHasta')?.value || '';
+  const serie = document.getElementById('fSerie')?.value || '';
   facFiltrados = facLocalData.filter(f => {
     // Excluir rectificativas del listado principal (van a su pestaña)
     if (f.rectificativa_de) return false;
@@ -332,13 +371,22 @@ function filtrarFacturas() {
     // Las anuladas que tienen rectificativa asociada siempre se muestran (bloqueadas en rojo)
     const tieneRectAsociada = facLocalData.some(r => r.rectificativa_de === f.id);
     if (est === '_todas') {
-      if ((f.estado === 'anulada' || f.estado === 'rectificada') && !tieneRectAsociada) return false; // Excluir anuladas/rectificadas sueltas
+      if ((f.estado === 'anulada' || f.estado === 'rectificada') && !tieneRectAsociada) return false;
     } else if (est === 'cobrada') {
-      if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false; // Compat legacy
+      if (f.estado !== 'cobrada' && f.estado !== 'pagada') return false;
     } else if (est === 'anulada') {
-      if (f.estado !== 'anulada' && f.estado !== 'rectificada') return false; // Agrupar anuladas + rectificadas
+      if (f.estado !== 'anulada' && f.estado !== 'rectificada') return false;
     } else if (est) {
       if (f.estado !== est) return false;
+    }
+    // Filtro de serie: por serie_id si está, o por prefijo del número (para facturas SICI sin serie_id)
+    if (serie) {
+      const sObj = (typeof series !== 'undefined' ? series : []).find(s => String(s.id) === String(serie));
+      const prefDeserie = (sObj?.serie || sObj?.prefijo || '').replace(/-$/,'').toUpperCase();
+      const fSerieId = String(f.serie_id || '');
+      const m = (f.numero || '').match(/^([A-Z]+)/);
+      const prefDeFact = m ? m[1].toUpperCase() : '';
+      if (fSerieId !== String(serie) && prefDeFact !== prefDeserie) return false;
     }
     // Filtro de búsqueda
     if (q && !(f.numero || '').toLowerCase().includes(q) && !(f.cliente_nombre || '').toLowerCase().includes(q)) return false;
@@ -349,9 +397,31 @@ function filtrarFacturas() {
     if (has && (!f.fecha || f.fecha > has)) return false;
     return true;
   });
-  const _numSort = (n) => { const m = (n || '').match(/(\d+)$/); return m ? parseInt(m[1]) : 0; };
-  facFiltrados.sort((a, b) => _numSort(b.numero) - _numSort(a.numero));
+  // Sort natural: respeta orden correlativo (ASI1, ASI2, ASI10, ASI11... no ASI1, ASI10, ASI100, ASI2)
+  // Descendente para mostrar las más recientes primero
+  facFiltrados.sort((a, b) => String(b.numero || '').localeCompare(String(a.numero || ''), 'es', { numeric: true, sensitivity: 'base' }));
   renderFacturas(facFiltrados);
+}
+
+// Poblar selector #fSerie con las series de tipo factura
+function _poblarSelectorSeriesFacturas() {
+  const sel = document.getElementById('fSerie');
+  if (!sel) return;
+  const seriesFact = (typeof series !== 'undefined' ? series : []).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
+  // Si ya está poblado con la misma cantidad, no rehacer
+  const currentOpts = sel.querySelectorAll('option').length;
+  if (currentOpts === seriesFact.length + 1) return; // +1 por "Todas las series"
+  const valActual = sel.value;
+  sel.innerHTML = '<option value="">Todas las series</option>' +
+    seriesFact
+      .slice()
+      .sort((a, b) => String(a.serie || a.prefijo || '').localeCompare(String(b.serie || b.prefijo || ''), 'es', { numeric: true }))
+      .map(s => {
+        const lbl = s.serie || (s.prefijo || '').replace(/-$/,'') || ('Serie ' + s.id);
+        const desc = s.descripcion ? ` — ${s.descripcion}` : '';
+        return `<option value="${s.id}">${lbl}${desc}</option>`;
+      }).join('');
+  if (valActual) sel.value = valActual;
 }
 
 // Filtrar al hacer clic en un KPI
