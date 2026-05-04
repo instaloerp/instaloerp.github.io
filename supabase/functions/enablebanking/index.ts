@@ -150,6 +150,15 @@ async function getBalances(accountUid: string) {
   return await ebFetch(`/accounts/${accountUid}/balances`);
 }
 
+/** Obtener detalles completos de una cuenta (IBAN, BIC, divisa, titular, tipo, límite...) */
+async function getAccountDetails(accountUid: string) {
+  try {
+    return await ebFetch(`/accounts/${accountUid}/details`);
+  } catch (_) {
+    return null;
+  }
+}
+
 /** Borrar sesión en Enable Banking (revoca el consentimiento PSD2) */
 async function deleteSession(sessionId: string): Promise<boolean> {
   try {
@@ -284,48 +293,74 @@ async function syncTransactions(
     }
   }
 
-  // Actualizar saldo desde API
-  // Nota: algunos bancos (Abanca) devuelven siempre 0 en el balance API.
-  // En esos casos, NO pisamos el saldo manual que el usuario haya puesto.
-  let saldoActualizado = false;
+  // ─── Actualizar TODA la metadata de la cuenta desde Open Banking ───
+  // Saldos + límite de crédito (deducido) + IBAN + BIC + titular + divisa
+  // Solo se actualiza lo que viene del banco. Se preservan los campos manuales.
+  const update: any = { nordigen_ultimo_sync: new Date().toISOString() };
+
+  // 1. SALDOS — buscar todos los balance_types relevantes
   try {
     const bal = await getBalances(ebAccountUid);
     const balances = bal?.balances || [];
-    const interim =
-      balances.find((b: any) => b.balance_type === "interimAvailable") ||
-      balances.find((b: any) => b.balance_type === "closingBooked") ||
-      balances[0];
-    if (interim?.balance_amount?.amount != null) {
-      let saldo = parseFloat(interim.balance_amount.amount);
-      const balCdi = (interim.credit_debit_indicator || "").toUpperCase();
-      if (balCdi === "DBIT" && saldo > 0) saldo = -saldo;
+    // Helper: extraer importe respetando credit_debit_indicator
+    const importe = (b: any) => {
+      if (!b?.balance_amount?.amount) return null;
+      let v = parseFloat(b.balance_amount.amount);
+      const cdi = (b.credit_debit_indicator || "").toUpperCase();
+      if (cdi === "DBIT" && v > 0) v = -v;
+      return v;
+    };
+    // Tipos típicos de Berlin Group / Enable Banking:
+    //   closingBooked     → saldo contable real (incl. negativos en pólizas)
+    //   interimAvailable  → saldo disponible (incluye crédito disponible)
+    //   creditLine        → línea de crédito (techo)
+    const closing = balances.find((b: any) => /closingBooked/i.test(b.balance_type)) || null;
+    const available = balances.find((b: any) => /interimAvailable|expected|openingBooked/i.test(b.balance_type)) || null;
+    const creditLineBal = balances.find((b: any) => /creditLine|preCredit/i.test(b.balance_type)) || null;
 
-      // Solo actualizar saldo si la API devuelve un valor distinto de 0.
-      // Si devuelve 0, no pisamos el saldo existente (puede ser manual o
-      // de un banco que no informa bien el saldo vía API como Abanca).
-      if (saldo !== 0) {
-        await sb
-          .from("cuentas_bancarias")
-          .update({
-            saldo,
-            saldo_fecha: new Date().toISOString(),
-            nordigen_ultimo_sync: new Date().toISOString(),
-          })
-          .eq("id", cuentaBancariaId);
-        saldoActualizado = true;
-      }
+    const saldoReal = closing ? importe(closing) : null;
+    const saldoDispo = available ? importe(available) : null;
+    let limiteCredito = creditLineBal ? Math.abs(importe(creditLineBal) || 0) : null;
+    // Si no hay creditLine explícito pero tenemos disponible y real → calcular
+    if (!limiteCredito && saldoReal != null && saldoDispo != null && saldoDispo > saldoReal) {
+      limiteCredito = saldoDispo - saldoReal;
     }
-  } catch (_) {
-    // API de saldos falló
-  }
 
-  // Si no se actualizó el saldo, al menos actualizar la fecha de sync
-  if (!saldoActualizado) {
-    await sb
-      .from("cuentas_bancarias")
-      .update({ nordigen_ultimo_sync: new Date().toISOString() })
-      .eq("id", cuentaBancariaId);
-  }
+    // Saldo a guardar: preferimos closingBooked (real). Si no, interimAvailable.
+    // Pero si la cuenta ya tiene saldo manual y la API devuelve 0, no pisarlo.
+    const saldoNuevo = (saldoReal != null) ? saldoReal : saldoDispo;
+    if (saldoNuevo != null && saldoNuevo !== 0) {
+      update.saldo = saldoNuevo;
+      update.saldo_fecha = new Date().toISOString();
+    }
+    // Limite de crédito: solo guardar si > 0
+    if (limiteCredito != null && limiteCredito > 0) {
+      update.limite_poliza = Math.round(limiteCredito * 100) / 100;
+    }
+  } catch (_) { /* balances API falló */ }
+
+  // 2. DETALLES DE CUENTA — IBAN, BIC, titular, divisa, tipo
+  try {
+    const det = await getAccountDetails(ebAccountUid);
+    const acc = det?.accounts?.[0] || det || {};
+    if (acc.iban) update.iban = acc.iban;
+    if (acc.bic_fi || acc.bic) update.bic = acc.bic_fi || acc.bic;
+    if (acc.currency) update.divisa = acc.currency;
+    // Titular
+    const titular = acc.account_owner_name
+      || (Array.isArray(acc.account_owners) && acc.account_owners[0]?.name)
+      || (Array.isArray(acc.psu_owners) && acc.psu_owners[0]?.name)
+      || null;
+    if (titular) update.titular = titular;
+    // Producto / tipo de cuenta
+    if (acc.product) update.tipo_producto = acc.product;
+    if (acc.cash_account_type) update.tipo_cuenta = acc.cash_account_type;
+  } catch (_) { /* details API falló o no soportada */ }
+
+  // 3. Aplicar update (siempre actualizamos al menos la fecha de sync)
+  await sb.from("cuentas_bancarias")
+    .update(update)
+    .eq("id", cuentaBancariaId);
 
   return { inserted, message: `${inserted} nuevas transacciones importadas` };
 }
