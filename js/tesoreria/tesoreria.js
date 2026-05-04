@@ -1455,17 +1455,48 @@ function _obIniciarAutoSync() {
 async function _obCall(body) {
   const session = await sb.auth.getSession();
   const token = session?.data?.session?.access_token;
-  const resp = await fetch(`${SUPA_URL}/functions/v1/enablebanking`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      'apikey': SUPA_KEY
-    },
-    body: JSON.stringify(body)
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error);
+  let resp;
+  try {
+    resp = await fetch(`${SUPA_URL}/functions/v1/enablebanking`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPA_KEY
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    throw new Error('No se pudo conectar con la función Edge enablebanking. ¿Está desplegada en Supabase?');
+  }
+  // Errores de red/HTTP
+  if (resp.status === 404) {
+    throw new Error('Función enablebanking no encontrada (404). Despliega la Edge Function en Supabase: supabase/functions/enablebanking');
+  }
+  if (resp.status === 401 || resp.status === 403) {
+    throw new Error(`No autorizado (${resp.status}). Revisa que el usuario esté logueado y SUPA_KEY sea correcto.`);
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (e) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(`Respuesta no-JSON (HTTP ${resp.status}): ${txt.slice(0,200)}`);
+  }
+  if (data.error) {
+    let msg = data.error;
+    // Errores típicos de configuración
+    if (/private.?key/i.test(msg) || /pkcs8/i.test(msg) || /sign/i.test(msg)) {
+      msg = 'ENABLE_BANKING_PRIVATE_KEY no configurado o inválido en Supabase Secrets.';
+    } else if (/app.?id/i.test(msg) || /kid/i.test(msg)) {
+      msg = 'ENABLE_BANKING_APP_ID no configurado en Supabase Secrets.';
+    } else if (/401|403|unauth/i.test(msg)) {
+      msg = 'Credenciales rechazadas por Enable Banking. Verifica que la app esté aprobada en su portal.';
+    } else if (/redirect/i.test(msg)) {
+      msg = `Redirect URL no registrada en Enable Banking. Debe ser EXACTAMENTE: ${window.location.origin}/index.html`;
+    }
+    throw new Error(msg);
+  }
   return data;
 }
 
@@ -1675,25 +1706,51 @@ async function obSyncCuenta(cuentaId, nordigenAccountId, silent) {
 }
 
 async function obDesconectar(cuentaId, requisitionId) {
+  // Detectar si es una autorización pendiente sin completar (state instaloerp_*) o conexión real
+  const cuenta = tesCuentas.find(c => c.id === cuentaId);
+  const esPendiente = cuenta && !cuenta.nordigen_conectado && cuenta.nordigen_requisition_id;
+  const titulo = esPendiente ? 'Cancelar autorización pendiente' : 'Desconectar banco';
+  const mensaje = esPendiente
+    ? '¿Cancelar la autorización pendiente y limpiar el estado? Después podrás iniciar una nueva conexión.'
+    : '¿Desconectar este banco? Los movimientos ya importados se conservan.';
   const ok = await confirmModal({
-    titulo: 'Desconectar banco',
-    mensaje: '¿Desconectar este banco? Los movimientos ya importados se conservan.',
-    btnOk: 'Desconectar',
+    titulo, mensaje,
+    btnOk: esPendiente ? 'Cancelar y limpiar' : 'Desconectar',
     colorOk: '#dc2626'
   });
   if (!ok) return;
   try {
+    // Llamar al backend para limpiar BD y revocar sesión Enable Banking si la había
     await _obCall({ action: 'disconnect', cuenta_id: cuentaId });
-    toast('Banco desconectado', 'success');
+    // Garantizar limpieza local también (por si el backend falló parcialmente)
+    await sb.from('cuentas_bancarias').update({
+      nordigen_requisition_id: null,
+      nordigen_account_id: null,
+      nordigen_conectado: false,
+      nordigen_ultimo_sync: null,
+    }).eq('id', cuentaId);
+    toast(esPendiente ? '✓ Estado limpiado, ya puedes reintentar' : 'Banco desconectado', 'success');
+    await _tesCargarCuentas();
     renderTesCuentas();
   } catch (err) {
-    toast('Error: ' + err.message, 'error');
+    // Si el backend falla, intentar al menos limpiar BD del lado cliente
+    try {
+      await sb.from('cuentas_bancarias').update({
+        nordigen_requisition_id: null,
+        nordigen_conectado: false,
+      }).eq('id', cuentaId);
+      toast(`⚠️ Limpieza parcial: ${err.message}. La cuenta queda lista para reintentar.`, 'warning');
+      await _tesCargarCuentas();
+      renderTesCuentas();
+    } catch (e2) {
+      toast('Error: ' + err.message, 'error');
+    }
   }
 }
 
 // Comprobar si venimos de un retorno de Open Banking
 // Enable Banking redirige con ?code=XXX&state=instaloerp_CUENTAID_TIMESTAMP
-function _obCheckReturn() {
+async function _obCheckReturn() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   const state = params.get('state') || '';
@@ -1710,10 +1767,37 @@ function _obCheckReturn() {
   if (obError) {
     window.history.replaceState({}, '', window.location.pathname);
     const desc = params.get('error_description') || obError;
+    // CRÍTICO: limpiar la cuenta que estaba pendiente para que no quede pegada en "Pendiente autorización"
+    // Buscar la cuenta por state o por nordigen_requisition_id que empiece con instaloerp_
+    if (typeof EMPRESA !== 'undefined' && EMPRESA?.id) {
+      try {
+        if (cuentaId) {
+          // Si conocemos la cuentaId del state, limpiar esa
+          await sb.from('cuentas_bancarias').update({
+            nordigen_requisition_id: null,
+            nordigen_conectado: false,
+            nordigen_account_id: null,
+          }).eq('id', cuentaId);
+        } else {
+          // Si no, limpiar TODAS las cuentas de la empresa con auth pending (state instaloerp_*)
+          await sb.from('cuentas_bancarias').update({
+            nordigen_requisition_id: null,
+            nordigen_conectado: false,
+          }).eq('empresa_id', EMPRESA.id).like('nordigen_requisition_id', 'instaloerp_%');
+        }
+      } catch (e) { console.warn('[OB] Error limpiando auth pendiente', e); }
+    }
     setTimeout(() => {
-      toast(`⚠️ Autorización bancaria cancelada: ${desc}`, 'warning');
+      toast(`⚠️ Autorización bancaria cancelada: ${desc}. Estado limpiado, puedes reintentar.`, 'warning');
       goPage('tesoreria-cuentas');
     }, 500);
+    return;
+  }
+
+  // Si hay code pero el state no es nuestro (residuo de otro flow externo) → limpiar URL y avisar
+  if (code && !cuentaId) {
+    window.history.replaceState({}, '', window.location.pathname);
+    console.warn('[OB] Callback con state no reconocido:', state);
     return;
   }
 
