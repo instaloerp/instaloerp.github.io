@@ -419,13 +419,16 @@ Deno.serve(async (req) => {
 
       // ── Callback: el usuario volvió del banco con un code ──
       case "callback": {
-        const { code, cuenta_id, empresa_id } = body;
+        const { code, cuenta_id, empresa_id, psu_type } = body;
         if (!code || !cuenta_id) {
           throw new Error("Faltan parámetros: code, cuenta_id");
         }
 
         const session = await createSession(code);
         const accounts = session?.accounts || [];
+
+        // valid_until viene en la respuesta de la session (cuando hay) → para mostrar aviso de renovación
+        const validUntil = session?.access?.valid_until || null;
 
         if (accounts.length > 0) {
           // Primera cuenta → vincular a la cuenta existente que el usuario eligió
@@ -437,6 +440,8 @@ Deno.serve(async (req) => {
             nordigen_conectado: true,
             // Guardar session_id para poder revocar el consentimiento PSD2 al desconectar
             nordigen_requisition_id: session.session_id || null,
+            nordigen_valid_until: validUntil,
+            nordigen_psu_type: psu_type || "business",
           };
           if (iban) updateData.iban = iban;
 

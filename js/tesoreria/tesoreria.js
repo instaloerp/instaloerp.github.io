@@ -174,10 +174,10 @@ async function renderTesCuentas() {
   if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevaCuenta()">+ Nueva cuenta</button>' : '';
 
   // Calcular KPIs
+  // Para pólizas de crédito: `saldo` ya es el "Disponible" (lo que se puede gastar).
+  // NO sumar limite_poliza porque eso es el techo de deuda, no patrimonio.
   const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => {
-    const saldo = parseFloat(c.saldo)||0;
-    const limite = parseFloat(c.limite_poliza)||0;
-    return s + (limite ? limite + saldo : saldo);
+    return s + (parseFloat(c.saldo) || 0);
   }, 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
 
@@ -215,9 +215,14 @@ function _tesCuentasHTML() {
 
   const verSaldos = canDo('tesoreria','ver_saldos');
   return tesCuentas.map(c => {
-    const saldoBruto = parseFloat(c.saldo) || 0;
+    // Para pólizas: `saldo` = Disponible (lo que aún puedes gastar).
+    //               Consumido = limite - Disponible
+    // Para cuentas normales: `saldo` = saldo real
+    const disponible = parseFloat(c.saldo) || 0;
     const limitePoliza = parseFloat(c.limite_poliza) || 0;
-    const saldo = limitePoliza ? limitePoliza + saldoBruto : saldoBruto;
+    const consumido = limitePoliza ? Math.max(0, limitePoliza - disponible) : 0;
+    const pctUsado = limitePoliza ? Math.round((consumido / limitePoliza) * 100) : 0;
+    const saldo = disponible; // Lo que se muestra como cifra principal
     const activa = c.activa !== false;
     const color = c.color || '#2563EB';
     const logo = _tesBancoLogo(c);
@@ -237,10 +242,23 @@ function _tesCuentasHTML() {
             ${c.iban ? c.iban : ''}${c.entidad ? (c.iban?' · ':'')+c.entidad : ''}
           </div>
         </div>
-        ${verSaldos ? `<div style="text-align:right;flex-shrink:0">
-          <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
-          ${limitePoliza ? `<div style="font-size:10px;color:var(--gris-400)">Disponible · Póliza ${_tesFmt(limitePoliza)} €</div>` : ''}
-          ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400)">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
+        ${verSaldos ? `<div style="text-align:right;flex-shrink:0;min-width:200px">
+          ${limitePoliza ? `
+            <div style="display:flex;justify-content:space-between;gap:18px;font-size:11px;color:var(--gris-500);margin-bottom:2px">
+              <span>Consumido</span><span>Disponible</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:18px;align-items:baseline;margin-bottom:4px">
+              <span style="font-size:14px;font-weight:700;color:var(--rojo)">${_tesFmt(consumido)} €</span>
+              <span style="font-size:16px;font-weight:800;color:${disponible>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(disponible)} €</span>
+            </div>
+            <div style="height:5px;background:var(--gris-100);border-radius:4px;overflow:hidden;margin-bottom:3px">
+              <div style="height:100%;width:${Math.min(100,pctUsado)}%;background:${pctUsado>=90?'#DC2626':pctUsado>=70?'#D97706':'#3B82F6'};transition:width .3s"></div>
+            </div>
+            <div style="font-size:10px;color:var(--gris-400)">Límite Línea de crédito ${_tesFmt(limitePoliza)} € · ${pctUsado}% usado</div>
+          ` : `
+            <div style="font-size:16px;font-weight:800;color:${saldo>=0?'var(--verde)':'var(--rojo)'}">${_tesFmt(saldo)} €</div>
+          `}
+          ${c.saldo_fecha ? `<div style="font-size:10px;color:var(--gris-400);margin-top:2px">Actualizado ${_tesFecha(c.saldo_fecha)}</div>` : ''}
         </div>` : ''}
         <button class="btn btn-secondary btn-sm" style="flex-shrink:0;font-size:11px" onclick="event.stopPropagation();_tesCuentaSel='${c.id}';goPage('tesoreria-movimientos')">
           Movimientos →
@@ -1506,13 +1524,35 @@ function _tesCuentaOpenBankingBtns(cuenta) {
   if (cuenta.nordigen_conectado) {
     const lastSync = cuenta.nordigen_ultimo_sync ? _tesFecha(cuenta.nordigen_ultimo_sync) : 'Nunca';
     const prox = _obProximaSync(cuenta.nordigen_ultimo_sync);
+    // Aviso de expiración: si valid_until está dentro de 7 días o pasado, mostrar botón Renovar
+    const validUntil = cuenta.nordigen_valid_until ? new Date(cuenta.nordigen_valid_until) : null;
+    const ahora = new Date();
+    const diasRestantes = validUntil ? Math.floor((validUntil - ahora) / 86400000) : null;
+    const expirando = diasRestantes !== null && diasRestantes <= 7;
+    const expirado   = diasRestantes !== null && diasRestantes < 0;
+    let avisoRenovar = '';
+    if (expirando) {
+      const txt = expirado
+        ? `⚠️ Sesión EXPIRADA hace ${Math.abs(diasRestantes)} día${Math.abs(diasRestantes)===1?'':'s'}`
+        : `⏰ La sesión expira en ${diasRestantes} día${diasRestantes===1?'':'s'}`;
+      const bg = expirado ? '#FEE2E2' : '#FEF3C7';
+      const col = expirado ? '#991B1B' : '#92400E';
+      avisoRenovar = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:8px 12px;background:${bg};border-radius:8px;border:1px solid ${col}33">
+          <span style="font-size:12px;font-weight:700;color:${col}">${txt}</span>
+          <button class="btn btn-primary btn-sm" style="background:#10B981;border:none;font-size:11px;font-weight:700" onclick="event.stopPropagation();obRenovar('${cuenta.id}')">🔄 Renovar conexión</button>
+        </div>`;
+    }
     return `
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#10B98115;color:#10B981">🔗 Conectado</span>
         <span style="font-size:10px;color:var(--gris-400)">Última sync: ${lastSync}</span>
         <span style="font-size:10px;color:var(--gris-400)">· Próxima: ${prox}</span>
+        ${validUntil && !expirando ? `<span style="font-size:10px;color:var(--gris-400)" title="Cuándo caduca el consentimiento PSD2">· Caduca: ${validUntil.toLocaleDateString('es-ES')}</span>` : ''}
+        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obRenovar('${cuenta.id}')" title="Renovar autorización (sin desconectar)">🔄 Renovar</button>
         <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obDesconectar('${cuenta.id}','${cuenta.nordigen_requisition_id}')">Desconectar</button>
-      </div>`;
+      </div>
+      ${avisoRenovar}`;
   }
   if (cuenta.nordigen_requisition_id && !cuenta.nordigen_conectado) {
     return `
@@ -1526,6 +1566,37 @@ function _tesCuentaOpenBankingBtns(cuenta) {
     <div style="margin-top:8px">
       <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="event.stopPropagation();obConectar('${cuenta.id}')">🏦 Conectar banco (Open Banking)</button>
     </div>`;
+}
+
+// ─── RENOVAR conexión PSD2 sin preguntar nada ────────────────
+// Reusa el institution_id (banco) y psu_type guardados de la conexión anterior.
+// Para el usuario es 1 click: se va al banco, autoriza y vuelve.
+async function obRenovar(cuentaId) {
+  const cuenta = tesCuentas.find(c => c.id === cuentaId);
+  if (!cuenta) { toast('Cuenta no encontrada', 'error'); return; }
+
+  // Detectar institution_id: usar la entidad o el nombre como fallback
+  const institutionId = cuenta.entidad || cuenta.nombre;
+  if (!institutionId) {
+    toast('La cuenta no tiene banco identificado. Usa "Conectar banco" en su lugar.', 'error');
+    return;
+  }
+  // Recuperar psu_type guardado (default business)
+  const psuType = cuenta.nordigen_psu_type || 'business';
+
+  // Limpiar el estado anterior antes de relanzar (sesión vieja queda invalidada al hacer una nueva auth)
+  await sb.from('cuentas_bancarias').update({
+    nordigen_requisition_id: null,
+    nordigen_account_id: null,
+    nordigen_conectado: false,
+    nordigen_ultimo_sync: null,
+    nordigen_valid_until: null,
+  }).eq('id', cuentaId);
+
+  toast(`🔄 Renovando ${institutionId} (${psuType==='business'?'Empresa':'Particular'})...`, 'info');
+
+  // Disparar el flujo PSD2 directamente con el psu_type guardado
+  await _obContinuar(institutionId, 'ES', cuentaId, psuType);
 }
 
 // Modal para seleccionar banco y conectar
@@ -1663,6 +1734,9 @@ async function _obContinuar(institutionId, institutionCountry, cuentaId, psuType
       <div class="spinner" style="margin:0 auto 12px"></div>
       <div style="font-size:13px;color:var(--gris-400)">Creando enlace de autorización (${psuType === 'business' ? 'Empresa' : 'Particular'})...</div>
     </div>`;
+
+  // Guardar psu_type para que el callback lo persista en BD
+  sessionStorage.setItem('ob_pending_psu_type', psuType);
 
   try {
     // URL de retorno: debe coincidir EXACTAMENTE con la registrada en Enable Banking
@@ -1854,7 +1928,10 @@ async function _obCheckReturn() {
 async function _obProcessCallback(code, cuentaId) {
   toast('🔄 Procesando autorización bancaria...', 'info');
   try {
-    const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId, empresa_id: EMPRESA.id });
+    // Recuperar psu_type usado al iniciar (lo guardamos en sessionStorage)
+    const psuType = sessionStorage.getItem('ob_pending_psu_type') || 'business';
+    sessionStorage.removeItem('ob_pending_psu_type');
+    const result = await _obCall({ action: 'callback', code: code, cuenta_id: cuentaId, empresa_id: EMPRESA.id, psu_type: psuType });
     if (result.status === 'LN' && result.accounts?.length) {
       const extra = result.created_extra || 0;
       toast(`✅ ${result.total_accounts || result.accounts.length} cuenta${result.accounts.length>1?'s':''} conectada${result.accounts.length>1?'s':''}${extra ? ` (${extra} nueva${extra>1?'s':''} creada${extra>1?'s':''})` : ''}`, 'success');

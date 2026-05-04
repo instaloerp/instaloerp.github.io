@@ -1140,7 +1140,9 @@ function showRealtimeNotif(ico, titulo, msg, color, parteId) {
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
-  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe,cb] = await Promise.all([
+  const _safe = (q) => q.then(r => { if (r.error) console.warn('⚠️ load:', r.error.message); return r; }).catch(e => ({data:[], error:e}));
+  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe,cb,
+         fprov,pedc,recep,prec,movb,asien,pagos,fichaj,corr] = await Promise.all([
     sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre').limit(10000),
     sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre').limit(5000),
     sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo').limit(10000),
@@ -1156,9 +1158,29 @@ async function cargarTodos() {
     sb.from('albaranes').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5000),
     sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(5000),
-    sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias_entidad:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
-    sb.from('cuentas_bancarias').select('*').eq('empresa_id',eid).eq('activa',true).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
+    _safe(sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false})),
+    _safe(sb.from('cuentas_bancarias').select('*').eq('empresa_id',eid).eq('activa',true).order('predeterminada',{ascending:false})),
+    // Precarga adicional: facturas proveedor, compras, mov. bancarios, asientos, pagos, fichajes, correos
+    _safe(sb.from('facturas_proveedor').select('*').eq('empresa_id',eid).order('created_at',{ascending:false}).limit(5000)),
+    _safe(sb.from('pedidos_compra').select('*').eq('empresa_id',eid).order('created_at',{ascending:false}).limit(2000)),
+    _safe(sb.from('recepciones').select('*').eq('empresa_id',eid).order('created_at',{ascending:false}).limit(2000)),
+    _safe(sb.from('presupuestos_compra').select('*').eq('empresa_id',eid).order('created_at',{ascending:false}).limit(2000)),
+    _safe(sb.from('movimientos_bancarios').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}).limit(5000)),
+    _safe(sb.from('asientos').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}).limit(5000)),
+    _safe(sb.from('pagos_proveedor').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}).limit(2000)),
+    _safe(sb.from('fichajes').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}).limit(2000)),
+    _safe(sb.from('correos').select('id,empresa_id,asunto,de,remitente,fecha,leido').eq('empresa_id',eid).order('fecha',{ascending:false}).limit(500)),
   ]);
+  // Exponer precargas en window para que cualquier módulo las use sin refetch
+  window.facturasProveedorPrecargadas = (fprov?.data) || [];
+  window.pedidosCompraPrecargados = (pedc?.data) || [];
+  window.recepcionesPrecargadas = (recep?.data) || [];
+  window.presupuestosCompraPrecargados = (prec?.data) || [];
+  window.movimientosBancariosPrecargados = (movb?.data) || [];
+  window.asientosPrecargados = (asien?.data) || [];
+  window.pagosProveedorPrecargados = (pagos?.data) || [];
+  window.fichajesPrecargados = (fichaj?.data) || [];
+  window.correosPrecargados = (corr?.data) || [];
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
   cuentasBancariasEntidad = (cbe&&cbe.data) ? cbe.data : [];
   // Cuentas bancarias de la empresa (variable global compartida con tesoreria/calendario_pagos)
