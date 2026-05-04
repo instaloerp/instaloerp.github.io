@@ -506,7 +506,18 @@ async function verDetalleFactura(id) {
   document.getElementById('facDetNro').textContent = f.numero || '—';
   document.getElementById('facDetCli').textContent = f.cliente_nombre || '—';
   document.getElementById('facDetFecha').textContent = f.fecha ? new Date(f.fecha).toLocaleDateString('es-ES') : '—';
-  document.getElementById('facDetVence').textContent = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
+  // Vencimiento editable inline
+  const venceInp = document.getElementById('facDetVenceInp');
+  if (venceInp) {
+    venceInp.value = f.fecha_vencimiento || '';
+    const _bloqV = ['anulada','rectificada','cobrada','pagada'].includes(f.estado);
+    venceInp.disabled = _bloqV;
+    venceInp.style.opacity = _bloqV ? '.6' : '1';
+    venceInp.style.cursor = _bloqV ? 'not-allowed' : '';
+  }
+  // Compat: facDetVence (texto) si todavía existe en algún sitio
+  const venceTxt = document.getElementById('facDetVence');
+  if (venceTxt) venceTxt.textContent = f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : '—';
 
   const ESTADOS = { borrador: 'Borrador', pendiente: 'Pendiente', cobrada: 'Cobrada', pagada: 'Cobrada', vencida: 'Vencida', rectificada: 'Rectificada', anulada: 'Anulada' };
   const COLORES = { pendiente: 'var(--amarillo)', cobrada: 'var(--verde)', pagada: 'var(--verde)', vencida: 'var(--rojo)', rectificada: '#d97706', anulada: 'var(--gris-400)' };
@@ -516,16 +527,35 @@ async function verDetalleFactura(id) {
 
   // Forma de pago — selector editable inline
   const fpSel = document.getElementById('facDetFpagoSel');
+  const _bloq = ['anulada','rectificada','cobrada','pagada'].includes(f.estado);
   if (fpSel) {
     const _fps = (typeof formasPago !== 'undefined' ? formasPago : []) || [];
     fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
       _fps.map(fp => `<option value="${fp.id}">${fp.nombre}${fp.dias_vencimiento?` (${fp.dias_vencimiento}d)`:''}</option>`).join('');
     fpSel.value = f.forma_pago_id || '';
-    // Bloquear edición si la factura está anulada/rectificada/cobrada
-    const _bloq = ['anulada','rectificada','cobrada','pagada'].includes(f.estado);
     fpSel.disabled = _bloq;
     fpSel.style.opacity = _bloq ? '.6' : '1';
     fpSel.style.cursor = _bloq ? 'not-allowed' : '';
+  }
+
+  // Cuenta cobro — selector editable inline (tabla cuentas_bancarias)
+  const cuSel = document.getElementById('facDetCuentaSel');
+  if (cuSel) {
+    const _cbs = (typeof cuentasBancarias !== 'undefined' && Array.isArray(cuentasBancarias)) ? cuentasBancarias : (window.cuentasBancarias || []);
+    if (_cbs.length) {
+      cuSel.innerHTML = '<option value="">— Sin especificar —</option>' +
+        _cbs.map(c => {
+          const ibanCorto = (c.iban || '').replace(/\s+/g,'').slice(-4);
+          const lbl = `${c.nombre || c.entidad || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.predeterminada?' ⭐':''}`;
+          return `<option value="${c.id}">${lbl}</option>`;
+        }).join('');
+      cuSel.value = f.cuenta_id || '';
+    } else {
+      cuSel.innerHTML = '<option value="">— Sin cuentas configuradas —</option>';
+    }
+    cuSel.disabled = _bloq;
+    cuSel.style.opacity = _bloq ? '.6' : '1';
+    cuSel.style.cursor = _bloq ? 'not-allowed' : '';
   }
 
   // ── FACe status ──
@@ -760,6 +790,45 @@ async function verDetalleFactura(id) {
   openModal('mFacturaDetalle', true);
 }
 
+// Actualizar fecha de vencimiento de la factura desde el modal de detalle
+async function actualizarVenceFactura(value) {
+  const id = parseInt(document.getElementById('facDetId').value);
+  if (!id) return;
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) return;
+  const nuevaVence = value || null;
+  const upd = { fecha_vencimiento: nuevaVence };
+  // Si la factura estaba 'vencida' y la nueva fecha cae en el futuro, devolverla a 'pendiente'.
+  // Y al revés: si está 'pendiente' y la nueva fecha es < hoy, marcarla 'vencida'.
+  const hoy = new Date().toISOString().split('T')[0];
+  if (f.estado === 'vencida' && nuevaVence && nuevaVence >= hoy) upd.estado = 'pendiente';
+  else if (f.estado === 'pendiente' && nuevaVence && nuevaVence < hoy) upd.estado = 'vencida';
+  const { error } = await sb.from('facturas').update(upd).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  Object.assign(f, upd);
+  if (typeof loadFacturas === 'function') loadFacturas();
+  toast('Vencimiento actualizado ✓', 'success');
+}
+
+// Actualizar cuenta de cobro de la factura desde el modal de detalle
+async function actualizarCuentaFactura(value) {
+  const id = parseInt(document.getElementById('facDetId').value);
+  if (!id) return;
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) return;
+  const nuevaCuenta = parseInt(value) || null;
+  let { error } = await sb.from('facturas').update({ cuenta_id: nuevaCuenta }).eq('id', id);
+  // Fallback si la columna aún no existe
+  if (error && error.message && /cuenta_id/i.test(error.message)) {
+    toast('Falta crear la columna cuenta_id en la tabla facturas (ver SQL)', 'error');
+    return;
+  }
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  f.cuenta_id = nuevaCuenta;
+  if (typeof loadFacturas === 'function') loadFacturas();
+  toast('Cuenta de cobro actualizada ✓', 'success');
+}
+
 // Actualizar forma de pago de la factura desde el modal de detalle (recalcula vencimiento)
 async function actualizarFpagoFactura(value) {
   const id = parseInt(document.getElementById('facDetId').value);
@@ -783,6 +852,8 @@ async function actualizarFpagoFactura(value) {
   Object.assign(f, upd);
   const venceEl = document.getElementById('facDetVence');
   if (venceEl && nuevaVence) venceEl.textContent = new Date(nuevaVence).toLocaleDateString('es-ES');
+  const venceInpEl = document.getElementById('facDetVenceInp');
+  if (venceInpEl) venceInpEl.value = nuevaVence || '';
   // Si la factura estaba 'vencida' y la nueva fecha cae en el futuro, devolverla a 'pendiente'
   const hoy = new Date().toISOString().split('T')[0];
   if (f.estado === 'vencida' && nuevaVence && nuevaVence >= hoy) {
