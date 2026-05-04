@@ -473,6 +473,17 @@ function impSICIVolverPaso1() {
   _impSICIFacturas = []; _impSICIClientesNuevos = new Map();
 }
 
+// Descripciones por defecto para los prefijos conocidos de SICI
+const SERIES_DEFAULTS_PREFIJOS = {
+  ASI:  'Asitur Asistencia',
+  AXA:  'AXA Seguros',
+  AASI: 'Abono Asitur',
+  AAXA: 'Abono AXA',
+  SH:   'Servihogar',
+  COB:  'Elecnor (confirming)',
+  JI:   'Jordi Instalaciones (particulares)',
+};
+
 // ─── PASO 3: Importar ───
 async function impSICIImportar() {
   if (!_impSICIFacturas.length) return;
@@ -522,10 +533,48 @@ async function impSICIImportar() {
     setProg(5 + Math.round((i / Math.max(clientesACrear.length,1)) * 15), 'Creando clientes nuevos...', `${i+1}/${clientesACrear.length}`);
   }
 
-  // 2) Serie por defecto
-  let serieId = null;
-  const serFact = (series || []).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
-  if (serFact.length) serieId = serFact[0].id;
+  // 2) Series: crear las que falten — una por cada prefijo único en la importación
+  setProg(18, 'Creando series de facturación...', '');
+  const prefijosUsados = [...new Set(_impSICIFacturas.map(f => f.prefijo).filter(p => p && p !== '?'))];
+  const prefijoASerieId = new Map(); // prefijo → serie_id
+  const seriesActuales = (series || []).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
+  for (const pref of prefijosUsados) {
+    // Buscar serie existente por campo `serie` (case-insensitive) o `prefijo`
+    const exist = seriesActuales.find(s =>
+      String(s.serie || '').toUpperCase() === pref ||
+      String(s.prefijo || '').toUpperCase().startsWith(pref)
+    );
+    if (exist) {
+      prefijoASerieId.set(pref, exist.id);
+      continue;
+    }
+    // Crear nueva
+    const desc = SERIES_DEFAULTS_PREFIJOS[pref] || `Serie ${pref}`;
+    const objSer = {
+      empresa_id: EMPRESA.id,
+      tipo: 'factura',
+      serie: pref,
+      descripcion: desc,
+      contador: 0,
+      por_defecto: false,
+    };
+    let { data: serNew, error: errSer } = await sb.from('series_numeracion').insert(objSer).select().single();
+    // Fallback si el schema usa nombres distintos
+    if (errSer && errSer.message && /column/i.test(errSer.message)) {
+      const min = { empresa_id: EMPRESA.id, tipo: 'factura', prefijo: pref + '-' };
+      ({ data: serNew, error: errSer } = await sb.from('series_numeracion').insert(min).select().single());
+    }
+    if (errSer) {
+      errores.push(`Serie ${pref}: ${errSer.message}`);
+    } else if (serNew) {
+      prefijoASerieId.set(pref, serNew.id);
+      if (typeof series !== 'undefined') series.push(serNew);
+    }
+  }
+  // Serie por defecto (fallback) por si alguna factura no tiene prefijo
+  let serieIdDefault = null;
+  if (seriesActuales.length) serieIdDefault = seriesActuales[0].id;
+  else if (prefijoASerieId.size) serieIdDefault = prefijoASerieId.values().next().value;
 
   // 3) Comprobar duplicados
   setProg(22, 'Comprobando duplicados...', '');
