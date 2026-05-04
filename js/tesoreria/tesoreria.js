@@ -173,11 +173,18 @@ async function renderTesCuentas() {
   const tb = document.getElementById('topbarBtns');
   if (tb) tb.innerHTML = canDo('tesoreria','crear') ? '<button class="btn btn-primary" onclick="tesNuevaCuenta()">+ Nueva cuenta</button>' : '';
 
-  // Calcular KPIs
-  // Para pólizas de crédito: `saldo` ya es el "Disponible" (lo que se puede gastar).
-  // NO sumar limite_poliza porque eso es el techo de deuda, no patrimonio.
+  // Calcular KPIs — Saldo total = suma del "Disponible" real de cada cuenta.
+  // Para pólizas: lo que se puede gastar (limite - consumido), no la deuda en negativo.
   const saldoTotal = tesCuentas.filter(c=>c.activa!==false).reduce((s,c) => {
-    return s + (parseFloat(c.saldo) || 0);
+    const saldoBruto = parseFloat(c.saldo) || 0;
+    const limite = parseFloat(c.limite_poliza) || 0;
+    if (limite > 0) {
+      // Cuenta con póliza: normalizar
+      if (saldoBruto < 0) return s + Math.max(0, limite - Math.abs(saldoBruto));   // saldo negativo = consumido
+      if (saldoBruto <= limite) return s + saldoBruto;                              // saldo positivo dentro del límite = disponible
+      return s + saldoBruto;                                                        // saldo > límite = a favor
+    }
+    return s + saldoBruto; // Sin póliza: saldo real
   }, 0);
   const numActivas = tesCuentas.filter(c=>c.activa!==false).length;
 
@@ -215,12 +222,32 @@ function _tesCuentasHTML() {
 
   const verSaldos = canDo('tesoreria','ver_saldos');
   return tesCuentas.map(c => {
-    // Para pólizas: `saldo` = Disponible (lo que aún puedes gastar).
-    //               Consumido = limite - Disponible
-    // Para cuentas normales: `saldo` = saldo real
-    const disponible = parseFloat(c.saldo) || 0;
+    const saldoBruto = parseFloat(c.saldo) || 0;
     const limitePoliza = parseFloat(c.limite_poliza) || 0;
-    const consumido = limitePoliza ? Math.max(0, limitePoliza - disponible) : 0;
+    // Cada banco devuelve el saldo de la póliza distinto:
+    //   POLIZA ABANCA → saldo = Disponible (positivo, ej: 519,08)
+    //   BBVA / SANTANDER → saldo = balance real (negativo, ej: -32.809,49 = lo consumido)
+    // Detectamos por signo y lo normalizamos siempre a Disponible/Consumido.
+    let disponible, consumido;
+    if (limitePoliza > 0) {
+      if (saldoBruto < 0) {
+        // Saldo negativo → es el consumido (lo que debes a la póliza)
+        consumido = Math.abs(saldoBruto);
+        disponible = Math.max(0, limitePoliza - consumido);
+      } else if (saldoBruto >= 0 && saldoBruto <= limitePoliza) {
+        // Saldo positivo dentro del límite → es el Disponible
+        disponible = saldoBruto;
+        consumido = limitePoliza - saldoBruto;
+      } else {
+        // Saldo > límite → cuenta a favor (raro): tomar saldo como disponible
+        disponible = saldoBruto;
+        consumido = 0;
+      }
+    } else {
+      // Cuenta sin póliza → saldo real
+      disponible = saldoBruto;
+      consumido = 0;
+    }
     const pctUsado = limitePoliza ? Math.round((consumido / limitePoliza) * 100) : 0;
     const saldo = disponible; // Lo que se muestra como cifra principal
     const activa = c.activa !== false;
