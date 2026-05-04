@@ -65,6 +65,13 @@ async function abrirEditor(tipo, editId) {
   if (fpagoLabel) fpagoLabel.style.display = cfg.conFpago?'':'none';
   if (fpagoSel) fpagoSel.style.display = cfg.conFpago?'':'none';
 
+  // Cuenta de cobro: solo facturas
+  const cuentaLabel = document.getElementById('de_cuenta_label');
+  const cuentaSel = document.getElementById('de_cuenta');
+  const _showCuenta = tipo === 'factura';
+  if (cuentaLabel) cuentaLabel.style.display = _showCuenta ? '' : 'none';
+  if (cuentaSel) cuentaSel.style.display = _showCuenta ? '' : 'none';
+
   // VeriFactu: mostrar campos solo para facturas y si VeriFactu está activo
   const _vfVisible = tipo === 'factura' && typeof _isVfActivo === 'function' && _isVfActivo();
   const _vfDisplay = _vfVisible ? '' : 'none';
@@ -89,6 +96,22 @@ async function abrirEditor(tipo, editId) {
   if (cfg.conFpago) {
     document.getElementById('de_fpago').innerHTML = '<option value="">— Sin especificar —</option>' +
       formasPago.map(f=>`<option value="${f.id}">${f.nombre}</option>`).join('');
+  }
+
+  // Cuenta de cobro (solo facturas)
+  if (tipo === 'factura' && cuentaSel) {
+    const cuentas = (typeof EMPRESA !== 'undefined' && EMPRESA?.config?.cuentas_bancarias) || [];
+    if (cuentas.length) {
+      cuentaSel.innerHTML = cuentas.map(c => {
+        const ibanCorto = (c.iban || '').replace(/\s+/g,'').slice(-4);
+        const lbl = `${c.banco || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.defecto?' ⭐':''}`;
+        return `<option value="${c.id}">${lbl}</option>`;
+      }).join('');
+      const def = cuentas.find(c => c.defecto) || cuentas[0];
+      if (def) cuentaSel.value = def.id;
+    } else {
+      cuentaSel.innerHTML = '<option value="">— Sin cuentas configuradas —</option>';
+    }
   }
 
   // Series
@@ -126,6 +149,11 @@ async function abrirEditor(tipo, editId) {
       document.getElementById('de_titulo').value = doc.titulo||doc.referencia||'';
       document.getElementById('de_obs_largo').value = doc.observaciones||'';
       if (cfg.conFpago && doc.forma_pago_id) document.getElementById('de_fpago').value = doc.forma_pago_id;
+      // Cuenta cobro (solo facturas)
+      if (tipo === 'factura' && doc.cuenta_id) {
+        const _cs = document.getElementById('de_cuenta');
+        if (_cs) _cs.value = doc.cuenta_id;
+      }
       // VeriFactu: cargar clave_regimen y calificacion_operacion
       if (_vfVisible) {
         if (doc.clave_regimen) document.getElementById('edClaveRegimen').value = doc.clave_regimen;
@@ -1371,6 +1399,11 @@ function de_buildDatos() {
     else datos.fecha_vencimiento = f2||null;
   }
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
+  // Cuenta de cobro (solo facturas)
+  if (cfg.tipo === 'factura') {
+    const _cv = document.getElementById('de_cuenta')?.value;
+    if (_cv) datos.cuenta_id = _cv;
+  }
   // VeriFactu: guardar clave_regimen y calificacion_operacion solo para facturas con VeriFactu activo
   if (cfg.tipo === 'factura' && typeof _isVfActivo === 'function' && _isVfActivo()) {
     datos.clave_regimen = document.getElementById('edClaveRegimen')?.value || '01';
@@ -1462,6 +1495,17 @@ async function de_guardar(estado) {
   // If version column doesn't exist yet, retry without it
   if (error && datos.version && error.message && error.message.includes('version')) {
     delete datos.version;
+    if (cfg.editId) {
+      ({error} = await sb.from(cfg.tabla).update(datos).eq('id', cfg.editId));
+    } else {
+      const res = await sb.from(cfg.tabla).insert(datos).select('id').single();
+      error = res.error;
+      if (res.data) savedId = res.data.id;
+    }
+  }
+  // If cuenta_id column doesn't exist yet, retry without it
+  if (error && datos.cuenta_id && error.message && /cuenta_id/i.test(error.message)) {
+    delete datos.cuenta_id;
     if (cfg.editId) {
       ({error} = await sb.from(cfg.tabla).update(datos).eq('id', cfg.editId));
     } else {

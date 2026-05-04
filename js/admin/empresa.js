@@ -80,16 +80,30 @@ async function saveEmpresa() {
     }
     logoFile = null;
   }
-  // Guardar email gestoría + datos bancarios en config
+  // Guardar email gestoría + lista de cuentas bancarias en config
   const emailGestoria = document.getElementById('cfg_email_gestoria')?.value?.trim() || '';
-  const banco = document.getElementById('emp_banco')?.value?.trim() || '';
-  const iban  = (document.getElementById('emp_iban')?.value || '').replace(/\s+/g,'').toUpperCase();
-  const titular = document.getElementById('emp_titular')?.value?.trim() || '';
   const config = EMPRESA.config || {};
   config.email_gestoria = emailGestoria || null;
-  config.banco_entidad = banco || null;
-  config.iban = iban || null;
-  config.titular_cuenta = titular || null;
+  // Cuentas bancarias (lista). Filtrar las vacías y asegurar 1 default
+  const cuentas = (window._cfgCuentasBancarias || [])
+    .filter(c => c && (c.iban || c.banco))
+    .map(c => ({
+      id: c.id || ('cb' + Date.now()),
+      banco: (c.banco || '').trim(),
+      iban: (c.iban || '').replace(/\s+/g,'').toUpperCase(),
+      titular: (c.titular || '').trim(),
+      defecto: !!c.defecto,
+    }));
+  // Garantizar que siempre haya 1 default si hay alguna cuenta
+  if (cuentas.length && !cuentas.some(c => c.defecto)) cuentas[0].defecto = true;
+  // Si hay > 1 con defecto, dejar solo el primero
+  let foundDef = false;
+  cuentas.forEach(c => { if (c.defecto) { if (foundDef) c.defecto = false; else foundDef = true; } });
+  config.cuentas_bancarias = cuentas;
+  // Limpiar campos legacy single (si estaban)
+  delete config.banco_entidad;
+  delete config.iban;
+  delete config.titular_cuenta;
   obj.config = config;
 
   await sb.from('empresas').update(obj).eq('id',EMPRESA.id);

@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 19</span>
+      <span id="erpBuildVersion">v1.0 · build 21</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -1991,6 +1991,8 @@ try {
                 <input id="de_titulo" placeholder="Ej: Instalación caldera..." onchange="de_autoguardar()" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none">
                 <label style="font-size:11px;color:var(--gris-500);font-weight:600" id="de_fpago_label">Forma pago</label>
                 <select id="de_fpago" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none"></select>
+                <label style="font-size:11px;color:var(--gris-500);font-weight:600;display:none" id="de_cuenta_label">Cuenta cobro</label>
+                <select id="de_cuenta" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;display:none"></select>
                 <label id="de_regimen_label" style="font-size:11px;color:var(--gris-500);font-weight:600;display:none">Régimen fiscal</label>
                 <select id="edClaveRegimen" style="padding:5px 8px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:12px;outline:none;display:none">
                   <option value="01">01 — General</option>
@@ -2289,12 +2291,12 @@ try {
                   </div>
                 </div>
                 <div style="border-top:1px solid var(--gris-200);padding-top:14px;margin-top:6px">
-                  <div style="font-size:12px;font-weight:700;color:var(--gris-600);margin-bottom:8px">🏦 Datos bancarios para facturas</div>
-                  <div class="fg-row" style="margin-bottom:11px">
-                    <div class="fg"><label>Entidad / Banco</label><input id="emp_banco" placeholder="Banco Santander, ABANCA, BBVA…"></div>
-                    <div class="fg"><label>Titular cuenta</label><input id="emp_titular" placeholder="Si está vacío usa la razón social"></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                    <div style="font-size:12px;font-weight:700;color:var(--gris-600)">🏦 Cuentas bancarias para facturas</div>
+                    <button class="btn btn-secondary btn-sm" onclick="addCuentaBancaria()">+ Añadir cuenta</button>
                   </div>
-                  <div class="fg" style="margin-bottom:6px"><label>IBAN</label><input id="emp_iban" placeholder="ES00 0000 0000 0000 0000 0000" style="font-family:ui-monospace,monospace;text-transform:uppercase"><div class="hint">Aparecerá en el bloque "DATOS PARA EL PAGO" al pie de cada factura</div></div>
+                  <div id="cuentasBancariasList" style="display:flex;flex-direction:column;gap:8px"></div>
+                  <div class="hint" style="margin-top:6px">La cuenta marcada con ⭐ se usa por defecto en facturas nuevas. En cada factura podrás cambiarla.</div>
                 </div>
 
                 <div style="border-top:1px solid var(--gris-200);padding-top:14px;margin-top:6px">
@@ -2326,7 +2328,7 @@ try {
 
             <!-- Formas pago -->
             <div class="cfg-panel card" id="cfg-formas-pago">
-              <div class="card-h"><h3>💳 Formas de pago</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="openModal('mFormaPago')">+ Nueva forma</button></div></div>
+              <div class="card-h"><h3>💳 Formas de pago</h3><div class="card-ha"><button class="btn btn-primary btn-sm" onclick="nuevaFormaPagoModal()">+ Nueva forma</button></div></div>
               <div class="cfg-list" id="formasPagoList"></div>
             </div>
 
@@ -4790,6 +4792,7 @@ try {
         <div class="fg"><label>Fecha vencimiento</label><input type="date" id="fr_vence"></div>
         <div class="fg"><label>Forma de pago</label><select id="fr_fpago"></select></div>
       </div>
+      <div class="fg" style="margin-bottom:12px"><label>Cuenta de cobro <small style="color:var(--gris-400);font-weight:normal">(aparece al pie del PDF)</small></label><select id="fr_cuenta"></select></div>
 
       <!-- Líneas -->
       <div style="margin-bottom:8px">

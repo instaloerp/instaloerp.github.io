@@ -55,10 +55,63 @@ function renderConfigLists() {
       emp_nombre:EMPRESA.nombre||'', emp_razon:EMPRESA.razon_social||'', emp_cif:EMPRESA.cif||'',
       emp_tel:EMPRESA.telefono||'', emp_email:EMPRESA.email||'', emp_web:EMPRESA.web||'',
       emp_dir:EMPRESA.direccion||'', emp_muni:EMPRESA.municipio||'', emp_cp:EMPRESA.cp||'', emp_prov:EMPRESA.provincia||'',
-      emp_banco: c.banco_entidad || '', emp_iban: c.iban || '', emp_titular: c.titular_cuenta || '',
       cfg_email_gestoria: c.email_gestoria || ''
     });
+    // Cargar lista de cuentas bancarias (con migración del formato single legacy)
+    let cuentas = Array.isArray(c.cuentas_bancarias) ? [...c.cuentas_bancarias] : [];
+    if (!cuentas.length && c.iban) {
+      cuentas = [{ id: 'cb1', banco: c.banco_entidad||'', iban: c.iban, titular: c.titular_cuenta||'', defecto: true }];
+    }
+    window._cfgCuentasBancarias = cuentas;
+    renderCuentasBancarias();
   }
+}
+
+// === GESTIÓN DE CUENTAS BANCARIAS ===
+function renderCuentasBancarias() {
+  const cont = document.getElementById('cuentasBancariasList');
+  if (!cont) return;
+  const cuentas = window._cfgCuentasBancarias || [];
+  if (!cuentas.length) {
+    cont.innerHTML = '<div style="padding:14px;color:var(--gris-400);font-size:12.5px;text-align:center;background:var(--gris-50);border-radius:7px;border:1px dashed var(--gris-300)">Sin cuentas configuradas. Pulsa "+ Añadir cuenta".</div>';
+    return;
+  }
+  cont.innerHTML = cuentas.map((cb, idx) => `
+    <div style="border:1.5px solid ${cb.defecto?'#1B4FD8':'var(--gris-200)'};background:${cb.defecto?'#F0F7FF':'#fff'};border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start">
+      <button onclick="setCuentaDefecto(${idx})" title="Marcar como por defecto" style="background:none;border:none;font-size:18px;cursor:pointer;padding:4px;line-height:1">${cb.defecto?'⭐':'☆'}</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <input value="${(cb.banco||'').replace(/"/g,'&quot;')}" placeholder="Entidad (Banco Santander…)" oninput="window._cfgCuentasBancarias[${idx}].banco=this.value" style="padding:6px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:12.5px">
+        <input value="${(cb.titular||'').replace(/"/g,'&quot;')}" placeholder="Titular (opcional)" oninput="window._cfgCuentasBancarias[${idx}].titular=this.value" style="padding:6px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:12.5px">
+        <input value="${(cb.iban||'').replace(/"/g,'&quot;')}" placeholder="ES00 0000 0000 0000 0000 0000" oninput="window._cfgCuentasBancarias[${idx}].iban=this.value.replace(/\\s+/g,'').toUpperCase()" style="grid-column:1/-1;padding:6px 8px;border:1px solid var(--gris-200);border-radius:5px;font-size:12.5px;font-family:ui-monospace,monospace;text-transform:uppercase">
+      </div>
+      <button onclick="removeCuentaBancaria(${idx})" class="btn btn-ghost btn-sm" title="Eliminar" style="color:#DC2626;padding:4px 8px">🗑️</button>
+    </div>`).join('');
+}
+
+function addCuentaBancaria() {
+  if (!window._cfgCuentasBancarias) window._cfgCuentasBancarias = [];
+  const tieneDefecto = window._cfgCuentasBancarias.some(c => c.defecto);
+  window._cfgCuentasBancarias.push({
+    id: 'cb' + Date.now(),
+    banco: '', iban: '', titular: '',
+    defecto: !tieneDefecto, // primera cuenta = default automático
+  });
+  renderCuentasBancarias();
+}
+
+function removeCuentaBancaria(idx) {
+  const cuentas = window._cfgCuentasBancarias || [];
+  if (!confirm(`Eliminar la cuenta "${cuentas[idx]?.banco||'sin nombre'}"?`)) return;
+  const eraDefecto = cuentas[idx].defecto;
+  cuentas.splice(idx, 1);
+  if (eraDefecto && cuentas.length) cuentas[0].defecto = true;
+  renderCuentasBancarias();
+}
+
+function setCuentaDefecto(idx) {
+  const cuentas = window._cfgCuentasBancarias || [];
+  cuentas.forEach((c, i) => c.defecto = (i === idx));
+  renderCuentasBancarias();
 }
 
 function editSerie(id) {
@@ -115,9 +168,15 @@ async function saveUnidad() {
 
 function editFormaPago(id) {
   const f=formasPago.find(x=>x.id===id); if(!f)return;
+  openModal('mFormaPago', true); // skipReset: NO borrar fp_id al abrir
   document.getElementById('fp_id').value=f.id;
   setVal({fp_nombre:f.nombre,fp_dias:f.dias_vencimiento||0});
+}
+
+function nuevaFormaPagoModal() {
+  // Abrir modal limpio para crear forma de pago nueva (resetea fp_id)
   openModal('mFormaPago');
+  setVal({fp_nombre:'', fp_dias:0});
 }
 
 async function saveFormaPago() {

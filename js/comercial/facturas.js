@@ -1238,6 +1238,23 @@ async function nuevaFacturaRapida() {
     if (c?.forma_pago_id) fpSel.value = c.forma_pago_id;
   }
 
+  // Cuentas bancarias para cobro
+  const cuentas = (typeof EMPRESA !== 'undefined' && EMPRESA?.config?.cuentas_bancarias) || [];
+  const cSel = document.getElementById('fr_cuenta');
+  if (cSel) {
+    if (cuentas.length) {
+      cSel.innerHTML = cuentas.map(c => {
+        const ibanCorto = (c.iban || '').replace(/\s+/g,'').slice(-4);
+        const lbl = `${c.banco || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.defecto?' ⭐':''}`;
+        return `<option value="${c.id}">${lbl}</option>`;
+      }).join('');
+      const def = cuentas.find(c => c.defecto) || cuentas[0];
+      if (def) cSel.value = def.id;
+    } else {
+      cSel.innerHTML = '<option value="">— Sin cuentas configuradas —</option>';
+    }
+  }
+
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('fr_fecha').value = hoy;
   const v = new Date(); v.setDate(v.getDate()+30);
@@ -1446,6 +1463,7 @@ async function guardarFacturaRapida(estado) {
       fecha: document.getElementById('fr_fecha').value,
       fecha_vencimiento: document.getElementById('fr_vence').value || null,
       forma_pago_id: parseInt(document.getElementById('fr_fpago').value) || null,
+      cuenta_id: document.getElementById('fr_cuenta')?.value || null,
       base_imponible: Math.round(base*100)/100,
       total_iva: Math.round(ivaTotal*100)/100,
       total: Math.round((base+ivaTotal)*100)/100,
@@ -1465,7 +1483,13 @@ async function guardarFacturaRapida(estado) {
       _updateStep(0, 'Guardando ' + (obj.numero || '') + '...');
     }
 
-    const { error } = await sb.from('facturas').insert(obj);
+    let { error } = await sb.from('facturas').insert(obj);
+    // Fallback: si la columna cuenta_id aún no existe en la BD, reintenta sin ella
+    if (error && error.message && /cuenta_id/i.test(error.message)) {
+      const objSinCuenta = {...obj}; delete objSinCuenta.cuenta_id;
+      const r2 = await sb.from('facturas').insert(objSinCuenta);
+      error = r2.error;
+    }
     if (error) {
       if (vfActivo) _stepperDone(error.message, false);
       else toast('Error: ' + error.message, 'error');
@@ -1725,6 +1749,7 @@ async function _ejecutarRectificativa() {
     fecha: new Date().toISOString().split('T')[0],
     fecha_vencimiento: null,
     forma_pago_id: orig.forma_pago_id,
+    cuenta_id: orig.cuenta_id || null,
     base_imponible: baseRect,
     total_iva: ivaRect,
     total: totalRect,
@@ -1746,9 +1771,10 @@ async function _ejecutarRectificativa() {
   let insertOk = false;
   const { data, error } = await sb.from('facturas').insert(obj).select().single();
   if (error) {
-    if (error.message && (error.message.includes('tipo_rectificativa') || error.message.includes('column'))) {
+    if (error.message && (error.message.includes('tipo_rectificativa') || error.message.includes('cuenta_id') || error.message.includes('column'))) {
       delete obj.tipo_rectificativa; delete obj.tipo_rectificacion;
       delete obj.factura_rectificada_numero; delete obj.factura_rectificada_fecha;
+      delete obj.cuenta_id;
       const r2 = await sb.from('facturas').insert(obj).select().single();
       if (r2.error) { _stepperDone(r2.error.message, false); return; }
       insertOk = true;
@@ -1867,6 +1893,7 @@ async function _ofrecerNuevaFactura(orig) {
     fecha: new Date().toISOString().split('T')[0],
     fecha_vencimiento: orig.fecha_vencimiento || null,
     forma_pago_id: orig.forma_pago_id,
+    cuenta_id: orig.cuenta_id || null,
     base_imponible: 0,
     total_iva: 0,
     total: 0,
@@ -1878,7 +1905,12 @@ async function _ofrecerNuevaFactura(orig) {
     trabajo_id: orig.trabajo_id || null,
   };
 
-  const { data: borr, error: errBorr } = await sb.from('facturas').insert(borrObj).select().single();
+  let { data: borr, error: errBorr } = await sb.from('facturas').insert(borrObj).select().single();
+  if (errBorr && errBorr.message && /cuenta_id/i.test(errBorr.message)) {
+    delete borrObj.cuenta_id;
+    const r2 = await sb.from('facturas').insert(borrObj).select().single();
+    borr = r2.data; errBorr = r2.error;
+  }
   if (errBorr) { toast('Error creando borrador: ' + errBorr.message, 'error'); return; }
 
   await loadFacturas();
@@ -2181,17 +2213,28 @@ function _cfgFactura(f) {
     verifactu_qr_url: f.verifactu_qr_url || null,
     verifactu_csv: f.verifactu_csv || null,
     verifactu_estado: f.verifactu_estado || null,
-    // Bloque "DATOS PARA EL PAGO" (al pie del documento) si la empresa tiene IBAN configurado
+    // Bloque "DATOS PARA EL PAGO" (al pie del documento) si la empresa tiene cuenta(s) configurada(s)
     datos_pago: (() => {
-      const c = (typeof EMPRESA !== 'undefined' && EMPRESA?.config) || {};
-      if (!c.iban) return null;
-      const ibanFmt = c.iban.replace(/(.{4})/g, '$1 ').trim();
+      const cfgEmp = (typeof EMPRESA !== 'undefined' && EMPRESA?.config) || {};
+      const cuentas = Array.isArray(cfgEmp.cuentas_bancarias) ? cfgEmp.cuentas_bancarias : [];
+      // Resolver cuenta seleccionada → la marcada en la factura → la default → la primera → fallback legacy single
+      let cuenta = null;
+      if (cuentas.length) {
+        cuenta = (f.cuenta_id && cuentas.find(c => c.id === f.cuenta_id))
+              || cuentas.find(c => c.defecto)
+              || cuentas[0];
+      } else if (cfgEmp.iban) {
+        // Compatibilidad: configuración antigua de un único IBAN
+        cuenta = { banco: cfgEmp.banco_entidad || '', iban: cfgEmp.iban, titular: cfgEmp.titular_cuenta || '' };
+      }
+      if (!cuenta || !cuenta.iban) return null;
+      const ibanFmt = (cuenta.iban || '').replace(/\s+/g,'').replace(/(.{4})/g, '$1 ').trim();
       const exp = f.expediente_numero || f.referencia || '';
       const concepto = `Factura ${f.numero || ''}${exp ? ' — Expte. '+exp : ''}`.trim();
       return {
-        entidad:  c.banco_entidad || '',
+        entidad:  cuenta.banco || '',
         iban:     ibanFmt,
-        titular:  c.titular_cuenta || EMPRESA?.razon_social || EMPRESA?.nombre || '',
+        titular:  cuenta.titular || EMPRESA?.razon_social || EMPRESA?.nombre || '',
         concepto: concepto,
       };
     })(),
