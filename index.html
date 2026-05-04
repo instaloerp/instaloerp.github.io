@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 29</span>
+      <span id="erpBuildVersion">v1.0 · build 32</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -3952,8 +3952,18 @@ try {
         <div style="font-weight:700;font-size:12px;color:var(--gris-500);margin-bottom:8px">📧 Condiciones del correo (opcionales, se combinan con AND)</div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
-        <div class="fg"><label>Remitente contiene</label><input id="auto_remitente" placeholder="Ej: @proveedor.com"></div>
-        <div class="fg"><label>Asunto contiene</label><input id="auto_asunto" placeholder="Ej: factura, presupuesto"></div>
+        <div class="fg">
+          <label>Remitente <small style="color:var(--gris-400);font-weight:normal">(uno o varios — basta con que coincida uno)</small></label>
+          <div id="auto_remitente_list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <input type="hidden" id="auto_remitente">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="autoRemAdd()" style="margin-top:6px;align-self:flex-start;font-size:12px">+ Añadir otra dirección</button>
+        </div>
+        <div class="fg">
+          <label>Asunto <small style="color:var(--gris-400);font-weight:normal">(uno o varios — basta con que coincida uno)</small></label>
+          <div id="auto_asunto_list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <input type="hidden" id="auto_asunto">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="autoAsuntoAdd()" style="margin-top:6px;align-self:flex-start;font-size:12px">+ Añadir otro asunto</button>
+        </div>
       </div>
       <div class="fg-row" style="margin-bottom:11px">
         <div class="fg"><label>Adjunto contiene</label><input id="auto_adjunto" placeholder="Ej: .pdf, factura"></div>

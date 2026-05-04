@@ -1,35 +1,39 @@
 // ═══════════════════════════════════════════════════════════════════
 //  IMPORTAR HISTÓRICO SICI — Configuración → Facturación
-//  Lee el listadoBuscadorFacturas (HTML disfrazado de .xls), genera
-//  preview y crea facturas + clientes en el ERP con la lógica acordada.
+//  Soporta DOS formatos de SICI:
+//   • Formato simple (26 cols): listadoBuscadorFacturas
+//   • Formato completo (56 cols): facturas.xls — TRAE DOMICILIOS,
+//     COBROS REALES, RECTIFICATIVAS VINCULADAS, etc.
 // ═══════════════════════════════════════════════════════════════════
-let _impSICIFacturas = []; // [{numero, fecha, cliente, total, ...}]
-let _impSICIClientesNuevos = new Map(); // nif → {nombre, ...}
+let _impSICIFacturas = [];          // [{...}]
+let _impSICIClientesNuevos = new Map(); // nif → {nombre, domicilio, cp, ...}
+let _impSICIFormato = 'simple';     // 'simple' | 'completo'
 
 // ─── Parser bimodal de números: "6.240,65" o "6822" (céntimos) ───
 function _impParseNum(s) {
   if (s === null || s === undefined || s === '') return 0;
-  const txt = String(s).replace('€', '').trim();
-  if (txt === '' || txt === 'NaN') return 0;
+  const txt = String(s).replace('€', '').replace('%','').trim();
+  if (txt === '' || txt === 'NaN' || txt === 'nan') return 0;
   if (txt.indexOf(',') >= 0) {
-    // Formato europeo: 6.240,65 / -1.073,61
     return parseFloat(txt.replace(/\./g, '').replace(',', '.')) || 0;
   }
-  // Entero en céntimos: 6822 → 68,22
   const n = parseInt(txt, 10);
   return isNaN(n) ? 0 : n / 100;
 }
 
-// ─── Parser fecha DD/MM/AA → YYYY-MM-DD ───
+// ─── Parser fecha: DD/MM/AA, DD-MM-AAAA, AAAA-MM-DD → YYYY-MM-DD ───
 function _impParseFecha(s) {
   if (!s) return null;
-  const m = String(s).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (!m) return null;
-  const dd = m[1].padStart(2, '0');
-  const mm = m[2].padStart(2, '0');
-  let yy = m[3];
-  if (yy.length === 2) yy = '20' + yy;
-  return `${yy}-${mm}-${dd}`;
+  const txt = String(s).trim();
+  if (txt === '' || txt === '00-00-0000' || txt === '00/00/0000') return null;
+  // Probar varios formatos
+  let m = txt.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/); // DD-MM-AAAA o DD/MM/AAAA
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/); // DD/MM/AA
+  if (m) return `20${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m = txt.match(/^(\d{4})-(\d{2})-(\d{2})$/); // AAAA-MM-DD
+  if (m) return txt;
+  return null;
 }
 
 // ─── Detectar prefijo de número de factura ───
@@ -39,157 +43,262 @@ function _impPrefijo(numero) {
   return m ? m[1] : '?';
 }
 
+// ─── Normalizar NIF para comparación ───
+function _impNorm(x) { return String(x || '').replace(/\s+/g, '').toUpperCase(); }
+
+// ─── Normalizar nombre de cabecera (quitar acentos y mayúsculas) ───
+function _impNormHdr(h) {
+  return String(h || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9 %]/g, ' ').replace(/\s+/g, ' ');
+}
+
 // ─── Manejar fichero subido ───
 async function impSICIHandleFile(file) {
   if (!file) return;
   document.getElementById('impSICIFileName').style.display = '';
   document.getElementById('impSICIFileName').textContent = '⏳ Procesando ' + file.name + '...';
   try {
-    const html = await file.text();
+    // Leer como ArrayBuffer y decodificar manualmente para soportar ISO-8859 y UTF-8
+    const buf = await file.arrayBuffer();
+    const td = new TextDecoder('utf-8', { fatal: false });
+    let html = td.decode(buf);
+    // Si el HTML parece tener caracteres mal decodificados (Ã), reintentar con ISO-8859-1
+    if (/Ã[\x80-\xBF]/.test(html.slice(0, 5000))) {
+      html = new TextDecoder('iso-8859-1').decode(buf);
+    }
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const tabla = doc.querySelector('table');
-    if (!tabla) {
-      toast('❌ No se encontró ninguna tabla en el fichero', 'error');
-      return;
-    }
+    if (!tabla) { toast('❌ No se encontró ninguna tabla en el fichero', 'error'); return; }
     const filas = Array.from(tabla.querySelectorAll('tr'));
     if (filas.length < 2) { toast('❌ El fichero está vacío', 'error'); return; }
-    // Cabeceras
-    const headers = Array.from(filas[0].querySelectorAll('th, td')).map(c => c.textContent.trim());
-    const idx = (nombre) => headers.findIndex(h => h.trim() === nombre);
-    const COL = {
-      numero: idx('Factura'),
-      fecha: idx('Fecha'),
-      destinatario: idx('Destinatario'),
-      cif: idx('CIF Destinatario'),
-      asegurado: idx('Asegurado'),
-      expediente: idx('Expediente'),
-      dano: idx('Daño'),
-      pagado: idx('Pagado'),
-      base21: idx('IVA 21%'),       // ¡OJO! En SICI esta columna es la BASE al 21%
-      iva21:  idx('Total 21%'),     //         y esta es el importe del IVA
-      base10: idx('IVA 10%'),
-      iva10:  idx('Total 10%'),
-      totalSinIva: idx('Total sin IVA'),
-      totalFactura: idx('Total Factura'),
-      observaciones: idx('Observaciones'),
+
+    // Cabeceras normalizadas
+    const headers = Array.from(filas[0].querySelectorAll('th, td')).map(c => _impNormHdr(c.textContent));
+    const idx = (lista) => {
+      for (const n of lista) {
+        const i = headers.indexOf(_impNormHdr(n));
+        if (i >= 0) return i;
+      }
+      return -1;
     };
+
+    // Detectar formato
+    const tieneCompleto = idx(['BASE IMPONIBLE']) >= 0 && idx(['DOMICILIO']) >= 0 && idx(['COBRADO']) >= 0;
+    _impSICIFormato = tieneCompleto ? 'completo' : 'simple';
+
+    let COL;
+    if (_impSICIFormato === 'completo') {
+      COL = {
+        id: idx(['ID']),
+        compania: idx(['COMPANIA']),
+        expediente: idx(['EXPEDIENTE']),
+        dano: idx(['TIPO DANO']),
+        prefijo: idx(['PREFIJO']),
+        numero: idx(['NUMERO FACTURA']),
+        fecha: idx(['FECHA']),
+        destinatarioTipo: idx(['DESTINATARIO']),
+        nombre: idx(['NOMBRE']),
+        nif: idx(['NIF']),
+        domicilio: idx(['DOMICILIO']),
+        cp: idx(['CP']),
+        localidad: idx(['LOCALIDAD']),
+        provincia: idx(['PROVINCIA']),
+        siniestroDom: idx(['SINIESTRO DOMICILIO']),
+        siniestroCp: idx(['SINIESTRO CP']),
+        siniestroLoc: idx(['SINIESTRO LOCALIDAD']),
+        abono: idx(['ABONO']),
+        idFactAbon: idx(['ID FACTURA ABONADA']),
+        baseImponible: idx(['BASE IMPONIBLE']),
+        importeIva: idx(['IMPORTE IVA']),
+        totalFactura: idx(['TOTAL FACTURA']),
+        cobrado: idx(['COBRADO']),
+        fechaCobro: idx(['FECHA DE COBRO']),
+        tipoIva: idx(['TIPO IVA']),
+        tramitador: idx(['TRAMITADOR']),
+        observaciones: idx(['OBSERVACIONES']),
+        // Bases por tramo
+        bruto4: idx(['IMPORTE BRUTO 4%']),
+        bruto7: idx(['IMPORTE BRUTO 7%']),
+        bruto10: idx(['IMPORTE BRUTO 10%']),
+        bruto21: idx(['IMPORTE BRUTO 21%']),
+        iva4:   idx(['IMPORTE IVA 4%']),
+        iva7:   idx(['IMPORTE IVA 7%']),
+        iva10:  idx(['IMPORTE IVA 10%']),
+        iva21:  idx(['IMPORTE IVA 21%']),
+      };
+    } else {
+      COL = {
+        numero: idx(['Factura']),
+        fecha: idx(['Fecha']),
+        nombre: idx(['Destinatario']),
+        nif: idx(['CIF Destinatario']),
+        asegurado: idx(['Asegurado']),
+        expediente: idx(['Expediente']),
+        dano: idx(['Daño','Dano']),
+        cobrado: idx(['Pagado']),
+        baseImponible: idx(['Total sin IVA']),
+        bruto21: idx(['IVA 21%']),
+        iva21: idx(['Total 21%']),
+        bruto10: idx(['IVA 10%']),
+        iva10: idx(['Total 10%']),
+        totalFactura: idx(['Total Factura']),
+        observaciones: idx(['Observaciones']),
+      };
+    }
+
     if (COL.numero < 0 || COL.fecha < 0 || COL.totalFactura < 0) {
       toast('❌ Cabeceras no reconocidas. ¿Es un export válido de SICI?', 'error');
+      console.warn('Headers detectados:', headers);
       return;
     }
 
     _impSICIFacturas = [];
     _impSICIClientesNuevos = new Map();
 
-    // Ya existentes en el ERP por NIF (case-insensitive sin espacios)
-    const norm = (x) => String(x || '').replace(/\s+/g, '').toUpperCase();
+    // Mapa de ID interno SICI → numero (para vincular rectificativas)
+    const idSiciANumero = new Map();
+
+    // Existentes en ERP
     const clientesPorNif = new Map();
-    (clientes || []).forEach(c => { if (c.nif) clientesPorNif.set(norm(c.nif), c); });
+    (clientes || []).forEach(c => { if (c.nif) clientesPorNif.set(_impNorm(c.nif), c); });
 
     for (let i = 1; i < filas.length; i++) {
       const celdas = Array.from(filas[i].querySelectorAll('td')).map(c => c.textContent.trim());
       if (celdas.length === 0) continue;
-      const numero = celdas[COL.numero];
+
+      // Construir número completo: en formato completo viene "ASI98" + año aparte → reconstruir "ASI98/2026"
+      let numero = celdas[COL.numero] || '';
+      if (_impSICIFormato === 'completo' && COL.prefijo >= 0) {
+        const pref = celdas[COL.prefijo];
+        // Si NUMERO FACTURA ya empieza por el prefijo, usarlo tal cual; si no, anteponerlo
+        if (pref && !numero.startsWith(pref)) numero = pref + numero.replace(/^[A-Z]+/,'');
+      }
+      const fecha = _impParseFecha(celdas[COL.fecha]);
+      // Año desde la fecha → para añadir al número si no lo tiene
+      if (fecha && !numero.includes('/')) numero = numero + '/' + fecha.slice(0,4);
       if (!numero) continue;
 
-      const cif = celdas[COL.cif] || null;
-      const cifNorm = norm(cif);
-      const destinatario = celdas[COL.destinatario] || '—';
-      const prefijo = _impPrefijo(numero);
-      const totalFact = _impParseNum(celdas[COL.totalFactura]);
-      const totalSinIva = _impParseNum(celdas[COL.totalSinIva]);
-      const base21 = _impParseNum(celdas[COL.base21]);
-      const iva21 = _impParseNum(celdas[COL.iva21]);
-      const base10 = COL.base10 >= 0 ? _impParseNum(celdas[COL.base10]) : 0;
-      const iva10  = COL.iva10  >= 0 ? _impParseNum(celdas[COL.iva10])  : 0;
-      const fecha = _impParseFecha(celdas[COL.fecha]);
-      const asegurado = COL.asegurado >= 0 ? celdas[COL.asegurado] : '';
-      const expediente = COL.expediente >= 0 ? celdas[COL.expediente] : '';
-      const dano = COL.dano >= 0 ? celdas[COL.dano] : '';
-      const obsSici = COL.observaciones >= 0 ? celdas[COL.observaciones] : '';
+      const idSici = _impSICIFormato === 'completo' && COL.id >= 0 ? celdas[COL.id] : null;
+      if (idSici) idSiciANumero.set(String(idSici), numero);
 
-      // Estado: JI → pendiente, resto → cobrada (decisión de Jordi)
-      const esJI = prefijo === 'JI';
-      const estado = esJI ? 'pendiente' : 'cobrada';
-      // Detectar rectificativa: prefijo AASI/AAXA o total negativo + obsSici contiene "ABONO"
-      const esRect = (prefijo === 'AASI' || prefijo === 'AAXA') || (totalFact < 0 && /abono/i.test(obsSici));
-      // Extraer número de factura rectificada (de las observaciones)
+      const prefijo = _impPrefijo(numero);
+      const nif = celdas[COL.nif] || null;
+      const nifNorm = _impNorm(nif);
+      const nombre = celdas[COL.nombre] || '—';
+      const totalFact = _impParseNum(celdas[COL.totalFactura]);
+      const baseImp   = _impParseNum(celdas[COL.baseImponible]);
+      // IVA total: completo lo trae directo; simple suma 21+10
+      let totalIva = 0;
+      if (_impSICIFormato === 'completo' && COL.importeIva >= 0) {
+        totalIva = _impParseNum(celdas[COL.importeIva]);
+      } else {
+        if (COL.iva21 >= 0) totalIva += _impParseNum(celdas[COL.iva21]);
+        if (COL.iva10 >= 0) totalIva += _impParseNum(celdas[COL.iva10]);
+      }
+
+      // Cobro: COBRADO=SI/NO + FECHA DE COBRO (formato completo). En simple solo Pagado=fecha o NaN
+      let estado;
+      let fechaCobroReal = null;
+      if (_impSICIFormato === 'completo') {
+        const cob = (celdas[COL.cobrado] || '').toUpperCase().trim();
+        fechaCobroReal = _impParseFecha(celdas[COL.fechaCobro]);
+        estado = (cob === 'SI' || cob === 'S') ? 'cobrada' : 'pendiente';
+        // Decisión Jordi: aseguradoras todas cobradas, JI según realidad
+        if (prefijo !== 'JI') estado = 'cobrada';
+      } else {
+        const pagada = !!celdas[COL.cobrado];
+        estado = (prefijo !== 'JI') ? 'cobrada' : (pagada ? 'cobrada' : 'pendiente');
+      }
+
+      // Rectificativa
+      const esRectFmt = _impSICIFormato === 'completo'
+        ? (celdas[COL.abono] || '').toUpperCase().trim() === 'V'
+        : (prefijo === 'AASI' || prefijo === 'AAXA');
+      const esRect = esRectFmt || totalFact < 0;
       let rectificaA = null;
-      if (esRect) {
-        const m = obsSici && obsSici.match(/(?:DE\s+)?([A-Z]+\s*\d+\/\d{4})/i);
+      if (esRect && _impSICIFormato === 'completo' && COL.idFactAbon >= 0) {
+        const idAbon = celdas[COL.idFactAbon];
+        if (idAbon && idAbon !== '0') rectificaA = idAbon; // se resuelve a número en pasada 2
+      } else if (esRect && _impSICIFormato === 'simple') {
+        const obs = celdas[COL.observaciones] || '';
+        const m = obs.match(/(?:DE\s+)?([A-Z]+\s*\d+\/\d{4})/i);
         if (m) rectificaA = m[1].replace(/\s+/g, '');
       }
 
-      // Cliente: ¿existe por NIF?
-      let clienteExist = cifNorm ? clientesPorNif.get(cifNorm) : null;
+      // Cliente: ¿existe?
+      let clienteExist = nifNorm ? clientesPorNif.get(nifNorm) : null;
       let clienteNuevoFlag = false;
-      if (!clienteExist && cifNorm) {
-        // Marcar para crear (deduplicado por NIF)
-        if (!_impSICIClientesNuevos.has(cifNorm)) {
-          _impSICIClientesNuevos.set(cifNorm, {
-            nif: cif,
-            nombre: destinatario,
-          });
+      if (!clienteExist && nifNorm) {
+        if (!_impSICIClientesNuevos.has(nifNorm)) {
+          // Datos del cliente (con todo lo que tengamos)
+          const cliData = { nombre, nif };
+          if (_impSICIFormato === 'completo') {
+            if (celdas[COL.domicilio]) cliData.direccion = celdas[COL.domicilio];
+            if (celdas[COL.cp]) cliData.cp = celdas[COL.cp];
+            if (celdas[COL.localidad]) cliData.municipio = celdas[COL.localidad];
+            if (celdas[COL.provincia]) cliData.provincia = celdas[COL.provincia];
+          }
+          _impSICIClientesNuevos.set(nifNorm, cliData);
         }
         clienteNuevoFlag = true;
-      } else if (!cifNorm) {
-        // Sin NIF → tratar nombre como ID (no ideal, pero importable)
+      } else if (!nifNorm) {
         clienteNuevoFlag = !clienteExist;
       }
 
       // Construir descripción de línea
+      const asegurado = _impSICIFormato === 'completo' ? '' : (COL.asegurado >= 0 ? celdas[COL.asegurado] : '');
+      const expediente = COL.expediente >= 0 ? celdas[COL.expediente] : '';
+      const dano = COL.dano >= 0 ? celdas[COL.dano] : '';
+      const sinDom = _impSICIFormato === 'completo' && COL.siniestroDom >= 0 ? celdas[COL.siniestroDom] : '';
+      const sinLoc = _impSICIFormato === 'completo' && COL.siniestroLoc >= 0 ? celdas[COL.siniestroLoc] : '';
+      const obsSici = COL.observaciones >= 0 ? celdas[COL.observaciones] : '';
+
       let lineaDesc;
-      if (esJI || !asegurado) {
-        lineaDesc = obsSici || `Trabajos según expediente ${expediente || ''}`.trim();
+      if (prefijo === 'JI') {
+        lineaDesc = obsSici && obsSici !== 'nan' ? obsSici : `Trabajos según expediente ${expediente || ''}`.trim();
       } else {
         const partes = [];
-        if (dano) partes.push(`Reparación daños por ${dano}`);
+        if (dano && dano !== 'nan') partes.push(`Reparación daños por ${String(dano).toLowerCase()}`);
         else partes.push('Reparación de daños');
-        if (asegurado) partes.push(`Asegurado: ${asegurado}`);
-        if (expediente) partes.push(`Expediente: ${expediente}`);
-        lineaDesc = partes.join(' — ');
+        if (sinDom && sinDom !== 'nan') {
+          const dirObra = [sinDom, sinLoc].filter(x => x && x !== 'nan').join(' — ');
+          partes.push(`Domicilio del siniestro: ${dirObra}`);
+        }
+        if (expediente && expediente !== 'nan') partes.push(`Expediente: ${expediente}`);
+        lineaDesc = partes.join(' · ');
       }
 
-      // Líneas: una por cada IVA con base
+      // Construir líneas a partir de los tramos de IVA
       const lineas = [];
-      if (base21) {
+      const tramos = [
+        { iva: 21, base: COL.bruto21 >= 0 ? _impParseNum(celdas[COL.bruto21]) : 0 },
+        { iva: 10, base: COL.bruto10 >= 0 ? _impParseNum(celdas[COL.bruto10]) : 0 },
+        { iva:  7, base: COL.bruto7  >= 0 ? _impParseNum(celdas[COL.bruto7])  : 0 },
+        { iva:  4, base: COL.bruto4  >= 0 ? _impParseNum(celdas[COL.bruto4])  : 0 },
+      ].filter(t => t.base !== 0);
+      if (tramos.length) {
+        for (const t of tramos) {
+          lineas.push({
+            desc: tramos.length > 1 ? `${lineaDesc} (IVA ${t.iva}%)` : lineaDesc,
+            cant: 1, precio: t.base, dto1: 0, dto2: 0, dto3: 0, iva: t.iva,
+          });
+        }
+      } else {
+        // Fallback: una línea con la base total e IVA del campo TIPO IVA o 21
+        const ivaFallback = (_impSICIFormato === 'completo' && COL.tipoIva >= 0)
+          ? (parseInt(celdas[COL.tipoIva]) || 21) : 21;
         lineas.push({
-          desc: lineaDesc,
-          cant: 1,
-          precio: base21,
-          dto1: 0, dto2: 0, dto3: 0,
-          iva: 21,
-        });
-      }
-      if (base10) {
-        lineas.push({
-          desc: lineaDesc + ' (IVA reducido)',
-          cant: 1,
-          precio: base10,
-          dto1: 0, dto2: 0, dto3: 0,
-          iva: 10,
-        });
-      }
-      if (!lineas.length) {
-        lineas.push({
-          desc: lineaDesc,
-          cant: 1,
-          precio: totalSinIva || totalFact,
-          dto1: 0, dto2: 0, dto3: 0,
-          iva: 21,
+          desc: lineaDesc, cant: 1, precio: baseImp || totalFact, dto1: 0, dto2: 0, dto3: 0, iva: ivaFallback,
         });
       }
 
-      // Forma de pago: si es JI usar Transferencia 15d (predeterminada). Resto sin forma.
+      // Forma de pago: JI → Transferencia 15d (predeterminada); Resto → null
       let fpId = null;
-      if (esJI) {
-        fpId = parseInt(EMPRESA?.config?.forma_pago_default_id) || null;
-      }
-      // Vencimiento: solo JI, fecha + 15 días
+      if (prefijo === 'JI') fpId = parseInt(EMPRESA?.config?.forma_pago_default_id) || null;
       let venc = null;
-      if (esJI && fecha && fpId) {
+      if (prefijo === 'JI' && fecha && fpId) {
         const fp = (formasPago || []).find(x => x.id === fpId);
         const dias = fp ? (fp.dias_vencimiento || 15) : 15;
         const d = new Date(fecha);
@@ -198,29 +307,38 @@ async function impSICIHandleFile(file) {
       }
 
       _impSICIFacturas.push({
+        _id_sici: idSici,
         _orig_idx: i,
         numero, prefijo, fecha, fecha_vencimiento: venc,
         cliente_id: clienteExist?.id || null,
-        cliente_nif: cif,
-        cliente_nombre: destinatario,
+        cliente_nif: nif,
+        cliente_nombre: nombre,
         cliente_nuevo: clienteNuevoFlag,
         forma_pago_id: fpId,
         estado,
+        fecha_cobro: fechaCobroReal,
         es_rectificativa: esRect,
-        rectifica_a_numero: rectificaA,
-        base_imponible: Math.round((base21 + base10) * 100) / 100 || Math.round(totalSinIva * 100) / 100,
-        total_iva: Math.round((iva21 + iva10) * 100) / 100,
+        rectifica_a_idsici: esRect && _impSICIFormato === 'completo' ? rectificaA : null,
+        rectifica_a_numero: esRect && _impSICIFormato === 'simple' ? rectificaA : null,
+        base_imponible: Math.round(baseImp * 100) / 100,
+        total_iva: Math.round(totalIva * 100) / 100,
         total: Math.round(totalFact * 100) / 100,
         lineas,
-        observaciones: obsSici || null,
+        observaciones: (obsSici && obsSici !== 'nan') ? obsSici : null,
       });
+    }
+
+    // Pasada 2: resolver rectificativas (id sici → numero)
+    for (const f of _impSICIFacturas) {
+      if (f.rectifica_a_idsici && idSiciANumero.has(f.rectifica_a_idsici)) {
+        f.rectifica_a_numero = idSiciANumero.get(f.rectifica_a_idsici);
+      }
     }
 
     if (!_impSICIFacturas.length) {
       toast('❌ No se pudo extraer ninguna factura', 'error');
       return;
     }
-
     impSICIMostrarPreview();
   } catch (e) {
     console.error('[ImportSICI]', e);
@@ -235,15 +353,18 @@ function impSICIMostrarPreview() {
   document.getElementById('impSICIBtnImportar').disabled = false;
   document.getElementById('impSICIBtnVolver').style.display = '';
 
-  // Resumen
   const total = _impSICIFacturas.length;
   const totalImp = _impSICIFacturas.reduce((s, f) => s + f.total, 0);
   const cobradas = _impSICIFacturas.filter(f => f.estado === 'cobrada').length;
   const pendientes = total - cobradas;
   const rects = _impSICIFacturas.filter(f => f.es_rectificativa).length;
   const cliNuevos = _impSICIClientesNuevos.size;
+  const fmtBadge = _impSICIFormato === 'completo'
+    ? '<span style="display:inline-block;font-size:10px;font-weight:700;background:#10B981;color:#fff;padding:2px 8px;border-radius:4px;margin-left:8px">FORMATO COMPLETO ✓</span>'
+    : '<span style="display:inline-block;font-size:10px;font-weight:700;background:#D97706;color:#fff;padding:2px 8px;border-radius:4px;margin-left:8px">FORMATO BÁSICO</span>';
 
   document.getElementById('impSICIResumen').innerHTML = `
+    <div style="font-size:12px;color:var(--gris-600);margin-bottom:10px">SICI ${fmtBadge}</div>
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
       <div><div style="font-size:22px;font-weight:800;color:var(--azul)">${total}</div><div style="font-size:11px;color:var(--gris-500)">Facturas</div></div>
       <div><div style="font-size:22px;font-weight:800;color:#10B981">${cobradas}</div><div style="font-size:11px;color:var(--gris-500)">Cobradas</div></div>
@@ -252,7 +373,7 @@ function impSICIMostrarPreview() {
       <div><div style="font-size:22px;font-weight:800;color:#059669">${totalImp.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} €</div><div style="font-size:11px;color:var(--gris-500)">Importe total</div></div>
     </div>
     <div style="margin-top:10px;text-align:center;font-size:12px;color:var(--gris-600)">
-      ${cliNuevos > 0 ? `🆕 Se crearán ${cliNuevos} clientes nuevos` : '✅ Todos los clientes ya existen en tu ERP'}
+      ${cliNuevos > 0 ? `🆕 Se crearán <strong>${cliNuevos}</strong> clientes nuevos${_impSICIFormato === 'completo' ? ' (con dirección, CP, localidad y provincia)' : ' (solo nombre y NIF)'}` : '✅ Todos los clientes ya existen en tu ERP'}
     </div>
   `;
   impSICIRenderTabla(_impSICIFacturas);
@@ -328,50 +449,48 @@ async function impSICIImportar() {
 
   // 1) Crear clientes nuevos
   setProg(5, 'Creando clientes nuevos...', `${_impSICIClientesNuevos.size} clientes`);
-  const cifAId = new Map(); // nif → id de cliente recién creado
+  const cifAId = new Map();
   const clientesACrear = Array.from(_impSICIClientesNuevos.values());
   for (let i = 0; i < clientesACrear.length; i++) {
     const c = clientesACrear[i];
-    const obj = {
-      empresa_id: EMPRESA.id,
-      nombre: c.nombre,
-      nif: c.nif,
-    };
-    const { data, error } = await sb.from('clientes').insert(obj).select().single();
-    if (error) {
-      errores.push(`Cliente ${c.nombre} (${c.nif}): ${error.message}`);
-    } else if (data) {
-      cifAId.set(String(c.nif).replace(/\s+/g,'').toUpperCase(), data.id);
+    const obj = { empresa_id: EMPRESA.id, nombre: c.nombre, nif: c.nif };
+    if (c.direccion) obj.direccion = c.direccion;
+    if (c.cp) obj.cp = c.cp;
+    if (c.municipio) obj.municipio = c.municipio;
+    if (c.provincia) obj.provincia = c.provincia;
+    let { data, error } = await sb.from('clientes').insert(obj).select().single();
+    // Fallback si alguna columna no existe
+    if (error && error.message && /column/i.test(error.message)) {
+      const min = { empresa_id: EMPRESA.id, nombre: c.nombre, nif: c.nif };
+      ({ data, error } = await sb.from('clientes').insert(min).select().single());
+    }
+    if (error) errores.push(`Cliente ${c.nombre} (${c.nif}): ${error.message}`);
+    else if (data) {
+      cifAId.set(_impNorm(c.nif), data.id);
       stats.clientesCreados++;
-      // Añadir al array global para que esté disponible en pantalla sin recargar
       if (typeof clientes !== 'undefined') clientes.push(data);
     }
-    setProg(5 + Math.round((i / clientesACrear.length) * 15), 'Creando clientes nuevos...', `${i+1}/${clientesACrear.length}`);
+    setProg(5 + Math.round((i / Math.max(clientesACrear.length,1)) * 15), 'Creando clientes nuevos...', `${i+1}/${clientesACrear.length}`);
   }
 
-  // 2) Detectar serie de facturas (la primera disponible o crear FAC-IMP)
+  // 2) Detectar serie de facturas
   let serieId = null;
   const serFact = (series || []).filter(s => s.tipo === 'factura' || s.tipo === 'fact');
   if (serFact.length) serieId = serFact[0].id;
 
-  // 3) Comprobar facturas existentes para evitar duplicados (por número)
+  // 3) Comprobar facturas existentes (no duplicar)
   setProg(22, 'Comprobando duplicados...', '');
   const { data: existentes } = await sb.from('facturas').select('numero').eq('empresa_id', EMPRESA.id);
   const numExistentes = new Set((existentes || []).map(x => x.numero));
 
-  // 4) Insertar facturas (lotes de 50 para no saturar)
+  // 4) Insertar facturas
   const totalFx = _impSICIFacturas.length;
   setProg(25, 'Importando facturas...', `0/${totalFx}`);
   for (let i = 0; i < totalFx; i++) {
     const f = _impSICIFacturas[i];
-    if (numExistentes.has(f.numero)) {
-      stats.omitidas++;
-      continue;
-    }
+    if (numExistentes.has(f.numero)) { stats.omitidas++; continue; }
     let cliId = f.cliente_id;
-    if (!cliId && f.cliente_nif) {
-      cliId = cifAId.get(String(f.cliente_nif).replace(/\s+/g,'').toUpperCase());
-    }
+    if (!cliId && f.cliente_nif) cliId = cifAId.get(_impNorm(f.cliente_nif));
     const obj = {
       empresa_id: EMPRESA.id,
       numero: f.numero,
@@ -389,29 +508,22 @@ async function impSICIImportar() {
       lineas: f.lineas,
     };
     let { error } = await sb.from('facturas').insert(obj);
-    // Fallback si falla por alguna columna no existente
     if (error && error.message && /column/i.test(error.message)) {
-      const objLight = {...obj};
-      delete objLight.cuenta_id;
-      ({ error } = await sb.from('facturas').insert(objLight));
+      const lite = {...obj}; delete lite.cuenta_id;
+      ({ error } = await sb.from('facturas').insert(lite));
     }
-    if (error) {
-      errores.push(`${f.numero}: ${error.message}`);
-      stats.facturasFallo++;
-    } else {
-      stats.facturasOk++;
-    }
+    if (error) { errores.push(`${f.numero}: ${error.message}`); stats.facturasFallo++; }
+    else stats.facturasOk++;
     if (i % 10 === 0) {
       const pct = 25 + Math.round(((i+1) / totalFx) * 70);
-      setProg(pct, 'Importando facturas...', `${i+1}/${totalFx} · ${stats.facturasOk} OK · ${stats.facturasFallo} fallos · ${stats.omitidas} omitidas (duplicado)`);
-      await new Promise(r => setTimeout(r, 0)); // ceder al render
+      setProg(pct, 'Importando facturas...', `${i+1}/${totalFx} · ${stats.facturasOk} OK · ${stats.facturasFallo} fallos · ${stats.omitidas} omitidas`);
+      await new Promise(r => setTimeout(r, 0));
     }
   }
 
   setProg(100, '¡Importación completa!', '');
   await new Promise(r => setTimeout(r, 400));
 
-  // 5) Mostrar resultado
   document.getElementById('impSICIPaso3').style.display = 'none';
   document.getElementById('impSICIPaso4').style.display = '';
   const okBg = stats.facturasFallo === 0 ? '#D1FAE5' : '#FEF3C7';
@@ -429,9 +541,7 @@ async function impSICIImportar() {
     ${errores.length ? `<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Ver detalle de errores (${errores.length})</summary><pre style="margin-top:8px;font-size:11px;background:rgba(0,0,0,0.05);padding:10px;border-radius:6px;max-height:200px;overflow:auto">${errores.slice(0,50).join('\n')}</pre></details>` : ''}
   `;
 
-  // 6) Refrescar listado de facturas en background
   if (typeof loadFacturas === 'function') loadFacturas();
   if (typeof cargarTodos === 'function') cargarTodos();
-
   toast(`✅ ${stats.facturasOk} facturas importadas`, 'success');
 }

@@ -103,16 +103,17 @@ async function cargarMapaBandejaCorreos() {
 }
 
 // Comprueba si ya existe alguna regla activa cuyo condicion_remitente
-// matchea con el remitente de este correo (mismo algoritmo que _correoCoincideRegla)
+// matchea con el remitente de este correo (mismo algoritmo que _correoCoincideRegla).
+// Soporta listas: condicion_remitente puede ser "a@x.com, b@x.com" → OR.
 function correoTieneReglaParaRemitente(correo) {
   if (!correo) return false;
   const rem = (correo.de || correo.remitente || '').toLowerCase();
   if (!rem) return false;
-  return (_automatizaciones || []).some(a =>
-    a.activa &&
-    a.condicion_remitente &&
-    rem.includes(a.condicion_remitente.trim().toLowerCase())
-  );
+  return (_automatizaciones || []).some(a => {
+    if (!a.activa || !a.condicion_remitente) return false;
+    const pats = (typeof _splitPatrones === 'function' ? _splitPatrones : (s => String(s||'').split(/[,;\n\r]+/).map(x=>x.trim().toLowerCase()).filter(Boolean)))(a.condicion_remitente);
+    return pats.some(p => rem.includes(p));
+  });
 }
 
 // Devuelve { estado, items, visual } para un correo con bandeja, o null
@@ -350,8 +351,9 @@ async function aplicarReglaDesdeCorreo() {
       const el = document.getElementById(id); if (el) el.value = '';
     });
     document.getElementById('auto_nombre').value = dominio ? dominio : 'Nueva regla';
-    if (usarRemitente) document.getElementById('auto_remitente').value = usarRemitente;
-    if (usarAsunto) document.getElementById('auto_asunto').value = usarAsunto;
+    // Listas dinámicas con valores prellenados si hay
+    _autoRenderListaCampo('auto_remitente_list', 'auto_remitente', usarRemitente ? [usarRemitente] : [], 'Ej: @torpinturas.com, juan@torpinturas.com');
+    _autoRenderListaCampo('auto_asunto_list', 'auto_asunto', usarAsunto ? [usarAsunto] : [], 'Ej: Factura OF, factura, presupuesto');
     if (usarAdjunto) document.getElementById('auto_adjunto').value = usarAdjunto;
     document.getElementById('auto_accion').value = tipoAccion;
     document.getElementById('auto_modo').value = 'manual';
@@ -382,6 +384,68 @@ function irAPanelAutomatizaciones() {
   }, 80);
 }
 
+// ─── Helpers para listas dinámicas de remitentes/asuntos ───
+function _autoRenderListaCampo(containerId, hiddenId, valores, placeholder) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  cont.innerHTML = '';
+  const arr = (valores && valores.length) ? valores : [''];
+  arr.forEach((val, idx) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center';
+    row.innerHTML = `
+      <input type="text" value="${(val || '').replace(/"/g,'&quot;')}" placeholder="${placeholder}" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none" oninput="autoSyncHidden('${containerId}','${hiddenId}')">
+      <button type="button" onclick="autoQuitarFila(this,'${containerId}','${hiddenId}')" title="Eliminar" style="background:transparent;border:none;cursor:pointer;color:var(--gris-400);font-size:16px;padding:4px 8px;border-radius:6px" onmouseover="this.style.background='#FEE2E2';this.style.color='#DC2626'" onmouseout="this.style.background='transparent';this.style.color='var(--gris-400)'">✕</button>
+    `;
+    cont.appendChild(row);
+  });
+  autoSyncHidden(containerId, hiddenId);
+}
+
+function autoSyncHidden(containerId, hiddenId) {
+  const inputs = document.querySelectorAll(`#${containerId} input[type="text"]`);
+  const vals = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  document.getElementById(hiddenId).value = vals.join(', ');
+}
+
+function autoQuitarFila(btn, containerId, hiddenId) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  const filas = cont.querySelectorAll('div');
+  if (filas.length <= 1) {
+    // No eliminar la última, solo vaciarla
+    const inp = btn.parentElement.querySelector('input[type="text"]');
+    if (inp) inp.value = '';
+  } else {
+    btn.parentElement.remove();
+  }
+  autoSyncHidden(containerId, hiddenId);
+}
+
+function autoRemAdd() {
+  const cont = document.getElementById('auto_remitente_list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center';
+  row.innerHTML = `
+    <input type="text" placeholder="Ej: @torpinturas.com, juan@torpinturas.com" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none" oninput="autoSyncHidden('auto_remitente_list','auto_remitente')">
+    <button type="button" onclick="autoQuitarFila(this,'auto_remitente_list','auto_remitente')" title="Eliminar" style="background:transparent;border:none;cursor:pointer;color:var(--gris-400);font-size:16px;padding:4px 8px;border-radius:6px" onmouseover="this.style.background='#FEE2E2';this.style.color='#DC2626'" onmouseout="this.style.background='transparent';this.style.color='var(--gris-400)'">✕</button>
+  `;
+  cont.appendChild(row);
+  row.querySelector('input').focus();
+}
+
+function autoAsuntoAdd() {
+  const cont = document.getElementById('auto_asunto_list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center';
+  row.innerHTML = `
+    <input type="text" placeholder="Ej: Factura OF, factura, presupuesto" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-200);border-radius:7px;font-size:13px;outline:none" oninput="autoSyncHidden('auto_asunto_list','auto_asunto')">
+    <button type="button" onclick="autoQuitarFila(this,'auto_asunto_list','auto_asunto')" title="Eliminar" style="background:transparent;border:none;cursor:pointer;color:var(--gris-400);font-size:16px;padding:4px 8px;border-radius:6px" onmouseover="this.style.background='#FEE2E2';this.style.color='#DC2626'" onmouseout="this.style.background='transparent';this.style.color='var(--gris-400)'">✕</button>
+  `;
+  cont.appendChild(row);
+  row.querySelector('input').focus();
+}
+
 function nuevaAutomatizacion() {
   _autoEditId = null;
   document.getElementById('mAutoTit').textContent = 'Nueva automatización';
@@ -389,6 +453,9 @@ function nuevaAutomatizacion() {
   ['auto_id','auto_nombre','auto_desc','auto_remitente','auto_asunto','auto_adjunto','auto_cuerpo'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  // Listas dinámicas: una fila vacía
+  _autoRenderListaCampo('auto_remitente_list', 'auto_remitente', [], 'Ej: @torpinturas.com, juan@torpinturas.com');
+  _autoRenderListaCampo('auto_asunto_list', 'auto_asunto', [], 'Ej: Factura OF, factura, presupuesto');
   document.getElementById('auto_accion').value = 'crear_factura_prov';
   document.getElementById('auto_modo').value = 'manual';
   openModal('mAutomatizacion');
@@ -402,6 +469,11 @@ function editarAutomatizacion(id) {
   document.getElementById('btnGuardarAuto').textContent = '💾 Guardar cambios';
   document.getElementById('auto_nombre').value = a.nombre || '';
   document.getElementById('auto_desc').value = a.descripcion || '';
+  // Listas dinámicas: dividir el campo guardado en patrones
+  const remitentes = (a.condicion_remitente || '').split(/[,;\n\r]+/).map(x => x.trim()).filter(Boolean);
+  const asuntos    = (a.condicion_asunto    || '').split(/[,;\n\r]+/).map(x => x.trim()).filter(Boolean);
+  _autoRenderListaCampo('auto_remitente_list', 'auto_remitente', remitentes, 'Ej: @torpinturas.com, juan@torpinturas.com');
+  _autoRenderListaCampo('auto_asunto_list', 'auto_asunto', asuntos, 'Ej: Factura OF, factura, presupuesto');
   document.getElementById('auto_remitente').value = a.condicion_remitente || '';
   document.getElementById('auto_asunto').value = a.condicion_asunto || '';
   document.getElementById('auto_adjunto').value = a.condicion_adjunto || '';
@@ -414,6 +486,12 @@ function editarAutomatizacion(id) {
 async function guardarAutomatizacion() {
   const nombre = v('auto_nombre');
   if (!nombre) { toast('Introduce un nombre para la regla', 'error'); return; }
+
+  // Sincronizar listas dinámicas → hidden inputs antes de leer
+  if (typeof autoSyncHidden === 'function') {
+    autoSyncHidden('auto_remitente_list', 'auto_remitente');
+    autoSyncHidden('auto_asunto_list', 'auto_asunto');
+  }
 
   const obj = {
     empresa_id: EMPRESA.id,
@@ -849,26 +927,34 @@ async function evaluarAutomatizaciones(correosNuevos) {
   }
 }
 
+// Helper: divide un string en patrones (separados por coma o salto de línea), filtra vacíos.
+function _splitPatrones(s) {
+  if (!s) return [];
+  return String(s).split(/[,;\n\r]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+
 function _correoCoincideRegla(correo, regla) {
-  // Cada condición se evalúa con AND (las vacías se ignoran)
-  // Cada regla es específica: un remitente, un patrón de asunto, etc.
+  // Cada condición se evalúa con AND (las vacías se ignoran).
+  // Dentro de una misma condición, los patrones (separados por coma/salto de línea) se evalúan con OR.
   if (regla.condicion_remitente) {
     const rem = (correo.de || correo.remitente || '').toLowerCase();
-    if (!rem.includes(regla.condicion_remitente.trim().toLowerCase())) return false;
+    const pats = _splitPatrones(regla.condicion_remitente);
+    if (pats.length && !pats.some(p => rem.includes(p))) return false;
   }
   if (regla.condicion_asunto) {
     const asunto = (correo.asunto || '').toLowerCase();
-    if (!asunto.includes(regla.condicion_asunto.trim().toLowerCase())) return false;
+    const pats = _splitPatrones(regla.condicion_asunto);
+    if (pats.length && !pats.some(p => asunto.includes(p))) return false;
   }
   if (regla.condicion_adjunto) {
     const adjuntos = correo.adjuntos_meta || [];
-    const patron = regla.condicion_adjunto.trim().toLowerCase();
-    const tieneAdj = adjuntos.some(a => (a.nombre || '').toLowerCase().includes(patron));
-    if (!tieneAdj) return false;
+    const pats = _splitPatrones(regla.condicion_adjunto);
+    if (pats.length && !pats.some(p => adjuntos.some(a => (a.nombre || '').toLowerCase().includes(p)))) return false;
   }
   if (regla.condicion_cuerpo) {
     const cuerpo = (correo.texto_plano || correo.cuerpo || '').toLowerCase();
-    if (!cuerpo.includes(regla.condicion_cuerpo.trim().toLowerCase())) return false;
+    const pats = _splitPatrones(regla.condicion_cuerpo);
+    if (pats.length && !pats.some(p => cuerpo.includes(p))) return false;
   }
   return true;
 }
