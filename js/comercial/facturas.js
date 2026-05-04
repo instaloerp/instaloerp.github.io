@@ -2267,24 +2267,46 @@ function _cfgFactura(f) {
     total_iva: f.total_iva,
     total: f.total,
     observaciones: f.observaciones,
-    datos_extra: [
-      f.fecha_vencimiento ? ['Vencimiento', new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')] : null,
-      f.forma_pago ? ['Forma de pago', f.forma_pago] : null
-    ].filter(Boolean),
-    condiciones: [
-      ['Forma de pago', f.forma_pago || 'Transferencia bancaria.'],
-      ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
-      ['IVA', 'IVA al 21 % incluido en el total final.']
-    ],
+    datos_extra: (() => {
+      const _fps = (typeof formasPago !== 'undefined' && Array.isArray(formasPago)) ? formasPago : [];
+      const _fp  = parseInt(f.forma_pago_id) ? _fps.find(x => x.id === parseInt(f.forma_pago_id)) : null;
+      const _fpName = _fp?.nombre || f.forma_pago || '';
+      return [
+        f.fecha_vencimiento ? ['Vencimiento', new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')] : null,
+        _fpName ? ['Forma de pago', _fpName] : null
+      ].filter(Boolean);
+    })(),
+    condiciones: (() => {
+      const _fps = (typeof formasPago !== 'undefined' && Array.isArray(formasPago)) ? formasPago : [];
+      const _fp  = parseInt(f.forma_pago_id) ? _fps.find(x => x.id === parseInt(f.forma_pago_id)) : null;
+      const _fpName = _fp?.nombre || f.forma_pago || 'Sin especificar';
+      return [
+        ['Forma de pago', _fpName],
+        ['Vencimiento', f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES') : 'Al contado.'],
+        ['IVA', 'IVA al 21 % incluido en el total final.']
+      ];
+    })(),
     firma_zona: false,
     verifactu_qr_url: f.verifactu_qr_url || null,
     verifactu_csv: f.verifactu_csv || null,
     verifactu_estado: f.verifactu_estado || null,
-    // Bloque "DATOS PARA EL PAGO" (al pie del documento) — leer de tabla cuentas_bancarias
+    // Bloque "DATOS PARA EL PAGO" (al pie del documento)
+    // Solo se incluye si la forma de pago de la factura es por TRANSFERENCIA (detección por nombre).
+    // Para otras formas (efectivo, domiciliación, etc.) no tiene sentido mostrar el IBAN.
     datos_pago: (() => {
+      const fps = (typeof formasPago !== 'undefined' && Array.isArray(formasPago)) ? formasPago : [];
+      // Resolver forma de pago efectiva: la de la factura → la predeterminada del sistema
+      const fpDefId = parseInt(EMPRESA?.config?.forma_pago_default_id) || null;
+      const fpId = parseInt(f.forma_pago_id) || fpDefId;
+      const fp = fpId ? fps.find(x => x.id === fpId) : null;
+      const nombreFp = (fp?.nombre || '').toLowerCase();
+      // Solo seguir si la forma de pago es transferencia (cubre 'Transferencia', 'Transferencia 15 días', etc.)
+      const esTransferencia = /transfer/i.test(nombreFp);
+      if (!esTransferencia) return null;
+
+      // Cargar cuenta bancaria
       const cuentas = (typeof cuentasBancarias !== 'undefined' && Array.isArray(cuentasBancarias)) ? cuentasBancarias : (window.cuentasBancarias || []);
       const cfgEmp = (typeof EMPRESA !== 'undefined' && EMPRESA?.config) || {};
-      // Resolver cuenta: la guardada en la factura → la predeterminada → la primera → fallback legacy
       let cuenta = null;
       if (cuentas.length) {
         const cId = parseInt(f.cuenta_id);
