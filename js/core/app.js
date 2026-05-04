@@ -1140,7 +1140,7 @@ function showRealtimeNotif(ico, titulo, msg, color, parteId) {
 
 async function cargarTodos() {
   const eid = EMPRESA.id;
-  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe] = await Promise.all([
+  const [c,pv,art,alm,tr,iva,ud,fp,fam,ser,emp,fac,alb,usr,pres,cbe,cb] = await Promise.all([
     sb.from('clientes').select('*').eq('empresa_id',eid).order('nombre').limit(1000),
     sb.from('proveedores').select('*').eq('empresa_id',eid).order('nombre').limit(500),
     sb.from('articulos').select('*').eq('empresa_id',eid).order('codigo').limit(2000),
@@ -1157,9 +1157,13 @@ async function cargarTodos() {
     sb.from('perfiles').select('*').eq('empresa_id',eid).order('nombre'),
     sb.from('presupuestos').select('*').eq('empresa_id',eid).neq('estado','eliminado').order('created_at',{ascending:false}).limit(500),
     sb.from('cuentas_bancarias_entidad').select('*').eq('empresa_id',eid).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias_entidad:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
+    sb.from('cuentas_bancarias').select('*').eq('empresa_id',eid).eq('activa',true).order('predeterminada',{ascending:false}).then(r=>{if(r.error){console.warn('⚠️ cuentas_bancarias:',r.error.message);return{data:[]};}return r;}).catch(()=>({data:[]})),
   ]);
   clientes=c.data||[]; proveedores=pv.data||[]; articulos=art.data||[];
   cuentasBancariasEntidad = (cbe&&cbe.data) ? cbe.data : [];
+  // Cuentas bancarias de la empresa (variable global compartida con tesoreria/calendario_pagos)
+  window.cuentasBancarias = (cb&&cb.data) ? cb.data : [];
+  if (typeof cuentasBancarias !== 'undefined') cuentasBancarias = window.cuentasBancarias;
   almacenes=alm.data||[]; trabajos=tr.data||[];
   tiposIva=iva.data||[]; unidades=ud.data||[]; formasPago=fp.data||[];
   familias=fam.data||[]; series=ser.data||[]; empresas=emp.data||[];

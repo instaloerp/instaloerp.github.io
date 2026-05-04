@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 22</span>
+      <span id="erpBuildVersion">v1.0 · build 24</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -5069,7 +5069,7 @@ try {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px">
         <div><span style="font-size:11px;color:var(--gris-400)">Fecha</span><div id="facDetFecha" style="font-weight:600">—</div></div>
         <div><span style="font-size:11px;color:var(--gris-400)">Vencimiento</span><div id="facDetVence" style="font-weight:600">—</div></div>
-        <div><span style="font-size:11px;color:var(--gris-400)">Forma de pago</span><div id="facDetFpago" style="font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--gris-400)">Forma de pago</span><div style="margin-top:2px"><select id="facDetFpagoSel" onchange="actualizarFpagoFactura(this.value)" style="font-weight:600;padding:4px 6px;border:1.5px solid var(--gris-200);border-radius:6px;font-size:13px;outline:none;background:#fff;width:100%"></select></div></div>
         <div><span style="font-size:11px;color:var(--gris-400)">Estado</span><div id="facDetEstado">—</div></div>
       </div>
       <!-- FACe status (visible solo si aplica) -->

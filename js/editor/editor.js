@@ -101,16 +101,16 @@ async function abrirEditor(tipo, editId) {
     if (_fpDef && !editId) document.getElementById('de_fpago').value = _fpDef;
   }
 
-  // Cuenta de cobro (solo facturas)
+  // Cuenta de cobro (solo facturas) — tabla cuentas_bancarias
   if (tipo === 'factura' && cuentaSel) {
-    const cuentas = (typeof EMPRESA !== 'undefined' && EMPRESA?.config?.cuentas_bancarias) || [];
+    const cuentas = (typeof cuentasBancarias !== 'undefined' && Array.isArray(cuentasBancarias)) ? cuentasBancarias : (window.cuentasBancarias || []);
     if (cuentas.length) {
       cuentaSel.innerHTML = cuentas.map(c => {
         const ibanCorto = (c.iban || '').replace(/\s+/g,'').slice(-4);
-        const lbl = `${c.banco || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.defecto?' ⭐':''}`;
+        const lbl = `${c.nombre || c.entidad || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.predeterminada?' ⭐':''}`;
         return `<option value="${c.id}">${lbl}</option>`;
       }).join('');
-      const def = cuentas.find(c => c.defecto) || cuentas[0];
+      const def = cuentas.find(c => c.predeterminada) || cuentas[0];
       if (def) cuentaSel.value = def.id;
     } else {
       cuentaSel.innerHTML = '<option value="">— Sin cuentas configuradas —</option>';
@@ -1428,7 +1428,7 @@ function de_buildDatos() {
   if (cfg.conFpago) datos.forma_pago_id = parseInt(document.getElementById('de_fpago').value)||null;
   // Cuenta de cobro (solo facturas)
   if (cfg.tipo === 'factura') {
-    const _cv = document.getElementById('de_cuenta')?.value;
+    const _cv = parseInt(document.getElementById('de_cuenta')?.value) || null;
     if (_cv) datos.cuenta_id = _cv;
   }
   // VeriFactu: guardar clave_regimen y calificacion_operacion solo para facturas con VeriFactu activo

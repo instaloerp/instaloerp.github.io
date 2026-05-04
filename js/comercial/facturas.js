@@ -514,11 +514,18 @@ async function verDetalleFactura(id) {
   const tipoVFBadge = f.tipo_rectificativa ? `<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;color:#1e40af;background:#DBEAFE;margin-left:6px" title="${tipoVFLabels[f.tipo_rectificativa]||f.tipo_rectificativa}">${f.tipo_rectificativa}</span>` : '';
   document.getElementById('facDetEstado').innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;color:white;background:${COLORES[f.estado] || 'var(--gris-400)'}">${ESTADOS[f.estado] || f.estado || '—'}</span>${tipoVFBadge}`;
 
-  // Forma de pago
-  const fpEl = document.getElementById('facDetFpago');
-  if (fpEl) {
-    const fp = (typeof formasPago !== 'undefined' ? formasPago : []).find(x => x.id === f.forma_pago_id);
-    fpEl.textContent = fp ? fp.nombre : '—';
+  // Forma de pago — selector editable inline
+  const fpSel = document.getElementById('facDetFpagoSel');
+  if (fpSel) {
+    const _fps = (typeof formasPago !== 'undefined' ? formasPago : []) || [];
+    fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
+      _fps.map(fp => `<option value="${fp.id}">${fp.nombre}${fp.dias_vencimiento?` (${fp.dias_vencimiento}d)`:''}</option>`).join('');
+    fpSel.value = f.forma_pago_id || '';
+    // Bloquear edición si la factura está anulada/rectificada/cobrada
+    const _bloq = ['anulada','rectificada','cobrada','pagada'].includes(f.estado);
+    fpSel.disabled = _bloq;
+    fpSel.style.opacity = _bloq ? '.6' : '1';
+    fpSel.style.cursor = _bloq ? 'not-allowed' : '';
   }
 
   // ── FACe status ──
@@ -751,6 +758,40 @@ async function verDetalleFactura(id) {
   }
 
   openModal('mFacturaDetalle', true);
+}
+
+// Actualizar forma de pago de la factura desde el modal de detalle (recalcula vencimiento)
+async function actualizarFpagoFactura(value) {
+  const id = parseInt(document.getElementById('facDetId').value);
+  if (!id) return;
+  const f = facLocalData.find(x => x.id === id);
+  if (!f) return;
+  const fpId = parseInt(value) || null;
+  const fp = (formasPago || []).find(x => x.id === fpId);
+  // Recalcular fecha_vencimiento desde la fecha de la factura + días de la nueva forma
+  let nuevaVence = f.fecha_vencimiento;
+  if (f.fecha) {
+    const dias = fp ? (fp.dias_vencimiento || 0) : 30;
+    const d = new Date(f.fecha);
+    d.setDate(d.getDate() + dias);
+    nuevaVence = d.toISOString().split('T')[0];
+  }
+  const upd = { forma_pago_id: fpId, fecha_vencimiento: nuevaVence };
+  const { error } = await sb.from('facturas').update(upd).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  // Refrescar datos locales y la UI del modal
+  Object.assign(f, upd);
+  const venceEl = document.getElementById('facDetVence');
+  if (venceEl && nuevaVence) venceEl.textContent = new Date(nuevaVence).toLocaleDateString('es-ES');
+  // Si la factura estaba 'vencida' y la nueva fecha cae en el futuro, devolverla a 'pendiente'
+  const hoy = new Date().toISOString().split('T')[0];
+  if (f.estado === 'vencida' && nuevaVence && nuevaVence >= hoy) {
+    await sb.from('facturas').update({ estado: 'pendiente' }).eq('id', id);
+    f.estado = 'pendiente';
+  }
+  // Refrescar listado en background
+  if (typeof loadFacturas === 'function') loadFacturas();
+  toast('Forma de pago actualizada ✓', 'success');
 }
 
 // Compartir factura por WhatsApp/SMS/enlace (modal genérico)
@@ -1245,17 +1286,17 @@ async function nuevaFacturaRapida() {
   // Recalcular fecha de vencimiento desde la forma de pago aplicada
   _frActualizarVencimiento();
 
-  // Cuentas bancarias para cobro
-  const cuentas = (typeof EMPRESA !== 'undefined' && EMPRESA?.config?.cuentas_bancarias) || [];
+  // Cuentas bancarias para cobro (tabla cuentas_bancarias)
+  const cuentas = (typeof cuentasBancarias !== 'undefined' && Array.isArray(cuentasBancarias)) ? cuentasBancarias : (window.cuentasBancarias || []);
   const cSel = document.getElementById('fr_cuenta');
   if (cSel) {
     if (cuentas.length) {
       cSel.innerHTML = cuentas.map(c => {
         const ibanCorto = (c.iban || '').replace(/\s+/g,'').slice(-4);
-        const lbl = `${c.banco || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.defecto?' ⭐':''}`;
+        const lbl = `${c.nombre || c.entidad || 'Cuenta'}${ibanCorto?' ····'+ibanCorto:''}${c.predeterminada?' ⭐':''}`;
         return `<option value="${c.id}">${lbl}</option>`;
       }).join('');
-      const def = cuentas.find(c => c.defecto) || cuentas[0];
+      const def = cuentas.find(c => c.predeterminada) || cuentas[0];
       if (def) cSel.value = def.id;
     } else {
       cSel.innerHTML = '<option value="">— Sin cuentas configuradas —</option>';
@@ -1489,7 +1530,7 @@ async function guardarFacturaRapida(estado) {
       fecha: document.getElementById('fr_fecha').value,
       fecha_vencimiento: document.getElementById('fr_vence').value || null,
       forma_pago_id: parseInt(document.getElementById('fr_fpago').value) || null,
-      cuenta_id: document.getElementById('fr_cuenta')?.value || null,
+      cuenta_id: parseInt(document.getElementById('fr_cuenta')?.value) || null,
       base_imponible: Math.round(base*100)/100,
       total_iva: Math.round(ivaTotal*100)/100,
       total: Math.round((base+ivaTotal)*100)/100,
@@ -2239,26 +2280,26 @@ function _cfgFactura(f) {
     verifactu_qr_url: f.verifactu_qr_url || null,
     verifactu_csv: f.verifactu_csv || null,
     verifactu_estado: f.verifactu_estado || null,
-    // Bloque "DATOS PARA EL PAGO" (al pie del documento) si la empresa tiene cuenta(s) configurada(s)
+    // Bloque "DATOS PARA EL PAGO" (al pie del documento) — leer de tabla cuentas_bancarias
     datos_pago: (() => {
+      const cuentas = (typeof cuentasBancarias !== 'undefined' && Array.isArray(cuentasBancarias)) ? cuentasBancarias : (window.cuentasBancarias || []);
       const cfgEmp = (typeof EMPRESA !== 'undefined' && EMPRESA?.config) || {};
-      const cuentas = Array.isArray(cfgEmp.cuentas_bancarias) ? cfgEmp.cuentas_bancarias : [];
-      // Resolver cuenta seleccionada → la marcada en la factura → la default → la primera → fallback legacy single
+      // Resolver cuenta: la guardada en la factura → la predeterminada → la primera → fallback legacy
       let cuenta = null;
       if (cuentas.length) {
-        cuenta = (f.cuenta_id && cuentas.find(c => c.id === f.cuenta_id))
-              || cuentas.find(c => c.defecto)
+        const cId = parseInt(f.cuenta_id);
+        cuenta = (cId && cuentas.find(c => c.id === cId))
+              || cuentas.find(c => c.predeterminada)
               || cuentas[0];
       } else if (cfgEmp.iban) {
-        // Compatibilidad: configuración antigua de un único IBAN
-        cuenta = { banco: cfgEmp.banco_entidad || '', iban: cfgEmp.iban, titular: cfgEmp.titular_cuenta || '' };
+        cuenta = { entidad: cfgEmp.banco_entidad || '', iban: cfgEmp.iban, titular: cfgEmp.titular_cuenta || '' };
       }
       if (!cuenta || !cuenta.iban) return null;
       const ibanFmt = (cuenta.iban || '').replace(/\s+/g,'').replace(/(.{4})/g, '$1 ').trim();
       const exp = f.expediente_numero || f.referencia || '';
       const concepto = `Factura ${f.numero || ''}${exp ? ' — Expte. '+exp : ''}`.trim();
       return {
-        entidad:  cuenta.banco || '',
+        entidad:  cuenta.entidad || cuenta.nombre || '',
         iban:     ibanFmt,
         titular:  cuenta.titular || EMPRESA?.razon_social || EMPRESA?.nombre || '',
         concepto: concepto,
