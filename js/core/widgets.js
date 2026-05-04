@@ -27,6 +27,36 @@ function _wgInicioAno() {
   return new Date(h.getFullYear(), 0, 1).toISOString().split('T')[0];
 }
 
+// ─── Periodo del widget Resumen Fiscal (persistido en localStorage) ───
+function _wgFiscalGetPeriodo() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('wg_fiscal_periodo') || 'null');
+    if (saved && Number.isInteger(saved.year) && Number.isInteger(saved.tri)) return saved;
+  } catch(e) {}
+  const hoy = new Date();
+  return { year: hoy.getFullYear(), tri: Math.floor(hoy.getMonth() / 3) };
+}
+
+async function _wgFiscalSetPeriodo(year, tri) {
+  const p = { year: parseInt(year), tri: parseInt(tri) };
+  if (isNaN(p.year) || isNaN(p.tri)) return;
+  localStorage.setItem('wg_fiscal_periodo', JSON.stringify(p));
+  // Recargar solo el widget panel_fiscal
+  const wrapper = document.querySelector('[data-wid="panel_fiscal"] .wg-body');
+  if (!wrapper) return;
+  wrapper.innerHTML = '<div style="text-align:center;padding:12px;color:var(--gris-400);font-size:11px">Cargando…</div>';
+  try {
+    const def = (typeof _wgMap !== 'undefined') ? _wgMap['panel_fiscal'] : null;
+    if (!def) return;
+    const data = await def.fetch(EMPRESA?.id);
+    wrapper.innerHTML = '';
+    def.render(data, wrapper);
+  } catch (e) {
+    console.error('[panel_fiscal reload]', e);
+    wrapper.innerHTML = '<div style="padding:12px;color:#DC2626;font-size:11px">Error al recargar</div>';
+  }
+}
+
 /**
  * Genera array de rangos para los últimos N meses (inclusivo del actual).
  * Retorna [{label:'Ene', desde:'2026-01-01', hasta:'2026-02-01'}, ...]
@@ -1133,12 +1163,15 @@ const WIDGET_CATALOG = [
     id: 'panel_fiscal', label: 'Resumen fiscal', ico: '🧮',
     cat: 'panel', size: 'md',
     async fetch(eid) {
-      const hoy = new Date();
-      const trimestre = Math.floor(hoy.getMonth() / 3); // 0,1,2,3
-      const trimestreLabel = `${trimestre + 1}T ${hoy.getFullYear()}`;
-      const trDesde = new Date(hoy.getFullYear(), trimestre * 3, 1).toISOString().split('T')[0];
-      const trHasta = new Date(hoy.getFullYear(), (trimestre + 1) * 3, 1).toISOString().split('T')[0];
-      const anoDesde = _wgInicioAno();
+      // Periodo seleccionado por el usuario (persistido en localStorage)
+      const periodo = _wgFiscalGetPeriodo();
+      const year = periodo.year;
+      const trimestre = periodo.tri;
+      const trimestreLabel = `${trimestre + 1}T ${year}`;
+      const trDesde = new Date(year, trimestre * 3, 1).toISOString().split('T')[0];
+      const trHasta = new Date(year, (trimestre + 1) * 3, 1).toISOString().split('T')[0];
+      const anoDesde = `${year}-01-01`;
+      const anoHasta = `${year + 1}-01-01`;
 
       const [rV, rC] = await Promise.all([
         sb.from('facturas').select('fecha,base_imponible,total_iva,total,estado')
@@ -1158,9 +1191,9 @@ const WIDGET_CATALOG = [
       const basesVentaTr = ventasTr.reduce((s, f) => s + (f.base_imponible || 0), 0);
       const basesCompraTr = comprasTr.reduce((s, f) => s + (f.base_imponible || 0), 0);
 
-      // IVA año
-      const ventasAno = ventas.filter(f => f.fecha >= anoDesde);
-      const comprasAno = compras.filter(f => f.fecha >= anoDesde);
+      // IVA año (del año seleccionado)
+      const ventasAno = ventas.filter(f => f.fecha >= anoDesde && f.fecha < anoHasta);
+      const comprasAno = compras.filter(f => f.fecha >= anoDesde && f.fecha < anoHasta);
       const ivaRepAno = ventasAno.reduce((s, f) => s + (f.total_iva || 0), 0);
       const ivaSopAno = comprasAno.reduce((s, f) => s + (f.total_iva || 0), 0);
       const liquidacionAno = ivaRepAno - ivaSopAno;
@@ -1173,9 +1206,18 @@ const WIDGET_CATALOG = [
       const nFactVenta = ventasTr.length;
       const nFactCompra = comprasTr.length;
 
+      // Años disponibles para el selector (de las facturas que hay en BD)
+      const aniosSet = new Set();
+      ventas.forEach(f => { if (f.fecha) aniosSet.add(parseInt(f.fecha.slice(0,4))); });
+      compras.forEach(f => { if (f.fecha) aniosSet.add(parseInt(f.fecha.slice(0,4))); });
+      const hoyYear = new Date().getFullYear();
+      aniosSet.add(hoyYear);
+      const aniosDisp = Array.from(aniosSet).filter(y => y >= 2020 && y <= 2100).sort((a,b) => b - a);
+
       return { trimestreLabel, ivaRepTr, ivaSopTr, liquidacionTr, basesVentaTr, basesCompraTr,
                nFactVenta, nFactCompra,
-               ivaRepAno, ivaSopAno, liquidacionAno, resultadoAno };
+               ivaRepAno, ivaSopAno, liquidacionAno, resultadoAno,
+               year, trimestre, aniosDisp };
     },
     render(data, el) {
       const liqColor = data.liquidacionTr >= 0 ? '#EF4444' : '#10B981'; // positivo = a pagar, negativo = a devolver
@@ -1183,10 +1225,24 @@ const WIDGET_CATALOG = [
       const liqAnoColor = data.liquidacionAno >= 0 ? '#EF4444' : '#10B981';
       const resAnoColor = data.resultadoAno >= 0 ? '#10B981' : '#EF4444';
 
+      // Botones de trimestre
+      const tris = [0,1,2,3];
+      const trisHtml = tris.map(t => {
+        const sel = t === data.trimestre;
+        return `<button onclick="_wgFiscalSetPeriodo(${data.year}, ${t})" style="font-size:11px;font-weight:700;padding:4px 10px;border:1.5px solid ${sel?'#3B82F6':'var(--gris-200)'};border-radius:6px;background:${sel?'#3B82F6':'#fff'};color:${sel?'#fff':'var(--gris-600)'};cursor:pointer">T${t+1}</button>`;
+      }).join('');
+      const aniosHtml = (data.aniosDisp || [data.year]).map(y =>
+        `<option value="${y}" ${y===data.year?'selected':''}>${y}</option>`
+      ).join('');
+
       el.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:12px">
-          <!-- Trimestre actual -->
-          <div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.05em">📅 ${data.trimestreLabel}</div>
+          <!-- Selector de periodo -->
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:10px;font-weight:700;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.05em;margin-right:auto">📅 ${data.trimestreLabel}</div>
+            <select onchange="_wgFiscalSetPeriodo(this.value, ${data.trimestre})" style="font-size:11px;padding:3px 6px;border:1.5px solid var(--gris-200);border-radius:6px;outline:none;background:#fff;font-weight:600">${aniosHtml}</select>
+            <div style="display:flex;gap:4px">${trisHtml}</div>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="wg-card-accent" style="--card-accent:#3B82F6">
               <div class="wg-card-title">IVA Repercutido</div>

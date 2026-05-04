@@ -270,6 +270,7 @@ function renderFacturas(list) {
   const kVenc     = document.getElementById('fk-vencidas');
   const kCobr     = document.getElementById('fk-cobradas');
   const kAnul     = document.getElementById('fk-anuladas');
+  const kImpTotal = document.getElementById('fk-imp-total');
   const kImpPend  = document.getElementById('fk-imp-pend');
   const kImpCobr  = document.getElementById('fk-imp-cobr');
   if (kTotal)   kTotal.textContent   = _kpiBase.length;
@@ -279,8 +280,11 @@ function renderFacturas(list) {
   if (kCobr)    kCobr.textContent    = cobradas.length;
   if (kAnul)    kAnul.textContent    = anuladas.length;
   // Importes SIN IVA (base_imponible) e INCLUYENDO rectificativas (restan)
-  if (kImpPend) kImpPend.textContent = fmtE(pends.concat(vencidas, rectsPend).reduce((s, f) => s + (f.base_imponible || 0), 0));
-  if (kImpCobr) kImpCobr.textContent = fmtE(cobradas.concat(rectsCobr).reduce((s, f) => s + (f.base_imponible || 0), 0));
+  // Total facturado = pendientes + vencidas + cobradas (sin anuladas/rectificadas) + rectificativas (restan)
+  const totalFacturado = pends.concat(vencidas, cobradas, rectsPend, rectsCobr).reduce((s, f) => s + (f.base_imponible || 0), 0);
+  if (kImpTotal) kImpTotal.textContent = fmtE(totalFacturado);
+  if (kImpPend)  kImpPend.textContent  = fmtE(pends.concat(vencidas, rectsPend).reduce((s, f) => s + (f.base_imponible || 0), 0));
+  if (kImpCobr)  kImpCobr.textContent  = fmtE(cobradas.concat(rectsCobr).reduce((s, f) => s + (f.base_imponible || 0), 0));
 
   // Resaltar KPI activo
   const estActivo = document.getElementById('fEstado')?.value || '_todas';
@@ -1319,7 +1323,9 @@ async function emitirFacturaDefinitiva(id, opts = {}) {
   try {
     // Paso 1: Generar número
     _updateStep(0, 'Consultando serie de facturación...');
-    const numero = await generarNumeroDoc('factura');
+    // Usar la serie del borrador si la tenía, o la del primer select de serie disponible
+    const _serieParaEsta = f.serie_id || parseInt(document.getElementById('fr_serie')?.value) || null;
+    const numero = await generarNumeroDoc('factura', _serieParaEsta);
     const hoy = new Date().toISOString().split('T')[0];
 
     // Paso 2: Guardar
@@ -1409,7 +1415,7 @@ async function nuevaFacturaRapida() {
   } else {
     serSel.innerHTML = '<option value="">FAC-</option>';
   }
-  document.getElementById('fr_numero').value = await generarNumeroDoc('factura');
+  document.getElementById('fr_numero').value = await generarNumeroDoc('factura', parseInt(serSel.value) || null);
 
   const fpSel = document.getElementById('fr_fpago');
   fpSel.innerHTML = '<option value="">— Sin especificar —</option>' +
@@ -1451,6 +1457,13 @@ async function nuevaFacturaRapida() {
 
   fr_addLinea();
   openModal('mFacturaRapida', true);
+}
+
+// Regenerar número cuando cambia la serie en el modal de factura rápida
+async function fr_regenerarNumero() {
+  const serieSel = document.getElementById('fr_serie');
+  const sId = parseInt(serieSel?.value) || null;
+  document.getElementById('fr_numero').value = await generarNumeroDoc('factura', sId);
 }
 
 // ═══════════════════════════════════════════════

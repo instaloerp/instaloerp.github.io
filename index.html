@@ -290,7 +290,7 @@ try {
       <span id="btnConfig"></span>
       <span id="sbNombre">...</span>
       <span id="sbRol">...</span>
-      <span id="erpBuildVersion">v1.0 · build 37</span>
+      <span id="erpBuildVersion">v1.0 · build 39</span>
       <!-- favoritos removed -->
       <button id="btnFavEdit"></button>
       <div id="sbNav"></div>
@@ -986,13 +986,14 @@ try {
           </div>
         </div>
         <!-- KPIs — fila única, valores fijos (no cambian al filtrar) -->
-        <div id="fk-row" style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:14px">
+        <div id="fk-row" style="display:grid;grid-template-columns:repeat(9,1fr);gap:8px;margin-bottom:14px">
           <div class="sc fk-click" data-fk="_todas" onclick="filtrarFacturasPorKpi('_todas')" style="--c:var(--azul);--bg:var(--azul-light);cursor:pointer;padding:10px 6px"><div class="si">🧾</div><div class="sv" id="fk-total">—</div><div class="sl">Todas</div></div>
           <div class="sc fk-click" data-fk="borrador" onclick="filtrarFacturasPorKpi('borrador')" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer;padding:10px 6px"><div class="si">✏️</div><div class="sv" id="fk-borradores">—</div><div class="sl">Borradores</div></div>
           <div class="sc fk-click" data-fk="pendiente" onclick="filtrarFacturasPorKpi('pendiente')" style="--c:var(--amarillo);--bg:var(--amarillo-light);cursor:pointer;padding:10px 6px"><div class="si">⏳</div><div class="sv" id="fk-pendientes">—</div><div class="sl">Pendientes</div></div>
           <div class="sc fk-click" data-fk="vencida" onclick="filtrarFacturasPorKpi('vencida')" style="--c:var(--rojo);--bg:var(--rojo-light);cursor:pointer;padding:10px 6px"><div class="si">⚠️</div><div class="sv" id="fk-vencidas">—</div><div class="sl">Vencidas</div></div>
           <div class="sc fk-click" data-fk="cobrada" onclick="filtrarFacturasPorKpi('cobrada')" style="--c:var(--verde);--bg:var(--verde-light);cursor:pointer;padding:10px 6px"><div class="si">✅</div><div class="sv" id="fk-cobradas">—</div><div class="sl">Cobradas</div></div>
           <div class="sc fk-click" data-fk="anulada" onclick="filtrarFacturasPorKpi('anulada')" style="--c:var(--gris-500);--bg:var(--gris-100);cursor:pointer;padding:10px 6px"><div class="si">🚫</div><div class="sv" id="fk-anuladas">—</div><div class="sl">Anuladas</div></div>
+          <div class="sc" style="--c:#3B82F6;--bg:#DBEAFE;padding:10px 6px"><div class="si">📊</div><div class="sv" id="fk-imp-total" style="font-size:15px">—</div><div class="sl">Total facturado</div></div>
           <div class="sc" style="--c:var(--amarillo);--bg:var(--amarillo-light);padding:10px 6px"><div class="si">💶</div><div class="sv" id="fk-imp-pend" style="font-size:15px">—</div><div class="sl">Pend. cobro</div></div>
           <div class="sc" style="--c:var(--verde);--bg:var(--verde-light);padding:10px 6px"><div class="si">💰</div><div class="sv" id="fk-imp-cobr" style="font-size:15px">—</div><div class="sl">Cobrado</div></div>
         </div>
@@ -4801,7 +4802,7 @@ try {
         </div>
         <div class="fg"><label>Serie / Número</label>
           <div style="display:flex;gap:6px">
-            <select id="fr_serie" style="width:120px;flex-shrink:0"></select>
+            <select id="fr_serie" onchange="fr_regenerarNumero()" style="width:120px;flex-shrink:0"></select>
             <input id="fr_numero" placeholder="Auto" style="flex:1" readonly>
           </div>
         </div>

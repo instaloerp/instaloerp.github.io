@@ -849,43 +849,77 @@ function abrirNuevoPresupuesto() {
 // ═══════════════════════════════════════════════
 //  GENERADOR DE NÚMERO AUTOMÁTICO
 // ═══════════════════════════════════════════════
-async function generarNumeroDoc(tipo) {
-  const prefijos = {presupuesto:'PRE-', albaran:'ALB-', factura:'FAC-', presupuesto_compra:'PRC-', pedido_compra:'PED-', recepcion:'REC-', factura_proveedor:'FPR-'};
+// Extrae el correlativo numérico de un número de factura, ignorando el año si va al final
+//   ASI98/2026       → 98
+//   F-V2-0001-2026   → 1
+//   F-V2-0001        → 1
+//   ASI-0099-2026    → 99
+function _extraerCorrelativo(numero) {
+  if (!numero) return 0;
+  // Quitar año (4 dígitos del 2000-2099) al final si está separado por / o -
+  const sinAnio = String(numero).replace(/[\/\-]20\d{2}$/, '');
+  const matches = sinAnio.match(/\d+/g);
+  if (!matches || !matches.length) return 0;
+  return parseInt(matches[matches.length - 1], 10) || 0;
+}
+
+// Genera el siguiente número correlativo del año actual para una serie+tipo dados.
+//   - Reinicia el contador cada 1 enero
+//   - Formato: {prefijo}-{####}-{AAAA}  (ej: ASI-0001-2026)
+//   - Si serieId está, se respeta; si no, se coge la primera serie del tipo (compat)
+async function generarNumeroDoc(tipo, serieId) {
+  const prefijos = {presupuesto:'PRE', albaran:'ALB', factura:'FAC', presupuesto_compra:'PRC', pedido_compra:'PED', recepcion:'REC', factura_proveedor:'FPR'};
   const tablas  = {presupuesto:'presupuestos', albaran:'albaranes', factura:'facturas', presupuesto_compra:'presupuestos_compra', pedido_compra:'pedidos_compra', recepcion:'recepciones', factura_proveedor:'facturas_proveedor'};
   const allSeries = series||[];
 
-  let s = allSeries.find(x => x.tipo === tipo);
-  if (!s && tipo === 'factura') s = allSeries.find(x => x.tipo === 'fact' || x.tipo === 'facturas');
-  if (!s && tipo === 'presupuesto') s = allSeries.find(x => x.tipo === 'pres' || x.tipo === 'presup');
-  if (!s && tipo === 'albaran') s = allSeries.find(x => x.tipo === 'alb' || x.tipo === 'albaran');
+  // Resolver la serie: si nos pasan serieId, usarla; si no, primera del tipo (compat)
+  let s = null;
+  if (serieId) s = allSeries.find(x => x.id === parseInt(serieId));
+  if (!s) {
+    s = allSeries.find(x => x.tipo === tipo);
+    if (!s && tipo === 'factura') s = allSeries.find(x => x.tipo === 'fact' || x.tipo === 'facturas');
+    if (!s && tipo === 'presupuesto') s = allSeries.find(x => x.tipo === 'pres' || x.tipo === 'presup');
+    if (!s && tipo === 'albaran') s = allSeries.find(x => x.tipo === 'alb' || x.tipo === 'albaran');
+  }
 
   const tabla = tablas[tipo] || tipo;
-  const prefijo = s?.prefijo || (s?.serie ? s.serie + '-' : null) || prefijos[tipo] || 'DOC-';
+  // Prefijo: serie del campo `serie` o `prefijo` (sin guion final), o default por tipo
+  const prefBase = (s?.serie || (s?.prefijo || '').replace(/-$/,'') || prefijos[tipo] || 'DOC').toUpperCase();
   const digitos = s?.digitos || 4;
+  const anio = new Date().getFullYear();
 
-  const { data: ultimo } = await sb.from(tabla)
-    .select('numero')
+  // Buscar el correlativo más alto DEL AÑO ACTUAL en facturas con esta serie
+  // Filtramos por serie_id si la tenemos, y si no por prefijo del número
+  let q = sb.from(tabla)
+    .select('numero, fecha, serie_id')
     .eq('empresa_id', EMPRESA.id)
     .not('numero','is',null)
     .not('numero','like','BORR-%')
-    .order('created_at', { ascending: false })
-    .limit(20);
+    .gte('fecha', `${anio}-01-01`)
+    .lte('fecha', `${anio}-12-31`);
+  if (s?.id) q = q.eq('serie_id', s.id);
+  const { data: filas } = await q;
 
   let maxNum = 0;
-  if (ultimo?.length) {
-    ultimo.forEach(d => {
-      const match = (d.numero||'').match(/(\d+)$/);
-      if (match) {
-        const n = parseInt(match[1], 10);
+  if (filas?.length) {
+    for (const d of filas) {
+      // Si la fila no tiene serie_id, doble-validar por prefijo (cubre históricos importados)
+      if (!s?.id || d.serie_id === s.id) {
+        const num = (d.numero || '').toUpperCase();
+        // Asegurarse de que empieza por el prefijo de esta serie
+        if (!num.startsWith(prefBase)) continue;
+        const n = _extraerCorrelativo(num);
         if (n > maxNum) maxNum = n;
       }
-    });
+    }
   }
 
+  // Si la serie tiene siguiente_numero configurado, respetarlo como suelo
   const base = s?.siguiente_numero ? Math.max(s.siguiente_numero - 1, maxNum) : maxNum;
   const siguiente = base + 1;
 
-  return prefijo + String(siguiente).padStart(digitos, '0');
+  // Formato: {prefijo}-{####}-{AAAA}  → ej: ASI-0001-2026, F-V2-0050-2026
+  return `${prefBase}-${String(siguiente).padStart(digitos, '0')}-${anio}`;
 }
 
 // ═══════════════════════════════════════════════

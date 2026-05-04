@@ -1492,7 +1492,9 @@ async function de_guardar(estado) {
   // Si ya tiene número BORR- y estamos re-guardando borrador, NO regenerar número
   const needsNewBorrNumber = !datos.numero || datos.numero === '(sin asignar)';
   if ((needsNumber || yaTieneBorrador) && estado !== 'borrador') {
-    datos.numero = await generarNumeroDoc(cfg.tipo);
+    // Pasar la serie elegida en el editor para que el correlativo se calcule correctamente
+    const _serieElegida = parseInt(document.getElementById('de_serie')?.value) || datos.serie_id || null;
+    datos.numero = await generarNumeroDoc(cfg.tipo, _serieElegida);
     document.getElementById('de_numero').value = datos.numero;
     document.getElementById('de_numero_bar').textContent = datos.numero;
   } else if (estado === 'borrador' && needsNewBorrNumber) {
