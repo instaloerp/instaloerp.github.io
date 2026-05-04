@@ -1625,10 +1625,43 @@ function _obFiltrarBancos(query) {
 
 async function _obSeleccionarBanco(institutionId, institutionCountry, cuentaId) {
   const body = document.getElementById('mOBBody');
+  // Paso 1: preguntar tipo de cliente (personal/empresa)
+  body.innerHTML = `
+    <div class="modal-h">
+      <span>🏦</span>
+      <h2>Tipo de cliente — ${institutionId}</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('mOB')">✕</button>
+    </div>
+    <div class="modal-b" style="padding:24px">
+      <p style="font-size:13px;color:var(--gris-500);margin-bottom:18px;line-height:1.5">
+        ¿Cómo te identificas en la banca electrónica de este banco?<br>
+        <strong>Importante:</strong> debe coincidir con cómo te logueas normalmente en su web.
+        Si te equivocas, el banco devolverá <code style="background:#fef2f2;color:#991b1b;padding:1px 5px;border-radius:3px;font-size:11px">server_error</code>.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <button onclick="_obContinuar('${institutionId}','${institutionCountry||'ES'}','${cuentaId}','business')" style="padding:18px 14px;border:2px solid var(--gris-200);border-radius:12px;background:#fff;cursor:pointer;text-align:left;transition:all .15s" onmouseover="this.style.borderColor='var(--azul)';this.style.background='var(--azul-light)'" onmouseout="this.style.borderColor='var(--gris-200)';this.style.background='#fff'">
+          <div style="font-size:24px;margin-bottom:6px">🏢</div>
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">Empresa / Autónomo</div>
+          <div style="font-size:11px;color:var(--gris-500);line-height:1.4">Cuentas a nombre de sociedad, comunidad o autónomo. Para Abanca: "Iniciar como Empresa".</div>
+        </button>
+        <button onclick="_obContinuar('${institutionId}','${institutionCountry||'ES'}','${cuentaId}','personal')" style="padding:18px 14px;border:2px solid var(--gris-200);border-radius:12px;background:#fff;cursor:pointer;text-align:left;transition:all .15s" onmouseover="this.style.borderColor='var(--azul)';this.style.background='var(--azul-light)'" onmouseout="this.style.borderColor='var(--gris-200)';this.style.background='#fff'">
+          <div style="font-size:24px;margin-bottom:6px">👤</div>
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">Particular</div>
+          <div style="font-size:11px;color:var(--gris-500);line-height:1.4">Cuentas personales. Para Abanca: "Iniciar como Particular".</div>
+        </button>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('mOB')">Cancelar</button>
+    </div>`;
+}
+
+async function _obContinuar(institutionId, institutionCountry, cuentaId, psuType) {
+  const body = document.getElementById('mOBBody');
   body.innerHTML = `
     <div style="padding:30px;text-align:center">
       <div class="spinner" style="margin:0 auto 12px"></div>
-      <div style="font-size:13px;color:var(--gris-400)">Creando enlace de autorización...</div>
+      <div style="font-size:13px;color:var(--gris-400)">Creando enlace de autorización (${psuType === 'business' ? 'Empresa' : 'Particular'})...</div>
     </div>`;
 
   try {
@@ -1641,7 +1674,8 @@ async function _obSeleccionarBanco(institutionId, institutionCountry, cuentaId) 
       institution_country: institutionCountry || 'ES',
       redirect_url: redirectUrl,
       empresa_id: EMPRESA.id,
-      cuenta_id: cuentaId
+      cuenta_id: cuentaId,
+      psu_type: psuType
     });
 
     body.innerHTML = `

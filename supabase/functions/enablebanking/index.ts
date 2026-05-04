@@ -105,12 +105,16 @@ async function startAuth(
   bankName: string,
   bankCountry: string,
   redirectUrl: string,
-  cuentaId: string
+  cuentaId: string,
+  psuType: string = "business",
 ) {
   // El state codifica la cuenta para el retorno
   const state = `instaloerp_${cuentaId}_${Date.now()}`;
 
   const validUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Validar psu_type (Enable Banking acepta "personal" o "business")
+  const validPsuType = ["personal", "business"].includes(psuType) ? psuType : "business";
 
   const data = await ebFetch("/auth", {
     method: "POST",
@@ -119,7 +123,7 @@ async function startAuth(
       aspsp: { name: bankName, country: bankCountry },
       state: state,
       redirect_url: redirectUrl,
-      psu_type: "personal",
+      psu_type: validPsuType,
     }),
   });
 
@@ -385,7 +389,7 @@ Deno.serve(async (req) => {
 
       // ── Iniciar conexión (redirect al banco) ──
       case "connect": {
-        const { institution_id, institution_country, redirect_url, empresa_id, cuenta_id } = body;
+        const { institution_id, institution_country, redirect_url, empresa_id, cuenta_id, psu_type } = body;
         if (!institution_id || !redirect_url || !empresa_id || !cuenta_id) {
           throw new Error(
             "Faltan parámetros: institution_id, redirect_url, empresa_id, cuenta_id"
@@ -396,7 +400,8 @@ Deno.serve(async (req) => {
           institution_id,
           country,
           redirect_url,
-          cuenta_id
+          cuenta_id,
+          psu_type || "business",
         );
 
         // Guardar state como requisition_id (reutilizamos la columna)
